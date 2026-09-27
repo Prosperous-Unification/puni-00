@@ -292,6 +292,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'serviceRefs_must_be_at_most_10':
     case 'typeIds_must_be_at_most_10':
     case 'typeRefs_must_be_at_most_10':
+    case 'work_item_takes_one_type':
     case 'tagIds_must_be_at_most_50':
     case 'tagRefs_must_be_at_most_50':
     case 'startNoEarlierThan_must_be_a_date':

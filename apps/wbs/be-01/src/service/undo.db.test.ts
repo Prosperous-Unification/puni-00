@@ -1599,11 +1599,13 @@ describe('a tag set is undone whole, which a scalar habit would not do', () => {
     return row.typeIds;
   }
 
-  it('puts a replaced type set back, whole', async () => {
+  it('puts a type conflict back, whole, after one type is kept', async () => {
     // `puts a replaced tag set back, whole`'s seam, one dimension over, and the
     // same silent failure: a scalar before-value makes the undo report done with
     // the row carrying one of the two labels it had, and nothing anywhere says a
-    // second was lost.
+    // second was lost. Since WBS 010.4.10 an authored write takes one type, so
+    // the two-type row is a stored type conflict (an older writer mid-swap, or
+    // legacy data) seeded through the store, and keeping one is the patch.
     //
     // Proof, two faults both watched 2026-08-30:
     //   `revertTo`'s type line written as `before.typeIds.slice(0, 1)` — failed
@@ -1614,17 +1616,46 @@ describe('a tag set is undone whole, which a scalar habit would not do', () => {
     const id = await root('Strip the roof');
     const bug = await typeNamed('Bug');
     const spike = await typeNamed('Spike');
-    const epic = await typeNamed('Epic');
 
     // Sorted, because the store answers in type-id order and the ids are random.
-    await workItems.patch(id, ownerId, { typeIds: [bug, spike] });
+    await workItemStore.patch(id, { typeIds: [bug, spike] }, wrote());
     expect([...(await typesOn(id))].sort()).toEqual([bug, spike].sort());
 
-    await workItems.patch(id, ownerId, { typeIds: [epic] });
-    expect(await typesOn(id)).toEqual([epic]);
+    expect((await workItems.patch(id, ownerId, { typeIds: [bug] })).ok).toBe(true);
+    expect(await typesOn(id)).toEqual([bug]);
 
     expectDone(await undone());
+    expect([...(await typesOn(id))].sort()).toEqual([bug, spike].sort());
 
+    expectDone(await workItems.redo(projectId, ownerId));
+    expect(await typesOn(id)).toEqual([bug]);
+  });
+
+  it('refuses an authored patch with two types, writing and journalling nothing', async () => {
+    // The service holds the rule, not only the parser: a caller reaching
+    // `WorkItemService.patch` without the command normalizers is still refused.
+    const id = await root('Strip the roof');
+    const bug = await typeNamed('Bug');
+    const spike = await typeNamed('Spike');
+    await workItems.patch(id, ownerId, { typeIds: [bug] });
+
+    expect(await workItems.patch(id, ownerId, { typeIds: [bug, spike] })).toEqual({
+      ok: false,
+      reason: 'work_item_takes_one_type',
+    });
+    expect(await typesOn(id)).toEqual([bug]);
+    // One undo takes the one accepted write back; nothing sits above it.
+    expectDone(await undone());
+    expect(await typesOn(id)).toEqual([]);
+  });
+
+  it('accepts an unrelated edit on a type conflict and leaves both types', async () => {
+    const id = await root('Strip the roof');
+    const bug = await typeNamed('Bug');
+    const spike = await typeNamed('Spike');
+    await workItemStore.patch(id, { typeIds: [bug, spike] }, wrote());
+
+    expect((await workItems.patch(id, ownerId, { name: 'Strip the whole roof' })).ok).toBe(true);
     expect([...(await typesOn(id))].sort()).toEqual([bug, spike].sort());
   });
 

@@ -2952,3 +2952,121 @@ describe('setting a row’s status as one act', () => {
     });
   });
 });
+
+describe('a work item takes one type', () => {
+  async function typeNamed(send: Send, token: string, name: string): Promise<string> {
+    return mintedId(await directoryCommand(send, token, { kind: 'createWorkItemType', name }));
+  }
+
+  async function typesOf(send: Send, token: string, projectId: string): Promise<string[][]> {
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const { workItems } = (await tree.json()) as { workItems: { typeIds: string[] }[] };
+    return workItems.map((each) => each.typeIds);
+  }
+
+  it('refuses two typeIds or two typeRefs with work_item_takes_one_type and writes nothing', async () => {
+    const { token, send, projectId } = await setup();
+    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const story = await typeNamed(send, token, 'Story');
+    const spike = await typeNamed(send, token, 'Spike');
+    const patch = (fields: Record<string, unknown>) =>
+      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+    expect((await patch({ typeIds: [story] })).status).toBe(200);
+
+    const twoIds = await patch({ typeIds: [story, spike] });
+    expect(twoIds.status).toBe(400);
+    expect(await twoIds.json()).toEqual({
+      error: 'work_item_takes_one_type',
+      at: 0,
+      kind: 'patchWorkItem',
+    });
+    const twoRefs = await patch({ typeRefs: ['a', 'b'] });
+    expect(twoRefs.status).toBe(400);
+    expect(await twoRefs.json()).toEqual({
+      error: 'work_item_takes_one_type',
+      at: 0,
+      kind: 'patchWorkItem',
+    });
+    expect(await typesOf(send, token, projectId)).toEqual([[story]]);
+  });
+
+  it('refuses two types at the parser, before any command in the batch applies', async () => {
+    // These in-memory stores have no rollback, so a rename before the refused
+    // patch survives unless the parser refused the batch before running it.
+    const { token, send, projectId } = await setup();
+    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const story = await typeNamed(send, token, 'Story');
+    const spike = await typeNamed(send, token, 'Spike');
+    for (const patch of [{ typeIds: [story, spike] }, { typeRefs: ['a', 'b'] }]) {
+      const res = await send(`/api/projects/${projectId}/commands`, token, {
+        method: 'POST',
+        body: JSON.stringify({
+          commands: [
+            { kind: 'patchWorkItem', workItemId: id, patch: { name: 'Renamed' } },
+            { kind: 'patchWorkItem', workItemId: id, patch },
+          ],
+        }),
+      });
+      expect([res.status, await res.json()]).toEqual([
+        400,
+        { error: 'work_item_takes_one_type', at: 1, kind: 'patchWorkItem' },
+      ]);
+      expect((await firstRow(send, token, projectId))['name']).toBe('Strip');
+    }
+  });
+
+  it('replaces with one, clears with none, and keeps the second of two successive patches', async () => {
+    const { token, send, projectId } = await setup();
+    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const story = await typeNamed(send, token, 'Story');
+    const spike = await typeNamed(send, token, 'Spike');
+    const epic = await typeNamed(send, token, 'Epic');
+    const patch = (fields: Record<string, unknown>) =>
+      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+
+    expect((await patch({ typeIds: [story] })).status).toBe(200);
+    expect(await typesOf(send, token, projectId)).toEqual([[story]]);
+    // A duplicate names one type, and the store deduplicates it.
+    expect((await patch({ typeIds: [spike, spike] })).status).toBe(200);
+    expect(await typesOf(send, token, projectId)).toEqual([[spike]]);
+    expect((await patch({ typeIds: [] })).status).toBe(200);
+    expect(await typesOf(send, token, projectId)).toEqual([[]]);
+
+    const batch = await send(`/api/projects/${projectId}/commands`, token, {
+      method: 'POST',
+      body: JSON.stringify({
+        commands: [
+          { kind: 'patchWorkItem', workItemId: id, patch: { typeIds: [spike] } },
+          { kind: 'patchWorkItem', workItemId: id, patch: { typeIds: [epic] } },
+        ],
+      }),
+    });
+    expect(batch.status).toBe(200);
+    expect(await typesOf(send, token, projectId)).toEqual([[epic]]);
+  });
+
+  it('refuses a batch whose third command binds two types, naming that command', async () => {
+    const { token, send, projectId } = await setup();
+    const story = await typeNamed(send, token, 'Story');
+    const res = await send(`/api/projects/${projectId}/commands`, token, {
+      method: 'POST',
+      body: JSON.stringify({
+        commands: [
+          { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Strip' },
+          { kind: 'createWorkItemType', ref: 't', name: 'Spike' },
+          // One id and one ref resolve to two types only after refs are bound,
+          // so this reaches the service's own check rather than the parser's.
+          { kind: 'patchWorkItem', workItemRef: 'w', patch: { typeIds: [story], typeRefs: ['t'] } },
+        ],
+      }),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'work_item_takes_one_type',
+      at: 2,
+      kind: 'patchWorkItem',
+    });
+    // Atomicity needs real rollback, which these in-memory stores do not have:
+    // `a command batch` in plan-commands.db.test.ts asserts it on SQLite.
+  });
+});
