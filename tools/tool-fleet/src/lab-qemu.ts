@@ -323,7 +323,8 @@ async function waitFor(
   const deadline = Date.now() + deadlineMs;
   while (!(await predicate())) {
     if (Date.now() >= deadline) {
-      // Bounded by design; not fault-injected (see openspec/changes/k3s-fleet/verify.md).
+      // Proof: with this throw removed, `refuses when no pid file appears within the bound` hit
+      // Bun's 5000ms test timeout instead of this message (2026-09-27).
       throw new Error(`${description} did not happen within ${String(deadlineMs)}ms`);
     }
     await Bun.sleep(intervalMs);
@@ -567,11 +568,26 @@ export async function launchQemuMachine(
   await startQemuMachine(machine, qemuPrefix, run);
 }
 
-/** Boot an existing stopped machine from its retained disk and seed. */
+/**
+ * How long a daemonized start gets to leave an owned machine process behind. The start command
+ * can return before the pid file names a process whose command line has reached this machine's
+ * arguments, as CI observed on 2026-09-21.
+ */
+const QEMU_PID_DEADLINE_MS = 10_000;
+const QEMU_PID_POLL_MS = 50;
+
+/**
+ * Boot an existing stopped machine from its retained disk and seed, then wait a bounded time for
+ * its owned process.
+ * @throws Error when no owned process appears within `pidDeadlineMs`, including a pid file that
+ *   names another process or a daemon that already exited; a malformed or unreadable pid file
+ *   throws at once.
+ */
 export async function startQemuMachine(
   machine: QemuMachinePlan,
   qemuPrefix: string,
   run: RunQemuCommand,
+  pidDeadlineMs = QEMU_PID_DEADLINE_MS,
 ): Promise<void> {
   if ((await ownedQemuPid(machine)) !== undefined) return;
   await rm(join(machine.directory, 'qemu.pid'), { force: true });
@@ -581,10 +597,14 @@ export async function startQemuMachine(
     qemuMachineArguments(qemuPrefix, machine),
     environmentFor(qemuPrefix),
   );
-  if ((await ownedQemuPid(machine)) === undefined) {
-    // QEMU's daemonize exit alone does not prove the machine stayed up; not fault-injected.
-    throw new Error(`QEMU did not leave ${machine.name} running`);
-  }
+  // Proof: checking once instead made `waits for a daemon that writes its owned pid after the
+  // start command returns` reject with `QEMU did not leave puni-vm-start-server-1 running`.
+  await waitFor(
+    async () => (await ownedQemuPid(machine)) !== undefined,
+    pidDeadlineMs,
+    `QEMU machine ${machine.name} start`,
+    QEMU_PID_POLL_MS,
+  );
 }
 
 /**

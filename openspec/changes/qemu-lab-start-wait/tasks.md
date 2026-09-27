@@ -1,0 +1,3 @@
+- [x] 1. Add focused start tests: delayed owned pid, no pid file, foreign process, exited daemon, malformed and unreadable pid files; watch the delayed case fail on the immediate check.
+- [x] 2. Replace the immediate check with a bounded poll over `ownedQemuPid`.
+- [x] 3. Record R5 proofs for the poll and for the deadline's throw; run lint, typecheck, tests and OpenSpec validation.
