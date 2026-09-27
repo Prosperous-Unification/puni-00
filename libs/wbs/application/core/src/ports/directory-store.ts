@@ -278,6 +278,13 @@ export interface DirectoryCatalogRows {
 
 export type DirectoryCatalog = keyof DirectoryCatalogRows;
 
+/** The catalogs a directory command creates and renames by name. */
+export type NamedCatalog = Exclude<DirectoryCatalog, 'externalSystems'>;
+
+/** What an organization-local rename answered; see {@link DirectoryStore.renameInOrganization}. */
+export type OrganizationRenamed =
+  { ok: true; projectIds: TouchedProjects } | { ok: false; reason: 'not_found' | 'taken' };
+
 export interface DirectoryStore {
   /**
    * One catalog as one organization sees it: only the entries it owns, under
@@ -292,6 +299,39 @@ export interface DirectoryStore {
     catalog: C,
     organizationId: string,
   ): Promise<DirectoryCatalogRows[C]>;
+  /**
+   * Maps a root that has just been created to `organizationId` under its
+   * organization-local display name. The root itself carries an opaque name.
+   *
+   * @throws when the root is already mapped or another root of the
+   * organization holds the name: the ownership freeze refuses both, and the
+   * caller checked the name inside the same unit of work.
+   */
+  mapInOrganization(
+    catalog: DirectoryCatalog,
+    resourceId: string,
+    organizationId: string,
+    name: string,
+  ): Promise<void>;
+  /**
+   * Renames one entry's organization-local display name; the root keeps its
+   * opaque name. `not_found` for an entry the organization does not own, alike
+   * for a foreign and an absent one; `taken` for a name another of its entries
+   * holds. Answers the projects whose rows name the entry, for the
+   * announcement.
+   *
+   * @throws when a project outside the organization names the entry: corrupt
+   * trusted state, never a project to announce to.
+   */
+  renameInOrganization(
+    catalog: NamedCatalog,
+    resourceId: string,
+    organizationId: string,
+    name: string,
+    stamp: WriteStamp,
+  ): Promise<OrganizationRenamed>;
+  /** Which of `projectIds` the organization does not own. */
+  projectsOutside(projectIds: readonly string[], organizationId: string): Promise<string[]>;
   /** Every tag in the global directory, by name. */
   listTags(): Promise<Tag[]>;
   /**

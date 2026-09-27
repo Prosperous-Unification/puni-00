@@ -7,6 +7,8 @@ import type {
   DirectoryUsageRows,
   ExternalRef,
   ExternalSystem,
+  NamedCatalog,
+  OrganizationRenamed,
   PersonAdded,
   PersonInsert,
   PersonPatch,
@@ -24,7 +26,7 @@ import type {
   WorkItemTypeWritten,
   WriteStamp,
 } from '@wbs/core';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -272,6 +274,23 @@ function usageRowsIn(
   };
 }
 
+/**
+ * Each catalog's root table and ownership side table, by name. Written out
+ * rather than derived: the organization-local writes address them as raw SQL,
+ * because the six side tables share a shape drizzle cannot express as one
+ * parameter type.
+ */
+const CATALOG_TABLES: Readonly<
+  Record<DirectoryCatalog, { readonly root: string; readonly side: string }>
+> = {
+  people: { root: 'person', side: 'person_organization' },
+  teams: { root: 'service_team', side: 'service_team_organization' },
+  services: { root: 'service', side: 'service_organization' },
+  tags: { root: 'tag', side: 'tag_organization' },
+  workItemTypes: { root: 'work_item_type', side: 'work_item_type_organization' },
+  externalSystems: { root: 'external_system', side: 'external_system_organization' },
+};
+
 /** The projects holding a work item this removal would touch, with no duplicates. */
 function projectsOf(rows: readonly { projectId: string }[]): string[] {
   return [...new Set(rows.map((each) => each.projectId))];
@@ -498,6 +517,100 @@ export class DirectoryRepository implements DirectoryStore {
       if (found === undefined) throw new Error(`team vanished after insert: ${toAdd.name}`);
       return found;
     });
+  }
+
+  async mapInOrganization(
+    catalog: DirectoryCatalog,
+    resourceId: string,
+    organizationId: string,
+    name: string,
+  ): Promise<void> {
+    await this.gate.enter(async () => {
+      await Promise.resolve();
+      const { side } = CATALOG_TABLES[catalog];
+      this.db.run(
+        sql`INSERT INTO ${sql.raw(side)} (resource_id, organization_id, name) VALUES (${resourceId}, ${organizationId}, ${name})`,
+      );
+    });
+  }
+
+  /**
+   * Proof, each watched 2026-09-27 in
+   * `directory-command-organization.controller.db.test.ts`:
+   * - Finding the entry by resource id alone made `answers a foreign entry
+   *   exactly as an absent one, changing nothing` answer 200 and rename B's
+   *   tag.
+   * - Skipping the name check made `renames only the organization-local
+   *   name, refusing one another entry holds` answer 500, from the freeze
+   *   trigger, instead of 409.
+   * - Skipping the foreign-project check made `fails closed on a directory
+   *   entry a foreign project names` answer the rename with 200 instead of
+   *   500.
+   */
+  async renameInOrganization(
+    catalog: NamedCatalog,
+    resourceId: string,
+    organizationId: string,
+    name: string,
+    stamp: WriteStamp,
+  ): Promise<OrganizationRenamed> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      const { root, side } = CATALOG_TABLES[catalog];
+      return this.db.transaction((tx) => {
+        const held = tx.get<{ id: string } | undefined>(
+          sql`SELECT resource_id AS id FROM ${sql.raw(side)} WHERE resource_id = ${resourceId} AND organization_id = ${organizationId}`,
+        );
+        if (held === undefined) return { ok: false, reason: 'not_found' };
+        const clash = tx.get<{ id: string } | undefined>(
+          sql`SELECT resource_id AS id FROM ${sql.raw(side)} WHERE organization_id = ${organizationId} AND name = ${name} AND resource_id != ${resourceId}`,
+        );
+        if (clash !== undefined) return { ok: false, reason: 'taken' };
+        tx.run(sql`UPDATE ${sql.raw(side)} SET name = ${name} WHERE resource_id = ${resourceId}`);
+        tx.run(
+          sql`UPDATE ${sql.raw(root)} SET updated_at = ${auditOnUpdate(stamp).updatedAt} WHERE id = ${resourceId}`,
+        );
+        const touched: Record<NamedCatalog, () => string[]> = {
+          people: () => this.projectsAssigning(tx, resourceId),
+          teams: () => this.projectsLabelled(tx, resourceId),
+          services: () => this.projectsServiced(tx, resourceId),
+          tags: () => this.projectsTagged(tx, resourceId),
+          workItemTypes: () => this.projectsTyped(tx, resourceId),
+        };
+        const projectIds = touched[catalog]();
+        const outside = this.projectsOutsideIn(tx, projectIds, organizationId);
+        if (outside.length > 0) {
+          throw new Error(
+            `${catalog} entry "${resourceId}" of organization "${organizationId}" is named by a foreign project`,
+          );
+        }
+        return { ok: true, projectIds };
+      });
+    });
+  }
+
+  async projectsOutside(projectIds: readonly string[], organizationId: string): Promise<string[]> {
+    await Promise.resolve();
+    return this.projectsOutsideIn(this.db, projectIds, organizationId);
+  }
+
+  private projectsOutsideIn(
+    reader: Pick<SQLiteBunDatabase, 'all'>,
+    projectIds: readonly string[],
+    organizationId: string,
+  ): string[] {
+    if (projectIds.length === 0) return [];
+    const owned = new Set(
+      reader
+        .all<{ id: string }>(
+          sql`SELECT resource_id AS id FROM project_organization WHERE organization_id = ${organizationId} AND resource_id IN (${sql.join(
+            projectIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})`,
+        )
+        .map((row) => row.id),
+    );
+    return projectIds.filter((id) => !owned.has(id));
   }
 
   /** Every tag in the global directory, by name — {@link DirectoryStore.listTeams}' shape. */

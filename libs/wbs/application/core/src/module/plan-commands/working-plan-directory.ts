@@ -33,6 +33,16 @@ export function createWorkingPlanDirectory(
   return {
     listInOrganization: (catalog, organizationId) =>
       source().listInOrganization(catalog, organizationId),
+    mapInOrganization: afterWrite(
+      (...parameters) => source().mapInOrganization(...parameters),
+      always,
+    ),
+    renameInOrganization: afterWrite(
+      (...parameters) => source().renameInOrganization(...parameters),
+      ok,
+    ),
+    projectsOutside: (projectIds, organizationId) =>
+      source().projectsOutside(projectIds, organizationId),
     listTags: () => source().listTags(),
     addTag: afterWrite((...parameters) => source().addTag(...parameters), always),
     renameTag: afterWrite((...parameters) => source().renameTag(...parameters), ok),
