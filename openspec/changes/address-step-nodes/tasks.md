@@ -24,9 +24,9 @@
 
 ## 5. Address commands by step node ID
 
-- [ ] 5.1 Red: mounted estimate, clear, actual, measure, progress and assignment by step node ID; both-or-neither refusal; old request shapes unchanged; one undo per edit.
-- [ ] 5.2 Extend command normalizers and generated OpenAPI/MCP schemas; expose node IDs and references on work-item reads.
-- [ ] 5.3 Negative proof: accept a request with both address forms; watch the refusal test fail, restore, add adjacent `Proof:`.
+- [x] 5.1 Red: mounted estimate, clear, actual, measure, progress and assignment by step node ID; both-or-neither refusal; old request shapes unchanged; one undo per edit.
+- [x] 5.2 Extend command normalizers and generated OpenAPI/MCP schemas; expose node IDs and references on work-item reads.
+- [x] 5.3 Negative proof: accept a request with both address forms; watch the refusal test fail, restore, add adjacent `Proof:`.
 
 ## 6. Resolve the graph through one seam
 
