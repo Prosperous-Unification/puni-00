@@ -241,6 +241,10 @@ export class LiveField {
    * completion is the normal case rather than the edge.
    */
   private submissions = 0;
+  /** How many times this field has written into its box, which typing never does. */
+  private boxWrites = 0;
+  /** How many new server values this field has heard, one per change of {@link latest}. */
+  private serverChanges = 0;
 
   /**
    * Sends what this field holds. Reassigned by the face on **every render**,
@@ -303,6 +307,7 @@ export class LiveField {
     const held = heldRefusals.get(this.cellKey);
     if (held !== undefined && node.value !== held) {
       node.value = held;
+      this.boxWrites += 1;
       this.refused = true;
       this.typedHere = false;
     }
@@ -319,6 +324,7 @@ export class LiveField {
    * Rules 1, 2 and 4 decide together whether it reaches the box.
    */
   serverSaid(value: string): void {
+    if (value !== this.latest) this.serverChanges += 1;
     this.latest = value;
     this.sync();
     // After the sync, not before: the height has to follow the value the node
@@ -346,8 +352,9 @@ export class LiveField {
     // Rule 2. `document.activeElement` rather than a focus/blur flag of our own:
     // the question is only ever asked about right now, and the DOM already knows
     // the answer without a second copy of it to keep in step.
-    if (this.isBeingTypedIn()) return;
+    if (this.typedHere && node === document.activeElement) return;
     node.value = this.latest;
+    this.boxWrites += 1;
     this.shown = this.latest;
     this.typedHere = false;
   }
@@ -395,11 +402,6 @@ export class LiveField {
     // Watched in Chromium, 2026-08-09.
     this.afterSync(this.node);
     return unsent();
-  }
-
-  /** Whether somebody has typed in this field's box and still has the focus in it. */
-  private isBeingTypedIn(): boolean {
-    return this.typedHere && this.node !== null && this.node === document.activeElement;
   }
 
   /** The half of {@link leave} that has something to send. */
@@ -455,6 +457,8 @@ export class LiveField {
     // been typed since, and what a refusal has to hold is what was refused.
     const baseline = this.shown;
     const generation = ++this.submissions;
+    const boxWritesAtSubmit = this.boxWrites;
+    const serverChangesAtSubmit = this.serverChanges;
     const landing = this.send(text, baseline).then((outcome) => {
       // Only the newest commit for this cell may write what it heard back.
       // Read before anything below it, and before `outcome` is acted on at
@@ -498,39 +502,50 @@ export class LiveField {
       }
       this.refused = false;
       heldRefusals.delete(this.cellKey);
-      // The reader is already back in the cell and typing, so rule 2 holds
-      // the write below — but what landed is on the server now, and it is what
-      // this box held when they came back, so it is the baseline their typing
-      // is on top of. Left on the name from before the edit, typing back to
-      // the saved name read as a fresh edit on the next blur, rule 5 answered
-      // it from this very submission, and nothing ever released the peer's
-      // name rule 2 had held back. On a slow round trip that is
-      // `e2e/name-cell.spec.ts`'s peer rename, failing on CI only.
-      // Proof: this branch removed, `a peer name held back behind a slow
-      // landing arrives when the cell is left` failed on `expected 'Strip the
-      // wiring' to be 'Survey the racking'`, and the browser case with every
-      // command held 1.5s failed 5/5 on `the peer name never reached the box`
-      // with `Received: "Strip the wiring"`. Watched, 2026-09-27.
+      // What landed is on the server now, and unless this field has written
+      // into the box since, it is the baseline the box's text starts from —
+      // including when the reader is already back in the cell typing on top of
+      // it, where rule 2 holds the write below. Left on the name from before
+      // the save, typing back to the saved name read as a fresh edit on the
+      // next blur, rule 5 answered it from this very submission, and nothing
+      // ever released the peer's name rule 2 had held back. On a slow round
+      // trip that is `e2e/name-cell.spec.ts`'s peer rename, failing on CI only.
+      // Proof: this `shown` advance removed, `a peer name held back behind a
+      // slow landing arrives when the cell is left` failed on `expected 'Strip
+      // the wiring' to be 'Survey the racking'`, `a peer's revert heard before
+      // a slow landing is not overwritten` on `expected 'Beta' to be 'Alpha'`,
+      // and the browser case `a peer's longer name still arrives when my own
+      // save came back while I was typing` failed 5/5 on `the peer name never
+      // reached the box` with `Received: "Strip the wiring"`. Watched,
+      // 2026-09-27.
       //
-      // Only while typing is held: a box nobody is in takes `latest` from
-      // `sync` as it always has, and a face can have rewritten its node since
-      // the blur, so `shown` is not assumed to match it. Unconditional, this
-      // broke `does not spend an old API success against its busy
-      // replacement` on `Received: "Departed write"`. Watched, 2026-09-27.
-      if (this.isBeingTypedIn()) {
-        // The answer can beat its own refetch, and a `latest` still on the
-        // baseline is older than what just landed rather than a newer server
-        // value for the blur to write over it. A peer's edit that did arrive
-        // stays for `sync`.
+      // Not after a write of this field's own: a peer's name written in between is
+      // what the reader then typed over, so the saved text is not their baseline
+      // and their edit must still go out. Proof: the `boxWrites` condition
+      // removed, `a save landing under an edit made over a peer name still sends
+      // it` failed on `expected [ [ 'Beta', 'Alpha' ] ] to deeply equal [ [
+      // 'Beta', 'Alpha' ], …(1) ]`, and `does not spend an old API success against
+      // its busy replacement` on `Received: "Departed write"`. Watched,
+      // 2026-09-27.
+      if (this.boxWrites === boxWritesAtSubmit) {
+        // The answer can beat the render of its own covering read — it
+        // resolves on the read, not on the render — and with no new server
+        // value heard since the submission, `latest` is still the name from
+        // before it rather than a newer value for the blur to write over the
+        // saved one. A value heard since stays, even one that equals the old
+        // name: text alone cannot tell a stale read from a peer's revert.
         // Proof: this line removed, `a landing that beats its own refetch
         // leaves the saved name in the box` failed on `expected '' to be
-        // 'Strip the wiring'`. Watched, 2026-09-27.
-        if (this.latest === baseline) this.latest = text;
+        // 'Strip the wiring'`; `serverChanges` left out of its condition, `a
+        // peer's revert heard before a slow landing is not overwritten` failed
+        // on `expected 'Beta' to be 'Alpha'`. Watched, 2026-09-27.
+        if (this.serverChanges === serverChangesAtSubmit) this.latest = text;
         this.shown = text;
       }
-      // The refetch this commit triggered lands *before* it resolves, so a
-      // draft that rule 4 held back was held back through the one render
-      // that carried its answer. Nothing else would come.
+      // The covering read this commit triggered finishes *before* it
+      // resolves, so a draft that rule 4 held back may have been held back
+      // through the one render that carried its answer. Nothing else would
+      // come.
       this.sync();
       this.afterSync(this.node);
       return outcome;
