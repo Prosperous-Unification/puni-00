@@ -47,18 +47,22 @@ consistent URLs` (http.test.ts) checks status, JSON content type and resource/is
 
 ### 2. Bounded redirects
 
-- `isRedirect` admits the six reviewed hosted callbacks as exact strings and a literal loopback
-  host (`localhost`, `127.0.0.1`, `[::1]`) over HTTP(S) at any port from 1 to 65535. A loopback
-  query may not pre-set `code`, `state`, `iss` or `error*`. ChatGPT's stable
-  `https://chatgpt.com/connector_platform_oauth_redirect` is admitted because every
-  authorization response now carries the RFC 9207 `iss` and metadata advertises
-  `authorization_response_iss_parameter_supported`. Callback-ID URIs stay out.
-- `OAuth client redirects` (oauth.test.ts) covers each hosted entry, seven loopback shapes, 35
+- `isRedirect` admits the five reviewed hosted callbacks (Claude twice, VS Code web, Perplexity
+  twice) as exact strings and a literal loopback host (`localhost`, `127.0.0.1`, `[::1]`) over
+  HTTP(S) at any port from 1 to 65535. A loopback query may not pre-set `code`, `state`, `iss` or
+  `error*`. Every authorization response now carries the RFC 9207 `iss` and metadata advertises
+  `authorization_response_iss_parameter_supported`, which is ChatGPT's first condition.
+  ChatGPT's stable `https://chatgpt.com/connector_platform_oauth_redirect` is still refused: its
+  second condition, a connection observed displaying that exact URI, is unmet, so it and any
+  callback-ID URI enter only as a reviewed entry after that observation.
+- `OAuth client redirects` (oauth.test.ts) covers each hosted entry, seven loopback shapes, 36
   near-misses, a loopback flow at its own port, another-port and substituted-redirect token
   refusals, exact per-client authorization and `iss` on success and `access_denied`.
   `bunx nx run wbs-mcp-01:test --skip-nx-cache`: 267 tests, all pass.
 - R5 proof: a parsed `hostname.endsWith` hosted match failed nine near-miss cases with
-  `Expected: 400`, `Received: 201`. Removing the token `redirect_uri` comparison failed the
+  `Expected: 400`, `Received: 201`. Skipping the literal loopback pattern failed 127.1,
+  LOCALHOST, ports 0 and 080 and `javascript://localhost`; dropping the response-field check
+  failed the four planted-query cases. Removing the token `redirect_uri` comparison failed the
   substitution and loopback other-port tests with `Received: 200`. Both restored.
-- Not proven: that ChatGPT's connection displays the stable URI, and that Claude, VS Code and
+- Not proven: which callback a ChatGPT connection displays, and that Claude, VS Code and
   Perplexity accept the added `iss` parameter. Both need the live client acceptance run.

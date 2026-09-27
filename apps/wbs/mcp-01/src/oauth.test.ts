@@ -1680,7 +1680,6 @@ describe('OAuth client redirects', () => {
     'https://vscode.dev/redirect',
     'https://www.perplexity.ai/rest/connections/oauth_callback',
     'https://enterprise.perplexity.ai/rest/connections/oauth_callback',
-    'https://chatgpt.com/connector_platform_oauth_redirect',
   ];
 
   it.each(HOSTED)('registers the reviewed hosted callback %s', async (uri) => {
@@ -1721,6 +1720,7 @@ describe('OAuth client redirects', () => {
     'https://vscode.dev/a/../redirect',
     'https://perplexity.ai/rest/connections/oauth_callback',
     'https://www.perplexity.ai.evil.example/rest/connections/oauth_callback',
+    'https://chatgpt.com/connector_platform_oauth_redirect',
     'https://chatgpt.com/connector/oauth/abc123',
     'https://chatgpt.com/connector_platform_oauth_redirect/extra',
     'https://10.0.0.1/callback',
@@ -1861,18 +1861,11 @@ describe('OAuth client redirects', () => {
   });
 
   // RFC 9207: the issuer in every authorization response lets a client with several
-  // authorization servers (ChatGPT's stable callback) detect a mix-up.
+  // authorization servers detect a mix-up; ChatGPT requires it before its callback is admitted.
   it('names the WBS issuer on successful and failed authorization redirects', async () => {
     const { oauth } = fixture();
-    const clientId = await registeredClient(oauth, [
-      'https://chatgpt.com/connector_platform_oauth_redirect',
-    ]);
-    const success = await codeFor(
-      oauth,
-      clientId,
-      'https://chatgpt.com/connector_platform_oauth_redirect',
-      'i'.repeat(43),
-    );
+    const clientId = await registeredClient(oauth, ['https://vscode.dev/redirect']);
+    const success = await codeFor(oauth, clientId, 'https://vscode.dev/redirect', 'i'.repeat(43));
     expect(success.searchParams.get('iss')).toBe('https://dev.wbs.bulletpoints.club/mcp/oauth');
     expect(success.searchParams.get('code')).not.toBeNull();
 

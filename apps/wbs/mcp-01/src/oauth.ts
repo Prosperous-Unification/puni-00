@@ -1103,9 +1103,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
 /**
  * Reviewed hosted callbacks, admitted only as these exact strings: a parsed comparison would let
  * `https://VSCODE.dev:443/a/../redirect` normalize into an entry. Every other hosted callback,
- * including ChatGPT's `https://chatgpt.com/connector/oauth/{callback_id}` form and Cursor or
- * Copilot Studio installations, needs its own reviewed entry here. ChatGPT's stable URI is
- * admitted because authorization responses carry the RFC 9207 issuer (see `callback`).
+ * including Cursor or Copilot Studio installations, needs its own reviewed entry here.
+ * ChatGPT is not admitted yet: authorization responses now carry the RFC 9207 issuer it
+ * requires, but its stable `https://chatgpt.com/connector_platform_oauth_redirect` (or a
+ * `https://chatgpt.com/connector/oauth/{callback_id}`) enters only once a connection is observed
+ * displaying that exact URI (design.md, "Redirect policy").
  */
 const HOSTED_REDIRECTS: ReadonlySet<string> = new Set([
   'https://claude.ai/api/mcp/auth_callback',
@@ -1113,7 +1115,6 @@ const HOSTED_REDIRECTS: ReadonlySet<string> = new Set([
   'https://vscode.dev/redirect',
   'https://www.perplexity.ai/rest/connections/oauth_callback',
   'https://enterprise.perplexity.ai/rest/connections/oauth_callback',
-  'https://chatgpt.com/connector_platform_oauth_redirect',
 ]);
 
 /**
@@ -1131,6 +1132,8 @@ function isRedirect(value: unknown): value is string {
   // Proof: on 2026-09-27, a parsed `hostname.endsWith` match here failed `refuses the near-miss
   // callback` for evilvscode.dev, VSCODE.dev, :443 and the dot-segment path (oauth.test.ts).
   if (HOSTED_REDIRECTS.has(value)) return true;
+  // Proof: on 2026-09-27, skipping this pattern failed `refuses the near-miss callback` for
+  // 127.1, LOCALHOST, ports 0 and 080, and javascript://localhost (oauth.test.ts).
   if (!LOOPBACK_REDIRECT.test(value)) return false;
   let url: URL;
   try {
@@ -1139,10 +1142,13 @@ function isRedirect(value: unknown): value is string {
     return false;
   }
   return (
+    (url.protocol === 'http:' || url.protocol === 'https:') &&
     url.username === '' &&
     url.password === '' &&
     url.hash === '' &&
     ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) &&
+    // Proof: on 2026-09-27, dropping this failed `refuses the near-miss callback` for the
+    // `code`, `state`, `iss` and `error` query cases (oauth.test.ts).
     RESPONSE_FIELDS.every((field) => !url.searchParams.has(field))
   );
 }
