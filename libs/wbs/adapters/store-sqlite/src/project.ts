@@ -19,7 +19,7 @@ import {
   PertWeights,
 } from '@wbs/domain';
 import { type } from '@wbs/validation';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import {
@@ -35,6 +35,7 @@ import {
   optimizationGeneration,
   project,
   projectAccess,
+  projectOrganization,
   type ScheduleEngine,
   type SolverObjectiveName,
   solverQueue,
@@ -309,6 +310,36 @@ export class ProjectRepository implements ProjectStore {
     startingSteps: readonly Step[],
     stamp: WriteStamp,
   ): Promise<Project> {
+    return await this.insert(toCreate, startingSteps, stamp, null);
+  }
+
+  /**
+   * {@link create} plus the project's organization mapping, in the same
+   * transaction. After activation the bridge triggers map nothing, so this row
+   * is the only thing that makes the new project visible to its organization.
+   * Before activation the bridge has already mapped the project to the legacy
+   * organization and this insert fails on the mapping's primary key: scoped
+   * creation is refused rather than double-mapped.
+   *
+   * Proof: dropping the mapping insert made `creates a project only its own
+   * organization can see` in `project-organization.controller.db.test.ts`
+   * answer 404 for the creator's own read; watched 2026-09-27.
+   */
+  async createInOrganization(
+    toCreate: NewProject,
+    startingSteps: readonly Step[],
+    stamp: WriteStamp,
+    organizationId: string,
+  ): Promise<Project> {
+    return await this.insert(toCreate, startingSteps, stamp, organizationId);
+  }
+
+  private async insert(
+    toCreate: NewProject,
+    startingSteps: readonly Step[],
+    stamp: WriteStamp,
+    organizationId: string | null,
+  ): Promise<Project> {
     return await this.gate.enter(async () => {
       await Promise.resolve();
       // Stated here rather than left to the column defaults, because this method
@@ -332,6 +363,8 @@ export class ProjectRepository implements ProjectStore {
             ...auditOnCreateBesidesCreatedAt(stamp),
           })
           .run();
+        if (organizationId !== null)
+          tx.insert(projectOrganization).values({ resourceId: written.id, organizationId }).run();
         if (startingSteps.length > 0)
           tx.insert(step)
             .values(startingSteps.map((starting) => ({ ...starting, ...auditOnCreate(stamp) })))
@@ -345,6 +378,32 @@ export class ProjectRepository implements ProjectStore {
     const rows = await this.db.select().from(project).where(eq(project.id, id)).limit(1);
     const found = rows.at(0);
     return found === undefined ? null : toProject(found);
+  }
+
+  /**
+   * {@link findById} confined to one organization: a foreign project and an
+   * absent one are both null, so no caller can tell them apart.
+   *
+   * Proof: dropping the organization predicate made `answers 404 alike for a
+   * foreign and an absent project, and changes nothing` in
+   * `project-organization.controller.db.test.ts` answer the foreign project with
+   * 200; watched 2026-09-27.
+   */
+  async findInOrganization(id: string, organizationId: string): Promise<Project | null> {
+    const rows = await this.db
+      .select({ project })
+      .from(project)
+      .innerJoin(
+        projectOrganization,
+        and(
+          eq(projectOrganization.resourceId, project.id),
+          eq(projectOrganization.organizationId, organizationId),
+        ),
+      )
+      .where(eq(project.id, id))
+      .limit(1);
+    const found = rows.at(0);
+    return found === undefined ? null : toProject(found.project);
   }
 
   async findBySolutionSlug(slug: string): Promise<Project | null> {
@@ -390,6 +449,27 @@ export class ProjectRepository implements ProjectStore {
    * @throws when a listed project's owner id names no account.
    */
   async listFor(userId: string): Promise<ProjectWithAccess[]> {
+    return await this.listOrdered(userId, null);
+  }
+
+  /**
+   * {@link listFor} confined to one organization's projects.
+   *
+   * Proof: dropping the organization predicate made `lists only the active
+   * organization's projects` in `project-organization.controller.db.test.ts`
+   * list the foreign project; watched 2026-09-27.
+   */
+  async listForInOrganization(
+    userId: string,
+    organizationId: string,
+  ): Promise<ProjectWithAccess[]> {
+    return await this.listOrdered(userId, organizationId);
+  }
+
+  private async listOrdered(
+    userId: string,
+    organizationId: string | null,
+  ): Promise<ProjectWithAccess[]> {
     const rows = await this.db
       .select({
         id: project.id,
@@ -423,6 +503,17 @@ export class ProjectRepository implements ProjectStore {
         and(eq(projectAccess.projectId, project.id), eq(projectAccess.userId, userId)),
       )
       .leftJoin(users, eq(users.id, project.ownerId))
+      .where(
+        organizationId === null
+          ? undefined
+          : inArray(
+              project.id,
+              this.db
+                .select({ id: projectOrganization.resourceId })
+                .from(projectOrganization)
+                .where(eq(projectOrganization.organizationId, organizationId)),
+            ),
+      )
       .orderBy(desc(projectAccess.lastOpenedAt), desc(project.createdAt));
     return rows.map((row) => toProject(withOwnerName(row)));
   }
@@ -452,7 +543,87 @@ export class ProjectRepository implements ProjectStore {
     });
   }
 
+  /**
+   * {@link recordOpen} only while `organizationId` still owns the project,
+   * checked in the write's own transaction: false, and nothing recorded,
+   * otherwise.
+   *
+   * Proof: skipping the ownership check made `records an open and a write only
+   * while the organization owns the project` in `project.db.test.ts` answer
+   * true for the foreign open; watched 2026-09-27.
+   */
+  async recordOpenInOrganization(
+    projectId: string,
+    stamp: WriteStamp,
+    organizationId: string,
+  ): Promise<boolean> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction((tx) => {
+        const owned = tx
+          .select({ id: projectOrganization.resourceId })
+          .from(projectOrganization)
+          .where(
+            and(
+              eq(projectOrganization.resourceId, projectId),
+              eq(projectOrganization.organizationId, organizationId),
+            ),
+          )
+          .get();
+        if (owned === undefined) return false;
+        tx.insert(projectAccess)
+          .values({ userId: stamp.by, projectId, lastOpenedAt: stamp.at, ...auditOnCreate(stamp) })
+          .onConflictDoUpdate({
+            target: [projectAccess.userId, projectAccess.projectId],
+            set: { lastOpenedAt: sql`excluded.last_opened_at`, ...auditOnUpdate(stamp) },
+          })
+          .run();
+        return true;
+      });
+    });
+  }
+
   async update(id: string, patch: ProjectPatch, stamp: WriteStamp): Promise<Project | null> {
+    return await this.write(id, patch, stamp, null);
+  }
+
+  /**
+   * {@link update} confined to one organization: the ownership predicate is in
+   * the UPDATE itself, so a project that is not, or is no longer, the
+   * organization's answers null and is left unchanged.
+   *
+   * Proof: dropping the predicate made `records an open and a write only while
+   * the organization owns the project` in `project.db.test.ts` answer the
+   * renamed foreign project instead of null; watched 2026-09-27.
+   */
+  async updateInOrganization(
+    id: string,
+    patch: ProjectPatch,
+    stamp: WriteStamp,
+    organizationId: string,
+  ): Promise<Project | null> {
+    return await this.write(id, patch, stamp, organizationId);
+  }
+
+  private async write(
+    id: string,
+    patch: ProjectPatch,
+    stamp: WriteStamp,
+    organizationId: string | null,
+  ): Promise<Project | null> {
+    const addressed =
+      organizationId === null
+        ? eq(project.id, id)
+        : and(
+            eq(project.id, id),
+            inArray(
+              project.id,
+              this.db
+                .select({ id: projectOrganization.resourceId })
+                .from(projectOrganization)
+                .where(eq(projectOrganization.organizationId, organizationId)),
+            ),
+          );
     return await this.gate.enter(async () => {
       // An empty patch would make drizzle emit `SET` with no assignments, which
       // SQLite rejects — so a request that changes nothing reads instead.
@@ -461,7 +632,9 @@ export class ProjectRepository implements ProjectStore {
       // patch that silently reads instead of writing. `Object.values` cannot
       // forget a field (tasks.md 3b.2, which added three at once).
       if (Object.values(patch).every((value) => value === undefined)) {
-        return this.findById(id);
+        return organizationId === null
+          ? this.findById(id)
+          : this.findInOrganization(id, organizationId);
       }
       const { solutionRef, pertWeights, ...fields } = patch;
       // The bump rides in the same `SET` as the change it describes, so a patch
@@ -492,7 +665,7 @@ export class ProjectRepository implements ProjectStore {
             ? tx
                 .update(project)
                 .set({ ...updates, ...auditOnUpdate(stamp) })
-                .where(and(eq(project.id, id), eq(project.optimizationEnabled, true)))
+                .where(and(addressed, eq(project.optimizationEnabled, true)))
                 .returning()
                 .all()
                 .at(0)
@@ -501,7 +674,7 @@ export class ProjectRepository implements ProjectStore {
         updated ??= tx
           .update(project)
           .set({ ...updates, ...auditOnUpdate(stamp) })
-          .where(eq(project.id, id))
+          .where(addressed)
           .returning()
           .all()
           .at(0);

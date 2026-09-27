@@ -285,6 +285,46 @@ describe('bootBe01', () => {
     expect(created.project.ownerId).toBe('local-dev');
   });
 
+  it('refuses the project list after activation until a session binds an organization', async () => {
+    const dir = tempDir('wbs-organization-boot-');
+    const dbPath = join(dir, 'test.db');
+    running = await bootBe01({
+      appOrigin: 'http://localhost',
+      dbPath,
+      port: 0,
+      logger: createLogger({ service: 'be-01' }),
+      jwtKey: 'k'.repeat(32),
+      gwUrl: 'http://gw.invalid',
+      internalAuthSecret: 's'.repeat(32),
+      localIdentity: { id: 'local-dev', username: 'local-dev', scopes: ['read', 'write'] },
+      migrateOnStartup: true,
+      migrationsFolder: FOLDER,
+    });
+    const projects = `http://localhost:${String(running.port)}/api/projects`;
+    let listed: Response | undefined;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      listed = await fetch(projects);
+      if (listed.status === 200) break;
+      await Bun.sleep(10);
+    }
+    expect(listed?.status).toBe(200);
+    const marker = openDatabase(dbPath);
+    try {
+      marker.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+    } finally {
+      marker.close();
+    }
+
+    const refused = await fetch(projects);
+
+    expect({ status: refused.status, body: (await refused.json()) as unknown }).toEqual({
+      status: 403,
+      body: { error: 'no_active_organization' },
+    });
+  });
+
   it('codes the steps an older writer left uncoded once it has migrated', async () => {
     const dir = tempDir('wbs-backfill-boot-');
     const dbPath = join(dir, 'test.db');
