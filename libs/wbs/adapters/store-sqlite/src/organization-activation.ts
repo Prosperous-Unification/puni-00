@@ -77,7 +77,7 @@ export function readOrganizationActivation(db: Database): OrganizationActivation
       { cause },
     );
   }
-  const state = consistentState(rows);
+  const state = parseActivationState(rows);
   // Proof: 2026-09-27, returning 'pre_activation' here failed all seven `refuses a malformed
   // marker` cases; removing the row-count, singleton, null-time or integer-time test alone failed
   // its own case (second row, wrong singleton, time before activation, text or missing time).
@@ -90,7 +90,7 @@ export function readOrganizationActivation(db: Database): OrganizationActivation
 }
 
 /** The state of exactly one row whose key, state and timestamp agree, else `undefined`. */
-function consistentState(rows: readonly MarkerRow[]): OrganizationActivation | undefined {
+function parseActivationState(rows: readonly MarkerRow[]): OrganizationActivation | undefined {
   const row = rows.at(0);
   if (rows.length !== 1 || row?.singleton !== 1) return undefined;
   if (row.state === 'pre_activation' && row.activated_at_type === 'null') return 'pre_activation';

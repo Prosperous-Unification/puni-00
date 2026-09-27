@@ -5,9 +5,10 @@
 -- activated, missing or malformed marker all refuse, and the rollback runner
 -- reverts this script, and its ledger row, in one transaction. Only then are
 -- the row, the triggers and the table dropped.
--- Proof: `CHECK (1)` in place of the constraint failed `refuses rollback across
--- a missing row and changes nothing` in `organization-activation.db.test.ts`:
--- the marker was dropped. Observed 2026-09-27.
+-- Proof, observed 2026-09-27 in `organization-activation.db.test.ts`: `CHECK (1)`
+-- failed the five `refuses rollback across` cases for a missing row, second row,
+-- wrong singleton, unknown state and time before activation; removing the row
+-- count, singleton, state or null-time predicate alone failed its own case.
 CREATE TEMP TABLE `organization_activation_down_check` (
 	`pre_activation` integer NOT NULL,
 	CONSTRAINT `organization_activation_must_be_pre_activation` CHECK (`pre_activation` = 1)

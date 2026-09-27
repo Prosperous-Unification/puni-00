@@ -41,7 +41,7 @@ function withDb<T>(use: (db: Database) => T): T {
   }
 }
 
-function brokenMarker(db: Database): BrokenActivationMarker {
+function readBrokenMarker(db: Database): BrokenActivationMarker {
   try {
     readOrganizationActivation(db);
   } catch (error) {
@@ -51,13 +51,21 @@ function brokenMarker(db: Database): BrokenActivationMarker {
   throw new Error('the marker was read as trusted');
 }
 
+/** A fixture that writes `corruption` past the marker's CHECKs, as damaged storage would. */
+function damage(corruption: string): (db: Database) => void {
+  return (db) => {
+    db.run('PRAGMA ignore_check_constraints = ON');
+    db.run(corruption);
+  };
+}
+
 function activate(db: Database): void {
   db.run(
     "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
   );
 }
 
-function applied(): string[] {
+function readAppliedMigrations(): string[] {
   return withDb((db) =>
     db
       .query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY created_at')
@@ -82,7 +90,7 @@ describe('readOrganizationActivation', () => {
 
   it('refuses an absent marker table', () => {
     rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP);
-    expect(withDb(brokenMarker)).toBe('absent');
+    expect(withDb(readBrokenMarker)).toBe('absent');
   });
 
   it('refuses an unreadable database', () => {
@@ -90,7 +98,7 @@ describe('readOrganizationActivation', () => {
     writeFileSync(garbage, Buffer.alloc(8192, 0x5a));
     const db = new Database(garbage);
     try {
-      expect(brokenMarker(db)).toBe('unreadable');
+      expect(readBrokenMarker(db)).toBe('unreadable');
     } finally {
       db.close();
     }
@@ -99,7 +107,7 @@ describe('readOrganizationActivation', () => {
   it('refuses an unreadable marker table', () => {
     withDb((db) => {
       db.run('ALTER TABLE organization_activation RENAME COLUMN state TO lost_state');
-      expect(brokenMarker(db)).toBe('unreadable');
+      expect(readBrokenMarker(db)).toBe('unreadable');
     });
   });
 
@@ -122,7 +130,7 @@ describe('readOrganizationActivation', () => {
       db.run('PRAGMA ignore_check_constraints = ON');
       db.run('DROP TRIGGER organization_activation_single_row');
       db.run(corruption);
-      expect(brokenMarker(db)).toBe('malformed');
+      expect(readBrokenMarker(db)).toBe('malformed');
     });
   });
 });
@@ -185,22 +193,42 @@ describe('organization activation marker schema', () => {
 
   it('rolls back before activation and reapplies with a fresh seed', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([ORGANIZATION_ACTIVATION]);
-    expect(applied().at(-1)).toBe(ORGANIZATION_OWNERSHIP);
+    expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_OWNERSHIP);
     runMigrations(path, FOLDER);
-    expect(applied().at(-1)).toBe(ORGANIZATION_ACTIVATION);
+    expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_ACTIVATION);
     expect(withDb(readOrganizationActivation)).toBe('pre_activation');
   });
 
   it.each([
     ['an activated marker', activate],
     ['a missing row', (db: Database) => db.run('DELETE FROM organization_activation')],
+    ['a wrong singleton', damage('UPDATE organization_activation SET singleton = 2')],
+    ['an unknown state', damage("UPDATE organization_activation SET state = 'on'")],
+    ['a time before activation', damage('UPDATE organization_activation SET activated_at = 5')],
+    [
+      'a second row',
+      (db: Database) => {
+        const trigger = db
+          .query<{ sql: string }, []>(
+            "SELECT sql FROM sqlite_master WHERE name = 'organization_activation_single_row'",
+          )
+          .get()?.sql;
+        if (trigger === undefined) throw new Error('organization_activation_single_row is missing');
+        db.run('DROP TRIGGER organization_activation_single_row');
+        db.run('PRAGMA ignore_check_constraints = ON');
+        db.run(
+          "INSERT INTO organization_activation (singleton, state) VALUES (2, 'pre_activation')",
+        );
+        db.run(trigger);
+      },
+    ],
   ])('refuses rollback across %s and changes nothing', (_label, prepare) => {
     withDb(prepare);
     const before = withDb((db) => db.query('SELECT * FROM organization_activation').all());
     expect(() => rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toThrow(
       /permanent|organization_activation_must_be_pre_activation/,
     );
-    expect(applied().at(-1)).toBe(ORGANIZATION_ACTIVATION);
+    expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_ACTIVATION);
     expect(withDb((db) => db.query('SELECT * FROM organization_activation').all())).toEqual(before);
   });
 });

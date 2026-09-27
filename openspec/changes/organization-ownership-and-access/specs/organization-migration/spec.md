@@ -41,8 +41,14 @@ Each WBS and durable MCP-store schema migration SHALL be additive and ship a pai
 #### Scenario: Broken activation marker
 
 - **GIVEN** the activation marker table is missing, cannot be read, or holds anything but one consistent row
-- **WHEN** activation, a bridge writer or a rollback reads it
+- **WHEN** activation or a bridge writer reads it
 - **THEN** it refuses with an error naming absent, unreadable or malformed state and never treats it as not activated
+
+#### Scenario: Marker reversal needs a trusted pre-activation marker
+
+- **GIVEN** the activation marker is activated, missing or malformed
+- **WHEN** a rollback reaches the migration that added it
+- **THEN** that reversal refuses and leaves the marker, its schema and its ledger entry unchanged
 
 ### Requirement: External identity mapping is stable
 
