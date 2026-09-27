@@ -30,7 +30,7 @@ interface MarkerRow {
 }
 
 /**
- * Reads the durable marker `20260927140000_add_organization_activation` seeds. Absent,
+ * Reads the durable marker `20260927180000_add_organization_activation` seeds. Absent,
  * unreadable and malformed state each throw their own {@link OrganizationActivationRefused};
  * none defaults to `pre_activation`, because a lost marker would otherwise reopen an
  * organization-unaware downgrade after activation.

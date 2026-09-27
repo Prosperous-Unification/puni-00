@@ -28,6 +28,7 @@
  */
 
 import type { DependencyReach } from './dependency-reach';
+import type { StepNodeRef } from './step-node';
 
 /**
  * The half of a `Slice` the reach reads: whether anybody estimated it.
@@ -40,6 +41,24 @@ import type { DependencyReach } from './dependency-reach';
 export interface EstimatedSlice {
   readonly days: number | null;
 }
+
+/**
+ * The half of a `Slice` the graph names a node by: its reach reading, and the
+ * step it is an occurrence of — `null` for the one stepless slice a leaf gets in
+ * a project with no steps, which is that leaf's work-item boundary.
+ */
+export interface GraphSlice extends EstimatedSlice {
+  readonly stepId: string | null;
+}
+
+/**
+ * One node of the step-node graph, at the position its slice holds in its
+ * leaf's group: a step node (ADR 0031) or, in a project with no steps, the
+ * leaf's zero-time work-item boundary. Never both for one leaf.
+ */
+export type StepNodeGraphNode =
+  | { readonly kind: 'step'; readonly ref: StepNodeRef; readonly at: number }
+  | { readonly kind: 'boundary'; readonly workItemId: string; readonly at: number };
 
 /** One end of a slice edge: a leaf, and how many steps into it the edge touches. */
 export interface SliceEdgeEnd {
@@ -59,9 +78,11 @@ export interface SliceEdgeEnd {
  * `schedule()` converts them to its own node indices. Neither conversion is
  * this module's business, and doing it here would pick one of them.
  */
-export interface SlicePositionEdge {
-  readonly from: SliceEdgeEnd;
-  readonly to: SliceEdgeEnd;
+export interface StepNodeGraphEdge {
+  readonly predecessor: SliceEdgeEnd;
+  readonly successor: SliceEdgeEnd;
+  readonly type: 'FS';
+  readonly provenance: 'workflow' | 'legacy';
 }
 
 /**
@@ -114,8 +135,12 @@ export interface LeafEdge {
 }
 
 /**
- * Every edge of the slice graph: each leaf's own step chain first, in
+ * Resolve every FS edge of the step-node graph: each leaf's own step chain first, in
  * `leafIds` order, then the external edges in the order they were given.
+ * Chain edges have `workflow` provenance; project-reach joins have `legacy`
+ * provenance. `nodes` lists every position in the same `leafIds` order: a step
+ * node when its slice has a `stepId`, the work-item boundary when that slice
+ * is stepless. Edges name their ends by the same leaf and position. ADR 0031.
  *
  * **That order is preserved deliberately, and nothing but this module's own
  * test holds it.** `schedule()` pushes each edge onto its two nodes' adjacency
@@ -141,13 +166,29 @@ export interface LeafEdge {
  * would appear once in the signature and infer nothing, which is what
  * `no-unnecessary-type-parameters` said when the first draft carried one.
  */
-export function sliceGraphEdges(
+export function resolveStepNodeGraph(
   leafIds: readonly string[],
-  slicesOf: (leafId: string) => readonly EstimatedSlice[],
+  slicesOf: (leafId: string) => readonly GraphSlice[],
   leafEdges: readonly LeafEdge[],
   reach: DependencyReach,
-): SlicePositionEdge[] {
-  const edges: SlicePositionEdge[] = [];
+): { nodes: StepNodeGraphNode[]; edges: StepNodeGraphEdge[] } {
+  const nodes: StepNodeGraphNode[] = [];
+  const edges: StepNodeGraphEdge[] = [];
+
+  // Every node, estimated or not and joined or not: a node exists because its
+  // leaf and step do (ADR 0031), so an isolated one is still in the graph.
+  // Proof: skipping unestimated slices here made `lists every node, isolated
+  // and unestimated ones included, and a stepless boundary` fail on
+  // `- Expected - 21 / + Received + 0`; watched 2026-09-27.
+  for (const leafId of leafIds) {
+    slicesOf(leafId).forEach((slice, at) => {
+      nodes.push(
+        slice.stepId === null
+          ? { kind: 'boundary', workItemId: leafId, at }
+          : { kind: 'step', ref: { workItemId: leafId, stepId: slice.stepId }, at },
+      );
+    });
+  }
 
   // The chain: step `n` finishes before step `n + 1` starts, within one leaf,
   // in the order the group was given. It is what carries an external wait
@@ -155,8 +196,16 @@ export function sliceGraphEdges(
   // below may land on that first slice plain.
   for (const leafId of leafIds) {
     const own = slicesOf(leafId);
+    // Proof: skipping the chain edge at `at === 1` made the Fast golden
+    // `reproduces every stored schedule value for value` fail with
+    // `Expected: 5, Received: 3` for `earliestFinish`; watched 2026-09-27.
     for (let at = 1; at < own.length; at += 1) {
-      edges.push({ from: { leafId, at: at - 1 }, to: { leafId, at } });
+      edges.push({
+        predecessor: { leafId, at: at - 1 },
+        successor: { leafId, at },
+        type: 'FS',
+        provenance: 'workflow',
+      });
     }
   }
 
@@ -197,8 +246,13 @@ export function sliceGraphEdges(
     // must throw here rather than have an edge drawn onto a position that does
     // not exist.
     slicesOf(successorId);
-    edges.push({ from: { leafId: predecessorId, at: before }, to: { leafId: successorId, at: 0 } });
+    edges.push({
+      predecessor: { leafId: predecessorId, at: before },
+      successor: { leafId: successorId, at: 0 },
+      type: 'FS',
+      provenance: 'legacy',
+    });
   }
 
-  return edges;
+  return { nodes, edges };
 }

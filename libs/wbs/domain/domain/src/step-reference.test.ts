@@ -142,11 +142,24 @@ describe('describeAddressSpace', () => {
     }
   });
 
-  it('refuses two work items holding one number', () => {
+  it('describes two work items holding one number without refusing the read', () => {
     const clash = {
       ...space,
       workItems: [...space.workItems, { id: 'w-dup', number: '010', isLeaf: true }],
     };
-    expect(() => describeAddressSpace('p', clash)).toThrow('number 010 is held by');
+    expect(describeAddressSpace('p', clash)).not.toBe(describeAddressSpace('p', space));
+  });
+});
+
+describe('resolveStepReference over a shared number', () => {
+  it('refuses a number two work items hold', () => {
+    const clash = {
+      ...space,
+      workItems: [...space.workItems, { id: 'w-dup', number: '010', isLeaf: true }],
+    };
+    expect(resolveStepReference('010.dev', clash)).toEqual({
+      ok: false,
+      reason: 'ambiguous_work_item',
+    });
   });
 });

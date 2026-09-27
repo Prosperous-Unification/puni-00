@@ -23,10 +23,10 @@ function readOrganizationActivation(db: Database): ReturnType<typeof readMarker>
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
-const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
+const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 /** Main's step code column, stamped after the marker and so reversed before it. */
 const STEP_CODE = '20260927150000_add_step_code';
-const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
+const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
 
 let dir: string;
 let path: string;
@@ -203,8 +203,8 @@ describe('organization activation marker schema', () => {
   it('rolls back before activation and reapplies with a fresh seed', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
       ORGANIZATION_BRIDGE,
-      STEP_CODE,
       ORGANIZATION_ACTIVATION,
+      STEP_CODE,
     ]);
     expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_OWNERSHIP);
     runMigrations(path, FOLDER);

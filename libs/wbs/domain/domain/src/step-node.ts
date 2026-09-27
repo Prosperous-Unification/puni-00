@@ -60,6 +60,19 @@ function compareIds(left: string, right: string): number {
 }
 
 /**
+ * Steps in displayed order: position, then id bytewise — the store's
+ * `ORDER BY position, id`. The one ordering step nodes, ordinals and the
+ * address revision are all read in.
+ */
+export function orderSteps<Step extends { id: string; position: number }>(
+  steps: readonly Step[],
+): Step[] {
+  return [...steps].sort(
+    (left, right) => left.position - right.position || compareIds(left.id, right.id),
+  );
+}
+
+/**
  * A leaf's step nodes: one per project step, in step order.
  *
  * Called for leaves only — a work item with children has no step nodes. A
@@ -70,7 +83,5 @@ export function listStepNodes(
   leafId: string,
   steps: readonly { id: string; position: number }[],
 ): StepNodeRef[] {
-  return [...steps]
-    .sort((left, right) => left.position - right.position || compareIds(left.id, right.id))
-    .map((each) => ({ workItemId: leafId, stepId: each.id }));
+  return orderSteps(steps).map((each) => ({ workItemId: leafId, stepId: each.id }));
 }
