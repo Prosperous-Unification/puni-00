@@ -521,4 +521,32 @@ describe('an own edit that lands while the cell is being typed in again', () => 
     expect(box.value).toBe('Beta');
     expect(pending.map((patch) => patch.typed)).toEqual(['Beta']);
   });
+
+  /**
+   * The save lands while the reader is typing again, and then a peer puts the
+   * name back to what it was before the save. The revert is the server's
+   * newest word and is what the box shows once they leave, even though its
+   * text is the name the field started from.
+   */
+  itDom("a peer's revert heard after a slow landing is what the box shows", async () => {
+    const { pending, commit } = queuedCommits();
+    const view = render(<TableFace value="Alpha" commit={commit} />);
+    typeAndLeave('Beta');
+
+    const box = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'BetaX' } });
+    view.rerender(<TableFace value="Beta" commit={commit} />);
+    await answerPatch(pending[0], 'landed');
+    view.rerender(<TableFace value="Alpha" commit={commit} />);
+    fireEvent.change(box, { target: { value: 'Beta' } });
+    act(() => {
+      box.blur();
+    });
+
+    expect(box.value).toBe('Alpha');
+    expect(pending.map((patch) => patch.typed)).toEqual(['Beta']);
+  });
 });

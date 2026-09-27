@@ -459,6 +459,12 @@ export class LiveField {
       // peer name held from before a save is not written over it` failed on
       // `expected 'Peer' to be 'Beta'`. Watched, 2026-09-27.
       if (this.sent.landed && this.serverValues !== this.sent.heardBefore) {
+        // The box shows what landed, so that is its baseline for the sync:
+        // left on the one from before the save, a peer's revert to that very
+        // name would read as nothing new. Proof: this line removed, `a peer's
+        // revert heard after a slow landing is what the box shows` failed on
+        // `expected 'Beta' to be 'Alpha'`. Watched, 2026-09-27.
+        this.shown = text;
         this.sync();
         this.afterSync(this.node);
       }
