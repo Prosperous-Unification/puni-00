@@ -54,6 +54,12 @@ export type ParserRefusalCode =
   | `${'teamIds' | 'teamRefs' | 'tagIds' | 'tagRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_a_list_of_ids`
   | `${'teamIds' | 'teamRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_at_most_10`
   | `${'tagIds' | 'tagRefs'}_must_be_at_most_50`
+  /**
+   * More than one distinct type in one patch's `typeIds` or `typeRefs`
+   * (WBS 010.4.10). The `typeIds_must_be_at_most_10` arms above are retired by it
+   * and stay for an outgoing be-01 answering mid-swap.
+   */
+  | 'work_item_takes_one_type'
   | 'startNoEarlierThan_must_be_a_date'
   | 'deadline_must_be_a_date'
   | 'on_must_be_a_date'
@@ -109,6 +115,8 @@ export type CommandRefusalCode =
   | 'unknown_service'
   | 'unknown_type'
   | 'unknown_system'
+  /** A patch whose bound `typeIds` and `typeRefs` name more than one type. */
+  | 'work_item_takes_one_type'
   | 'not_before_reason_needs_a_date'
   | 'deadline_before_project_start'
   | 'invalid_kind'
@@ -308,7 +316,9 @@ export interface ImportRefusal {
     | 'ancestor'
     | 'deadline_before_project_start'
     | 'engine_unavailable'
-    | 'source_refused';
+    | 'source_refused'
+    /** A row with several types; `detail` lists every such row's file id. */
+    | 'work_item_takes_one_type';
   path: string;
   detail: string | null;
 }

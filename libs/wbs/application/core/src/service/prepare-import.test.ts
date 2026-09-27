@@ -527,3 +527,36 @@ test('enabled unavailable optimizer refuses while a disabled preference is retai
   expect(prepared.ok).toBe(true);
   if (prepared.ok) expect(prepared.value.settings.scheduleEngine).toBe('optimized');
 });
+
+/** The fixture with a second type and a second root row, both rows carrying both types. */
+function twoConflictedRows(): PlanFixture {
+  const body = planDocumentFixture();
+  body.directory.types.push({ id: 'type-2', name: 'Spike' });
+  const first = at(body.workItems);
+  first.typeIds = ['type-1', 'type-2'];
+  body.workItems.push({
+    ...structuredClone(first),
+    id: 'row-2',
+    position: 20,
+    externalRefs: [],
+    assignees: {},
+  });
+  return body;
+}
+
+test('refuses rows carrying several types, naming every such row', () => {
+  // Proof: the one-type row check skipped in prepareImport and this received
+  // ok: true. Watched 2026-09-27.
+  expect(prepareImport(twoConflictedRows(), supportsAll)).toEqual({
+    ok: false,
+    code: 'work_item_takes_one_type',
+    path: 'workItems[0].typeIds',
+    detail: 'row-1, row-2',
+  });
+});
+
+test('counts a repeated type id as one type', () => {
+  const body = planDocumentFixture();
+  at(body.workItems).typeIds = ['type-1', 'type-1'];
+  expect(prepareImport(body, supportsAll).ok).toBe(true);
+});

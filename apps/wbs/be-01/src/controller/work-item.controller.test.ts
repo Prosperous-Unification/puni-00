@@ -1231,18 +1231,15 @@ describe('work item routes', () => {
       }[];
     };
 
-    expect(body.waitingForPerson).toBe(2);
+    expect(body.waitingForPerson).toBe(1);
     // The slices leave the process, not merely the service: the route spreads
     // the tree, so this is what says the array survives serialisation to JSON
     // and the ids in it still refer to each other on the other side.
     const held = body.slices.filter((one) => one.boundBy === 'person');
-    // Two work items, since `assumed-duration-schedules` (2026-08-29). One
-    // assignment on a work item makes Ada its assumed assignee, so she does all
-    // four slices, and the two `QA`s nobody estimated are two workdays each
-    // rather than nothing: her day is `Strip` Dev 0→3, `Sand` Dev 3→5, `Sand`
-    // QA 5→7, `Strip` QA 7→9. `Sand`'s Dev waits behind `Strip`'s exactly as it
-    // did; `Strip`'s own QA is the one this change added to the queue.
-    expect(held.map((one) => one.workItemId)).toEqual([first, second]);
+    // One work item: Ada does all four slices, and the two `QA`s nobody
+    // estimated take no schedule time and occupy nobody. Her day is `Strip`
+    // Dev 0→3 then `Sand` Dev 3→5, so only `Sand`'s Dev waits for her.
+    expect(held.map((one) => one.workItemId)).toEqual([second]);
     // Named rather than indexed: the assertion is about `Sand`'s Dev, which is
     // the slice the original claim was about, and an index would follow
     // whichever slice the payload happened to list first.
@@ -2618,6 +2615,96 @@ describe('dependency commands', () => {
     expect(await res.json()).toEqual({ error: 'ancestor', at: 0, kind: 'addDependency' });
   });
 
+  describe('a move that would break an existing dependency', () => {
+    const parentsOf = async (send: Send, token: string, projectId: string) => {
+      const tree = await send(`/api/projects/${projectId}/work-items`, token);
+      const body = (await tree.json()) as { workItems: { id: string; parentId: string | null }[] };
+      return body.workItems.map((w) => [w.id, w.parentId]);
+    };
+
+    it('answers 409 ancestor for a move under its own predecessor and moves nothing', async () => {
+      // Sent straight to the command route, as no drag would: the refusal has
+      // to be be-01's, because a client that skips its own preview reaches here.
+      const { token, send, projectId } = await setup();
+      const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+      const sand = await addWorkItem(send, token, projectId, { parentId: null, name: 'Sand' });
+      await command(send, token, projectId, {
+        kind: 'addDependency',
+        workItemId: sand,
+        predecessorId: strip,
+      });
+      const before = await parentsOf(send, token, projectId);
+
+      const res = await command(send, token, projectId, {
+        kind: 'moveWorkItem',
+        workItemId: sand,
+        parentId: strip,
+        afterId: null,
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: 'ancestor', at: 0, kind: 'moveWorkItem' });
+      expect(await parentsOf(send, token, projectId)).toEqual(before);
+    });
+
+    it('answers 409 cycle for a move whose expanded graph loops and moves nothing', async () => {
+      // Rel waits for Sand, Sand for Strip, Strip for Paint. Under Rel, Paint
+      // inherits Rel's wait for Sand, so Paint → Sand → Strip → Paint closes a
+      // loop that no single edge closes on its own.
+      const { token, send, projectId } = await setup();
+      const release = await addWorkItem(send, token, projectId, { parentId: null, name: 'Rel' });
+      await addWorkItem(send, token, projectId, { parentId: release, name: 'Ship' });
+      const sand = await addWorkItem(send, token, projectId, { parentId: null, name: 'Sand' });
+      const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+      const paint = await addWorkItem(send, token, projectId, { parentId: null, name: 'Paint' });
+      for (const [workItemId, predecessorId] of [
+        [release, sand],
+        [sand, strip],
+        [strip, paint],
+      ]) {
+        const added = await command(send, token, projectId, {
+          kind: 'addDependency',
+          workItemId,
+          predecessorId,
+        });
+        expect(added.status).toBe(200);
+      }
+      const before = await parentsOf(send, token, projectId);
+
+      const res = await command(send, token, projectId, {
+        kind: 'moveWorkItem',
+        workItemId: paint,
+        parentId: release,
+        afterId: null,
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: 'cycle', at: 0, kind: 'moveWorkItem' });
+      expect(await parentsOf(send, token, projectId)).toEqual(before);
+    });
+
+    it('still moves a row whose dependencies stay valid', async () => {
+      const { token, send, projectId } = await setup();
+      const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+      const sand = await addWorkItem(send, token, projectId, { parentId: null, name: 'Sand' });
+      const paint = await addWorkItem(send, token, projectId, { parentId: null, name: 'Paint' });
+      await command(send, token, projectId, {
+        kind: 'addDependency',
+        workItemId: sand,
+        predecessorId: strip,
+      });
+
+      const res = await command(send, token, projectId, {
+        kind: 'moveWorkItem',
+        workItemId: sand,
+        parentId: paint,
+        afterId: null,
+      });
+
+      expect(res.status).toBe(200);
+    });
+  });
+
   it('answers 400 when no predecessor is named', async () => {
     // Missing targets reach runner semantics; misspelled fields are now a
     // structural invalid_body refusal at the shared request boundary.
@@ -3430,5 +3517,123 @@ describe('setting a row’s status as one act', () => {
     expect(await rowOf(send, token, projectId, 'Strip')).toMatchObject({
       factStart: '2026-09-08',
     });
+  });
+});
+
+describe('a work item takes one type', () => {
+  async function typeNamed(send: Send, token: string, name: string): Promise<string> {
+    return mintedId(await directoryCommand(send, token, { kind: 'createWorkItemType', name }));
+  }
+
+  async function typesOf(send: Send, token: string, projectId: string): Promise<string[][]> {
+    const tree = await send(`/api/projects/${projectId}/work-items`, token);
+    const { workItems } = (await tree.json()) as { workItems: { typeIds: string[] }[] };
+    return workItems.map((each) => each.typeIds);
+  }
+
+  it('refuses two typeIds or two typeRefs with work_item_takes_one_type and writes nothing', async () => {
+    const { token, send, projectId } = await setup();
+    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const story = await typeNamed(send, token, 'Story');
+    const spike = await typeNamed(send, token, 'Spike');
+    const patch = (fields: Record<string, unknown>) =>
+      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+    expect((await patch({ typeIds: [story] })).status).toBe(200);
+
+    const twoIds = await patch({ typeIds: [story, spike] });
+    expect(twoIds.status).toBe(400);
+    expect(await twoIds.json()).toEqual({
+      error: 'work_item_takes_one_type',
+      at: 0,
+      kind: 'patchWorkItem',
+    });
+    const twoRefs = await patch({ typeRefs: ['a', 'b'] });
+    expect(twoRefs.status).toBe(400);
+    expect(await twoRefs.json()).toEqual({
+      error: 'work_item_takes_one_type',
+      at: 0,
+      kind: 'patchWorkItem',
+    });
+    expect(await typesOf(send, token, projectId)).toEqual([[story]]);
+  });
+
+  it('refuses two types at the parser, before any command in the batch applies', async () => {
+    // These in-memory stores have no rollback, so a rename before the refused
+    // patch survives unless the parser refused the batch before running it.
+    const { token, send, projectId } = await setup();
+    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const story = await typeNamed(send, token, 'Story');
+    const spike = await typeNamed(send, token, 'Spike');
+    for (const patch of [{ typeIds: [story, spike] }, { typeRefs: ['a', 'b'] }]) {
+      const res = await send(`/api/projects/${projectId}/commands`, token, {
+        method: 'POST',
+        body: JSON.stringify({
+          commands: [
+            { kind: 'patchWorkItem', workItemId: id, patch: { name: 'Renamed' } },
+            { kind: 'patchWorkItem', workItemId: id, patch },
+          ],
+        }),
+      });
+      expect([res.status, await res.json()]).toEqual([
+        400,
+        { error: 'work_item_takes_one_type', at: 1, kind: 'patchWorkItem' },
+      ]);
+      expect((await firstRow(send, token, projectId))['name']).toBe('Strip');
+    }
+  });
+
+  it('replaces with one, clears with none, and keeps the second of two successive patches', async () => {
+    const { token, send, projectId } = await setup();
+    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+    const story = await typeNamed(send, token, 'Story');
+    const spike = await typeNamed(send, token, 'Spike');
+    const epic = await typeNamed(send, token, 'Epic');
+    const patch = (fields: Record<string, unknown>) =>
+      command(send, token, projectId, { kind: 'patchWorkItem', workItemId: id, patch: fields });
+
+    expect((await patch({ typeIds: [story] })).status).toBe(200);
+    expect(await typesOf(send, token, projectId)).toEqual([[story]]);
+    // A duplicate names one type, and the store deduplicates it.
+    expect((await patch({ typeIds: [spike, spike] })).status).toBe(200);
+    expect(await typesOf(send, token, projectId)).toEqual([[spike]]);
+    expect((await patch({ typeIds: [] })).status).toBe(200);
+    expect(await typesOf(send, token, projectId)).toEqual([[]]);
+
+    const batch = await send(`/api/projects/${projectId}/commands`, token, {
+      method: 'POST',
+      body: JSON.stringify({
+        commands: [
+          { kind: 'patchWorkItem', workItemId: id, patch: { typeIds: [spike] } },
+          { kind: 'patchWorkItem', workItemId: id, patch: { typeIds: [epic] } },
+        ],
+      }),
+    });
+    expect(batch.status).toBe(200);
+    expect(await typesOf(send, token, projectId)).toEqual([[epic]]);
+  });
+
+  it('refuses a batch whose third command binds two types, naming that command', async () => {
+    const { token, send, projectId } = await setup();
+    const story = await typeNamed(send, token, 'Story');
+    const res = await send(`/api/projects/${projectId}/commands`, token, {
+      method: 'POST',
+      body: JSON.stringify({
+        commands: [
+          { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Strip' },
+          { kind: 'createWorkItemType', ref: 't', name: 'Spike' },
+          // One id and one ref resolve to two types only after refs are bound,
+          // so this reaches the service's own check rather than the parser's.
+          { kind: 'patchWorkItem', workItemRef: 'w', patch: { typeIds: [story], typeRefs: ['t'] } },
+        ],
+      }),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: 'work_item_takes_one_type',
+      at: 2,
+      kind: 'patchWorkItem',
+    });
+    // Atomicity needs real rollback, which these in-memory stores do not have:
+    // `a command batch` in plan-commands.db.test.ts asserts it on SQLite.
   });
 });

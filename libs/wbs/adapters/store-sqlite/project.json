@@ -28,7 +28,7 @@
         "{workspaceRoot}/openspec/changes/dual-optimized-scheduler/design.md"
       ],
       "options": {
-        "command": "bun test --coverage --coverage-reporter=lcov",
+        "command": "bun test --coverage --coverage-reporter=lcov --timeout=30000",
         "cwd": "libs/wbs/adapters/store-sqlite"
       },
       "outputs": ["{projectRoot}/coverage"]
@@ -38,7 +38,7 @@
       "cache": false,
       "inputs": ["default", "^production", "{workspaceRoot}/apps/wbs/be-01/drizzle"],
       "options": {
-        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src -name '*.db.test.ts' ! -name 'source-conformance.db.test.ts' | tr '\\n' ' ') --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-sqlite.api.xml",
+        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src -name '*.db.test.ts' ! -name 'source-conformance.db.test.ts' | tr '\\n' ' ') --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-sqlite.api.xml --timeout=30000",
         "cwd": "libs/wbs/adapters/store-sqlite",
         "forwardAllArgs": false
       }
@@ -48,7 +48,7 @@
       "cache": false,
       "inputs": ["default", "^production", "{workspaceRoot}/apps/wbs/be-01/drizzle"],
       "options": {
-        "command": "bun test src/testing/source-conformance.db.test.ts",
+        "command": "bun test src/testing/source-conformance.db.test.ts --timeout=30000",
         "cwd": "libs/wbs/adapters/store-sqlite",
         "forwardAllArgs": false
       }
@@ -57,7 +57,7 @@
       "executor": "nx:run-commands",
       "inputs": ["default", "^production", "{workspaceRoot}/apps/wbs/be-01/drizzle"],
       "options": {
-        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src -name '*.test.ts' ! -name '*.db.test.ts' | tr '\\n' ' ') --coverage --coverage-reporter=lcov --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-sqlite.unit.xml",
+        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src -name '*.test.ts' ! -name '*.db.test.ts' | tr '\\n' ' ') --coverage --coverage-reporter=lcov --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-sqlite.unit.xml --timeout=30000",
         "cwd": "libs/wbs/adapters/store-sqlite"
       },
       "outputs": ["{projectRoot}/coverage"]

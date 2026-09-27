@@ -53,3 +53,37 @@ export function canDepend(
 
   return null;
 }
+
+/**
+ * Why moving `id` beneath `parentId` would break a dependency already drawn,
+ * or `null` when every edge stays valid in the moved tree.
+ *
+ * The same two questions {@link canDepend} asks of a new edge, asked of every
+ * existing edge against the tree the move would leave: an edge between a row
+ * and its own ancestor or descendant is `ancestor`, and an expanded graph that
+ * cannot be ordered is `cycle`. Callers pass the rows and edges read inside the
+ * write's own lock, so a concurrent tree edit is judged here rather than
+ * trusted from whatever the client last drew.
+ */
+export function canReparent(
+  rows: readonly WorkItem[],
+  existing: readonly StoredDependency[],
+  id: string,
+  parentId: string | null,
+): Exclude<DependencyRefusal, 'not_found'> | null {
+  const moved = rows.map((row) => (row.id === id ? { ...row, parentId } : row));
+  const parentOf = parentIndexOf(moved);
+  // Its own arm although the expansion would also loop: `ancestor` tells the
+  // reader which edge is in the way. Proof: loop skipped, the mounted `answers
+  // 409 ancestor…` case failed on `"error": "cycle"`. Watched 2026-09-27.
+  for (const edge of existing) {
+    if (
+      isWithin(parentOf, edge.predecessorId, edge.successorId) ||
+      isWithin(parentOf, edge.successorId, edge.predecessorId)
+    ) {
+      return 'ancestor';
+    }
+  }
+  if (hasCycle(indexTree(moved), existing)) return 'cycle';
+  return null;
+}

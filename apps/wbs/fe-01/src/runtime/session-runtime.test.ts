@@ -10,7 +10,9 @@ import {
   type ProjectSource,
 } from '@/modules/project/contract';
 import { fakeProjectApi } from '@/testing/fake-project-api';
+import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 import { recordCalls } from '@/testing/record-calls';
+import { SILENT_STREAM } from '@/testing/silent-stream';
 
 import { credentialOf } from './credential';
 import { PartialAcquisitionError, type RetirableRuntime } from './lifetime-slot';
@@ -24,7 +26,7 @@ import {
 
 /** A project source over a fresh fake client, with no socket. */
 const projectSource = (): ProjectSource => ({
-  services: projectServicesOver(fakeProjectApi()),
+  services: projectServicesOver(fakeProjectApi(), NO_SAVED_PLANS),
   subscribe: undefined,
 });
 
@@ -89,6 +91,7 @@ describe('the session runtime', () => {
     const listed = recordCalls(client, 'listProjects');
     const trees = recordCalls(client, 'tree', (projectId) => projectId);
     const owner = createSessionOwner({
+      streamDeps: SILENT_STREAM,
       clientFor: () => fakeDirectoryApi(),
       projectClientFor: (credential) => {
         credentials.push(credential);
@@ -116,6 +119,7 @@ describe('the session runtime', () => {
     const client = fakeProjectApi();
     const trees = recordCalls(client, 'tree', (projectId) => projectId);
     const owner = createSessionOwner({
+      streamDeps: SILENT_STREAM,
       clientFor: () => fakeDirectoryApi(),
       projectClientFor: (credential) => {
         credentials.push(credential);
@@ -142,6 +146,7 @@ describe('the session runtime', () => {
     const client = fakeProjectApi();
     const listed = recordCalls(client, 'listProjects');
     const owner = createSessionOwner({
+      streamDeps: SILENT_STREAM,
       clientFor: () => fakeDirectoryApi(),
       projectClientFor: () => client,
       budgetMs: 1_000,
@@ -159,6 +164,7 @@ describe('the session runtime', () => {
   it('keeps one runtime for one user whatever credential arrives, and replaces it for another', async () => {
     const clients = clientsByCredential();
     const owner = createSessionOwner({
+      streamDeps: SILENT_STREAM,
       projectClientFor: () => fakeProjectApi(),
       clientFor: clients.clientFor,
       budgetMs: 1_000,
@@ -184,6 +190,7 @@ describe('the session runtime', () => {
   it('retires the session’s project before the session, and opens none once it is withdrawn', async () => {
     const events: string[] = [];
     const owner = createSessionOwner({
+      streamDeps: SILENT_STREAM,
       projectClientFor: () => fakeProjectApi(),
       clientFor: () => fakeDirectoryApi(),
       installProject: recordedProjects(events),
@@ -213,6 +220,7 @@ describe('the session runtime', () => {
   it('fails the session’s retirement when its project will not let go', async () => {
     const events: string[] = [];
     const owner = createSessionOwner({
+      streamDeps: SILENT_STREAM,
       projectClientFor: () => fakeProjectApi(),
       clientFor: () => fakeDirectoryApi(),
       installProject: recordedProjects(events, () =>
@@ -237,6 +245,7 @@ describe('the session runtime', () => {
 
   it('settles a half-built session that cannot be released, and leaves the owner terminally fatal', async () => {
     const owner = createSessionOwner({
+      streamDeps: SILENT_STREAM,
       projectClientFor: () => fakeProjectApi(),
       clientFor: () => fakeDirectoryApi(),
       install: () => {
@@ -258,6 +267,7 @@ describe('the session runtime', () => {
   it('settles a request a newer one overtook, and builds nothing for it', async () => {
     const clients = clientsByCredential();
     const owner = createSessionOwner({
+      streamDeps: SILENT_STREAM,
       projectClientFor: () => fakeProjectApi(),
       clientFor: clients.clientFor,
       budgetMs: 1_000,
@@ -275,6 +285,7 @@ describe('the session runtime', () => {
     const events: string[] = [];
     let letGo: () => void = () => undefined;
     const owner = createSessionOwner({
+      streamDeps: SILENT_STREAM,
       projectClientFor: () => fakeProjectApi(),
       clientFor: () => fakeDirectoryApi(),
       installProject: recordedProjects(
@@ -307,6 +318,7 @@ describe('the session runtime', () => {
 
   it('hands a region drawn for one user nothing of another user’s session', async () => {
     const owner = createSessionOwner({
+      streamDeps: SILENT_STREAM,
       projectClientFor: () => fakeProjectApi(),
       clientFor: () => fakeDirectoryApi(),
       budgetMs: 1_000,
@@ -326,6 +338,7 @@ describe('log out', () => {
     const events: string[] = [];
     const client = fakeDirectoryApi();
     const owner = createSessionOwner({
+      streamDeps: SILENT_STREAM,
       projectClientFor: () => fakeProjectApi(),
       clientFor: () => client,
       install: (dependencies) => {
@@ -384,6 +397,10 @@ describe('log out', () => {
       const owner = createSessionOwner({
         projectClientFor: () => fakeProjectApi(),
         clientFor: () => fakeDirectoryApi(),
+        // Proof: with `streamDeps` on none of this file's owners (2026-09-27, after saved
+        // plans began subscribing on open) the node tier raised 7 unhandled
+        // `ReferenceError`s from this file; with it on this owner alone, 6.
+        streamDeps: SILENT_STREAM,
         installProject: (dependencies) => {
           const installed = installProjectRuntime(dependencies);
           return {
@@ -425,6 +442,7 @@ describe('log out', () => {
 
   it('settles fatal after a sign-in that could not be built, and keeps the fatal state', async () => {
     const owner = createSessionOwner({
+      streamDeps: SILENT_STREAM,
       projectClientFor: () => fakeProjectApi(),
       clientFor: () => fakeDirectoryApi(),
       install: () => {

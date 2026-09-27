@@ -1,11 +1,25 @@
-import type { OptimizedScheduleAsk, OptimizedScheduleRead } from '@wbs/core';
+import type {
+  OptimizationVariantState,
+  OptimizedScheduleAsk,
+  OptimizedScheduleRead,
+} from '@wbs/core';
 
-export { optimizationVariantState } from '../../repository/optimized-schedule-cache';
 export type {
   OptimizationVariantState,
   OptimizedScheduleAsk,
   OptimizedScheduleRead,
 } from '@wbs/core';
+
+/** Apply slot/queue liveness to the adapter's cached-state projection. */
+export function applyVariantLiveness(
+  state: OptimizationVariantState,
+  live: boolean,
+): OptimizationVariantState {
+  if (!live) return state;
+  if (state.state === 'idle') return { state: 'pending' };
+  if (state.state === 'failed' || state.state === 'corrupt') return { state: 'retrying' };
+  return state;
+}
 
 /**
  * The plan read's one question of the optimized cache: *what is the published

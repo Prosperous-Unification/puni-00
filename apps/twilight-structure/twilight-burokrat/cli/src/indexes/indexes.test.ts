@@ -162,6 +162,16 @@ function commit(repository: string, message: string): string {
   return runGit(repository, ['rev-parse', 'HEAD']);
 }
 
+/**
+ * How long a README-cycle check may run before it counts as looping. The cycle cases pass this so a
+ * fallback that restarts forever fails as a killed process instead of hanging the suite; it sits
+ * well above a loaded CLI run, which took 3.2 to 5.7 seconds on 2026-09-27 and was killed at the
+ * former 3-second bound (docs/test-budgets.md).
+ * Proof: with this set to 1, both cycle cases failed on `Expected: 1 · Received: null`
+ * (2026-09-27).
+ */
+const CYCLE_BOUND_MS = 20_000;
+
 function runCheck(
   repository: string,
   revision: string,
@@ -1155,10 +1165,15 @@ describe('index production CLI', () => {
     symlinkSync('.', join(repository, 'docs/README.md'));
 
     expectRefusal(
-      runCheck(repository, commit(repository, 'self directory README fallback'), undefined, 3_000),
+      runCheck(
+        repository,
+        commit(repository, 'self directory README fallback'),
+        undefined,
+        CYCLE_BOUND_MS,
+      ),
       'Markdown directory README cycle in README.md: docs',
     );
-  }, 5_000);
+  }, 30_000);
 
   test('refuses mutual directory README symlinks that restart fallback', () => {
     const repository = createRepository();
@@ -1184,11 +1199,11 @@ describe('index production CLI', () => {
         repository,
         commit(repository, 'mutual directory README fallback'),
         undefined,
-        3_000,
+        CYCLE_BOUND_MS,
       ),
       'Markdown directory README cycle in README.md: docs',
     );
-  }, 5_000);
+  }, 30_000);
 
   test('resolves a directory README symlink to a finite parent README', () => {
     const repository = createRepository();

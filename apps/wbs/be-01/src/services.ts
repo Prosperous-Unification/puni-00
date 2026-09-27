@@ -22,6 +22,7 @@ import { installOptimization } from './module/optimization/check';
 import type { ReservedSpawner } from './module/optimization/contract';
 import type { OptimizationCoordinator } from './module/optimization/optimization.feature';
 import { PLAN_EVENT_RETENTION_DAYS } from './repository';
+import { createOptimizationRepository } from './repository/optimization';
 import {
   bunPasswordHasher,
   joseTokenCodec,
@@ -137,7 +138,10 @@ export function buildServices(options: ServicesOptions): BeServices {
   if (options.optimizer !== undefined) {
     const optimizer = options.optimizer;
     coordinator = installOptimization({
-      db: source.db,
+      repository: createOptimizationRepository(
+        source.db,
+        new DrizzleEventLogStore(source.db, source.gate),
+      ),
       contractVersion: contractVersionOf(optimizer.solverVersion),
       solverVersion: optimizer.solverVersion,
       budgetMs: optimizer.budgetMs,
@@ -149,7 +153,6 @@ export function buildServices(options: ServicesOptions): BeServices {
         (await source.stores.projects.findById(projectId))?.optimizationEnabled === true,
       hashInput: scheduleInputHash,
       spawn: optimizer.spawn,
-      eventLog: new DrizzleEventLogStore(source.db, source.gate),
       pushRecorded: (subscription, recorded, event) =>
         graph.gatewayBroadcaster.pushRecorded(subscription, recorded, event),
       onChildError: (error) => {

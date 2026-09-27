@@ -1,8 +1,11 @@
 import { type ProjectStreamDeps, subscribeToProject } from '@/lib/project-stream';
+import { httpSavedPlanApi, savedPlansAvailable } from '@/lib/saved-plan-api';
 import type { ProjectApi } from '@/lib/wbs-api';
 import { calendarMarkersForReader } from '@/modules/calendar-markers/composition';
 import { createPlanCommands } from '@/modules/plan-commands/plan-commands.feature';
 import { planFeedForReader } from '@/modules/plan-feed/composition';
+import type { SavedPlanRoutes } from '@/modules/saved-plans/contract';
+import { openSavedPlans } from '@/modules/saved-plans/saved-plans.feature';
 
 import type { ProjectServices, ProjectSource } from './contract';
 
@@ -15,14 +18,19 @@ import type { ProjectServices, ProjectSource } from './contract';
  * `ProjectApi` here and nowhere below: each module is handed it as its own
  * narrow port — the plan feed as `PlanReadRoutes`, the calendar markers as
  * `CalendarMarkerRoutes`, the commands as `PlanCommandRoutes` — and the
- * services returned expose none of them.
+ * services returned expose none of them. The saved plans are the one module
+ * not cut from this client: be-01's checkpoint routes are a client of their
+ * own, handed in as `savedPlanRoutes`.
  *
  * Builds nothing and calls nothing until a factory is asked, and every port
  * reaches the client at the moment of each call. The project lifetime of the
  * rollout's last Task 6 row turns this into the project runtime; until then the
  * page calls it once per client.
  */
-export function projectServicesOver(client: ProjectApi): ProjectServices {
+export function projectServicesOver(
+  client: ProjectApi,
+  savedPlanRoutes: SavedPlanRoutes,
+): ProjectServices {
   // Proof: on 2026-09-24, cutting the ports from a copy of the client taken here (`{ ...client }`)
   // failed `reaches the client at the moment of each call, not when it was composed` with
   // `expected [] to deeply equal [ 'tree:p1', 'arrange:p1' ]`.
@@ -39,24 +47,51 @@ export function projectServicesOver(client: ProjectApi): ProjectServices {
     // `binds each project’s commands to that project, over the same client` with
     // `expected [ 'p1', 'p1' ] to deeply equal [ 'p1', 'p2' ]`.
     planCommandsFor: (projectId) => createPlanCommands({ projectId, routes: client }),
+    savedPlansFor: (reader) => openSavedPlans({ ...reader, routes: savedPlanRoutes }),
+  };
+}
+
+/**
+ * The saved plans' port over the browser: be-01's checkpoint routes, the
+ * capability question asked of the served OpenAPI document, and a stream of the
+ * project's own that says its shelf moved.
+ *
+ * HTTP and the stream both authenticate with the serving origin's cookies.
+ * `sinceSeq: -1` is the shelf's honest answer: a shelf read is a list of saved
+ * plans, not a read of the project at a sequence, so there is nothing for it to
+ * resume from. The plan feed owns that conversation on its own socket.
+ */
+export function browserSavedPlanRoutes(streamDeps?: ProjectStreamDeps): SavedPlanRoutes {
+  const api = httpSavedPlanApi();
+  return {
+    available: savedPlansAvailable,
+    list: (projectId) => api.list(projectId),
+    save: (projectId, name) => api.save(projectId, name),
+    rename: (savedPlanId, name) => api.rename(savedPlanId, name),
+    compare: (projectId, left, right) => api.compare(projectId, left, right),
+    subscribe: (projectId, onChange) =>
+      subscribeToProject({ projectId, sinceSeq: -1, onChange }, streamDeps),
   };
 }
 
 /**
  * What every project runtime of one session is built over: the plan services
- * cut from the session's one client, and the stream opened for each project.
+ * cut from the session's one client, the saved plans over their own port, and
+ * the stream opened for each project.
  *
  * Composed once per session, by the session owner, and never in delivery: the
  * page names a project and the session opens it over this. `streamDeps` is the
- * socket's own wiring, left out in production and injected by suites, which
- * keeps every line of the joining below production code.
+ * socket's own wiring and `savedPlanRoutes` the checkpoint routes', both left
+ * out in production and injected by suites, which keeps every line of the
+ * joining below production code.
  */
 export function projectSourceOver(
   client: ProjectApi,
   streamDeps?: ProjectStreamDeps,
+  savedPlanRoutes: SavedPlanRoutes = browserSavedPlanRoutes(streamDeps),
 ): ProjectSource {
   return {
-    services: projectServicesOver(client),
+    services: projectServicesOver(client, savedPlanRoutes),
     subscribe: (projectId, handlers, baseline) =>
       subscribeToProject(
         {

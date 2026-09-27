@@ -134,6 +134,13 @@ describe('narrowTree — a typed name', () => {
     expect(ids(narrowed.matchIds)).toEqual(['a11']);
   });
 
+  it('keeps a revealed row and its line on screen without calling it a match', () => {
+    const narrowed = narrowTree(PLAN, asking({ query: 'back' }), new Set(['b1', 'gone']));
+
+    expect(ids(narrowed.visibleIds)).toEqual(['a', 'a1', 'a11', 'b', 'b1']);
+    expect(ids(narrowed.matchIds)).toEqual(['a11']);
+  });
+
   it('opens every kept row, so a match inside a closed branch is on screen', () => {
     const narrowed = narrowTree(PLAN, asking({ query: 'back' }));
 

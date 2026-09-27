@@ -5,6 +5,11 @@
       "distribution": "ubuntu",
       "version": "24.04",
       "arch": "amd64"
+    },
+    {
+      "distribution": "ubuntu",
+      "version": "26.04",
+      "arch": "amd64"
     }
   ],
   "binaries": {

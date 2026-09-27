@@ -97,6 +97,16 @@ container. `MCP_STORE_KEY_CURRENT` is base64 for 32 random bytes.
 `MCP_ACCESS_TOKEN_TTL` is seconds and defaults to 3600 while the live client
 refresh behavior remains unproven.
 
+Startup migrates the store before serving (`src/store-migrations.ts`). Paired
+`migration.sql`/`down.sql` folders under `drizzle/` are bundled as text and
+recorded with their checksums in `mcp_migration`; an edited or unknown migration
+refuses. An absent path is created; an existing empty, partial or unreadable file
+refuses instead of being reinitialized. A store from before the ledger is adopted
+only when its schema is exactly the first migration's. The store also holds the
+credential epoch; this release starts only at epoch 0. Reverse with
+`rollbackMcpStore` while mcp-01 is stopped: it refuses while a bound credential
+is still usable or the epoch has advanced.
+
 Rotate either key by moving the old current value to its matching `_PREVIOUS`
 variable, installing a new current value, and restarting mcp-01. New writes use
 current; reads and token verification accept current and previous. After the

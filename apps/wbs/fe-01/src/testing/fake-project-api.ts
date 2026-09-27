@@ -238,7 +238,7 @@ export function fakeProjectApi(): ProjectApi & {
 
   /**
    * The work items whose assumed assignee removing `stepId` would move, the way
-   * `apps/wbs/be-01/src/service/assumed-assignee.ts` computes them: exactly one
+   * `libs/wbs/application/core/src/service/assumed-assignee.ts` computes them: exactly one
    * assignment means that person is taken to be doing every step.
    */
   function flipsFor(stepId: string): AssumedAssigneeFlipView[] {

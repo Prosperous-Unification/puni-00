@@ -798,6 +798,107 @@
           { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/session-runtime.ts" }
         ]
       }
+    },
+    {
+      "moduleId": "module.frontend.saved-plans",
+      "name": "Saved plans frontend module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "apps/wbs/fe-01/src/modules/saved-plans",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "apps/wbs/fe-01/src/modules/saved-plans/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/saved-plan-list.tsx" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/saved-plans-panel.tsx" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/lib/saved-plan-save.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/composition.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/contract.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts" }
+        ]
+      }
+    },
+    {
+      "moduleId": "module.application.plan-import",
+      "name": "Plan import sealed DI Bag module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "libs/wbs/application/core/src/module/plan-import",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "libs/wbs/application/core/src/module/plan-import/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/import.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/import.service.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/prepare-import.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/testing/import-service-source-contract.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/testing/writes-fixture.ts"
+          }
+        ]
+      }
+    },
+    {
+      "moduleId": "module.application.plan-document",
+      "name": "Plan document sealed resource module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "libs/wbs/application/core/src/module/plan-document",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "libs/wbs/application/core/src/module/plan-document/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/project.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/plan-document.ts"
+          }
+        ]
+      }
     }
   ]
 }
