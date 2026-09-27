@@ -17,13 +17,24 @@ const scoped: ResourceAccess = {
  */
 async function fixture(taken: number) {
   const base = inMemoryDirectory();
+  await base.addTeam({ id: 't', name: 't' }, { at: 0, by: 'u' });
   for (let n = 1; n <= taken; n += 1) {
     await base.addTag({ id: `other-${String(n)}`, name: `id-${String(n)}` }, { at: 0, by: 'u' });
+    const added = await base.addPerson({ id: `other-${String(n)}`, name: `id-${String(n)}` }, [], {
+      at: 0,
+      by: 'u',
+    });
+    if (!added.ok) throw new Error('the colliding person was refused');
   }
   const mapped: string[] = [];
   const directory: DirectoryStore = {
     ...base,
-    listInOrganization: () => Promise.resolve([]),
+    // Only the team `t` is the organization's, and nothing else yet.
+    listInOrganization: (catalog) =>
+      // A test double answering one catalog's rows for the generic signature.
+      Promise.resolve(
+        (catalog === 'teams' ? [{ id: 't', name: 't', serviceIds: [] }] : []) as never,
+      ),
     mapInOrganization: (_catalog, resourceId) => {
       mapped.push(resourceId);
       return Promise.resolve();
@@ -41,7 +52,7 @@ async function fixture(taken: number) {
       },
     }),
   });
-  return { service, mapped };
+  return { service, mapped, base };
 }
 
 describe('an opaque root name', () => {
@@ -62,5 +73,17 @@ describe('an opaque root name', () => {
     }
     expect(String(refusal)).toContain('no free opaque directory name after 3 ids');
     expect(always.mapped).toEqual([]);
+  });
+
+  test('retries a colliding opaque person name without touching the person it collided with', async () => {
+    const once = await fixture(1);
+    expect(await once.service.addPersonWithin('u', 'Kat', ['t'], scoped)).toEqual({
+      ok: true,
+      value: { id: 'id-2', name: 'Kat', kind: 'person' },
+    });
+    const people = await once.base.listPeople();
+    expect(people.find((person) => person.id === 'other-1')?.teamIds).toEqual([]);
+    expect(people.find((person) => person.id === 'id-2')?.teamIds).toEqual(['t']);
+    expect(once.mapped).toEqual(['id-2']);
   });
 });

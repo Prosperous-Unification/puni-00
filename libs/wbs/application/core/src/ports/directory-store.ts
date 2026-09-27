@@ -330,6 +330,18 @@ export interface DirectoryStore {
     name: string,
     stamp: WriteStamp,
   ): Promise<OrganizationRenamed>;
+  /**
+   * Every reference to one of the organization's entries from outside it:
+   * a work item, assignment or capacity of a project the organization does
+   * not own, a membership of a person or team it does not own, or a service
+   * ownership by a team it does not own. Each as `relation:id`. Empty for an
+   * entry only its organization reaches.
+   */
+  foreignReferencesTo(
+    catalog: NamedCatalog,
+    resourceId: string,
+    organizationId: string,
+  ): Promise<string[]>;
   /** Which of `projectIds` the organization does not own. */
   projectsOutside(projectIds: readonly string[], organizationId: string): Promise<string[]>;
   /** Every tag in the global directory, by name. */

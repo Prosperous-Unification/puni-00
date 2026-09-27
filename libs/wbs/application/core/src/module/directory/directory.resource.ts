@@ -844,6 +844,10 @@ export class DirectoryService {
   ): Promise<
     { ok: true } | { ok: false; reason: 'not_found' } | { ok: false; reason: 'taken'; name: string }
   > {
+    if ((await this.ownEntry(catalog, id, scope)) === undefined) {
+      return { ok: false, reason: 'not_found' };
+    }
+    await this.refuseForeignReach(catalog, id, scope);
     const written = await this.opts.directory.renameInOrganization(
       catalog,
       id,
@@ -858,6 +862,38 @@ export class DirectoryService {
     }
     await this.announce(written.projectIds);
     return { ok: true };
+  }
+
+  /**
+   * Refuses to touch an entry anything outside the organization reaches: a
+   * foreign project's row, assignment or capacity, or a foreign person's,
+   * team's or service's link. Every scoped write of an existing entry checks
+   * it first, since renaming, relinking or removing the entry would otherwise
+   * change what the other organization sees.
+   *
+   * Proof: skipping this check made `fails closed on an entry another
+   * organization reaches, whatever the write` in
+   * `directory-command-organization.controller.db.test.ts` answer 200 to a
+   * cascade removing A's team, dropping B's person's membership; watched
+   * 2026-09-27.
+   *
+   * @throws when any such reference exists: corrupt trusted state.
+   */
+  private async refuseForeignReach(
+    catalog: NamedCatalog,
+    id: string,
+    scope: OrganizationScope,
+  ): Promise<void> {
+    const reached = await this.opts.directory.foreignReferencesTo(
+      catalog,
+      id,
+      scope.organizationId,
+    );
+    if (reached.length > 0) {
+      throw new Error(
+        `${catalog} entry "${id}" of organization "${scope.organizationId}" is reached from outside it: ${reached.join(', ')}`,
+      );
+    }
   }
 
   /** The organization's own entry of `catalog` with `id`, or undefined alike for a foreign and an absent one. */
@@ -915,6 +951,7 @@ export class DirectoryService {
     if ((await this.ownEntry('teams', teamId, scope)) === undefined) {
       return { ok: false, reason: 'not_found' };
     }
+    await this.refuseForeignReach('teams', teamId, scope);
     if (
       patch.serviceIds !== undefined &&
       !(await this.ownsAll('services', patch.serviceIds, scope))
@@ -966,6 +1003,7 @@ export class DirectoryService {
       await this.opts.directory.listInOrganization('people', scope.organizationId)
     ).find((person) => person.name === clean);
     if (existing !== undefined) {
+      await this.refuseForeignReach('people', existing.id, scope);
       const joined = [...new Set([...existing.teamIds, ...teamIds])];
       if (joined.length > existing.teamIds.length) {
         const written = await this.opts.directory.patchPerson(
@@ -979,14 +1017,26 @@ export class DirectoryService {
       return { ok: true, value: { id: existing.id, name: existing.name, kind: existing.kind } };
     }
     let kind: Person['kind'] | undefined;
+    // The root alone first: on a collision the legacy add answers the existing
+    // person, and memberships added in the same call would land on it.
+    // Proof: adding the teams in this call made `retries a colliding opaque
+    // person name without touching the person it collided with` in
+    // `directory.resource.test.ts` join the colliding person to the team;
+    // watched 2026-09-27.
     const id = await this.addOpaqueRoot(async (row) => {
-      const added = await this.opts.directory.addPerson(row, teamIds, stamp);
+      const added = await this.opts.directory.addPerson(row, [], stamp);
       if (!added.ok) throw new Error(`person refused teams already checked: ${added.reason}`);
       kind = added.person.kind;
       return added.person;
     });
     if (kind === undefined) throw new Error(`person "${id}" was added without a kind`);
     await this.opts.directory.mapInOrganization('people', id, scope.organizationId, clean);
+    if (teamIds.length > 0) {
+      const joined = await this.opts.directory.patchPerson(id, { teamIds }, stamp);
+      if (!joined.ok) {
+        throw new Error(`person "${id}" refused teams already checked: ${joined.reason}`);
+      }
+    }
     return { ok: true, value: { id, name: clean, kind } };
   }
 
@@ -1018,6 +1068,7 @@ export class DirectoryService {
     if ((await this.ownEntry('people', personId, scope)) === undefined) {
       return { ok: false, reason: 'not_found' };
     }
+    await this.refuseForeignReach('people', personId, scope);
     // Proof: skipping this check made `refuses a foreign service or team link
     // exactly as an absent one` in
     // `directory-command-organization.controller.db.test.ts` answer 500
@@ -1105,6 +1156,7 @@ export class DirectoryService {
     if ((await this.ownEntry(catalog, id, scope)) === undefined) {
       return { ok: false, reason: 'not_found' };
     }
+    await this.refuseForeignReach(catalog, id, scope);
     const shown = async (rows: DirectoryUsageRows): Promise<DirectoryUsage> =>
       removal.usageIn(await this.localUsage(rows, scope), id);
     if (!cascade) {

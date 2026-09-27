@@ -70,6 +70,8 @@ function snapshot(): unknown {
   return [
     'person',
     'person_organization',
+    'project_team_capacity',
+    'assignment',
     'person_team',
     'service_team',
     'service_team_organization',
@@ -81,6 +83,10 @@ function snapshot(): unknown {
     'work_item_type',
     'work_item_type_organization',
     'work_item_tag',
+    'work_item_team',
+    'work_item_service',
+    'work_item_work_item_type',
+    'work_item',
   ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all().map(withoutAudit));
 }
 
@@ -327,6 +333,122 @@ describe('after activation', () => {
     }
     expect(snapshot()).toEqual(before);
     expect(own).not.toBe(foreign);
+  });
+
+  it('fails closed on an entry another organization reaches, whatever the write', async () => {
+    h.sqlite.run(
+      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-b', ?, NULL, 0, 'Theirs')",
+      [foreign],
+    );
+    const step = (
+      (await h.call('grace', 'GET', `/api/projects/${foreign}`)).body as { steps: { id: string }[] }
+    ).steps.at(0)?.id;
+    if (step === undefined) throw new Error('the foreign project started with no step');
+    const reaches: [string, [string, unknown[]][], unknown[]][] = [
+      [
+        "B's person in A's team",
+        [["INSERT INTO person_team (person_id, service_team_id) VALUES ('pe-b', 'tm-a')", []]],
+        [
+          { kind: 'deleteTeam', teamId: 'tm-a', cascade: true },
+          { kind: 'patchTeam', teamId: 'tm-a', patch: { name: 'Renamed' } },
+        ],
+      ],
+      [
+        "B's capacity for A's team",
+        [
+          [
+            'INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES (?, ?, 2)',
+            [foreign, 'tm-a'],
+          ],
+        ],
+        [{ kind: 'patchTeam', teamId: 'tm-a', patch: { serviceIds: [] } }],
+      ],
+      [
+        "B's team owning A's service",
+        [["INSERT INTO team_service (team_id, service_id) VALUES ('tm-b', 'sv-a')", []]],
+        [{ kind: 'deleteService', serviceId: 'sv-a' }],
+      ],
+      [
+        "B's assignment of A's person",
+        [
+          [
+            'INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, ?)',
+            ['w-b', step, 'pe-a'],
+          ],
+        ],
+        [
+          { kind: 'patchPerson', personId: 'pe-a', patch: { kind: 'agent' } },
+          { kind: 'createPerson', name: 'pe-a', teamIds: ['tm-a'] },
+        ],
+      ],
+      [
+        "A's person in B's team",
+        [["INSERT INTO person_team (person_id, service_team_id) VALUES ('pe-a', 'tm-b')", []]],
+        [{ kind: 'patchPerson', personId: 'pe-a', patch: { kind: 'agent' } }],
+      ],
+      [
+        "A's team owning B's service",
+        [["INSERT INTO team_service (team_id, service_id) VALUES ('tm-a', 'sv-b')", []]],
+        [{ kind: 'patchTeam', teamId: 'tm-a', patch: { name: 'Renamed' } }],
+      ],
+      [
+        "B's row labelled with A's team",
+        [["INSERT INTO work_item_team (work_item_id, team_id) VALUES ('w-b', 'tm-a')", []]],
+        [{ kind: 'patchTeam', teamId: 'tm-a', patch: { name: 'Renamed' } }],
+      ],
+      [
+        "B's row led by A's team",
+        [["UPDATE work_item SET service_team_id = 'tm-a' WHERE id = 'w-b'", []]],
+        [{ kind: 'patchTeam', teamId: 'tm-a', patch: { name: 'Renamed' } }],
+      ],
+      [
+        "B's row delivering A's service",
+        [["INSERT INTO work_item_service (work_item_id, service_id) VALUES ('w-b', 'sv-a')", []]],
+        [{ kind: 'patchService', serviceId: 'sv-a', name: 'Renamed' }],
+      ],
+      [
+        "B's row's single service A's",
+        [["UPDATE work_item SET service_id = 'sv-a' WHERE id = 'w-b'", []]],
+        [{ kind: 'patchService', serviceId: 'sv-a', name: 'Renamed' }],
+      ],
+      [
+        "B's row typed with A's type",
+        [
+          [
+            "INSERT INTO work_item_work_item_type (work_item_id, type_id) VALUES ('w-b', 'ty-a')",
+            [],
+          ],
+        ],
+        [{ kind: 'patchWorkItemType', typeId: 'ty-a', name: 'Renamed' }],
+      ],
+      [
+        "B's row tagged with A's tag",
+        [["INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('w-b', 'tg-a')", []]],
+        [{ kind: 'patchTag', tagId: 'tg-a', name: 'Renamed' }],
+      ],
+    ];
+    for (const [reach, seeds, commands] of reaches) {
+      for (const [statement, params] of seeds) h.sqlite.run(statement, params as string[]);
+      const before = snapshot();
+      for (const command of commands) {
+        const answer = await directory('ada', [command]);
+        expect({ reach, command, status: answer.status }).toEqual({ reach, command, status: 500 });
+      }
+      expect(snapshot()).toEqual(before);
+      h.sqlite.run("DELETE FROM person_team WHERE person_id = 'pe-b'");
+      h.sqlite.run('DELETE FROM project_team_capacity WHERE project_id = ?', [foreign]);
+      h.sqlite.run("DELETE FROM team_service WHERE team_id = 'tm-b'");
+      h.sqlite.run("DELETE FROM assignment WHERE work_item_id = 'w-b'");
+      h.sqlite.run("DELETE FROM person_team WHERE person_id = 'pe-a'");
+      h.sqlite.run("DELETE FROM team_service WHERE team_id = 'tm-a'");
+      h.sqlite.run("DELETE FROM work_item_team WHERE work_item_id = 'w-b'");
+      h.sqlite.run(
+        "UPDATE work_item SET service_team_id = NULL, service_id = NULL WHERE id = 'w-b'",
+      );
+      h.sqlite.run("DELETE FROM work_item_service WHERE work_item_id = 'w-b'");
+      h.sqlite.run("DELETE FROM work_item_work_item_type WHERE work_item_id = 'w-b'");
+      h.sqlite.run("DELETE FROM work_item_tag WHERE work_item_id = 'w-b'");
+    }
   });
 
   it('refuses a viewer every directory command', async () => {

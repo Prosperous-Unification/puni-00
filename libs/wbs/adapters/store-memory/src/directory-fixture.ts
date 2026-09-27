@@ -128,6 +128,9 @@ export function inMemoryDirectory(
     renameInOrganization() {
       return Promise.reject(new Error('the in-memory directory has no organization-local writes'));
     },
+    foreignReferencesTo() {
+      return Promise.reject(new Error('the in-memory directory has no project ownership'));
+    },
     projectsOutside() {
       return Promise.reject(new Error('the in-memory directory has no project ownership'));
     },

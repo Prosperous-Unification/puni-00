@@ -26,7 +26,7 @@ import type {
   WorkItemTypeWritten,
   WriteStamp,
 } from '@wbs/core';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -587,6 +587,71 @@ export class DirectoryRepository implements DirectoryStore {
         return { ok: true, projectIds };
       });
     });
+  }
+
+  /**
+   * Proof, each arm disabled alone, watched 2026-09-27 against `fails closed on
+   * an entry another organization reaches, whatever the write` in
+   * `directory-command-organization.controller.db.test.ts` (200 instead of
+   * 500):
+   * - Failed alone: the assignment, capacity, a team's foreign member, a
+   *   service's foreign owning team, and both scalar label arms.
+   * - Failed only together with `renameInOrganization`'s foreign-project
+   *   check, which also guards those renames: the work item team, service, tag
+   *   and type label arms.
+   * - Not observable alone: a person in a foreign team and a team owning a
+   *   foreign service. `listInOrganization` already throws on such a link
+   *   before any scoped write reads its target.
+   */
+  async foreignReferencesTo(
+    catalog: NamedCatalog,
+    resourceId: string,
+    organizationId: string,
+  ): Promise<string[]> {
+    await Promise.resolve();
+    const id = resourceId;
+    const o = organizationId;
+    const foreignProject = (column: string) =>
+      sql.raw(`(SELECT organization_id FROM project_organization WHERE resource_id = ${column})`);
+    const foreignOwner = (side: string, column: string) =>
+      sql.raw(`(SELECT organization_id FROM ${side} WHERE resource_id = ${column})`);
+    const labelled = (relation: string, table: string, column: string) => sql`
+      SELECT ${relation} || ':' || l.work_item_id AS ref FROM ${sql.raw(table)} AS l
+        JOIN work_item AS w ON w.id = l.work_item_id
+        WHERE l.${sql.raw(column)} = ${id} AND ${foreignProject('w.project_id')} IS NOT ${o}`;
+    const scalar = (relation: string, column: string) => sql`
+      SELECT ${relation} || ':' || w.id AS ref FROM work_item AS w
+        WHERE w.${sql.raw(column)} = ${id} AND ${foreignProject('w.project_id')} IS NOT ${o}`;
+    const arms: Record<NamedCatalog, SQL[]> = {
+      people: [
+        sql`SELECT 'assignment:' || l.work_item_id AS ref FROM assignment AS l
+          JOIN work_item AS w ON w.id = l.work_item_id
+          WHERE l.person_id = ${id} AND ${foreignProject('w.project_id')} IS NOT ${o}`,
+        sql`SELECT 'person_team:' || m.service_team_id AS ref FROM person_team AS m
+          WHERE m.person_id = ${id} AND ${foreignOwner('service_team_organization', 'm.service_team_id')} IS NOT ${o}`,
+      ],
+      teams: [
+        labelled('work_item_team', 'work_item_team', 'team_id'),
+        scalar('work_item_service_team', 'service_team_id'),
+        sql`SELECT 'project_team_capacity:' || c.project_id AS ref FROM project_team_capacity AS c
+          WHERE c.service_team_id = ${id} AND ${foreignProject('c.project_id')} IS NOT ${o}`,
+        sql`SELECT 'person_team:' || m.person_id AS ref FROM person_team AS m
+          WHERE m.service_team_id = ${id} AND ${foreignOwner('person_organization', 'm.person_id')} IS NOT ${o}`,
+        sql`SELECT 'team_service:' || t.service_id AS ref FROM team_service AS t
+          WHERE t.team_id = ${id} AND ${foreignOwner('service_organization', 't.service_id')} IS NOT ${o}`,
+      ],
+      services: [
+        labelled('work_item_service', 'work_item_service', 'service_id'),
+        scalar('work_item_service_id', 'service_id'),
+        sql`SELECT 'team_service:' || t.team_id AS ref FROM team_service AS t
+          WHERE t.service_id = ${id} AND ${foreignOwner('service_team_organization', 't.team_id')} IS NOT ${o}`,
+      ],
+      tags: [labelled('work_item_tag', 'work_item_tag', 'tag_id')],
+      workItemTypes: [labelled('work_item_type', 'work_item_work_item_type', 'type_id')],
+    };
+    return this.db
+      .all<{ ref: string }>(sql.join(arms[catalog], sql` UNION ALL `))
+      .map((row) => row.ref);
   }
 
   async projectsOutside(projectIds: readonly string[], organizationId: string): Promise<string[]> {

@@ -41,6 +41,8 @@ export function createWorkingPlanDirectory(
       (...parameters) => source().renameInOrganization(...parameters),
       ok,
     ),
+    foreignReferencesTo: (catalog, resourceId, organizationId) =>
+      source().foreignReferencesTo(catalog, resourceId, organizationId),
     projectsOutside: (projectIds, organizationId) =>
       source().projectsOutside(projectIds, organizationId),
     listTags: () => source().listTags(),
