@@ -294,6 +294,11 @@ const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
  */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /**
+ * The durable activation marker, stamped after
+ * {@link ORGANIZATION_OWNERSHIP} and reversed before it.
+ */
+const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
+/**
  * The newest: the nullable step code column and its partial unique index
  * `address-step-nodes` adds. One `ADD COLUMN` and one `CREATE UNIQUE INDEX`
  * forward, the index and the column back, so it heads every descending reversal
@@ -632,6 +637,7 @@ describe('readMigrationFolders', () => {
       WORK_ITEM_FACTS,
       ORGANIZATION_RECORDS,
       ORGANIZATION_OWNERSHIP,
+      ORGANIZATION_ACTIVATION,
       STEP_CODE,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
@@ -752,6 +758,7 @@ describe('rollbackTo, against a real database', () => {
         WORK_ITEM_FACTS,
         ORGANIZATION_RECORDS,
         ORGANIZATION_OWNERSHIP,
+        ORGANIZATION_ACTIVATION,
         STEP_CODE,
       ]);
 
@@ -759,6 +766,7 @@ describe('rollbackTo, against a real database', () => {
 
       expect(reversed).toEqual([
         STEP_CODE,
+        ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -873,6 +881,7 @@ describe('rollbackTo, against a real database', () => {
         WORK_ITEM_FACTS,
         ORGANIZATION_RECORDS,
         ORGANIZATION_OWNERSHIP,
+        ORGANIZATION_ACTIVATION,
         STEP_CODE,
       ]);
     } finally {
@@ -945,6 +954,7 @@ describe('rollbackTo, against a real database', () => {
 
       expect(reversed).toEqual([
         STEP_CODE,
+        ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -1037,6 +1047,7 @@ describe('rollbackTo, against a real database', () => {
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
         STEP_CODE,
+        ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -1114,6 +1125,7 @@ describe('rollbackTo, against a real database', () => {
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
         STEP_CODE,
+        ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,

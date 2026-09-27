@@ -14,7 +14,7 @@
 - [ ] 2.3 Resolve Auth0 issuer/subject and first-party identity to stable local IDs. Red: collision, absent and malformed trusted identity mapping. Fault: replace mapping with an email match; observe mounted collision refusal fail, restore and add `Proof:`.
 - [ ] 2.4 Bind browser active organization to WBS session and current membership. Red: zero/one/multiple memberships, forged header, and revoked live session. Fault: bypass membership recheck; observe mounted protected-route test fail, restore and add `Proof:`.
 - [ ] 2.5 Issue and verify audience-specific signed bearer, gateway and MCP delegation. Red: wrong audience, forged organization and expired signature. Fault: trust caller header; observe mounted route refusal fail, restore and add `Proof:`.
-- [ ] 2.6 Make activation marker durable and validate absent, unreadable and malformed trusted marker states separately. Red: each state blocks activation or unsafe routing with explicit error. Fault: default one broken state to inactive; observe actual swap preflight test fail, restore and add `Proof:`.
+- [x] 2.6 Make activation marker durable and validate absent, unreadable and malformed trusted marker states separately. Red: each state is refused with its own explicit error and an activated or broken marker refuses the marker migration's reversal. Fault: default one broken state to inactive; observe the reader test fail, restore and add `Proof:`. The swap preflight that reads the marker moves to 7.3 (Astra, 2026-09-27): a target image's missing CLI proves nothing about database state.
 
 ## 3. Resource authorization, one boundary at a time
 
@@ -56,5 +56,5 @@
 
 - [ ] 7.1 Preflight inventory, bridge reconciliation, old-process drain, MCP epoch and trusted policy/marker state; activate only after all pass. Fault: omit one reconciliation family; observe activation test fail, restore and add `Proof:`.
 - [ ] 7.2 Before activation, execute paired WBS and MCP down migrations in dependency order on production-shaped fixture after preflight. Fault: make reversal drop a legacy relation or live new MCP credential; observe rollback test fail, restore and add `Proof:`.
-- [ ] 7.3 After activation, refuse organization-unaware code routing and WBS/MCP schema reversal even after second-tenant deletion. Test the actual swap abort path and manual completion command on failure. Fault: bypass durable marker; observe swap test fail, restore and add `Proof:`.
+- [ ] 7.3 After activation, refuse organization-unaware code routing and WBS/MCP schema reversal even after second-tenant deletion. Test the actual swap abort path and manual completion command on failure. Fault: bypass durable marker; observe swap test fail, restore and add `Proof:`. Read the marker with a deploy-side checker independent of the target image, before routing and during `abortSwap`; absent, unreadable or malformed state refuses.
 - [ ] 7.4 Run targeted unit, mounted API, socket, MCP, migration and browser tests. Record observed faults and adjacent `Proof:` comments in `verify.md`; run migration lint, OpenSpec validation, formatting and `bin/h2puni-gate.sh <sha>` on the committed implementation SHA.

@@ -64,6 +64,11 @@ const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
  */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /**
+ * The durable activation marker, stamped after
+ * {@link ORGANIZATION_OWNERSHIP} and reversed before it.
+ */
+const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
+/**
  * The newest: the nullable step code column and its partial unique index
  * `address-step-nodes` adds. One `ADD COLUMN` and one `CREATE UNIQUE INDEX`
  * forward, the index and the column back, so it heads every descending reversal
@@ -163,6 +168,7 @@ describe('saved_plan.created_by_id', () => {
 
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
       STEP_CODE,
+      ORGANIZATION_ACTIVATION,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
       WORK_ITEM_FACTS,
@@ -256,6 +262,7 @@ describe('saved_plan.created_by_id', () => {
   it('leaves a row written before the column reading null', () => {
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
       STEP_CODE,
+      ORGANIZATION_ACTIVATION,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
       WORK_ITEM_FACTS,
