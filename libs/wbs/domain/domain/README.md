@@ -18,6 +18,7 @@ with it, and the two cannot disagree about a date.
 | What kind of thing it is (tags)            | `effective-tag.ts`     | ADR 0008 — tags **accumulate** down the tree      |
 | Its work item type                         | — nowhere              | ADR 0009 — a type does not inherit at all         |
 | How far into a predecessor an edge reaches | `dependency-reach.ts`  | ADR 0010 — the project's choice                   |
+| What a typed dependency's endpoints are    | `typed-dependency.ts`  | whole, step node or one step under a parent       |
 | What a priority number is called           | `priority-band.ts`     | five rungs, always                                |
 | What a priority is worth to the solver     | `priority-weight.ts`   | dense rank, because an absolute is never a weight |
 | How far the work has got                   | `progress.ts`          | states fold with `agree`, which is commutative    |

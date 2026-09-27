@@ -99,6 +99,23 @@ export const recordProjectOpen = defineEndpointShape({
   document: { summary: 'Record this account opening a project.' },
 });
 
+/**
+ * A JSON export of a project holding a step an older writer left uncoded mid-swap:
+ * the plan document carries every step's code, and the export never invents one.
+ * `steps` names each uncoded step; `command` is the be-01 backfill that codes
+ * them, after which the export succeeds.
+ */
+export const uncodedStepsRefusal = {
+  status: 409,
+  schema: responseSchema(
+    type({
+      error: "'uncoded_steps'",
+      steps: type({ id: 'string', name: 'string' }).array(),
+      command: 'string',
+    }),
+  ),
+} as const;
+
 /** Exports the core tree without account-specific undo flags, as JSON or unquoted Markdown. */
 export const exportProject = defineEndpointShape({
   method: 'GET',
@@ -121,6 +138,7 @@ export const exportProject = defineEndpointShape({
     engineUnavailableRefusal,
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
     { status: 400, schema: responseSchema(type({ error: "'unsupported_format'" })) },
+    uncodedStepsRefusal,
   ],
   document: { summary: 'Export the project WBS and schedule as JSON or Markdown.' },
 });

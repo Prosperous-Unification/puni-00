@@ -93,12 +93,13 @@ describe('the Plan document module', () => {
 
     const exported = await planDocuments.export(project, tree, LEGACY_ACCESS);
 
-    expect(exported.document).toEqual({
+    if (!exported.ok) throw new Error('export refused');
+    expect(exported.value.document).toEqual({
       format: 'wbs-plan',
-      version: 2,
+      version: 3,
       exportedAt: '2026-09-24T09:00:00.000Z',
     });
-    expect(exported.calendarMarkers).toEqual([
+    expect(exported.value.calendarMarkers).toEqual([
       { id: 'marker-1', date: '2026-09-30', name: 'Launch', color: null },
     ]);
   });
