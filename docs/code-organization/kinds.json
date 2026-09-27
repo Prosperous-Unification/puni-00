@@ -2,11 +2,6 @@
   "reviewed": "2026-09-20",
   "entries": [
     {
-      "path": "apps/wbs/be-01/src/service/assumed-assignee.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/assumed-assignee directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/auth.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core/service/auth.service directly"
@@ -22,37 +17,12 @@
       "disposition": "re-export shim; delete when importers use @wbs/core/service/capacity.service directly"
     },
     {
-      "path": "apps/wbs/be-01/src/service/clean-name.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/clean-name directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/compensating.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/compensating directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/dependency.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/dependency directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/directory-usage.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/directory-usage directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/directory.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core/service/directory.service directly"
     },
     {
       "path": "apps/wbs/be-01/src/service/gateway-broadcaster.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/history.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core directly"
     },
@@ -70,11 +40,6 @@
       "path": "apps/wbs/be-01/src/service/optimized-schedule-reader.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use the optimization module directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/optimizer-trigger-broadcaster.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
     },
     {
       "path": "apps/wbs/be-01/src/service/optimizer-wiring.ts",
@@ -119,11 +84,6 @@
     },
     {
       "path": "apps/wbs/be-01/src/service/retention-job.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/retention-timer.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core directly"
     },

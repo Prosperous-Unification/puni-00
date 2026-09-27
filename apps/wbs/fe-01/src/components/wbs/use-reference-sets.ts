@@ -678,7 +678,7 @@ export function usePlanAssignments({
       // The row's own answer, filtered to the person this cell shows — and that
       // covers the assumed assignee too, which is not obvious and is the reason
       // this is written down. An assumption is `assumedAssignee(row.assignees)`
-      // (`apps/wbs/be-01/src/service/assumed-assignee.ts`): the one person the row
+      // (`libs/wbs/application/core/src/service/assumed-assignee.ts`): the one person the row
       // *does* state, promoted to cover the steps it does not. So whoever this
       // cell shows is always in `assigneesOf(row)` and therefore always in
       // `mismatchByRow`'s list, and a second call for the assumed case cannot
