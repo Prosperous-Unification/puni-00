@@ -15,6 +15,8 @@ const STEP_CODE = '20260927150000_add_step_code';
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /** The organization activation marker, stamped after this one and so reversed first. */
 const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
+/** The legacy bridge, stamped after the marker and so reversed before it. */
+const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
 
 let dir: string;
 let path: string;
@@ -125,6 +127,7 @@ describe(STEP_CODE, () => {
     const before = readStepColumns().map((column) => column.name);
 
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+      ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
       STEP_CODE,
     ]);

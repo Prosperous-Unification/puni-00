@@ -16,6 +16,18 @@ Migration SHALL resolve Dany to exactly one existing WBS user from reviewed prod
 - **WHEN** bridge writers drain and reconciliation runs
 - **THEN** the new project is mapped to the legacy organization before activation
 
+#### Scenario: Bridge stops at activation
+
+- **GIVEN** a legacy organization exists and the activation marker says activated
+- **WHEN** a second organization's root is created with its explicit mapping, or a legacy catalog entry is renamed
+- **THEN** the bridge maps nothing to the legacy organization and leaves every organization display name unchanged
+
+#### Scenario: Backfill without a legacy organization
+
+- **GIVEN** no legacy organization exists, or isolation is activated, or the marker is broken
+- **WHEN** the legacy backfill runs
+- **THEN** it refuses and maps nothing
+
 ### Requirement: Migration and rollback preserve tenant isolation
 
 Each WBS and durable MCP-store schema migration SHALL be additive and ship a paired `migration.sql` and `down.sql`. The MCP credential epoch and pre-activation credential revocation SHALL be included in activation preflight and rollback treatment. Expansion SHALL precede bridge writers; bridge writers SHALL maintain organization mappings while old and new processes share SQLite. Global catalog uniqueness SHALL remain compatible during overlap and become organization-scoped without losing legacy references. A durable activation marker SHALL record that organization isolation was enabled. Deployment and schema rollback MUST refuse any organization-unaware target after activation, even if new tenant content was later deleted; recovery SHALL use an organization-aware release or forward repair. Pre-activation rollback SHALL preflight its complete reversal and preserve legacy records. A failed rollback SHALL report its manual completion command.
