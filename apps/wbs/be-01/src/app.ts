@@ -3,6 +3,7 @@ import type {
   Clock,
   HistoryService,
   ImportService,
+  OrganizationAccess,
   ReplayOrchestrator,
   SavedPlanService,
 } from '@wbs/core';
@@ -64,6 +65,12 @@ export interface AppOptions {
    * rather than a process built without its domain.
    */
   projects: ProjectService;
+  /**
+   * Resolves each protected request's organization authority. Required: a
+   * default would have to be legacy access, which is exactly the answer an
+   * activated deployment must never give by omission.
+   */
+  organizations: OrganizationAccess;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
   /** The manual Retry admission seam; absent only in optimizer-less deployments and tests. */
@@ -237,6 +244,7 @@ export function mountedEndpoints(
     ...importRoutes(opts.writes.imports),
     ...projectRoutes(
       opts.projects,
+      opts.organizations,
       opts.workItems,
       opts.directory,
       opts.calendarMarkers,
