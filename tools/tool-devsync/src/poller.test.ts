@@ -24,6 +24,21 @@ async function command(argv: string[], env: Record<string, string> = {}): Promis
   return { code, stdout, stderr };
 }
 
+/** Reads a stream to its end while keeping what has arrived so far readable. */
+function captureText(stream: ReadableStream<Uint8Array>): {
+  read: () => string;
+  done: Promise<string>;
+} {
+  const decoder = new TextDecoder();
+  let text = '';
+  const done = (async () => {
+    for await (const chunk of stream) text += decoder.decode(chunk, { stream: true });
+    text += decoder.decode();
+    return text;
+  })();
+  return { read: () => text, done };
+}
+
 /**
  * Runs every argv at once and resolves only when all of them exit 0.
  *
@@ -31,35 +46,54 @@ async function command(argv: string[], env: Record<string, string> = {}): Promis
  * early leaves the survivor waiting out its patience. {@link command} resolves
  * a nonzero exit as a value, and `Promise.all` over those values waited for the
  * survivor: the dead partner's exit was hidden behind a test timeout. Here the
- * first nonzero exit rejects at once with the run's index, code and stderr, and
- * the runs still alive are killed.
+ * first nonzero exit rejects at once with the run's index, code and the stderr
+ * read so far, without waiting for a pipe a descendant may still hold. Each run
+ * leads its own process group, and every group is killed on the way out, so a
+ * parked fixture `git` does not outlive the test.
  *
- * Proof: with the fixture's `clone` made to exit 5 for the second run, the
- * overlap case failed in 17ms on `overlapping run 1 exited 5` (2026-09-27);
- * through `command` and `Promise.all` the same fault timed out at 30004ms.
+ * Proof: with the fixture's second `clone` made to exit 5 once its partner had
+ * parked in the barrier, the overlap case failed in 38ms on `overlapping run 0
+ * exited 5: injected clone failure` (2026-09-27); through `command` and
+ * `Promise.all` an early `clone` exit timed out at 30004ms. Under that fault,
+ * one parked fake `git checkout` was still alive after the test with
+ * `child.kill()` in place of the group kill, and none with it.
  */
-async function requireOverlapping(
+async function requireOverlappingRuns(
   argvs: string[][],
   env: Record<string, string>,
 ): Promise<CommandResult[]> {
   const children = argvs.map((argv) =>
-    Bun.spawn(argv, { env: { ...process.env, ...env }, stdout: 'pipe', stderr: 'pipe' }),
+    Bun.spawn(argv, {
+      env: { ...process.env, ...env },
+      stdout: 'pipe',
+      stderr: 'pipe',
+      detached: true,
+    }),
   );
   try {
     return await Promise.all(
       children.map(async (child, index) => {
-        const stdout = new Response(child.stdout).text();
-        const stderr = new Response(child.stderr).text();
+        const stdout = captureText(child.stdout);
+        const stderr = captureText(child.stderr);
         const code = await child.exited;
         if (code !== 0)
           throw new Error(
-            `overlapping run ${String(index)} exited ${String(code)}: ${await stderr}`,
+            `overlapping run ${String(index)} exited ${String(code)}: ${stderr.read()}`,
           );
-        return { code, stdout: await stdout, stderr: await stderr };
+        return { code, stdout: await stdout.done, stderr: await stderr.done };
       }),
     );
   } finally {
-    for (const child of children) if (child.exitCode === null) child.kill();
+    for (const child of children) killProcessGroup(child.pid);
+  }
+}
+
+/** Kills the group `leader` leads; a group whose members all exited is the clean case. */
+function killProcessGroup(leader: number): void {
+  try {
+    process.kill(-leader, 'SIGKILL');
+  } catch (failure) {
+    if ((failure as NodeJS.ErrnoException).code !== 'ESRCH') throw failure;
   }
 }
 
@@ -1001,7 +1035,7 @@ esac`),
       RACE_STARTED: started,
       RACE_RELEASE: release,
     };
-    const results = await requireOverlapping(
+    const results = await requireOverlappingRuns(
       [
         ['bash', helper, source, installed, fakeBun, firstSha, '1.3.14'],
         ['bash', helper, source, installed, fakeBun, secondSha, '1.3.14'],
@@ -1069,7 +1103,7 @@ CONTENT=SAME`),
       RACE_ARRIVALS: arrivals,
     };
 
-    const runs = await requireOverlapping(
+    const runs = await requireOverlappingRuns(
       [
         ['bash', helper, source, installed, fakeBun, sha, '1.3.14'],
         ['bash', helper, source, installed, fakeBun, sha, '1.3.14'],
