@@ -3,6 +3,7 @@ import {
   type DependencyReach,
   expandToLeaves,
   findStepNodeCycle,
+  hasCycle,
   indexTree,
   resolveStepNodeGraph,
   type StepNodeCycle,
@@ -120,14 +121,15 @@ export interface DependencyGraphStores {
  * {@link findDependencyGraphCycle} of it, with a proposed change applied first
  * when a caller validates before it writes.
  *
- * A project with no typed dependency answers `null` without reading the rest.
- * Its graph is legacy links and workflow chains alone, and those stay acyclic
- * through the writes that already refuse them: `canDepend` for a new link and
- * `canReparent` for a move. A legacy-only cycle is exactly a leaf-level cycle,
- * because a legacy link leaves the predecessor's reached node and enters the
- * successor's first, and every leaf's first node reaches its reached node
- * through its own chain. Estimates and steps move only the reached node, so
- * nothing but a typed dependency can make them close one.
+ * A project with no typed dependency is asked the cheaper, equivalent
+ * question: whether its legacy links can be ordered at leaf level. A
+ * legacy-only step-node cycle is exactly a leaf-level cycle, because a legacy
+ * link leaves the predecessor's reached node and enters the successor's first,
+ * and every leaf's first node reaches its reached node through its own chain;
+ * estimates, steps and reach move only the reached node, so they cannot open or
+ * close one. It is still asked rather than skipped: an undo of a move replays
+ * without `canReparent`, and a legacy link another actor drew meanwhile can
+ * make the replayed tree cyclic.
  */
 export class DependencyGraphGuard {
   constructor(private readonly stores: DependencyGraphStores) {}
@@ -137,7 +139,16 @@ export class DependencyGraphGuard {
     change: DependencyGraphChange = {},
   ): Promise<StepNodeCycle | null> {
     const typed = change.typed ?? (await this.stores.typedDependencies.listByProject(projectId));
-    if (typed.length === 0) return null;
+    if (typed.length === 0) {
+      const [rows, legacy] = await Promise.all([
+        this.stores.workItems.listByProject(projectId),
+        this.stores.dependencies.listByProject(projectId),
+      ]);
+      // Proof: `return null` here in place of the leaf-level question made
+      // `refuses an undo of a move that a legacy link made cyclic` fail on
+      // `Expected: 409, Received: 200`; watched 2026-09-27.
+      return hasCycle(indexTree(rows), legacy) ? { kind: 'cycle', relationshipIds: [] } : null;
+    }
     const project = await this.stores.projects.findById(projectId);
     if (project === null) throw new Error(`project ${projectId} vanished while its graph was read`);
     const [rows, steps, estimates, legacy] = await Promise.all([

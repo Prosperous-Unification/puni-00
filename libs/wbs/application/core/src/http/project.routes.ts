@@ -110,7 +110,7 @@ function classifyExportFailure(failure: RequestFailure) {
  * Opening is caller navigation, so it bypasses canEdit while retaining write scope.
  */
 export function projectRoutes(
-  projects: ProjectService,
+  projects: Pick<ProjectService, 'create' | 'list' | 'open' | 'read' | 'update'>,
   workItems: WorkItemService,
   directory: DirectoryService,
   calendarMarkers: CalendarMarkerService,

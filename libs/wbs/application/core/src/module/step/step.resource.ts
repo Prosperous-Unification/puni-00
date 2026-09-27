@@ -27,9 +27,13 @@ export interface StepServiceOptions {
    * would leave a relationship naming nothing.
    *
    * Adding a step asks nothing of it. A new step is appended last to every
-   * leaf and nothing can name it yet, so the only edges into its nodes are the
-   * workflow edges from the old last nodes: any cycle through one would pass
-   * through the old last node and already be a cycle.
+   * leaf and no endpoint can name it yet, so the only edge into each new node
+   * is the workflow edge from that leaf's old last node. Every edge that left
+   * the old last node — a whole predecessor, a legacy link reached there —
+   * now leaves the new node instead, one workflow edge later, so contracting
+   * the new node onto the old last one gives back the graph before the add: a
+   * cycle after it was a cycle before it. A stepless project's first step
+   * replaces each leaf's boundary node one for one, which changes no edge.
    */
   dependencyGraph: Pick<DependencyGraphGuard, 'findCycle' | 'findStepReferences'>;
 }

@@ -31,6 +31,11 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
   - Step references → the referenced-step case failed on `Received: 500` (the foreign key underneath).
   - Step cycle → the anchor-moving removal failed on `Received: 204`.
 
+- **Astra review (high) of task 2:** no Critical. Three Important findings:
+  - The zero-typed shortcut let an undo of a move replay a legacy cycle, because a replayed move skips `canReparent`. Fixed: a legacy-only project is asked the leaf-level question instead. Mounted `refuses an undo of a move that a legacy link made cyclic`; proof: `return null` in its place → `Expected: 409, Received: 200`.
+  - Project PATCH and step DELETE checked outside a unit of work, which left a race. Fixed: `admitted-write.ts` runs both as one unit of work over the batch graph, announcing after commit. Proof: `updateProject` bypassing `uow.run` → `admits … inside one unit of work` failed with `begin`/`commit` missing.
+  - Structural edits against typed endpoints (first-child hand-down, deleting the last child under a descendant-step endpoint, deleting a directly referenced work item) still throw rather than refuse. Deferred to task 1a, which lands with the typed commands. No typed row can be written before then.
+
 ## Planned checks — pending later tasks
 
 - **Pending:** Expanded slice-graph cases: parent Cartesian product, self-slice/cycle refusal, apparent work-item cycle acceptance, referenced-step deletion refusal, reparenting, step insertion/deletion/reorder, legacy write, project `depReach` change, estimate-driven dynamic-anchor change and history replay.

@@ -56,7 +56,7 @@ function renamedReply(outcome: StepOutcome): HttpReply<typeof renameStep> {
  * untrimmed until StepService applies its domain refusal. Reading steps stays
  * on GET /api/projects/:id, without introducing a second list endpoint.
  */
-export function stepRoutes(steps: StepService) {
+export function stepRoutes(steps: Pick<StepService, 'add' | 'rename' | 'remove'>) {
   return [
     bind(addStep, async ({ params, body, principal }) =>
       // Proof: catching the store failure as not_found returned a refusal object

@@ -279,6 +279,66 @@ async function anchoredAtBDev(at: Plan): Promise<void> {
   expect(linked.status).toBe(200);
 }
 
+/** A second account, which writes to the same unrestricted project. */
+async function registerOther(): Promise<string> {
+  const registered = await app.handle(
+    new Request('http://localhost/api/auth/register', {
+      method: 'POST',
+      headers: { origin: 'http://localhost', 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'other', password: 'correct-horse' }),
+    }),
+  );
+  return ((await registered.json()) as { token: string }).token;
+}
+
+async function addUnder(at: Plan, parentId: string | null, name: string): Promise<string> {
+  const res = await command(at.projectId, at.token, {
+    kind: 'createWorkItem',
+    parentId,
+    afterId: null,
+    name,
+  });
+  const id = ((await res.json()) as { results: { id?: string }[] }).results.at(0)?.id;
+  if (id === undefined) throw new Error('createWorkItem minted no id');
+  return id;
+}
+
+describe('graph-changing writes on a legacy-only project', () => {
+  it('refuses an undo of a move that a legacy link made cyclic', async () => {
+    const at = await plan();
+    const p = await addUnder(at, null, 'P');
+    const q = await addUnder(at, null, 'Q');
+    const x = await addUnder(at, p, 'X');
+    const c = await addUnder(at, x, 'C');
+    const moved = await command(at.projectId, at.token, {
+      kind: 'moveWorkItem',
+      workItemId: x,
+      parentId: q,
+      afterId: null,
+    });
+    expect(moved.status).toBe(200);
+    // Somebody else makes C wait for P, which is fine while C sits under Q.
+    const other = await registerOther();
+    const linked = await command(at.projectId, other, {
+      kind: 'addDependency',
+      workItemId: c,
+      predecessorId: p,
+    });
+    expect(linked.status).toBe(200);
+
+    // Undoing the move puts C back under P: P → C is then an edge onto its
+    // own descendant, a leaf-level cycle nothing else would refuse, because
+    // a replayed move does not pass through `canReparent`.
+    const res = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: 'stale_undo',
+      detail: 'that would now close a dependency cycle between steps.',
+    });
+  });
+});
+
 describe('graph-changing writes against typed dependencies', () => {
   it('refuses a legacy link that closes a step-node cycle and writes nothing', async () => {
     const at = await plan();
