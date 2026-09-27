@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import type { PlannedRow } from './derive-numbers';
-import { ASSUMED_SLICE_WORKDAYS, type DependencyReach } from './index';
+import type { DependencyReach } from './index';
 import {
   type DependencyEdge,
   expandToLeaves,
@@ -152,7 +152,8 @@ const PERT = (optimistic: number, realistic: number, pessimistic: number): numbe
  * `assumed-duration-schedules` (2026-08-29).
  *
  * `placed` is what the leaf occupies — its slices' durations, an unestimated one
- * counting {@link ASSUMED_SLICE_WORKDAYS}. `effort` is what anybody actually
+ * counting zero since `unestimated-steps-take-no-schedule-time` (it counted
+ * `ASSUMED_SLICE_WORKDAYS` before). `effort` is what anybody actually
  * estimated it at, and a leaf **nobody** estimated is absent from it rather than
  * zero, which is what `Scheduled.estimated` is read off.
  *
@@ -313,14 +314,13 @@ const slicesFrom = (plan: GeneratedPlan): Slice[] =>
  * makes the identity claim a claim about the plan rather than about the loop
  * that built the test.
  *
- * **A pair nobody estimated contributes {@link ASSUMED_SLICE_WORKDAYS}** since
- * `assumed-duration-schedules` (2026-08-29), where it used to contribute
- * nothing. That is the one place this file was told what the change did, and it
- * is told once: the oracle above is still an independent critical path over the
- * same tree, the same edges and the same floors, and every field is still
- * compared `toBe`-exact. A leaf every step of which is unestimated used to be
- * absent from this map entirely and read as zero days; it now carries its
- * steps' assumed days, which is what the engine places it across.
+ * **A pair nobody estimated contributes zero schedule time.** It contributed
+ * `ASSUMED_SLICE_WORKDAYS` from `assumed-duration-schedules` (2026-08-29)
+ * until `unestimated-steps-take-no-schedule-time` (2026-09-27) made the
+ * assumption drawing-only. This is the one place this file is told the rule:
+ * the oracle above is still an independent critical path over the same tree,
+ * the same edges and the same floors, and every field is compared
+ * `toBe`-exact.
  */
 function durationsFrom(plan: GeneratedPlan, shuffle: boolean, seed: number): OracleDurations {
   const random = randomFrom(seed * 7919 + 13);
@@ -328,7 +328,7 @@ function durationsFrom(plan: GeneratedPlan, shuffle: boolean, seed: number): Ora
   const effortOf = new Map<string, number[]>();
   for (const each of plan.estimates) {
     const placed = placedOf.get(each.workItemId);
-    const days = each.days ?? ASSUMED_SLICE_WORKDAYS;
+    const days = each.days ?? 0;
     if (placed === undefined) placedOf.set(each.workItemId, [days]);
     else placed.push(days);
     if (each.days === null) continue;
@@ -552,7 +552,7 @@ describe('the slice engine against the one it replaced', () => {
     // the anchor rule moves multi-step dependencies on purpose.
     //
     // Proof: `durationOf` in `schedule.ts` changed to give **every** slice the
-    // assumed duration rather than only the unestimated ones, and this failed
+    // then-assumed duration rather than only the unestimated ones, and this failed
     // at `seed 1, r0c0g0.earliestFinish: 12.5 became 7` — an estimate
     // overwritten by a guess; watched 2026-08-30.
     for (let seed = 1; seed <= 1000; seed += 1) {

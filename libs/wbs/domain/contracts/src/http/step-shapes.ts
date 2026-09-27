@@ -9,11 +9,35 @@ const stepParams = requestSchema(type({ id: 'string', stepId: 'string' }));
 // Proof: using responseSchema admitted the extra name body,200 instead of422
 // in step.controller.db.test.ts's undeclared-input case.
 const nameBody = requestSchema(type({ name: 'string' }));
-const stepReply = responseSchema(
-  type({
-    step: { id: 'string', projectId: 'string', name: 'string', position: 'number' },
-  }),
-);
+/**
+ * A new step's name and, optionally, the step code its creator chose; absent,
+ * the code is suggested from the name. Grammar and reservation are domain
+ * refusals (422), not structural defects, so the code arrives as any string.
+ */
+const newStepBody = requestSchema(type({ name: 'string', 'code?': 'string' }));
+/**
+ * One step as every read and write returns it.
+ *
+ * `code` has three readings, and they are different facts. A string is the
+ * step's code. `null` is an **uncoded** step — written mid-swap by an older
+ * release and not yet backfilled — which a reader must render as such. Absent
+ * is an **older be-01** that predates step codes answering a newer client:
+ * blue and green, or a rolled-back backend, can pair them, and refusing that
+ * answer would turn every step read and write into `invalid_response`. Every
+ * be-01 that knows codes sends the key, which its mounted tests assert.
+ *
+ * Proof: with `code` required, `still reads a step from a be-01 that predates
+ * step codes` in `step-shapes.test.ts` failed on `must have required property
+ * 'code'`; watched 2026-09-27.
+ */
+export const stepShape = type({
+  id: 'string',
+  projectId: 'string',
+  name: 'string',
+  position: 'number',
+  'code?': 'string | null',
+});
+const stepReply = responseSchema(type({ step: stepShape }));
 const policies = [
   // Proof: removing origin or weakening write-scope independently reached JSON
   // parsing,400 instead of403 in the mounted step-policy case.
@@ -45,10 +69,14 @@ export const addStep = defineEndpointShape({
   operationId: 'postApiProjectsByIdSteps',
   policies,
   params: projectParams,
-  body: nameBody,
+  body: newStepBody,
   bodyMedia: ['application/json', 'application/x-www-form-urlencoded', 'multipart/form-data'],
   responses: [{ kind: 'json', status: 200, schema: stepReply }],
-  refusals: nameRefusals,
+  refusals: [
+    ...nameRefusals,
+    { status: 422, schema: responseSchema(type({ error: "'invalid_code' | 'reserved_code'" })) },
+    { status: 409, schema: responseSchema(type({ error: "'code_taken'" })) },
+  ] as const,
   document: { summary: 'Add a project step.' },
 });
 

@@ -1790,8 +1790,9 @@ export function barFacts(
     `${spanWords(startDate, bar.start, bar.finish, today)} · ${durationWords(bar)}`,
     bar.done ? 'Done — drawn over what happened, not over the estimate' : null,
     // A line of its own rather than a word tucked into the duration: the bar is
-    // drawn a width nobody gave it, and the sentence that says so has to be as
-    // findable as the dates above it. See {@link ASSUMED_SLICE_WORKDAYS}.
+    // drawn a width nobody gave it and the schedule spends none of it, and the
+    // sentence that says so has to be as findable as the dates above it. See
+    // {@link ASSUMED_SLICE_WORKDAYS}.
     // Only ever reached with the detail switch on, which is the only state an
     // unestimated slice has a bar to say anything about itself in.
     //
@@ -1800,7 +1801,9 @@ export function barFacts(
     // is asked for` alone failed, `1 failed | 90 passed`, on the accessible name
     // no longer containing `Not estimated — drawn as 2 days`. Watched
     // 2026-08-12.
-    bar.estimated ? null : `Not estimated — drawn as ${dayWords(ASSUMED_SLICE_WORKDAYS)}`,
+    bar.estimated
+      ? null
+      : `Not estimated — drawn as ${dayWords(ASSUMED_SLICE_WORKDAYS)}, excluded from the schedule`,
     trioWords(bar.trio),
     bar.critical ? 'On the critical path — no float' : `Float ${dayWords(bar.float)}`,
     // Straight after the float, because the two are one subject said from
@@ -4765,8 +4768,10 @@ function GanttChart({
             // from the engine's `finish`: an unestimated slice finishes
             // where it starts, and that width is no bar at all.
             width={width}
-            y={bar.rowIndex + BAR_INSET}
-            height={BAR_HEIGHT}
+            // Its own lane where unknown placeholders overlap on one row, so
+            // each stays under the pointer — see {@link GanttBar.lane}.
+            y={bar.rowIndex + BAR_INSET + (bar.lane * BAR_HEIGHT) / bar.lanes}
+            height={BAR_HEIGHT / bar.lanes}
             rx={BAR_RADIUS_PX / dayPx}
             ry={BAR_RADIUS_PX / ROW_PX}
             // Who is on it — an unestimated slice included, at 35% through

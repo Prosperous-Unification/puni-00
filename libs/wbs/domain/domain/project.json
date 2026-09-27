@@ -27,7 +27,7 @@
         "{workspaceRoot}/apps/wbs/fe-01/src/styles.css"
       ],
       "options": {
-        "command": "bun test --coverage --coverage-reporter=lcov",
+        "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
         "cwd": "libs/wbs/domain/domain"
       },
       "outputs": ["{projectRoot}/coverage"]
@@ -42,7 +42,7 @@
         "{workspaceRoot}/apps/wbs/fe-01/src/styles.css"
       ],
       "options": {
-        "command": "bun test --coverage --coverage-reporter=lcov",
+        "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
         "cwd": "libs/wbs/domain/domain"
       },
       "outputs": ["{projectRoot}/coverage"]

@@ -187,3 +187,39 @@ export function useApplicationServicesReader(): () => ApplicationServicesState {
   // provider' on `expected [Function] to be [Function]` (1 failed, 15 skipped).
   return useCallback(() => applicationServicesStateFor(slot), [slot]);
 }
+
+/**
+ * How a component hands a retirement it started to the page's application, so
+ * the application's own retirement waits for it and fails when it fails — see
+ * {@link ApplicationServices.retirements}.
+ *
+ * The returned function reads the slot at the instant it is called, which is a
+ * component's cleanup: on page hide the bootstrap takes the React root down
+ * before it retires the application, so every cleanup finds the application
+ * still live. Stable for one provider, like {@link useApplicationServicesReader}.
+ *
+ * @throws when read below no provider; the returned function throws when the
+ * application is not live, which no production order reaches — a retirement
+ * handed to nobody would be one nobody waits for.
+ */
+export function useRetirementJoin(): (retirement: Promise<void>) => void {
+  const slot = useContext(ApplicationServicesContext);
+  // Proof: on 2026-09-27, falling back to `applicationSlot` here (c5) failed `refuses to be read
+  // below no provider, naming itself` on `expected null to be 'useRetirementJoin must be read below …'`.
+  if (slot === null) {
+    throw new Error('useRetirementJoin must be read below ApplicationServicesProvider');
+  }
+  return useCallback(
+    (retirement: Promise<void>) => {
+      const state = slot.snapshot();
+      // Proof: on 2026-09-27, handing the retirement to nobody when the application is not live
+      // (c1) failed `refuses a retirement once the application is no longer live` on `expected
+      // [Function] to throw an error`.
+      if (state.status !== 'live') {
+        throw new Error(`a retirement was handed to an application that is ${state.status}`);
+      }
+      state.services.retirements.join(retirement);
+    },
+    [slot],
+  );
+}

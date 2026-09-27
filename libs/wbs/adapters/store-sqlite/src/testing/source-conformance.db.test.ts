@@ -219,6 +219,7 @@ async function seedSqliteSource(
           id,
           projectId,
           name: stepIndex === 0 ? 'Dev' : 'QA',
+          code: stepIndex === 0 ? 'dev' : 'qa',
           position: (stepIndex + 1) * 10,
         })),
         stamp,
@@ -6105,8 +6106,10 @@ describe('SQLite existing source conformance', () => {
         .map(({ caseId }) => ({ caseId, status: 'passed' as const, executed: true }))
         .toSorted((left, right) => left.caseId.localeCompare(right.caseId)),
     );
-    // Proof: a never-settling await injected at test entry timed out at this 30-second bound.
-  }, 30_000);
+    // Proof: a never-settling await injected at test entry timed out at the former 30-second bound.
+    // Budget measured 2026-09-27 (docs/test-budgets.md): 17.2s idle; on the loaded run it
+    // timed out at its old 30-second limit after 58.1s, so the new one is twice that.
+  }, 120_000);
 
   it('Task 6.3 observes each saved-plan capture boundary fault and reversals', async () => {
     const faults: readonly Fault<SqliteSource>[] = [

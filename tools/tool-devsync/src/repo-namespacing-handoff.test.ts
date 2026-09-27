@@ -477,7 +477,9 @@ test('the production index checker resolves current Markdown links and anchors',
   // check exit 1 with `Markdown anchor absent ... #missing` (2026-09-14).
   expect(new TextDecoder().decode(invocation.stderr)).toBe('');
   expect(invocation.exitCode).toBe(0);
-}, 30_000);
+  // Budget measured 2026-09-27 (docs/test-budgets.md): 10.1s idle; on the loaded run it
+  // timed out at its old 30-second limit, so the new one is at least twice that.
+}, 60_000);
 
 test('every routed current document resolves its local links and anchors', async () => {
   // Proof: adding `[fault](missing-round-one.md)` to non-index guide docs/capacity.md made this
@@ -623,9 +625,9 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'current recursive selector': 34,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
-      'historical policy selector or baseline': 87,
+      'historical policy selector or baseline': 89,
       'production proof or revision transition': 18,
-      'test fixture or proof': 106,
+      'test fixture or proof': 107,
     },
     coverage: {
       dockerfiles: [
@@ -633,6 +635,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
         'apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile',
         'apps/wbs/fe-01/Dockerfile',
         'apps/wbs/gw-01/Dockerfile',
+        'apps/wbs/mcp-01/Dockerfile',
         'deploy/dev-src/Dockerfile',
         'deploy/k8s/wbs/lab/backend-unhealthy.Dockerfile',
         'deploy/k8s/wbs/lab/backend-upgrade.Dockerfile',
@@ -865,8 +868,19 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // suite failed on the observed digest below at the same 308 occurrences and categories:
     // every context the project carries kept its match and class and changed only the path it
     // is reported under, none unclassified (2026-09-25).
-    digest: 'c0a77f3355f27bc1e8fa7f23bd427c7b4cc7c068e6f787bb1552364482f28c22',
-    occurrences: 308,
+    // Proof: registering the saved-plans frontend module added `boundary.frontend.saved-plans`'s
+    // `sourceSelector` and one `baselineEntries` path, naming the pre-namespacing
+    // `apps/fe-01/src/lib/saved-plan-shelf.ts`; leaving `c0a77f33…` at 308 here failed with
+    // `- Expected - 3 / + Received + 3`, `historical policy selector or baseline` 87 to 89,
+    // occurrences 308 to 310, none unclassified (2026-09-27).
+    // Proof: the creation-revision negatives in the pilot suite name Plan import's pre-namespacing
+    // `libs/core/src/service/import.service.ts` as a forged predecessor; leaving `c0a77f33…` at
+    // 308 here failed on the observed digest below, `test fixture or proof` 106 to 107 and
+    // occurrences 308 to 309, none unclassified (2026-09-27).
+    // Integration round 5 carries both entries above: 308 + 2 + 1 = 311, categories unchanged; the
+    // placeholder pin failed with this digest and 311 occurrences, none unclassified (2026-09-27).
+    digest: 'e02259ffac1411deca83387d2e47576378c0bc6a37aa191da40d725021af4851',
+    occurrences: 311,
     unclassified: [],
   });
 });

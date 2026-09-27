@@ -51,6 +51,9 @@
       "mode": "observe"
     }
   ],
+  "kindInventory": {
+    "path": "docs/code-organization/kinds.json"
+  },
   "classificationPolicy": {
     "schemaVersion": 1,
     "policyId": "classification.puni-00.v1",

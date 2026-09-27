@@ -27,7 +27,7 @@ beforeEach(async () => {
   );
   await stores.projects.create(
     projectRow({ id: projectId, name: 'Rewire the shed', ownerId }),
-    [{ id: stepId, projectId, name: 'Dev', position: 10 }],
+    [{ id: stepId, projectId, name: 'Dev', position: 10, code: 'dev' }],
     stamp,
   );
   await stores.steps.add({ id: stepId, projectId, name: 'Dev' }, stamp);
