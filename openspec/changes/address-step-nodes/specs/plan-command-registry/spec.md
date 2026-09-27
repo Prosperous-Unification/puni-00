@@ -20,3 +20,19 @@ Every command that addresses one leaf's step — estimate, clear estimate, actua
 - **GIVEN** an MCP client sending the existing work-item and step fields
 - **WHEN** it sets an assignment
 - **THEN** the assignment is stored exactly as before this change
+
+### Requirement: Project batches validate the effective work-item target
+
+A project batch SHALL resolve `workItemRef` before a supplied `workItemId` and SHALL refuse a command whose effective target work item does not belong to the batch project with indexed `404 not_found`. The refusal SHALL roll back all preceding writes in that batch. For a step-node address, the effective work item SHALL be a leaf of the batch project and the step SHALL belong to that project; a parent SHALL yield indexed `409 rolled_up` and an unknown step SHALL yield indexed `404 unknown_step`. Pair-addressed clear commands SHALL retain their existing behavior.
+
+#### Scenario: A foreign target rolls back earlier commands
+
+- **GIVEN** a batch in project A that first creates a work item and then patches an item in project B
+- **WHEN** the batch is submitted
+- **THEN** the patch is refused at its command index with `404 not_found` and the created work item is absent
+
+#### Scenario: A ref takes precedence over a literal ID
+
+- **GIVEN** a batch that creates work item ref `new`
+- **WHEN** a later command carries `workItemRef: "new"` and a missing literal `workItemId`
+- **THEN** the command targets the newly created work item
