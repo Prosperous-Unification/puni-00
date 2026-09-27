@@ -371,6 +371,71 @@ describe('the page-lifecycle retirement trigger', () => {
     },
   );
 
+  /**
+   * Task 14: the tree's own cleanups run while the application is still live,
+   * so a signed-in region can hand it the session it starts giving back, and
+   * the application's retirement then waits for that session.
+   */
+  itDom('takes the root down while the application is live, and retires it after', async () => {
+    const slot = createLifetimeSlot<ApplicationServices>(1_000);
+    const eventTarget = new EventTarget();
+    const seen: string[] = [];
+    let giveBack: () => void = () => undefined;
+    await bootstrapApplication(document.createElement('div'), {
+      slot,
+      mount: () => ({
+        render: () => undefined,
+        // What `SignedInApp`'s cleanup does as the root goes.
+        unmount: () => {
+          const state = slot.snapshot();
+          seen.push(`root taken down while ${state.status}`);
+          if (state.status !== 'live') return;
+          state.services.retirements.join(
+            new Promise<void>((resolve) => {
+              giveBack = resolve;
+            }).then(() => {
+              seen.push('session given back');
+            }),
+          );
+        },
+      }),
+      app: FakeApp,
+      acquire: () => installApplicationRuntime({ openStore: fakeBrowserStorage }),
+      eventTarget,
+    });
+
+    eventTarget.dispatchEvent(pageHideEvent(true));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(slot.snapshot().status).toBe('retiring');
+    giveBack();
+    await waitFor(() => {
+      expect(slot.snapshot().status).toBe('empty');
+    });
+
+    expect(seen).toEqual(['root taken down while live', 'session given back']);
+  });
+
+  itDom('takes the root down once however many times the page is hidden', async () => {
+    const slot = createLifetimeSlot<ApplicationServices>(1_000);
+    const root = recordingRoot(slot);
+    const eventTarget = new EventTarget();
+    await bootstrapApplication(document.createElement('div'), {
+      slot,
+      mount: root.mount,
+      app: FakeApp,
+      acquire: () => installApplicationRuntime({ openStore: fakeBrowserStorage }),
+      eventTarget,
+    });
+
+    eventTarget.dispatchEvent(pageHideEvent(true));
+    eventTarget.dispatchEvent(pageHideEvent(true));
+    await waitFor(() => {
+      expect(slot.snapshot().status).toBe('empty');
+    });
+
+    expect(root.unmounts()).toBe(1);
+  });
+
   itDom(
     'starts retirement before its pagehide dispatch returns, and never waits for the disposal to settle',
     async () => {

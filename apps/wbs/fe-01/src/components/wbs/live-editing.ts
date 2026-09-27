@@ -65,6 +65,24 @@ interface Submission {
   typed: string;
   baseline: string;
   landing: Promise<CommitOutcome>;
+  /**
+   * Whether be-01 has taken it — set by its own answer, and only while it is
+   * still this field's newest.
+   *
+   * A landed record normally expires by itself, because the answer's `sync`
+   * moves `shown` off its baseline. It does not when rule 2 held that write:
+   * the reader was back in the cell typing when the answer came, so `shown`
+   * is still the baseline and the box, typed back to the landed text, matches
+   * the record exactly. That leave has nothing to send and is the first moment
+   * anything rule 2 held back may be written — see {@link LiveField.leave}.
+   */
+  landed: boolean;
+  /**
+   * {@link LiveField.serverValues} when it was sent. A value rule 2 was already
+   * holding back then predates the save, and releasing it over the saved text
+   * would put back what the save replaced; only one heard since may go in.
+   */
+  heardBefore: number;
 }
 
 /**
@@ -241,6 +259,8 @@ export class LiveField {
    * completion is the normal case rather than the edge.
    */
   private submissions = 0;
+  /** How many different values the server has said for this field, so a save can tell what it has heard since. */
+  private serverValues = 0;
 
   /**
    * Sends what this field holds. Reassigned by the face on **every render**,
@@ -319,6 +339,7 @@ export class LiveField {
    * Rules 1, 2 and 4 decide together whether it reaches the box.
    */
   serverSaid(value: string): void {
+    if (value !== this.latest) this.serverValues += 1;
     this.latest = value;
     this.sync();
     // After the sync, not before: the height has to follow the value the node
@@ -412,7 +433,43 @@ export class LiveField {
     // for the blur’s patch that is still out, and a refusal makes nothing`
     // failed on `expected [ 'patch', 'create' ] to deeply equal [ 'patch' ]`
     // — a row created against a request nobody had heard back from.
-    if (this.sent?.typed === text && this.sent.baseline === this.shown) return this.sent.landing;
+    if (this.sent?.typed === text && this.sent.baseline === this.shown) {
+      // Already taken, so leaving is the "nothing typed" branch of `leave`:
+      // what rule 2 held back while the focus was here is written now. On a
+      // slow round trip — the save answered while the reader was back in the
+      // cell typing — this is the only path out, and without it the box kept
+      // the saved name over a peer's until some later edit to the row.
+      // Proof: the `if` below removed, `a peer name held back behind a slow landing
+      // arrives when the cell is left` failed on `expected 'Strip the wiring'
+      // to be 'Survey the racking'`, and `a peer's longer name still arrives
+      // when my own save came back while I was typing` failed 5/5 in Chromium
+      // on `the peer name never reached the box` with `Received: "Strip the
+      // wiring"` — the pixels shard 3 failure of pull requests 39 and 40.
+      // Watched, 2026-09-27.
+      //
+      // Only once it has landed: while it is still out, what rule 2 held back
+      // would be written over text be-01 has not answered yet. Proof: `landed`
+      // removed from the condition, `a peer name held back is not written over a save
+      // still in the air` failed on `expected 'Peer' to be 'Beta'`. Watched,
+      // 2026-09-27.
+      //
+      // And only a value heard since it was sent: one rule 2 was holding from
+      // before is older than the save, and a reread that failed leaves it as
+      // the newest thing the field knows. Proof: the `heardBefore` comparison removed, `a
+      // peer name held from before a save is not written over it` failed on
+      // `expected 'Peer' to be 'Beta'`. Watched, 2026-09-27.
+      if (this.sent.landed && this.serverValues !== this.sent.heardBefore) {
+        // The box shows what landed, so that is its baseline for the sync:
+        // left on the one from before the save, a peer's revert to that very
+        // name would read as nothing new. Proof: this line removed, `a peer's
+        // revert heard after a slow landing is what the box shows` failed on
+        // `expected 'Beta' to be 'Alpha'`. Watched, 2026-09-27.
+        this.shown = text;
+        this.sync();
+        this.afterSync(this.node);
+      }
+      return this.sent.landing;
+    }
     // The refusal this submission supersedes, dropped **synchronously** and
     // before anything is sent. Typing over a refused draft and being refused
     // again is one gesture with a window in the middle of it: the commit
@@ -493,6 +550,7 @@ export class LiveField {
       }
       this.refused = false;
       heldRefusals.delete(this.cellKey);
+      submission.landed = true;
       // The refetch this commit triggered lands *before* it resolves, so a
       // draft that rule 4 held back was held back through the one render
       // that carried its answer. Nothing else would come.
@@ -503,7 +561,14 @@ export class LiveField {
     // Recorded synchronously, before any continuation above can run: the
     // record is what a flush arriving in the meantime is answered from, and
     // the `sent = null` a refusal performs is a microtask away at the earliest.
-    this.sent = { typed: text, baseline, landing };
+    const submission: Submission = {
+      typed: text,
+      baseline,
+      landing,
+      landed: false,
+      heardBefore: this.serverValues,
+    };
+    this.sent = submission;
     return landing;
   }
 }

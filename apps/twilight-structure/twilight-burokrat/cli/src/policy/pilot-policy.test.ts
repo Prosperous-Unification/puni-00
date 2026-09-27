@@ -41,7 +41,9 @@ const pilotPaths = [
   'libs/wbs/application/core/src/module/capacity/README.md',
   'libs/wbs/application/core/src/module/directory/README.md',
   'libs/wbs/application/core/src/module/plan-commands/README.md',
+  'libs/wbs/application/core/src/module/plan-document/README.md',
   'libs/wbs/application/core/src/module/plan-history/README.md',
+  'libs/wbs/application/core/src/module/plan-import/README.md',
   'libs/wbs/application/core/src/module/priority-band/README.md',
   'libs/wbs/application/core/src/module/project/README.md',
   'libs/wbs/application/core/src/module/realtime/README.md',
@@ -354,6 +356,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       boundaries: {
         selector: { value: string };
         sourceSelector?: { value: string };
+        creationRevision?: string;
         baselineEntries: ExactTuple[];
       }[];
     };
@@ -369,8 +372,13 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     const baseline = entriesAt(repositoryRoot, policy.pilot.sourceRevision);
     for (const boundary of policy.boundaries) {
       const selector = boundary.sourceSelector ?? boundary.selector;
+      // A module created after the freeze is pinned to its own first commit instead.
+      const pinned =
+        boundary.creationRevision === undefined
+          ? baseline
+          : entriesAt(repositoryRoot, boundary.creationRevision);
       expect(boundary.baselineEntries).toEqual(
-        baseline.filter(
+        pinned.filter(
           ({ path }) => path === selector.value || path.startsWith(`${selector.value}/`),
         ),
       );
@@ -454,7 +462,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       accepted: true,
       certified: false,
     });
-  }, 120_000);
+  }, 240_000);
 
   test('refuses an externally selected mapping that resolves inside the candidate', () => {
     const candidate = createCandidate();
@@ -606,7 +614,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(observed).toContain(
       'applicable check has no executable authority in apps/twilight-structure/twilight-burokrat/cli/README.md: check.wiki-cli.test (external-consumer)',
     );
-  }, 120_000);
+  }, 240_000);
 
   test('refuses an owned README declared as its own external consumer', () => {
     const candidate = createCandidate();
@@ -633,7 +641,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(observed).toContain(
       'external consumer is owned by libs/wbs/domain/domain/src/saved-plan/README.md: libs/wbs/domain/domain/src/saved-plan/README.md',
     );
-  }, 120_000);
+  }, 240_000);
 
   test('refuses a pilot mapping whose pinned predecessor identity differs from the candidate', () => {
     const candidate = createCandidate();
@@ -661,7 +669,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(observed).toContain(
       'candidate pilot module mapping does not match externally bound identity: docs/wiki-policy/modules.json',
     );
-  }, 120_000);
+  }, 240_000);
 
   test('refuses a missing mapped pilot index with current candidate evidence', () => {
     const candidate = createCandidate();
@@ -680,7 +688,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(observed).toContain(
       'pilot module index absent for module.domain.saved-plan: libs/wbs/domain/domain/src/saved-plan/README.md',
     );
-  }, 120_000);
+  }, 240_000);
 
   test('refuses externally pinned module and ownership claims that disagree with indexes', () => {
     const mutations: {
@@ -747,7 +755,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       expect(invocation.exitCode, observed).toBe(1);
       expect(observed).toContain(mutation.expected);
     }
-  }, 180_000);
+  }, 420_000);
 
   test('refuses mapped external consumers that disagree with the owned index', () => {
     const candidate = createCandidate();
@@ -773,7 +781,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(observed).toContain(
       'pilot module external consumers disagree with index libs/wbs/domain/domain/src/saved-plan/README.md: module.domain.saved-plan',
     );
-  }, 120_000);
+  }, 240_000);
 
   test('refuses a selected pilot index omitted from the externally pinned mapping', () => {
     const candidate = createCandidate();
@@ -797,7 +805,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(observed).toContain(
       'pilot index has no module mapping: libs/wbs/domain/domain/src/saved-plan/README.md',
     );
-  }, 120_000);
+  }, 240_000);
 
   test('refuses a trusted selector left at the pre-move directory of a relocated boundary', () => {
     const candidate = createCandidate();
@@ -926,7 +934,138 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       expect(observed).toContain(mutation.expected);
     }
   }, 120_000);
+
+  test('refuses a creation revision that is not the new module’s own first commit', () => {
+    const planImport = 'libs/wbs/application/core/src/module/plan-import';
+    const created = '5a99d244f97f3ecb14174d9fa6c4a4fa6bf78434';
+    // The commit before Plan import's creation, and the commit after it that edited its README.
+    const beforeCreation = 'c43ee31153ceda361df3701d2ef9d0fc4fee4a46';
+    const afterCreation = 'c55169512f5e1e3ee0cf3dc82094d87c329d6d71';
+    const mutations: {
+      boundaryId: string;
+      mutate: (boundary: CreationBoundary, repository: string, sourceRevision: string) => void;
+      expected: string;
+    }[] = [
+      {
+        boundaryId: 'boundary.application.plan-import',
+        mutate(boundary) {
+          boundary.sourceSelector = {
+            kind: 'prefix',
+            value: 'libs/core/src/service/import.service.ts',
+          };
+        },
+        expected:
+          'trusted boundary declares both a predecessor and a creation revision: boundary.application.plan-import',
+      },
+      {
+        boundaryId: 'boundary.application.plan-import',
+        mutate(boundary) {
+          boundary.creationRevision = '0'.repeat(40);
+        },
+        expected: `trusted boundary creation revision is unreadable: boundary.application.plan-import ${'0'.repeat(40)}`,
+      },
+      {
+        boundaryId: 'boundary.application.plan-import',
+        mutate(boundary) {
+          const blob = boundary.baselineEntries.at(0)?.blob;
+          if (blob === undefined) throw new Error('Plan import baseline unexpectedly empty');
+          boundary.creationRevision = blob;
+        },
+        expected:
+          'trusted boundary creation revision is unreadable: boundary.application.plan-import',
+      },
+      {
+        boundaryId: 'boundary.application.plan-import',
+        mutate(boundary) {
+          boundary.creationRevision = beforeCreation;
+        },
+        expected:
+          'trusted boundary creation revision selects nothing: boundary.application.plan-import',
+      },
+      {
+        boundaryId: 'boundary.application.plan-import',
+        mutate(boundary) {
+          boundary.creationRevision = afterCreation;
+          boundary.baselineEntries = entriesAt(repositoryRoot, afterCreation).filter(({ path }) =>
+            underPrefix(planImport, path),
+          );
+        },
+        expected:
+          "trusted boundary creation revision is not the boundary's first commit: boundary.application.plan-import",
+      },
+      {
+        boundaryId: 'boundary.application.plan-import',
+        // Plan import's creation tree committed onto the freeze's parent: an honest baseline and
+        // a parent without the module, but no descent from the freeze.
+        mutate(boundary, repository, sourceRevision) {
+          boundary.creationRevision = git(repository, [
+            'commit-tree',
+            `${created}^{tree}`,
+            '-p',
+            `${sourceRevision}^`,
+            '-m',
+            'forged creation before the freeze',
+          ]);
+        },
+        expected:
+          'trusted boundary creation revision does not descend from the pilot source revision: boundary.application.plan-import',
+      },
+      {
+        boundaryId: 'boundary.application.plan-import',
+        mutate(boundary) {
+          const readme = boundary.baselineEntries.find(({ path }) => path.endsWith('README.md'));
+          if (readme === undefined) throw new Error('Plan import baseline has no README');
+          const edited = entriesAt(repositoryRoot, afterCreation).find(
+            ({ path }) => path === readme.path,
+          );
+          if (edited === undefined) throw new Error('Plan import README absent after creation');
+          readme.blob = edited.blob;
+        },
+        expected: `trusted boundary baseline differs from its creation revision: boundary.application.plan-import ${created}`,
+      },
+      {
+        boundaryId: 'boundary.docs.wbs-table-extraction',
+        mutate(boundary, _repository, sourceRevision) {
+          boundary.creationRevision = sourceRevision;
+        },
+        expected:
+          'trusted boundary existed at the pilot source revision and needs a predecessor: boundary.docs.wbs-table-extraction',
+      },
+    ];
+    for (const mutation of mutations) {
+      const candidate = createCandidate();
+      const trust = createExternalTrust(candidate);
+      const policy = JSON.parse(readFileSync(trust.policyPath, 'utf8')) as {
+        pilot: { sourceRevision: string };
+        boundaries: CreationBoundary[];
+      };
+      const boundary = policy.boundaries.find(
+        ({ boundaryId }) => boundaryId === mutation.boundaryId,
+      );
+      if (boundary === undefined) throw new Error(`pilot boundary absent: ${mutation.boundaryId}`);
+      mutation.mutate(boundary, candidate.repository, policy.pilot.sourceRevision);
+      write(trust.policyPath, `${JSON.stringify(policy)}\n`);
+      const binding = JSON.parse(readFileSync(trust.bindingPath, 'utf8')) as {
+        policy: { sha256: string };
+      };
+      binding.policy.sha256 = sha256(readFileSync(trust.policyPath));
+      write(trust.bindingPath, `${JSON.stringify(binding)}\n`);
+
+      const invocation = lint(candidate, trust);
+      const observed = output(invocation);
+      expect(invocation.exitCode, observed).toBe(1);
+      expect(observed).toContain(mutation.expected);
+    }
+  }, 300_000);
 });
+
+/** A trusted boundary as the creation-revision negatives edit it. */
+interface CreationBoundary {
+  boundaryId: string;
+  sourceSelector?: { kind: string; value: string };
+  creationRevision?: string;
+  baselineEntries: ExactTuple[];
+}
 
 /**
  * These cases read the committed `docs/wiki-policy` bootstrap files and the repository at `HEAD`

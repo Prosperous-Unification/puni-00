@@ -2,7 +2,7 @@
 
 ### Requirement: Import refuses several types per row
 
-Plan import SHALL refuse a document in which any work item carries more than one type, naming each such row, without a partial write, whatever the document version. Whole-project copy and subtree duplication SHALL copy a work item's types exactly, carrying a type conflict unchanged.
+Plan import SHALL refuse a document in which any work item carries more than one type, naming each such row, without a partial write, whatever the document version. Subtree duplication and the restoration of a deleted subtree SHALL copy a work item's types exactly, carrying a type conflict unchanged, less only a type the directory has since removed. No whole-project copy exists today; one added later SHALL follow the same rule.
 
 #### Scenario: A multi-type row is refused
 

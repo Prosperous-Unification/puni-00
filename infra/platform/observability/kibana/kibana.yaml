@@ -33,5 +33,5 @@ spec:
               - name: NODE_OPTIONS
                 value: --max-old-space-size=512
             resources:
-              requests: { cpu: 200m, memory: 768Mi }
+              requests: { cpu: 200m, memory: 512Mi }
               limits: { cpu: '1', memory: 1Gi }

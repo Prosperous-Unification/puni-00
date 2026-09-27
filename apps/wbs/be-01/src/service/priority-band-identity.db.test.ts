@@ -13,12 +13,6 @@ import { runMigrations } from '../repository/migrate';
 import { rollbackTo } from '../repository/migrate-down';
 import { PriorityBandRepository } from '../repository/priority-band';
 import { inMemoryActuals } from '../testing/actual-fixture';
-import {
-  countMovedDates,
-  isFullyEstimated,
-  withoutPlacement,
-  withSnappedRollUps,
-} from '../testing/assumed-duration-oracle';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
@@ -31,6 +25,7 @@ import { inMemoryMeasures } from '../testing/measure-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects, projectRow } from '../testing/project-fixture';
+import { withSnappedRollUps } from '../testing/snapped-roll-ups';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems, workItemRow } from '../testing/work-item-fixture';
 import captured from './fixtures/capacity-oracle-2026-08-13.json';
@@ -194,18 +189,14 @@ describe('a priority ladder moves no date', () => {
     const seeded = await ladderAfterTheMigration();
     expect(seeded).toEqual([...DEFAULT_PRIORITY_BANDS]);
 
-    let moved = 0;
     for (const [at, plan] of oracle.plans.entries()) {
       const answer = oracle.answers.at(at);
       if (answer === undefined) throw new Error(`no captured answer for ${plan.projectId}`);
       const tree = await replay(plan, seeded);
-      moved += countMovedDates(answer, tree);
-      const narrow = narrowedFor(plan);
-      expect(narrow({ project: plan.projectId, ...lifted(tree) })).toEqual(
-        narrow(expected(plan, answer, seeded)),
+      expect(narrowed({ project: plan.projectId, ...lifted(tree) })).toEqual(
+        narrowed(expected(plan, answer, seeded)),
       );
     }
-    expect(moved).toBeGreaterThan(0);
   });
 
   it('answers exactly what be-01 answered again, with every band renamed and re-cut', async () => {
@@ -217,24 +208,22 @@ describe('a priority ladder moves no date', () => {
     for (const [at, plan] of oracle.plans.entries()) {
       const answer = oracle.answers.at(at);
       if (answer === undefined) throw new Error(`no captured answer for ${plan.projectId}`);
-      const narrow = narrowedFor(plan);
-      expect(narrow({ project: plan.projectId, ...lifted(await replay(plan, RECUT)) })).toEqual(
-        narrow(expected(plan, answer, RECUT)),
+      expect(narrowed({ project: plan.projectId, ...lifted(await replay(plan, RECUT)) })).toEqual(
+        narrowed(expected(plan, answer, RECUT)),
       );
     }
   });
 
   it('answers the same under both ladders, every field of every plan', async () => {
-    // What the narrowing above cost, paid back — and it is the file's own claim
-    // stated without an oracle at all. The two replays are both **this** engine,
-    // so `assumed-duration-schedules` (2026-08-29) touches neither side and
-    // nothing has to be set aside: sixteen plans, two ladders that call every
-    // priority in the corpus something different, and every date, slice, float
-    // and red row byte-identical between them.
+    // The file's own claim stated without an oracle at all. The two replays are
+    // both **this** engine, so no rule change to the engine touches either
+    // side: sixteen plans, two ladders that call every priority in the corpus
+    // something different, and every date, slice, float and red row
+    // byte-identical between them.
     //
     // Proof: the ladder wired into the leveller's `goesFirst` in place of the
-    // raw priority — the fault the two replays above exist to catch and can no
-    // longer see on the thirteen narrowed plans — and this failed on `p11`,
+    // raw priority — the fault the two replays above exist to catch, and could
+    // not see on thirteen plans while their placement was set aside — and this failed on `p11`,
     // `- "earliestStart": 0 / + "earliestStart": 4` with the two documents
     // otherwise identical; watched 2026-08-29.
     for (const plan of oracle.plans) {
@@ -609,21 +598,17 @@ describe('a priority ladder moves no date', () => {
   }
 
   /**
-   * How much of the captured answer a plan is still compared against.
-   *
-   * Whole for the three plans in which every pair is estimated, and with the
-   * placement set aside for the thirteen `assumed-duration-schedules` moves on
-   * purpose — see {@link withoutPlacement} for what that does and does not
-   * remove, and the ladder-against-ladder test above for the claim this file
-   * makes without any oracle at all.
+   * How much of the captured answer a plan is compared against: all of it, on
+   * every plan. From `assumed-duration-schedules` (2026-08-29) until
+   * `unestimated-steps-take-no-schedule-time` (2026-09-27) the placement of the
+   * thirteen plans holding an unestimated pair was set aside; an unknown
+   * length is zero schedule time again, as it was when the capture was taken.
    */
-  const narrowedFor =
-    (plan: CapturedPlan) =>
-    (document: Record<string, unknown>): Record<string, unknown> =>
-      // `withSnappedRollUps` on both sides for the reassociated parent totals
-      // `estimate-weights-and-rounding` introduced — see its JSDoc for the one
-      // row in this corpus it is about and why 1e-9 cannot hide a real move.
-      withSnappedRollUps(isFullyEstimated(plan) ? document : withoutPlacement(document));
+  const narrowed = (document: Record<string, unknown>): Record<string, unknown> =>
+    // `withSnappedRollUps` on both sides for the reassociated parent totals
+    // `estimate-weights-and-rounding` introduced — see its JSDoc for the one
+    // row in this corpus it is about and why 1e-9 cannot hide a real move.
+    withSnappedRollUps(document);
 
   /** What the payload is owed: the capture, plus the two keys it predates. */
   function expected(

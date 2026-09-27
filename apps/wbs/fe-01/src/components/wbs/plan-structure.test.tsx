@@ -9,6 +9,8 @@ import { recordCalls } from '@/testing/record-calls';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import type * as TableFrameModule from './table-frame';
+import { collectPath } from './use-plan-structure';
+import type { TreeRow } from './wbs-rows';
 import { type SubscriptionHandlers } from './wbs-table';
 
 /** The two elements a table cell can be, since a wrapping cell is a textarea. */
@@ -281,6 +283,156 @@ describe('duplicating a branch', () => {
   });
 });
 
+describe('collectPath', () => {
+  it('walks a row up to its root, and throws on a parent the tree does not hold', () => {
+    const rows = [
+      { id: 'a', parentId: null },
+      { id: 'a1', parentId: 'a' },
+      { id: 'x', parentId: 'gone' },
+    ] as TreeRow[];
+
+    expect(collectPath(rows, 'a1')).toEqual(['a1', 'a']);
+    // Proof: the throw replaced with a `break`, this failed on `expected
+    // [Function] to throw an error`. Watched 2026-09-27.
+    expect(() => collectPath(rows, 'x')).toThrow('row gone is not in the tree on screen');
+  });
+});
+
+describe('adding a child from the row menu', () => {
+  /** `010 Strip` with `010.1 Sockets` under it, and `020 Sand`, already on screen. */
+  async function shownBranch(api: ProjectApi, shown: ProjectApi = api): Promise<void> {
+    const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    await api.createWorkItem('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
+    await api.createWorkItem('p1', { parentId: null, afterId: strip.id, name: 'Sand' });
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(shown)} />);
+    await screen.findByLabelText('Name of 020');
+  }
+
+  itDom('makes a leaf a parent with one create and lands the caret in the child', async () => {
+    const api = fakeApi();
+    await shownBranch(api);
+    const creates = recordCalls(api, 'createWorkItem', (_projectId, input) => input);
+    const moves = recordCalls(api, 'moveWorkItem');
+
+    takeRowAction('020', 'Add child');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '020.1']);
+    });
+    // One request, so be-01's first-child hand-down and its one journal entry
+    // — one undo — are the create's own, not a client's sequence of writes.
+    expect(creates).toEqual([{ parentId: 'w3', afterId: null, name: '' }]);
+    expect(moves).toEqual([]);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 020.1'));
+    });
+  });
+
+  itDom('adds the last child of a parent', async () => {
+    const api = fakeApi();
+    await shownBranch(api);
+    const creates = recordCalls(api, 'createWorkItem', (_projectId, input) => input);
+
+    takeRowAction('010', 'Add child');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020']);
+    });
+    expect(creates).toEqual([{ parentId: 'w1', afterId: 'w2', name: '' }]);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 010.2'));
+    });
+  });
+
+  itDom('opens a collapsed frozen parent so the new child is visible', async () => {
+    const api = fakeApi();
+    await shownBranch(api);
+    takeFreezeAction('Freeze numbering');
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('Number is frozen')).toHaveLength(3);
+    });
+    click('Collapse all');
+    expect(numbersOnScreen()).toEqual(['010', '020']);
+
+    takeRowAction('010', 'Add child');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020']);
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 010.2'));
+    });
+  });
+
+  itDom('opens a collapsed leaf’s first child after an earlier Collapse all', async () => {
+    // Collapse all on a nested plan writes a record, and in a record an absent
+    // key reads as closed — so a leaf that becomes a parent arrives shut
+    // unless the create opens it.
+    const api = fakeApi();
+    await shownBranch(api);
+    click('Collapse all');
+
+    takeRowAction('020', 'Add child');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '020.1']);
+    });
+  });
+
+  itDom('reveals a child made under a filter and opens every ancestor it sits under', async () => {
+    // A filter shows `Sockets` as the ancestor of a match while the reader's
+    // own expansion has every branch shut. The new blank child matches
+    // nothing, so it stays on screen only because it was just made here, and
+    // clearing the filter must find its whole line open in the saved state.
+    const api = fakeApi();
+    const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const sockets = await api.createWorkItem('p1', {
+      parentId: strip.id,
+      afterId: null,
+      name: 'Sockets',
+    });
+    await api.createWorkItem('p1', { parentId: sockets.id, afterId: null, name: 'Back boxes' });
+    await api.createWorkItem('p1', { parentId: null, afterId: strip.id, name: 'Sand' });
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    click('Collapse all');
+    fireEvent.change(screen.getByLabelText('Find'), { target: { value: 'Back' } });
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1']);
+    });
+
+    takeRowAction('010.1', 'Add child');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.1.2']);
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 010.1.2'));
+    });
+
+    fireEvent.change(screen.getByLabelText('Find'), { target: { value: '' } });
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.1.2', '020']);
+    });
+  });
+
+  itDom('says why a child was refused, adds nothing and leaves the focus alone', async () => {
+    const api = fakeApi();
+    await shownBranch(api, {
+      ...api,
+      createWorkItem: () => Promise.reject(new Error('frozen')),
+    });
+
+    takeRowAction('020', 'Add child');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('That change could not be completed (frozen).');
+    });
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Actions for 020' }));
+  });
+});
+
 describe('the row actions menu', () => {
   /** Three root rows, named, already on screen. */
   async function threeRows(api: ProjectApi): Promise<void> {
@@ -299,6 +451,8 @@ describe('the row actions menu', () => {
 
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
       'Set status to Done',
+      'Add child',
+      'Move under…',
       'Duplicate',
       'Delete',
     ]);
@@ -729,6 +883,261 @@ describe('what a drag shows while it is happening', () => {
 
     await waitFor(() => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2']);
+    });
+  });
+});
+
+describe('dragging a row under another', () => {
+  /** `010 Strip` › `010.1 Sockets`, `020 Sand`, `030 Paint`, on screen with 010 collapsed. */
+  async function collapsedBranch(api = fakeApi(), edges: [string, string][] = []) {
+    const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    await api.createWorkItem('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
+    const sand = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: strip.id,
+      name: 'Sand',
+    });
+    await api.createWorkItem('p1', { parentId: null, afterId: sand.id, name: 'Paint' });
+    for (const [successor, predecessor] of edges) await api.addDependency(successor, predecessor);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 030');
+    click('Collapse 010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    });
+    return api;
+  }
+
+  /** Holds the pointer where it is for longer than the hover-open wait. */
+  const holdPastTheWait = () =>
+    act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 750));
+    });
+
+  const hover = (from: string, to: string, clientY: number) => {
+    fireEvent.dragStart(screen.getByLabelText(`Reorder ${from}`));
+    fireEvent(withHeight(rowFor(to), 0, 40), dragEvent('dragover', clientY));
+  };
+
+  itDom('says where a middle drop will put the row, and draws lines at the edges', async () => {
+    await collapsedBranch();
+
+    hover('030', '020', 20);
+    expect(rowFor('020').getAttribute('data-drop')).toBe('into');
+    expect(screen.getByRole('status', { name: 'Move under 020 · Sand' })).toBeDefined();
+
+    fireEvent(rowFor('020'), dragEvent('dragover', 2));
+    expect(rowFor('020').getAttribute('data-drop')).toBe('above');
+    expect(screen.queryByRole('status', { name: /^Move under/ })).toBeNull();
+  });
+
+  itDom('shows no cue over a row the dragged one cannot go under', async () => {
+    await collapsedBranch();
+    click('Expand 010');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '030']);
+    });
+
+    hover('010', '010.1', 20);
+
+    expect(screen.queryByRole('status', { name: /^Move under/ })).toBeNull();
+  });
+
+  itDom('opens a collapsed parent after a held hover without changing the target', async () => {
+    await collapsedBranch();
+    const saved = localStorage.getItem('wbs.expanded.p1');
+
+    hover('030', '010', 20);
+    await holdPastTheWait();
+
+    // Drawn open, and not saved: only a drop keeps what a hover opened.
+    expect(localStorage.getItem('wbs.expanded.p1')).toBe(saved);
+
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '030']);
+    expect(rowFor('010').getAttribute('data-drop')).toBe('into');
+    expect(screen.getByRole('status', { name: 'Move under 010 · Strip' })).toBeDefined();
+  });
+
+  itDom('closes the parent it opened when the drag is abandoned', async () => {
+    await collapsedBranch();
+
+    hover('030', '010', 20);
+    await holdPastTheWait();
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '030']);
+    fireEvent.dragLeave(rowFor('010'));
+    fireEvent.dragEnd(screen.getByLabelText('Reorder 030'));
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    });
+  });
+
+  itDom('does not open a parent the pointer left before the wait ran out', async () => {
+    await collapsedBranch();
+
+    hover('030', '010', 20);
+    fireEvent(withHeight(rowFor('020'), 40, 40), dragEvent('dragover', 60));
+    await holdPastTheWait();
+
+    expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+  });
+
+  itDom('keeps the parent open after a drop into it lands', async () => {
+    const api = await collapsedBranch();
+    const moves = recordCalls(api, 'moveWorkItem');
+
+    hover('030', '010', 20);
+    await holdPastTheWait();
+    fireEvent(rowFor('010'), dragEvent('drop', 20));
+    fireEvent.dragEnd(screen.getByLabelText('Reorder 030'));
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020']);
+    });
+    expect(moves).toEqual([['w4', 'w1', 'w2']]);
+  });
+
+  itDom('refuses a move that would break a dependency, and sends nothing', async () => {
+    const api = await collapsedBranch(fakeApi(), [['w4', 'w3']]);
+    const moves = recordCalls(api, 'moveWorkItem');
+
+    // Paint waits for Sand, so Paint cannot sit under Sand.
+    hover('030', '020', 20);
+    expect(screen.queryByRole('status', { name: /^Move under/ })).toBeNull();
+    fireEvent(rowFor('020'), dragEvent('drop', 20));
+
+    expect(moves).toEqual([]);
+    expect(toastTexts()).toContain(
+      'That row cannot go there: it would sit inside a row it depends on, or one that depends on it.',
+    );
+  });
+
+  itDom('refuses a move whose dependencies would loop once expanded', async () => {
+    // Rel waits for Sand, Sand for Strip, Strip for Paint. Under Rel, Paint
+    // inherits Rel's wait for Sand: a loop no edge closes alone, and no edge
+    // runs between Paint and Rel for the ancestor rule to catch.
+    const api = fakeApi();
+    const rel = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Rel' });
+    await api.createWorkItem('p1', { parentId: rel.id, afterId: null, name: 'Ship' });
+    const sand = await api.createWorkItem('p1', { parentId: null, afterId: rel.id, name: 'Sand' });
+    const strip = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: sand.id,
+      name: 'Strip',
+    });
+    const paint = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: strip.id,
+      name: 'Paint',
+    });
+    await api.addDependency(rel.id, sand.id);
+    await api.addDependency(sand.id, strip.id);
+    await api.addDependency(strip.id, paint.id);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 040');
+    const moves = recordCalls(api, 'moveWorkItem');
+
+    hover('040', '010', 20);
+    expect(screen.queryByRole('status', { name: /^Move under/ })).toBeNull();
+    fireEvent(rowFor('010'), dragEvent('drop', 20));
+    fireEvent.dragEnd(screen.getByLabelText('Reorder 040'));
+
+    expect(moves).toEqual([]);
+    expect(toastTexts()).toContain('That row cannot go there: its dependencies would make a loop.');
+    takeRowAction('040', 'Move under…');
+    const picker = await screen.findByRole('dialog', { name: 'Move 040 under…' });
+    expect(within(picker).queryByRole('button', { name: '010 · Rel' })).toBeNull();
+  });
+
+  itDom('explains a refused move and closes the parent the gesture opened', async () => {
+    const api = await collapsedBranch();
+    api.moveWorkItem = () => Promise.reject(new Error('cycle'));
+
+    hover('030', '010', 20);
+    await holdPastTheWait();
+    fireEvent(rowFor('010'), dragEvent('drop', 20));
+    fireEvent.dragEnd(screen.getByLabelText('Reorder 030'));
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain(
+        'That row could not be moved there: its dependencies would make a loop.',
+      );
+    });
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '030']);
+    });
+  });
+});
+
+describe('moving a row under a chosen parent', () => {
+  async function fourRows(api = fakeApi()) {
+    const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    await api.createWorkItem('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
+    const sand = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: strip.id,
+      name: 'Sand',
+    });
+    await api.createWorkItem('p1', { parentId: null, afterId: sand.id, name: 'Paint' });
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 030');
+    return api;
+  }
+
+  itDom('moves the row under any parent the picker offers, as its last child', async () => {
+    const api = await fourRows();
+    const moves = recordCalls(api, 'moveWorkItem');
+
+    takeRowAction('030', 'Move under…');
+    const picker = await screen.findByRole('dialog', { name: 'Move 030 under…' });
+    fireEvent.click(within(picker).getByRole('button', { name: '010.1 · Sockets' }));
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '020']);
+    });
+    expect(moves).toEqual([['w4', 'w2', null]]);
+  });
+
+  itDom('says so when no row can take it', async () => {
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 010');
+
+    takeRowAction('010', 'Move under…');
+    const picker = await screen.findByRole('dialog', { name: 'Move 010 under…' });
+
+    expect(within(picker).getByText('No row can take 010 as a child.')).toBeDefined();
+    expect(
+      within(picker)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Cancel']);
+  });
+
+  itDom('offers neither the row itself nor anything inside it', async () => {
+    await fourRows();
+
+    takeRowAction('010', 'Move under…');
+    const picker = await screen.findByRole('dialog', { name: 'Move 010 under…' });
+
+    expect(
+      within(picker)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['020 · Sand', '030 · Paint', 'Cancel']);
+  });
+
+  itDom('keeps Alt+Right and Alt+Left for the adjacent indent and outdent', async () => {
+    await fourRows();
+
+    fireEvent.keyDown(screen.getByLabelText('Name of 030'), { key: 'ArrowRight', altKey: true });
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '020.1']);
+    });
+    fireEvent.keyDown(screen.getByLabelText('Name of 020.1'), { key: 'ArrowLeft', altKey: true });
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '030']);
     });
   });
 });

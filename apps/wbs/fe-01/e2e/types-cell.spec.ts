@@ -105,7 +105,7 @@ test.describe('the Types cell at a laptop width', () => {
     await expect(page.getByLabel('Add a type to 010')).toHaveCount(0);
   });
 
-  test('a row of three types is the same height as a row of none', async ({ page }) => {
+  test('a row with a crowded type is the same height as a row of none', async ({ page }) => {
     // **The claim, and the whole reason this file exists.** Three chips in a
     // 120px column have nowhere to go: clipped they stay on one line, wrapped
     // they take three and the row grows to match.
@@ -119,11 +119,18 @@ test.describe('the Types cell at a laptop width', () => {
     // chip-group rules, watched failing on `three types grew the row past a
     // single line … Expected: 26.1875 / Received: 87.1875` — 61px, which is two
     // extra lines of chips. Watched in Chromium, 2026-08-31.
+    //
+    // **One type since WBS 010.4.10**: a second choice replaces the first, so
+    // the three-chip fixture became one type whose name alone overruns the
+    // 120px column. The crowding is what the check needs, not the count.
+    // Re-watched on this fixture 2026-09-27: the same `wrap` injection failed on
+    // `Expected: 26.1875 / Received: 66.1875`.
     const bare = await rowHeight(page, '020');
 
     await addType(page, '010', 'Story');
-    await addType(page, '010', 'Spike');
-    await addType(page, '010', 'Epic');
+    await addType(page, '010', 'Infrastructure migration spike');
+    // Single-select in the browser: the second choice replaced the first.
+    await expect(page.getByLabel('Remove Story from 010')).toHaveCount(0);
 
     // **At rest, and that one word is what turned this case from a claim into a
     // check.** Until 2026-08-31 the height was read with the cell still being
@@ -142,7 +149,7 @@ test.describe('the Types cell at a laptop width', () => {
     // fault in. The panel was the reason all along.
     await page.getByRole('combobox', { name: 'Types for 010' }).blur();
     const carrying = await rowHeight(page, '010');
-    expect(carrying, 'three types grew the row past a single line').toBe(bare);
+    expect(carrying, 'a crowded type grew the row past a single line').toBe(bare);
     expect(carrying).toBeLessThanOrEqual(ROW_HEIGHT_BUDGET);
 
     // **Still no strip-height assertion here**, and that half of the original
@@ -168,9 +175,10 @@ test.describe('the Types cell at a laptop width', () => {
     // is doing work. Without the second half this passes on a row whose chips
     // fit, which is a check that cannot fail — the fault `G gantt-view` shipped,
     // one file over. Which box is the clipper changed on 2026-08-31; see below.
-    await addType(page, '010', 'Story');
-    await addType(page, '010', 'Spike');
-    await addType(page, '010', 'Epic');
+    // One type since WBS 010.4.10, named long enough to overrun the column.
+    // The overflow proof below was re-watched on this fixture 2026-09-27:
+    // `Expected: "hidden" / Received: "visible"`.
+    await addType(page, '010', 'Infrastructure migration spike');
 
     // **Rewritten a second time on 2026-08-31, and the move is the finding.**
     // This used to read `overflow-x: clip` off the `<td>`. It cannot any more:
@@ -209,7 +217,7 @@ test.describe('the Types cell at a laptop width', () => {
     expect(clipped.clientWidth, 'the strip was not laid out').toBeGreaterThan(0);
     expect(
       clipped.scrollWidth,
-      'three chips fit the column, so the clip is untested here',
+      'the type fits the column, so the clip is untested here',
     ).toBeGreaterThan(clipped.clientWidth);
     // `hidden` and not `clip`, unlike the `<td>` rule this replaces: the strip
     // is the box the edge fade is masked onto and the box the picker's list

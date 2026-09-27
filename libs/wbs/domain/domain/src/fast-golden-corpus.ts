@@ -32,9 +32,9 @@
  * inputs are computed can drift from the plans it claims to describe.
  *
  * **That choice fixes this file's reach, so state it here rather than leaving a
- * reader to infer it.** These are eight named plans, and the guard covers them
+ * reader to infer it.** These are ten named plans, and the guard covers them
  * **as `schedule()` renders them** — nothing wider. A semantic change is
- * visible only if it moves one of these eight schedules, and a bump-list
+ * visible only if it moves one of these ten schedules, and a bump-list
  * constant that lives off `schedule()`'s call graph is not visible at all:
  * `schedule.ts` does not import `solver-quantum`, so `SOLVER_QUANTUM` cannot be
  * observed from any case below, however its durations are chosen. See the
@@ -83,7 +83,7 @@ const work = (workItemId: string, days: number | null, extra: Partial<Slice> = {
 });
 
 /**
- * Eight cases, chosen so each one can lose something a different engine change
+ * Ten cases, chosen so each one can lose something a different engine change
  * would break. A corpus of one plan is a corpus that only notices whatever that
  * plan happens to exercise.
  */
@@ -99,9 +99,9 @@ export const FAST_GOLDEN_CASES: readonly FastGoldenCase[] = [
     slices: [work('a', 3), work('b', 2), work('c', 4)],
   },
   {
-    // The case the 1.6 watched red aims at: `days: null` on the middle leaf, so
-    // ASSUMED_SLICE_WORKDAYS is spent here and every downstream date moves with
-    // it. Without a case like this the corpus cannot see that constant at all.
+    // `days: null` on the middle leaf. The unknown `b` takes zero schedule time,
+    // so `c` starts where `a` finishes; if ASSUMED_SLICE_WORKDAYS re-entered
+    // scheduling, every downstream date here would move with it.
     name: 'unestimated-middle',
     rows: [leaf('a', 10), leaf('b', 20), leaf('c', 30)],
     edges: [
@@ -201,6 +201,30 @@ export const FAST_GOLDEN_CASES: readonly FastGoldenCase[] = [
     rows: [leaf('a', 20), leaf('b', 10)],
     edges: [],
     slices: [work('a', 2, { poolIds: ['team'] }), work('b', 2, { poolIds: ['team'] })],
+    poolSizes: new Map([['team', 1]]),
+  },
+  {
+    // Unknown beside explicit zero: both are zero schedule time and neither
+    // delays its successor, while only `b` reports itself estimated.
+    name: 'unknown-beside-explicit-zero',
+    rows: [leaf('a', 10), leaf('b', 20), leaf('c', 30), leaf('d', 40)],
+    edges: [
+      { predecessorId: 'a', successorId: 'c' },
+      { predecessorId: 'b', successorId: 'd' },
+    ],
+    slices: [work('a', null), work('b', 0), work('c', 1), work('d', 1)],
+  },
+  {
+    // Two unknown slices on one person and a one-slot pool, beside estimated
+    // work on both: they share an instant and the estimated `c` is not pushed.
+    name: 'unknown-assigned-capacity',
+    rows: [leaf('a', 10), leaf('b', 20), leaf('c', 30)],
+    edges: [],
+    slices: [
+      work('a', null, { personId: 'p', poolIds: ['team'] }),
+      work('b', null, { personId: 'p', poolIds: ['team'] }),
+      work('c', 3, { personId: 'p', poolIds: ['team'] }),
+    ],
     poolSizes: new Map([['team', 1]]),
   },
 ];

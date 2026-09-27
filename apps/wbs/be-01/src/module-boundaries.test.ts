@@ -64,6 +64,16 @@ interface ImportRule {
  * (0 pass, 1 fail each).
  */
 const rules: readonly ImportRule[] = [
+  // Proof (2026-09-27): an injected import through ../../repository/optimization-admission
+  // reported both the be-01 shim and its SQLite target; a direct @wbs/store-sqlite import
+  // reported the SQLite target; an import() type reported the shim and forwarded declaration.
+  // Each mutation failed this boundary test with 0 passed, 1 failed.
+  {
+    from: (path) => path.startsWith('module/optimization/') && !path.endsWith('.test.ts'),
+    reaches: (declared) =>
+      declared.startsWith('apps/wbs/be-01/src/repository/') ||
+      declared.startsWith('libs/wbs/adapters/store-sqlite/'),
+  },
   {
     from: (path) => path.startsWith('module/optimization/'),
     reaches: (declared) =>

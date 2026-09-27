@@ -91,7 +91,7 @@ import {
   subjectOf,
   touchedBy,
 } from '../../service/compensating';
-import { canDepend } from '../../service/dependency';
+import { canDepend, canReparent } from '../../service/dependency';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import {
   type Days,
@@ -671,6 +671,16 @@ export type WorkItemRefusal =
    * gone", a reader now has four pickers to reopen and no way to choose.
    */
   | 'unknown_type'
+  /**
+   * An authored patch whose `typeIds` name more than one distinct type
+   * (WBS 010.4.10). Decided in {@link WorkItemService.patch}, the one path every
+   * authored type write takes, and never on undo/redo restoration or copying,
+   * which reproduce a stored type conflict exactly.
+   *
+   * 400 and not 409: the patch replaces the set whole, so the resulting set is
+   * the patch's own and no state of the plan makes two types acceptable.
+   */
+  | 'work_item_takes_one_type'
   /**
    * An external system the directory no longer holds, decided inside the write's
    * own transaction — `unknown_service`'s rule, a fourth time and for the same
@@ -1994,6 +2004,9 @@ export class WorkItemService {
         : (await this.opts.measures.listByProject(projectId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
+    // Proof: the estimates' `moveAll` skipped, be-01's `hands the estimates
+    // back up when it undoes the first child that took them` failed — the
+    // path the row menu's Add child takes. Watched 2026-09-27.
     if (gainsFirstChild !== null) {
       await this.opts.estimates.moveAll(gainsFirstChild, workItem.id, stamp);
       await this.opts.actuals.moveAll(gainsFirstChild, workItem.id, stamp);
@@ -2094,6 +2107,26 @@ export class WorkItemService {
     // watched 2026-08-12.
     if (patch.maxParallel !== undefined && context.value.rows.some((row) => row.parentId === id)) {
       return { ok: false, reason: 'has_children' };
+    }
+    // The one-type rule for every authored write, behind the parser's early
+    // answer: `typeIds` and `typeRefs` are only joined here, after the batch has
+    // bound its refs. The set a patch writes is the patch's own set (the store
+    // replaces it whole), so this check against the patch decides the row as it
+    // will stand. Undo/redo restoration writes through `apply`, never through
+    // here, so a stored type conflict can still be put back exactly.
+    //
+    // Proof: this check deleted and three tests failed, watched 2026-09-27: the
+    // mounted `refuses a batch whose third command binds two types, naming that
+    // command` received 200; `refuses a third command binding two types and rolls
+    // back the first two` (plan-commands.db) and `refuses an authored patch with
+    // two types, writing and journalling nothing` (undo.db) received ok.
+    //
+    // Proof: an authored type patch routed through `apply` (the restoration
+    // path) instead and five tests failed, watched 2026-09-27: the three above,
+    // plus `puts a type conflict back, whole, after one type is kept` and `takes
+    // a first type set off again` on `stale_undo` (nothing was journalled).
+    if (patch.typeIds !== undefined && new Set(patch.typeIds).size > 1) {
+      return { ok: false, reason: 'work_item_takes_one_type' };
     }
     // The one deadline-specific refusal, and it is here rather than at the
     // controller for the reason the not-before pair is decided in the store:
@@ -2224,6 +2257,17 @@ export class WorkItemService {
     if (input.parentId !== null && isWithin(parentIndexOf(rows), input.parentId, id)) {
       return { ok: false, reason: 'cycle' };
     }
+
+    // The dependencies already drawn must survive the new parent. Decided
+    // here, on rows and edges read inside this write's lock, because the drag
+    // preview is a client's guess and a direct command skips it entirely.
+    const edges = await this.opts.dependencies.listByProject(workItem.projectId);
+    const broken = canReparent(rows, edges, id, input.parentId);
+    // Proof: this return disabled, the mounted `answers 409 ancestor for a move
+    // under its own predecessor…` and `answers 409 cycle for a move whose
+    // expanded graph loops…` both failed on `Received: 200` — the direct
+    // command reparented. Watched 2026-09-27.
+    if (broken !== null) return { ok: false, reason: broken };
 
     // Where it was, read before it leaves: the sibling it sat directly after,
     // or null when it was first. That is the shape `move` takes, so the
@@ -3878,6 +3922,12 @@ export class WorkItemService {
   ): Promise<ApplyOutcome> {
     switch (command.do) {
       case 'patch': {
+        // Straight to the store, never through the authored `patch`: restoration
+        // puts back the exact prior type set, including a type conflict.
+        //
+        // Proof: routed through `this.patch` instead and `puts a type conflict
+        // back, whole, after one type is kept` (undo.db) failed on `refused:
+        // stale_undo`. Watched 2026-09-27.
         const written = await this.opts.workItems.patch(command.workItemId, command.patch, stamp);
         if (!written.ok) {
           // The label's team or service was removed after the command ran, or

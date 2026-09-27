@@ -171,6 +171,7 @@ describe('readToolchain', () => {
     const toolchain = await readToolchain(path);
     expect(toolchain.supportedHosts).toEqual([
       { distribution: 'ubuntu', version: '24.04', arch: 'amd64' },
+      { distribution: 'ubuntu', version: '26.04', arch: 'amd64' },
     ]);
     expect(toolchain.binaries.k3s.version).toBe('v1.36.4+k3s1');
   });
