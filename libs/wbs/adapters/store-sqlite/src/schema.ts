@@ -764,7 +764,7 @@ export const step = sqliteTable(
      * `DEFAULT 0` is what makes the column additive: an outgoing release's
      * `INSERT` does not name it, and zero is the charge every step had before
      * the column existed. The range `CHECK` lives in the migration
-     * (`20260927160000_add_step_allowance`), beside the column it guards.
+     * (`20260927170000_add_step_allowance`), beside the column it guards.
      */
     allowancePercent: allowanceHundredths('allowance_bps').notNull().default(0),
     /**

@@ -1,4 +1,4 @@
--- Reverses `20260927160000_add_step_allowance`, and refuses while any step
+-- Reverses `20260927170000_add_step_allowance`, and refuses while any step
 -- carries a nonzero allowance.
 --
 -- Dropping the column would silently change what every such step charges: the

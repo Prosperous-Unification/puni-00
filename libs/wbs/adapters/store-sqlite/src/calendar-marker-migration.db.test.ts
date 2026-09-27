@@ -87,7 +87,7 @@ const ORGANIZATION_TABLES = [
  */
 const STEP_CODE = '20260927150000_add_step_code';
 /** The newest migration since `add-project-step-estimate-allowances`: it heads every descending ledger. */
-const STEP_ALLOWANCE = '20260927160000_add_step_allowance';
+const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 

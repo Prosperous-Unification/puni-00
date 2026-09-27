@@ -71,7 +71,7 @@ const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
  */
 const STEP_CODE = '20260927150000_add_step_code';
 /** The newest migration since `add-project-step-estimate-allowances`: it heads every descending ledger. */
-const STEP_ALLOWANCE = '20260927160000_add_step_allowance';
+const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 
 let dir: string;
 let path: string;

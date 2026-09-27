@@ -25,7 +25,7 @@ const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /** The newest: the step code column `address-step-nodes` adds, reversed first. */
 const STEP_CODE = '20260927150000_add_step_code';
 /** The newest migration since `add-project-step-estimate-allowances`: it heads every descending ledger. */
-const STEP_ALLOWANCE = '20260927160000_add_step_allowance';
+const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /** The newest folder before this one; named so a later folder is a red test here. */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
 const ORGANIZATION_TABLES = [

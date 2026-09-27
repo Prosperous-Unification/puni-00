@@ -292,7 +292,7 @@ const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
  */
 const STEP_CODE = '20260927150000_add_step_code';
 /** The newest migration since `add-project-step-estimate-allowances`: it heads every descending ledger. */
-const STEP_ALLOWANCE = '20260927160000_add_step_allowance';
+const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 // `step` since 20260831120000_rename_role_to_step. Every raw statement in this
