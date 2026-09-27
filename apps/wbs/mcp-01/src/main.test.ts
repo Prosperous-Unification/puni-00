@@ -10,6 +10,7 @@ import { expect, spyOn, test } from 'bun:test';
 import type { McpConfig } from './config';
 import { type McpApplicationDeps, startMcpApplication } from './main';
 import type { DerivedTool } from './openapi-tools';
+import { SessionRefreshRefused } from './wbs-client';
 
 const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
@@ -73,7 +74,12 @@ function captureErrors(sink: Logger): {
   };
 }
 
-function oauthFixture() {
+function oauthFixture(): {
+  verify: () => Promise<{ iss: string; sub: string }>;
+  response: () => Promise<undefined>;
+  endSession: () => void | Promise<void>;
+  refreshSession: () => Promise<string>;
+} {
   return {
     verify: () => Promise.resolve({ iss: 'issuer', sub: 'caller' }),
     response: () => Promise.resolve(undefined),
@@ -213,4 +219,97 @@ test('starts without a Basic secret and writes OAuth and startup facts through t
   } finally {
     consoleError.mockRestore();
   }
+});
+
+/** Starts the production composition around `oauth` and connects a client whose MCP session is live. */
+async function connectSessionClient(oauth: ReturnType<typeof oauthFixture>): Promise<{
+  readonly client: Client;
+  readonly lines: string[];
+  readonly failureCalls: () => { fields: LogFields; message: string }[];
+}> {
+  const lines: string[] = [];
+  let errorCalls: { fields: LogFields; message: string }[] = [];
+  let serverFactory: Parameters<McpApplicationDeps['startHttpServer']>[0] | undefined;
+  startMcpApplication({
+    loadConfig: () => CONFIG,
+    readDocument: () => ({ paths: {} }),
+    toolsFromDocument: () => [READ],
+    mcpOAuthFromEnv: () => oauth,
+    startHttpServer: (createServer) => {
+      serverFactory = createServer;
+      return { port: 3313 };
+    },
+    createLogger: (options) => {
+      const captured = captureErrors(
+        createLogger({ ...options, destination: { write: (chunk) => void lines.push(chunk) } }),
+      );
+      errorCalls = captured.calls;
+      return captured.logger;
+    },
+    fetchImpl: () => Promise.resolve(new Response('{"error":"unauthorized"}', { status: 401 })),
+  });
+  if (serverFactory === undefined)
+    throw new Error('HTTP startup did not retain its server factory');
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const authInfo: AuthInfo = {
+    token: 'production-upstream-token',
+    clientId: 'production-session-test',
+    scopes: [],
+    extra: { mcpSessionId: 'session-1' },
+  };
+  const send = clientTransport.send.bind(clientTransport);
+  clientTransport.send = (message, options) => send(message, { ...options, authInfo });
+  const server = serverFactory();
+  const client = new Client({ name: 'production-test', version: '0.0.0' }, { capabilities: {} });
+  await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+  return {
+    client,
+    lines,
+    failureCalls: () => errorCalls.filter((call) => call.message === 'unexpected MCP tool failure'),
+  };
+}
+
+// Proof: on 2026-09-27, against the previous server.ts the lookup case wrote no operator record
+// (`Received length: 0`) and the session-end case rejected with `MCP error -32603` carrying the
+// unredacted Basic credential to the client.
+test.each([
+  {
+    failingStep: 'refresh session lookup',
+    oauth: {
+      ...oauthFixture(),
+      refreshSession: () =>
+        Promise.reject(new Error('refresh-sentinel mcp-user:boundary-secret SQLITE_IOERR')),
+    },
+  },
+  {
+    failingStep: 'session end',
+    oauth: {
+      ...oauthFixture(),
+      refreshSession: () =>
+        Promise.reject(new SessionRefreshRefused('upstream refresh was refused')),
+      endSession: () =>
+        Promise.reject(new Error('refresh-sentinel mcp-user:boundary-secret SQLITE_BUSY')),
+    },
+  },
+])('reports a failed $failingStep once through the production reporter', async ({ oauth }) => {
+  const { client, lines, failureCalls } = await connectSessionClient(oauth);
+
+  const toolResponse = await client.callTool({ name: READ.name, arguments: { id: 'p-1' } });
+
+  expect(failureCalls()).toHaveLength(1);
+  const reporting = failureCalls()[0]?.fields['err'] as FailureReporting;
+  if (!reporting.reported) throw new Error('the refresh failure could not be described');
+  expect(toolResponse).toEqual({
+    content: [
+      {
+        type: 'text',
+        text: `${READ.name} could not be called: Something went wrong. Reference ${reporting.reports.public.occurrence_id}.`,
+      },
+    ],
+    isError: true,
+  });
+  const failureLines = lines.filter((line) => line.includes('unexpected MCP tool failure'));
+  expect(failureLines).toHaveLength(1);
+  expect(failureLines[0]).toContain('refresh-sentinel');
+  expect(failureLines[0]).not.toContain('boundary-secret');
 });

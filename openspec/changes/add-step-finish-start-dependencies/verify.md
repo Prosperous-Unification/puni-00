@@ -19,5 +19,10 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
 - **Pending:** Format, lint, typecheck, build, OpenSpec validation and applicable h2puni gate. All implementation checks remain unverified at spec time.
 
 - **Pending R5 proof:** Bypass the combined-graph check on a mounted legacy write or B.Dev estimate clearing; the cycle-refusal test must fail. Restore and record observed output.
-
 - **Pending R5 proof:** Bypass project-update graph validation; a mounted `anchor-slice` to `whole-item` update with typed A.QA → B.QA and legacy B → A must fail its atomic cycle-refusal test. Restore and record observed output.
+- **Pending R5 proof:** Skip the hand-down endpoint remap; the mounted node-endpoint hand-down test must fail. Restore and record observed output.
+- **Pending R5 proof:** Preselect the predecessor step by name or substitute a different step when it is missing; the step-cell picker test must fail. Restore and record observed output.
+
+## Rebase note
+
+2026-09-27 (WBS 010.4.11.1): endpoints, validation, picker defaults and lifecycle rebased on `address-step-nodes`. Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` on 2026-09-27, after the Astra high review fixes on branch `batch-9/step-nodes-spec`, reported 129 items, 129 passed, 0 failed; this change was valid. File-scoped `bunx prettier --check` on every touched file reported all files use Prettier style. No application behavior is verified by this packet; the h2puni gate result is recorded in the PR.

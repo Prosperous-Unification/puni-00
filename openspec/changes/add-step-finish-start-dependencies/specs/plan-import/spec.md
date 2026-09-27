@@ -2,7 +2,7 @@
 
 ### Requirement: Plan transfer preserves typed and legacy dependencies
 
-New-version export SHALL distinguish typed endpoint/type relationships from legacy `depReach` links and preserve both on import. Legacy-format import SHALL retain project-reach semantics; malformed new-format endpoint, step, type or duplicate relationship SHALL be refused. Whole-project copy and subtree duplication SHALL remap internal relationship endpoints and stable IDs according to the copy, preserving external links only under the existing duplication policy and never creating dangling or cross-project endpoints.
+New-version export SHALL distinguish typed endpoint/type relationships from legacy `depReach` links and preserve both on import. Legacy-format import SHALL retain project-reach semantics; malformed new-format endpoint, scope, step, type or duplicate relationship SHALL be refused, including a node endpoint on a parent or a descendant-step endpoint on a leaf. Whole-project copy and subtree duplication SHALL remap internal relationship endpoints, step node IDs and stable IDs according to the copy, preserving external links only under the existing duplication policy and never creating dangling or cross-project endpoints.
 
 #### Scenario: Round-trip multiple step links
 
