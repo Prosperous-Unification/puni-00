@@ -51,7 +51,7 @@ beforeEach(async () => {
     const personId = `person-${String(index)}`;
     await projects.create(
       projectRow({ id: projectId, ownerId: 'owner' }),
-      [{ id: stepId, projectId, name: 'Dev', position: 10, code: 'dev' }],
+      [{ id: stepId, projectId, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 }],
       STAMP,
     );
     await workItems.insert(workItemRow({ id: workItemId, projectId }), [], STAMP);

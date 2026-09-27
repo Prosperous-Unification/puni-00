@@ -41,7 +41,12 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
+      '@wbs/domain/step-node': resolve(
+        __dirname,
+        '../../../libs/wbs/domain/domain/src/step-node.ts',
+      ),
       '@wbs/domain/workday': resolve(__dirname, '../../../libs/wbs/domain/domain/src/workday.ts'),
+      '@wbs/domain/estimate': resolve(__dirname, '../../../libs/wbs/domain/domain/src/estimate.ts'),
       '@wbs/domain/progress': resolve(__dirname, '../../../libs/wbs/domain/domain/src/progress.ts'),
       '@wbs/domain/deadline-offsets': resolve(
         __dirname,

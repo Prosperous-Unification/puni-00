@@ -104,6 +104,8 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
  * The legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
@@ -132,6 +134,7 @@ function beforeIdentity(dbPath: string): void {
     ORGANIZATION_FROZEN,
     ORGANIZATION_BRIDGE,
     ORGANIZATION_ACTIVATION,
+    STEP_ALLOWANCE,
     STEP_CODE,
     ORGANIZATION_OWNERSHIP,
     ORGANIZATION_RECORDS,
@@ -239,6 +242,7 @@ describe('the OIDC identity migration', () => {
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -311,6 +315,7 @@ describe('the OIDC identity migration', () => {
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,

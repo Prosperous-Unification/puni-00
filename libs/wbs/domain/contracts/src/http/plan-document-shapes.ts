@@ -4,9 +4,19 @@ import { project } from './project-response';
 import { requestSchema, responseSchema } from './schema-shape';
 import { workItemTree } from './work-item-response';
 
+/**
+ * The plan document version this release writes.
+ *
+ * `2` carries each step's `allowancePercent` (`add-project-step-estimate-allowances`);
+ * a version-1 file is read through the explicit legacy conversion in
+ * `classifyPlanDocument`, which charges every step at 0%. The typed-dependency
+ * changes (`add-step-finish-start-dependencies`) take the next free number.
+ */
+export const PLAN_DOCUMENT_VERSION = 2;
+
 const planHeader = type({
   format: "'wbs-plan'",
-  version: '1',
+  version: '2',
   exportedAt: 'string',
 });
 
@@ -47,8 +57,8 @@ const authoredMarker = type({
 });
 
 /**
- * Version 1 keeps the complete established export and adds every authored value
- * needed to interpret its file-local references during a restore.
+ * Version 2 keeps the complete established export, every authored value needed
+ * to interpret its file-local references during a restore, and step allowances.
  */
 export const planDocument = workItemTree.and({
   project,
@@ -106,7 +116,7 @@ const authoredWorkItem = type({
 
 /**
  * The archival request projection admits old additive/read-only fields and
- * returns only writable version-1 content. Step-value maps stay opaque until
+ * returns only writable content. Step-value maps stay opaque until
  * hierarchy validation determines which rows are leaves.
  */
 const writablePlanDocument = type({
@@ -117,7 +127,15 @@ const writablePlanDocument = type({
   calendarMarkers: authoredMarker.array(),
   directory,
   workItems: authoredWorkItem.array(),
-  steps: type({ id: 'string', name: 'string', position: 'number' }).array(),
+  // Optional structurally because version 1 has no such field; the version
+  // decides whether it is required (2) or must be absent (1) — see
+  // `classifyPlanDocument`.
+  steps: type({
+    id: 'string',
+    name: 'string',
+    position: 'number',
+    'allowancePercent?': 'number',
+  }).array(),
 });
 
 export const planDocumentRequest = requestSchema(writablePlanDocument, {
@@ -125,3 +143,14 @@ export const planDocumentRequest = requestSchema(writablePlanDocument, {
 });
 
 export type PlanDocumentRequest = (typeof writablePlanDocument)['infer'];
+
+/**
+ * A writable plan document once its version has been read: every step carries
+ * the allowance it is imported with — the file's own at version 2, zero at
+ * version 1.
+ */
+export type PlanDocumentImport = Omit<PlanDocumentRequest, 'steps'> & {
+  steps: (Omit<PlanDocumentRequest['steps'][number], 'allowancePercent'> & {
+    allowancePercent: number;
+  })[];
+};

@@ -1406,6 +1406,88 @@
         }
       ],
       "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.plan-event",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/plan-event"
+      },
+      "creationRevision": "36d5fa69cdc1371febf3732e1c4f41d7a2d2007e",
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "53c49bca3236b2e08543164947ca046b6a23b7fc",
+          "path": "libs/wbs/application/core/src/module/plan-event/README.md"
+        },
+        {
+          "mode": "100644",
+          "blob": "c653982cd8ace9dc37e18238f50b3d913970a5b4",
+          "path": "libs/wbs/application/core/src/module/plan-event/check.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "45f31818fffb41b893f04b37a2038438bf636e15",
+          "path": "libs/wbs/application/core/src/module/plan-event/contract.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "7c84034e353c2c3eacef599cc0b10d01207529b4",
+          "path": "libs/wbs/application/core/src/module/plan-event/module.test.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "e978a6c7f94b50a863d91e8e72dd237472650d18",
+          "path": "libs/wbs/application/core/src/module/plan-event/module.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "a5568ff8ea23bf5ef0fe5a9a20fee1e0c6741ce3",
+          "path": "libs/wbs/application/core/src/module/plan-event/plan-event.resource.ts"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.event-log",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/event-log"
+      },
+      "creationRevision": "12f47ce99585b819baeaa05cadd46966c61aea02",
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "eb040422faa3b9e12399065c154fb5d64839c84b",
+          "path": "libs/wbs/application/core/src/module/event-log/README.md"
+        },
+        {
+          "mode": "100644",
+          "blob": "6e164f4c3f6659f7b0114eb972940ce570caaf4f",
+          "path": "libs/wbs/application/core/src/module/event-log/check.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "64c918104990b37da02a4317bc67db5b91390eae",
+          "path": "libs/wbs/application/core/src/module/event-log/contract.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "fec4b493d439545f5ac538d5fe1314080cd33222",
+          "path": "libs/wbs/application/core/src/module/event-log/event-log.resource.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "a8177c4344fc1f9de1fe983cac9bb887eb115c51",
+          "path": "libs/wbs/application/core/src/module/event-log/module.test.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "cf119189e6e35cbd71f6ef44f55049cc6f98bd9e",
+          "path": "libs/wbs/application/core/src/module/event-log/module.ts"
+        }
+      ],
+      "obligationIds": []
     }
   ],
   "obligations": [],

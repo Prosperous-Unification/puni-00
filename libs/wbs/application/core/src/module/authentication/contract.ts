@@ -1,30 +1,14 @@
+import type { Clock } from '../../ports/clock';
+import type { OidcIdentityStore, UserStore } from '../../ports/user-store';
 import type { AuthService, AuthServiceOptions } from './authentication.feature';
 import type { LoginThrottle } from './login-throttle';
 
 /**
  * What a host must supply to install {@link authenticationModule}.
  *
- * `account` narrows {@link AuthServiceOptions} at exactly one field: `users`
- * must satisfy both `UserStore` and `OidcIdentityStore`, matching the map's
- * own Authentication row ("accountful `users: UserStore & OidcIdentityStore`")
- * and `ports/stores.ts`'s own `TransactionalStores.users`. The legacy
- * `AuthServiceOptions.identities?: OidcIdentityStore` field stays optional on
- * the constructor itself (unchanged, still directly constructible), but this
- * module's own `module.ts` never leaves it unset: its private `authOptions`
- * binding always derives `identities` from `account.users`, so a host of this
- * module cannot supply
- * an `oidc` verifier over a store that cannot resolve OIDC identities — the
- * map's own "verifier-without-identity-store is unrepresentable" requirement,
- * enforced at this module's own boundary rather than by widening
- * `AuthServiceOptions` itself, which extraction preserves unchanged.
- *
- * **Preserved K3 debt.** `AuthService` directly calls `users.create`,
- * `findByUsername`, `findById` and `identities.resolveOidcIdentity` — all
- * `ports/user-store.ts` repository ports, not a resource-service contract.
- * This extraction moves the file; it does not close that debt. Tracked under
- * task 7.4 of `openspec/changes/adopt-di-composition/tasks.md`, the same
- * disposition Plan import's own `PlanImportRequirements` records for its own
- * preserved direct-store calls.
+ * The host supplies a combined account store and a clock. The private
+ * AccountResource owns creation, lookup, and OIDC identity resolution;
+ * the feature depends on that resource rather than on either repository port.
  *
  * `now` and `maxConcurrentLogins` build {@link LoginThrottle}'s own options;
  * they stay two flat requirements, not `AuthServiceOptions`'s own `clock`
@@ -33,8 +17,9 @@ import type { LoginThrottle } from './login-throttle';
  * exactly rather than widening it to depend on the whole `Clock` port.
  */
 export interface AuthenticationRequirements {
-  readonly account: Omit<AuthServiceOptions, 'identities'> & {
-    readonly users: AuthServiceOptions['users'] & NonNullable<AuthServiceOptions['identities']>;
+  readonly account: Omit<AuthServiceOptions, 'account'> & {
+    readonly users: UserStore & OidcIdentityStore;
+    readonly clock: Clock;
   };
   readonly now: () => number;
   readonly maxConcurrentLogins: number;

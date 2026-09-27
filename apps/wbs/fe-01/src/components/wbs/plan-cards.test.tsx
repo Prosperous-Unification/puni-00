@@ -68,8 +68,8 @@ const PHONE = 390;
 /** The same phone's CSS height, and sideways the two swap places. */
 const PHONE_TALL = 844;
 
-const DEV: StepView = { id: 'step-dev', name: 'Dev' };
-const QA: StepView = { id: 'step-qa', name: 'QA' };
+const DEV: StepView = { id: 'step-dev', name: 'Dev', allowancePercent: 0 };
+const QA: StepView = { id: 'step-qa', name: 'QA', allowancePercent: 0 };
 
 /**
  * What this fake was asked for and does not do.
@@ -420,7 +420,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
         return Promise.resolve();
       },
       addStep: (_projectId: string, name: string) => {
-        const step = { id: `step-${name.toLowerCase()}`, name };
+        const step = { id: `step-${name.toLowerCase()}`, name, allowancePercent: 0 };
         stepList.push(step);
         return Promise.resolve({ ...step });
       },

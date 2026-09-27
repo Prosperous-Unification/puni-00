@@ -1698,11 +1698,24 @@ describe('overlapping resource invalidations', () => {
   });
 
   it.each([false, true])(
-    'installs a held renamed step with competing tree=%s',
+    'waits for the tree snapshot after a held renamed step with competing tree=%s',
     async (competing) => {
       const api = fakeApi();
       await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Before' });
       api.rows[0].id = 'overlap-row';
+      const readTree = api.tree.bind(api);
+      let treeRenamed = false;
+      api.tree = async (projectId) => {
+        const plan = await readTree(projectId);
+        return treeRenamed
+          ? {
+              ...plan,
+              steps: plan.steps.map((step, index) =>
+                index === 0 ? { ...step, name: 'Renamed step' } : step,
+              ),
+            }
+          : plan;
+      };
       let notify: SubscriptionHandlers['onChange'] | undefined;
       render(
         <WbsTableOverClient
@@ -1738,6 +1751,9 @@ describe('overlapping resource invalidations', () => {
         );
         await Promise.resolve();
       });
+      expect(screen.queryByText('Renamed step')).toBeNull();
+      treeRenamed = true;
+      act(() => notify?.('tree_replaced'));
       await waitFor(() => {
         expect(screen.getByText('Renamed step')).toBeTruthy();
       });

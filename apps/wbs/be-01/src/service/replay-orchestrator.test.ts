@@ -1,3 +1,4 @@
+import { EventLogService } from '@wbs/core';
 import { makeTestDb } from '@wbs/validation/fixtures';
 import type { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -41,7 +42,11 @@ async function bootstrap(options: { maxEvents?: number; bufferSize?: number } = 
     maxAgeMs: 5 * 60_000,
     now: () => 1_000,
   });
-  const orchestrator = new ReplayOrchestrator({ log, buffer, maxEvents: options.maxEvents });
+  const orchestrator = new ReplayOrchestrator({
+    log: new EventLogService(log),
+    buffer,
+    maxEvents: options.maxEvents,
+  });
 
   async function record(subscription: string, message: unknown): Promise<number> {
     const recorded = await log.recordEvent(subscription, message, 1_000);
@@ -196,7 +201,7 @@ describe('ReplayOrchestrator — cross-review findings', () => {
       maxAgeMs: 60_000,
       now: () => now,
     });
-    const orchestrator = new ReplayOrchestrator({ log, buffer });
+    const orchestrator = new ReplayOrchestrator({ log: new EventLogService(log), buffer });
 
     for (const n of [0, 1]) {
       const recorded = await log.recordEvent('project:a', { n }, now);

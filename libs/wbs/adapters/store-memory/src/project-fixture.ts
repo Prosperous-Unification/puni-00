@@ -62,17 +62,25 @@ export interface MemoryProjectTables {
   readonly opened: Map<string, number>;
   /** Which organization owns each project, as `project_organization` holds it. */
   readonly owning: Map<string, string>;
+  /** Each step's allowance revision; a step never written is at 0, as the column default. */
+  readonly allowanceRevisions: Map<string, number>;
 }
 
 export function memoryProjectTables(): MemoryProjectTables {
-  return { projects: new Map(), steps: new Map(), opened: new Map(), owning: new Map() };
+  return {
+    projects: new Map(),
+    steps: new Map(),
+    opened: new Map(),
+    owning: new Map(),
+    allowanceRevisions: new Map(),
+  };
 }
 
 export function inMemoryProjects(
   owners: UserStore = inMemoryUsers(),
   tables: MemoryProjectTables = memoryProjectTables(),
 ): ProjectStore {
-  const { projects, steps, opened, owning } = tables;
+  const { projects, steps, opened, owning, allowanceRevisions } = tables;
   /** One moment per `userId::projectId`, exactly as the primary key holds it. */
   /**
    * Every stamp this store was handed, in call order, so a service test can
@@ -191,6 +199,25 @@ export function inMemoryProjects(
       };
       projects.set(id, updated);
       return Promise.resolve(updated);
+    },
+    setStepAllowance(projectId, stepId, allowancePercent, _stamp) {
+      const found = (steps.get(projectId) ?? []).find((each) => each.id === stepId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      const previousPercent = found.allowancePercent;
+      found.allowancePercent = allowancePercent;
+      const revision = (allowanceRevisions.get(stepId) ?? 0) + 1;
+      allowanceRevisions.set(stepId, revision);
+      return Promise.resolve({ ok: true, step: structuredClone(found), previousPercent, revision });
+    },
+    stepAllowanceRevisions(projectId) {
+      return Promise.resolve(
+        new Map(
+          (steps.get(projectId) ?? []).map((each) => [
+            each.id,
+            allowanceRevisions.get(each.id) ?? 0,
+          ]),
+        ),
+      );
     },
     stepsOf(projectId) {
       // In step order, as production reads them — see `inMemorySteps` for what

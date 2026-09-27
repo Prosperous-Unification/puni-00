@@ -136,3 +136,38 @@ describe('normalising a stored plan input forward — 7.4', () => {
     expect(clean['tampered']).toBeUndefined();
   });
 });
+
+describe('the version-1 to version-2 upgrade — step allowances', () => {
+  /** A version-1 body: today's, with the allowance its steps did not carry yet. */
+  function versionOneBody(): Record<string, unknown> {
+    const body = JSON.parse(bytes) as { steps: Record<string, unknown>[] } & Record<
+      string,
+      unknown
+    >;
+    return {
+      ...body,
+      schemaVersion: 1,
+      steps: body.steps.map(({ allowancePercent: _dropped, ...rest }) => rest),
+    };
+  }
+
+  /** Proof: see `withZeroStepAllowances`. */
+  it('reads a version-1 body’s steps at 0% allowance', () => {
+    const upgraded = normalisePlanInputForward(versionOneBody(), 1);
+
+    expect(upgraded.steps.length).toBeGreaterThan(0);
+    for (const step of upgraded.steps) expect(step.allowancePercent).toBe(0);
+  });
+
+  it('refuses a version-1 body whose steps are not a list', () => {
+    expect(() => normalisePlanInputForward({ schemaVersion: 1, steps: 'none' }, 1)).toThrow(
+      'a version-1 plan input body holds no steps list',
+    );
+  });
+
+  it('writes version 2 with each step’s allowance', () => {
+    expect(CANONICAL_PLAN_INPUT_SCHEMA_VERSION).toBe(2);
+    const body = JSON.parse(bytes) as { steps: { allowancePercent: unknown }[] };
+    for (const step of body.steps) expect(typeof step.allowancePercent).toBe('number');
+  });
+});

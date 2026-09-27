@@ -1,8 +1,12 @@
 import type { AuthenticatedUser } from '@wbs/contracts';
 import { inMemoryUsers } from '@wbs/store-memory/auth-fixture';
+import { inMemoryPlanEvents } from '@wbs/store-memory/history-fixture';
 import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
+import { inMemoryEventLog } from '@wbs/store-memory/replay-fixture';
 import { describe, expect, test } from 'bun:test';
 
+import { EventLogService } from '../module/event-log/event-log.resource';
+import { PlanEventService } from '../module/plan-event/plan-event.resource';
 import { PlanCommandRunner } from '../service/plan-commands';
 import { inMemoryServices } from '../testing/harness';
 import { batchServices, testWrites } from '../testing/writes-fixture';
@@ -151,8 +155,14 @@ test('retention refuses a noninternal principal without pruning either store', a
   expect(
     await retentionSweep(
       {
-        eventLog: { pruneBeyond: () => (calls.push('log'), Promise.resolve(0)) },
-        planEvents: { pruneOlderThan: () => (calls.push('plans'), Promise.resolve(0)) },
+        eventLog: new EventLogService({
+          ...inMemoryEventLog(),
+          pruneBeyond: () => (calls.push('log'), Promise.resolve(0)),
+        }),
+        planEvents: new PlanEventService({
+          ...inMemoryPlanEvents(),
+          pruneOlderThan: () => (calls.push('plans'), Promise.resolve(0)),
+        }),
         maxPerSubscription: 10,
         retainDays: 30,
         now: () => 100,

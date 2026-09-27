@@ -68,7 +68,16 @@ async function sqliteEstimateRunner(name: string) {
   );
   await source.stores.projects.create(
     projectRow({ id: PROJECT, ownerId: OWNER, name }),
-    [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+    [
+      {
+        id: 'step',
+        projectId: PROJECT,
+        name: 'Step',
+        position: 10,
+        code: 'step',
+        allowancePercent: 0,
+      },
+    ],
     STAMP,
   );
   await source.stores.workItems.insert(workItemRow({ id: ROW, projectId: PROJECT }), [], STAMP);
@@ -206,6 +215,7 @@ it('keeps SQLite satellite order authoritative after a WorkingPlan patch refresh
       name: id,
       code: id === 'step-A' ? 'step-a' : 'step-a-2',
       position: 10,
+      allowancePercent: 0,
     }));
     await source.stores.projects.create(project, steps, STAMP);
     await source.stores.workItems.insert(workItemRow({ id: ROW, projectId: PROJECT }), [], STAMP);
@@ -279,7 +289,16 @@ it('keeps SQLite dependency order authoritative after a WorkingPlan add', async 
     );
     await source.stores.projects.create(
       projectRow({ id: PROJECT, ownerId: OWNER }),
-      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+      [
+        {
+          id: 'step',
+          projectId: PROJECT,
+          name: 'Step',
+          position: 10,
+          code: 'step',
+          allowancePercent: 0,
+        },
+      ],
       STAMP,
     );
     for (const id of ['a', 'b', 'c', 'd', 'e']) {
@@ -327,7 +346,16 @@ it('advances SQLite assignment and directory cascades before the next runner com
     );
     await source.stores.projects.create(
       projectRow({ id: PROJECT, ownerId: OWNER }),
-      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+      [
+        {
+          id: 'step',
+          projectId: PROJECT,
+          name: 'Step',
+          position: 10,
+          code: 'step',
+          allowancePercent: 0,
+        },
+      ],
       STAMP,
     );
     await source.stores.workItems.insert(
@@ -484,7 +512,16 @@ it('rolls back a successful directory write when its retained reload fails', asy
     );
     await source.stores.projects.create(
       projectRow({ id: PROJECT, ownerId: OWNER }),
-      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+      [
+        {
+          id: 'step',
+          projectId: PROJECT,
+          name: 'Step',
+          position: 10,
+          code: 'step',
+          allowancePercent: 0,
+        },
+      ],
       STAMP,
     );
     await source.stores.workItems.insert(
@@ -574,7 +611,16 @@ it('places every new subtree row and value group in SQLite authoritative order',
     );
     await source.stores.projects.create(
       projectRow({ id: PROJECT, ownerId: OWNER }),
-      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+      [
+        {
+          id: 'step',
+          projectId: PROJECT,
+          name: 'Step',
+          position: 10,
+          code: 'step',
+          allowancePercent: 0,
+        },
+      ],
       STAMP,
     );
     for (const id of ['m-existing', 'z-existing']) {
@@ -727,7 +773,14 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
     );
     const project: Project = projectRow({ id: PROJECT, ownerId: OWNER });
     const steps: Step[] = [
-      { id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' },
+      {
+        id: 'step',
+        projectId: PROJECT,
+        name: 'Step',
+        position: 10,
+        code: 'step',
+        allowancePercent: 0,
+      },
     ];
     await source.stores.projects.create(project, steps, STAMP);
     for (const id of ['z-existing', 'm-unaffected']) {
@@ -867,7 +920,16 @@ it('refreshes a dependency survivor before the next runner command and preserves
     );
     await source.stores.projects.create(
       projectRow({ id: PROJECT, ownerId: OWNER }),
-      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+      [
+        {
+          id: 'step',
+          projectId: PROJECT,
+          name: 'Step',
+          position: 10,
+          code: 'step',
+          allowancePercent: 0,
+        },
+      ],
       STAMP,
     );
     for (const id of ['doomed', 'survivor']) {
@@ -969,7 +1031,16 @@ it('keeps every SQLite value group in source order after runner sets populate an
     );
     await source.stores.projects.create(
       projectRow({ id: PROJECT, ownerId: OWNER }),
-      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+      [
+        {
+          id: 'step',
+          projectId: PROJECT,
+          name: 'Step',
+          position: 10,
+          code: 'step',
+          allowancePercent: 0,
+        },
+      ],
       STAMP,
     );
     for (const id of ['z-existing', 'a-earlier']) {

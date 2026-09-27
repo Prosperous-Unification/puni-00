@@ -25,6 +25,27 @@ The assumed span SHALL describe only how an unknown slice is drawn. A slice whos
 - **WHEN** it is scheduled and drawn
 - **THEN** it remains estimated and has no assumed-width bar
 
+#### Scenario: an unestimated item still reports no estimate
+
+- **GIVEN** a work item with no estimates, scheduled after this change
+- **THEN** its days column SHALL be blank
+- **AND** it SHALL be counted as an estimate gap
+- **AND** the export SHALL report it as unestimated
+
+#### Scenario: the anchor reach still means first _estimated_
+
+- **GIVEN** a project on the `anchor-slice` reach, and a predecessor whose first
+  step is unestimated and whose second step is estimated
+- **WHEN** the plan is scheduled
+- **THEN** the successor SHALL wait for the **second** step's finish
+- **AND** it SHALL NOT wait for the first step's assumed finish
+
+#### Scenario: the bar still says it is a guess
+
+- **GIVEN** an unestimated slice with detail shown
+- **WHEN** its bar is drawn
+- **THEN** it SHALL carry the assumed marking it carried before this change
+
 ## ADDED Requirements
 
 ### Requirement: An unestimated slice has zero scheduling duration

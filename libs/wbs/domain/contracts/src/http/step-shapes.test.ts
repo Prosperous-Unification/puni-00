@@ -14,10 +14,17 @@ test('emits the existing step operation names, name bodies and optional string c
   expect(remove?.operationId).toBe('deleteApiProjectsByIdStepsByStepId');
   expect(add?.requestBody?.content['application/json']?.schema).toMatchObject({
     type: 'object',
-    properties: { name: { type: 'string' } },
+    properties: { name: { type: 'string' }, allowancePercent: { type: 'number' } },
     required: ['name'],
     additionalProperties: false,
   });
+  const patchBody = rename?.requestBody?.content['application/json']?.schema;
+  expect(patchBody).toMatchObject({
+    type: 'object',
+    properties: { name: { type: 'string' }, allowancePercent: { type: 'number' } },
+    additionalProperties: false,
+  });
+  expect(patchBody).not.toHaveProperty('required');
   expect(remove?.parameters).toEqual([
     { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
     { in: 'path', name: 'stepId', required: true, schema: { type: 'string' } },
@@ -50,6 +57,7 @@ test('declares the full step response and each usage count and assumed-assignee 
           name: { type: 'string' },
           position: { type: 'number' },
           code: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+          allowancePercent: { type: 'number' },
         },
         required: ['id', 'name', 'position', 'projectId'],
       },
@@ -83,4 +91,22 @@ test('still reads a step from a be-01 that predates step codes', async () => {
   const uncoded = { step: { ...older.step, code: null } };
   expect(await validateSchema(reply, uncoded)).toEqual({ value: uncoded });
   expect((await validateSchema(reply, { step: { ...older.step, code: 7 } })).issues).toBeDefined();
+});
+
+/**
+ * Proof: with `allowancePercent` required, this failed on `must have required
+ * property 'allowancePercent'`; watched 2026-09-27.
+ */
+test('still reads a step from a be-01 that predates step allowances', async () => {
+  const older = {
+    step: { id: 'step', projectId: 'project', name: 'Dev', position: 10, code: 'dev' },
+  };
+  const reply = renameStep.responses[0].schema;
+
+  expect(await validateSchema(reply, older)).toEqual({ value: older });
+  const current = { step: { ...older.step, allowancePercent: 30 } };
+  expect(await validateSchema(reply, current)).toEqual({ value: current });
+  expect(
+    (await validateSchema(reply, { step: { ...older.step, allowancePercent: '30' } })).issues,
+  ).toBeDefined();
 });

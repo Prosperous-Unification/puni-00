@@ -1,11 +1,13 @@
 import {
+  PLAN_DOCUMENT_VERSION,
   type PlanDocument,
   planDocumentHeaderRequest,
-  type PlanDocumentRequest,
+  type PlanDocumentImport,
   planDocumentRequest,
   validateSchema,
   type WorkItemTree,
 } from '@wbs/contracts';
+import { NO_ALLOWANCE } from '@wbs/domain';
 
 import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { Clock } from '../../ports/clock';
@@ -67,7 +69,7 @@ export class PlanDocumentService {
       ...tree,
       document: {
         format: 'wbs-plan',
-        version: 1,
+        version: PLAN_DOCUMENT_VERSION,
         exportedAt: new Date(this.options.clock.now()).toISOString(),
       },
       settings: {
@@ -101,28 +103,51 @@ export class PlanDocumentService {
 }
 
 export type PlanDocumentClassification =
-  | { ok: true; value: PlanDocumentRequest }
+  | { ok: true; value: PlanDocumentImport }
   | { ok: false; code: 'invalid_body' | 'unsupported_version'; path: string };
 
 /**
- * Projects an archival payload to writable version-1 fields. Header validation
- * runs first so an unsupported version never gets interpreted as version 1.
+ * Projects an archival payload to writable fields at its version. Header
+ * validation runs first so an unsupported version is never interpreted as a
+ * supported one.
+ *
+ * Version 1 is the explicit legacy conversion: it has no step allowances, so
+ * every step is imported at 0% and a version-1 file that names one is refused
+ * rather than half-read. Version 2 requires an allowance on every step; its
+ * range is checked with the rest of the document by `prepareImport`.
  */
 export async function classifyPlanDocument(input: unknown): Promise<PlanDocumentClassification> {
   const header = await validateSchema(planDocumentHeaderRequest, input);
   if (header.issues !== undefined) {
     return { ok: false, code: 'invalid_body', path: pathOf(header.issues[0]?.path) };
   }
-  // Proof: moving this after version-1 validation made the mounted future-file
+  const version = header.value.document.version;
+  // Proof: moving this after version validation made the mounted future-file
   // response invalid_body/workItems[3].priority instead of
   // unsupported_version/document.version.
-  if (header.value.document.version !== 1) {
+  if (version !== 1 && version !== PLAN_DOCUMENT_VERSION) {
     return { ok: false, code: 'unsupported_version', path: 'document.version' };
   }
   const checked = await validateSchema(planDocumentRequest, input);
-  return checked.issues === undefined
-    ? { ok: true, value: checked.value }
-    : { ok: false, code: 'invalid_body', path: pathOf(checked.issues[0]?.path) };
+  if (checked.issues !== undefined) {
+    return { ok: false, code: 'invalid_body', path: pathOf(checked.issues[0]?.path) };
+  }
+  const steps: PlanDocumentImport['steps'] = [];
+  for (const [at, step] of checked.value.steps.entries()) {
+    const path = `steps[${String(at)}].allowancePercent`;
+    if (version === 1) {
+      // Proof: with this refusal removed, `refuses a version-1 file that names
+      // a step allowance` imported it at 0% (2026-09-27).
+      if (step.allowancePercent !== undefined) return { ok: false, code: 'invalid_body', path };
+      steps.push({ ...step, allowancePercent: NO_ALLOWANCE });
+      continue;
+    }
+    // Proof: with this refusal removed, `refuses a current-format file whose
+    // step has no allowance` imported it (2026-09-27).
+    if (step.allowancePercent === undefined) return { ok: false, code: 'invalid_body', path };
+    steps.push({ ...step, allowancePercent: step.allowancePercent });
+  }
+  return { ok: true, value: { ...checked.value, steps } };
 }
 
 function pathOf(path: readonly (PropertyKey | { key: PropertyKey })[] | undefined): string {

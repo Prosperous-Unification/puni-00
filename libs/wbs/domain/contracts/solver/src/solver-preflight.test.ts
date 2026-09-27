@@ -1,3 +1,11 @@
+import {
+  chargedDays,
+  DEFAULT_ESTIMATE_RULE,
+  durationUnits,
+  MAX_ALLOWANCE_PERCENT,
+  MAX_ESTIMATE_DAYS,
+  type Slice,
+} from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { preflightSolverRequest } from './solver-preflight';
@@ -203,5 +211,40 @@ describe("preflightSolverRequest's MOVEMENT bound", () => {
     const termsNeeded = Math.ceil(Number.MAX_SAFE_INTEGER / SOLVER_HORIZON_UNITS_MAX);
     expect(termsNeeded).toBeGreaterThan(4_000_000);
     expect(SOLVER_HORIZON_UNITS_MAX * 4_000_000).toBeLessThan(Number.MAX_SAFE_INTEGER);
+  });
+});
+
+describe('a charged estimate past the per-point bound', () => {
+  /**
+   * `MAX_ESTIMATE_DAYS` bounds each authored point, not a charged figure: a
+   * point at the bound under a 1000% step allowance is charged eleven times it.
+   * That slice is refused by this preflight as a plan-level `horizon-overflow`,
+   * the same modeled answer a plan of individually legal slices gets when they
+   * overflow together — never a wire value past the solver's axis.
+   */
+  it('is a modeled horizon-overflow refusal, not a request', () => {
+    const charged = chargedDays(
+      {
+        optimistic: MAX_ESTIMATE_DAYS,
+        realistic: MAX_ESTIMATE_DAYS,
+        pessimistic: MAX_ESTIMATE_DAYS,
+      },
+      DEFAULT_ESTIMATE_RULE,
+      MAX_ALLOWANCE_PERCENT,
+    );
+    const units = durationUnits({
+      workItemId: 'work',
+      stepId: 'qa',
+      days: charged,
+      personId: null,
+      width: 1,
+      poolIds: [],
+    } satisfies Slice);
+
+    const preflight = preflightSolverRequest([sliceOf({ durationUnits: units })], atZero);
+
+    expect(preflight.ok).toBe(false);
+    if (preflight.ok) throw new Error('unreachable');
+    expect(preflight.failure).toBe('horizon-overflow');
   });
 });

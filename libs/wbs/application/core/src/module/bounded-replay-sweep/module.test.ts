@@ -4,6 +4,8 @@ import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import type { Intervals } from '../../ports/timers';
+import { EventLogService } from '../event-log/event-log.resource';
+import { PlanEventService } from '../plan-event/plan-event.resource';
 import { installBoundedReplaySweep } from './check';
 import { BOUNDED_REPLAY_SWEEP_LABEL } from './contract';
 import { boundedReplaySweepModule } from './module';
@@ -35,8 +37,8 @@ function fakeSchedule(): { every: Intervals['every']; advance: () => void } {
 }
 
 const requirements = () => ({
-  eventLog: inMemoryEventLog(),
-  planEvents: inMemoryPlanEvents(),
+  eventLog: new EventLogService(inMemoryEventLog()),
+  planEvents: new PlanEventService(inMemoryPlanEvents()),
   intervals: noopIntervals,
   now: () => 0,
   maxPerSubscription: 10,
@@ -57,8 +59,10 @@ const completeHost = () =>
   DiBag.createBuilder()
     .withInstalledModules([boundedReplaySweepModule])
     .withServices({
-      eventLog: DiBag.createProvider(() => inMemoryEventLog(), { factoryReturnKind: 'sync-value' }),
-      planEvents: DiBag.createProvider(() => inMemoryPlanEvents(), {
+      eventLog: DiBag.createProvider(() => new EventLogService(inMemoryEventLog()), {
+        factoryReturnKind: 'sync-value',
+      }),
+      planEvents: DiBag.createProvider(() => new PlanEventService(inMemoryPlanEvents()), {
         factoryReturnKind: 'sync-value',
       }),
       intervals: DiBag.createProvider((): Intervals => noopIntervals, {
@@ -87,7 +91,7 @@ describe('the Bounded replay sweep module', () => {
     await eventLog.record('project:a', {});
     const { retention } = installBoundedReplaySweep({
       ...requirements(),
-      eventLog,
+      eventLog: new EventLogService(eventLog),
       intervals: { every: schedule.every },
       maxPerSubscription: 1,
     });
@@ -144,7 +148,7 @@ describe('the Bounded replay sweep module', () => {
     const partial = DiBag.createBuilder()
       .withInstalledModules([boundedReplaySweepModule])
       .withServices({
-        eventLog: DiBag.createProvider(() => inMemoryEventLog(), {
+        eventLog: DiBag.createProvider(() => new EventLogService(inMemoryEventLog()), {
           factoryReturnKind: 'sync-value',
         }),
         intervals: DiBag.createProvider((): Intervals => noopIntervals, {

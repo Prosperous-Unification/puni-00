@@ -17,10 +17,10 @@ export function installPlanHistory(requirements: PlanHistoryRequirements): PlanH
   const bag = DiBag.createBuilder()
     .withInstalledModules([planHistoryModule])
     .withServices({
-      projectStore: DiBag.createProvider(() => requirements.projectStore, {
+      projects: DiBag.createProvider(() => requirements.projects, {
         factoryReturnKind: 'sync-value',
       }),
-      planEventStore: DiBag.createProvider(() => requirements.planEventStore, {
+      planEvents: DiBag.createProvider(() => requirements.planEvents, {
         factoryReturnKind: 'sync-value',
       }),
     })

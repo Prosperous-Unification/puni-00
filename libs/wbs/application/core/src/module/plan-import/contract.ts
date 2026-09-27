@@ -23,7 +23,9 @@ import type { ImportService, ImportServiceOptions } from './plan-import.feature'
  * `ImportService` could call instead, or an explicit exception the kind
  * rules record, neither of which any accepted change supplies today. Task
  * 7.4 of `openspec/changes/adopt-di-composition/tasks.md` is where this
- * module's own K3 debt is tracked; this module claims no K3 compliance.
+ * module's own K3 debt is tracked; this module claims no K3 compliance. Its
+ * admitted initialization surface and both memory and SQLite source contracts
+ * require a separate follow-up slice, so 040.10 defers this module.
  */
 export type PlanImportRequirements = ImportServiceOptions;
 

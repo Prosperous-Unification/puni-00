@@ -1,4 +1,4 @@
-import { isReservedStepCode, isStepCode, stepIsInUse } from '@wbs/domain';
+import { type AllowancePercent, isReservedStepCode, isStepCode, stepIsInUse } from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
 import {
@@ -138,7 +138,9 @@ export class StepService {
   }
 
   /**
-   * Adds a step with the code the caller chose, or with one suggested from its
+   * Adds a step with `allowancePercent` as its estimate allowance (zero when the
+   * caller named none, which the route decides; validated at the request
+   * boundary) and with the code the caller chose, or one suggested from its
    * name when `code` is absent.
    *
    * A chosen code is checked before the project is read: `invalid_code` when it
@@ -152,8 +154,14 @@ export class StepService {
    * `refuses a code outside the grammar, and one the project already holds`
    * failed the same way, the step written as `Design`. Both watched 2026-09-27.
    */
-  add(projectId: string, actorId: string, name: string, code?: string): Promise<StepOutcome> {
-    return this.addWithin(projectId, actorId, name, code, LEGACY_ACCESS);
+  add(
+    projectId: string,
+    actorId: string,
+    name: string,
+    allowancePercent: AllowancePercent,
+    code?: string,
+  ): Promise<StepOutcome> {
+    return this.addWithin(projectId, actorId, name, allowancePercent, code, LEGACY_ACCESS);
   }
 
   /** {@link add} through the caller's access: a foreign project is `not_found`. */
@@ -161,6 +169,7 @@ export class StepService {
     projectId: string,
     actorId: string,
     name: string,
+    allowancePercent: AllowancePercent,
     code: string | undefined,
     access: ResourceAccess,
   ): Promise<StepOutcome> {
@@ -178,8 +187,8 @@ export class StepService {
 
     const written = await this.opts.steps.add(
       code === undefined
-        ? { id: this.clock.newId(), projectId, name: clean }
-        : { id: this.clock.newId(), projectId, name: clean, code },
+        ? { id: this.clock.newId(), projectId, name: clean, allowancePercent }
+        : { id: this.clock.newId(), projectId, name: clean, allowancePercent, code },
       this.clock.stampFor(actorId),
     );
     if (!written.ok) return { ok: false, reason: written.reason };
@@ -284,6 +293,32 @@ export class StepService {
     }
     await this.opts.broadcast.publish(projectId, { type: 'step_removed', stepId });
     return { ok: true };
+  }
+
+  /**
+   * The step as it is now, when it is this project's and the caller may edit
+   * the project — the reply a route owes after a write it delegated elsewhere.
+   */
+  find(projectId: string, stepId: string, actorId: string): Promise<StepOutcome> {
+    return this.findWithin(projectId, stepId, actorId, LEGACY_ACCESS);
+  }
+
+  /**
+   * {@link find} through the caller's access: a foreign project, or a step of
+   * another project, is `not_found`. It is also the check a route makes before
+   * delegating a step write elsewhere, such as the allowance command.
+   */
+  async findWithin(
+    projectId: string,
+    stepId: string,
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<StepOutcome> {
+    const gate = await this.gate(projectId, stepId, actorId, access);
+    if (!gate.ok) return gate;
+    const found = await this.opts.steps.findById(stepId);
+    if (found === null) return { ok: false, reason: 'not_found' };
+    return { ok: true, value: found };
   }
 
   /**

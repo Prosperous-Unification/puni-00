@@ -5,9 +5,11 @@ import type {
   ProjectStore,
   ProjectWithAccess,
   Step,
+  StepAllowanceWritten,
   WriteStamp,
 } from '@wbs/core';
 import {
+  type AllowancePercent,
   type DependencyReach,
   type EstimateMethod,
   type EstimateRounding,
@@ -28,7 +30,7 @@ import {
 } from './audit';
 import type { Gate } from './gate';
 import { isScheduleEngine, isSolverObjective, unknownStoredValue } from './optimizer-rows';
-import { bumpedProject } from './revision';
+import { bumpedProject, bumpProject } from './revision';
 import {
   optimizationGeneration,
   project,
@@ -697,6 +699,60 @@ export class ProjectRepository implements ProjectStore {
         return toProject(updated);
       });
     });
+  }
+
+  /**
+   * Reads the held allowance and writes the new one inside one transaction, so
+   * the `previousPercent` a journal entry carries is the value this write
+   * replaced, and the revision it answers is the one the write left.
+   *
+   * Proof: with the revision increment removed, `moves the step’s allowance
+   * revision on every write, even back to a value it held` failed: the
+   * revision stayed at 0 (2026-09-27).
+   */
+  async setStepAllowance(
+    projectId: string,
+    stepId: string,
+    allowancePercent: AllowancePercent,
+    stamp: WriteStamp,
+  ): Promise<StepAllowanceWritten> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction((tx): StepAllowanceWritten => {
+        const held = tx
+          .select(STEP_COLUMNS)
+          .from(step)
+          .where(and(eq(step.id, stepId), eq(step.projectId, projectId)))
+          .get();
+        if (held === undefined) return { ok: false, reason: 'not_found' };
+        const written = tx
+          .update(step)
+          .set({
+            allowancePercent,
+            allowanceRevision: sql`${step.allowanceRevision} + 1`,
+            ...auditOnUpdate(stamp),
+          })
+          .where(eq(step.id, stepId))
+          .returning({ ...STEP_COLUMNS, revision: step.allowanceRevision })
+          .all()
+          .at(0);
+        // Read in this same transaction a line above: an update that found
+        // nothing would be SQLite breaking its own isolation.
+        if (written === undefined)
+          throw new Error(`step ${stepId} vanished inside its transaction`);
+        bumpProject(tx, projectId, stamp);
+        const { revision, ...writtenStep } = written;
+        return { ok: true, step: writtenStep, previousPercent: held.allowancePercent, revision };
+      });
+    });
+  }
+
+  async stepAllowanceRevisions(projectId: string): Promise<ReadonlyMap<string, number>> {
+    const rows = await this.db
+      .select({ id: step.id, revision: step.allowanceRevision })
+      .from(step)
+      .where(eq(step.projectId, projectId));
+    return new Map(rows.map((row) => [row.id, row.revision]));
   }
 
   /**
