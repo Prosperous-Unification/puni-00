@@ -15,19 +15,17 @@ import { LifetimeFault } from '@/components/chrome/lifetime-fault';
 import type { Roster } from '@/components/presence/presence-panel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { type ProjectStreamDeps, subscribeToProject } from '@/lib/project-stream';
 import type { Recalled } from '@/lib/remembered';
 import { cn } from '@/lib/utils';
-import { httpProjectApi, type ProjectApi, type ProjectListEntry } from '@/lib/wbs-api';
+import type { ProjectListEntry } from '@/lib/wbs-api';
 import type { Presence } from '@/modules/plan-feed/presence-store';
-import { projectServicesOver } from '@/modules/project/composition';
-import type { ProjectStreamHandlers } from '@/modules/project/contract';
+import type { ProjectCatalog } from '@/modules/project/contract';
 import type { Store } from '@/modules/store';
 import {
   type ApplicationServicesState,
   useApplicationServicesReader,
 } from '@/runtime/application-services-context';
-import type { ProjectOwner } from '@/runtime/project-runtime';
+import type { SessionProjects } from '@/runtime/session-runtime';
 
 import { useClosedByPointerOutside } from './close-on-outside-pointer';
 import { type BesideAnchorRect, HoverCard } from './hover-card';
@@ -45,10 +43,16 @@ import { usePlanImport } from './use-plan-import';
 import { WbsTable } from './wbs-table';
 
 export interface ProjectPageProps {
-  token: string;
+  /**
+   * The projects this account can see — the signed-in session's catalog, from
+   * router context. Listing, creating, renaming, marking opened and importing
+   * all go through it; the page holds no client.
+   */
+  catalog: ProjectCatalog;
   /**
    * The owner of the selected project's runtime: the signed-in session's, from
-   * router context.
+   * router context. The page names a project by id and the session opens it
+   * over its own client and stream.
    *
    * The session's and not this page's, because the session's retirement has to
    * retire the project first — a page's own owner would be given back whenever
@@ -56,17 +60,14 @@ export interface ProjectPageProps {
    * project still held a socket. The page opens and leaves through it; the
    * session refuses an open once it has been withdrawn.
    */
-  projectOwner: ProjectOwner;
-  /** Injected in tests; the app lets it default to the real one. */
-  api?: ProjectApi;
+  projects: SessionProjects;
   /**
    * The saved-plan shelf's wiring — injected in tests, the real one by default.
    *
-   * A second override rather than a field on `api`, because the two answer
-   * different halves of be-01: `ProjectApi` is the plan's routes and this is
-   * the checkpoint routes, which a node may not have at all
-   * ({@link SavedPlansPanelDeps}'s `available`). Merging them would make a
-   * node without saved plans a `ProjectApi` that cannot be built.
+   * Not a member of the catalog, because the two answer different halves of
+   * be-01: the catalog is the project routes and this is the checkpoint routes,
+   * which a node may not have at all ({@link SavedPlansPanelDeps}'s
+   * `available`).
    */
   savedPlansDeps?: SavedPlansPanelDeps;
   /**
@@ -88,17 +89,6 @@ export interface ProjectPageProps {
   account?: ReactNode;
   /** The two-page navigation, from router context — see `app-router.tsx`. */
   nav?: ReactNode;
-  /**
-   * The stream's own wiring — injected in tests, the real socket by default.
-   *
-   * The seam is here and not on `subscribe`, because the factory below **is**
-   * the thing under test: it is the only place the stream's `onChange` and the
-   * project runtime's handlers are joined, and a test that replaced the
-   * factory would be asserting about its own wiring. Handing the socket in
-   * instead leaves every line of the composition production code, and is the
-   * same bargain `api` makes three props up.
-   */
-  streamDeps?: ProjectStreamDeps;
 }
 
 /**
@@ -495,27 +485,13 @@ function SavedPlanShelf({
 }
 
 export function ProjectPage({
-  token,
-  projectOwner,
-  api: apiOverride,
+  catalog,
+  projects: projectOwner,
   savedPlansDeps: savedPlansOverride,
   presence,
   account,
   nav,
-  streamDeps,
 }: ProjectPageProps) {
-  const api = useMemo(() => apiOverride ?? httpProjectApi(token), [apiOverride, token]);
-  /**
-   * The table's services over that one client, composed once per client.
-   *
-   * The memo is load-bearing: the table treats a new composition as a new
-   * reader, so composing on every render would close and reopen its feed — and
-   * its socket — on every keystroke in the picker.
-   */
-  // Proof: on 2026-09-24, composing on every render instead failed `recovers a persistent
-  // resume_ack without replacing the registered socket` with `expected 3 to be 2`: a third tree
-  // read, as the table opened a new feed over the new services.
-  const projectServices = useMemo(() => projectServicesOver(api), [api]);
   /**
    * The shelf's wiring, memoised — and the memo is load-bearing rather than
    * tidy.
@@ -529,32 +505,6 @@ export function ProjectPage({
   const savedPlans = useMemo(
     () => savedPlansOverride ?? browserSavedPlansDeps(),
     [savedPlansOverride],
-  );
-  const subscribe = useMemo(
-    () => (projectId: string, handlers: ProjectStreamHandlers, baseline: number) =>
-      subscribeToProject(
-        {
-          projectId,
-          // The owner read this tree anchor before its unsequenced resources.
-          // Replay closes the interval from that anchor to socket registration.
-          // Proof: hardcoding -1 here or at the adapter factory call sends -1
-          // instead of 7 in `resumes the table subscription from its covered positive anchor`.
-          sinceSeq: baseline,
-          hasBaseline: true,
-          onChange: handlers.onChange,
-          // The project's runtime tells its own presence, and the feed, from here.
-          // Proof: on 2026-09-24, `() => undefined` here failed `hands the presence slot who the
-          // project’s stream says is here, and its connection` on `expected { users: [ 'kat', 'lee' ],
-          // …(1) } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`, `connected` staying `false`.
-          onConnectionChange: handlers.onConnectionChange,
-          // Proof: on 2026-09-24, `() => undefined` here failed `hands the presence slot who the
-          // project’s stream says is here, and its connection` on `expected { users: [], connected:
-          // false } to deeply equal { users: [ 'kat', 'lee' ], …(1) }`.
-          onPresence: handlers.onPresence,
-        },
-        streamDeps,
-      ),
-    [streamDeps],
   );
 
   /**
@@ -590,8 +540,8 @@ export function ProjectPage({
     projectState.status === 'live' ? projectState.services.presence : NOBODY_HERE;
   const roster: Roster = useSyncExternalStore(presenceStore.subscribe, presenceStore.snapshot);
   /**
-   * Opens the selected project's runtime, and leaves it when the selection,
-   * the client or the stream changes, or the page goes.
+   * Opens the selected project's runtime, and leaves it when the selection or
+   * the session's project owner changes, or the page goes.
    *
    * Every trigger reaches the one owner, so a switch and an unmount each
    * withdraw the old runtime before anything else happens and retire it once;
@@ -601,7 +551,7 @@ export function ProjectPage({
    */
   useEffect(() => {
     if (selected === null) return;
-    void projectOwner.open(selected, { services: projectServices, subscribe });
+    void projectOwner.open(selected);
     // Proof: on 2026-09-24, this cleanup replaced by `return undefined` failed `closes the selected
     // project’s stream once the page goes` on `expected +0 to be 1`: the socket was never closed.
     // Proof: on 2026-09-25, the same `return undefined` failed `opens one runtime per pick
@@ -612,7 +562,7 @@ export function ProjectPage({
     return () => {
       void projectOwner.leave();
     };
-  }, [projectOwner, projectServices, selected, subscribe]);
+  }, [projectOwner, selected]);
   const toastApi = useToasts();
   /**
    * The rename in progress, or null while the picker is showing.
@@ -706,7 +656,7 @@ export function ProjectPage({
     [readServices],
   );
 
-  const fetchProjects = useCallback(() => api.listProjects(), [api]);
+  const fetchProjects = useCallback(() => catalog.list(), [catalog]);
 
   const load = useCallback(async () => {
     const found = await fetchProjects();
@@ -737,10 +687,10 @@ export function ProjectPage({
    */
   useEffect(() => {
     if (selected === null) return;
-    void api.openProject(selected).catch(() => {
+    void catalog.markOpened(selected).catch(() => {
       // Deliberate: see above.
     });
-  }, [api, selected]);
+  }, [catalog, selected]);
 
   /**
    * Creates a project, selects it, and puts the caret in its name.
@@ -770,8 +720,8 @@ export function ProjectPage({
     // old project's typing still on screen and still aimed at it while the
     // create was in flight. Watched 2026-08-29.
     setRename(null);
-    void api
-      .createProject(PLACEHOLDER_PROJECT_NAME)
+    void catalog
+      .create(PLACEHOLDER_PROJECT_NAME)
       .then(async (project) => {
         // Written before the selection moves: a store that refuses the write for
         // a reason of its own propagates before the page has shown a choice it
@@ -808,7 +758,7 @@ export function ProjectPage({
       return;
     }
     setError(null);
-    void api.renameProject(armed.projectId, typed).then(
+    void catalog.rename(armed.projectId, typed).then(
       async () => {
         setRename(null);
         await load().catch((e: unknown) => {
@@ -883,7 +833,7 @@ export function ProjectPage({
   };
 
   const planImport = usePlanImport({
-    api,
+    catalog,
     selectedProjectId: selected,
     fetchProjects,
     installProjects,

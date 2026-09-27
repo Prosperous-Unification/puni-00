@@ -1,12 +1,26 @@
 import { DiBag } from 'di-bag';
 
-import { type DirectoryApi, httpDirectoryApi } from '@/lib/wbs-api';
+import type { ProjectStreamDeps } from '@/lib/project-stream';
+import {
+  type DirectoryApi,
+  httpDirectoryApi,
+  httpProjectApi,
+  type ProjectApi,
+} from '@/lib/wbs-api';
 import type { DirectoryManagement } from '@/modules/directory-management/contract';
 import { directoryManagementModule } from '@/modules/directory-management/module';
-import type { ProjectRuntime } from '@/modules/project/contract';
+import { projectSourceOver } from '@/modules/project/composition';
+import type {
+  ProjectCatalog,
+  ProjectCatalogRoutes,
+  ProjectRuntime,
+  ProjectSource,
+} from '@/modules/project/contract';
+import { createProjectCatalog } from '@/modules/project/project-catalog.feature';
 import type { Store } from '@/modules/store';
 
 import { acquireTransactionally } from './application-runtime';
+import type { Credential } from './credential';
 import {
   createLifetimeSlot,
   type LifetimeState,
@@ -18,7 +32,6 @@ import {
 import {
   createProjectOwner,
   installProjectRuntime,
-  type ProjectOwner,
   type ProjectRuntimeDependencies,
 } from './project-runtime';
 
@@ -27,21 +40,33 @@ import {
  *
  * `userId` is the **key**: the account's id, never its username, which a rename
  * changes, and never the credential. `credential` is only an **adapter input** —
- * the directory's client is built from it and nothing else reads it — and it is
- * empty for an identity restored from the access cookie at startup, which a
- * same-origin request carries by itself.
+ * the directory's client and the project client are built from it and nothing
+ * else reads it — and it is empty for an identity restored from the access
+ * cookie at startup, which a same-origin request carries by itself.
  */
 export interface SessionIdentity {
   readonly userId: string;
-  readonly credential: string;
+  readonly credential: Credential;
+}
+
+/**
+ * The selected project of one session, as a page opens and leaves it: by id
+ * alone. The session opens it over its own source — the plan services cut from
+ * its one project client, and that project's stream — which no page holds.
+ */
+export interface SessionProjects extends Store<LifetimeState<ProjectRuntime>> {
+  /** Opens `projectId` through the session's project owner; as the project owner's own `open` does. */
+  readonly open: (projectId: string) => Promise<void>;
+  /** Withdraws and retires whatever project is current; as the project owner's own `leave` does. */
+  readonly leave: () => Promise<void>;
 }
 
 /**
  * The services of one signed-in identity, for as long as its runtime is the one
  * published — and nothing else (rule K2).
  *
- * No bag, no client, no credential and no directory resource is reachable from
- * here; the runtime's own suite enumerates this surface rather than trusting
+ * No bag, no client, no credential, no stream and no directory resource is
+ * reachable from here; the runtime's own suite enumerates this surface rather than trusting
  * the type.
  *
  * **`isCurrent`** turns false the instant the owner withdraws this runtime —
@@ -55,12 +80,14 @@ export interface SessionRuntime {
   readonly isCurrent: () => boolean;
   /** The account-wide directory, as the gestures a person names. */
   readonly directory: DirectoryManagement;
+  /** The projects this account can see: listed, created, renamed, imported. */
+  readonly catalog: ProjectCatalog;
   /**
    * The owner of this session's selected project: a project is opened through
    * it, and only while this session is current, and the session's retirement
    * retires it first.
    */
-  readonly projects: ProjectOwner;
+  readonly projects: SessionProjects;
 }
 
 /**
@@ -88,6 +115,13 @@ export interface SessionRuntimeDependencies {
   readonly userId: string;
   /** The client cut from the identity's credential; the directory's only way out. */
   readonly directoryApi: DirectoryApi;
+  /** The catalog's port, cut from the session's one project client. */
+  readonly catalogRoutes: ProjectCatalogRoutes;
+  /**
+   * What a project opened in this session is built over. Production composes
+   * one source per session and answers it for every project.
+   */
+  readonly projectSourceFor: (projectId: string) => ProjectSource;
   /**
    * Whether this runtime is still the one its owner publishes, asked
    * synchronously at the moment anything happens — the owner's answer, not the
@@ -134,8 +168,12 @@ export class SessionProjectRetirementError extends Error {
 function sessionProjects({
   isCurrent,
   installProject,
+  projectSourceFor,
   budgetMs,
-}: Pick<SessionRuntimeDependencies, 'isCurrent' | 'installProject' | 'budgetMs'>): ProjectOwner {
+}: Pick<
+  SessionRuntimeDependencies,
+  'isCurrent' | 'installProject' | 'projectSourceFor' | 'budgetMs'
+>): SessionProjects {
   const owner = createProjectOwner({
     install: (dependencies) =>
       installProject({
@@ -154,13 +192,13 @@ function sessionProjects({
   return {
     subscribe: owner.subscribe,
     snapshot: owner.snapshot,
-    open: async (projectId, source) => {
+    open: async (projectId) => {
       // Proof: on 2026-09-24, deleting this guard (m9) failed the model test `keys one runtime by
       // user, …` (seed 20260924) at run 3, `signIn(u2, ''),signInBroken(u1),drain,openProject(0,
       // p1),drain`: withdrawn s1 opened a project and was retired while its project owner was still
       // `live`.
       if (!isCurrent()) return;
-      await owner.open(projectId, source);
+      await owner.open(projectId, projectSourceFor(projectId));
     },
     leave: owner.leave,
   };
@@ -171,8 +209,9 @@ function sessionProjects({
  * React, publishing {@link SessionRuntime} and nothing else.
  *
  * It installs the directory-management module over the identity's client,
- * with this runtime's own `isCurrent` as the directory's reader test, and it
- * owns the session's project owner.
+ * with this runtime's own `isCurrent` as the directory's reader test, builds
+ * the project catalog over its port with the same test, and owns the session's
+ * project owner, which opens every project over `projectSourceFor`.
  *
  * **The project owner is the graph's one owned disposable.** The session's
  * disposal leaves it — retiring whatever project is current, and waiting for
@@ -188,6 +227,8 @@ function sessionProjects({
 export function installSessionRuntime({
   userId,
   directoryApi,
+  catalogRoutes,
+  projectSourceFor,
   isCurrent,
   installProject,
   budgetMs,
@@ -203,9 +244,17 @@ export function installSessionRuntime({
       }),
     })
     .withServices({
+      catalog: DiBag.createProvider(
+        // Proof: on 2026-09-27, `isCurrent: () => true` here (n2) failed `sends nothing for a catalog
+        // gesture asked of a withdrawn session` on `promise resolved "[ { id: 'p1', …(6) } ]" instead
+        // of rejecting`.
+        (): ProjectCatalog => createProjectCatalog({ routes: catalogRoutes, isCurrent }),
+        { factoryReturnKind: 'sync-value' },
+      ),
       projects: DiBag.providerWithDisposal({
         provider: DiBag.createProvider(
-          (): ProjectOwner => sessionProjects({ isCurrent, installProject, budgetMs }),
+          (): SessionProjects =>
+            sessionProjects({ isCurrent, installProject, projectSourceFor, budgetMs }),
           { factoryReturnKind: 'sync-value' },
         ),
         disposeService: async (projects) => {
@@ -238,6 +287,7 @@ export function installSessionRuntime({
     userId,
     isCurrent,
     directory: bag.resolve('directoryManagement'),
+    catalog: bag.resolve('catalog'),
     projects: bag.resolve('projects'),
   }));
 }
@@ -303,7 +353,14 @@ export interface SessionOwnerDependencies {
   /** How one runtime is installed. Defaults to {@link installSessionRuntime}. */
   readonly install?: (dependencies: SessionRuntimeDependencies) => RetirableRuntime<SessionRuntime>;
   /** How the directory's client is cut from a credential. Defaults to the real one. */
-  readonly clientFor?: (credential: string) => DirectoryApi;
+  readonly clientFor?: (credential: Credential) => DirectoryApi;
+  /**
+   * How the session's one project client — the catalog's routes and every
+   * project's plan services — is cut from a credential. Defaults to the real one.
+   */
+  readonly projectClientFor?: (credential: Credential) => ProjectApi;
+  /** The project stream's socket wiring. Left out in production: the browser's own. */
+  readonly streamDeps?: ProjectStreamDeps;
   /** How a project runtime is installed. Defaults to the real one. */
   readonly installProject?: (
     dependencies: ProjectRuntimeDependencies,
@@ -327,6 +384,8 @@ export interface SessionOwnerDependencies {
 export function createSessionOwner({
   install = installSessionRuntime,
   clientFor = httpDirectoryApi,
+  projectClientFor = httpProjectApi,
+  streamDeps,
   installProject = installProjectRuntime,
   budgetMs = RETIREMENT_BUDGET_MS,
 }: SessionOwnerDependencies = {}): SessionOwner {
@@ -432,9 +491,19 @@ export function createSessionOwner({
             // ''),reenter(u1)`: s1 and s2 both said they were current.
             return state.status === 'live' && state.services === built;
           };
+          const projectClient = projectClientFor(identity.credential);
+          // One source per session: a new client or stream per project would make
+          // every project a composition of its own for no difference in behaviour.
+          // Proof: on 2026-09-27, the source over a second client (`httpProjectApi(identity.credential)`,
+          // n1) failed `lists the catalog and reads each project through the one client cut from the
+          // credential` on `expected [] to deeply equal [ 'p1' ]`; cutting that second client through
+          // `projectClientFor` failed it on `expected [ 'tok', 'tok' ] to deeply equal [ 'tok' ]`.
+          const projectSource = projectSourceOver(projectClient, streamDeps);
           const runtime = installRecorded({
             userId: identity.userId,
             directoryApi: clientFor(identity.credential),
+            catalogRoutes: projectClient,
+            projectSourceFor: () => projectSource,
             isCurrent,
             installProject,
             budgetMs,
