@@ -22,6 +22,7 @@ import { ProjectRepository } from './project';
 import type { PlanInputReads } from './saved-plan-capture';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { person, project, step, tag, workItem, workItemTag } from './schema';
+import { StepRepository } from './step';
 import { nodeDigest } from './testing/node-digest';
 import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
@@ -224,12 +225,16 @@ describe('capturing a project’s plan input', () => {
   it('keeps captured node endpoints after step reorder and live relationship removal', async () => {
     const writing = openConnection(path);
     try {
+      await new StepRepository(writing.db, OPEN).add(
+        { id: 'st-2', projectId: 'p1', name: 'Second', code: 'second', allowancePercent: 0 },
+        wrote,
+      );
       await new TypedDependencyRepository(writing.db, OPEN).add(
         {
           id: 'typed-1',
           projectId: 'p1',
           predecessor: { scope: 'node', workItemId: 'wi-1', stepId: 'st-1' },
-          successor: { scope: 'whole', workItemId: 'wi-1' },
+          successor: { scope: 'node', workItemId: 'wi-1', stepId: 'st-2' },
           type: 'FS',
         },
         wrote,
@@ -239,16 +244,33 @@ describe('capturing a project’s plan input', () => {
         {
           id: 'typed-1',
           predecessor: { scope: 'node', workItemId: 'wi-1', stepId: 'st-1' },
-          successor: { scope: 'whole', workItemId: 'wi-1' },
+          successor: { scope: 'node', workItemId: 'wi-1', stepId: 'st-2' },
           type: 'FS',
         },
       ]);
-      writing.db.update(step).set({ name: 'after', position: 20 }).where(eq(step.id, 'st-1')).run();
+      writing.db
+        .update(step)
+        .set({ name: 'after', code: 'after', position: 30 })
+        .where(eq(step.id, 'st-1'))
+        .run();
+      writing.db.update(step).set({ position: 5 }).where(eq(step.id, 'st-2')).run();
+      expect(
+        (await new ProjectRepository(writing.db, OPEN).stepsOf('p1')).map(({ id }) => id),
+      ).toEqual(['st-2', 'st-1']);
       await new TypedDependencyRepository(writing.db, OPEN).remove('typed-1', wrote);
       expect(captured?.typedDependencies[0]?.predecessor).toEqual({
         scope: 'node',
         workItemId: 'wi-1',
         stepId: 'st-1',
+      });
+      expect(captured?.steps.map(({ id, code, position }) => ({ id, code, position }))).toEqual([
+        { id: 'st-1', code: 'before', position: 10 },
+        { id: 'st-2', code: 'second', position: 20 },
+      ]);
+      expect(captured?.typedDependencies[0]?.successor).toEqual({
+        scope: 'node',
+        workItemId: 'wi-1',
+        stepId: 'st-2',
       });
       expect((await capture().readPlanInput('p1'))?.typedDependencies).toEqual([]);
     } finally {

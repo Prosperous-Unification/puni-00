@@ -173,6 +173,33 @@ describe('the version-1 to version-2 upgrade — step allowances', () => {
 });
 
 describe('the version-2 to version-3 upgrade — typed dependencies', () => {
+  it('rejects malformed version-2 steps instead of inventing captured identities', () => {
+    expect(() => normalisePlanInputForward({ schemaVersion: 2, steps: 'missing' }, 2)).toThrow(
+      'a version-2 plan input body holds no steps list',
+    );
+    expect(() => normalisePlanInputForward({ schemaVersion: 2, steps: [null] }, 2)).toThrow(
+      'a version-2 plan input body holds a step that is not an object',
+    );
+  });
+  it('compares an upgraded version-2 body with the equivalent version-3 body without changing stored bytes', () => {
+    const current = canonicalisePlanInput({
+      ...planFixtureRows,
+      steps: planFixtureRows.steps.map((step) => ({ ...step, code: null })),
+      typedDependencies: [],
+    });
+    const { typedDependencies: _absent, ...versionThree } = current;
+    const versionTwo = {
+      ...versionThree,
+      schemaVersion: 2,
+      steps: versionThree.steps.map(({ code: _code, ...step }) => step),
+    };
+    const storedBytes = JSON.stringify(versionTwo);
+    const parsed = JSON.parse(storedBytes) as Record<string, unknown>;
+
+    expect(normalisePlanInputForward(parsed, 2)).toEqual(current);
+    expect(JSON.stringify(parsed)).toBe(storedBytes);
+    expect(versionTwo.schemaVersion).toBe(2);
+  });
   it('reads a version-2 body with no typed relationships', () => {
     const { typedDependencies: _absent, ...older } = JSON.parse(bytes) as Record<string, unknown>;
     const upgraded = normalisePlanInputForward({ ...older, schemaVersion: 2 }, 2);

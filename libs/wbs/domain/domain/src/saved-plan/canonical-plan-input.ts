@@ -183,6 +183,8 @@ export interface CanonicalExternalRef {
 
 export interface CanonicalStep {
   readonly id: string;
+  /** Captured step code, or null when the step was uncoded at capture. */
+  readonly code: string | null;
   readonly name: string;
   readonly position: number;
   /**
@@ -440,6 +442,7 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
       byString((row) => row.id),
     ).map((row) => ({
       id: row.id,
+      code: row.code,
       name: row.name,
       position: row.position,
       allowancePercent: row.allowancePercent,

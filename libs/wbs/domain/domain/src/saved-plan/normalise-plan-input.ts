@@ -59,10 +59,25 @@ export const PLAN_INPUT_UPGRADES: ReadonlyMap<number, PlanInputUpgrade> = new Ma
   [2, withNoTypedDependencies],
 ]);
 
-/** Version 2 to 3: typed links did not exist in the saved body. */
+/** Version 2 to 3: typed links and step codes did not exist in the saved body. */
 function withNoTypedDependencies(body: Record<string, unknown>): Record<string, unknown> {
-  // Proof: removing this upgrade made `reads a version-2 body with no typed relationships` fail with no-upgrade-path (2026-09-27).
-  return { ...body, typedDependencies: [] };
+  const steps = body['steps'];
+  // Proof: omitting this guard made the malformed-v2 test receive `steps.map is not a function` (2026-09-28).
+  if (!Array.isArray(steps)) throw new Error('a version-2 plan input body holds no steps list');
+  // Proof: leaving schemaVersion at 2 made cross-version equality fail on schemaVersion;
+  // omitting code: null made it fail on both captured steps (2026-09-28).
+  return {
+    ...body,
+    schemaVersion: 3,
+    typedDependencies: [],
+    steps: steps.map((step: unknown) => {
+      // Proof: omitting this guard made the malformed-v2 test accept a null step as `{ code: null }` (2026-09-28).
+      if (typeof step !== 'object' || step === null) {
+        throw new Error('a version-2 plan input body holds a step that is not an object');
+      }
+      return { ...step, code: null };
+    }),
+  };
 }
 
 /**

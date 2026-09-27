@@ -29,6 +29,8 @@ export interface CapturedProject {
 
 export interface CapturedStep {
   readonly id: string;
+  /** Captured identity; null is the live step's modeled uncoded state. */
+  readonly code: string | null;
   readonly name: string;
   readonly position: number;
   /** The step's allowance at capture: a saved plan's charged figures use it, never the live one. */

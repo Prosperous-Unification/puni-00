@@ -39,6 +39,13 @@ describe('canonicalisePlanInput', () => {
     ]);
   });
 
+  it('captures coded and uncoded step identities', () => {
+    expect(canonicalisePlanInput(rows).steps).toEqual([
+      { id: 's1', code: 'build', name: 'Build', position: 10, allowancePercent: 0 },
+      { id: 's2', code: null, name: 'Test', position: 20, allowancePercent: 0 },
+    ]);
+  });
+
   it('keeps no key the closed field list does not name', () => {
     // A read row carrying an audit column, a write counter and a refresh cursor
     // — the three classes the JSDoc rules out. None may reach the bytes.
@@ -174,7 +181,7 @@ describe('canonicalisePlanInput round trip', () => {
           startNoEarlierThan: null,
           startNoEarlierThanReason: null,
         })),
-        steps: [{ id: 's1', name: 'Build', position: 10, allowancePercent: 0 }],
+        steps: [{ id: 's1', code: 'build', name: 'Build', position: 10, allowancePercent: 0 }],
         stepValues: ids.map((id) => ({
           workItemId: id,
           stepId: 's1',

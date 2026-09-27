@@ -225,6 +225,7 @@ describe('the saved-plan routes', () => {
         );
       }
       const typed = new TypedDependencyRepository(writing.db, OPEN);
+      writing.db.run(`UPDATE step SET code = 'captured-code' WHERE id = '${laterStep.id}'`);
       const relationship = {
         id: 'captured-fs',
         projectId,
@@ -238,12 +239,21 @@ describe('the saved-plan routes', () => {
       const savedId = await savedIdOf(saveResponse);
       await new StepRepository(writing.db, OPEN).rename(laterStep.id, 'Renamed', stamp);
       await typed.remove(relationship.id, stamp);
+      writing.db.run(
+        `UPDATE step SET code = 'live-code', position = 5 WHERE id = '${laterStep.id}'`,
+      );
+      writing.db.run(`UPDATE step SET position = 30 WHERE id = '${firstStep.id}'`);
+      expect((await projects.stepsOf(projectId)).map(({ id }) => id)).toEqual([
+        laterStep.id,
+        firstStep.id,
+      ]);
+      writing.db.run(`DELETE FROM step WHERE id = '${laterStep.id}'`);
       const readResponse = await as(tokens['ada'], `/api/saved-plans/${savedId}`);
       expect(readResponse.status).toBe(200);
       const saved = (await readResponse.json()) as { savedPlan: { input: { bytes: string } } };
       const body = JSON.parse(saved.savedPlan.input.bytes) as {
         typedDependencies: unknown[];
-        steps: { id: string; name: string; position: number }[];
+        steps: { id: string; code: string | null; name: string; position: number }[];
       };
       // Proof: substituting live typed rows for stored body rows in SavedPlanResource.readPlan,
       // then separately omitting the capture read, made this mounted read receive []
@@ -259,6 +269,18 @@ describe('the saved-plan routes', () => {
       const capturedStep = body.steps.find((candidate) => candidate.id === laterStep.id);
       expect(capturedStep?.name).toBe(laterStep.name);
       expect(capturedStep?.position).toBe(laterStep.position);
+      expect(capturedStep?.code).toBe('captured-code');
+      expect(
+        [...body.steps].sort((left, right) => left.position - right.position).map(({ id }) => id),
+      ).toEqual([firstStep.id, laterStep.id]);
+      for (const endpoint of [relationship.predecessor, relationship.successor]) {
+        expect(body.steps.find((candidate) => candidate.id === endpoint.stepId)?.id).toBe(
+          endpoint.stepId,
+        );
+        expect(body.steps.find((candidate) => candidate.id === endpoint.stepId)?.code).toBe(
+          endpoint.stepId === laterStep.id ? 'captured-code' : firstStep.code,
+        );
+      }
     } finally {
       writing.close();
     }

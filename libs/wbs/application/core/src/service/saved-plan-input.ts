@@ -101,6 +101,7 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
     })),
     steps: reads.steps.map((row) => ({
       id: row.id,
+      code: row.code,
       name: row.name,
       position: row.position,
       // History, never the live policy: a saved plan reads the allowance it
