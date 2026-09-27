@@ -36,8 +36,8 @@ function cut(stem: string, length: number): string {
 /**
  * The code a step named `name` is given when nobody chose one: lowercased,
  * every run of characters outside `[a-z0-9]` collapsed to one hyphen, hyphens
- * trimmed, prefixed `step-` when the result does not start with a letter or is
- * reserved, and suffixed `-2`, `-3`… while `taken` holds it — the stem cut so
+ * trimmed, prefixed `step-` when the result does not start with a letter or
+ * starts like the reserved alias (`s<digit>`), and suffixed `-2`, `-3`… while `taken` holds it — the stem cut so
  * stem and suffix stay within {@link STEP_CODE_MAX_LENGTH}.
  *
  * One function for every place a code is suggested — step creation, a plan
@@ -53,10 +53,18 @@ export function suggestStepCode(name: string, taken: ReadonlySet<string>): strin
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+  // `s<digit>` rather than the reserved shape itself: a stem that only starts
+  // like the alias can still become it once cut or suffixed — `s111…1x` cut to
+  // 32 is `s111…1`. Prefixing every such stem keeps each candidate below clear
+  // of the namespace, whatever the cut.
+  //
+  // Proof: with this test narrowed back to `isReservedStepCode(collapsed)`,
+  // `never cuts or suffixes a name into the reserved namespace` failed on
+  // `Expected: false, Received: true` for `s` + 31 ones + `x`; watched 2026-09-27.
   const prefixed =
     collapsed === ''
       ? FALLBACK_STEM
-      : /^[a-z]/.test(collapsed) && !isReservedStepCode(collapsed)
+      : /^[a-z]/.test(collapsed) && !/^s[0-9]/.test(collapsed)
         ? collapsed
         : `${FALLBACK_STEM}-${collapsed}`;
   const stem = cut(prefixed, STEP_CODE_MAX_LENGTH);

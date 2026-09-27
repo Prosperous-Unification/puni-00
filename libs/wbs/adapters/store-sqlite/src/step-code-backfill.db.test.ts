@@ -105,6 +105,14 @@ describe('backfillStepCodes', () => {
     expect(revisions()).toEqual({ p: 1, q: 0 });
   });
 
+  it('never persists a code in the reserved alias namespace, however the name is cut', () => {
+    oldWriterStep('p-long', 'p', `s${'1'.repeat(31)}x`, 10);
+
+    expect(backfillStepCodes(db, 5_000).map((coded) => coded.code)).toEqual([
+      `step-s${'1'.repeat(26)}`,
+    ]);
+  });
+
   it('is idempotent: a second run codes nothing and moves nothing', () => {
     oldWriterStep('p-dev', 'p', 'Dev', 10);
     backfillStepCodes(db, 5_000);

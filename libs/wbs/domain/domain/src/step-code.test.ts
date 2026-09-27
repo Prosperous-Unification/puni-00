@@ -24,9 +24,26 @@ describe('suggestStepCode', () => {
     expect(suggestStepCode('s12', new Set())).toBe('step-s12');
   });
 
-  it('keeps a name that only starts like the alias', () => {
+  it('keeps a name that starts with s but not s<digit>', () => {
     expect(suggestStepCode('Sales', new Set())).toBe('sales');
-    expect(suggestStepCode('s2x', new Set())).toBe('s2x');
+  });
+
+  it('prefixes a name that starts like the alias even when it is not reserved yet', () => {
+    expect(suggestStepCode('s2x', new Set())).toBe('step-s2x');
+  });
+
+  it('never cuts or suffixes a name into the reserved namespace', () => {
+    const cutIntoAlias = `s${'1'.repeat(31)}x`;
+    const suffixedIntoAlias = `s${'1'.repeat(29)}xy`;
+    const first = suggestStepCode(cutIntoAlias, new Set());
+    const second = suggestStepCode(
+      suffixedIntoAlias,
+      new Set([suggestStepCode(suffixedIntoAlias, new Set())]),
+    );
+    for (const code of [first, second]) {
+      expect(isReservedStepCode(code)).toBe(false);
+      expect(isStepCode(code)).toBe(true);
+    }
   });
 
   it('answers step for a name with nothing codeable in it', () => {

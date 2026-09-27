@@ -1,12 +1,3 @@
-// Codes every step an older release left uncoded (`step.code IS NULL`), then
-// prints how many it coded. Run by the swap executor after the old colour has
-// stopped, so no writer that ignores `code` is left:
-//
-//   docker exec be-01-<color> bun run src/backfill-step-codes-cli.ts
-//
-// Idempotent, so it is also the manual command a failed swap names. Any
-// failure throws, which exits non-zero, and the swap reports it loudly rather
-// than committing a deploy that left steps uncoded.
 import { openConnection } from '@wbs/store-sqlite/db';
 import { backfillStepCodes } from '@wbs/store-sqlite/step-code-backfill';
 

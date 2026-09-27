@@ -6,22 +6,22 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` on 2026
 
 ## Failure-proof table — pending implementation
 
-| Check                      | Fault to inject                    | Test that must fail               | Result                                            |
-| -------------------------- | ---------------------------------- | --------------------------------- | ------------------------------------------------- |
-| Parent step node           | Accept a parent work item          | mounted parent refusal            | Pending                                           |
-| Same-project step node     | Skip the project check             | mounted cross-project refusal     | Pending                                           |
-| Unknown step node          | Accept an unknown step ID          | mounted unknown-node refusal      | Pending                                           |
-| Reserved step code         | Drop the `s<digits>` check         | mounted step-create refusal       | Pending                                           |
-| Swap backfill              | Swap ignores backfill exit status  | swap failure test                 | Failed on `Expected path: "message"` (2026-09-27) |
-| Stale step reference       | Skip the revision comparison       | stale-reference resolve test      | Pending                                           |
-| Single address form        | Accept both address forms          | mounted command refusal           | Pending                                           |
-| Workflow edges             | Drop one workflow edge in the seam | Fast golden                       | Pending                                           |
-| Node identity through undo | Omit the journaled mapping         | mounted undo identity test        | Pending                                           |
-| Assignment hand-down       | Skip the assignment move           | mounted assignment hand-down test | Pending                                           |
-| Duplicate code import      | Accept duplicate codes             | import refusal test               | Pending                                           |
-| Reserved code import       | Accept a reserved code             | import refusal test               | Pending                                           |
-| Uncoded export             | Export with an uncoded step        | export refusal test               | Pending                                           |
-| Canonical reference shown  | Render the ordinal alias           | fe-01 step cell component test    | Pending                                           |
+| Check                      | Fault to inject                    | Test that must fail               | Result                                                                                                   |
+| -------------------------- | ---------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Parent step node           | Accept a parent work item          | mounted parent refusal            | Pending                                                                                                  |
+| Same-project step node     | Skip the project check             | mounted cross-project refusal     | Pending                                                                                                  |
+| Unknown step node          | Accept an unknown step ID          | mounted unknown-node refusal      | Pending                                                                                                  |
+| Reserved step code         | Drop the `s<digits>` check         | mounted step-create refusal       | Pending                                                                                                  |
+| Swap backfill              | Swap ignores backfill exit status  | swap failure test                 | `execute` with the backfill case skipped failed on `Expected path: "message"` and committed (2026-09-27) |
+| Stale step reference       | Skip the revision comparison       | stale-reference resolve test      | Pending                                                                                                  |
+| Single address form        | Accept both address forms          | mounted command refusal           | Pending                                                                                                  |
+| Workflow edges             | Drop one workflow edge in the seam | Fast golden                       | Pending                                                                                                  |
+| Node identity through undo | Omit the journaled mapping         | mounted undo identity test        | Pending                                                                                                  |
+| Assignment hand-down       | Skip the assignment move           | mounted assignment hand-down test | Pending                                                                                                  |
+| Duplicate code import      | Accept duplicate codes             | import refusal test               | Pending                                                                                                  |
+| Reserved code import       | Accept a reserved code             | import refusal test               | Pending                                                                                                  |
+| Uncoded export             | Export with an uncoded step        | export refusal test               | Pending                                                                                                  |
+| Canonical reference shown  | Render the ordinal alias           | fe-01 step cell component test    | Pending                                                                                                  |
 
 ## Pending checks
 
@@ -30,6 +30,7 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` on 2026
 - **Proof (strict rollback):** with `IF EXISTS` restored on the `DROP INDEX` in `down.sql`, `refuses to roll back a schema whose code index is already gone` failed on `Received function did not throw`; restored.
 - **Pending:** uncoded read through the store after an old-writer insert (lands with the contracts' uncoded union).
 - **Done (2026-09-27, backfill PR):** `suggestStepCode`/`suggestStepCodes` (`step-code.test.ts`, 14 pass); `backfillStepCodes` codes NULL rows per project in step order in one `IMMEDIATE` transaction, bumps each changed project's revision once and is idempotent (`step-code-backfill.db.test.ts`, 4 pass); `backfill-step-codes-cli.ts` codes an old-writer step, codes nothing on a rerun and exits non-zero on an unmigrated file (`migration-cli.db.test.ts`); the swap plans `backfill-step-codes` for be after `stop-blue` (or directly before `commit` on a first deploy) and `runStepCodeBackfill` fails naming `docker exec <container> bun run src/backfill-step-codes-cli.ts` (`reconcile.test.ts`, `step-code-backfill.test.ts`); a self-migrating boot codes old-writer steps (`boot.db.test.ts`).
+- **Proof (reserved namespace):** with the stem prefix narrowed back to `isReservedStepCode`, `never cuts or suffixes a name into the reserved namespace` failed on `Expected: false, Received: true`; restored.
 - **Not wired:** the k8s lab release path (`tools/tool-deploy/src/k8s`) does not run the backfill; its steps stay uncoded there until the CLI is run by hand or that path gains the step.
 - **Deferred to the contracts slice:** the backfill records no live event. Codes are not on the step wire shape yet, so no client can observe them; when they are, the backfill must announce what it coded.
 - **Pending:** Unchanged Fast and solver goldens and request hashes through the new seam.
