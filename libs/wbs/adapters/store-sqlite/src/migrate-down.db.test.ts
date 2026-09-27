@@ -294,15 +294,14 @@ const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
  */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /**
- * The durable activation marker, stamped after
- * {@link ORGANIZATION_OWNERSHIP} and reversed before it.
+ * The newest: the durable activation marker, stamped after main's step code
+ * column and reversed before it.
  */
-const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
+const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 /**
- * The newest: the nullable step code column and its partial unique index
+ * The nullable step code column and its partial unique index
  * `address-step-nodes` adds. One `ADD COLUMN` and one `CREATE UNIQUE INDEX`
- * forward, the index and the column back, so it heads every descending reversal
- * list and tails every ascending one.
+ * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
@@ -637,8 +636,8 @@ describe('readMigrationFolders', () => {
       WORK_ITEM_FACTS,
       ORGANIZATION_RECORDS,
       ORGANIZATION_OWNERSHIP,
-      ORGANIZATION_ACTIVATION,
       STEP_CODE,
+      ORGANIZATION_ACTIVATION,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -758,15 +757,15 @@ describe('rollbackTo, against a real database', () => {
         WORK_ITEM_FACTS,
         ORGANIZATION_RECORDS,
         ORGANIZATION_OWNERSHIP,
-        ORGANIZATION_ACTIVATION,
         STEP_CODE,
+        ORGANIZATION_ACTIVATION,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -881,8 +880,8 @@ describe('rollbackTo, against a real database', () => {
         WORK_ITEM_FACTS,
         ORGANIZATION_RECORDS,
         ORGANIZATION_OWNERSHIP,
-        ORGANIZATION_ACTIVATION,
         STEP_CODE,
+        ORGANIZATION_ACTIVATION,
       ]);
     } finally {
       db.cleanup();
@@ -953,8 +952,8 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -1046,8 +1045,8 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -1124,8 +1123,8 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,

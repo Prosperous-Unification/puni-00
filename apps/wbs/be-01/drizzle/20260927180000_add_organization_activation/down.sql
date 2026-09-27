@@ -1,4 +1,4 @@
--- Reverses `20260927140000_add_organization_activation`.
+-- Reverses `20260927180000_add_organization_activation`.
 --
 -- Safe only before activation, so the first statement checks for exactly one
 -- well-formed `pre_activation` row and fails the `CHECK` otherwise: an
