@@ -6,9 +6,9 @@
 
 ## 1a. Carry node endpoints through structural edits
 
-- [ ] 1a.1 Red: mounted hand-down remaps node endpoints with undo restoring them; deletion removes typed links in the deleted subtree in the same undo entry; move or deletion leaving a descendant-step endpoint on a leaf is refused naming the relationships.
-- [ ] 1a.2 Apply the journaled step node mapping to typed endpoints inside the structural transaction.
-- [ ] 1a.3 Negative proof: skip the endpoint remap, then separately skip the descendant-step leaf refusal; watch each mounted test fail, restore, add adjacent `Proof:`.
+- [x] 1a.1 Red: mounted hand-down remaps node endpoints with undo restoring them; deletion removes typed links in the deleted subtree in the same undo entry; move or deletion leaving a descendant-step endpoint on a leaf is refused naming the relationships.
+- [x] 1a.2 Apply the journaled step node mapping to typed endpoints inside the structural transaction.
+- [x] 1a.3 Negative proof: skip the endpoint remap, then separately skip the descendant-step leaf refusal; watch each mounted test fail, restore, add adjacent `Proof:`.
 
 ## 2. Guard every graph-changing write
 
@@ -24,15 +24,15 @@
 
 ## 4. Expose typed commands through HTTP and MCP
 
-- [ ] 4.1 Red: mounted add/update/remove with step node ID and batch-local node endpoints (including rollback when a later command is refused), and old `addDependency` compatibility, invalid references and duplicate/cycle 4xx.
-- [ ] 4.2 Implement typed discriminators and regenerate HTTP/OpenAPI/MCP contracts, retaining old request shapes.
-- [ ] 4.3 Negative proof: remove old-command compatibility or typed input validation; watch mounted tests fail, restore, add adjacent `Proof:`.
+- [x] 4.1 Red: mounted add/update/remove with step node ID and batch-local node endpoints (including rollback when a later command is refused), and old `addDependency` compatibility, invalid references and duplicate/cycle 4xx.
+- [x] 4.2 Implement typed discriminators and regenerate HTTP/OpenAPI/MCP contracts, retaining old request shapes.
+- [x] 4.3 Negative proof: remove old-command compatibility or typed input validation; watch mounted tests fail, restore, add adjacent `Proof:`.
 
 ## 5. Keep history and batches atomic
 
-- [ ] 5.1 Red: one-command undo/redo identity, stale refusal, batch-local references and later-command cycle refusal.
-- [ ] 5.2 Journal exact typed state and validate combined graph during undo/redo and batch replay.
-- [ ] 5.3 Negative proof: bypass stale undo or replay graph validation; watch mounted refusal fail, restore, add adjacent `Proof:`.
+- [x] 5.1 Red: one-command undo/redo identity, stale refusal, batch-local references and later-command cycle refusal.
+- [x] 5.2 Journal exact typed state and validate combined graph during undo/redo and batch replay.
+- [x] 5.3 Negative proof: bypass stale undo or replay graph validation; watch mounted refusal fail, restore, add adjacent `Proof:`.
 
 ## 6. Version import and export
 
@@ -54,9 +54,9 @@
 
 ## 6c. Expose working-plan mutations
 
-- [ ] 6c.1 Red: a later command in an admitted batch sees the typed edit and a refused edit leaves retained state unchanged.
-- [ ] 6c.2 Publish committed typed state through the working-plan read.
-- [ ] 6c.3 Negative proof: return the pre-edit retained state; watch batch-read test fail, restore, add adjacent `Proof:`.
+- [x] 6c.1 Red: a later command in an admitted batch sees the typed edit and a refused edit leaves retained state unchanged.
+- [x] 6c.2 Publish committed typed state through the working-plan read.
+- [x] 6c.3 Negative proof: return the pre-edit retained state; watch batch-read test fail, restore, add adjacent `Proof:`.
 
 ## 7. Schedule expanded FS edges in Fast
 

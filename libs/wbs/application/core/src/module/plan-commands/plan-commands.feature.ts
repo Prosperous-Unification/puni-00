@@ -21,7 +21,12 @@ import type { DirectoryUsage } from '../../service/directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
 import type { PriorityBandService } from '../../service/priority-band.service';
 import type { WorkItemRefusal } from '../../service/work-item.service';
-import type { Collected, UndoOutcome, WorkItemService } from '../../service/work-item.service';
+import type {
+  Collected,
+  UndoOutcome,
+  WorkItemOutcome,
+  WorkItemService,
+} from '../../service/work-item.service';
 import { applyCommand, bindCommands, CommandContext, CommandRefused } from './command-bindings';
 import { createWorkingPlan } from './working-plan.resource';
 
@@ -60,7 +65,11 @@ interface CommandEntities {
 }
 type EntityKind = keyof CommandEntities;
 type PlainKind = Exclude<PlanCommandKind, EntityKind>;
-type MintedKind = 'createWorkItem' | 'duplicateWorkItem' | Extract<EntityKind, `create${string}`>;
+type MintedKind =
+  | 'createWorkItem'
+  | 'duplicateWorkItem'
+  | 'addTypedDependency'
+  | Extract<EntityKind, `create${string}`>;
 // Proof: making minted id optional produced two TS2578 diagnostics in the created-result fixtures.
 export type MintedBase = AppliedBase & { id: string };
 /** Internal kind identifies the producer's exact entity contract; controllers erase it from the unchanged wire. */
@@ -75,7 +84,10 @@ export type AppliedCommand =
     }[EntityKind];
 
 type PlainReason =
-  | Exclude<WorkItemRefusal, 'deadline_before_project_start'>
+  | Exclude<
+      WorkItemRefusal,
+      'deadline_before_project_start' | 'descendant_step_on_leaf' | 'node_on_parent'
+    >
   | DirectoryRefusal
   | 'calendar_range'
   | 'too_many_commands'
@@ -89,11 +101,13 @@ export type Refusal =
       reason: 'deadline_before_project_start';
       detail: { workItemId: string; projectDayZero: string };
     }
+  | { reason: 'descendant_step_on_leaf' | 'node_on_parent'; detail: { dependencyIds: string[] } }
   | { reason: 'taken'; detail: { name: string } }
   | { reason: 'in_use'; detail: { usage: DirectoryUsage } };
 /** A runtime refusal always carries its command index and recognized kind. */
 export type BatchRefusal = { ok: false; at: number; kind: PlanCommandKind } & Refusal;
 export type ServiceRefusal =
+  | Extract<WorkItemOutcome<never>, { ok: false }>
   | { ok: false; reason: PlainReason }
   | {
       ok: false;

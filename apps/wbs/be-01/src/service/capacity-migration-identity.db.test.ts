@@ -259,7 +259,9 @@ describe('every plan schedules identically across the migration', () => {
         }
         return null;
       };
-      const { depReach, pertWeights, estimateRounding, ...treeWithoutReach } = tree;
+      const { depReach, pertWeights, estimateRounding, typedDependencies, ...treeWithoutReach } =
+        tree;
+      expect(typedDependencies).toEqual([]);
       // The weights and the rounding are lifted for `depReach`'s reason exactly
       // — the oracle predates both fields — and asserted rather than dropped so
       // that a replay which stopped setting them would fail here instead of
