@@ -92,6 +92,10 @@ export async function resolveAddressedStep(
   | { kind: 'stale'; addressRevision: string }
   | { kind: 'unresolvable'; reason: StepReferenceRefusal }
 > {
+  // Malformed text is a request defect whatever revision it came with, so it is
+  // judged before staleness. Proof: with this early check removed, `refuses an
+  // old revision after a renumbering move…` failed on `Expected: 422, Received:
+  // 409` for a malformed reference sent with a stale revision; watched 2026-09-27.
   if (parseStepReference(input.reference) === null)
     return { kind: 'unresolvable', reason: 'malformed' };
   const space = buildAddressSpace(addresses.workItems, addresses.steps);
