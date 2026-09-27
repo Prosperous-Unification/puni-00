@@ -101,14 +101,21 @@ caller without wbs:read`. Restored, `bun test` in apps/wbs/mcp-01: 275 pass, 0 f
     consuming the refresh token.
   - Revocation throws on a session-store failure instead of answering 200 as if revoked. An
     unverifiable or unknown token still answers 200 (RFC 7009).
+  - A refresh propagates a session-store failure instead of answering `invalid_grant`; only an
+    undecryptable family (already revoked by the store) is refused. A non-text `scope` field is
+    `invalid_request`, not an omitted scope.
 - Mounted tests (oauth.test.ts `MCP write scope, refresh and revocation through the mounted
 endpoint`): a write after access expiry and refresh reaches be-01 with the refreshed upstream
   token; replay ends the successor's access and refresh; replay at capacity does too; revocation
-  ends access and refresh; narrowing and expansion as above; the store failure rejects.
+  ends access and refresh; narrowing and expansion as above; a token narrowed to `wbs:write`
+  cannot export; a file-valued scope is refused; store failures reject during refresh and
+  revocation.
 - R5 proofs: the capacity-first order failed the capacity replay test with 429; ignoring the
   requested scope failed narrowing (`wbs:read wbs:write`) and expansion (200); the catch-all
   failed the store-failure test (resolved); skipping `revokeFamily` in the revocation endpoint
-  failed the revocation test (write 200, not 401). All restored: 281 pass, 0 fail.
+  failed the revocation test (write 200, not 401); a catch-all around `prepareRefresh` failed
+  the refresh store-failure test; reading scope through `stringField` failed the file-scope
+  test; an unguarded GET failed the narrowed-export test. All restored: 285 pass, 0 fail.
 - The 3600-second `MCP_ACCESS_TOKEN_TTL` default is unchanged: no live refresh trace exists.
 
 ### Pending behind organization activation (WBS 010.5.2)
