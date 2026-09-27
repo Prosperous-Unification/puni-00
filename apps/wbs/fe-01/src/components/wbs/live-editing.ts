@@ -241,6 +241,8 @@ export class LiveField {
    * completion is the normal case rather than the edge.
    */
   private submissions = 0;
+  /** How many times this field has written into its box, which typing never does. */
+  private boxWrites = 0;
 
   /**
    * Sends what this field holds. Reassigned by the face on **every render**,
@@ -303,6 +305,7 @@ export class LiveField {
     const held = heldRefusals.get(this.cellKey);
     if (held !== undefined && node.value !== held) {
       node.value = held;
+      this.boxWrites += 1;
       this.refused = true;
       this.typedHere = false;
     }
@@ -348,6 +351,7 @@ export class LiveField {
     // the answer without a second copy of it to keep in step.
     if (this.typedHere && node === document.activeElement) return;
     node.value = this.latest;
+    this.boxWrites += 1;
     this.shown = this.latest;
     this.typedHere = false;
   }
@@ -450,6 +454,7 @@ export class LiveField {
     // been typed since, and what a refusal has to hold is what was refused.
     const baseline = this.shown;
     const generation = ++this.submissions;
+    const boxWritesAtSubmit = this.boxWrites;
     const landing = this.send(text, baseline).then((outcome) => {
       // Only the newest commit for this cell may write what it heard back.
       // Read before anything below it, and before `outcome` is acted on at
@@ -493,9 +498,50 @@ export class LiveField {
       }
       this.refused = false;
       heldRefusals.delete(this.cellKey);
-      // The refetch this commit triggered lands *before* it resolves, so a
-      // draft that rule 4 held back was held back through the one render
-      // that carried its answer. Nothing else would come.
+      // The reader is already back in the cell typing on top of what they
+      // saved, so rule 2 holds the write below — but that text is on the
+      // server now and is the baseline their typing started from. Left on the
+      // name from before the save, typing back to the saved name read as a
+      // fresh edit on the next blur, rule 5 answered it from this very
+      // submission, and nothing ever released the peer's name rule 2 had held
+      // back. On a slow round trip that is `e2e/name-cell.spec.ts`'s peer
+      // rename, failing on CI only.
+      // Proof: this `shown` advance removed, `a peer name held back behind a
+      // slow landing arrives when the cell is left` failed on `expected 'Strip
+      // the wiring' to be 'Survey the racking'`, and the browser case `a
+      // peer's longer name still arrives when my own save came back while I
+      // was typing` failed 5/5 on `the peer name never reached the box` with
+      // `Received: "Strip the wiring"`. Watched, 2026-09-27.
+      //
+      // Whether or not typing is held: in a box nobody is in, the `sync`
+      // below writes `latest` and moves `shown` with it, so the advance is
+      // undone at once and the box still ends on the server's word. `a box
+      // left before its save lands still shows what the server took` is the
+      // case that asks, and passes with or without a typing condition here.
+      //
+      // But only when this field has written nothing into the box since the
+      // submission: a peer's name written in between is what the reader then
+      // typed over, so the saved text is not their baseline and their edit
+      // must still go out. Proof: the `boxWrites` condition removed, `a save
+      // landing under an edit made over a peer name still sends it` failed on
+      // `expected [ [ 'Beta', 'Alpha' ] ] to deeply equal [ [ 'Beta', 'Alpha'
+      // ], …(1) ]`, and `does not spend an old API success against its busy
+      // replacement` on `Received: "Departed write"`. Watched, 2026-09-27.
+      //
+      // `latest` is left alone. It can still be the name from before the
+      // save when the answer beats the render of its own covering read, but
+      // it can also be a peer's revert to that very name, and text cannot
+      // tell the two apart: the first is corrected by the render that follows,
+      // the second by nothing. Proof: `latest` set to `text` here, `a peer's
+      // revert nobody rendered in between is what the box shows` failed on
+      // `expected 'Beta' to be 'Alpha'`. Watched, 2026-09-27.
+      if (this.boxWrites === boxWritesAtSubmit) {
+        this.shown = text;
+      }
+      // The covering read this commit triggered finishes *before* it
+      // resolves, so a draft that rule 4 held back may have been held back
+      // through the one render that carried its answer. Nothing else would
+      // come.
       this.sync();
       this.afterSync(this.node);
       return outcome;

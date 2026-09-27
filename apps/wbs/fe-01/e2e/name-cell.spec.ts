@@ -362,16 +362,88 @@ test.describe('the Name cell at rest is the name alone', () => {
     // the same way in a loaded local gate on 2026-08-30 and passed 10/10 alone,
     // which is what an assertion made a moment too early looks like every time.
     //
-    // **30s, and only this wait.** Retrying was necessary and not sufficient:
-    // the same `Received: "Strip the wiring"` came back on CI run 33373273021
-    // (2026-08-31), where the gate took 12.0m against 7.0m on the developer's
-    // Mac. What is being waited for is a round trip through be-01, gw-01, a
-    // websocket and a refetch — the slowest thing this suite asks for — and a
-    // 10s budget for it is a budget for a quiet machine. Passed 3/3 locally
-    // after that failure, as it did on 2026-08-30.
-    await expect(mine, 'the peer name never reached the box').toHaveValue(LONG_NAME, {
-      timeout: 30_000,
+    // **Not a budget.** A 30s override here, for "a quiet machine", did not
+    // stop the same `Received: "Strip the wiring"` on CI shard 3 (pull requests
+    // 39 and 40, 2026-09-22): the box was not late, it was stuck. On a loaded
+    // runner this reader's own save of `SHORT_NAME` came back while they were
+    // typing again, `LiveField` kept the name from before it as its baseline,
+    // and nothing released the peer's name — the case below holds the save to
+    // make that order certain, and `LiveField.submit` now advances the
+    // baseline when a save lands. The config's own `expect.timeout` is all
+    // this wait gets.
+    await expect(mine, 'the peer name never reached the box').toHaveValue(LONG_NAME);
+    const after = await boxOf(mine);
+    expect(linesHidden(after), "a line of the peer's name is hidden after the blur").toBeLessThan(
+      0.5,
+    );
+    expect(after.clientHeight, 'the box was never re-measured for the longer name').toBeGreaterThan(
+      atRest.clientHeight,
+    );
+  });
+
+  /**
+   * The case above at the speed CI gives it, made deterministic: the reader's
+   * own save of the name is held at the network until they are back in the
+   * cell and have typed, so its refetch and its answer both arrive while rule
+   * 2 is holding. That is the order a loaded runner produced on pixels shard 3
+   * (pull requests 39 and 40), where the case above failed on `the peer name
+   * never reached the box` with the box still on `Strip the wiring` — never
+   * late, stuck: `LiveField` kept the name from before the save as its
+   * baseline, took the typed-back name for an edit already sent, and nothing
+   * released the peer's name.
+   *
+   * Proof: `LiveField.submit`'s baseline advance removed, this failed on `the
+   * peer name never reached the box` with `Received: "Strip the wiring"`.
+   * Watched in Chromium, 2026-09-27.
+   */
+  test("a peer's longer name still arrives when my own save came back while I was typing", async ({
+    page,
+  }) => {
+    await seedRows(page, `e2e-name-${String(Date.now())}-${String(account)}`, 2);
+
+    const mine = page.getByLabel('Name of 010');
+    const theirs = page.getByLabel('Name of 020');
+    const mineId = await idOf(mine);
+    const isMySave = (body: string | null): boolean =>
+      body !== null && body.includes(mineId) && body.includes(SHORT_NAME);
+
+    let releaseSave = (): void => undefined;
+    const saveReleased = new Promise<void>((resolve) => {
+      releaseSave = resolve;
     });
+    await page.route('**/api/projects/*/commands', async (route) => {
+      if (isMySave(route.request().postData())) await saveReleased;
+      await route.continue();
+    });
+    const saveAnswered = page.waitForResponse(
+      (response) => response.url().endsWith('/commands') && isMySave(response.request().postData()),
+    );
+
+    await writeInto(mine, SHORT_NAME);
+    const atRest = await boxOf(mine);
+    await mine.click();
+    await expect(mine).toBeFocused();
+    await mine.press('X');
+    releaseSave();
+    expect((await saveAnswered).status(), 'be-01 refused the save').toBe(200);
+    // The save's own reread, and its answer to the field, are done once the
+    // toolbar stops being busy; before that the landing could still come
+    // after the blur below, where nothing is being held and the case proves
+    // nothing.
+    await expect(page.locator('[data-toolbar]')).toHaveAttribute('aria-busy', 'false');
+    await expect(mine).toBeFocused();
+    await mine.press('Backspace');
+
+    await aPeerRenames(page, mineId, LONG_NAME);
+    await aPeerRenames(page, await idOf(theirs), 'Their new name');
+    await expect(theirs).toHaveValue('Their new name');
+    expect(await mine.inputValue(), 'the peer edit was written into the box mid-visit').toBe(
+      SHORT_NAME,
+    );
+
+    await mine.blur();
+    await expect(mine).not.toBeFocused();
+    await expect(mine, 'the peer name never reached the box').toHaveValue(LONG_NAME);
     const after = await boxOf(mine);
     expect(linesHidden(after), "a line of the peer's name is hidden after the blur").toBeLessThan(
       0.5,
