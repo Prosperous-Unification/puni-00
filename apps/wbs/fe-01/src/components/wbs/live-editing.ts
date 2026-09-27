@@ -439,22 +439,23 @@ export class LiveField {
       // slow round trip — the save answered while the reader was back in the
       // cell typing — this is the only path out, and without it the box kept
       // the saved name over a peer's until some later edit to the row.
-      // Proof: this `if` removed, `a peer name held back behind a slow landing
+      // Proof: the `if` below removed, `a peer name held back behind a slow landing
       // arrives when the cell is left` failed on `expected 'Strip the wiring'
       // to be 'Survey the racking'`, and `a peer's longer name still arrives
       // when my own save came back while I was typing` failed 5/5 in Chromium
       // on `the peer name never reached the box` with `Received: "Strip the
       // wiring"` — the pixels shard 3 failure of pull requests 39 and 40.
       // Watched, 2026-09-27.
+      //
       // Only once it has landed: while it is still out, what rule 2 held back
-      // would be written over text be-01 has not answered yet. Proof: this
-      // guard removed, `a peer name held back is not written over a save
+      // would be written over text be-01 has not answered yet. Proof: `landed`
+      // removed from the condition, `a peer name held back is not written over a save
       // still in the air` failed on `expected 'Peer' to be 'Beta'`. Watched,
       // 2026-09-27.
       //
       // And only a value heard since it was sent: one rule 2 was holding from
       // before is older than the save, and a reread that failed leaves it as
-      // the newest thing the field knows. Proof: this condition removed, `a
+      // the newest thing the field knows. Proof: the `heardBefore` comparison removed, `a
       // peer name held from before a save is not written over it` failed on
       // `expected 'Peer' to be 'Beta'`. Watched, 2026-09-27.
       if (this.sent.landed && this.serverValues !== this.sent.heardBefore) {
