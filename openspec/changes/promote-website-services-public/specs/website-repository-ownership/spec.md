@@ -36,6 +36,13 @@ The transfer SHALL preserve existing API routes, frontend journeys, migration fi
 - **WHEN** the transferred API tests run
 - **THEN** the anonymous intake, proposal replay, auth, provider admission, concept, and migration refusal cases retain their prior outcomes
 
+#### Scenario: Initial migration is packaged under the standard path
+
+- **WHEN** the adapter or API is built from a clean output directory
+- **THEN** the built package contains `migrations/001_initial/migration.sql` and its paired `down.sql`
+- **AND** the migration name and SQL checksum remain compatible with an already applied `001_initial` migration
+- **AND** the trusted content inventory classifies both files as migrations without a website-specific policy exception
+
 ### Requirement: Operator and concept security at the public boundary
 
 The operator password SHALL be checked with an adaptive password hash. Opaque random tokens and CSRF proofs MAY continue using SHA-256. A generated concept subject SHALL contain only a bounded prefix from an explicit plain-text character set, or a fixed fallback.

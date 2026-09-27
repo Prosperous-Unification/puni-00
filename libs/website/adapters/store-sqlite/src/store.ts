@@ -78,7 +78,7 @@ export class WebsiteStore {
       'CREATE TABLE IF NOT EXISTS schema_migration (name TEXT PRIMARY KEY, checksum TEXT NOT NULL)',
     );
     const migrations = [
-      { name: '001_initial', directory: import.meta.dir },
+      { name: '001_initial', directory: join(import.meta.dir, 'migrations/001_initial') },
       { name: '002_m2', directory: join(import.meta.dir, 'migrations/002_m2') },
       {
         name: '003_account_submission',

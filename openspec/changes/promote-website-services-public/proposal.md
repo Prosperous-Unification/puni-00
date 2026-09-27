@@ -6,7 +6,7 @@ The private companion currently owns both the licensed Astro marketing site and 
 
 ## Outcome
 
-`puni-00` becomes the canonical source for `apps/website/fe-01`, `apps/website/be-01`, `libs/website/domain/contracts`, and `libs/website/adapters/store-sqlite`. The public projects carry explicit portability metadata, product tags, aliases, and working Bun/Nx test, lint, typecheck, and build targets. The public API uses a password-specific verifier for the operator secret and admits only a bounded plain-text concept subject. The private companion may keep a pinned service snapshot for its local three-host demo; its independently authored Astro site remains private.
+`puni-00` becomes the canonical source for `apps/website/fe-01`, `apps/website/be-01`, `libs/website/domain/contracts`, and `libs/website/adapters/store-sqlite`. The public projects carry explicit portability metadata, product tags, aliases, and working Bun/Nx test, lint, typecheck, and build targets. All website SQLite migration pairs live under the existing `migrations` convention, including `001_initial`, so the trusted content inventory classifies them and the built API packages them together. The public API uses a password-specific verifier for the operator secret and admits only a bounded plain-text concept subject. The private companion may keep a pinned service snapshot for its local three-host demo; its independently authored Astro site remains private.
 
 ## Non-goals and constraints
 

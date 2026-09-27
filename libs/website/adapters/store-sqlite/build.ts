@@ -1,4 +1,4 @@
-import { copyFileSync, cpSync, mkdirSync } from 'node:fs';
+import { cpSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const output = join(import.meta.dir, '../../../../dist/libs/website/adapters/store-sqlite');
@@ -10,6 +10,4 @@ const build = await Bun.build({
 });
 if (!build.success) throw new Error('Website SQLite adapter bundle failed');
 mkdirSync(output, { recursive: true });
-copyFileSync(join(source, 'migration.sql'), join(output, 'migration.sql'));
-copyFileSync(join(source, 'down.sql'), join(output, 'down.sql'));
 cpSync(join(source, 'migrations'), join(output, 'migrations'), { recursive: true });
