@@ -5,6 +5,7 @@ import { join } from 'node:path';
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- a file that is not SQLite cannot pass openDatabase's pragma checks, and the unreadable case needs one open
 import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { drizzle } from 'drizzle-orm/bun-sqlite';
 
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
@@ -12,8 +13,13 @@ import { rollbackTo } from './migrate-down';
 import {
   type BrokenActivationMarker,
   OrganizationActivationRefused,
-  readOrganizationActivation,
+  readOrganizationActivation as readMarker,
 } from './organization-activation';
+
+/** Reads the marker through drizzle over a raw fixture connection, as repositories will. */
+function readOrganizationActivation(db: Database): ReturnType<typeof readMarker> {
+  return readMarker(drizzle({ client: db }));
+}
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';

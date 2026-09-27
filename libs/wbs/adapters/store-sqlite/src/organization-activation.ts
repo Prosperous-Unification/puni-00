@@ -1,4 +1,6 @@
-import type { Database } from 'bun:sqlite';
+import { sql } from 'drizzle-orm';
+
+import type { Drizzle } from './db';
 
 /** Whether organization isolation was enabled on this database. */
 export type OrganizationActivation = 'pre_activation' | 'activated';
@@ -36,14 +38,14 @@ interface MarkerRow {
  * @throws {OrganizationActivationRefused} `absent` when the table does not exist, `unreadable`
  * when SQLite cannot read the schema or the table, `malformed` unless exactly one consistent row.
  */
-export function readOrganizationActivation(db: Database): OrganizationActivation {
+export function readOrganizationActivation(db: Pick<Drizzle, 'all'>): OrganizationActivation {
   let tables: number | undefined;
   try {
     tables = db
-      .query<{ n: number }, []>(
-        "SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'organization_activation'",
+      .all<{ n: number }>(
+        sql`SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'organization_activation'`,
       )
-      .get()?.n;
+      .at(0)?.n;
   } catch (cause) {
     // Proof: 2026-09-27, returning 'pre_activation' here made `refuses an unreadable database`
     // read a file that is not SQLite as not activated.
@@ -62,12 +64,10 @@ export function readOrganizationActivation(db: Database): OrganizationActivation
     );
   let rows: MarkerRow[];
   try {
-    rows = db
-      .query<MarkerRow, []>(
-        `SELECT singleton, state, activated_at, typeof(activated_at) AS activated_at_type
-          FROM organization_activation`,
-      )
-      .all();
+    rows = db.all<MarkerRow>(
+      sql`SELECT singleton, state, activated_at, typeof(activated_at) AS activated_at_type
+        FROM organization_activation`,
+    );
   } catch (cause) {
     // Proof: 2026-09-27, returning 'pre_activation' here made `refuses an unreadable marker
     // table` read a table whose columns are gone as not activated.
