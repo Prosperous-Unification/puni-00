@@ -42,7 +42,7 @@ function readEndpoint(
 }
 
 /** Validates stored discriminants when SQLite rows cross into the domain. */
-function readTypedDependency(row: TypedDependencyRow): StoredTypedDependency {
+export function readTypedDependency(row: TypedDependencyRow): StoredTypedDependency {
   if (!isRelationshipType(row.type)) {
     throw new Error(`typed dependency ${row.id} has unknown relationship type ${row.type}`);
   }
@@ -67,7 +67,7 @@ function readTypedDependency(row: TypedDependencyRow): StoredTypedDependency {
   };
 }
 
-function storedColumns(row: StoredTypedDependency) {
+function mapStoredColumns(row: StoredTypedDependency) {
   return {
     projectId: row.projectId,
     predecessorWorkItemId: row.predecessor.workItemId,
@@ -88,8 +88,8 @@ type Transaction = Parameters<Parameters<Drizzle['transaction']>[0]>[0];
  * endpoint's work item has no children and a descendant-step endpoint's has
  * some.
  *
- * The service refuses each of these first with a typed 4xx; this is the
- * persistence boundary saying the same thing inside the write's transaction,
+ * Once typed commands exist (task 4), the service must refuse these first
+ * with typed 4xx. This is the persistence boundary inside the write's transaction,
  * where a concurrent tree edit cannot slip between the check and the insert.
  * Foreign keys alone prove only that the rows exist somewhere.
  *
@@ -99,7 +99,7 @@ type Transaction = Parameters<Parameters<Drizzle['transaction']>[0]>[0];
  * (resolved without throwing)` (`foreign work item`, `foreign step`, `node on a
  * parent`, `descendant-step on a leaf`); watched 2026-09-27.
  */
-function assertEndpointsHeld(tx: Transaction, row: StoredTypedDependency): void {
+export function assertEndpointsHeld(tx: Transaction, row: StoredTypedDependency): void {
   for (const endpoint of [row.predecessor, row.successor]) {
     const owner = tx
       .select({ projectId: workItem.projectId })
@@ -162,7 +162,7 @@ export class TypedDependencyRepository implements TypedDependencyStore {
       this.db.transaction((tx) => {
         assertEndpointsHeld(tx, row);
         tx.insert(typedDependency)
-          .values({ id: row.id, ...storedColumns(row), ...auditOnCreate(stamp) })
+          .values({ id: row.id, ...mapStoredColumns(row), ...auditOnCreate(stamp) })
           .run();
         bumpWorkItems(tx, [row.predecessor.workItemId, row.successor.workItemId], stamp);
       });
@@ -174,14 +174,19 @@ export class TypedDependencyRepository implements TypedDependencyStore {
       await Promise.resolve();
       this.db.transaction((tx) => {
         const prior = tx.select().from(typedDependency).where(eq(typedDependency.id, row.id)).get();
+        // Proof: returning on a missing row made `refuses update of an unknown id`
+        // fail on `Received: (resolved without throwing)`; watched 2026-09-27.
         if (prior === undefined) throw new Error(`typed dependency ${row.id} does not exist`);
         readTypedDependency(prior);
+        // Proof: bypassing this comparison made `refuses moving a typed dependency`
+        // fail because the endpoint guard reported `outside project` instead of
+        // `cannot move`; watched 2026-09-27.
         if (prior.projectId !== row.projectId) {
           throw new Error(`typed dependency ${row.id} cannot move to project ${row.projectId}`);
         }
         assertEndpointsHeld(tx, row);
         tx.update(typedDependency)
-          .set({ ...storedColumns(row), ...auditOnUpdate(stamp) })
+          .set({ ...mapStoredColumns(row), ...auditOnUpdate(stamp) })
           .where(eq(typedDependency.id, row.id))
           .run();
         bumpWorkItems(
@@ -203,6 +208,8 @@ export class TypedDependencyRepository implements TypedDependencyStore {
       await Promise.resolve();
       this.db.transaction((tx) => {
         const prior = tx.select().from(typedDependency).where(eq(typedDependency.id, id)).get();
+        // Proof: returning on a missing row made `refuses removal of an unknown id`
+        // fail on `Received: (resolved without throwing)`; watched 2026-09-27.
         if (prior === undefined) throw new Error(`typed dependency ${id} does not exist`);
         readTypedDependency(prior);
         tx.delete(typedDependency).where(eq(typedDependency.id, id)).run();
