@@ -2344,6 +2344,98 @@ BumpGeneration(1), BumpGeneration(2), Cancel` failed `Cancel: queue identities` 
   the rename, sabotages (a)-(f) fail 4/2, 3/3, 5/1, 4/2, 5/1, 5/1 again, and
   `env -u CLAUDECODE bunx nx run tool-devsync:test` succeeds.
 
+### Resource-service K3 closure (WBS 040.10) — 2026-09-27
+
+#### Review follow-up: repository-port boundary and value ownership
+
+The closed-module audit now discovers every production TypeScript file under each listed module,
+checks resolved declaration, parameter, property and property-access types, and rejects direct
+imports from repository-port files regardless of declaration name. A repository-port file is
+`ports/*-store.ts` or `ports/stores.ts`; resource implementations and module wiring are the
+store-owning exceptions. Feature directory discovery requires each `*.feature.ts` module to be
+closed or in the shrink-only debt ledger. Plan import and the pre-existing Plan commands
+transactional-scope coupling remain in that ledger; the five 040.10 modules are closed.
+
+The values used by those closed features now live in neutral `ports/*-values.ts` files or
+`ports/recorded-event.ts`. Store-port files re-export the same names for adapter compatibility.
+The stored-read verification JSDoc now sits on `readOfStored` in the saved-plan resource.
+
+| Fault injected                                                                            | Observed boundary-test failure                                                  |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Alias to `ProjectStore` appended to the real `plan-history.feature.ts`                    | `ReviewPortAlias` reported; 0 pass, 1 fail                                      |
+| Wildcard `export *` from `project-store` appended to that real feature                    | Repository file reported; 0 pass, 1 fail                                        |
+| Resolved alias and `opts.plans.readOf` through compatibility options in compiler overlays | Each negative received no violation before type inspection; 0 pass, 1 fail each |
+| Direct named `PlanEvent` import with the repository-file check disabled                   | Negative received no violation; 0 pass, 1 fail                                  |
+| Renamed `authentication` in the audit list                                                | `unlisted feature module` and `no production files`; 0 pass, 1 fail             |
+| Removed `authentication` from both lists                                                  | `unlisted feature module`; 0 pass, 1 fail                                       |
+| Added `authentication` to the real debt ledger                                            | `new debt is not allowed`; 0 pass, 1 fail                                       |
+| Removed malformed import-type guard with malformed import fixture                         | Audit silently returned no violation; 0 pass, 1 fail                            |
+
+The focused boundary suite passed 10/10 after those faults were restored. A direct core TypeScript
+check (`bunx tsc -p libs/wbs/application/core/tsconfig.lib.json --noEmit`) passed.
+
+Review follow-up verification under `env -u CLAUDECODE`:
+
+| Command                                                                                                     | Observed result                                                                                                            |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `cd libs/wbs/application/core && bun test src`                                                              | 650 passed, 0 failed, 73 files                                                                                             |
+| `cd apps/wbs/be-01 && bun test src`                                                                         | 1,115 passed, 1 skipped, 28 failed, 97 files; 27 listener `EPERM` failures and one spawn-handshake failure in this sandbox |
+| Focused backend saved-plan, auth, history, replay, gateway and retention files                              | 266 passed, 0 failed, 24 files                                                                                             |
+| `bunx nx run-many -t typecheck lint:fast -p wbs-core wbs-be-01 tool-devsync`                                | 8 targets succeeded, 2 cache hits                                                                                          |
+| `bun test tools/tool-devsync/src/{module-labels,service-kinds,typecheck-modules,workspace-targets}.test.ts` | 50 passed, 0 failed, 4 files                                                                                               |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                    | 136 passed, 0 failed                                                                                                       |
+| `bunx prettier --check` on all touched files                                                                | passed                                                                                                                     |
+
+Five feature modules now call resource services over their stores: Plan history uses Plan event
+and Project; Realtime uses Event log; Bounded replay sweep uses Event log and Plan event;
+Authentication uses Account; Saved plans uses Saved plan persistence. Plan import remains in the
+boundary test's live debt ledger because its admitted initialization surface needs a separate
+slice covering both memory and SQLite source contracts. The new Plan event and Event log modules
+have README indexes and sealed module tests, and register in the wiki pilot through their
+creation revisions (`36d5fa69c`, `12f47ce99`), as Plan import and Plan document do.
+
+Production-path negative proofs, each restored after the named test failed:
+
+| Fault injected                                              | Observed failing test                                       |
+| ----------------------------------------------------------- | ----------------------------------------------------------- |
+| Plan history resource existence guard bypassed              | `answers not_found` (5 pass, 1 fail)                        |
+| Plan event cutoff multiplier zeroed                         | cutoff resource test (failed)                               |
+| Realtime complete-record check bypassed                     | replay test (9 pass, 2 fail)                                |
+| Realtime durable record fabricated                          | broadcaster test (1 pass, 4 fail)                           |
+| Event log prune replaced with zero                          | prune test (4 pass, 1 fail)                                 |
+| Sweep history prune bypassed                                | history prune test (6 pass, 2 fail)                         |
+| Sweep overlap guard bypassed                                | overlap test (7 pass, 1 fail)                               |
+| Mounted OIDC account failure treated as invalid credentials | HTTP test answered 401 instead of 500 (0 pass, 1 fail)      |
+| Account identity-store guard bypassed                       | account resource test (0 pass, 1 fail)                      |
+| Saved plan digest check bypassed                            | read answered `read` instead of `corrupt` (0 pass, 1 fail)  |
+| Saved plan holding quota bypassed                           | save answered `saved` instead of `refused` (0 pass, 1 fail) |
+| Saved plan project scope bypassed                           | HTTP test answered 422 instead of 404 (0 pass, 1 fail)      |
+| Saved plan authorization bypassed                           | touch authorization test (0 pass, 1 fail)                   |
+| Saved plan missing read and touch guards bypassed           | corresponding resource tests (0 pass, 1 fail each)          |
+
+The resolved-symbol boundary test failed (0 pass, 1 fail) when a repository port type was injected
+into each of the five closed modules. Separate `ProjectStore` injections through an alias,
+namespace, barrel, and `import()` type also each failed (0 pass, 1 fail). Adding clean Plan
+history to the debt ledger failed as stale debt (0 pass, 1 fail). Adjacent `Proof:`
+comments on production guards and the boundary assertion identify the injected faults.
+
+Verification on this worktree with `env -u CLAUDECODE`: `cd libs/wbs/application/core && bun
+test src` passed 638 tests, 0 failed, across 72 files. `cd apps/wbs/be-01 && bun test src` passed
+1,095 tests, skipped 1, and failed 27 across 97 files: the failures are listener `EPERM` and
+subprocess-handshake cases in this sandbox. Focused changed-service and HTTP tests passed during
+the module slices (History/Realtime 16/16, retention 2/2, auth/identity 31/31, Saved plans
+124/124). `nx run-many -t typecheck lint:fast -p wbs-core wbs-be-01` passed all four targets,
+0 cache hits. `bunx @fission-ai/openspec@1.12.0 validate --all --json` passed 131/131 items.
+The broad `tool-devsync:test` rerun passed 372 and failed 10: eight deployment-probe tests
+could not listen (`EPERM`), and two poller tests could not hardlink Git objects across devices
+(`Invalid cross-device link`). The focused module-labels, service-kinds and workspace-targets
+tests passed 41/41 after classifying the former Auth and Saved plan constructors as compatibility
+adapters and adding Plan event and Event log to the pilot's explicit unregistered list.
+The wiki pilot-policy file passed 19 tests and failed 2 across 21 tests; both failing production
+CLI cases stopped at `trusted TypeScript runtime modules are not configured`. The four on-disk
+bootstrap policy, mapping, and relationship checks passed. Prettier checked every file touched
+since the five module commits; `tool-devsync:lint:fast` and `git diff --check` passed.
+
 ### Task 7.3 — isolated module type checks (2026-09-27)
 
 Each module has a non-solution `tsconfig.json` extending its project config, with `*.ts`, Bun

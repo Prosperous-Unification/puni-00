@@ -1,8 +1,27 @@
-/**
- * Compatibility re-export: saved-plan scheduling moved into the Saved plans module.
- *
- * Kept because `service/service-boundaries.test.ts` names this path and
- * `@wbs/core`'s barrel still deep-imports it. It goes when every importer names
- * the module.
- */
-export * from '../module/saved-plans/saved-plan-schedule';
+import type { Schedule } from '@wbs/domain';
+
+import type { CapturedPlan } from '../module/saved-plans/saved-plan-schedule';
+import {
+  captureAndSchedulePlan as captureThroughResource,
+  schedulePlanInput,
+} from '../module/saved-plans/saved-plan-schedule';
+import type { PlanInputReads, SavedPlanCaptureStore } from '../ports/saved-plan-capture-store';
+
+export type { CapturedPlan } from '../module/saved-plans/saved-plan-schedule';
+export {
+  scheduleInputOfCaptured,
+  schedulePlanInput,
+} from '../module/saved-plans/saved-plan-schedule';
+
+/** Compatibility capture adapter for direct store-based scheduling callers. */
+export function captureAndSchedulePlan(
+  capture: SavedPlanCaptureStore,
+  projectId: string,
+  schedulePlan: (reads: PlanInputReads) => Schedule = schedulePlanInput,
+): Promise<CapturedPlan | null> {
+  return captureThroughResource(
+    { capturePlan: (id) => capture.readPlanInput(id) },
+    projectId,
+    schedulePlan,
+  );
+}
