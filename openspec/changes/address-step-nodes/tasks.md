@@ -18,9 +18,9 @@
 
 ## 4. Resolve step references
 
-- [ ] 4.1 Red: canonical `010.dev` and `020.2.review`, ordinal alias match and mismatch, unknown code, parent, stale revision.
-- [ ] 4.2 Implement `resolveStepReference` and its HTTP/MCP resolve request.
-- [ ] 4.3 Negative proof: skip the revision check; watch the stale-reference test fail, restore, add adjacent `Proof:`.
+- [x] 4.1 Red: canonical `010.dev` and `020.2.review`, ordinal alias match and mismatch, unknown code, parent, stale revision.
+- [x] 4.2 Implement `resolveStepReference` and its HTTP/MCP resolve request.
+- [x] 4.3 Negative proof: skip the revision check; watch the stale-reference test fail, restore, add adjacent `Proof:`.
 
 ## 5. Address commands by step node ID
 
