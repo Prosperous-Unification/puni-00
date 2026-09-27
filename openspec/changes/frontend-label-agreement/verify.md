@@ -14,4 +14,9 @@
   - Plan feed's index line deleted: `holds 0 HTML comments, expected 1` (4 pass, 1 fail);
   - Plan feed's README naming `module.frontend.plan-feeds`: `README names module.frontend.plan-feeds` (4 pass, 1 fail);
   - Plan feed's `modules.json` row indexing Project's README: `does not index it once` and `module.frontend.plan-feed indexes …/project` (4 pass, 1 fail).
+  - `.internal/bag.ts` importing `di-bag` under Project: `imports di-bag in a module declared unsealed`; with `dot: false` (Bun's default) the same file passed 5/0;
+  - a broken `.internal/broken.ts` link under Project: `ENOENT: no such file or directory, open '.internal/broken.ts'` (4 pass, 1 fail).
+- `NX_DAEMON=false bunx nx run-many -t lint:fast typecheck -p tool-devsync`: `Successfully ran targets lint:fast, typecheck`.
+- `bunx prettier --check` on the touched files: all use Prettier code style.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate --all --json`: 129 passed, 0 failed.
 - Not run locally: the h2puni gate (the orchestrator runs it on the integration branch).
