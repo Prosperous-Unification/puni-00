@@ -104,6 +104,7 @@ async function replay(extraSteps: readonly string[]) {
     projectId: PROJECT_ID,
     name: `Step ${String(place)}`,
     position: (place + 1) * STEP_POSITION_STEP,
+    allowancePercent: 0,
   }));
   await projects.create(project, steps, STAMP);
 

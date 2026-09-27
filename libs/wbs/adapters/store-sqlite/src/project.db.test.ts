@@ -69,6 +69,7 @@ function steps(projectId: string, ...names: string[]): Step[] {
     projectId,
     name,
     position: (place + 1) * STEP_POSITION_STEP,
+    allowancePercent: 0,
   }));
 }
 
@@ -112,6 +113,7 @@ describe('ProjectRepository', () => {
     await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
+      '20260927090000_add_step_allowance',
       '20260912120000_add_work_item_facts',
       '20260909120000_add_external_ref_name',
       '20260906090000_add_work_item_deadline',

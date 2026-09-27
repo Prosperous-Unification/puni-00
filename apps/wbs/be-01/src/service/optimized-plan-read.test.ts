@@ -55,7 +55,7 @@ beforeEach(async () => {
   stepId = crypto.randomUUID();
   await projects.create(
     project,
-    [{ id: stepId, projectId: project.id, name: 'Dev', position: 10 }],
+    [{ id: stepId, projectId: project.id, name: 'Dev', position: 10, allowancePercent: 0 }],
     WROTE,
   );
   projectId = project.id;

@@ -48,7 +48,9 @@ beforeEach(async () => {
     STAMP,
   );
   const project: Project = projectRow({ id: PROJECT, ownerId: OWNER });
-  const steps: Step[] = [{ id: STEP, projectId: PROJECT, name: 'Build', position: 10 }];
+  const steps: Step[] = [
+    { id: STEP, projectId: PROJECT, name: 'Build', position: 10, allowancePercent: 0 },
+  ];
   await new ProjectRepository(db, OPEN).create(project, steps, STAMP);
   await new WorkItemRepository(db, OPEN).insert(
     workItemRow({ id: ROW, projectId: PROJECT }),
@@ -252,7 +254,15 @@ describe('targeted SQLite readers reject malformed stored state', () => {
     const db = openDrizzle(path);
     await new ProjectRepository(db, OPEN).create(
       projectRow({ id: FOREIGN_PROJECT, ownerId: OWNER }),
-      [{ id: FOREIGN_STEP, projectId: FOREIGN_PROJECT, name: 'Foreign', position: 10 }],
+      [
+        {
+          id: FOREIGN_STEP,
+          projectId: FOREIGN_PROJECT,
+          name: 'Foreign',
+          position: 10,
+          allowancePercent: 0,
+        },
+      ],
       STAMP,
     );
     await seedSatellites();

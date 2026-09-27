@@ -1,4 +1,4 @@
-import type { MeasureMetric } from '@wbs/domain';
+import type { AllowancePercent, MeasureMetric } from '@wbs/domain';
 import type { StepState } from '@wbs/domain';
 
 import type { ActualKey, StoredActual } from '../ports/actual-store';
@@ -87,6 +87,21 @@ export type CompensatingCommand =
    */
   | { do: 'set_positions'; placements: Reparented[]; moved: string[] }
   | { do: 'set_frozen'; updates: FrozenNumber[] }
+  /**
+   * A project step's allowance, from the one it held to the one it is set to.
+   *
+   * `expectedPercent` is this command's precondition, because a step has no
+   * revision the journal's work-item {@link Preconditions} could hold: applying
+   * refuses unless the step still holds exactly that allowance, so an undo
+   * after somebody else's edit — or after the step was removed — is refused as
+   * stale rather than overwriting newer work. It touches no work item.
+   */
+  | {
+      do: 'set_step_allowance';
+      stepId: string;
+      allowancePercent: AllowancePercent;
+      expectedPercent: AllowancePercent;
+    }
   | DeleteSubtree
   | RestoreSubtree
   | Batch;
@@ -304,6 +319,7 @@ const COMMANDS = [
   'remove_dependency',
   'move',
   'set_frozen',
+  'set_step_allowance',
   'set_positions',
   'delete_subtree',
   'restore_subtree',
@@ -399,6 +415,9 @@ export function touchedBy(command: CompensatingCommand): string[] {
       return [command.workItemId];
     case 'set_frozen':
       return command.updates.map((each) => each.id);
+    case 'set_step_allowance':
+      // No work item: the command carries its own precondition, see its type.
+      return [];
     case 'set_positions':
       // The rows whose place changed, never every placement: the respaced ones
       // kept their place, took no revision, and must not have a peer's undo
@@ -476,6 +495,10 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
       // is refused by `applyRestore` before it can be journalled, and would be a
       // restore of nothing.
       return { workItemId: command.rows.at(0)?.id ?? null, stepId: null };
+    case 'set_step_allowance':
+      // A project setting aimed at one step: an item's history does not claim
+      // it, and a step's history does.
+      return { workItemId: null, stepId: command.stepId };
     case 'set_frozen':
       // The whole plan, even when one row's number moved: freezing is a project
       // act and the label says so. Naming `updates[0]` would make a plan-wide

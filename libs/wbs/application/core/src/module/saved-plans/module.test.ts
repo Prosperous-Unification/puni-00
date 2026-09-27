@@ -181,3 +181,46 @@ describe('the Saved plans module', () => {
     );
   });
 });
+
+describe('a saved plan and step allowances', () => {
+  it('keeps the allowance it was saved with when the live step changes later', async () => {
+    const source = openMemorySource();
+    let next = 0;
+    const clock = clockOf({ now: () => STAMP_AT, newId: () => `id-${String(++next)}` });
+    const { projects } = servicesOver(source.stores, {
+      clock,
+      broadcast: recordingBroadcaster(),
+      scheduler: fastScheduler,
+    });
+    const created = await projects.create('Plan', owner.id);
+    const qa = created.steps.find((step) => step.name === 'QA');
+    if (qa === undefined) throw new Error('no QA step');
+    const stamp = { at: STAMP_AT, by: owner.id };
+    await source.stores.projects.setStepAllowance(created.project.id, qa.id, 30, null, stamp);
+    const { savedPlans } = installSavedPlans({
+      digest: lengthDigest,
+      capture: source.history.savedPlanCapture,
+      plans: source.history.savedPlans,
+      scheduler: fastScheduler,
+      newId: () => clock.newId(),
+      now: () => Math.floor(clock.now() / 1_000),
+    });
+    const saved = await savedPlans.save({
+      projectId: created.project.id,
+      name: 'Baseline',
+      createdBy: owner.username,
+      createdById: owner.id,
+    });
+    if (saved.outcome !== 'saved') throw new Error(`save answered ${saved.outcome}`);
+
+    await source.stores.projects.setStepAllowance(created.project.id, qa.id, 50, 30, stamp);
+
+    const read = await savedPlans.read(saved.record.id);
+    if (read.outcome !== 'read') throw new Error(`read answered ${read.outcome}`);
+    const body = JSON.parse(read.plan.input.bytes) as {
+      steps: { id: string; allowancePercent: number }[];
+    };
+    expect(read.plan.input.schemaVersion).toBe(2);
+    expect(body.steps.find((step) => step.id === qa.id)?.allowancePercent).toBe(30);
+  });
+});

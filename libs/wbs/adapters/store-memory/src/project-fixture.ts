@@ -167,6 +167,16 @@ export function inMemoryProjects(
       projects.set(id, updated);
       return Promise.resolve(updated);
     },
+    setStepAllowance(projectId, stepId, allowancePercent, expectedPercent, _stamp) {
+      const found = (steps.get(projectId) ?? []).find((each) => each.id === stepId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      if (expectedPercent !== null && found.allowancePercent !== expectedPercent) {
+        return Promise.resolve({ ok: false, reason: 'stale' });
+      }
+      const previousPercent = found.allowancePercent;
+      found.allowancePercent = allowancePercent;
+      return Promise.resolve({ ok: true, step: structuredClone(found), previousPercent });
+    },
     stepsOf(projectId) {
       // In step order, as production reads them — see `inMemorySteps` for what
       // an unordered read would let a test believe.

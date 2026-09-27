@@ -279,6 +279,12 @@ describe('every plan schedules identically across the migration', () => {
       expect(depReach).toBe('anchor-slice');
       const lifted = {
         ...treeWithoutReach,
+        // The capture predates step allowances. Every replayed step carries the
+        // 0% the migration gives it, asserted and then lifted for `lateBy`'s reason.
+        steps: tree.steps.map(({ allowancePercent, ...step }) => {
+          expect(allowancePercent).toBe(0);
+          return step;
+        }),
         // `capacityTeamId` is lifted off every slice for `teamIds`' reason and
         // asserted on its own here: the oracle predates the field, and a
         // payload that gained one is not a payload that moved a date.
@@ -614,6 +620,7 @@ describe('every plan schedules identically across the migration', () => {
       projectId: plan.projectId,
       name: `Step ${String(place)}`,
       position: (place + 1) * STEP_POSITION_STEP,
+      allowancePercent: 0,
     }));
     await projects.create(project, steps, STAMP);
     for (const row of plan.rows) {

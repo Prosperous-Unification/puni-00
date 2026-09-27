@@ -83,6 +83,8 @@ const EXTERNAL_REF_NAME = '20260909120000_add_external_ref_name';
  * was newest.
  */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
+/** The newest migration since `add-project-step-estimate-allowances`: it heads every descending ledger. */
+const STEP_ALLOWANCE = '20260927090000_add_step_allowance';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -98,6 +100,7 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    STEP_ALLOWANCE,
     WORK_ITEM_FACTS,
     EXTERNAL_REF_NAME,
     WORK_ITEM_DEADLINE,
@@ -199,6 +202,7 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -265,6 +269,7 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,

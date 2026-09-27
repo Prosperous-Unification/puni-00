@@ -1,4 +1,4 @@
-import type { PlanDocumentRequest } from '@wbs/contracts';
+import type { PlanDocumentImport } from '@wbs/contracts';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../compose';
@@ -96,7 +96,7 @@ function heldBroadcaster(
   };
 }
 
-function roundTripFixture(): PlanDocumentRequest {
+function roundTripFixture(): PlanDocumentImport {
   const document = planDocumentFixture();
   document.settings = {
     ...document.settings,
@@ -115,9 +115,9 @@ function roundTripFixture(): PlanDocumentRequest {
     scheduleObjective: 'time',
   };
   document.steps = [
-    { id: 'step-discover', name: 'Discover', position: 10 },
-    { id: 'step-build', name: 'Build', position: 30 },
-    { id: 'step-verify', name: 'Verify', position: 70 },
+    { id: 'step-discover', name: 'Discover', position: 10, allowancePercent: 0 },
+    { id: 'step-build', name: 'Build', position: 30, allowancePercent: 12.5 },
+    { id: 'step-verify', name: 'Verify', position: 70, allowancePercent: 30 },
   ];
   document.calendarMarkers = [
     {
@@ -208,7 +208,7 @@ function roundTripFixture(): PlanDocumentRequest {
 async function exportProject(
   source: Source<TransactionalStores>,
   projectId: string,
-): Promise<PlanDocumentRequest> {
+): Promise<PlanDocumentImport> {
   const clock = clockOf({ now: () => STAMP.at, newId: () => crypto.randomUUID() });
   const broadcast = recordingBroadcaster();
   const graph = servicesOver(source.stores, { clock, broadcast, scheduler: fastScheduler });
@@ -228,7 +228,7 @@ async function exportProject(
   return classified.value;
 }
 
-function authoredSnapshot(document: PlanDocumentRequest): unknown {
+function authoredSnapshot(document: PlanDocumentImport): unknown {
   const aliases = new Map<string, string>();
   const alias = (kind: string, id: string, name: string): void => {
     aliases.set(id, `${kind}:${name}`);
@@ -352,6 +352,8 @@ function heldSolutionUnitOfWork(
           recordOpen: (projectId, stamp) => stored.recordOpen(projectId, stamp),
           update: (id, changes, stamp) => stored.update(id, changes, stamp),
           stepsOf: (projectId) => stored.stepsOf(projectId),
+          setStepAllowance: (projectId, stepId, percent, expected, stamp) =>
+            stored.setStepAllowance(projectId, stepId, percent, expected, stamp),
         };
         return act({ stores: { ...scope.stores, projects } });
       });
@@ -513,9 +515,9 @@ export function importServiceSourceContract(
         document.settings.scheduleEngine = 'optimized';
         document.settings.scheduleObjective = 'time';
         document.steps = [
-          { id: 'step-discover', name: 'Discover', position: 10 },
-          { id: 'step-build', name: 'Build', position: 30 },
-          { id: 'step-verify', name: 'Verify', position: 70 },
+          { id: 'step-discover', name: 'Discover', position: 10, allowancePercent: 0 },
+          { id: 'step-build', name: 'Build', position: 30, allowancePercent: 0 },
+          { id: 'step-verify', name: 'Verify', position: 70, allowancePercent: 0 },
         ];
         const row = document.workItems.at(0);
         if (row === undefined) throw new Error('plan document fixture has no work item');
@@ -692,11 +694,12 @@ export function importServiceSourceContract(
             revision: 0,
             createdAt: STAMP.at,
           },
-          document.steps.map(({ id, name, position }) => ({
+          document.steps.map(({ id, name, position, allowancePercent }) => ({
             id,
             projectId: 'source-project',
             name,
             position,
+            allowancePercent,
           })),
           STAMP,
         );

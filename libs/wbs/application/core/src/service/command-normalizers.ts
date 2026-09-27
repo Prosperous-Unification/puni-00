@@ -1,5 +1,7 @@
 import type { commandDefinitions, PlanCommandKind } from '@wbs/contracts';
 import {
+  type AllowancePercent,
+  allowancePercentOf,
   isIsoDate,
   type IsoDate,
   isSettableStatus,
@@ -516,6 +518,22 @@ function normalizeNamed<Kind extends NamedInput['kind']>(
  * Proof: adding `temporaryCommand` to the structural definitions without an entry here failed
  * core typecheck with TS2741 at this record.
  */
+/**
+ * A command's allowance percentage, validated once at the command boundary.
+ *
+ * Proof: with this check passing `raw` through unvalidated, the mounted
+ * `refuses an allowance over 1000% and leaves the step as it was` case
+ * answered 500 — the storage converter's throw — instead of 400
+ * (2026-09-27).
+ */
+function stepAllowanceOf(raw: number): AllowancePercent {
+  const percent = allowancePercentOf(raw);
+  if (percent === null) {
+    throw new CommandNormalizationError('allowancePercent_must_be_0_to_1000_with_two_decimals');
+  }
+  return percent;
+}
+
 export const commandNormalizers = {
   createWorkItem(raw: CommandInput<'createWorkItem'>) {
     refuseDerivedFields(raw);
@@ -671,6 +689,11 @@ export const commandNormalizers = {
       teamRef: asOptionalId(raw.teamRef, 'teamRef'),
       size: capacityOf(raw),
     }),
+  setStepAllowance: (raw: CommandInput<'setStepAllowance'>) => ({
+    kind: 'setStepAllowance' as const,
+    stepId: raw.stepId,
+    allowancePercent: stepAllowanceOf(raw.allowancePercent),
+  }),
   setPriorityBands: (raw: CommandInput<'setPriorityBands'>) => ({
     kind: 'setPriorityBands' as const,
     bands: ladderOf(raw),

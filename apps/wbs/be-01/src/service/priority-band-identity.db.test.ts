@@ -332,7 +332,15 @@ describe('a priority ladder moves no date', () => {
         // carry it: this fixture's figures were derived before a reach existed.
         depReach: 'anchor-slice',
       }),
-      [{ id: 'dev', projectId: 'contended', name: 'Dev', position: STEP_POSITION_STEP }],
+      [
+        {
+          id: 'dev',
+          projectId: 'contended',
+          name: 'Dev',
+          position: STEP_POSITION_STEP,
+          allowancePercent: 0,
+        },
+      ],
       STAMP,
     );
     for (const [id, position, priority] of [
@@ -458,6 +466,12 @@ describe('a priority ladder moves no date', () => {
     expect(depReach).toBe('anchor-slice');
     return {
       ...treeWithoutReach,
+      // The capture predates step allowances. Every replayed step carries the
+      // 0% the migration gives it, asserted and then lifted for `lateBy`'s reason.
+      steps: tree.steps.map(({ allowancePercent, ...step }) => {
+        expect(allowancePercent).toBe(0);
+        return step;
+      }),
       // The capture predates the pool named on each slice. Assert the new field
       // against the replayed plan, then lift it so the old scheduling oracle
       // continues to compare only fields that existed when it was recorded.
@@ -740,6 +754,7 @@ describe('a priority ladder moves no date', () => {
       projectId: plan.projectId,
       name: `Step ${String(place)}`,
       position: (place + 1) * STEP_POSITION_STEP,
+      allowancePercent: 0,
     }));
     await projects.create(project, steps, STAMP);
     for (const row of plan.rows) {

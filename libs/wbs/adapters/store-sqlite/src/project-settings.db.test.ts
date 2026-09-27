@@ -40,6 +40,8 @@ const EXTERNAL_REF_NAME = '20260909120000_add_external_ref_name';
  * was newest.
  */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
+/** The newest migration since `add-project-step-estimate-allowances`: it heads every descending ledger. */
+const STEP_ALLOWANCE = '20260927090000_add_step_allowance';
 
 /** The one below it, which is where every rollback here stops. */
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
@@ -168,6 +170,7 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -205,6 +208,7 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -285,6 +289,7 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,

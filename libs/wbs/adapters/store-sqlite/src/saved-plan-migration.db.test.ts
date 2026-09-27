@@ -55,6 +55,8 @@ const EXTERNAL_REF_NAME = '20260909120000_add_external_ref_name';
  * was newest.
  */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
+/** The newest migration since `add-project-step-estimate-allowances`: it heads every descending ledger. */
+const STEP_ALLOWANCE = '20260927090000_add_step_allowance';
 
 let dir: string;
 let path: string;
@@ -135,6 +137,7 @@ describe('the saved-plan migration', () => {
     expect(columnsOf('saved_plan_body')).toContain('bytes');
 
     expect(rollbackTo(path, FOLDER, LOOKUP_INDEXES)).toEqual([
+      STEP_ALLOWANCE,
       WORK_ITEM_FACTS,
       EXTERNAL_REF_NAME,
       WORK_ITEM_DEADLINE,

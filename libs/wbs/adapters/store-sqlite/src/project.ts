@@ -5,9 +5,11 @@ import type {
   ProjectStore,
   ProjectWithAccess,
   Step,
+  StepAllowanceWritten,
   WriteStamp,
 } from '@wbs/core';
 import {
+  type AllowancePercent,
   type DependencyReach,
   type EstimateMethod,
   type EstimateRounding,
@@ -28,7 +30,7 @@ import {
 } from './audit';
 import type { Gate } from './gate';
 import { isScheduleEngine, isSolverObjective, unknownStoredValue } from './optimizer-rows';
-import { bumpedProject } from './revision';
+import { bumpedProject, bumpProject } from './revision';
 import {
   optimizationGeneration,
   project,
@@ -522,6 +524,51 @@ export class ProjectRepository implements ProjectStore {
         // Proof: without this cleanup, `turns optimization off as an idempotent
         // project-scoped cancellation` leaves both epochs, slots and queues live.
         return toProject(updated);
+      });
+    });
+  }
+
+  /**
+   * Reads the held allowance and writes the new one inside one transaction, so
+   * the `previousPercent` a journal entry carries is the value this write
+   * replaced and a conditional write compares against the row it updates.
+   *
+   * Proof: with the `expectedPercent` comparison removed, `refuses a
+   * conditional write the step no longer matches` failed: the write answered
+   * `ok` instead of `stale` (2026-09-27).
+   */
+  async setStepAllowance(
+    projectId: string,
+    stepId: string,
+    allowancePercent: AllowancePercent,
+    expectedPercent: AllowancePercent | null,
+    stamp: WriteStamp,
+  ): Promise<StepAllowanceWritten> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction((tx): StepAllowanceWritten => {
+        const held = tx
+          .select(STEP_COLUMNS)
+          .from(step)
+          .where(and(eq(step.id, stepId), eq(step.projectId, projectId)))
+          .get();
+        if (held === undefined) return { ok: false, reason: 'not_found' };
+        if (expectedPercent !== null && held.allowancePercent !== expectedPercent) {
+          return { ok: false, reason: 'stale' };
+        }
+        const written = tx
+          .update(step)
+          .set({ allowancePercent, ...auditOnUpdate(stamp) })
+          .where(eq(step.id, stepId))
+          .returning(STEP_COLUMNS)
+          .all()
+          .at(0);
+        // Read in this same transaction a line above: an update that found
+        // nothing would be SQLite breaking its own isolation.
+        if (written === undefined)
+          throw new Error(`step ${stepId} vanished inside its transaction`);
+        bumpProject(tx, projectId, stamp);
+        return { ok: true, step: written, previousPercent: held.allowancePercent };
       });
     });
   }

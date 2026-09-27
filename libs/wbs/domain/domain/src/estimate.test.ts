@@ -2,6 +2,11 @@ import { parseOrThrow, ValidationError } from '@wbs/validation';
 import { describe, expect, it } from 'bun:test';
 
 import {
+  allowanceHundredthsOf,
+  allowanceOf,
+  allowancePercentOf,
+  beforeRoundingDays,
+  chargedDays,
   DEFAULT_ESTIMATE_RULE,
   DEFAULT_PERT_WEIGHTS,
   ESTIMATE_METHODS,
@@ -9,13 +14,18 @@ import {
   type EstimateMethod,
   type EstimateRule,
   expectedDays,
-  finalDays,
   isEstimateMethod,
   isEstimateRounding,
+  MAX_ALLOWANCE_PERCENT,
   MAX_ESTIMATE_DAYS,
+  NO_ALLOWANCE,
   PertWeights,
   ThreePointEstimate,
 } from './estimate';
+
+/** Base-arithmetic cases below are about method and rounding: no step allowance. */
+const finalDays = (estimate: ThreePointEstimate, rule: EstimateRule): number =>
+  chargedDays(estimate, rule, NO_ALLOWANCE);
 
 describe('ThreePointEstimate', () => {
   it('accepts an ordered triple', () => {
@@ -266,5 +276,76 @@ describe('finalDays rounds one step’s figure', () => {
     const nearlyOne = { optimistic: 0.9, realistic: 0.9, pessimistic: 0.9 };
     expect(finalDays(nearlyOne, ruleWith({ rounding: 'floor' }))).toBe(0);
     expect(finalDays(nearlyOne, DEFAULT_ESTIMATE_RULE)).toBe(1);
+  });
+});
+
+describe('allowancePercentOf', () => {
+  it('accepts a percentage of at most two decimal places', () => {
+    expect(allowancePercentOf(30)).toBe(30);
+    expect(allowancePercentOf(12.34)).toBe(12.34);
+    expect(allowanceHundredthsOf(12.34)).toBe(1234);
+    expect(allowancePercentOf(0)).toBe(0);
+    expect(Object.is(allowancePercentOf(-0), 0)).toBe(true);
+    expect(allowancePercentOf(1000)).toBe(MAX_ALLOWANCE_PERCENT);
+  });
+
+  it('refuses more than two decimal places', () => {
+    expect(allowancePercentOf(12.345)).toBeNull();
+    expect(allowancePercentOf(0.001)).toBeNull();
+  });
+
+  it('refuses negative, over-1000 and non-finite percentages', () => {
+    expect(allowancePercentOf(-1)).toBeNull();
+    expect(allowancePercentOf(-0.01)).toBeNull();
+    expect(allowancePercentOf(1000.01)).toBeNull();
+    expect(allowancePercentOf(Number.NaN)).toBeNull();
+    expect(allowancePercentOf(Number.POSITIVE_INFINITY)).toBeNull();
+    expect(allowancePercentOf(1e300)).toBeNull();
+  });
+});
+
+describe('chargedDays', () => {
+  const flat = (days: number): ThreePointEstimate => ({
+    optimistic: days,
+    realistic: days,
+    pessimistic: days,
+  });
+
+  it('applies a 30% allowance to a 2-day base: 2.6 before rounding, 3 charged', () => {
+    expect(beforeRoundingDays(flat(2), DEFAULT_ESTIMATE_RULE, 30)).toBeCloseTo(2.6, 12);
+    expect(chargedDays(flat(2), DEFAULT_ESTIMATE_RULE, 30)).toBe(3);
+  });
+
+  /** Proof: see {@link chargedDays} — rounding the base first charges 3 here. */
+  it('applies the allowance before rounding', () => {
+    expect(beforeRoundingDays(flat(1.1), DEFAULT_ESTIMATE_RULE, 30)).toBeCloseTo(1.43, 12);
+    expect(chargedDays(flat(1.1), DEFAULT_ESTIMATE_RULE, 30)).toBe(2);
+  });
+
+  it('does not mint a day out of the uplift’s bits', () => {
+    expect(chargedDays(flat(10), DEFAULT_ESTIMATE_RULE, 10)).toBe(11);
+    expect(chargedDays(flat(3), DEFAULT_ESTIMATE_RULE, 12.34)).toBe(4);
+  });
+
+  it('keeps an explicit zero estimate at zero under any allowance', () => {
+    expect(chargedDays(flat(0), DEFAULT_ESTIMATE_RULE, MAX_ALLOWANCE_PERCENT)).toBe(0);
+  });
+
+  it('is the base figure at no allowance', () => {
+    expect(chargedDays(flat(1.1), DEFAULT_ESTIMATE_RULE, NO_ALLOWANCE)).toBe(2);
+  });
+
+  it('throws for an allowance no boundary would have admitted', () => {
+    expect(() => chargedDays(flat(1), DEFAULT_ESTIMATE_RULE, -5)).toThrow(
+      'not a valid step allowance',
+    );
+  });
+});
+
+describe('allowanceOf', () => {
+  it('reads the step’s allowance and throws for a step outside the read', () => {
+    const allowances = new Map([['qa', 30]]);
+    expect(allowanceOf(allowances, 'qa')).toBe(30);
+    expect(() => allowanceOf(allowances, 'dev')).toThrow('no allowance is known for step dev');
   });
 });

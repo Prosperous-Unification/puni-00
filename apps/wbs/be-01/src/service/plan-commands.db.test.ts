@@ -330,6 +330,40 @@ describe('a command batch', () => {
     expect(await journal()).toHaveLength(0);
   });
 
+  it('leaves a step allowance unwritten when a later command is refused', async () => {
+    const qa = steps.find((step) => step.name === 'QA');
+    if (qa === undefined) throw new Error('no QA step');
+
+    const outcome = await run([
+      { kind: 'setStepAllowance', stepId: qa.id, allowancePercent: 30 },
+      { kind: 'setStepAllowance', stepId: 'no-such-step', allowancePercent: 10 },
+    ]);
+
+    expect(outcome).toEqual({ ok: false, at: 1, kind: 'setStepAllowance', reason: 'not_found' });
+    const held = (await projectStore.stepsOf(projectId)).find((step) => step.id === qa.id);
+    expect(held?.allowancePercent).toBe(0);
+    expect(await journal()).toHaveLength(0);
+  });
+
+  it('journals a batch that edits an allowance as one undo', async () => {
+    const qa = steps.find((step) => step.name === 'QA');
+    if (qa === undefined) throw new Error('no QA step');
+
+    applied(
+      await run([
+        { kind: 'setStepAllowance', stepId: qa.id, allowancePercent: 30 },
+        { kind: 'setStepAllowance', stepId: qa.id, allowancePercent: 50 },
+      ]),
+    );
+    expect(await journal()).toHaveLength(1);
+
+    expect((await runner.undo(projectId, ownerId)).ok).toBe(true);
+    const held = (await projectStore.stepsOf(projectId)).find((step) => step.id === qa.id);
+    // The second edit read the first's 30% as its before-state, so walking the
+    // batch back lands on the 0% it started from.
+    expect(held?.allowancePercent).toBe(0);
+  });
+
   it('is one journal entry, one plan event, and one undo puts all of it back', async () => {
     // Proof: the collector bypassed so `record` wrote per step, this failed on
     // `expected 6 to be 1`. Watched, 2026-08-29.

@@ -32,6 +32,12 @@ export const project = type({
 export const projectWithSteps = responseSchema(
   type({
     project,
-    steps: type({ id: 'string', projectId: 'string', name: 'string', position: 'number' }).array(),
+    steps: type({
+      id: 'string',
+      projectId: 'string',
+      name: 'string',
+      position: 'number',
+      allowancePercent: 'number',
+    }).array(),
   }),
 );

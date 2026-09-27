@@ -1,4 +1,4 @@
-import type { PlanDocumentRequest } from '@wbs/contracts';
+import type { PlanDocumentImport } from '@wbs/contracts';
 
 import type { Clock } from '../../ports/clock';
 import type { Broadcaster } from '../../ports/project-event';
@@ -142,7 +142,7 @@ async function resolveNamed(
 export class ImportService {
   constructor(private readonly opts: ImportServiceOptions) {}
 
-  async import(document: PlanDocumentRequest, actorId: string): Promise<ImportOutcome> {
+  async import(document: PlanDocumentImport, actorId: string): Promise<ImportOutcome> {
     const preparation = prepareImport(document, this.opts.scheduler);
     if (!preparation.ok) return preparation;
     const collector = new AnnouncementCollector(this.opts.announcements);
@@ -248,6 +248,7 @@ export class ImportService {
         projectId,
         name: step.name,
         position: step.position,
+        allowancePercent: step.allowancePercent,
       }));
       const stepsByFileId = new Map(
         prepared.steps.map((step, at) => {

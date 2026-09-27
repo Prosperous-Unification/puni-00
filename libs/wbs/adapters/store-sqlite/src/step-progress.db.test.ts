@@ -79,8 +79,8 @@ beforeEach(async () => {
     ownerId,
   });
   const steps: Step[] = [
-    { id: devId, projectId, name: 'Dev', position: 10 },
-    { id: qaId, projectId, name: 'QA', position: 20 },
+    { id: devId, projectId, name: 'Dev', position: 10, allowancePercent: 0 },
+    { id: qaId, projectId, name: 'QA', position: 20, allowancePercent: 0 },
   ];
   await new ProjectRepository(db, OPEN).create(project, steps, wrote());
 
@@ -212,7 +212,7 @@ describe('StepProgressRepository', () => {
         name: 'Another shed',
         ownerId: owner,
       }),
-      [{ id: otherStep, projectId: otherProject, name: 'Dev', position: 10 }],
+      [{ id: otherStep, projectId: otherProject, name: 'Dev', position: 10, allowancePercent: 0 }],
       wroteElsewhere,
     );
     await new WorkItemRepository(db, OPEN).insert(

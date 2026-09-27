@@ -52,6 +52,8 @@ const EXTERNAL_REF_NAME = '20260909120000_add_external_ref_name';
  * was newest.
  */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
+/** The newest migration since `add-project-step-estimate-allowances`: it heads every descending ledger. */
+const STEP_ALLOWANCE = '20260927090000_add_step_allowance';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -182,6 +184,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      STEP_ALLOWANCE,
       WORK_ITEM_FACTS,
       EXTERNAL_REF_NAME,
       WORK_ITEM_DEADLINE,

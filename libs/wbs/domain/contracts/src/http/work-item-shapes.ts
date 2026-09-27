@@ -366,6 +366,11 @@ const parserArms = {
     at: 'number',
     kind: commandKindsType,
   }),
+  allowancePercent_must_be_0_to_1000_with_two_decimals: type({
+    error: "'allowancePercent_must_be_0_to_1000_with_two_decimals'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
 } satisfies Record<ParserRefusalCode, Type>;
 /** Validates the finite legacy parser vocabulary before any string becomes a wire refusal. */
 // Proof: removing forbidden context fields admitted at:text,400 instead of500 in the mounted parser-refusal case.

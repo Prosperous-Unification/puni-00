@@ -1,4 +1,4 @@
-import { canEditProject, stepIsInUse } from '@wbs/domain';
+import { type AllowancePercent, canEditProject, stepIsInUse } from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
 import type { Broadcaster } from '../../ports/project-event';
@@ -124,7 +124,17 @@ export class StepService {
     this.clock = opts.clock;
   }
 
-  async add(projectId: string, actorId: string, name: string): Promise<StepOutcome> {
+  /**
+   * Adds a step with `allowancePercent` as its estimate allowance — zero when
+   * the caller named none, which the route decides. Validated at the request
+   * boundary; not journalled, like every other step addition.
+   */
+  async add(
+    projectId: string,
+    actorId: string,
+    name: string,
+    allowancePercent: AllowancePercent,
+  ): Promise<StepOutcome> {
     const clean = cleanName(name);
     // Before the project is read: a step called nothing would sit in every
     // header and every estimate row with no way to tell it from the next one.
@@ -134,7 +144,7 @@ export class StepService {
     if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const written = await this.opts.steps.add(
-      { id: this.clock.newId(), projectId, name: clean },
+      { id: this.clock.newId(), projectId, name: clean, allowancePercent },
       this.clock.stampFor(actorId),
     );
     if (!written.ok) return { ok: false, reason: written.reason };
@@ -217,6 +227,18 @@ export class StepService {
     }
     await this.opts.broadcast.publish(projectId, { type: 'step_removed', stepId });
     return { ok: true };
+  }
+
+  /**
+   * The step as it is now, when it is this project's and the caller may edit
+   * the project — the reply a route owes after a write it delegated elsewhere.
+   */
+  async find(projectId: string, stepId: string, actorId: string): Promise<StepOutcome> {
+    const gate = await this.gate(projectId, stepId, actorId);
+    if (!gate.ok) return gate;
+    const found = await this.opts.steps.findById(stepId);
+    if (found === null) return { ok: false, reason: 'not_found' };
+    return { ok: true, value: found };
   }
 
   /**

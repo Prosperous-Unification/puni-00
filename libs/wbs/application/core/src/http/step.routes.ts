@@ -1,5 +1,8 @@
 import { addStep, removeStep, renameStep } from '@wbs/contracts';
+import { allowancePercentOf, NO_ALLOWANCE } from '@wbs/domain';
 
+import type { PlanCommandRunner } from '../module/plan-commands/plan-commands.feature';
+import { runCommandBatch } from '../module/plan-commands/run-command-batch';
 import type { StepOutcome, StepService } from '../service/step.service';
 import { bind, EMPTY, type HttpReply } from './endpoint';
 
@@ -23,17 +26,65 @@ function namedReply(outcome: StepOutcome): HttpReply<typeof addStep> {
  * Identity and structural validation belong to the mounted shape; names remain
  * untrimmed until StepService applies its domain refusal. Reading steps stays
  * on GET /api/projects/:id, without introducing a second list endpoint.
+ *
+ * An allowance edit is not StepService's: it runs as the `setStepAllowance`
+ * command through `commands`, so HTTP, a command batch and MCP share one
+ * journalled mutation and one undo.
  */
-export function stepRoutes(steps: StepService) {
+export function stepRoutes(
+  steps: StepService,
+  commands: Pick<PlanCommandRunner, 'run' | 'runDirectory'>,
+) {
   return [
-    bind(addStep, async ({ params, body, principal }) =>
+    bind(addStep, async ({ params, body, principal }) => {
+      const allowance =
+        body.allowancePercent === undefined
+          ? NO_ALLOWANCE
+          : allowancePercentOf(body.allowancePercent);
+      // Proof: with this refusal removed, `adds a step with the allowance it
+      // names, and refuses one with three decimals` stored the step.
+      if (allowance === null)
+        return { ok: false, status: 422, body: { error: 'invalid_allowance' } };
       // Proof: catching the store failure as not_found returned a refusal object
       // instead of the original error in step.routes.test.ts's outage case.
-      namedReply(await steps.add(params.id, principal.id, body.name)),
-    ),
-    bind(renameStep, async ({ params, body, principal }) =>
-      namedReply(await steps.rename(params.id, params.stepId, principal.id, body.name)),
-    ),
+      return namedReply(await steps.add(params.id, principal.id, body.name, allowance));
+    }),
+    bind(renameStep, async ({ params, body, principal }) => {
+      const allowance =
+        body.allowancePercent === undefined ? undefined : allowancePercentOf(body.allowancePercent);
+      // Proof: with this refusal bypassed, `a patched allowance runs as the one
+      // journalled setStepAllowance command` got a reply other than 422
+      // invalid_allowance for -1%.
+      if (allowance === null)
+        return { ok: false, status: 422, body: { error: 'invalid_allowance' } };
+      if (allowance === undefined) {
+        if (body.name === undefined) {
+          return { ok: false, status: 422, body: { error: 'invalid_body' } };
+        }
+        return namedReply(await steps.rename(params.id, params.stepId, principal.id, body.name));
+      }
+      if (body.name !== undefined) {
+        const renamed = await steps.rename(params.id, params.stepId, principal.id, body.name);
+        if (!renamed.ok) return namedReply(renamed);
+      }
+      const outcome = await runCommandBatch(commands, {
+        projectId: params.id,
+        actor: principal,
+        commands: [
+          { kind: 'setStepAllowance', stepId: params.stepId, allowancePercent: allowance },
+        ],
+      });
+      // The shape's write-scope policy refused this before the handler ran.
+      if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
+      if (!outcome.ok) {
+        if (outcome.reason === 'forbidden')
+          return { ok: false, status: 403, body: { error: 'forbidden' } };
+        if (outcome.reason === 'not_found')
+          return { ok: false, status: 404, body: { error: 'not_found' } };
+        throw new Error(`setStepAllowance refused with an unmodelled reason: ${outcome.reason}`);
+      }
+      return namedReply(await steps.find(params.id, params.stepId, principal.id));
+    }),
     bind(removeStep, async ({ params, query, principal }) => {
       // Proof: truthy cascade deleted on cascade=1 (204 instead of409); reading
       // the first raw duplicate deleted on true&false (204 instead of409), both

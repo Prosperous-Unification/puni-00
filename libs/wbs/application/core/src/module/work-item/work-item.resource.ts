@@ -1,6 +1,9 @@
 import {
   addWorkdays,
+  allowanceOf,
+  type AllowancePercent,
   CalendarRangeError,
+  chargedDays,
   deadlineOffsetOf,
   deadlineOffsetsOf,
   type DependencyReach,
@@ -9,7 +12,6 @@ import {
   type EstimateMethod,
   type EstimateRounding,
   type EstimateRule,
-  finalDays,
   firstWorkdayOf,
   type IsoDate,
   isoDateOfInstant,
@@ -25,6 +27,8 @@ import {
   type PriorityBand,
   type SettableStatus,
   type Sibling,
+  type StepAllowances,
+  type StepPolicy,
   type StepState,
   UNKNOWN,
   workdaysBetween,
@@ -240,10 +244,15 @@ export function slicesOf(
   rows: readonly WorkItem[],
   estimates: readonly StoredEstimate[],
   hasChildren: ReadonlySet<string>,
-  stepIds: readonly string[],
+  /**
+   * The project's steps in step order, each with its allowance. Every estimate
+   * must name one of them: {@link allowanceOf} throws for a step outside this
+   * list rather than charging it at no allowance.
+   */
+  steps: readonly StepPolicy[],
   /**
    * The project's whole estimate arithmetic — method, weights and rounding.
-   * The number a slice runs for is `finalDays`' own, so the bar the chart
+   * The number a slice runs for is `chargedDays`' own, so the bar the chart
    * draws and the figure the table prints are one number rather than two
    * roundings of one estimate.
    */
@@ -274,17 +283,25 @@ export function slicesOf(
   teamSizes: ReadonlyMap<string, number>,
 ): Slice[] {
   const inProject = new Set(rows.map((row) => row.id));
-  const held = new Set(stepIds);
+  const allowances: StepAllowances = new Map(steps.map((step) => [step.id, step.allowancePercent]));
   const days = new Map<string, number>();
-  const unlisted = new Set<string>();
   for (const estimate of estimates) {
     if (hasChildren.has(estimate.workItemId)) continue;
     if (!inProject.has(estimate.workItemId)) continue;
-    days.set(sliceKey(estimate.workItemId, estimate.stepId), finalDays(estimate, rule));
-    if (!held.has(estimate.stepId)) unlisted.add(estimate.stepId);
+    // The shared slice seam: Fast, the solver request and a saved plan's
+    // schedule all read charged effort from here, so the allowance is applied
+    // once, before rounding, for every scheduler.
+    //
+    // Proof: with the allowance replaced by 0 here, `schedules charged effort,
+    // and the edit changes the canonical input` failed on `Expected: 3,
+    // Received: 2` (2026-09-27).
+    days.set(
+      sliceKey(estimate.workItemId, estimate.stepId),
+      chargedDays(estimate, rule, allowanceOf(allowances, estimate.stepId)),
+    );
   }
 
-  const order = [...stepIds, ...[...unlisted].sort()];
+  const order = steps.map((step) => step.id);
   const slices: Slice[] = [];
   for (const row of rows) {
     if (hasChildren.has(row.id)) continue;
@@ -439,7 +456,7 @@ function canonicalScheduleParts(
     rows,
     estimates,
     hasChildren,
-    steps.map((step) => step.id),
+    steps,
     rule,
     assigneesOf,
     effectiveTeamsOf(rows),
@@ -1592,10 +1609,15 @@ export class WorkItemService {
       slotsOf,
     );
     const { assigneesOf, hasChildren, rule } = canonical;
-    // What each row is **charged**, per step: a leaf's own estimate rounded, a
-    // parent's the sum of its descendants' rounded figures. Not `totals` put
-    // through the method — see `rollUpFinals`.
-    const charged = rollUpFinals(rows, stored, rule);
+    // What each row is **charged**, per step: a leaf's own estimate uplifted by
+    // its step's allowance and rounded, a parent's the sum of its descendants'
+    // charged figures. Not `totals` put through the method — see `rollUpFinals`.
+    const charged = rollUpFinals(
+      rows,
+      stored,
+      rule,
+      new Map(steps.map((step) => [step.id, step.allowancePercent])),
+    );
     let optimization: PlanOptimization | undefined;
     let timing = new Map<string, Scheduled>();
     let scheduleError: ScheduleError = null;
@@ -2827,6 +2849,72 @@ export class WorkItemService {
   }
 
   /**
+   * Sets a project step's estimate allowance: one journalled, undoable edit.
+   *
+   * Here rather than on `StepService` because an allowance changes what every
+   * estimate of the step charges, and the journal that makes it one undo lives
+   * here. HTTP (`PATCH` a step), the command batch and MCP all reach this one
+   * method through the `setStepAllowance` command.
+   *
+   * `allowancePercent` has been validated by the command boundary. An edit that
+   * leaves the allowance where it was writes and announces, but is not
+   * journalled: there is nothing to reverse.
+   *
+   * Proof: with the `record` call skipped, `undoes an allowance edit in one
+   * step` failed on `undone.ok` (`Expected: true, Received: false`), the undo
+   * answering `nothing_to_undo` (2026-09-27).
+   */
+  async setStepAllowance(
+    projectId: string,
+    actorId: string,
+    stepId: string,
+    allowancePercent: AllowancePercent,
+  ): Promise<WorkItemOutcome<null>> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { ok: false, reason: 'not_found' };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+
+    const stamp = this.clock.stampFor(actorId);
+    const written = await this.opts.projects.setStepAllowance(
+      projectId,
+      stepId,
+      allowancePercent,
+      null,
+      stamp,
+    );
+    // `stale` answers only a conditional write, and this one is not.
+    if (!written.ok) return { ok: false, reason: 'not_found' };
+    await this.opts.broadcast.publish(projectId, { type: 'step_updated', step: written.step });
+    await this.announceTree(projectId);
+    if (written.previousPercent !== allowancePercent) {
+      const rows = await this.opts.workItems.listByProject(projectId);
+      await this.record(
+        projectId,
+        stamp,
+        'set_step_allowance',
+        `set the ${written.step.name} allowance to +${String(allowancePercent)}%`,
+        {
+          forward: {
+            do: 'set_step_allowance',
+            stepId,
+            allowancePercent,
+            expectedPercent: written.previousPercent,
+          },
+          inverse: {
+            do: 'set_step_allowance',
+            stepId,
+            allowancePercent: written.previousPercent,
+            expectedPercent: allowancePercent,
+          },
+          touched: [],
+          before: rows,
+        },
+      );
+    }
+    return { ok: true, value: null };
+  }
+
+  /**
    * Writes the currently derived number of every work item that has none stored.
    *
    * Work items added afterwards keep deriving, so a project can be frozen,
@@ -4052,6 +4140,32 @@ export class WorkItemService {
           };
         }
         await this.opts.workItems.setFrozenNumbers(command.updates, stamp);
+        return { ok: true, detail: null };
+      }
+      case 'set_step_allowance': {
+        // Conditional on the allowance the other direction left: a newer edit,
+        // or the step's removal, refuses the entry instead of being overwritten.
+        //
+        // Proof: with `command.expectedPercent` replaced by `null`, `refuses an
+        // allowance undo after somebody else changed it` failed: the undo
+        // answered ok and overwrote the newer 50% (2026-09-27).
+        const written = await this.opts.projects.setStepAllowance(
+          projectId,
+          command.stepId,
+          command.allowancePercent,
+          command.expectedPercent,
+          stamp,
+        );
+        if (!written.ok) {
+          return {
+            ok: false,
+            detail:
+              written.reason === 'stale'
+                ? 'that step’s allowance has changed since then.'
+                : 'that step is no longer in this project.',
+          };
+        }
+        await this.opts.broadcast.publish(projectId, { type: 'step_updated', step: written.step });
         return { ok: true, detail: null };
       }
       case 'delete_subtree':

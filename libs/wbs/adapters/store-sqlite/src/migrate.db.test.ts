@@ -274,6 +274,8 @@ const EXTERNAL_REF_NAME = '20260909120000_add_external_ref_name';
  * was newest.
  */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
+/** The newest migration since `add-project-step-estimate-allowances`: it heads every descending ledger. */
+const STEP_ALLOWANCE = '20260927090000_add_step_allowance';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 // `step` since 20260831120000_rename_role_to_step. Every raw statement in this
@@ -378,6 +380,7 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -716,6 +719,7 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -1192,6 +1196,7 @@ describe('the work item team migration', () => {
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -1435,6 +1440,7 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -1730,6 +1736,7 @@ describe('the plan event migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -1963,6 +1970,7 @@ describe('the actual migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -2240,6 +2248,7 @@ describe('the step progress migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -2501,6 +2510,7 @@ describe('the not-before reason migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -2753,6 +2763,7 @@ describe('the tag migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -3110,6 +3121,7 @@ describe('the service migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -3259,6 +3271,7 @@ describe('the work-item-service migration', () => {
   function atTheColumnOnly(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
+      STEP_ALLOWANCE,
       WORK_ITEM_FACTS,
       EXTERNAL_REF_NAME,
       WORK_ITEM_DEADLINE,
@@ -3419,6 +3432,7 @@ describe('the work-item-service migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -3712,6 +3726,7 @@ describe('the step measure migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -3804,6 +3819,7 @@ describe('the person kind migration', () => {
   function beforeTheColumn(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
+      STEP_ALLOWANCE,
       WORK_ITEM_FACTS,
       EXTERNAL_REF_NAME,
       WORK_ITEM_DEADLINE,
@@ -4036,6 +4052,7 @@ describe('the person kind migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
+        STEP_ALLOWANCE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -4175,6 +4192,126 @@ describe('the role -> step rename', () => {
       } finally {
         sqlite.close();
       }
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('the step allowance migration', () => {
+  /** A project with one step, written the way the outgoing release writes it: no allowance. */
+  function seededBeforeAllowances(dbPath: string): void {
+    const db = openDatabase(dbPath);
+    try {
+      db.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+      );
+      db.run(
+        'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+          " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+      );
+      db.run("INSERT INTO step (id, project_id, name, position) VALUES ('qa', 'p', 'QA', 10)");
+    } finally {
+      db.close();
+    }
+  }
+
+  function allowanceOf(dbPath: string, stepId: string): number | undefined {
+    const db = openDatabase(dbPath);
+    try {
+      return (
+        db
+          .query<{ allowance_bps: number }, [string]>('SELECT allowance_bps FROM step WHERE id = ?')
+          .get(stepId) ?? undefined
+      )?.allowance_bps;
+    } finally {
+      db.close();
+    }
+  }
+
+  function stepColumns(dbPath: string): string[] {
+    const db = openDatabase(dbPath);
+    try {
+      return db
+        .query<{ name: string }, []>('PRAGMA table_info(step)')
+        .all()
+        .map((column) => column.name);
+    } finally {
+      db.close();
+    }
+  }
+
+  it('reads an existing step at no allowance, and lets the outgoing release keep inserting', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      expect(rollbackTo(db.path, FOLDER, WORK_ITEM_FACTS)).toEqual([STEP_ALLOWANCE]);
+      seededBeforeAllowances(db.path);
+
+      runMigrations(db.path, FOLDER);
+
+      expect(allowanceOf(db.path, 'qa')).toBe(0);
+      const sqlite = openDatabase(db.path);
+      try {
+        // The outgoing release's three-column insert, mid-swap.
+        sqlite.run(
+          "INSERT INTO step (id, project_id, name, position) VALUES ('dev', 'p', 'Dev', 20)",
+        );
+        expect(() => sqlite.run("UPDATE step SET allowance_bps = -1 WHERE id = 'dev'")).toThrow(
+          'CHECK constraint failed',
+        );
+        expect(() => sqlite.run("UPDATE step SET allowance_bps = 12.5 WHERE id = 'dev'")).toThrow(
+          'CHECK constraint failed',
+        );
+      } finally {
+        sqlite.close();
+      }
+      expect(allowanceOf(db.path, 'dev')).toBe(0);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('rolls back while every allowance is zero, and re-applies onto the result', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seededBeforeAllowances(db.path);
+
+      expect(rollbackTo(db.path, FOLDER, WORK_ITEM_FACTS)).toEqual([STEP_ALLOWANCE]);
+      expect(stepColumns(db.path)).not.toContain('allowance_bps');
+      expect(tables(db.path)).not.toContain('step_allowance_rollback_guard');
+
+      runMigrations(db.path, FOLDER);
+      expect(allowanceOf(db.path, 'qa')).toBe(0);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * A rollback would silently re-charge `QA +30%` at base days, so it refuses.
+   *
+   * Proof: with the guard's INSERT removed from `down.sql`, this rollback
+   * returned `[STEP_ALLOWANCE]` and dropped the column (2026-09-27).
+   */
+  it('refuses to roll back while a step carries a nonzero allowance', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seededBeforeAllowances(db.path);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run("UPDATE step SET allowance_bps = 3000 WHERE id = 'qa'");
+      } finally {
+        sqlite.close();
+      }
+
+      expect(() => rollbackTo(db.path, FOLDER, WORK_ITEM_FACTS)).toThrow(
+        'CHECK constraint failed: step_allowance_rollback_guard',
+      );
+      expect(allowanceOf(db.path, 'qa')).toBe(3000);
+      expect(stepColumns(db.path)).toContain('allowance_bps');
     } finally {
       db.cleanup();
     }

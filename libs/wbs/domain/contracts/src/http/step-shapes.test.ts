@@ -14,10 +14,17 @@ test('emits the existing step operation names, name bodies and optional string c
   expect(remove?.operationId).toBe('deleteApiProjectsByIdStepsByStepId');
   expect(add?.requestBody?.content['application/json']?.schema).toMatchObject({
     type: 'object',
-    properties: { name: { type: 'string' } },
+    properties: { name: { type: 'string' }, allowancePercent: { type: 'number' } },
     required: ['name'],
     additionalProperties: false,
   });
+  const patchBody = rename?.requestBody?.content['application/json']?.schema;
+  expect(patchBody).toMatchObject({
+    type: 'object',
+    properties: { name: { type: 'string' }, allowancePercent: { type: 'number' } },
+    additionalProperties: false,
+  });
+  expect(patchBody).not.toHaveProperty('required');
   expect(remove?.parameters).toEqual([
     { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
     { in: 'path', name: 'stepId', required: true, schema: { type: 'string' } },
@@ -49,8 +56,9 @@ test('declares the full step response and each usage count and assumed-assignee 
           projectId: { type: 'string' },
           name: { type: 'string' },
           position: { type: 'number' },
+          allowancePercent: { type: 'number' },
         },
-        required: ['id', 'name', 'position', 'projectId'],
+        required: ['allowancePercent', 'id', 'name', 'position', 'projectId'],
       },
     },
   });

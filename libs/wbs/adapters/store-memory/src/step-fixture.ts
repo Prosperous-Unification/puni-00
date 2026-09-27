@@ -1,5 +1,5 @@
 import type { Step, StepRemoved, StepStore, StepUsageRows } from '@wbs/core';
-import { STEP_POSITION_STEP } from '@wbs/domain';
+import { NO_ALLOWANCE, STEP_POSITION_STEP } from '@wbs/domain';
 
 /**
  * A `Step` row carrying every field the schema requires.
@@ -13,6 +13,7 @@ export function stepRow(overrides: Partial<Step> = {}): Step {
     projectId: 'project',
     name: 'Build',
     position: STEP_POSITION_STEP,
+    allowancePercent: NO_ALLOWANCE,
     ...overrides,
   };
 }
