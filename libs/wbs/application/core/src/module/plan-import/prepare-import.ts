@@ -1,5 +1,7 @@
-import type { PlanDocumentRequest } from '@wbs/contracts';
+import type { PlanDocumentImport } from '@wbs/contracts';
 import {
+  type AllowancePercent,
+  allowancePercentOf,
   isHexTriple,
   isIsoDate,
   isMarkerName,
@@ -26,9 +28,9 @@ import { cleanName } from '../../service/clean-name';
 import { MOST_CHARACTERS_IN_A_REF_NAME } from '../../service/command-normalizers';
 import { canDepend } from '../../service/dependency';
 
-type DocumentRow = PlanDocumentRequest['workItems'][number];
-type DocumentStep = PlanDocumentRequest['steps'][number];
-type DocumentDirectory = PlanDocumentRequest['directory'];
+type DocumentRow = PlanDocumentImport['workItems'][number];
+type DocumentStep = PlanDocumentImport['steps'][number];
+type DocumentDirectory = PlanDocumentImport['directory'];
 
 export interface PreparedCapacity {
   teamFileId: string;
@@ -46,6 +48,7 @@ export interface PreparedStep {
   fileId: string;
   name: string;
   position: number;
+  allowancePercent: AllowancePercent;
   /**
    * The step code the imported step is written with. A version 1 document
    * carries none, so each is suggested from the name exactly as for a newly
@@ -133,9 +136,9 @@ export interface PreparedDependency {
 }
 
 export interface PreparedImport {
-  settings: PlanDocumentRequest['settings'];
+  settings: PlanDocumentImport['settings'];
   capacity: PreparedCapacity[];
-  priorityBands: PlanDocumentRequest['priorityBands'];
+  priorityBands: PlanDocumentImport['priorityBands'];
   calendarMarkers: PreparedMarker[];
   steps: PreparedStep[];
   workItems: PreparedWorkItem[];
@@ -469,7 +472,7 @@ function multiTypeRowsRefusal(
 /**
  * Validates and resolves one archival document completely before source admission.
  *
- * The input has already crossed {@link PlanDocumentRequest}'s structural boundary,
+ * The input has already crossed {@link PlanDocumentImport}'s structural boundary,
  * but leaf step maps remain opaque there so derived parent aggregates can be
  * discarded without interpretation. This pass derives leafhood from `parentId`,
  * validates only leaf maps, checks hierarchy and dependencies against the complete
@@ -480,7 +483,7 @@ function multiTypeRowsRefusal(
  * plan retains an optimized preference so a later deployment can enable it.
  */
 export function prepareImport(
-  supplied: PlanDocumentRequest,
+  supplied: PlanDocumentImport,
   scheduler: Pick<Scheduler, 'supports'>,
 ): ImportPreparation {
   const document = structuredClone(supplied);
@@ -619,6 +622,15 @@ export function prepareImport(
     if (!Number.isSafeInteger(step.position) || stepPositions.has(step.position))
       return refuses('invalid_body', `steps[${String(at)}].position`, String(step.position));
     stepPositions.add(step.position);
+    // Proof: with this guard bypassed, `refuses a step allowance over 1000%,
+    // and carries a valid one to the prepared step` prepared 1000.01% instead
+    // of refusing it (2026-09-27).
+    if (allowancePercentOf(step.allowancePercent) === null)
+      return refuses(
+        'invalid_body',
+        `steps[${String(at)}].allowancePercent`,
+        String(step.allowancePercent),
+      );
   }
   const rows = indexById(document.workItems, 'workItems');
   if (isRefusal(rows)) return rows;
@@ -738,10 +750,10 @@ export function prepareImport(
     new Set(),
   );
   const codeByFileId = new Map(inStepOrder.map(({ id }, at) => [id, suggested[at]] as const));
-  const preparedSteps = document.steps.map(({ id, name, position }) => {
+  const preparedSteps = document.steps.map(({ id, name, position, allowancePercent }) => {
     const code = codeByFileId.get(id);
     if (code === undefined) throw new Error(`step ${id} was not coded during preparation`);
-    return { fileId: id, name, position, code };
+    return { fileId: id, name, position, allowancePercent, code };
   });
   const stepByFileId = new Map(preparedSteps.map((step) => [step.fileId, step] as const));
   const preparedTeams = document.directory.teams.map(({ id, name, serviceIds }) => ({

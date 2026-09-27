@@ -546,7 +546,7 @@ describe('what a step write moves', () => {
     await workItems.setEstimate(strip, ownerId, dev(), DAYS);
     const estimated = await revisionOf(strip);
 
-    const added = await stepService.add(projectId, ownerId, 'Design');
+    const added = await stepService.add(projectId, ownerId, 'Design', 0);
     if (!added.ok) throw new Error(`add refused: ${added.reason}`);
     expect(await projectRevision()).toBe(1);
 

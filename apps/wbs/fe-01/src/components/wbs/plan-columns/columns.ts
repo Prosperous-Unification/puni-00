@@ -1,3 +1,5 @@
+import type { EstimateRule } from '@wbs/domain/estimate';
+
 import { type StepView } from '@/lib/wbs-api';
 
 import type { PlanLive } from '../plan-live';
@@ -29,6 +31,7 @@ export function createPlanColumns(
   unfoldedSteps: readonly string[],
   hiddenColumnIds: readonly string[],
   live: PlanLive,
+  rule: EstimateRule,
 ) {
   return (
     [
@@ -46,7 +49,7 @@ export function createPlanColumns(
       createServiceColumn({ live }),
       createTypeColumn({ live }),
       createInParallelColumn({ live }),
-      ...createEstimatesColumns({ steps, unfoldedSteps, live }),
+      ...createEstimatesColumns({ steps, unfoldedSteps, live, rule }),
       createFinalTotalColumn(),
       createNotBeforeColumn({ live }),
       createDeadlineColumn({ live }),

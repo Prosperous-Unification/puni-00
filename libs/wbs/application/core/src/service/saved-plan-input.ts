@@ -99,7 +99,17 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
       // two schedules by a record neither of them was computed from. A compare of
       // planned against happened is a different surface (ADR 0024).
     })),
-    steps: reads.steps.map((row) => ({ id: row.id, name: row.name, position: row.position })),
+    steps: reads.steps.map((row) => ({
+      id: row.id,
+      name: row.name,
+      position: row.position,
+      // History, never the live policy: a saved plan reads the allowance it
+      // was captured with.
+      // Proof: with this read as 0, `keeps the allowance it was saved with when
+      // the live step changes later` failed on `Expected: 30, Received: 0`
+      // (2026-09-27).
+      allowancePercent: row.allowancePercent,
+    })),
     stepValues: stepValuesOf(reads, rule),
     measures: reads.measures.map((row) => ({
       workItemId: row.workItemId,

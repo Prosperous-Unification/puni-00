@@ -51,8 +51,15 @@ beforeEach(async () => {
   await projects.create(
     project,
     [
-      { id: DEV, projectId: project.id, name: 'Dev', position: 10, code: 'dev' },
-      { id: QA, projectId: project.id, name: 'QA', position: 20, code: 'qa' },
+      {
+        id: DEV,
+        projectId: project.id,
+        name: 'Dev',
+        position: 10,
+        code: 'dev',
+        allowancePercent: 0,
+      },
+      { id: QA, projectId: project.id, name: 'QA', position: 20, code: 'qa', allowancePercent: 0 },
     ],
     { at: 1, by: OWNER },
   );

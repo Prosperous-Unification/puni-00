@@ -163,7 +163,7 @@ describe('who owns an announcement', () => {
     // The window D24 names: a route finishes its store write, lets go of its
     // turn, and is **publishing** when the next batch opens. Serialising the
     // store methods does not serialise what happens after them.
-    const routeWrite = routes.steps.add(projectId, ownerId, 'Wiring');
+    const routeWrite = routes.steps.add(projectId, ownerId, 'Wiring', 0);
     // The store write is done and its turn is released; the announcement has
     // not been offered to anybody yet.
     await beforeRoutePublish.reached;

@@ -958,6 +958,8 @@ export function PlanToolbar({
           nameOf: (personId) => people.find((person) => person.id === personId)?.name ?? null,
           addStep: (name) => commands.addStep(name),
           renameStep: (stepId, name) => commands.renameStep(stepId, name),
+          setStepAllowance: (stepId, allowancePercent) =>
+            commands.setStepAllowance(stepId, allowancePercent),
           removeStep: (stepId, cascade) => commands.removeStep(stepId, cascade),
           // How far a dependency reaches, on the same surface as the steps it
           // is about: reordering them moves what an `anchor-slice` dependency

@@ -50,6 +50,7 @@ export const NODE_SUITES: readonly string[] = [
   // named as the exception, and the guard below asserts it stays one.
   'src/lib/local-write.test.ts',
   'src/lib/plan-refresh.test.ts',
+  'src/lib/step-view.test.ts',
   'src/lib/refusal.test.ts',
   // Of saved-plans' three `src/lib` suites this is the only one the tier rule
   // reads as DOM-free, and the other two are excluded by that rule rather
@@ -72,6 +73,7 @@ export const NODE_SUITES: readonly string[] = [
   'src/modules/plan-feed/plan-feed.feature.test.ts',
   'src/modules/plan-feed/plan-feed.resource.test.ts',
   'src/modules/plan-feed/presence-store.model.test.ts',
+  'src/modules/plan-feed/same-steps.test.ts',
   'src/modules/plan-writer/busy-store.model.test.ts',
   'src/modules/plan-writer/plan-writer.test.ts',
   // Proof: on 2026-09-24, listing the deleted `composition.test.ts` here again failed

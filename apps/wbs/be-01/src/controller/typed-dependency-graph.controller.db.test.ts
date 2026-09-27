@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { UnitOfWork } from '@wbs/core';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import type { DependencyEndpoint } from '@wbs/domain';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
@@ -62,8 +63,11 @@ let dependencies: DependencyRepository;
 let estimates: EstimateRepository;
 let projects: ProjectRepository;
 let steps: StepRepository;
+/** How many units of work the app has run, so a test can see a route write go through one. */
+let admittedRuns: number;
 
 beforeEach(() => {
+  admittedRuns = 0;
   dir = mkdtempSync(join(tmpdir(), 'wbs-typed-graph-'));
   const db = openDrizzle(join(dir, 'test.db'));
   runMigrations(join(dir, 'test.db'), FOLDER);
@@ -145,11 +149,20 @@ beforeEach(() => {
     // rollback without performing one.
     writes: {
       ...testWrites(undefined, writing),
-      uow: sqliteUnitOfWork(db, new WriteCoordinator(), buildStores(db, OPEN)),
+      uow: countingRuns(sqliteUnitOfWork(db, new WriteCoordinator(), buildStores(db, OPEN))),
     },
     migrationsApplied: true,
   });
 });
+
+function countingRuns(inner: UnitOfWork): UnitOfWork {
+  return {
+    run: (act) => {
+      admittedRuns += 1;
+      return inner.run(act);
+    },
+  };
+}
 
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
@@ -302,6 +315,31 @@ async function addUnder(at: Plan, parentId: string | null, name: string): Promis
   if (id === undefined) throw new Error('createWorkItem minted no id');
   return id;
 }
+
+describe('route writes that check the graph', () => {
+  /**
+   * Proof: the app's `update` bound to `opts.projects.update` and its step
+   * `remove` to `opts.steps.remove`, each in turn, made this case fail on
+   * `Expected: 1, Received: 0` for the reach change and `Expected: 2,
+   * Received: 1` for the removal; watched 2026-09-27.
+   */
+  it('runs a project reach change and a step removal as one unit of work each', async () => {
+    const at = await plan();
+    const before = admittedRuns;
+    const patched = await send(`/api/projects/${at.projectId}`, at.token, {
+      method: 'PATCH',
+      body: JSON.stringify({ depReach: 'anchor-slice' }),
+    });
+    expect(patched.status).toBe(200);
+    expect(admittedRuns - before).toBe(1);
+
+    const removed = await send(`/api/projects/${at.projectId}/steps/${at.qaId}`, at.token, {
+      method: 'DELETE',
+    });
+    expect(removed.status).toBe(204);
+    expect(admittedRuns - before).toBe(2);
+  });
+});
 
 describe('graph-changing writes on a legacy-only project', () => {
   it('refuses an undo of a move that a legacy link made cyclic', async () => {

@@ -7,6 +7,7 @@ import {
   indexTree,
   resolveStepNodeGraph,
   type StepNodeCycle,
+  type StepPolicy,
   type TypedDependency,
 } from '@wbs/domain';
 
@@ -28,7 +29,8 @@ import { slicesOf } from './work-item.service';
  */
 export interface DependencyGraphState {
   readonly rows: readonly WorkItem[];
-  readonly stepIds: readonly string[];
+  /** The project's steps in step order; an estimate on any other step throws in `slicesOf`. */
+  readonly steps: readonly StepPolicy[];
   readonly estimates: readonly Pick<StoredEstimate, 'workItemId' | 'stepId'>[];
   readonly legacy: readonly StoredDependency[];
   readonly typed: readonly TypedDependency[];
@@ -66,7 +68,7 @@ export function findDependencyGraphCycle(state: DependencyGraphState): StepNodeC
     state.rows,
     estimates,
     hasChildren,
-    state.stepIds,
+    state.steps,
     DEFAULT_ESTIMATE_RULE,
     new Map(),
     new Map(),
@@ -160,7 +162,7 @@ export class DependencyGraphGuard {
     const without = change.withoutStepId;
     return findDependencyGraphCycle({
       rows,
-      stepIds: steps.map((step) => step.id).filter((id) => id !== without),
+      steps: steps.filter((step) => step.id !== without),
       estimates: estimates.filter((estimate) => estimate.stepId !== without),
       legacy,
       typed,

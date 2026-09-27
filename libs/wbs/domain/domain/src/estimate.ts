@@ -98,7 +98,7 @@ export const DEFAULT_PERT_WEIGHTS: PertWeights = {
  * {@link PertWeights}.
  *
  * Fractional on purpose, and it stays that way here: the whole-day figure a plan
- * is charged is {@link finalDays}, one rounding at one place, and rounding
+ * is charged is {@link chargedDays}, one rounding at one place, and rounding
  * inside this would round twice.
  */
 export function expectedDays(estimate: ThreePointEstimate, weights: PertWeights): number {
@@ -190,7 +190,7 @@ export const DEFAULT_ESTIMATE_RULE: EstimateRule = {
  * The figure one step's three points combine to under `rule`'s method, in days
  * and **before** its rounding.
  *
- * Separate from {@link finalDays} because the two answer different questions: a
+ * Separate from {@link chargedDays} because the two answer different questions: a
  * reader asking what the estimate means wants this, and everything that plans,
  * schedules or sums wants the rounded one. Nothing is charged in these units.
  */
@@ -233,18 +233,137 @@ function roundDays(days: number, rounding: EstimateRounding): number {
 }
 
 /**
- * The whole number of days a project charges for one step of one work item.
+ * A project step's estimate allowance as the percentage a planner types:
+ * `30` is `+30%`, `0` is no allowance.
+ *
+ * Finite, 0 to 1000 inclusive, at most two decimal places — so it is always a
+ * whole number of hundredths, which is how SQLite stores it (`allowance_bps`).
+ * Validate a typed value with {@link allowancePercentOf}.
+ */
+export type AllowancePercent = number;
+
+/** No allowance: a step's default, and what a legacy record converts to. */
+export const NO_ALLOWANCE: AllowancePercent = 0;
+
+/** The largest allowance a step may carry. */
+export const MAX_ALLOWANCE_PERCENT: AllowancePercent = 1000;
+
+/**
+ * `percent` as an {@link AllowancePercent}, or `null` when it is not one a
+ * step may carry.
+ *
+ * Accepted: finite, 0 to 1000 inclusive, at most two decimal places. `12.345`,
+ * `-1` and `1000.01` are refused. The range is checked on the value as given,
+ * and the decimals by requiring it to BE the double its whole hundredths
+ * divide back to (`1234 / 100` is exactly the double `12.34` parses to), so
+ * `12.340000001` and `-1e-9` are refused rather than rounded into shape. `-0`
+ * comes back as `0`.
+ *
+ * Proof: with the decimal-places test removed, `refuses more than two decimal
+ * places` failed on `Expected: null, Received: 12.35` (2026-09-27).
+ */
+export function allowancePercentOf(percent: number): AllowancePercent | null {
+  const hundredths = allowanceHundredthsOf(percent);
+  return hundredths === null ? null : hundredths / 100;
+}
+
+/**
+ * `percent` as whole hundredths of a percent — `12.34` is `1234` — or `null`
+ * under {@link allowancePercentOf}'s rules. The integer SQLite stores.
+ */
+export function allowanceHundredthsOf(percent: number): number | null {
+  if (!Number.isFinite(percent)) return null;
+  if (percent < 0 || percent > MAX_ALLOWANCE_PERCENT) return null;
+  const whole = Math.round(percent * 100);
+  if (whole / 100 !== percent) return null;
+  return whole === 0 ? 0 : whole;
+}
+
+/** The integer hundredths of a valid allowance; throws for one that is not. */
+function hundredthsOf(allowance: AllowancePercent): number {
+  const hundredths = allowanceHundredthsOf(allowance);
+  if (hundredths === null) {
+    throw new Error(`not a valid step allowance: ${JSON.stringify(allowance)}`);
+  }
+  return hundredths;
+}
+
+/**
+ * The days one step's combined figure comes to once its step's allowance is
+ * added, **before** rounding.
+ *
+ * `base × (10000 + hundredths) / 10000` rather than `base × (1 + p / 100)`:
+ * the integer numerator keeps `10 × 110%` at exactly `11`, where the fraction
+ * form leaves `11.000000000000002` for the rounding's snap to clean up.
+ *
+ * @throws Error for an allowance that is not a valid {@link AllowancePercent}:
+ *   every one reaching here was validated at a boundary or read from storage
+ *   that holds a range CHECK.
+ */
+export function beforeRoundingDays(
+  estimate: ThreePointEstimate,
+  rule: EstimateRule,
+  allowance: AllowancePercent,
+): number {
+  return (combinedDays(estimate, rule) * (10_000 + hundredthsOf(allowance))) / 10_000;
+}
+
+/**
+ * The whole number of days a project charges for one step of one work item:
+ * the three points combined, the step's allowance added, then rounded.
  *
  * The single place the choice is applied, and the order is the product decision:
- * the three points are combined **for one step**, that figure is rounded, and
- * only then are steps summed (`rollUpFinals` in be-01). Summing first and
- * rounding once would charge two half-day steps as one day when the plan runs
- * them as two.
+ * the three points are combined **for one step**, the step's allowance is
+ * applied to that figure, it is rounded, and only then are steps summed
+ * (`rollUpFinals` in be-01). Summing first and rounding once would charge two
+ * half-day steps as one day when the plan runs them as two. Rounding before the
+ * allowance would charge `1.1` days at `+30%` as `3` rather than `2`
+ * (`add-project-step-estimate-allowances`).
+ *
+ * `allowance` is required: a caller that forgot the step's policy would
+ * charge base days and look right on every step whose policy is zero.
  *
  * The schedule's durations and the figure shown beside the trio are both this
  * number — two implementations of "the final estimate" is exactly how a table
  * comes to disagree with the dates printed next to it.
+ *
+ * Proof: with the allowance applied after `roundDays`, `applies the allowance
+ * before rounding` failed on `Expected: 2, Received: 3` (2026-09-27).
  */
-export function finalDays(estimate: ThreePointEstimate, rule: EstimateRule): number {
-  return roundDays(combinedDays(estimate, rule), rule.rounding);
+export function chargedDays(
+  estimate: ThreePointEstimate,
+  rule: EstimateRule,
+  allowance: AllowancePercent,
+): number {
+  return roundDays(beforeRoundingDays(estimate, rule, allowance), rule.rounding);
+}
+
+/** A project step as the charge reads it: its id and its allowance. */
+export interface StepPolicy {
+  readonly id: string;
+  readonly allowancePercent: AllowancePercent;
+}
+
+/**
+ * Each project step's allowance by step id, as one plan read holds them.
+ *
+ * {@link allowanceOf} is the only reader, so a step missing from the map is one
+ * loud error rather than a silent zero.
+ */
+export type StepAllowances = ReadonlyMap<string, AllowancePercent>;
+
+/**
+ * The allowance `stepId` carries in `allowances`.
+ *
+ * @throws Error when the step is not in the map. Every estimate references a
+ *   step of its own project, so a missing entry is a read that took estimates
+ *   and steps from different states — defaulting it to zero would charge base
+ *   days silently.
+ */
+export function allowanceOf(allowances: StepAllowances, stepId: string): AllowancePercent {
+  const held = allowances.get(stepId);
+  if (held === undefined) {
+    throw new Error(`no allowance is known for step ${stepId}: the step is not in this plan read`);
+  }
+  return held;
 }

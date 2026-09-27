@@ -33,7 +33,16 @@ beforeEach(async () => {
   const project: Project = projectRow({ id: crypto.randomUUID(), ownerId: OWNER });
   await projects.create(
     project,
-    [{ id: DEV, projectId: project.id, name: 'Dev', position: 10, code: 'dev' }],
+    [
+      {
+        id: DEV,
+        projectId: project.id,
+        name: 'Dev',
+        position: 10,
+        code: 'dev',
+        allowancePercent: 0,
+      },
+    ],
     {
       at: 1,
       by: OWNER,

@@ -17,7 +17,8 @@ import {
 } from './typed-dependency-rollback';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-const STEP_CODE = '20260927150000_add_step_code';
+/** The migration below this one, where every rollback here stops. */
+const BASELINE = '20260927190000_add_organization_bridge';
 let directory: string;
 let path: string;
 
@@ -105,7 +106,7 @@ describe('typed dependency rollback', () => {
       ],
     });
     expect(withConnection((db) => removeSavedTypedDependencies(db, snapshot))).toBe(2);
-    expect(rollbackTo(path, FOLDER, STEP_CODE)).toEqual(['20260927213000_add_typed_dependency']);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual(['20260927213000_add_typed_dependency']);
     runMigrations(path, FOLDER);
     expect(withConnection((db) => restoreTypedDependencies(db, snapshot))).toBe(2);
     const connection = openConnection(path);

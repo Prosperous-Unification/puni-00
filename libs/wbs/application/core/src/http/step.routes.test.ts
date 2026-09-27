@@ -4,6 +4,7 @@ import { inMemorySteps, stepRow } from '@wbs/store-memory/step-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
 import { DependencyGraphGuard } from '../service/dependency-graph';
+import type { PlanCommand } from '../service/plan-command';
 import { StepService } from '../service/step.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
@@ -34,7 +35,23 @@ async function fixture(restricted = false) {
     steps: stored,
     broadcast,
   });
-  return { projects, stored, addWrite, broadcast, service, endpoints: stepRoutes(service) };
+  const commandsRun: unknown[] = [];
+  const commands = {
+    run: (projectId: string, actorId: string, batch: readonly PlanCommand[]) => {
+      commandsRun.push({ projectId, actorId, batch });
+      return Promise.resolve({ ok: true as const, results: [], undoable: true, redoable: false });
+    },
+    runDirectory: () => Promise.reject(new Error('a step route ran a directory batch')),
+  };
+  return {
+    projects,
+    stored,
+    addWrite,
+    broadcast,
+    service,
+    commandsRun,
+    endpoints: stepRoutes(service, commands),
+  };
 }
 
 test('typed step bindings preserve the service value, actor and trimmed name', async () => {
@@ -73,7 +90,14 @@ test('typed step bindings preserve the service value, actor and trimmed name', a
     ok: true,
     status: 200,
     body: {
-      step: { id: 'step', projectId: 'project', name: 'Review', position: 10, code: 'design' },
+      step: {
+        id: 'step',
+        projectId: 'project',
+        name: 'Review',
+        position: 10,
+        code: 'design',
+        allowancePercent: 0,
+      },
     },
   });
   expect(broadcast.published.map((entry) => entry.event.type)).toEqual([
@@ -140,7 +164,10 @@ test('typed removal carries every usage field and only literal true confirms cas
         }),
     },
   });
-  const remove = stepRoutes(service)[2];
+  const remove = stepRoutes(service, {
+    run: () => Promise.reject(new Error('a removal ran a command batch')),
+    runDirectory: () => Promise.reject(new Error('a removal ran a directory batch')),
+  })[2];
   for (const cascade of [undefined, '1', 'TRUE', 'false']) {
     const removeReply: unknown = await remove.handle({
       params: { id: 'project', stepId: 'step' },
@@ -223,4 +250,88 @@ test('typed removal preserves project refusals and unknown repository failures r
   } finally {
     lookup.mockRestore();
   }
+});
+
+test('adds a step with the allowance it names, and refuses one with three decimals', async () => {
+  const {
+    endpoints: [add],
+    stored,
+  } = await fixture();
+  const added = await add.handle({
+    params: { id: 'project' },
+    query: undefined,
+    body: { name: 'Review', allowancePercent: 12.5 },
+    principal,
+    request,
+  });
+  if (!added.ok) throw new Error('add refused');
+  expect(added.body.step.allowancePercent).toBe(12.5);
+  expect((await stored.findById(added.body.step.id))?.allowancePercent).toBe(12.5);
+
+  const defaulted = await add.handle({
+    params: { id: 'project' },
+    query: undefined,
+    body: { name: 'Ship' },
+    principal,
+    request,
+  });
+  if (!defaulted.ok) throw new Error('add refused');
+  expect(defaulted.body.step.allowancePercent).toBe(0);
+
+  const before = stored.rows.length;
+  // Proof: see the route's comment — without the refusal this stored the step.
+  expect(
+    await add.handle({
+      params: { id: 'project' },
+      query: undefined,
+      body: { name: 'Precise', allowancePercent: 12.345 },
+      principal,
+      request,
+    }),
+  ).toEqual({ ok: false, status: 422, body: { error: 'invalid_allowance' } });
+  expect(stored.rows).toHaveLength(before);
+});
+
+test('a patched allowance runs as the one journalled setStepAllowance command', async () => {
+  const {
+    endpoints: [, patch],
+    commandsRun,
+  } = await fixture();
+  const reply = await patch.handle({
+    params: { id: 'project', stepId: 'step' },
+    query: undefined,
+    body: { allowancePercent: 30 },
+    principal,
+    request,
+  });
+  expect(reply.ok).toBe(true);
+  expect(commandsRun).toEqual([
+    {
+      projectId: 'project',
+      actorId: 'owner',
+      batch: [{ kind: 'setStepAllowance', stepId: 'step', allowancePercent: 30 }],
+    },
+  ]);
+
+  for (const allowancePercent of [-1, 1000.01, 0.001]) {
+    expect(
+      await patch.handle({
+        params: { id: 'project', stepId: 'step' },
+        query: undefined,
+        body: { allowancePercent },
+        principal,
+        request,
+      }),
+    ).toEqual({ ok: false, status: 422, body: { error: 'invalid_allowance' } });
+  }
+  expect(
+    await patch.handle({
+      params: { id: 'project', stepId: 'step' },
+      query: undefined,
+      body: {},
+      principal,
+      request,
+    }),
+  ).toEqual({ ok: false, status: 422, body: { error: 'invalid_body' } });
+  expect(commandsRun).toHaveLength(1);
 });
