@@ -1,9 +1,10 @@
-import type { PlanEvent, PlanEventFilter, PlanEventStore } from '../../ports/plan-event-store';
-import type { ProjectStore } from '../../ports/project-store';
+import type { PlanEvent, PlanEventFilter } from '../../ports/plan-event-store';
+import type { PlanEventService } from '../plan-event/plan-event.resource';
+import type { ProjectService } from '../project/project.resource';
 
 export interface HistoryServiceOptions {
-  projects: ProjectStore;
-  events: PlanEventStore;
+  projects: ProjectService;
+  events: PlanEventService;
 }
 
 export type HistoryOutcome = { ok: true; value: PlanEvent[] } | { ok: false; reason: 'not_found' };
@@ -33,8 +34,10 @@ export class HistoryService {
   constructor(private readonly opts: HistoryServiceOptions) {}
 
   async read(projectId: string, filter: PlanEventFilter): Promise<HistoryOutcome> {
-    const project = await this.opts.projects.findById(projectId);
+    const project = await this.opts.projects.readProject(projectId);
+    // Proof (2026-09-27): replacing this guard with `false && project === null`
+    // made `answers not_found for a project nothing holds` fail (5 pass, 1 fail).
     if (project === null) return { ok: false, reason: 'not_found' };
-    return { ok: true, value: await this.opts.events.listFor(projectId, filter) };
+    return { ok: true, value: await this.opts.events.readHistory(projectId, filter) };
   }
 }

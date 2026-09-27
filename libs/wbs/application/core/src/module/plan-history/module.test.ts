@@ -3,13 +3,21 @@ import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture'
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
+import { recordingBroadcaster } from '../../testing/broadcast-fixture';
+import { testClock } from '../../testing/clock-fixture';
+import { PlanEventService } from '../plan-event/plan-event.resource';
+import { ProjectService } from '../project/project.resource';
 import { installPlanHistory } from './check';
 import { PLAN_HISTORY_LABEL } from './contract';
 import { planHistoryModule } from './module';
 
 const requirements = () => ({
-  projectStore: inMemoryProjects(),
-  planEventStore: inMemoryPlanEvents(),
+  projects: new ProjectService({
+    projects: inMemoryProjects(),
+    clock: testClock,
+    broadcast: recordingBroadcaster(),
+  }),
+  planEvents: new PlanEventService(inMemoryPlanEvents()),
 });
 
 /**
@@ -24,10 +32,10 @@ const completeHost = () =>
   DiBag.createBuilder()
     .withInstalledModules([planHistoryModule])
     .withServices({
-      projectStore: DiBag.createProvider(() => inMemoryProjects(), {
+      projects: DiBag.createProvider(() => requirements().projects, {
         factoryReturnKind: 'sync-value',
       }),
-      planEventStore: DiBag.createProvider(() => inMemoryPlanEvents(), {
+      planEvents: DiBag.createProvider(() => requirements().planEvents, {
         factoryReturnKind: 'sync-value',
       }),
     })
@@ -48,8 +56,12 @@ describe('the Plan history module', () => {
     const project = projectRow({ id: crypto.randomUUID() });
     await projectStore.create(project, [], { at: 1, by: project.ownerId });
     const { history } = installPlanHistory({
-      projectStore,
-      planEventStore: inMemoryPlanEvents(),
+      projects: new ProjectService({
+        projects: projectStore,
+        clock: testClock,
+        broadcast: recordingBroadcaster(),
+      }),
+      planEvents: new PlanEventService(inMemoryPlanEvents()),
     });
 
     expect(await history.read(project.id, {})).toEqual({ ok: true, value: [] });
@@ -101,7 +113,7 @@ describe('the Plan history module', () => {
     const partial = DiBag.createBuilder()
       .withInstalledModules([planHistoryModule])
       .withServices({
-        projectStore: DiBag.createProvider(() => inMemoryProjects(), {
+        projects: DiBag.createProvider(() => requirements().projects, {
           factoryReturnKind: 'sync-value',
         }),
       }) as unknown as {
@@ -110,7 +122,7 @@ describe('the Plan history module', () => {
     const host = partial.buildContainer();
 
     expect(() => host.resolve('history')).toThrow(
-      `Cannot resolve "${PLAN_HISTORY_LABEL}/historySettings": dependency "planEventStore" is not registered. Resolution path: history -> ${PLAN_HISTORY_LABEL}/historySettings -> planEventStore.`,
+      `Cannot resolve "${PLAN_HISTORY_LABEL}/historySettings": dependency "planEvents" is not registered. Resolution path: history -> ${PLAN_HISTORY_LABEL}/historySettings -> planEvents.`,
     );
   });
 });

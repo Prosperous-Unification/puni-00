@@ -10,6 +10,7 @@ import { installCapacity } from './module/capacity/check';
 import { installDirectory } from './module/directory/check';
 import { installPlanCommands } from './module/plan-commands/check';
 import type { PlanCommandRunner } from './module/plan-commands/plan-commands.feature';
+import { installPlanEvent } from './module/plan-event/check';
 import { installPlanHistory } from './module/plan-history/check';
 import type { HistoryService } from './module/plan-history/plan-history.feature';
 import { installPlanImport } from './module/plan-import/check';
@@ -264,8 +265,8 @@ export function composeServices(
       announcements,
     }).commands,
     history: installPlanHistory({
-      projectStore: source.stores.projects,
-      planEventStore: source.stores.planEvents,
+      projects: publicServices.projects,
+      planEvents: installPlanEvent({ events: source.stores.planEvents }).planEvents,
     }).history,
     plans: savedPlans,
     savedPlans,

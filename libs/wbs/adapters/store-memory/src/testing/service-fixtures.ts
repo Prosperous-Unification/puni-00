@@ -17,6 +17,7 @@ import {
   CapacityService,
   DirectoryService,
   HistoryService,
+  PlanEventService,
   PriorityBandService,
   ProjectService,
   ReplayBuffer,
@@ -83,7 +84,10 @@ export function testHistoryService(
   projects: ProjectStore = inMemoryProjects(),
   events: PlanEventStore = inMemoryPlanEvents(),
 ): HistoryService {
-  return new HistoryService({ projects, events });
+  return new HistoryService({
+    projects: testProjectService(projects),
+    events: new PlanEventService(events),
+  });
 }
 
 export function testWorkItemService(): WorkItemService {
