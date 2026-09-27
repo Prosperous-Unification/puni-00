@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
 import { runMigrations } from './migrate';
+import { rollbackTo } from './migrate-down';
 import {
   OrganizationOwnershipRepository,
   OWNERSHIP_CONFLICT_KINDS,
@@ -13,6 +14,12 @@ import {
 } from './organization-ownership';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
+/**
+ * The migration below the ownership freeze. The conflicts here re-own roots,
+ * which the freeze now refuses; reconciliation still guards a database that
+ * reached such a state before the freeze applied, so the fixture builds one.
+ */
+const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
 
 let dir: string;
 let path: string;
@@ -91,6 +98,7 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-organization-reconciliation-'));
   path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
+  rollbackTo(path, FOLDER, ORGANIZATION_BRIDGE);
   run([
     "INSERT INTO users (id, username, created_at) VALUES ('u1', 'u1', 1)",
     "INSERT INTO organization (id, name, legacy, created_at) VALUES ('legacy', 'Legacy', 1, 1)",

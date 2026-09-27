@@ -15,6 +15,11 @@ const STEP_CODE = '20260927150000_add_step_code';
 const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
 /** The organization bridge, stamped after this one and so reversed first. */
 const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
+/**
+ * The newest: the triggers that freeze organization ownership, stamped after
+ * {@link ORGANIZATION_BRIDGE} and reversed before it.
+ */
+const ORGANIZATION_FROZEN = '20260927170000_freeze_organization_ownership';
 
 let dir: string;
 let path: string;
@@ -125,6 +130,7 @@ describe(STEP_CODE, () => {
     const before = readStepColumns().map((column) => column.name);
 
     expect(rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toEqual([
+      ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       STEP_CODE,
     ]);

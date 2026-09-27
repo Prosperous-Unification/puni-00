@@ -16,10 +16,15 @@ const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
 /** The step code column `address-step-nodes` adds, reversed first. */
 const STEP_CODE = '20260927150000_add_step_code';
 /**
- * The newest: the legacy bridge triggers, stamped after
+ * The legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
  */
 const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
+/**
+ * The newest: the triggers that freeze organization ownership, stamped after
+ * {@link ORGANIZATION_BRIDGE} and reversed before it.
+ */
+const ORGANIZATION_FROZEN = '20260927170000_freeze_organization_ownership';
 
 let dir: string;
 let path: string;
@@ -182,6 +187,9 @@ describe('20260927130000_add_organization_ownership', () => {
 
   for (const [table, id] of ROOT_IDS)
     it(`refuses a malformed ${table} ownership row`, () => {
+      // Without the freeze, whose insert trigger would answer before this
+      // migration's own primary key could be seen to.
+      rollbackTo(path, FOLDER, ORGANIZATION_BRIDGE);
       seed(ROOTS);
       const db = openDatabase(path);
       try {
@@ -237,6 +245,7 @@ describe('20260927130000_add_organization_ownership', () => {
     // The previous release's schema, populated the way it populates it, then
     // this migration applied, used by both releases, and reversed.
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       STEP_CODE,
       ORGANIZATION_ACTIVATION,
@@ -258,6 +267,7 @@ describe('20260927130000_add_organization_ownership', () => {
       "DELETE FROM tag WHERE id = 't-old'",
     ]);
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       STEP_CODE,
       ORGANIZATION_ACTIVATION,

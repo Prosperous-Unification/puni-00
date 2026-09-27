@@ -106,10 +106,15 @@ const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
  */
 const STEP_CODE = '20260927150000_add_step_code';
 /**
- * The newest: the legacy bridge triggers, stamped after
+ * The legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
  */
 const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
+/**
+ * The newest: the triggers that freeze organization ownership, stamped after
+ * {@link ORGANIZATION_BRIDGE} and reversed before it.
+ */
+const ORGANIZATION_FROZEN = '20260927170000_freeze_organization_ownership';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -125,6 +130,7 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    ORGANIZATION_FROZEN,
     ORGANIZATION_BRIDGE,
     STEP_CODE,
     ORGANIZATION_ACTIVATION,
@@ -231,6 +237,7 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         STEP_CODE,
         ORGANIZATION_ACTIVATION,
@@ -302,6 +309,7 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         STEP_CODE,
         ORGANIZATION_ACTIVATION,

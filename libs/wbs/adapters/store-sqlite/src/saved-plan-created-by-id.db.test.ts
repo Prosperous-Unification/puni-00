@@ -76,10 +76,15 @@ const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
  */
 const STEP_CODE = '20260927150000_add_step_code';
 /**
- * The newest: the legacy bridge triggers, stamped after
+ * The legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
  */
 const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
+/**
+ * The newest: the triggers that freeze organization ownership, stamped after
+ * {@link ORGANIZATION_BRIDGE} and reversed before it.
+ */
+const ORGANIZATION_FROZEN = '20260927170000_freeze_organization_ownership';
 
 let dir: string;
 let path: string;
@@ -172,6 +177,7 @@ describe('saved_plan.created_by_id', () => {
     expect(nullable()).toBe(0);
 
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       STEP_CODE,
       ORGANIZATION_ACTIVATION,
@@ -267,6 +273,7 @@ describe('saved_plan.created_by_id', () => {
    */
   it('leaves a row written before the column reading null', () => {
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       STEP_CODE,
       ORGANIZATION_ACTIVATION,

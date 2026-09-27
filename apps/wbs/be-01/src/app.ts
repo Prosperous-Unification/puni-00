@@ -236,7 +236,7 @@ export function mountedEndpoints(
     // Proof: omitting this binding made “binds each shared HTTP shape once”
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
-    ...stepRoutes(opts.steps),
+    ...stepRoutes(opts.steps, opts.organizations),
     ...directoryRoutes(opts.directory, opts.organizations),
     ...historyRoutes(opts.history),
     ...solutionRoutes(opts.projects),
@@ -252,7 +252,7 @@ export function mountedEndpoints(
       opts.optimizer,
     ),
     ...workItemRoutes(opts.workItems, commands),
-    ...calendarMarkerRoutes(opts.calendarMarkers),
+    ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations),
     ...savedPlanRoutes(opts.savedPlans, opts.projects, opts.writes.announcements),
     ...internalRoutes({
       // A deliberate pure ack: every mutation is an HTTP call to be-01, so a

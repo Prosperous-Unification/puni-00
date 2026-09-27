@@ -63,10 +63,15 @@ const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
  */
 const STEP_CODE = '20260927150000_add_step_code';
 /**
- * The newest: the legacy bridge triggers, stamped after
+ * The legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
  */
 const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
+/**
+ * The newest: the triggers that freeze organization ownership, stamped after
+ * {@link ORGANIZATION_BRIDGE} and reversed before it.
+ */
+const ORGANIZATION_FROZEN = '20260927170000_freeze_organization_ownership';
 
 /** The one below it, which is where every rollback here stops. */
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
@@ -195,6 +200,7 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         STEP_CODE,
         ORGANIZATION_ACTIVATION,
@@ -237,6 +243,7 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         STEP_CODE,
         ORGANIZATION_ACTIVATION,
@@ -322,6 +329,7 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         STEP_CODE,
         ORGANIZATION_ACTIVATION,

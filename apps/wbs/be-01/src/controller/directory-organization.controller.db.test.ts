@@ -126,12 +126,15 @@ describe('after activation', () => {
 
   it('refuses a team-service link whose service has no owner', async () => {
     h.activate();
+    // The freeze refuses unmapping a live root, so the corruption drops it first.
+    h.sqlite.run('DROP TRIGGER service_organization_frozen_delete');
     h.sqlite.run("DELETE FROM service_organization WHERE resource_id = 'a-service'");
     expect((await h.call('ada', 'GET', '/api/teams')).status).toBe(500);
   });
 
   it('refuses a membership whose team has no owner', async () => {
     h.activate();
+    h.sqlite.run('DROP TRIGGER service_team_organization_frozen_delete');
     h.sqlite.run("DELETE FROM service_team_organization WHERE resource_id = 'a-service_team'");
     expect((await h.call('ada', 'GET', '/api/people')).status).toBe(500);
   });

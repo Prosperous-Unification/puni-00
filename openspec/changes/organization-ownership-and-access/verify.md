@@ -234,6 +234,31 @@ Commands, all under `env -u CLAUDECODE`:
 - fe-01 vitest, 6 files: 149.
 - tsc passes for core, be-01, store-sqlite, store-memory, contracts, conformance, fe-01 and mcp-01.
 
+## Slice 9 — steps, calendar markers and the ownership freeze (task 3.3, part 1)
+
+Branch `batch-9/010-5-2-orgs-8`, stacked on slice 8. Design call: Astra, saved in the lane records as `010-5-2-orgs-task-3.3-design.md`.
+
+- **Ownership freeze.** Migration `20260927170000_freeze_organization_ownership` adds three triggers to each of the eight side tables:
+  - UPDATE of `resource_id` or `organization_id` is refused; a display-name rename passes;
+  - DELETE while the root lives is refused; the root's own cascade passes;
+  - INSERT for an already-mapped root is refused, which also stops `INSERT OR REPLACE`.
+
+  Scoped checks followed by id-addressed writes are therefore sound: ownership cannot move between the check and the write. The migration is additive and its `down.sql` drops the 24 triggers. Reconciliation fixtures and the ownership migration's primary-key cases now run below the freeze, because they build states the freeze refuses.
+
+- **Routes.** The three step routes and four calendar-marker routes resolve `OrganizationAccess` first. `StepService` and `CalendarMarkerService` gain `…Within` methods, which use the shared `findProjectWithin` and `mayEditProjectWithin`.
+- **Existing checks kept.** A foreign project is a 404 identical to an absent one. A foreign step or marker under the caller's own project path is 404 through the existing child-to-parent checks. A viewer may list markers but not write.
+- **Accepted residual.** A client-minted marker id that collides with another organization's marker still answers 409 `taken`. That reveals only that a v4 UUID the caller already holds exists, and nothing of its content. Scoping marker ids by project would need a non-additive key change.
+
+| Check                          | Injected fault                                                     | Observed failure (2026-09-27)                                                                                                                                                                              |
+| ------------------------------ | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Each of the 24 freeze triggers | that trigger's `WHEN` made `0` alone                               | `organization-ownership-freeze.db.test.ts`: that table's `refuses moving the root to another organization` (update) or `refuses unmapping a live root, and a second or replacing mapping` (insert, delete) |
+| Step gate scoped               | `gate` finds the project unscoped                                  | `step-marker-organization.controller.db.test.ts` `answers 404 alike for a foreign and an absent project on every step and marker route`                                                                    |
+| Step add scoped                | `addWithin` finds the project unscoped                             | same case                                                                                                                                                                                                  |
+| Marker gate scoped             | marker `gate` finds the project unscoped                           | same case                                                                                                                                                                                                  |
+| Marker list scoped             | `listWithin` finds the project unscoped                            | same case                                                                                                                                                                                                  |
+| Role rule                      | `mayEditProjectWithin` answers the legacy rule under scoped access | `refuses a viewer every step and marker write and lets the viewer list markers`                                                                                                                            |
+| Access resolved first          | resolution bypassed in each of the seven routes alone              | `refuses an unbound session and a removed member before any lookup`, once per route                                                                                                                        |
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

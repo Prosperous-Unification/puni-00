@@ -316,7 +316,7 @@ export class ProjectRepository implements ProjectStore {
    * transaction. After activation the bridge triggers map nothing, so this row
    * is the only thing that makes the new project visible to its organization.
    * Before activation the bridge has already mapped the project to the legacy
-   * organization and this insert fails on the mapping's primary key: scoped
+   * organization and this insert is refused by the ownership freeze: scoped
    * creation is refused rather than double-mapped.
    *
    * Proof: dropping the mapping insert made `creates a project only its own

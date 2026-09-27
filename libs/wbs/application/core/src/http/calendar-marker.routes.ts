@@ -13,12 +13,14 @@ import {
 } from '@wbs/domain';
 
 import type { CalendarMarker } from '../ports/calendar-marker-store';
+import type { OrganizationAccess } from '../ports/organization-access';
 import type {
   CalendarMarkerRefusal,
   CalendarMarkerRefused,
   CalendarMarkerService,
 } from '../service/calendar-marker.service';
 import { bind, EMPTY, type RequestFailure } from './endpoint';
+import { organizationRefusal } from './organization-refusal';
 import { isFieldBag } from './route';
 
 /**
@@ -257,11 +259,22 @@ function classify(failure: RequestFailure, creating: boolean) {
   }
 }
 
-/** Binds axis annotations without entering work-item, revision or journal paths. */
-export function calendarMarkerRoutes(markers: CalendarMarkerService) {
+/**
+ * Binds axis annotations without entering work-item, revision or journal paths.
+ * Every route resolves organization access before any lookup.
+ * Proof: bypassing the resolution in any one of the four routes alone failed
+ * `refuses an unbound session and a removed member before any lookup` in
+ * `step-marker-organization.controller.db.test.ts`; watched 2026-09-27.
+ */
+export function calendarMarkerRoutes(
+  markers: CalendarMarkerService,
+  organizations: OrganizationAccess,
+) {
   return [
-    bind(listCalendarMarkers, async ({ params }) => {
-      const outcome = await markers.list(params.id);
+    bind(listCalendarMarkers, async ({ params, principal }) => {
+      const resolved = await organizations.resolve(principal.id);
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      const outcome = await markers.listWithin(params.id, resolved.access);
       return outcome.ok
         ? { ok: true, status: 200, body: { markers: outcome.value.map(answered) } }
         : bareState(outcome.reason);
@@ -271,12 +284,19 @@ export function calendarMarkerRoutes(markers: CalendarMarkerService) {
       async ({ params, body, principal }) => {
         const created = createProblem(body);
         if (isCreateProblem(created)) return refuse(created);
-        const outcome = await markers.create(params.id, principal.id, {
-          date: created.date,
-          name: created.name,
-          ...(created.markerId === undefined ? {} : { id: created.markerId }),
-          ...(created.color === undefined ? {} : { color: created.color }),
-        });
+        const resolved = await organizations.resolve(principal.id);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        const outcome = await markers.createWithin(
+          params.id,
+          principal.id,
+          {
+            date: created.date,
+            name: created.name,
+            ...(created.markerId === undefined ? {} : { id: created.markerId }),
+            ...(created.color === undefined ? {} : { color: created.color }),
+          },
+          resolved.access,
+        );
         return outcome.ok
           ? { ok: true, status: 201, body: { marker: answered(outcome.value) } }
           : stateRefused(outcome, created.markerId !== undefined);
@@ -288,10 +308,24 @@ export function calendarMarkerRoutes(markers: CalendarMarkerService) {
       async ({ params, body, principal }) => {
         const change = patchProblem(body);
         if (isProblem(change)) return refuse(change);
+        const resolved = await organizations.resolve(principal.id);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const outcome =
           change.kind === 'name'
-            ? await markers.rename(params.id, params.markerId, principal.id, change.name)
-            : await markers.recolor(params.id, params.markerId, principal.id, change.color);
+            ? await markers.renameWithin(
+                params.id,
+                params.markerId,
+                principal.id,
+                change.name,
+                resolved.access,
+              )
+            : await markers.recolorWithin(
+                params.id,
+                params.markerId,
+                principal.id,
+                change.color,
+                resolved.access,
+              );
         return outcome.ok
           ? { ok: true, status: 200, body: { marker: answered(outcome.value) } }
           : stateRefused(outcome, true);
@@ -299,7 +333,14 @@ export function calendarMarkerRoutes(markers: CalendarMarkerService) {
       { classifyRequestFailure: (failure) => classify(failure, false) },
     ),
     bind(removeCalendarMarker, async ({ params, principal }) => {
-      const outcome = await markers.remove(params.id, params.markerId, principal.id);
+      const resolved = await organizations.resolve(principal.id);
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      const outcome = await markers.removeWithin(
+        params.id,
+        params.markerId,
+        principal.id,
+        resolved.access,
+      );
       return outcome.ok ? { ok: true, status: 204, body: EMPTY } : stateRefused(outcome, true);
     }),
   ] as const;

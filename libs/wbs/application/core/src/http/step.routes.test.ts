@@ -5,6 +5,7 @@ import { expect, spyOn, test } from 'bun:test';
 import { StepService } from '../service/step.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { EMPTY } from './endpoint';
 import { stepRoutes } from './step.routes';
 
@@ -26,7 +27,14 @@ async function fixture(restricted = false) {
   const addWrite = spyOn(stored, 'add');
   const broadcast = recordingBroadcaster();
   const service = new StepService({ clock: testClock, projects, steps: stored, broadcast });
-  return { projects, stored, addWrite, broadcast, service, endpoints: stepRoutes(service) };
+  return {
+    projects,
+    stored,
+    addWrite,
+    broadcast,
+    service,
+    endpoints: stepRoutes(service, legacyOrganizationAccess),
+  };
 }
 
 test('typed step bindings preserve the service value, actor and trimmed name', async () => {
@@ -131,7 +139,7 @@ test('typed removal carries every usage field and only literal true confirms cas
         }),
     },
   });
-  const remove = stepRoutes(service)[2];
+  const remove = stepRoutes(service, legacyOrganizationAccess)[2];
   for (const cascade of [undefined, '1', 'TRUE', 'false']) {
     const removeReply: unknown = await remove.handle({
       params: { id: 'project', stepId: 'step' },

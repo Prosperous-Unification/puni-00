@@ -19,6 +19,11 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
 /** Main's step code column, the folder stamped just below the bridge. */
 const STEP_CODE = '20260927150000_add_step_code';
 const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
+/**
+ * The newest: the triggers that freeze organization ownership, stamped after
+ * {@link ORGANIZATION_BRIDGE} and reversed before it.
+ */
+const ORGANIZATION_FROZEN = '20260927170000_freeze_organization_ownership';
 
 let dir: string;
 let path: string;
@@ -320,7 +325,7 @@ describe('the legacy bridge after activation', () => {
 describe('20260927160000_add_organization_bridge', () => {
   it('rolls back to no triggers, keeping mappings and legacy writes working', async () => {
     run([LEGACY, ...writeRoots('1')]);
-    expect(rollbackTo(path, FOLDER, STEP_CODE)).toEqual([ORGANIZATION_BRIDGE]);
+    expect(rollbackTo(path, FOLDER, STEP_CODE)).toEqual([ORGANIZATION_FROZEN, ORGANIZATION_BRIDGE]);
     expect(
       rows("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE '%_bridge'"),
     ).toEqual([]);
