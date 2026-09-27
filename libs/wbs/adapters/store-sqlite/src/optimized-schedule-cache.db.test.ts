@@ -76,10 +76,15 @@ const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
  */
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
 /**
- * The newest: the ownership side tables `organization-ownership-and-access`
+ * The ownership side tables `organization-ownership-and-access`
  * adds, stamped after {@link ORGANIZATION_RECORDS} and reversed before it.
  */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
+/**
+ * The newest: the durable activation marker, stamped after
+ * {@link ORGANIZATION_OWNERSHIP} and reversed before it.
+ */
+const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
 
 /** The one below it, which is where every rollback here stops. */
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
@@ -128,6 +133,7 @@ const ALSO_ROLLED_BACK = [
   'organization_invitation',
   'organization_join_request',
   'organization_membership',
+  'organization_activation',
   'external_system_organization',
   'person_organization',
   'project_organization',
@@ -315,6 +321,7 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,

@@ -93,6 +93,25 @@ Dev store check (2026-09-27): the orchestrator read the dev mcp-01 store's `sqli
 
 IMMEDIATE is not claimed as a safety check: with a deferred transaction SQLite still refuses the stale writer, so `applies each migration once when two processes start on one absent store` passes either way. Command: `env -u CLAUDECODE bun test` in `apps/wbs/mcp-01`, 200 pass.
 
+## Slice 4 — durable activation marker (task 2.6)
+
+Branch `batch-9/010-5-2-orgs-3`, stacked on slice 3. `apps/wbs/be-01/drizzle/20260927140000_add_organization_activation` adds the `organization_activation` singleton, seeded `pre_activation`, with CHECKs tying `activated_at` to the state and three triggers that make `activated` permanent (no update, no delete, no second insert, so `INSERT OR REPLACE` and upserts cannot replace it with `recursive_triggers` off). Its `down.sql` first proves one well-formed `pre_activation` row through a named `CHECK`, so an activated, missing or malformed marker refuses the reversal inside the runner's transaction. `readOrganizationActivation` in `@wbs/store-sqlite` throws `OrganizationActivationRefused` with `absent`, `unreadable` or `malformed` and never defaults. Nothing writes `activated` yet; activation is task 7.1.
+
+Astra design call (2026-09-27): ship the marker and reader now, and do not wire a check into `swap.ts` from the target image: a missing CLI in an older green image proves nothing about database state. The swap-level refusal and its test move to 7.3, which must use a deploy-side checker independent of the target image and cover `abortSwap`.
+
+| Check                      | Injected fault                                                   | Observed failure (`organization-activation.db.test.ts`, 2026-09-27)                           |
+| -------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Absent is not inactive     | reader returns `pre_activation` when the table is missing        | `refuses an absent marker table`                                                              |
+| Unreadable is not inactive | each catch returns `pre_activation`                              | `refuses an unreadable database`; `refuses an unreadable marker table`                        |
+| Malformed is not inactive  | malformed throw returns `pre_activation`                         | all seven `refuses a malformed marker` cases                                                  |
+| Row validation             | row count, singleton, null-time, integer-time test removed alone | its own case: second row, wrong singleton, time before activation, text/missing time          |
+| Seed                       | seed `INSERT` replaced                                           | 15 cases, including `reads the seeded marker as pre-activation`                               |
+| Schema CHECKs              | state, singleton, integer-time, consistency CHECK removed alone  | `refuses an unknown state`, `a wrong singleton`, `a text time`, `activation without a time`   |
+| Permanence                 | `WHEN 0` on `_no_delete`, `_no_revert`, `_single_row`            | `keeps an activated marker permanent against` delete; reset and timestamp change; replacement |
+| Down guard                 | `CHECK (1)`                                                      | `refuses rollback across a missing row and changes nothing`                                   |
+
+Command: `env -u CLAUDECODE bun test` over the eleven migration-listing suites in `libs/wbs/adapters/store-sqlite` plus `organization-activation.db.test.ts`.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

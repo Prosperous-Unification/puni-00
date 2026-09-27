@@ -12,6 +12,7 @@ import { OrganizationOwnershipRepository, type UnmappedRoot } from './organizati
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
+const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
 
 let dir: string;
 let path: string;
@@ -217,7 +218,10 @@ describe('20260927130000_add_organization_ownership', () => {
   it('round-trips a populated previous schema, leaving every legacy row as it was', () => {
     // The previous release's schema, populated the way it populates it, then
     // this migration applied, used by both releases, and reversed.
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([ORGANIZATION_OWNERSHIP]);
+    expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      ORGANIZATION_ACTIVATION,
+      ORGANIZATION_OWNERSHIP,
+    ]);
     seed([
       ...ROOTS,
       "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('wi1', 'p1', NULL, 0, 'Root')",
@@ -233,7 +237,10 @@ describe('20260927130000_add_organization_ownership', () => {
       "INSERT INTO tag (id, name) VALUES ('t-old', 'written-by-old')",
       "DELETE FROM tag WHERE id = 't-old'",
     ]);
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([ORGANIZATION_OWNERSHIP]);
+    expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      ORGANIZATION_ACTIVATION,
+      ORGANIZATION_OWNERSHIP,
+    ]);
 
     expect(legacyRows()).toEqual(before);
     const db = openDatabase(path);

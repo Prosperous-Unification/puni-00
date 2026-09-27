@@ -18,13 +18,19 @@ import { UserRepository } from './user';
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
 /**
- * The newest: the ownership side tables `organization-ownership-and-access`
+ * The ownership side tables `organization-ownership-and-access`
  * adds, stamped after {@link ORGANIZATION_RECORDS} and reversed before it.
  */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
+/**
+ * The newest: the durable activation marker, stamped after
+ * {@link ORGANIZATION_OWNERSHIP} and reversed before it.
+ */
+const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
 /** The newest folder before this one; named so a later folder is a red test here. */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
 const ORGANIZATION_TABLES = [
+  'organization_activation',
   'external_system_organization',
   'person_organization',
   'project_organization',
@@ -375,6 +381,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      ORGANIZATION_ACTIVATION,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
     ]);

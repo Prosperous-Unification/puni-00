@@ -47,10 +47,15 @@ const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
  */
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
 /**
- * The newest: the ownership side tables `organization-ownership-and-access`
+ * The ownership side tables `organization-ownership-and-access`
  * adds, stamped after {@link ORGANIZATION_RECORDS} and reversed before it.
  */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
+/**
+ * The newest: the durable activation marker, stamped after
+ * {@link ORGANIZATION_OWNERSHIP} and reversed before it.
+ */
+const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
 
 /** The one below it, which is where every rollback here stops. */
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
@@ -179,6 +184,7 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -218,6 +224,7 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -300,6 +307,7 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
