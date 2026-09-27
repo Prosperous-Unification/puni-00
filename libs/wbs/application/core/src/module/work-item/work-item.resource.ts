@@ -4008,14 +4008,6 @@ export class WorkItemService {
   }
 
   /** Sends the whole tree, for a change that can renumber more than it touched. */
-  /**
-   * Records "`predecessorId`'s anchor — its first slice in step order — must
-   * finish before this starts"; the predecessor's later steps run beside it.
-   *
-   * Broadcast as a whole-tree change, not a patch: one edge moves every date
-   * downstream of it, and working out which rows those are is the schedule's
-   * job, computed on read.
-   */
   /** Validates a typed row against this project's current tree and combined graph. */
   private async typedRefusal(
     projectId: string,
@@ -4180,6 +4172,14 @@ export class WorkItemService {
     return { ok: true, value: null };
   }
 
+  /**
+   * Records "`predecessorId`'s anchor — its first slice in step order — must
+   * finish before this starts"; the predecessor's later steps run beside it.
+   *
+   * Broadcast as a whole-tree change, not a patch: one edge moves every date
+   * downstream of it, and working out which rows those are is the schedule's
+   * job, computed on read.
+   */
   async addDependency(
     id: string,
     actorId: string,
@@ -4730,6 +4730,9 @@ export class WorkItemService {
       }
       case 'update_typed_dependency': {
         const existing = await this.opts.typedDependencies.listByProject(projectId);
+        // Proof: this comparison disabled made `refuses undo of an update when
+        // the stored relationship changed outside the journal` fail on
+        // `Expected: 409, Received: 200`; watched 2026-09-27.
         if (
           !this.sameTypedDependency(
             existing.find((row) => row.id === command.from.id),

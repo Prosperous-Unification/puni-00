@@ -36,6 +36,11 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
   - Project PATCH and step DELETE checked outside a unit of work, which left a race. Fixed: `admitted-write.ts` runs both as one unit of work over the batch graph, announcing after commit. Proof: `updateProject` bypassing `uow.run` → `admits … inside one unit of work` failed with `begin`/`commit` missing.
   - Structural edits against typed endpoints (first-child hand-down, deleting the last child under a descendant-step endpoint, deleting a directly referenced work item) still throw rather than refuse. Deferred to task 1a, which lands with the typed commands. No typed row can be written before then.
 
+- **Astra review (high) of tasks 4, 5 and 6c:** no Critical. Two Important findings, both fixed:
+  - Malformed endpoints escaped as 500s through schema-failure classification. The normalizer now reads the raw endpoint defensively, and `refuses a missing or malformed endpoint as 400` covers `null`, a missing endpoint, a string, an unknown scope, a numeric `stepNodeId` and a numeric work-item id. Proofs: the object check removed → `Expected: 400, Received: 500` (null); the text check removed → the same (`stepNodeId: 7`).
+  - The update replay's stale comparison lacked its own proof. `refuses undo of an update when the stored relationship changed outside the journal` changes the row with SQL, keeping the revisions. Proof: the comparison disabled → `Expected: 409, Received: 200`.
+  - Minor: the legacy `addDependency` JSDoc moved back onto `addDependency`.
+
 ## Planned checks — pending later tasks
 
 - **Pending:** Expanded slice-graph cases: parent Cartesian product, self-slice/cycle refusal, apparent work-item cycle acceptance, referenced-step deletion refusal, reparenting, step insertion/deletion/reorder, legacy write, project `depReach` change, estimate-driven dynamic-anchor change and history replay.

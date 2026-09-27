@@ -354,6 +354,32 @@ it('refuses malformed endpoints before applying any command', async () => {
   }
 });
 
+/**
+ * A body the schema already refused still reaches the normalizer, which
+ * classifies it; a missing, null or wrongly typed endpoint must be the
+ * endpoint's indexed refusal and never a 500.
+ */
+it('refuses a missing or malformed endpoint as 400', async () => {
+  const at = await plan();
+  for (const predecessor of [
+    null,
+    undefined,
+    'whole',
+    { scope: 'sideways', workItemId: at.a },
+    { scope: 'node', stepNodeId: 7 },
+    { scope: 'whole', workItemId: 7 },
+  ]) {
+    const reply = await command(at.projectId, at.token, {
+      kind: 'addTypedDependency',
+      ...(predecessor === undefined ? {} : { predecessor }),
+      successor: node(at.b, at.devId),
+      type: 'FS',
+    });
+    expect(reply.status).toBe(400);
+    expect(await reply.json()).toMatchObject({ error: 'invalid_typed_endpoint', at: 0 });
+  }
+});
+
 it('refuses invalid typed endpoints, duplicate keys, unsupported types and absent relationships', async () => {
   const at = await plan();
   const parentReply = await command(at.projectId, at.token, {
@@ -536,6 +562,47 @@ it('refuses undo when the stored relationship changed outside the journal', asyn
     detail: 'that relationship has changed since this command.',
   });
   expect((await typed.listByProject(at.projectId))[0]?.predecessor).toEqual(node(at.a, at.qaId));
+});
+
+/**
+ * The update branch's own stale check: the entry here is an update, so undo
+ * replays `update_typed_dependency`, and the revisions are put back so only the
+ * relationship comparison can refuse it.
+ *
+ * Proof: the `sameTypedDependency` comparison in the `update_typed_dependency`
+ * replay disabled made this case fail on `Expected: 409, Received: 200`;
+ * watched 2026-09-27.
+ */
+it('refuses undo of an update when the stored relationship changed outside the journal', async () => {
+  const at = await plan();
+  const added = await command(at.projectId, at.token, typedCommand(at));
+  expect(added.status).toBe(200);
+  const stored = (await typed.listByProject(at.projectId)).at(0);
+  if (stored === undefined) throw new Error('typed add did not persist');
+  const updated = await command(at.projectId, at.token, {
+    kind: 'updateTypedDependency',
+    dependencyId: stored.id,
+    predecessor: node(at.a, at.qaId),
+    successor: node(at.b, at.qaId),
+    type: 'FS',
+  });
+  expect(updated.status).toBe(200);
+  const sqlite = openDatabase(join(dir, 'test.db'));
+  try {
+    // A change nobody journalled, with the revisions the entry expects kept.
+    sqlite
+      .query('UPDATE typed_dependency SET successor_step_id = ? WHERE id = ?')
+      .run(at.devId, stored.id);
+  } finally {
+    sqlite.close();
+  }
+  const undo = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+  expect(undo.status).toBe(409);
+  expect(await undo.json()).toMatchObject({
+    error: 'stale_undo',
+    detail: 'that relationship has changed since this command.',
+  });
+  expect((await typed.listByProject(at.projectId)).at(0)?.successor).toEqual(node(at.b, at.devId));
 });
 
 it('rejects a cycle introduced by the second typed add', async () => {
