@@ -18,10 +18,12 @@ import { UserRepository } from './user';
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
 /**
- * The newest: the ownership side tables `organization-ownership-and-access`
+ * The ownership side tables `organization-ownership-and-access`
  * adds, stamped after {@link ORGANIZATION_RECORDS} and reversed before it.
  */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
+/** The newest: the step code column `address-step-nodes` adds, reversed first. */
+const STEP_CODE = '20260927150000_add_step_code';
 /** The newest folder before this one; named so a later folder is a red test here. */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
 const ORGANIZATION_TABLES = [
@@ -375,6 +377,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      STEP_CODE,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
     ]);
