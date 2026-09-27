@@ -3838,6 +3838,18 @@ test.describe('the marker rule, measured in the columns it paints', () => {
     // count to reach zero is `hover-cards.spec.ts:54`'s own inert park.
     await page.mouse.move(0, 0);
     await expect(page.locator('[role="tooltip"]')).toHaveCount(0);
+    // Repaint the whole chart before any `present` clip is cut, as every
+    // `absent` clip was: each one followed a first paint or a rung change.
+    // Without this the first rung, already current, is photographed from a
+    // chart Chrome re-rasterized only in part after the save, and antialiased
+    // edges at the border of that partial raster come out a few channel values
+    // off with an identical DOM. Since WBS 010.4.4 a zero-time slice stacks
+    // five marks on one day edge (a placeholder, a bar, its priority cap, an
+    // arrowhead and a caret), so that border can land on ink. Proof: without
+    // this line, on `batch-9/integration-5` the body identity failed at 28px
+    // with maxDelta 40 over columns 122-124, both chart DOMs equal but for the
+    // rule; with it, all three rungs read changedPixels=0 (local, 2026-09-27).
+    await pickRung(page, RUNGS[RUNGS.length - 1]);
 
     const rule = page.locator('[data-gantt-marker-rule]');
     await expect(rule).toHaveCount(1);
