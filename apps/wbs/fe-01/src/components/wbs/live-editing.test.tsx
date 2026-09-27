@@ -548,5 +548,16 @@ describe('an own edit that lands while the cell is being typed in again', () => 
 
     expect(box.value).toBe('Alpha');
     expect(pending.map((patch) => patch.typed)).toEqual(['Beta']);
+
+    // And putting their name back over the revert is a new edit that goes out.
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'Beta' } });
+    act(() => {
+      box.blur();
+    });
+    expect(pending.map((patch) => patch.typed)).toEqual(['Beta', 'Beta']);
+    expect(box.value).toBe('Beta');
   });
 });
