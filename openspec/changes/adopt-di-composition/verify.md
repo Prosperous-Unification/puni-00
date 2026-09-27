@@ -2346,6 +2346,46 @@ BumpGeneration(1), BumpGeneration(2), Cancel` failed `Cancel: queue identities` 
 
 ### Resource-service K3 closure (WBS 040.10) — 2026-09-27
 
+#### Review follow-up: repository-port boundary and value ownership
+
+The closed-module audit now discovers every production TypeScript file under each listed module,
+checks resolved declaration, parameter, property and property-access types, and rejects direct
+imports from repository-port files regardless of declaration name. A repository-port file is
+`ports/*-store.ts` or `ports/stores.ts`; resource implementations and module wiring are the
+store-owning exceptions. Feature directory discovery requires each `*.feature.ts` module to be
+closed or in the shrink-only debt ledger. Plan import and the pre-existing Plan commands
+transactional-scope coupling remain in that ledger; the five 040.10 modules are closed.
+
+The values used by those closed features now live in neutral `ports/*-values.ts` files or
+`ports/recorded-event.ts`. Store-port files re-export the same names for adapter compatibility.
+The stored-read verification JSDoc now sits on `readOfStored` in the saved-plan resource.
+
+| Fault injected                                                                            | Observed boundary-test failure                                                  |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Alias to `ProjectStore` appended to the real `plan-history.feature.ts`                    | `ReviewPortAlias` reported; 0 pass, 1 fail                                      |
+| Wildcard `export *` from `project-store` appended to that real feature                    | Repository file reported; 0 pass, 1 fail                                        |
+| Resolved alias and `opts.plans.readOf` through compatibility options in compiler overlays | Each negative received no violation before type inspection; 0 pass, 1 fail each |
+| Direct named `PlanEvent` import with the repository-file check disabled                   | Negative received no violation; 0 pass, 1 fail                                  |
+| Renamed `authentication` in the audit list                                                | `unlisted feature module` and `no production files`; 0 pass, 1 fail             |
+| Removed `authentication` from both lists                                                  | `unlisted feature module`; 0 pass, 1 fail                                       |
+| Added `authentication` to the real debt ledger                                            | `new debt is not allowed`; 0 pass, 1 fail                                       |
+| Removed malformed import-type guard with malformed import fixture                         | Audit silently returned no violation; 0 pass, 1 fail                            |
+
+The focused boundary suite passed 10/10 after those faults were restored. A direct core TypeScript
+check (`bunx tsc -p libs/wbs/application/core/tsconfig.lib.json --noEmit`) passed.
+
+Review follow-up verification under `env -u CLAUDECODE`:
+
+| Command                                                                                                     | Observed result                                                                                                            |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `cd libs/wbs/application/core && bun test src`                                                              | 650 passed, 0 failed, 73 files                                                                                             |
+| `cd apps/wbs/be-01 && bun test src`                                                                         | 1,115 passed, 1 skipped, 28 failed, 97 files; 27 listener `EPERM` failures and one spawn-handshake failure in this sandbox |
+| Focused backend saved-plan, auth, history, replay, gateway and retention files                              | 266 passed, 0 failed, 24 files                                                                                             |
+| `bunx nx run-many -t typecheck lint:fast -p wbs-core wbs-be-01 tool-devsync`                                | 8 targets succeeded, 2 cache hits                                                                                          |
+| `bun test tools/tool-devsync/src/{module-labels,service-kinds,typecheck-modules,workspace-targets}.test.ts` | 50 passed, 0 failed, 4 files                                                                                               |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                    | 136 passed, 0 failed                                                                                                       |
+| `bunx prettier --check` on all touched files                                                                | passed                                                                                                                     |
+
 Five feature modules now call resource services over their stores: Plan history uses Plan event
 and Project; Realtime uses Event log; Bounded replay sweep uses Event log and Plan event;
 Authentication uses Account; Saved plans uses Saved plan persistence. Plan import remains in the

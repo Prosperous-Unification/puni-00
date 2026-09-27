@@ -156,7 +156,21 @@ export class SavedPlanResource {
   }
 }
 
-/** Verify the stored bytes and their schedule link before shaping a read. */
+/**
+ * Verifies one stored saved plan and shapes it, or refuses it.
+ *
+ * A free function over {@link StoredSavedPlan} rather than a method, so the
+ * whole verification is testable by handing it bytes — including the states a
+ * database cannot easily be made to produce — while the service method above
+ * stays the one line that fetches.
+ *
+ * The header decides which sides exist and the bodies are checked against it:
+ * `schedule_sha256` is null exactly when no schedule was saved (the
+ * `saved_plan_schedule_all_or_nothing` check makes that an invariant of the
+ * table, not a hope), so an absent schedule is read off the header rather than
+ * inferred from a missing body row. Inferring it the other way would turn a
+ * body a cascade half-deleted into a legitimately schedule-less plan.
+ */
 async function readOfStored(
   digest: Digest,
   stored: StoredSavedPlan,
