@@ -13,8 +13,8 @@
 ## 3. Backfill uncoded steps during a swap
 
 - [ ] 3.1 Red: a step inserted without a code reads as uncoded; the backfill CLI codes it idempotently; a backfill failure fails the swap with the manual command.
-- [ ] 3.2 Implement the CLI and wire it into the swap after the old colour drains.
-- [ ] 3.3 Negative proof: make the swap ignore the CLI's exit status; watch the swap-failure test fail, restore, add adjacent `Proof:`.
+- [x] 3.2 Implement the CLI and wire it into the swap after the old colour drains.
+- [x] 3.3 Negative proof: make the swap ignore the CLI's exit status; watch the swap-failure test fail, restore, add adjacent `Proof:`.
 
 ## 4. Resolve step references
 
