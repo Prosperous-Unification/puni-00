@@ -1,5 +1,5 @@
 {
-  "contractVersion": 10,
+  "contractVersion": 11,
   "cases": {
     "chain-of-three": {
       "slices": [
@@ -153,9 +153,9 @@
             "width": 1,
             "estimated": false,
             "earliestStart": 2,
-            "earliestFinish": 4,
+            "earliestFinish": 2,
             "latestStart": 2,
-            "latestFinish": 4,
+            "latestFinish": 2,
             "float": 0,
             "critical": true,
             "personId": null,
@@ -175,10 +175,10 @@
             "effort": 1,
             "width": 1,
             "estimated": true,
-            "earliestStart": 4,
-            "earliestFinish": 5,
-            "latestStart": 4,
-            "latestFinish": 5,
+            "earliestStart": 2,
+            "earliestFinish": 3,
+            "latestStart": 2,
+            "latestFinish": 3,
             "float": 0,
             "critical": true,
             "personId": null,
@@ -210,9 +210,9 @@
             "duration": 0,
             "estimated": false,
             "earliestStart": 2,
-            "earliestFinish": 4,
+            "earliestFinish": 2,
             "latestStart": 2,
-            "latestFinish": 4,
+            "latestFinish": 2,
             "float": 0,
             "critical": true
           }
@@ -222,10 +222,10 @@
           {
             "duration": 1,
             "estimated": true,
-            "earliestStart": 4,
-            "earliestFinish": 5,
-            "latestStart": 4,
-            "latestFinish": 5,
+            "earliestStart": 2,
+            "earliestFinish": 3,
+            "latestStart": 2,
+            "latestFinish": 3,
             "float": 0,
             "critical": true
           }
@@ -838,6 +838,276 @@
       "waitingForPerson": 0,
       "waitingForCapacity": 1,
       "eventsVisited": 2
+    },
+    "unknown-beside-explicit-zero": {
+      "slices": [
+        [
+          "a\u0000",
+          {
+            "workItemId": "a",
+            "stepId": null,
+            "duration": 0,
+            "effort": 0,
+            "width": 1,
+            "estimated": false,
+            "earliestStart": 0,
+            "earliestFinish": 0,
+            "latestStart": 0,
+            "latestFinish": 0,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "projectStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null,
+            "lateBy": null
+          }
+        ],
+        [
+          "b\u0000",
+          {
+            "workItemId": "b",
+            "stepId": null,
+            "duration": 0,
+            "effort": 0,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 0,
+            "latestStart": 0,
+            "latestFinish": 0,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "projectStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null,
+            "lateBy": null
+          }
+        ],
+        [
+          "c\u0000",
+          {
+            "workItemId": "c",
+            "stepId": null,
+            "duration": 1,
+            "effort": 1,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 1,
+            "latestStart": 0,
+            "latestFinish": 1,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "projectStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null,
+            "lateBy": null
+          }
+        ],
+        [
+          "d\u0000",
+          {
+            "workItemId": "d",
+            "stepId": null,
+            "duration": 1,
+            "effort": 1,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 1,
+            "latestStart": 0,
+            "latestFinish": 1,
+            "float": 0,
+            "critical": true,
+            "personId": null,
+            "boundBy": "projectStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null,
+            "lateBy": null
+          }
+        ]
+      ],
+      "workItems": [
+        [
+          "a",
+          {
+            "duration": 0,
+            "estimated": false,
+            "earliestStart": 0,
+            "earliestFinish": 0,
+            "latestStart": 0,
+            "latestFinish": 0,
+            "float": 0,
+            "critical": true
+          }
+        ],
+        [
+          "b",
+          {
+            "duration": 0,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 0,
+            "latestStart": 0,
+            "latestFinish": 0,
+            "float": 0,
+            "critical": true
+          }
+        ],
+        [
+          "c",
+          {
+            "duration": 1,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 1,
+            "latestStart": 0,
+            "latestFinish": 1,
+            "float": 0,
+            "critical": true
+          }
+        ],
+        [
+          "d",
+          {
+            "duration": 1,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 1,
+            "latestStart": 0,
+            "latestFinish": 1,
+            "float": 0,
+            "critical": true
+          }
+        ]
+      ],
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "eventsVisited": 0
+    },
+    "unknown-assigned-capacity": {
+      "slices": [
+        [
+          "a\u0000",
+          {
+            "workItemId": "a",
+            "stepId": null,
+            "duration": 0,
+            "effort": 0,
+            "width": 1,
+            "estimated": false,
+            "earliestStart": 0,
+            "earliestFinish": 0,
+            "latestStart": 3,
+            "latestFinish": 3,
+            "float": 3,
+            "critical": false,
+            "personId": "p",
+            "boundBy": "projectStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null,
+            "lateBy": null
+          }
+        ],
+        [
+          "b\u0000",
+          {
+            "workItemId": "b",
+            "stepId": null,
+            "duration": 0,
+            "effort": 0,
+            "width": 1,
+            "estimated": false,
+            "earliestStart": 0,
+            "earliestFinish": 0,
+            "latestStart": 3,
+            "latestFinish": 3,
+            "float": 3,
+            "critical": false,
+            "personId": "p",
+            "boundBy": "projectStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null,
+            "lateBy": null
+          }
+        ],
+        [
+          "c\u0000",
+          {
+            "workItemId": "c",
+            "stepId": null,
+            "duration": 3,
+            "effort": 3,
+            "width": 1,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 3,
+            "latestStart": 0,
+            "latestFinish": 3,
+            "float": 0,
+            "critical": true,
+            "personId": "p",
+            "boundBy": "projectStart",
+            "resourcePredecessorId": null,
+            "capacityPredecessorIds": [],
+            "capacityTeamId": null,
+            "lateBy": null
+          }
+        ]
+      ],
+      "workItems": [
+        [
+          "a",
+          {
+            "duration": 0,
+            "estimated": false,
+            "earliestStart": 0,
+            "earliestFinish": 0,
+            "latestStart": 3,
+            "latestFinish": 3,
+            "float": 3,
+            "critical": false
+          }
+        ],
+        [
+          "b",
+          {
+            "duration": 0,
+            "estimated": false,
+            "earliestStart": 0,
+            "earliestFinish": 0,
+            "latestStart": 3,
+            "latestFinish": 3,
+            "float": 3,
+            "critical": false
+          }
+        ],
+        [
+          "c",
+          {
+            "duration": 3,
+            "estimated": true,
+            "earliestStart": 0,
+            "earliestFinish": 3,
+            "latestStart": 0,
+            "latestFinish": 3,
+            "float": 0,
+            "critical": true
+          }
+        ]
+      ],
+      "waitingForPerson": 0,
+      "waitingForCapacity": 0,
+      "eventsVisited": 0
     }
   }
 }

@@ -1,5 +1,7 @@
 import { type } from 'arktype';
 
+import { stepShape } from './step-shapes';
+
 const scheduled = type({
   duration: 'number',
   estimated: 'boolean',
@@ -129,7 +131,7 @@ export const workItemTree = type({
   waitingForPerson: 'number',
   waitingForCapacity: 'number',
   slices: slice.array(),
-  steps: type({ id: 'string', projectId: 'string', name: 'string', position: 'number' }).array(),
+  steps: stepShape.array(),
   assignedPeople: named.array(),
   teamCapacities: type({ serviceTeamId: 'string', size: 'number' }).array(),
   priorityBands: type({ startsAt: 'number', defaultValue: 'number', label: 'string' }).array(),

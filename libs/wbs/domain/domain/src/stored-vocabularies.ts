@@ -80,3 +80,29 @@ export const SOLVER_FAILURE_REASONS = [
 ] as const;
 
 export type SolverFailureReason = (typeof SOLVER_FAILURE_REASONS)[number];
+
+/**
+ * The four organization roles, strongest first. The role matrix in
+ * `organization-ownership-and-access/specs/organization-access` is what each
+ * may do; `super_admin` is organization-scoped and never platform-wide.
+ */
+export const ORGANIZATION_ROLES = ['super_admin', 'admin', 'member', 'viewer'] as const;
+
+export type OrganizationRole = (typeof ORGANIZATION_ROLES)[number];
+
+/** The roles an invitation may offer: every role except `super_admin`. */
+export const INVITABLE_ROLES = ['admin', 'member', 'viewer'] as const;
+
+export type InvitableRole = (typeof INVITABLE_ROLES)[number];
+
+export const JOIN_REQUEST_STATUSES = ['pending', 'approved', 'denied'] as const;
+
+export type JoinRequestStatus = (typeof JOIN_REQUEST_STATUSES)[number];
+
+/**
+ * A domain claim's lifecycle. `verified` and `suspended` both hold the unique
+ * ownership; only `verified` routes signup.
+ */
+export const DOMAIN_CLAIM_STATUSES = ['pending', 'verified', 'suspended'] as const;
+
+export type DomainClaimStatus = (typeof DOMAIN_CLAIM_STATUSES)[number];

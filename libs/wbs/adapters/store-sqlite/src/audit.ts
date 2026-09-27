@@ -52,9 +52,11 @@ export const auditOnCreateBesidesCreatedAt = (stamp: WriteStamp) => ({
  * Spread into every `.set(…)`. `createdAt` and `createdBy` are absent on
  * purpose and that absence is the guarantee: they describe the act that made the
  * row, which a later act cannot have been, so an update that carried them would
- * quietly reassign authorship to whoever touched a row last.
+ * quietly reassign authorship to whoever touched a row last. Takes only the
+ * instant for the same reason, which is what lets a system act with no author —
+ * the post-swap step-code backfill — stamp the rows it moves without inventing one.
  */
-export const auditOnUpdate = (stamp: WriteStamp) => ({
+export const auditOnUpdate = (stamp: Pick<WriteStamp, 'at'>) => ({
   updatedAt: stamp.at,
 });
 

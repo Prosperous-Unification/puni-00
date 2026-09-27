@@ -104,16 +104,21 @@ describe('source conformance target discovery', () => {
       'wbs-store-memory': {
         root: 'libs/wbs/adapters/store-memory',
         file: 'src/testing/source-conformance.test.ts',
+        timeout: 10_000,
         inputs: ['default', '^production'],
         certificateTargets: ['test', 'test:conformance', 'test:unit'],
       },
       'wbs-store-sqlite': {
         root: 'libs/wbs/adapters/store-sqlite',
         file: 'src/testing/source-conformance.db.test.ts',
+        timeout: 30_000,
         inputs: ['default', '^production', '{workspaceRoot}/apps/wbs/be-01/drizzle'],
         certificateTargets: ['test', 'test:conformance'],
       },
     } as const;
+    // The time budget every Bun command states is checked on its own below; it does not decide
+    // which files a target selects.
+    const unbudgeted = (command: string): string => command.replace(/ --timeout=\d+$/, '');
     const observed = Object.fromEntries(
       Object.entries(expected).map(([name, contract]) => {
         const project = projects.find(({ config }) => config.name === name);
@@ -128,19 +133,23 @@ describe('source conformance target discovery', () => {
             cwd: target.options?.cwd,
             cache: target.cache,
             inputs: target.inputs,
-            normalIncludes: commandsOf(project.config.targets['test'] ?? {}).some(
-              (candidate) =>
-                candidate === 'bun test src --coverage --coverage-reporter=lcov' ||
-                candidate === 'bun test --coverage --coverage-reporter=lcov',
-            ),
+            normalIncludes: commandsOf(project.config.targets['test'] ?? {})
+              .map(unbudgeted)
+              .some(
+                (candidate) =>
+                  candidate === 'bun test src --coverage --coverage-reporter=lcov' ||
+                  candidate === 'bun test --coverage --coverage-reporter=lcov',
+              ),
             certificateTargets: Object.entries(project.config.targets)
               .filter(([, candidate]) =>
-                commandsOf(candidate ?? {}).some(
-                  (candidateCommand) =>
-                    candidateCommand.includes(contract.file) ||
-                    candidateCommand === 'bun test src --coverage --coverage-reporter=lcov' ||
-                    candidateCommand === 'bun test --coverage --coverage-reporter=lcov',
-                ),
+                commandsOf(candidate ?? {})
+                  .map(unbudgeted)
+                  .some(
+                    (candidateCommand) =>
+                      candidateCommand.includes(contract.file) ||
+                      candidateCommand === 'bun test src --coverage --coverage-reporter=lcov' ||
+                      candidateCommand === 'bun test --coverage --coverage-reporter=lcov',
+                  ),
               )
               .map(([targetName, candidate]) => ({ name: targetName, cache: candidate?.cache })),
             filtered: command.some((candidate) =>
@@ -175,7 +184,7 @@ describe('source conformance target discovery', () => {
         Object.entries(expected).map(([name, contract]) => [
           name,
           {
-            command: [`bun test ${contract.file}`],
+            command: [`bun test ${contract.file} --timeout=${String(contract.timeout)}`],
             cwd: contract.root,
             cache: false,
             inputs: [...contract.inputs],
@@ -590,6 +599,142 @@ describe('every test-running target answers the same from an agent shell', () =>
       }
     }
     expect(exposed.sort()).toEqual([]);
+  }, 30_000);
+});
+
+/**
+ * Bun ends a test at 5 seconds unless something says otherwise, and on the shared build host a
+ * loaded gate reaches that: the dev poller's overlap test failed at 5001 to 5005 ms on three pull
+ * requests that never touched it (2026-09-23), and Twilight Burokrat's contract test at 5025 ms
+ * (2026-09-24). So every `bun test` a target runs names its budget with `--timeout=<ms>`, chosen
+ * from the measurements in `docs/test-budgets.md`, rather than inheriting a default nobody chose.
+ * The flag is the one place a budget lives: `tools/test/scratch/preload.ts` sets none, because Bun
+ * 1.4.2 applies a preload's `setDefaultTimeout` to the first test file only and gives every later
+ * file 5 seconds again (observed 2026-09-27), which is why the overlap test still failed at 5000ms
+ * under that preload. `scratch.test.ts` proves the flag ends a hang in every file.
+ *
+ * Proof: with `--timeout=10000` removed from `wbs-mcp-01:test`, this failed naming
+ * `wbs-mcp-01:test` (2026-09-27). It failed the same way with a `ci` configuration running plain
+ * `bun test` added to that target, and with `\nbun test` appended to its budgeted command. With the
+ * Bun-command pattern misspelled so the sweep matched nothing, it failed on
+ * `Expected: > 40 · Received: 0` (2026-09-27). It reads target commands only: a test that spawns
+ * `bun test` itself passes its own `--timeout`, as `oauth-timing-safe.test.ts` does.
+ */
+describe('every Bun test command states its own time budget', () => {
+  it('passes --timeout=<ms> to each bun test it runs', async () => {
+    const inheritedDaemon = process.env['NX_DAEMON'];
+    process.env['NX_DAEMON'] = 'false';
+    let projectGraph: ProjectGraph;
+    try {
+      projectGraph = await createProjectGraphAsync({ exitOnError: true });
+    } finally {
+      if (inheritedDaemon === undefined) delete process.env['NX_DAEMON'];
+      else process.env['NX_DAEMON'] = inheritedDaemon;
+    }
+    const unbudgeted: string[] = [];
+    let seen = 0;
+    for (const [project, node] of Object.entries(projectGraph.nodes)) {
+      for (const [target, config] of Object.entries(node.data.targets ?? {})) {
+        // A configuration replaces the base command when it is selected, so each is read too.
+        const configurations: Record<string, unknown> = config.configurations ?? {};
+        const variants = [config.options as unknown, ...Object.values(configurations)].map(
+          (options) =>
+            (options ?? {}) as {
+              command?: string;
+              commands?: readonly (string | { command: string })[];
+            },
+        );
+        const commands = variants.flatMap((options) => [
+          options.command ?? '',
+          ...(options.commands ?? []).map((each) =>
+            typeof each === 'string' ? each : each.command,
+          ),
+        ]);
+        const runs = commands
+          // A `$( … )` selector runs before Bun and may pipe; its pipes do not end a command.
+          .map((command) => command.replace(/\$\([^()]*\)/g, '$()'))
+          .flatMap((command) => command.split(/&&|\|\||[;|&\n]/))
+          .filter((segment) => /\bbun test\b/.test(segment));
+        seen += runs.length;
+        if (runs.some((segment) => !/(?:^|\s)--timeout=\d+(?:\s|$)/.test(segment))) {
+          unbudgeted.push(`${project}:${target}`);
+        }
+      }
+    }
+    // A sweep that finds no Bun suite passes whatever the targets say.
+    expect(seen).toBeGreaterThan(40);
+    expect(unbudgeted.sort()).toEqual([]);
+  }, 30_000);
+});
+
+/**
+ * Vitest ends a test at 5 seconds unless told otherwise, and the gate reached that on fe-01: a
+ * keyboard test that takes 1.8 s on a workstation took 5.7 s in CI on pull request 87, and another
+ * fe-01 test timed out at 5 s on pull request 89 (2026-09-27). So every `vitest` a target runs
+ * names both budgets, `--testTimeout=<ms>` and `--hookTimeout=<ms>`, measured as in
+ * `docs/test-budgets.md`. As with Bun, the command line is the one place a budget lives: a flag
+ * beats the config, and `apps/wbs/fe-01/vitest-budget.test.ts` proves the flag still ends a hang
+ * under the real config and setup file.
+ *
+ * Proof: with `--testTimeout=30000` removed from the zoned half of `wbs-fe-01:test`, this failed
+ * naming `wbs-fe-01:test` (2026-09-27). With `--hookTimeout=30000` removed from `wbs-fe-01:test:unit`
+ * it failed naming `wbs-fe-01:test:unit`. With the Vitest-command pattern misspelled so the sweep
+ * matched nothing, it failed on `Expected: >= 3 · Received: 0` (2026-09-27). With
+ * `--testTimeout=0` in the UTC half of `wbs-fe-01:test`, and with `--hookTimeout 0` appended to
+ * `wbs-fe-01:test:unit` after its budget, each failed naming that target (2026-09-27).
+ */
+describe('every Vitest command states its own time budgets', () => {
+  it('passes --testTimeout=<ms> and --hookTimeout=<ms> to each vitest it runs', async () => {
+    const inheritedDaemon = process.env['NX_DAEMON'];
+    process.env['NX_DAEMON'] = 'false';
+    let projectGraph: ProjectGraph;
+    try {
+      projectGraph = await createProjectGraphAsync({ exitOnError: true });
+    } finally {
+      if (inheritedDaemon === undefined) delete process.env['NX_DAEMON'];
+      else process.env['NX_DAEMON'] = inheritedDaemon;
+    }
+    const unbudgeted: string[] = [];
+    let seen = 0;
+    for (const [project, node] of Object.entries(projectGraph.nodes)) {
+      for (const [target, config] of Object.entries(node.data.targets ?? {})) {
+        // A configuration replaces the base command when it is selected, so each is read too.
+        const configurations: Record<string, unknown> = config.configurations ?? {};
+        const variants = [config.options as unknown, ...Object.values(configurations)].map(
+          (options) =>
+            (options ?? {}) as {
+              command?: string;
+              commands?: readonly (string | { command: string })[];
+            },
+        );
+        const runs = variants
+          .flatMap((options) => [
+            options.command ?? '',
+            ...(options.commands ?? []).map((each) =>
+              typeof each === 'string' ? each : each.command,
+            ),
+          ])
+          .flatMap((command) => command.split(/&&|\|\||[;|&\n]/))
+          // `vitest` as a word of its own: `apps/wbs/fe-01/vitest.config.ts` in a lint command is
+          // a path, not a run.
+          .filter((segment) => /(?:^|\s)vitest(?:\s|$)/.test(segment));
+        seen += runs.length;
+        // Vitest reads 0 as no limit at all, and a repeated flag's last value wins, so every
+        // spelling of the flag must carry a positive number.
+        const states = (segment: string, flag: string): boolean => {
+          const values = [
+            ...segment.matchAll(new RegExp(`(?:^|\\s)--${flag}(?:=|\\s+)(\\S*)`, 'g')),
+          ];
+          return values.length > 0 && values.every(([, value]) => /^[1-9]\d*$/.test(value));
+        };
+        if (runs.some((run) => !states(run, 'testTimeout') || !states(run, 'hookTimeout'))) {
+          unbudgeted.push(`${project}:${target}`);
+        }
+      }
+    }
+    // fe-01 runs Vitest three times: the UTC and zoned halves of `test`, and `test:unit`.
+    expect(seen).toBeGreaterThanOrEqual(3);
+    expect(unbudgeted.sort()).toEqual([]);
   }, 30_000);
 });
 

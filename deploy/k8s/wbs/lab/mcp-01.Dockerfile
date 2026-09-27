@@ -1,6 +1,6 @@
-# Lab-only MCP image for the F8 k3d rehearsal. Production MCP has no Dagger
-# image yet; this mirrors gw-01's runtime so the lab exercises the same Bun
-# source-run contract. Build from the repo root:
+# Lab MCP image for the backup and cutover rehearsals. It matches
+# apps/wbs/mcp-01/Dockerfile, the Dagger release image that the F8 lab builds.
+# Build from the repo root:
 #   docker build -f deploy/k8s/wbs/lab/mcp-01.Dockerfile -t wbs-mcp-01:lab .
 FROM oven/bun:1.4.2-alpine AS deps
 WORKDIR /app

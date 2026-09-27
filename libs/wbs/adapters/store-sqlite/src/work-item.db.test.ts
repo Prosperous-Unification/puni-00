@@ -66,7 +66,7 @@ beforeEach(async () => {
       id: projectId,
       ownerId,
     }),
-    [{ id: stepId, projectId, name: 'Dev', position: 10 }],
+    [{ id: stepId, projectId, name: 'Dev', position: 10, code: 'dev' }],
     wrote(),
   );
   personId = (
@@ -1183,8 +1183,9 @@ describe('the order the work-item select answers in', () => {
    * `deriveNumbers` sorts each sibling group by `position` and `Array#sort` is
    * stable, so tied positions leave the labels decided by the array order — and
    * the number is the third of `goesFirst`'s four tie-breaks
-   * (`schedule.ts:2283`). Measured at `705f1bc5`, two unestimated leaves on a
-   * one-slot pool: id order gives `00000000…` `010` and `ffffffff…` `020`, so
+   * (`schedule.ts:2283`). Measured at `705f1bc5`, two two-day leaves on a
+   * one-slot pool (unestimated then; estimated since an unknown length takes
+   * no schedule time): id order gives `00000000…` `010` and `ffffffff…` `020`, so
    * `00000000…` takes the slot at 0 → 2 and `ffffffff…` waits at 2 → 4; the
    * insert order gives `ffffffff…` `010` and the two placements exchange.
    * With the positions **distinct** — which is what the two tests above use —
@@ -1218,6 +1219,14 @@ describe('the order the work-item select answers in', () => {
     };
     await repo.insert(later, [], wrote());
     await repo.insert(earlier, [], wrote());
+    // Two estimated days each: an unestimated leaf takes no schedule time and
+    // so holds no slot, and the pool would have nothing to queue.
+    for (const workItemId of [later.id, earlier.id]) {
+      await estimates.set(
+        { workItemId, stepId, optimistic: 2, realistic: 2, pessimistic: 2 },
+        wrote(),
+      );
+    }
     joinTeam(later.id, shared);
     joinTeam(earlier.id, shared);
     const project = projectRow({ id: projectId, ownerId });

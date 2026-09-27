@@ -63,6 +63,9 @@ const RulePolicyRecord = type({
   ruleModes: RuleModeRecord.array(),
   'adoptedSet?': AdoptedSetRecord,
   'classificationPolicy?': ClassificationPolicy,
+  // Optional: without it the kind graph is suffix-only, which is what a consumer with no inventory
+  // has. A named inventory that cannot be read leaves every kind rule unevaluated.
+  'kindInventory?': type({ path: RelativePath }).onUndeclaredKey('reject'),
   'plainTypeScriptPaths?': PlainSelectorRecord.array(),
   'relationshipRequest?': RelationshipRequest,
   'sizeCeilings?': SizeCeilingsRecord,

@@ -285,6 +285,46 @@ describe('bootBe01', () => {
     expect(created.project.ownerId).toBe('local-dev');
   });
 
+  it('codes the steps an older writer left uncoded once it has migrated', async () => {
+    const dir = tempDir('wbs-backfill-boot-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const seed = openDatabase(dbPath);
+    try {
+      seed.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+      );
+      seed.run(
+        'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+          " VALUES ('p', 'Shed', 'u', 0, 'pert', NULL, 0, 1)",
+      );
+      seed.run("INSERT INTO step (id, project_id, name, position) VALUES ('s', 'p', 'Dev', 10)");
+    } finally {
+      seed.close();
+    }
+
+    running = await bootBe01({
+      appOrigin: 'http://localhost',
+      dbPath,
+      port: 0,
+      logger: createLogger({ service: 'be-01' }),
+      jwtKey: 'k'.repeat(32),
+      gwUrl: 'http://gw.invalid',
+      internalAuthSecret: 's'.repeat(32),
+      migrateOnStartup: true,
+      migrationsFolder: FOLDER,
+    });
+
+    const read = openDatabase(dbPath);
+    try {
+      expect(
+        read.query<{ code: string | null }, []>("SELECT code FROM step WHERE id = 's'").get(),
+      ).toEqual({ code: 'dev' });
+    } finally {
+      read.close();
+    }
+  });
+
   it('starts the retention timer', async () => {
     // The gap a reviewer named: every `RetentionTimer` test passed against a
     // process that never called `start()`, which is the same failure as the

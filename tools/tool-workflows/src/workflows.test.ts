@@ -2,7 +2,7 @@ import { chmodSync, cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { afterEach, beforeEach, expect, setDefaultTimeout, test } from 'bun:test';
+import { afterEach, beforeEach, expect, test } from 'bun:test';
 
 const repository = resolve(import.meta.dir, '../../..');
 const cli = join(import.meta.dir, 'generate.ts');
@@ -14,11 +14,11 @@ const prettierrc = '.prettierrc.json';
 
 // These CLI cases run up to four fresh processes, each formatting 40 workflows.
 // The parallel CI gate exceeded Bun's five-second default and killed a healthy
-// child (exitCode: null). This bounds the whole case, not the generator's latency.
+// child (exitCode: null). The `test` target's `--timeout` bounds each whole case,
+// not the generator's latency; docs/test-budgets.md has its measurements.
 // Proof: adding 1500ms before each real spawn made 'generation restores a missing
 // installed variant' fail on Expected: 0 / Received: null at the default deadline;
-// the same delayed case passed in 9.63s with this budget. The delay was removed.
-setDefaultTimeout(30_000);
+// the same delayed case passed in 9.63s with a 30-second budget. The delay was removed.
 
 /**
  * chmod 000 denies nothing to uid 0, so under root every "unreadable" case below

@@ -16,9 +16,10 @@ bootstrap. The WBS release coordinator owns migration, rollout and rollback.
 Each boundary consumes a persisted reviewed plan and rechecks identities before
 effects.
 
-`infra/fleet/desired.yaml` is the production desired-state input; its reserved
-addresses and pending machine identities must be replaced before production
-planning. `infra/fleet/examples/local.yaml` is the executable local topology.
+`infra/fleet/desired.yaml` is the production desired-state input: h4claw is the
+platform server and h3mon its observability agent. A machine ID prefixed
+`operator-input:` has not been read from its host yet, and every operation on that
+node refuses until preflight supplies it ([enroll h4claw and h3mon](enroll-h4claw-h3mon.md)). `infra/fleet/examples/local.yaml` is the executable local topology.
 `tool-fleet:plan` consumes one of those files plus a complete observation and
 an explicit operation target, writes a new owner-only JSON plan, and prints the
 plan digest and downtime/storage summary. Planning performs no provider or
@@ -34,7 +35,8 @@ ordinary gate never pulls the base image; `infra-check.yml` builds it before `to
 
 ## Disposable Ubuntu VM lab
 
-`tool-fleet:lab` exercises the Ansible/systemd/firewall path on Ubuntu 24.04
+`tool-fleet:lab` exercises the Ansible/systemd/firewall path on Ubuntu (the QEMU
+lock pins a 26.04 image, the release of h3mon and h4claw; earlier drills used 24.04)
 with the exact Multipass and controller versions in
 `infra/versions/toolchain.json`. A platform lab has one embedded-etcd server
 and one agent. A workers lab has one tainted server and two execution agents.
@@ -63,7 +65,9 @@ unmodeled `changed` recap; fresh validation Jobs have an exact profile-specific
 allowance. A retained cluster token is reused; an existing lab with a
 missing or malformed token refuses instead of inventing a replacement.
 
-The roles disable swap, install chrony and prerequisites, bound journald,
+The roles keep either no swap or one fleet swap file of `puni_swap_file_mib` (the
+platform lab's agent has 1024 MiB, standing in for h3mon; pods never swap), cap the
+kubelet with the host's memory reservations, install chrony and prerequisites, bound journald,
 verify declared mounts, apply only the owned nftables table after `nft -c`, and
 probe the configured private MTU without fragmentation. k3s starts with an
 enrollment taint. Validation checks Ready and stable node identities, CoreDNS,

@@ -23,10 +23,10 @@ import type { PlanCommandRunner, PlanCommandRunnerOptions } from './plan-command
  * `openspec/changes/adopt-di-composition/tasks.md`. The per-batch
  * `AnnouncementCollector` is not this module's: it is an implementation of the
  * neutral `Broadcaster` port shared by the two admitting features; barred from
- * either feature by K6, it stays in `service/broadcast.ts`, and Plan commands
- * and Plan import both import it. The backend module map's "Plan commands'
- * private collector" did not see Plan import's use; a copy would be a second
- * class definition (task 1.2). Its end state is beside that port in `ports/`.
+ * either feature by K6, it lives beside that port in
+ * `ports/announcement-collector.ts`, and Plan commands and Plan import both
+ * import it. The backend module map's "Plan commands' private collector" did
+ * not see Plan import's use; a copy would be a second class definition (task 1.2).
  */
 export type PlanCommandsRequirements = PlanCommandRunnerOptions;
 
