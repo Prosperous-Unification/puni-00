@@ -7,7 +7,7 @@ import {
   validateSchema,
   type WorkItemTree,
 } from '@wbs/contracts';
-import { formatStepNodeId, formatStepReference, listStepNodes, NO_ALLOWANCE } from '@wbs/domain';
+import { formatStepNodeId, formatStepReference, NO_ALLOWANCE, orderSteps } from '@wbs/domain';
 
 import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { Clock } from '../../ports/clock';
@@ -165,21 +165,18 @@ function spellStepNodes(tree: {
   steps: PlanDocument['steps'];
 }): PlanDocument['stepNodes'] {
   const parentIds = new Set(tree.workItems.map(({ parentId }) => parentId));
-  const codeByStepId = new Map(tree.steps.map(({ id, code }) => [id, code] as const));
-  return tree.workItems.flatMap(({ id, number }) =>
+  const ordered = orderSteps(tree.steps);
+  return tree.workItems.flatMap(({ id: workItemId, number }) =>
     // Proof: with the leaf filter removed, `spells each leaf's step nodes
     // beside their IDs` received the parent's nodes too (2026-09-27).
-    parentIds.has(id)
+    parentIds.has(workItemId)
       ? []
-      : listStepNodes(id, tree.steps).map((node) => {
-          const code = codeByStepId.get(node.stepId);
-          if (code === undefined) throw new Error(`step node names unknown step ${node.stepId}`);
-          return {
-            id: formatStepNodeId(node),
-            ...node,
-            reference: formatStepReference(number, code),
-          };
-        }),
+      : ordered.map(({ id: stepId, code }) => ({
+          id: formatStepNodeId({ workItemId, stepId }),
+          workItemId,
+          stepId,
+          reference: formatStepReference(number, code),
+        })),
   );
 }
 
