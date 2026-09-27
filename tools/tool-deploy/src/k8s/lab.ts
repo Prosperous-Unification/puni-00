@@ -24,6 +24,19 @@ import { fileJournal } from './journal';
 import { K8S_TIERS, type K8sTier, type ReleaseIdentity, type ReleaseRequest } from './release';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
+
+/**
+ * The lab-only additive migration that deploy/k8s/wbs/lab/backend-upgrade.Dockerfile adds to v2.
+ *
+ * Its stamp is far in the future so it sorts after every committed backend migration.
+ * migrate-down reverses only migrations newer than the swap baseline, so a stamp that a
+ * committed migration overtakes survives the schema rollback and the induced-failure
+ * scenario ends `rollback-failed` (CI run 36296199037).
+ *
+ * Proof: with the old 20260918000000 stamp, lab-migration.test.ts failed
+ * `Expected: > 20260927150000`, and the live rehearsal failed `release ended rolled-back`.
+ */
+export const LAB_MIGRATION = '29991231000000_lab_additive';
 const CLUSTER = 'puni-f8-lab';
 const REGISTRY = 'puni-f8-registry';
 const CONTEXT = `k3d-${CLUSTER}`;
@@ -655,7 +668,7 @@ async function expectRestored(v1: ReleaseIdentity, rows: readonly string[]): Pro
   const schema = await schemaFacts();
   assert(!schema.columns.includes('lab_marker'), 'work_item has no lab_marker column (old schema)');
   assert(
-    !schema.migrations.includes('20260918000000_lab_additive'),
+    !schema.migrations.includes(LAB_MIGRATION),
     'the lab migration is not recorded as applied',
   );
   const names = await projectNames();
