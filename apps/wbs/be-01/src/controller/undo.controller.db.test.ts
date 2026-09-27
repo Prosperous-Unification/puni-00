@@ -33,6 +33,7 @@ import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixtu
 import { testClock } from '../testing/clock-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
@@ -112,6 +113,7 @@ beforeEach(() => {
     }),
   };
   app = buildApp({
+    organizations: legacyOrganizationAccess,
     loginThrottle: testLoginThrottle(),
     clock: testClock,
     appOrigin: 'http://localhost',
