@@ -12,9 +12,9 @@
 
 ## 3. Prove write and renewal
 
-- [ ] 3.1 Add failing mounted tests for read-only default, explicit read/write request, granted-scope narrowing, restricted foreign-created project denial, viewer refusal, cross-organization 404, audited super-admin recovery and same-organization unrestricted project success, refresh/replay and revocation.
-- [ ] 3.2 Repair any contract gaps without coupling to an IdP. Keep the 3600-second default until a live refresh trace justifies change.
-- [ ] 3.3 Inject omitted write check and bypassed revocation; watch negatives fail, restore and add Proof: comments.
+- [ ] 3.1 (partial: read-only default, explicit read/write, granted-scope narrowing, refresh, replay and revocation done; organization cases pending activation, see verify.md) Add failing mounted tests for read-only default, explicit read/write request, granted-scope narrowing, restricted foreign-created project denial, viewer refusal, cross-organization 404, audited super-admin recovery and same-organization unrestricted project success, refresh/replay and revocation.
+- [x] 3.2 Repair any contract gaps without coupling to an IdP. Keep the 3600-second default until a live refresh trace justifies change.
+- [x] 3.3 Inject omitted write check and bypassed revocation; watch negatives fail, restore and add Proof: comments.
 
 ## 4. Verify the public URL
 

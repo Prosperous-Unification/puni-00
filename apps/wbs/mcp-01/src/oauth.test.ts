@@ -1882,7 +1882,7 @@ describe('OAuth client redirects', () => {
   });
 });
 
-describe('MCP write scope through the mounted endpoint', () => {
+describe('MCP write scope, refresh and revocation through the mounted endpoint', () => {
   const RENAME: DerivedTool = {
     name: 'patchApiProjectsById',
     description: 'Rename a project',
@@ -1925,11 +1925,25 @@ describe('MCP write scope through the mounted endpoint', () => {
     return (await issued.json()) as { access_token: string; refresh_token: string; scope: string };
   }
 
+  const EXPORT: DerivedTool = {
+    name: 'getApiProjectsByIdExport',
+    description: 'Export a project',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    method: 'get',
+    path: '/api/projects/{id}/export',
+    locations: { id: 'path' },
+  };
+
   function endpoint(oauth: InMemoryMcpOAuth, be01Calls: string[]) {
     return mcpFetchHandler(
       () =>
         createServer({
-          tools: [RENAME],
+          tools: [RENAME, EXPORT],
           config: CONFIG,
           fetchImpl: (url, init) => {
             be01Calls.push(`${init.method} ${url} ${init.headers['authorization'] ?? ''}`);
@@ -1942,6 +1956,23 @@ describe('MCP write scope through the mounted endpoint', () => {
       {},
       oauth,
     );
+  }
+
+  function exportProject(token: string): Request {
+    return new Request('https://dev.wbs.bulletpoints.club/mcp', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: EXPORT.name, arguments: { id: 'p-1' } },
+      }),
+    });
   }
 
   function rename(token: string): Request {
@@ -2004,5 +2035,209 @@ describe('MCP write scope through the mounted endpoint', () => {
     expect(be01Calls).toEqual([
       'PATCH https://dev.wbs.bulletpoints.club/api/projects/p-1 Bearer upstream-okta-token',
     ]);
+  });
+
+  const renewing = {
+    exchange: () =>
+      Promise.resolve({
+        accessToken: 'upstream-okta-token',
+        expiresIn: 300,
+        refreshToken: 'upstream-refresh-token',
+      }),
+    refresh: () =>
+      Promise.resolve({
+        accessToken: 'refreshed-upstream-token',
+        expiresIn: 300,
+        refreshToken: 'rotated-upstream-refresh',
+      }),
+    verifyUpstream: (token: string) =>
+      token === 'upstream-okta-token' || token === 'refreshed-upstream-token'
+        ? Promise.resolve({
+            iss: 'https://idp.example',
+            sub: 'person-1',
+            wbs_groups: ['dev:wbs:read', 'dev:wbs:write'],
+          })
+        : Promise.reject(new Error('not an upstream token')),
+  };
+
+  function refresh(
+    oauth: InMemoryMcpOAuth,
+    refreshToken: string,
+    scope?: string,
+  ): Promise<Response | undefined> {
+    return oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+        body: new URLSearchParams({
+          client_id: 'random-1',
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+          ...(scope === undefined ? {} : { scope }),
+        }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+  }
+
+  function revoke(oauth: InMemoryMcpOAuth, token: string): Promise<Response | undefined> {
+    return oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/revoke', {
+        body: new URLSearchParams({ token }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+  }
+
+  it('writes again after the access token expires and a refresh grant succeeds', async () => {
+    const { oauth, advance } = fixture(renewing);
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const be01Calls: string[] = [];
+    const fetchMcp = endpoint(oauth, be01Calls);
+
+    advance(3_601_000);
+    expect((await fetchMcp(rename(tokens.access_token))).status).toBe(401);
+    const refreshed = await refresh(oauth, tokens.refresh_token);
+    expect(refreshed?.status).toBe(200);
+    const successor = (await refreshed?.json()) as { access_token: string; scope: string };
+    expect(successor.scope).toBe('wbs:read wbs:write');
+
+    const written = await fetchMcp(rename(successor.access_token));
+    expect(JSON.stringify(await written.json())).not.toContain('insufficient_scope');
+    expect(be01Calls).toEqual([
+      'PATCH https://dev.wbs.bulletpoints.club/api/projects/p-1 Bearer refreshed-upstream-token',
+    ]);
+  });
+
+  it('ends the family when a consumed refresh token is replayed', async () => {
+    const { oauth } = fixture(renewing);
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const successor = (await (await refresh(oauth, tokens.refresh_token))?.json()) as {
+      access_token: string;
+      refresh_token: string;
+    };
+    const be01Calls: string[] = [];
+
+    expect((await refresh(oauth, tokens.refresh_token))?.status).toBe(400);
+    expect((await endpoint(oauth, be01Calls)(rename(successor.access_token))).status).toBe(401);
+    expect((await refresh(oauth, successor.refresh_token))?.status).toBe(400);
+    expect(be01Calls).toEqual([]);
+  });
+
+  // Proof: on 2026-09-27, checking session capacity before the refresh token (the order before
+  // this change) failed this test: the replay answered 429 and the family stayed live.
+  it('ends the family on replay even when sessions are at capacity', async () => {
+    const { oauth } = fixture({ ...renewing, sessionLimit: 2 });
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const successor = (await (await refresh(oauth, tokens.refresh_token))?.json()) as {
+      access_token: string;
+    };
+
+    const replay = await refresh(oauth, tokens.refresh_token);
+    expect(replay?.status).toBe(400);
+    expect(await replay?.json()).toEqual({ error: 'invalid_grant' });
+    expect((await endpoint(oauth, [])(rename(successor.access_token))).status).toBe(401);
+  });
+
+  // Proof: on 2026-09-27, skipping `revokeFamily` in the revocation endpoint failed this test:
+  // the write after revocation answered 200 instead of 401.
+  it('ends access and refresh when the refresh token is revoked', async () => {
+    const { oauth } = fixture(renewing);
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const be01Calls: string[] = [];
+
+    expect((await revoke(oauth, tokens.refresh_token))?.status).toBe(200);
+    expect((await endpoint(oauth, be01Calls)(rename(tokens.access_token))).status).toBe(401);
+    expect((await refresh(oauth, tokens.refresh_token))?.status).toBe(400);
+    expect(be01Calls).toEqual([]);
+  });
+
+  // Proof: on 2026-09-27, ignoring the refresh `scope` parameter (the behaviour before this
+  // change) failed this test: the narrowed refresh returned `wbs:read wbs:write` and wrote.
+  it('narrows one refreshed access token to a requested subset without shrinking the family', async () => {
+    const { oauth } = fixture(renewing);
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const narrowed = await refresh(oauth, tokens.refresh_token, 'wbs:read');
+    expect(narrowed?.status).toBe(200);
+    const narrowedBody = (await narrowed?.json()) as {
+      access_token: string;
+      refresh_token: string;
+      scope: string;
+    };
+    const be01Calls: string[] = [];
+
+    expect(narrowedBody.scope).toBe('wbs:read');
+    const refused = await endpoint(oauth, be01Calls)(rename(narrowedBody.access_token));
+    expect(JSON.stringify(await refused.json())).toContain('insufficient_scope');
+    expect(be01Calls).toEqual([]);
+    const restored = (await (await refresh(oauth, narrowedBody.refresh_token))?.json()) as {
+      scope: string;
+    };
+    expect(restored.scope).toBe('wbs:read wbs:write');
+  });
+
+  // Proof: on 2026-09-27, ignoring the refresh `scope` parameter failed this test: the expanding
+  // refresh answered 200 with `wbs:read` instead of 400 invalid_scope.
+  it('refuses a refresh that asks for more than the family holds, and keeps the token usable', async () => {
+    const { oauth } = fixture(renewing);
+    const tokens = await signIn(oauth, undefined);
+
+    const expanded = await refresh(oauth, tokens.refresh_token, 'wbs:read wbs:write');
+    expect(expanded?.status).toBe(400);
+    expect(await expanded?.json()).toEqual({ error: 'invalid_scope' });
+    expect((await refresh(oauth, tokens.refresh_token))?.status).toBe(200);
+  });
+
+  // Proof: on 2026-09-27, the catch-all around revocation (the behaviour before this change)
+  // failed this test: a closed store answered 200 as if the family were revoked.
+  it('surfaces a store failure during revocation instead of reporting success', async () => {
+    const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+    const { oauth } = fixture({ ...renewing, store });
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    store.close();
+
+    expect(revoke(oauth, tokens.refresh_token)).rejects.toThrow();
+  });
+
+  // Proof: on 2026-09-27, requiring no scope for GET tools in createServer failed this test: the
+  // write-only token's export reached be-01.
+  it('refuses a read with a refreshed token narrowed to wbs:write', async () => {
+    const { oauth } = fixture(renewing);
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const narrowed = (await (await refresh(oauth, tokens.refresh_token, 'wbs:write'))?.json()) as {
+      access_token: string;
+      scope: string;
+    };
+    const be01Calls: string[] = [];
+
+    expect(narrowed.scope).toBe('wbs:write');
+    const refused = await endpoint(oauth, be01Calls)(exportProject(narrowed.access_token));
+    expect(JSON.stringify(await refused.json())).toContain('does not include wbs:read');
+    expect(be01Calls).toEqual([]);
+  });
+
+  it('refuses a refresh whose scope is not text', async () => {
+    const { oauth } = fixture(renewing);
+    const tokens = await signIn(oauth, 'wbs:read');
+    const body = new FormData();
+    body.set('client_id', 'random-1');
+    body.set('grant_type', 'refresh_token');
+    body.set('refresh_token', tokens.refresh_token);
+    body.set('scope', new File(['wbs:read wbs:write'], 'scope.txt'));
+
+    const response = await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', { body, method: 'POST' }),
+    );
+    expect(response?.status).toBe(400);
+    expect(await response?.json()).toEqual({ error: 'invalid_request' });
+  });
+
+  it('surfaces a store failure during refresh instead of refusing the grant', async () => {
+    const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+    const { oauth } = fixture({ ...renewing, store });
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    store.close();
+
+    expect(refresh(oauth, tokens.refresh_token)).rejects.toThrow();
   });
 });

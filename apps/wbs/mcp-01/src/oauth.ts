@@ -687,17 +687,37 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const refreshToken = stringField(form, 'refresh_token');
     const clientId = stringField(form, 'client_id');
     if (refreshToken === undefined || clientId === undefined) return oauthError('invalid_grant');
+    const requestedScope = form.get('scope');
+    // Proof: on 2026-09-27, reading scope through stringField failed `refuses a refresh whose scope
+    // is not text`: a multipart file scope was treated as omitted, not 400 (oauth.test.ts).
+    if (requestedScope !== null && typeof requestedScope !== 'string')
+      return oauthError('invalid_request');
     const now = this.now();
-    if (this.store.sessionCount(now) >= this.sessionLimit)
-      return oauthError('temporarily_unavailable', undefined, 429);
     const expiresAt = now + this.accessTtlMs;
     let prepared: ReturnType<McpSessionStore['prepareRefresh']>;
     try {
       prepared = this.store.prepareRefresh(refreshToken, clientId, now);
-    } catch {
-      return oauthError('invalid_grant');
+    } catch (cause) {
+      // Only an undecryptable family (already revoked by the store) is the caller's dead grant;
+      // any other store failure propagates rather than posing as a refused credential.
+      // Proof: on 2026-09-27, a catch-all here failed `surfaces a store failure during refresh
+      // instead of refusing the grant`: a closed store answered 400 invalid_grant (oauth.test.ts).
+      if (cause instanceof McpRefreshFamilyCorrupt) return oauthError('invalid_grant');
+      throw cause;
     }
+    // The token is judged before capacity, so a replay revokes its family even when full.
+    // Proof: on 2026-09-27, checking capacity first failed `ends the family on replay even when
+    // sessions are at capacity` with 429 (oauth.test.ts).
     if (prepared.outcome !== 'ok') return oauthError('invalid_grant');
+    const scope = narrowScope(
+      prepared.family.scope,
+      requestedScope === null || requestedScope === '' ? undefined : requestedScope,
+    );
+    // Proof: on 2026-09-27, ignoring the requested scope failed `refuses a refresh that asks for
+    // more than the family holds` (200, not 400) and the subset-narrowing test (oauth.test.ts).
+    if (scope === undefined) return oauthError('invalid_scope');
+    if (this.store.sessionCount(now) >= this.sessionLimit)
+      return oauthError('temporarily_unavailable', undefined, 429);
     const boundedExpiresAt = Math.min(expiresAt, prepared.family.absoluteExpiresAt);
     if (boundedExpiresAt <= now) return oauthError('invalid_grant');
     const successor = this.random();
@@ -706,7 +726,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       const family = await this.refreshUpstreamIfNeeded(prepared.family);
       const token = await this.issueAccessToken(
         family.subject,
-        family.scope,
+        scope,
         jti,
         family.familyId,
         boundedExpiresAt,
@@ -721,7 +741,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
         now,
       );
       if (consumed.outcome !== 'ok') return oauthError('invalid_grant');
-      return tokenResponse(token, successor, family.scope, boundedExpiresAt - now);
+      return tokenResponse(token, successor, scope, boundedExpiresAt - now);
     } catch (cause) {
       return cause instanceof UpstreamRefreshRefused || cause instanceof McpRefreshFamilyCorrupt
         ? oauthError('invalid_grant')
@@ -849,25 +869,29 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private async revoke(request: Request): Promise<Response> {
     const token = stringField(await request.formData(), 'token');
     if (token !== undefined) {
+      // RFC 7009 answers 200 whether or not the token was valid, so an unverifiable token falls
+      // through to the refresh-token lookup. A store failure is not an unknown token: it throws.
+      // Proof: on 2026-09-27, wrapping this in a catch-all failed `surfaces a store failure during
+      // revocation instead of reporting success` (resolved with 200, oauth.test.ts).
+      let payload: JWTPayload | null;
       try {
-        let family: FamilyRecord | null = null;
-        try {
-          const payload = await this.verifyRevocationSignature(token);
-          family =
-            typeof payload['mcp_family_id'] === 'string'
-              ? this.store.family(payload['mcp_family_id'])
-              : typeof payload.jti === 'string'
-                ? this.store.familyForSessionId(payload.jti)
-                : null;
-        } catch {
-          family = this.store.familyForRefreshToken(token);
-        }
-        if (family !== null) {
-          this.store.revokeFamily(family.familyId, this.now());
-          await this.revokeRefreshToken(family.upstreamRefreshToken);
-        }
+        payload = await this.verifyRevocationSignature(token);
       } catch {
-        // RFC 7009 does not reveal whether the presented token was valid.
+        payload = null;
+      }
+      const family =
+        payload === null
+          ? this.store.familyForRefreshToken(token)
+          : typeof payload['mcp_family_id'] === 'string'
+            ? this.store.family(payload['mcp_family_id'])
+            : typeof payload.jti === 'string'
+              ? this.store.familyForSessionId(payload.jti)
+              : null;
+      if (family !== null) {
+        // Proof: on 2026-09-27, skipping this failed `ends access and refresh when the refresh
+        // token is revoked`: the later write answered 200, not 401 (oauth.test.ts).
+        this.store.revokeFamily(family.familyId, this.now());
+        await this.revokeRefreshToken(family.upstreamRefreshToken);
       }
     }
     return new Response(null, { status: 200 });
@@ -1085,6 +1109,20 @@ async function routeEvidenceOf(
 
 function evidenceGrantType(value: unknown): string {
   return value === 'authorization_code' || value === 'refresh_token' ? value : 'other';
+}
+
+/**
+ * The scope one refreshed access token carries (RFC 6749 §6): the family's own when `requested`
+ * is absent, else the requested subset in the family's order. Undefined when `requested` names a
+ * scope the family was not granted, or nothing. The family itself keeps its original grant.
+ */
+function narrowScope(granted: string, requested: string | undefined): string | undefined {
+  if (requested === undefined) return granted;
+  const grantedScopes = granted.split(' ').filter(Boolean);
+  const requestedScopes = new Set(requested.split(' ').filter(Boolean));
+  if (requestedScopes.size === 0) return undefined;
+  for (const scope of requestedScopes) if (!grantedScopes.includes(scope)) return undefined;
+  return grantedScopes.filter((scope) => requestedScopes.has(scope)).join(' ');
 }
 
 function stringField(form: FormData, name: string): string | undefined {
