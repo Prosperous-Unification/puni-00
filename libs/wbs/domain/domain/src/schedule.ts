@@ -2,7 +2,7 @@ import type { DependencyReach } from './dependency-reach';
 import type { PlannedRow } from './derive-numbers';
 import { leafDeadlinesOf, leafFloorsOf } from './leaf-constraints';
 import { WORK_ITEM_PROJECTION_START, workdaysLateBy } from './on-time';
-import { sliceGraphEdges } from './slice-edges';
+import { resolveStepNodeGraph } from './slice-edges';
 import { groupSlicesByLeaf } from './slice-groups';
 import { treeOrder } from './tree-order';
 import { lastWorkdayOf, snapWorkdays, withinDrift } from './workday';
@@ -2343,7 +2343,7 @@ export function schedule(
   /**
    * Where a leaf's slices begin among the nodes.
    *
-   * Every edge {@link sliceGraphEdges} returns names its ends as a leaf and a
+   * Every edge {@link resolveStepNodeGraph} returns names its ends as a leaf and a
    * position within that leaf's own group, so this is the offset that turns one
    * into a node index. It is the leaf's first node because the groups were
    * pushed in `leafIds` order and contiguously.
@@ -2365,7 +2365,7 @@ export function schedule(
     return found;
   };
 
-  // The slice graph's edges, derived once in {@link sliceGraphEdges} rather
+  // The slice graph's edges, derived once in {@link resolveStepNodeGraph} rather
   // than built here: each leaf's own step chain, then the predecessor's
   // **reached** slice to the successor's **first**. Both rules moved with the
   // reach they depend on, because the solver request builder must derive the
@@ -2375,14 +2375,14 @@ export function schedule(
   // Pushed onto the two nodes rather than rebuilt into a map: the adjacency is
   // written once per edge, and the order the edges arrive in is the order these
   // arrays are walked in later.
-  for (const { from, to } of sliceGraphEdges(
+  for (const { predecessor, successor } of resolveStepNodeGraph(
     leafIds,
     (id) => slicesOf(id).slices,
     leafEdges,
     reach,
-  )) {
-    const before = firstNodeOf(from.leafId) + from.at;
-    const after = firstNodeOf(to.leafId) + to.at;
+  ).edges) {
+    const before = firstNodeOf(predecessor.leafId) + predecessor.at;
+    const after = firstNodeOf(successor.leafId) + successor.at;
     nodes[before].successors.push(after);
     nodes[after].predecessors.push(before);
   }
