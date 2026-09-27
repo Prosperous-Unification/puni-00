@@ -94,6 +94,41 @@ On the loaded run these timed out at their own budget. They were raised by the r
 - `tools/tool-workflows`: its file-level `setDefaultTimeout(30_000)` was replaced by the
   target's 60 s. One case timed out at 30.2 s on the loaded run.
 
+## Vitest (fe-01), WBS 080.16
+
+Vitest also ends a test at 5 seconds, and a hook at 10. The gate reached that on fe-01: a keyboard
+test that takes 1.8 s on a workstation took 5.7 s in CI (pull request 87), and another fe-01 test
+timed out at 5 s (pull request 89).
+
+- Every `vitest` in an Nx target passes `--testTimeout=<ms>` and `--hookTimeout=<ms>`. The guard is
+  `every Vitest command states its own time budgets` in
+  `tools/tool-devsync/src/workspace-targets.test.ts`.
+- The configs set no budget, as with Bun: the command line is the one place it lives, and a flag
+  beats the config. `apps/wbs/fe-01/vitest-budget.test.ts` runs the real config and setup file over
+  a hung test and a hung hook and proves both end at the budget the command line states.
+- The target budget follows the Bun rule above. Hooks get the same budget as tests: Vitest's JSON
+  report gives no hook times, and fe-01's hooks render and mount under the same load as its tests.
+- fe-01 keeps its serial flags, `--no-file-parallelism --maxWorkers=1`.
+
+Measured 2026-09-27 on the same workstation, with Vitest 5.0.0 and a 600-second budget. Idle ran
+the three commands one at a time beside other agent lanes (load average 10 to 18). Loaded ran them
+beside 24 busy-loop Bun processes (load average 40 to 50). Slowest test without its own budget, in
+seconds:
+
+| Command                 | Idle | Loaded | Budget (s) |
+| ----------------------- | ---- | ------ | ---------- |
+| `test`, UTC half        | 3.5  | 13.7   | 30         |
+| `test`, zoned half      | 0.2  | 0.8    | 30         |
+| `test:unit` (node tier) | 2.6  | 4.5    | 30         |
+
+The UTC half took 11 minutes idle and 37 minutes loaded. Its slowest case,
+`plan-dependencies.test.tsx`, needs 30 s: 3 times idle is 10.4 s and 1.5 times loaded is 20.6 s.
+All three commands share one budget so the target reads as one.
+
+`playwright-config.test.ts`'s login probe timed out at its own 10 s bound on both the idle and
+the loaded `test:unit` run (2.3 s in the idle UTC half). By the rule above it is now 20 s, and its
+case budget 30 s so the probe still reports first.
+
 ## Found under load, outside this budget
 
 These tests failed on the loaded run, but not at a time budget. They need their own work items:
