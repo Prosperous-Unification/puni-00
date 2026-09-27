@@ -11,6 +11,9 @@ async function runWithModules(
   files: Readonly<Record<string, Readonly<Record<string, string>>>>,
   check: (root: string) => Promise<void>,
 ): Promise<void> {
+  // The fixture sits inside the workspace so `bun-types` resolves; `tmp/` is untracked, so it
+  // may not exist yet in a fresh checkout.
+  await mkdir(join(workspace, 'tmp'), { recursive: true });
   const root = await mkdtemp(join(workspace, 'tmp/module-typecheck-'));
   try {
     for (const [name, contents] of Object.entries(files)) {
@@ -56,6 +59,28 @@ test('names a discovered module missing tsconfig.json', async () => {
       expect(run.exitCode).not.toBe(0);
       expect(run.output).toContain('absent');
       expect(run.output).toContain('tsconfig.json');
+    },
+  );
+});
+
+test('names a module its config leaves unchecked', async () => {
+  await runWithModules(
+    {
+      unchecked: {
+        'tsconfig.json': JSON.stringify({ extends: '../tsconfig.json' }),
+        'module.ts': 'export const broken: string = 1;\n',
+      },
+    },
+    async (root) => {
+      // A solution-style parent, as each project root is: the module inherits its empty inputs.
+      await writeFile(
+        join(root, 'tsconfig.json'),
+        JSON.stringify({ compilerOptions: { noEmit: true }, files: [], include: [] }),
+      );
+      const run = await runModules(root);
+      expect(run.exitCode).not.toBe(0);
+      expect(run.output).toContain('unchecked (config leaves out');
+      expect(run.output).toContain('module.ts');
     },
   );
 });

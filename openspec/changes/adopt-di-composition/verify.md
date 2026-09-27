@@ -2372,7 +2372,7 @@ contract and all eighteen real module mutations failed through TypeScript; the r
 
 | Verification command (all under `env -u CLAUDECODE`)                                     | Result                                                                           |
 | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `bun test tools/tool-devsync/src/typecheck-modules.test.ts`                              | 5 passed, 0 failed                                                               |
+| `bun test tools/tool-devsync/src/typecheck-modules.test.ts`                              | 6 passed, 0 failed (after the coverage guard below)                              |
 | `bunx nx run wbs-core:typecheck:module`                                                  | passed; 15 modules discovered                                                    |
 | `bunx nx run wbs-be-01:typecheck:module`                                                 | passed; 3 modules discovered                                                     |
 | `bunx nx run wbs-core:typecheck`                                                         | passed, including `typecheck:module` dependency                                  |
@@ -2390,3 +2390,12 @@ its immutable candidate did not contain them. A second focused attempt without
 implementation committed and that variable set to this checkout's `node_modules`, the focused
 case passed 1/1 and the full suite passed 21/21. The full host gate was intentionally skipped as
 requested for this loaded host; the focused checks above are the verification for task 7.3.
+
+Review follow-up (Astra, 2026-09-27): a module config whose `include` is dropped inherits its
+project's solution-style empty inputs, and `tsc -p` then exits 0 having read nothing. The runner
+now parses each config and refuses a module whose own `.ts` files are not all in the program. With
+the guard disabled, `names a module its config leaves unchecked` failed (5 pass, 1 fail,
+`Expected: not 0`) and `wbs-core:typecheck:module` reported success with
+`authentication/tsconfig.json`'s `include` deleted; with the guard restored the same fault failed
+the target naming `authentication (config leaves out .../module.ts, ...)`. The fixture suite also
+creates the untracked `tmp/` parent itself, so it passes in a fresh checkout.
