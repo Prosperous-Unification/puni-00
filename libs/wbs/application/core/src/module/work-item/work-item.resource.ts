@@ -61,7 +61,11 @@ import type { DependencyStore, StoredDependency } from '../../ports/dependency-s
 import type { Assignment, DirectoryStore } from '../../ports/directory-store';
 import type { EstimateStore, StoredEstimate } from '../../ports/estimate-store';
 import type { MeasureStore, StoredMeasure } from '../../ports/measure-store';
-import { findProjectWithin, type ResourceAccess } from '../../ports/organization-access';
+import {
+  findProjectWithin,
+  LEGACY_ACCESS,
+  type ResourceAccess,
+} from '../../ports/organization-access';
 import type { PriorityBandStore } from '../../ports/priority-band-store';
 import type { StepProgressStore, StoredProgress } from '../../ports/progress-store';
 import type { Broadcaster } from '../../ports/project-event';
@@ -1413,6 +1417,20 @@ export class WorkItemService {
       }
     }
     return true;
+  }
+
+  /** Whether any of `ids` names a work item that exists in another project. */
+  private async writesOutside(projectId: string, ids: readonly string[]): Promise<boolean> {
+    for (const id of new Set(ids)) {
+      const row = await this.opts.workItems.findById(id);
+      if (row !== null && row.projectId !== projectId) return true;
+    }
+    return false;
+  }
+
+  /** Whether `stepId` names one of this project's steps. */
+  async hasStepInProject(projectId: string, stepId: string): Promise<boolean> {
+    return (await this.opts.projects.stepsOf(projectId)).some((step) => step.id === stepId);
   }
 
   /** Whether a batch target is currently a row of this project, including rows created earlier in the batch. */
@@ -3921,7 +3939,23 @@ export class WorkItemService {
    * refusing every later press of the key for a change nobody can reach.
    */
   undo(projectId: string, actorId: string): Promise<UndoOutcome> {
-    return this.walkStack(projectId, actorId, 'undo');
+    return this.walkStack(projectId, actorId, 'undo', LEGACY_ACCESS);
+  }
+
+  /**
+   * {@link undo} through the caller's access. Under scoped access the entry is
+   * refused as `not_found` before anything is written when a row it would
+   * write exists in another project: an entry journalled before activation
+   * may name one, and the project's own closure would not show the write.
+   * The caller owns the project check and the closure check around it.
+   */
+  undoWithin(projectId: string, actorId: string, access: ResourceAccess): Promise<UndoOutcome> {
+    return this.walkStack(projectId, actorId, 'undo', access);
+  }
+
+  /** {@link redo} through the caller's access; see {@link undoWithin}. */
+  redoWithin(projectId: string, actorId: string, access: ResourceAccess): Promise<UndoOutcome> {
+    return this.walkStack(projectId, actorId, 'redo', access);
   }
 
   /**
@@ -3935,13 +3969,14 @@ export class WorkItemService {
    * command on top of a plan that has moved on is a different command.
    */
   redo(projectId: string, actorId: string): Promise<UndoOutcome> {
-    return this.walkStack(projectId, actorId, 'redo');
+    return this.walkStack(projectId, actorId, 'redo', LEGACY_ACCESS);
   }
 
   private async walkStack(
     projectId: string,
     actorId: string,
     direction: 'undo' | 'redo',
+    access: ResourceAccess,
   ): Promise<UndoOutcome> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found', detail: null };
@@ -3961,6 +3996,14 @@ export class WorkItemService {
     const payload = readPayload(entry.payload);
     const command = direction === 'undo' ? readCommand(entry.inverse) : payload.forward;
     const preconditions = readPreconditions(entry.preconditions);
+
+    // Proof: removing this check made `refuses an undo whose entry names
+    // another project's row, writing nothing` in
+    // `command-organization.controller.db.test.ts` answer 200 (`rename “Mine”`)
+    // instead of 404; watched 2026-09-27.
+    if (access.kind === 'scoped' && (await this.writesOutside(projectId, touchedBy(command)))) {
+      return { ok: false, reason: 'not_found', detail: null };
+    }
 
     const moved = await this.staleness(projectId, preconditions.expected);
     if (moved !== null) {

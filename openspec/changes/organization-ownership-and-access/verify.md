@@ -290,6 +290,37 @@ Branch `batch-9/010-5-2-orgs-9`, stacked on slice 9.
 | Export tree scoped                  | export reads `tree` unscoped                                                    | `fails the export and the optimizer retry closed over a crossing row`: 200                                                                                                                                                                          |
 | Retry input scoped                  | retry reads `scheduleInput` unscoped                                            | same case: 409 instead of 500                                                                                                                                                                                                                       |
 
+## Slice 11 — command batches, undo and redo (task 3.4, part 1)
+
+Branch `batch-9/010-5-2-orgs-10`, stacked on slice 10. Design call: Astra, 2026-09-27.
+
+- `POST /api/projects/:id/commands`, `POST /api/directory/commands`, undo and redo resolve organization access first. They then run through `PlanCommandRunner.runWithin`, `runDirectoryWithin`, `undoWithin` and `redoWithin`.
+- Under scoped access, each act's unit of work does the following:
+  - Refuses a project the organization does not own with the same plain 404 as an absent one.
+  - Refuses a viewer, or a non-creator of a restricted project, with a plain 403.
+  - Fails closed with 500 when the project already crosses its organization.
+- A batch holds every command to the organization in three ways:
+  - **Directory commands** are refused as `forbidden` at their index until part 2.
+  - **References outside the final state** are checked before the command runs: a predecessor, parent, sibling or step must be the project's own. These are references that a later closure check would not see.
+  - **After each command,** `findCrossReferences` must stay empty. Otherwise the batch is refused at that index with the matching 404 code and rolled back.
+- Undo and redo refuse an entry that would write another project's row, and roll back a replay that leaves a crossing. Both answer `not_found` and discard nothing.
+- `ProjectCrossReference.kind` is now the closed `PROJECT_CROSS_REFERENCE_KINDS`. `crossingRefusal` maps it exhaustively.
+- Legacy access is unchanged (tested). The mounted suite runs over be-01's production composition (`OrganizationHarness.openComposed`), so rollback is real SQLite.
+
+| Check                               | Injected fault                       | Observed failure (`command-organization.controller.db.test.ts`, 2026-09-27)                                             |
+| ----------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Batch admission in the unit of work | refusal ignored                      | `answers 404 alike for a foreign and an absent project`: 200 instead of 404                                             |
+| Role rule                           | `mayEditProjectWithin` check removed | `refuses a viewer every batch, undo and redo`: 200 instead of 403                                                       |
+| Pre-existing crossing               | initial check disabled               | `fails closed on a project that already crosses its organization`: 404 instead of 500                                   |
+| Directory commands refused          | refusal removed                      | `refuses every directory command until organization-local writes land`: 200 with the created tag                        |
+| Foreign row references              | row check disabled                   | `refuses a foreign predecessor, parent, sibling and step …`: 200 instead of 404 for `removeDependency`                  |
+| Foreign step references             | step check disabled alone            | same case: 200 instead of 404 `unknown_step` for `clearEstimate`                                                        |
+| Per-command closure                 | crossing refusal removed             | `refuses a foreign service, team, tag, type, person and predecessor, all or none`: 200 instead of 404 `unknown_service` |
+| Undo admission                      | walk admission ignored               | `refuses undo and redo of a foreign project as of an absent one`: 409 `nothing_to_undo` instead of 404                  |
+| Undo closure                        | walk closure ignored                 | `rolls back an undo that would restore a foreign label`: 200 instead of 404                                             |
+| Undo foreign target                 | `writesOutside` disabled             | `refuses an undo whose entry names another project's row, writing nothing`: 200 instead of 404                          |
+| Access resolved first               | project batch route skips resolution | `refuses an unbound session and a removed member before any batch`: 200 instead of 403                                  |
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

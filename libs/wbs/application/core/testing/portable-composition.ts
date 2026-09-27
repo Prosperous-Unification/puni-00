@@ -3,6 +3,7 @@ import { openMemorySource } from '@wbs/store-memory';
 
 import { composeServices, type RuntimePorts, type SharedComposition } from '../src/compose';
 import { clockOf } from '../src/ports/clock';
+import { LEGACY_ACCESS } from '../src/ports/organization-access';
 import { PlanCommandRunner } from '../src/service/plan-commands';
 import { fastScheduler } from '../src/testing/scheduler-fixture';
 import { replay } from '../src/use-cases/replay';
@@ -112,6 +113,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
     const project = await graph.projects.create('Browser composition', actor.id);
     const deniedBatch = await runCommandBatch(runner, {
       projectId: project.project.id,
+      access: LEGACY_ACCESS,
       actor: { id: 'reader', username: 'reader', scopes: ['read'] },
       commands: [],
     });
@@ -121,6 +123,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
     );
     const committed = await runCommandBatch(runner, {
       projectId: project.project.id,
+      access: LEGACY_ACCESS,
       actor,
       commands: [
         { kind: 'createTeam', ref: 'team', name: 'Browser team' },
@@ -136,6 +139,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
     assert(committed.ok, 'mixed-store browser batch was refused');
     const refused = await runCommandBatch(runner, {
       projectId: project.project.id,
+      access: LEGACY_ACCESS,
       actor,
       commands: [
         { kind: 'createTeam', name: 'Rolled back team' },
@@ -179,6 +183,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
     for (const name of ['First replay event', 'Second replay event']) {
       const outcome = await runCommandBatch(runner, {
         projectId: project.project.id,
+        access: LEGACY_ACCESS,
         actor,
         commands: [{ kind: 'createWorkItem', name, parentId: null, afterId: null }],
       });

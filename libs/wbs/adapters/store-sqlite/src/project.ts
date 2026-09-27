@@ -512,6 +512,8 @@ export class ProjectRepository implements ProjectStore {
       sql`SELECT 'project_team_capacity' AS kind, c.service_team_id AS id FROM project_team_capacity AS c
         WHERE c.project_id = ${p} AND ${ownerOf('service_team_organization', 'c.service_team_id')} IS NOT ${o}`,
     ];
+    // Typed, not parsed: every `kind` is one of the literals written in the arms
+    // above, and `PROJECT_CROSS_REFERENCE_KINDS` is their closed list.
     return this.db.all<ProjectCrossReference>(sql.join(arms, sql` UNION ALL `));
   }
 

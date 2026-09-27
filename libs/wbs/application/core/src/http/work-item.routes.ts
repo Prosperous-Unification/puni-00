@@ -19,7 +19,12 @@ import type { OrganizationAccess } from '../ports/organization-access';
 import type { Digest } from '../ports/runtime';
 import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
 import type { PlanCommand } from '../service/plan-command';
-import type { AppliedCommand, BatchRefusal, PlanCommandRunner } from '../service/plan-commands';
+import type {
+  AppliedCommand,
+  BatchRefusal,
+  PlanCommandRunner,
+  WholeBatchRefusal,
+} from '../service/plan-commands';
 import type { UndoOutcome, WorkItemService } from '../service/work-item.service';
 import { runCommandBatch } from '../use-cases/run-command-batch';
 import { BadCapacity } from './capacity-body';
@@ -213,6 +218,15 @@ async function parsedBatch(body: unknown) {
   }
 }
 
+/** A batch refused whole under scoped access: the same 404 as an absent project, or 403. */
+function answerWholeBatch(
+  refusal: WholeBatchRefusal['refusal'],
+): Extract<HttpReply<typeof applyProjectCommands>, { ok: false }> {
+  return refusal === 'not_found'
+    ? { ok: false, status: 404, body: { error: 'not_found' } }
+    : { ok: false, status: 403, body: { error: 'forbidden' } };
+}
+
 /** A finite status switch retains command detail; an unmodeled producer reason cannot acquire a default. */
 function answerBatch(
   outcome: BatchRefusal,
@@ -397,14 +411,22 @@ export function workItemRoutes(
       async ({ params, body, principal }): Promise<HttpReply<typeof applyProjectCommands>> => {
         const parsed = await parsedBatch(body);
         if (!parsed.ok) return parsed;
+        // Proof: running the batch without resolving access made `refuses an
+        // unbound session and a removed member before any batch` in
+        // `command-organization.controller.db.test.ts` answer 200; watched
+        // 2026-09-27.
+        const resolved = await organizations.resolve(principal.id);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const outcome = await runCommandBatch(commands, {
           projectId: params.id,
           actor: principal,
           commands: parsed.commands,
+          access: resolved.access,
         });
         if ('error' in outcome) {
           return { ok: false, status: 403, body: { error: outcome.error } };
         }
+        if ('refusal' in outcome) return answerWholeBatch(outcome.refusal);
         if (!outcome.ok) return answerBatch(outcome);
         return {
           ok: true,
@@ -423,14 +445,18 @@ export function workItemRoutes(
       async ({ body, principal }): Promise<HttpReply<typeof applyDirectoryCommands>> => {
         const parsed = await parsedBatch(body);
         if (!parsed.ok) return parsed;
+        const resolved = await organizations.resolve(principal.id);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const outcome = await runCommandBatch(commands, {
           projectId: null,
           actor: principal,
           commands: parsed.commands,
+          access: resolved.access,
         });
         if ('error' in outcome) {
           return { ok: false, status: 403, body: { error: outcome.error } };
         }
+        if ('refusal' in outcome) return answerWholeBatch(outcome.refusal);
         if (!outcome.ok) return answerBatch(outcome);
         return {
           ok: true,
@@ -440,12 +466,16 @@ export function workItemRoutes(
       },
       { classifyRequestFailure: classifyCommand },
     ),
-    bind(undoProject, async ({ params, principal }) =>
-      answerUndo(await commands.undo(params.id, principal.id)),
-    ),
-    bind(redoProject, async ({ params, principal }) =>
-      answerUndo(await commands.redo(params.id, principal.id)),
-    ),
+    bind(undoProject, async ({ params, principal }): Promise<HttpReply<typeof undoProject>> => {
+      const resolved = await organizations.resolve(principal.id);
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      return answerUndo(await commands.undoWithin(params.id, principal.id, resolved.access));
+    }),
+    bind(redoProject, async ({ params, principal }): Promise<HttpReply<typeof redoProject>> => {
+      const resolved = await organizations.resolve(principal.id);
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      return answerUndo(await commands.redoWithin(params.id, principal.id, resolved.access));
+    }),
     bind(
       getStepReference,
       async ({ params, query, principal }): Promise<HttpReply<typeof getStepReference>> => {

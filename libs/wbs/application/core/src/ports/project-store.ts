@@ -3,10 +3,36 @@ import type { Step } from './step-store';
 import type { WriteStamp } from './write-stamp';
 export type { NewProject, Project, ProjectPatch, ProjectWithAccess } from './project-values';
 
+/**
+ * Every relation {@link ProjectStore.findCrossReferences} follows, as the
+ * reconciliation names it. Closed, so a consumer that maps each kind to a
+ * refusal cannot silently miss one.
+ */
+export const PROJECT_CROSS_REFERENCE_KINDS = [
+  'estimate_step',
+  'actual_step',
+  'step_progress_step',
+  'step_measure_step',
+  'assignment_step',
+  'assignment_person',
+  'work_item_tag',
+  'work_item_team',
+  'work_item_type',
+  'work_item_service_link',
+  'work_item_external_ref',
+  'work_item_service_team',
+  'work_item_service',
+  'work_item_parent',
+  'dependency_endpoint',
+  'project_team_capacity',
+] as const;
+
+export type ProjectCrossReferenceKind = (typeof PROJECT_CROSS_REFERENCE_KINDS)[number];
+
 /** One reference that leaves the project or its organization; see {@link ProjectStore.findCrossReferences}. */
 export interface ProjectCrossReference {
-  /** Which relation it is, as the reconciliation names it (`estimate_step`, `assignment_person`, …). */
-  readonly kind: string;
+  /** Which relation it is. */
+  readonly kind: ProjectCrossReferenceKind;
   /** The referring row, as the reconciliation identifies it. */
   readonly id: string;
 }
