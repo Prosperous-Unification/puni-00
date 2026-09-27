@@ -1,210 +1,36 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
-import { SqliteOrganizationAccess } from '@wbs/store-sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { buildApp } from '../app';
-import { ActualRepository } from '../repository/actual';
-import { CommandJournalRepository } from '../repository/command-journal';
-import { openDatabase, openDrizzle } from '../repository/db';
-import { DependencyRepository } from '../repository/dependency';
-import { DirectoryRepository } from '../repository/directory';
-import { EstimateRepository } from '../repository/estimate';
-import { OPEN } from '../repository/gate';
-import { runMigrations } from '../repository/migrate';
-import { ProjectRepository } from '../repository/project';
-import { StepRepository } from '../repository/step';
-import { StepMeasureRepository } from '../repository/step-measure';
-import { StepProgressRepository } from '../repository/step-progress';
-import { UserRepository } from '../repository/user';
-import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
-import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { AuthService } from '../service/auth.service';
-import { DirectoryService } from '../service/directory.service';
-import { fastScheduler } from '../service/optimizer-wiring';
-import { ProjectService } from '../service/project.service';
-import { StepService } from '../service/step.service';
-import { WorkItemService } from '../service/work-item.service';
-import { TEST_JWT_KEY } from '../testing/auth-fixture';
-import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
-import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
-import { testClock } from '../testing/clock-fixture';
-import { testHistoryService } from '../testing/history-fixture';
-import { testLoginThrottle } from '../testing/login-throttle-fixture';
-import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
-import { testReplay } from '../testing/replay-fixture';
-import { testSavedPlanService } from '../testing/saved-plan-fixture';
-import { testWrites } from '../testing/writes-fixture';
+import { OrganizationHarness } from '../testing/organization-harness';
 
 /**
  * The project boundary under organization isolation (task 3.1), over real
- * SQLite and the production {@link SqliteOrganizationAccess}.
- *
- * Task 2.4 has not bound sessions to organizations yet, so `bound` stands in
- * for that binding: it names each user's active organization. Everything behind
- * it — the marker read, the membership lookup, the scoped queries and the role
- * policy — is production code. Production passes `NO_BOUND_ORGANIZATION`;
- * `boot.db.test.ts` holds the wired process to that.
+ * SQLite and the production organization access; see {@link OrganizationHarness}.
  */
-const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
-
-let dir: string;
-let app: ReturnType<typeof buildApp>;
-let sqlite: ReturnType<typeof openDatabase>;
-const bound = new Map<string, string>();
-const tokens = new Map<string, string>();
-const ids = new Map<string, string>();
+let h: OrganizationHarness;
 
 beforeEach(async () => {
-  dir = mkdtempSync(join(tmpdir(), 'wbs-project-organization-'));
-  const path = join(dir, 'test.db');
-  runMigrations(path, FOLDER);
-  const db = openDrizzle(path);
-  sqlite = openDatabase(path);
-  bound.clear();
-  tokens.clear();
-  ids.clear();
-
-  const projects = new ProjectRepository(db, OPEN);
-  const directoryStore = new DirectoryRepository(db, OPEN);
-  const writing = {
-    directory: new DirectoryService({
-      clock: testClock,
-      directory: directoryStore,
-      broadcast: recordingBroadcaster(),
-    }),
-    capacity: testCapacityService(),
-    priorityBands: testPriorityBandService(),
-    calendarMarkers: testCalendarMarkerService(),
-    projects: new ProjectService({ clock: testClock, projects, broadcast: recordingBroadcaster() }),
-    steps: new StepService({
-      clock: testClock,
-      projects,
-      steps: new StepRepository(db, OPEN),
-      broadcast: recordingBroadcaster(),
-    }),
-    workItems: new WorkItemService({
-      scheduler: fastScheduler,
-      clock: testClock,
-      workItems: new WorkItemRepository(db, OPEN),
-      projects,
-      estimates: new EstimateRepository(db, OPEN),
-      actuals: new ActualRepository(db, OPEN),
-      measures: new StepMeasureRepository(db, OPEN),
-      progress: new StepProgressRepository(db, OPEN),
-      dependencies: new DependencyRepository(db, OPEN),
-      directory: directoryStore,
-      capacity: inMemoryCapacity(),
-      priorityBands: inMemoryPriorityBands(),
-      subtrees: new SubtreeRepository(db, OPEN),
-      journal: new CommandJournalRepository(db, OPEN),
-      broadcast: recordingBroadcaster(),
-    }),
-  };
-  app = buildApp({
-    loginThrottle: testLoginThrottle(),
-    clock: testClock,
-    appOrigin: 'http://localhost',
-    savedPlans: testSavedPlanService(),
-    ...writing,
-    organizations: new SqliteOrganizationAccess(db, (userId) =>
-      Promise.resolve(bound.get(userId) ?? null),
-    ),
-    history: testHistoryService(),
-    auth: new AuthService({
-      clock: testClock,
-      users: new UserRepository(db, OPEN),
-      tokens: joseTokenCodec(TEST_JWT_KEY),
-      passwords: bunPasswordHasher,
-    }),
-    replay: testReplay().replay,
-    probeDatabase: () => 'ok',
-    internalAuthSecret: 'x'.repeat(32),
-    writes: testWrites(undefined, writing),
-    migrationsApplied: true,
-  });
-  for (const username of ['ada', 'grace', 'vic', 'sam', 'nell']) await register(username);
-  sqlite.run(
-    "INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1), ('org-b', 'B', 1)",
-  );
-  member('org-a', 'ada', 'member');
-  member('org-a', 'vic', 'viewer');
-  member('org-a', 'sam', 'super_admin');
-  member('org-b', 'grace', 'member');
-  for (const [username, organizationId] of [
-    ['ada', 'org-a'],
-    ['vic', 'org-a'],
-    ['sam', 'org-a'],
-    ['grace', 'org-b'],
-  ] as const) {
-    bound.set(userId(username), organizationId);
-  }
+  h = OrganizationHarness.open();
+  for (const username of ['ada', 'grace', 'vic', 'sam', 'nell']) await h.register(username);
+  h.organization('org-a');
+  h.organization('org-b');
+  h.member('org-a', 'ada', 'member');
+  h.member('org-a', 'vic', 'viewer');
+  h.member('org-a', 'sam', 'super_admin');
+  h.member('org-b', 'grace', 'member');
+  for (const username of ['ada', 'vic', 'sam']) h.bind(username, 'org-a');
+  h.bind('grace', 'org-b');
 });
 
 afterEach(() => {
-  sqlite.close();
-  rmSync(dir, { recursive: true, force: true });
+  h.close();
 });
 
-function userId(username: string): string {
-  const found = ids.get(username);
-  if (found === undefined) throw new Error(`${username} was never registered`);
-  return found;
-}
-
-function member(organizationId: string, username: string, role: string): void {
-  sqlite.run(
-    'INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (?, ?, ?, 1)',
-    [organizationId, userId(username), role],
-  );
-}
-
-/** Commits the marker through a connection the app does not hold, as a swap would. */
-function activate(): void {
-  sqlite.run(
-    "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
-  );
-}
-
-async function register(username: string): Promise<void> {
-  const res = await app.handle(
-    new Request('http://localhost/api/auth/register', {
-      method: 'POST',
-      headers: { origin: 'http://localhost', 'content-type': 'application/json' },
-      body: JSON.stringify({ username, password: 'correct-horse' }),
-    }),
-  );
-  const body = (await res.json()) as { token?: unknown; user?: { id?: unknown } };
-  if (typeof body.token !== 'string' || typeof body.user?.id !== 'string') {
-    throw new Error(`register did not answer with a token and user: ${JSON.stringify(body)}`);
-  }
-  tokens.set(username, body.token);
-  ids.set(username, body.user.id);
-}
-
-async function call(
-  username: string,
-  method: string,
-  path: string,
-  body?: unknown,
-): Promise<{ status: number; body: unknown }> {
-  const res = await app.handle(
-    new Request(`http://localhost${path}`, {
-      method,
-      headers: {
-        authorization: `Bearer ${tokens.get(username) ?? 'none'}`,
-        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    }),
-  );
-  if (res.status === 204) return { status: 204, body: null };
-  const text = await res.text();
-  return { status: res.status, body: text.startsWith('{') ? JSON.parse(text) : text };
-}
+const call = (username: string, method: string, path: string, body?: unknown) =>
+  h.call(username, method, path, body);
+const activate = () => {
+  h.activate();
+};
+const userId = (username: string) => h.userId(username);
 
 async function create(username: string, name: string): Promise<string> {
   const answer = await call(username, 'POST', '/api/projects', { name });
@@ -256,7 +82,7 @@ describe('after activation', () => {
     expect((await call('ada', 'GET', `/api/projects/${id}`)).status).toBe(200);
     expect((await call('grace', 'GET', `/api/projects/${id}`)).status).toBe(404);
     expect(
-      sqlite
+      h.sqlite
         .query('SELECT organization_id FROM project_organization WHERE resource_id = ?')
         .all(id),
     ).toEqual([{ organization_id: 'org-a' }]);
@@ -286,7 +112,7 @@ describe('after activation', () => {
       expect(toMissing).toEqual(toForeign);
     }
     expect(await listedNames('grace')).toEqual(['B plan']);
-    expect(sqlite.query('SELECT COUNT(*) AS n FROM project_access').get()).toEqual({ n: 0 });
+    expect(h.sqlite.query('SELECT COUNT(*) AS n FROM project_access').get()).toEqual({ n: 0 });
   });
 
   it('refuses a viewer every project write and lets the viewer read and open', async () => {
@@ -330,7 +156,7 @@ describe('after activation', () => {
   it('refuses a removed member on the next request', async () => {
     activate();
     const id = await create('ada', 'A plan');
-    sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [userId('ada')]);
+    h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [userId('ada')]);
     for (const [method, path, body] of [
       ['GET', '/api/projects'],
       ['POST', '/api/projects', { name: 'After removal' }],
@@ -365,7 +191,7 @@ describe('after activation', () => {
     activate();
     const own = await create('ada', 'A plan');
     const foreign = await create('grace', 'B plan');
-    sqlite.run("UPDATE project SET solution_slug = 'shared', solution_url = 'u' WHERE id = ?", [
+    h.sqlite.run("UPDATE project SET solution_slug = 'shared', solution_url = 'u' WHERE id = ?", [
       foreign,
     ]);
     for (const slug of ['shared', 'free']) {
@@ -380,11 +206,11 @@ describe('after activation', () => {
 
   it('fails as a server error on a malformed membership role', async () => {
     activate();
-    sqlite.run('PRAGMA ignore_check_constraints = ON');
-    sqlite.run("UPDATE organization_membership SET role = 'owner' WHERE user_id = ?", [
+    h.sqlite.run('PRAGMA ignore_check_constraints = ON');
+    h.sqlite.run("UPDATE organization_membership SET role = 'owner' WHERE user_id = ?", [
       userId('vic'),
     ]);
-    sqlite.run('PRAGMA ignore_check_constraints = OFF');
+    h.sqlite.run('PRAGMA ignore_check_constraints = OFF');
     expect((await call('vic', 'POST', '/api/projects', { name: 'Owner plan' })).status).toBe(500);
   });
 
@@ -399,8 +225,8 @@ describe('a broken activation marker', () => {
     ['absent', 'DROP TABLE organization_activation'],
     ['malformed', 'DROP TRIGGER IF EXISTS organization_activation_no_delete'],
   ])('fails the project list and read as a server error when %s', async (state, damage) => {
-    sqlite.run(damage);
-    if (state === 'malformed') sqlite.run('DELETE FROM organization_activation');
+    h.sqlite.run(damage);
+    if (state === 'malformed') h.sqlite.run('DELETE FROM organization_activation');
     expect((await call('ada', 'GET', '/api/projects')).status).toBe(500);
     expect((await call('ada', 'GET', '/api/projects/missing')).status).toBe(500);
   });
