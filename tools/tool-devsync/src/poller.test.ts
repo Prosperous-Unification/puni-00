@@ -24,6 +24,45 @@ async function command(argv: string[], env: Record<string, string> = {}): Promis
   return { code, stdout, stderr };
 }
 
+/**
+ * Runs every argv at once and resolves only when all of them exit 0.
+ *
+ * A race fixture parks each run until its partner arrives, so a run that dies
+ * early leaves the survivor waiting out its patience. {@link command} resolves
+ * a nonzero exit as a value, and `Promise.all` over those values waited for the
+ * survivor: the dead partner's exit was hidden behind a test timeout. Here the
+ * first nonzero exit rejects at once with the run's index, code and stderr, and
+ * the runs still alive are killed.
+ *
+ * Proof: with the fixture's `clone` made to exit 5 for the second run, the
+ * overlap case failed in 17ms on `overlapping run 1 exited 5` (2026-09-27);
+ * through `command` and `Promise.all` the same fault timed out at 30004ms.
+ */
+async function requireOverlapping(
+  argvs: string[][],
+  env: Record<string, string>,
+): Promise<CommandResult[]> {
+  const children = argvs.map((argv) =>
+    Bun.spawn(argv, { env: { ...process.env, ...env }, stdout: 'pipe', stderr: 'pipe' }),
+  );
+  try {
+    return await Promise.all(
+      children.map(async (child, index) => {
+        const stdout = new Response(child.stdout).text();
+        const stderr = new Response(child.stderr).text();
+        const code = await child.exited;
+        if (code !== 0)
+          throw new Error(
+            `overlapping run ${String(index)} exited ${String(code)}: ${await stderr}`,
+          );
+        return { code, stdout: await stdout, stderr: await stderr };
+      }),
+    );
+  } finally {
+    for (const child of children) if (child.exitCode === null) child.kill();
+  }
+}
+
 async function requireCommand(argv: string[]): Promise<string> {
   const result = await command(argv);
   if (result.code !== 0) throw new Error(`${argv.join(' ')}: ${result.stderr}`);
@@ -962,9 +1001,13 @@ esac`),
       RACE_STARTED: started,
       RACE_RELEASE: release,
     };
-    const first = command(['bash', helper, source, installed, fakeBun, firstSha, '1.3.14'], env);
-    const second = command(['bash', helper, source, installed, fakeBun, secondSha, '1.3.14'], env);
-    const results = await Promise.all([first, second]);
+    const results = await requireOverlapping(
+      [
+        ['bash', helper, source, installed, fakeBun, firstSha, '1.3.14'],
+        ['bash', helper, source, installed, fakeBun, secondSha, '1.3.14'],
+      ],
+      env,
+    );
 
     expect(results.map((result) => result.code)).toEqual([0, 0]);
     expect((await readFile(observations, 'utf8')).trim().split('\n').sort()).toEqual(
@@ -979,25 +1022,35 @@ esac`),
     const commands = join(root, 'commands');
     const fakeGit = join(commands, 'git');
     const fakeBun = join(root, 'bun');
-    const first = join(root, 'first');
-    const release = join(root, 'release');
+    const arrivals = join(root, 'arrivals');
     const observations = join(root, 'observations');
     const helper = new URL('../../../bin/dev-poll-sync.sh', import.meta.url).pathname;
     const sha = 'd'.repeat(40);
 
-    await requireCommand(['mkdir', '-p', source, commands]);
+    await requireCommand(['mkdir', '-p', source, commands, arrivals]);
     await writeFile(
       fakeGit,
-      fakeGitArchiving(`if mkdir "$RACE_FIRST" 2>/dev/null; then
-  waited=0
-  while [ ! -e "$RACE_RELEASE" ]; do
-    sleep 0.01
-    waited=$((waited + 1))
-    if [ "$waited" -ge "\${RACE_PATIENCE:-3000}" ]; then echo "race partner never arrived: $RACE_RELEASE" >&2; exit 97; fi
-  done
-else
-  : > "$RACE_RELEASE"
-fi
+      // A barrier, not a lock: each checkout records its own arrival and waits
+      // for both. It used to elect a waiter with `mkdir "$RACE_FIRST"`, but
+      // uutils coreutils 0.8.0 (Ubuntu 26.04's `mkdir` on h2puni) can report
+      // success to both of two concurrent callers. Both then waited for a
+      // release neither would write, and the test hung.
+      // Proof: on h2puni, uutils `mkdir` let both racers succeed in 47 of 300
+      // tries and GNU `gnumkdir` in 0 of 300; a loop of this case with the old
+      // election hung with `first` present, no `release`, and both fake `git`
+      // processes waiting (2026-09-27). Locally, a `mkdir` shim that succeeds
+      // for every caller put first on PATH reproduced the gate's signature with
+      // the old election, `killed 2 dangling processes` and a 30005ms timeout;
+      // the barrier passed under the same shim in 47ms.
+      fakeGitArchiving(`: > "$RACE_ARRIVALS/$$"
+waited=0
+arrivals=("$RACE_ARRIVALS"/*)
+while [ "\${#arrivals[@]}" -lt 2 ]; do
+  sleep 0.01
+  waited=$((waited + 1))
+  if [ "$waited" -ge "\${RACE_PATIENCE:-3000}" ]; then echo "race partner never arrived: $RACE_ARRIVALS" >&2; exit 97; fi
+  arrivals=("$RACE_ARRIVALS"/*)
+done
 CONTENT=SAME`),
     );
     await writeFile(
@@ -1013,14 +1066,16 @@ CONTENT=SAME`),
     const env = {
       PATH: `${commands}:${process.env['PATH'] ?? ''}`,
       POLL_OBSERVATIONS: observations,
-      RACE_FIRST: first,
-      RACE_RELEASE: release,
+      RACE_ARRIVALS: arrivals,
     };
 
-    const runs = await Promise.all([
-      command(['bash', helper, source, installed, fakeBun, sha, '1.3.14'], env),
-      command(['bash', helper, source, installed, fakeBun, sha, '1.3.14'], env),
-    ]);
+    const runs = await requireOverlapping(
+      [
+        ['bash', helper, source, installed, fakeBun, sha, '1.3.14'],
+        ['bash', helper, source, installed, fakeBun, sha, '1.3.14'],
+      ],
+      env,
+    );
 
     expect(runs.map(({ code }) => code)).toEqual([0, 0]);
     expect((await readFile(observations, 'utf8')).trim().split('\n')).toEqual([
