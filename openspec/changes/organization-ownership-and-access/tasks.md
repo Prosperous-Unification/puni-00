@@ -18,7 +18,7 @@
 
 ## 3. Resource authorization, one boundary at a time
 
-- [ ] 3.1 Scope project list/detail/create/update/delete and restricted creator stewardship. Red: cross-organization 404, viewer 403 and restricted creator/super-admin recovery. Fault: remove project organization predicate; observe mounted foreign read fail, restore and add `Proof:`.
+- [x] 3.1 Scope project list/detail/create/update/delete and restricted creator stewardship. Red: cross-organization 404, viewer 403 and restricted creator/super-admin recovery. Fault: remove project organization predicate; observe mounted foreign read fail, restore and add `Proof:`. Done for all seven project routes (Astra, 2026-09-27). The marker is read per request, so the slice is inert until activation, and production binds no organization until 2.4. The super-admin recovery override is moved to 3.7 because it must be audited; until then it is refused. No project delete endpoint exists.
 - [ ] 3.2 Scope directory people, teams, services, tags, types and external systems, including organization-local names. Red: same names across organizations and foreign ID 404. Fault: remove directory predicate; observe mounted foreign entry test fail, restore and add `Proof:`.
 - [ ] 3.3 Scope project steps, estimates, allowances and schedules. Red: a foreign step or allowance ID cannot influence an A schedule. Fault: remove step reference check; observe mounted schedule test fail, restore and add `Proof:`.
 - [ ] 3.4 Scope dependencies and all batch commands, including indirect refs and atomic refusal. Red: foreign service/predecessor in a batch leaves every command unchanged. Fault: bypass one reference check; observe mounted batch test fail, restore and add `Proof:`.

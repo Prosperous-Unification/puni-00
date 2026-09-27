@@ -60,24 +60,49 @@ export interface MemoryProjectTables {
   readonly projects: Map<string, Project>;
   readonly steps: Map<string, Step[]>;
   readonly opened: Map<string, number>;
+  /** Which organization owns each project, as `project_organization` holds it. */
+  readonly owning: Map<string, string>;
 }
 
 export function memoryProjectTables(): MemoryProjectTables {
-  return { projects: new Map(), steps: new Map(), opened: new Map() };
+  return { projects: new Map(), steps: new Map(), opened: new Map(), owning: new Map() };
 }
 
 export function inMemoryProjects(
   owners: UserStore = inMemoryUsers(),
   tables: MemoryProjectTables = memoryProjectTables(),
 ): ProjectStore {
-  const { projects, steps, opened } = tables;
+  const { projects, steps, opened, owning } = tables;
   /** One moment per `userId::projectId`, exactly as the primary key holds it. */
   /**
    * Every stamp this store was handed, in call order, so a service test can
    * assert who wrote and when without a database to read audit columns from.
    */
 
-  return {
+  const store: ProjectStore = {
+    async createInOrganization(project, starting, stamp, organizationId) {
+      const written = await store.create(project, starting, stamp);
+      owning.set(written.id, organizationId);
+      return written;
+    },
+    findInOrganization(id, organizationId) {
+      return owning.get(id) === organizationId ? store.findById(id) : Promise.resolve(null);
+    },
+    async recordOpenInOrganization(projectId, stamp, organizationId) {
+      if (owning.get(projectId) !== organizationId) return false;
+      await store.recordOpen(projectId, stamp);
+      return true;
+    },
+    updateInOrganization(id, patch, stamp, organizationId) {
+      return owning.get(id) === organizationId
+        ? store.update(id, patch, stamp)
+        : Promise.resolve(null);
+    },
+    async listForInOrganization(userId, organizationId) {
+      return (await store.listFor(userId)).filter(
+        (project) => owning.get(project.id) === organizationId,
+      );
+    },
     create(project, starting, _stamp) {
       const names = new Set(starting.map((r) => r.name));
       if (names.size !== starting.length) {
@@ -177,4 +202,5 @@ export function inMemoryProjects(
       );
     },
   };
+  return store;
 }

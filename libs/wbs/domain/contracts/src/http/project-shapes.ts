@@ -42,6 +42,16 @@ const bodyRefusals = [
   { status: 422, schema: responseSchema(type({ error: "'invalid_body'" })) },
 ] as const;
 const notFound = { status: 404, schema: responseSchema(type({ error: "'not_found'" })) } as const;
+/**
+ * An authenticated caller with no organization authority: no bound active
+ * organization, or no current membership in it. Answered before any lookup, so
+ * it reveals nothing about the addressed project.
+ */
+const organizationRefusal = {
+  status: 403,
+  schema: responseSchema(type({ error: "'no_active_organization' | 'not_a_member'" })),
+} as const;
+const forbidden = { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) } as const;
 
 /** Creates a project with its ordered starting steps; empty names remain legal. */
 export const createProject = defineEndpointShape({
@@ -53,7 +63,7 @@ export const createProject = defineEndpointShape({
   body: requestSchema(type({ name: 'string' })),
   bodyMedia,
   responses: [{ kind: 'json', status: 200, schema: projectWithSteps }],
-  refusals: bodyRefusals,
+  refusals: [...bodyRefusals, organizationRefusal, forbidden],
   document: { summary: 'Create a project with its starting steps.' },
 });
 
@@ -76,7 +86,7 @@ export const listProjects = defineEndpointShape({
       ),
     },
   ],
-  refusals: readRefusals,
+  refusals: [...readRefusals, organizationRefusal],
   document: { summary: 'List projects in this account’s own order.' },
 });
 
@@ -91,6 +101,7 @@ export const recordProjectOpen = defineEndpointShape({
   refusals: [
     ...writeRefusals,
     notFound,
+    organizationRefusal,
     { status: 400, schema: responseSchema(type({ error: "'invalid_body'" })) },
   ],
   document: { summary: 'Record this account opening a project.' },
@@ -114,6 +125,7 @@ export const exportProject = defineEndpointShape({
   refusals: [
     ...readRefusals,
     notFound,
+    organizationRefusal,
     engineUnavailableRefusal,
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
     { status: 400, schema: responseSchema(type({ error: "'unsupported_format'" })) },
@@ -129,7 +141,7 @@ export const readProject = defineEndpointShape({
   policies: readPolicies,
   params,
   responses: [{ kind: 'json', status: 200, schema: projectWithSteps }],
-  refusals: [...readRefusals, notFound],
+  refusals: [...readRefusals, notFound, organizationRefusal],
   document: { summary: 'Read a project and its steps.' },
 });
 
@@ -172,7 +184,8 @@ export const patchProject = defineEndpointShape({
   refusals: [
     ...bodyRefusals,
     notFound,
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    organizationRefusal,
+    forbidden,
     {
       status: 422,
       schema: responseSchema(type({ error: "'bad_start_date' | 'bad_pert_weights'" })),
@@ -215,7 +228,8 @@ export const retryProjectOptimization = defineEndpointShape({
   refusals: [
     ...bodyRefusals,
     notFound,
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    organizationRefusal,
+    forbidden,
     { status: 409, schema: retryRefusal },
   ],
   document: { summary: 'Retry one failed or corrupt optimized schedule.' },

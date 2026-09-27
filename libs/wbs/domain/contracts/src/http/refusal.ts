@@ -216,6 +216,10 @@ export type CommandRefusalDetail = {
 type BareRefusalCode =
   | 'unauthenticated'
   | 'insufficient_scope'
+  /** Authenticated, but the session is bound to no organization (after activation). */
+  | 'no_active_organization'
+  /** Authenticated, but the bound organization no longer lists the user. */
+  | 'not_a_member'
   | 'invalid_origin'
   | 'unauthorized'
   | 'invalid_body'
