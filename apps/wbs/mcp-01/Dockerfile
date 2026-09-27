@@ -1,7 +1,3 @@
-# Lab MCP image for the backup and cutover rehearsals. It matches
-# apps/wbs/mcp-01/Dockerfile, the Dagger release image that the F8 lab builds.
-# Build from the repo root:
-#   docker build -f deploy/k8s/wbs/lab/mcp-01.Dockerfile -t wbs-mcp-01:lab .
 FROM oven/bun:1.4.2-alpine AS deps
 WORKDIR /app
 COPY package.json bun.lock ./

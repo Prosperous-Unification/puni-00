@@ -635,6 +635,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
         'apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile',
         'apps/wbs/fe-01/Dockerfile',
         'apps/wbs/gw-01/Dockerfile',
+        'apps/wbs/mcp-01/Dockerfile',
         'deploy/dev-src/Dockerfile',
         'deploy/k8s/wbs/lab/backend-unhealthy.Dockerfile',
         'deploy/k8s/wbs/lab/backend-upgrade.Dockerfile',
