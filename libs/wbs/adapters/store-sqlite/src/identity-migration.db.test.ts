@@ -94,8 +94,8 @@ const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
  */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /**
- * The newest: the durable activation marker, stamped after main's step code
- * column and reversed before it.
+ * The durable activation marker, stamped after main's step code column and
+ * reversed before it.
  */
 const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 /**
@@ -104,6 +104,11 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+/**
+ * The newest: the legacy bridge triggers, stamped after
+ * {@link ORGANIZATION_ACTIVATION} and reversed before it.
+ */
+const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -119,6 +124,7 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    ORGANIZATION_BRIDGE,
     ORGANIZATION_ACTIVATION,
     STEP_CODE,
     ORGANIZATION_OWNERSHIP,
@@ -224,6 +230,7 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
@@ -294,6 +301,7 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
