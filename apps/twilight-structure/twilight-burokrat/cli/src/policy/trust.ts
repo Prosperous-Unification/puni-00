@@ -57,6 +57,12 @@ const TrustedBoundary = type({
   boundaryId: OpaqueId,
   selector: BoundarySelector,
   'sourceSelector?': BoundarySelector,
+  /**
+   * The commit that first added this boundary's files, for a module created after
+   * `pilot.sourceRevision` with no predecessor to name in `sourceSelector`. Its baseline is the
+   * selector's tuples at that commit; {@link assertCreationBaselines} holds it to that.
+   */
+  'creationRevision?': GitIdentity,
   baselineEntries: ExactTuple.array(),
   obligationIds: OpaqueId.array(),
 }).onUndeclaredKey('reject');
@@ -393,6 +399,20 @@ function validatePolicy(policy: TrustedPolicy): void {
         `trusted boundary source selector requires pilot policy: ${boundary.boundaryId}`,
       );
     }
+    if (boundary.creationRevision !== undefined && policy.pilot === undefined) {
+      // Proof: without this guard, production ratchet lint accepted a non-pilot boundary naming
+      // a creation revision; the trusted-policy negative expected exit 1 and received 0.
+      throw new Error(
+        `trusted boundary creation revision requires pilot policy: ${boundary.boundaryId}`,
+      );
+    }
+    if (boundary.sourceSelector !== undefined && boundary.creationRevision !== undefined) {
+      // Proof: without this guard, Plan import claiming both a predecessor and a creation
+      // revision was refused only by accident, as `baseline escapes selector … README.md`.
+      throw new Error(
+        `trusted boundary declares both a predecessor and a creation revision: ${boundary.boundaryId}`,
+      );
+    }
     if (
       boundary.sourceSelector !== undefined &&
       boundary.sourceSelector.kind !== boundary.selector.kind
@@ -453,6 +473,147 @@ function validatePolicy(policy: TrustedPolicy): void {
   for (const exemption of policy.exemptions) {
     if (!obligations.has(exemption.obligationId)) {
       throw new Error(`exemption ${exemption.exemptionId} has unknown obligation`);
+    }
+  }
+}
+
+function hashTuples(entries: readonly (typeof ExactTuple.infer)[]): string {
+  return hashCanonical(
+    entries
+      .map(({ path, mode, blob }) => ({ path, mode, blob }))
+      .sort((left, right) => compareText(left.path, right.path)),
+  );
+}
+
+/** Reads one commit a creation-revision boundary is checked against; `role` names which. */
+function readRevision(
+  repository: string,
+  revision: string,
+  role: 'creation' | 'pilot source',
+  boundaryId: string,
+): CandidateSnapshot {
+  try {
+    return readCandidate(repository, { kind: 'committed', revision });
+  } catch (cause) {
+    // Proof: rethrowing `cause` unchanged made the absent Plan import negative report only
+    // `absent committed revision 0000…: fatal: Needed a single revision`, naming no boundary.
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(
+      `trusted boundary ${role} revision is unreadable: ${boundaryId} ${revision}: ${detail}`,
+      { cause },
+    );
+  }
+}
+
+function runGit(
+  repository: string,
+  argv: readonly string[],
+): { exitCode: number; stdout: string; stderr: string } {
+  const invocation = Bun.spawnSync(['git', '-C', repository, ...argv], {
+    stderr: 'pipe',
+    stdout: 'pipe',
+  });
+  return {
+    exitCode: invocation.exitCode,
+    stdout: invocation.stdout.toString('utf8'),
+    stderr: invocation.stderr.toString('utf8').trim(),
+  };
+}
+
+/**
+ * Whether `ancestor` is reachable from `revision`. Both are schema-checked hexadecimal object ids,
+ * so neither can be read as an option. A shallow clone cut between them answers false.
+ * @throws When Git fails other than by answering no.
+ */
+function isAncestor(repository: string, ancestor: string, revision: string): boolean {
+  const invocation = runGit(repository, ['merge-base', '--is-ancestor', ancestor, revision]);
+  if (invocation.exitCode === 0) return true;
+  if (invocation.exitCode === 1) return false;
+  throw new Error(`cannot compare ${ancestor} with ${revision}: ${invocation.stderr}`);
+}
+
+/**
+ * The oldest commit after `since` and up to `revision` that touches `path`, in topological order,
+ * or `undefined` when none does.
+ * @throws When Git cannot walk that history.
+ */
+function readFirstTouch(
+  repository: string,
+  since: string,
+  revision: string,
+  path: string,
+): string | undefined {
+  const invocation = runGit(repository, [
+    'rev-list',
+    '--reverse',
+    '--topo-order',
+    '--full-history',
+    `${since}..${revision}`,
+    '--',
+    path,
+  ]);
+  if (invocation.exitCode !== 0) {
+    throw new Error(`cannot walk history of ${path} to ${revision}: ${invocation.stderr}`);
+  }
+  const first = invocation.stdout.split('\n')[0];
+  return first === '' ? undefined : first;
+}
+
+/**
+ * Holds every creation-revision boundary to the module's own first commit after the freeze: the
+ * creation revision descends from the pilot's frozen `sourceRevision`, the selector selects
+ * nothing at that revision, the oldest commit since then touching the selector is the creation
+ * revision, and the baseline is exactly the selector's tuples there. A boundary whose files
+ * existed at the freeze has a predecessor and must bind it through `sourceSelector` instead.
+ * @throws When a creation revision is absent or not a commit, selects nothing, does not descend
+ *   from the freeze, is not the first commit to touch the boundary's files, or disagrees with the
+ *   baseline.
+ */
+function assertCreationBaselines(repository: string, policy: TrustedPolicy): void {
+  const pilot = policy.pilot;
+  if (pilot === undefined) return;
+  let frozen: CandidateSnapshot | undefined;
+  for (const boundary of policy.boundaries) {
+    const revision = boundary.creationRevision;
+    if (revision === undefined) continue;
+    const { boundaryId, selector } = boundary;
+    const created = selectedMembers(
+      readRevision(repository, revision, 'creation', boundaryId),
+      selector,
+    );
+    // Proof: without this check, naming Plan import's parent commit as its creation revision was
+    // refused only as `not the boundary's first commit`, not as selecting nothing.
+    if (created.length === 0) {
+      throw new Error(`trusted boundary creation revision selects nothing: ${boundaryId}`);
+    }
+    frozen ??= readRevision(repository, pilot.sourceRevision, 'pilot source', boundaryId);
+    // Proof: without this check, the W4-4 docs boundary, which existed at the freeze, naming the
+    // freeze as its creation revision was refused only as `not the boundary's first commit`.
+    if (selectedMembers(frozen, selector).length > 0) {
+      throw new Error(
+        `trusted boundary existed at the pilot source revision and needs a predecessor: ${boundaryId}`,
+      );
+    }
+    // Proof: without this check, a forged commit carrying Plan import's creation tree on a parent
+    // older than the freeze, with an honest baseline, was accepted by production observe lint.
+    if (!isAncestor(repository, pilot.sourceRevision, revision)) {
+      throw new Error(
+        `trusted boundary creation revision does not descend from the pilot source revision: ${boundaryId}`,
+      );
+    }
+    // Proof: without this check, a later commit that edited Plan import, with a baseline read
+    // honestly at that commit, was accepted by production observe lint (exit 0).
+    if (readFirstTouch(repository, pilot.sourceRevision, revision, selector.value) !== revision) {
+      throw new Error(
+        `trusted boundary creation revision is not the boundary's first commit: ${boundaryId}`,
+      );
+    }
+    // Proof: without this comparison, a Plan import baseline with its README blob replaced was
+    // accepted by production observe lint (exit 0).
+    if (hashTuples(created) !== hashTuples(boundary.baselineEntries)) {
+      throw new Error(
+        `trusted boundary baseline differs from its creation revision: ${boundaryId} ${revision}`,
+      );
     }
   }
 }
@@ -622,6 +783,7 @@ export function loadTrustedPolicy(
     parseJson(policyArtifact.bytes, 'trusted policy JSON'),
   );
   validatePolicy(policy);
+  assertCreationBaselines(candidateRoot, policy);
   let pilotModuleMapping: LoadedTrust['pilotModuleMapping'];
   if (policy.pilot !== undefined) {
     if (binding.pilotModuleMapping === undefined) {

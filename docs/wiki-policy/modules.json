@@ -823,6 +823,82 @@
           { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts" }
         ]
       }
+    },
+    {
+      "moduleId": "module.application.plan-import",
+      "name": "Plan import sealed DI Bag module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "libs/wbs/application/core/src/module/plan-import",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "libs/wbs/application/core/src/module/plan-import/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/compose.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/import.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/import.service.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/prepare-import.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/testing/import-service-source-contract.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/testing/writes-fixture.ts"
+          }
+        ]
+      }
+    },
+    {
+      "moduleId": "module.application.plan-document",
+      "name": "Plan document sealed resource module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "libs/wbs/application/core/src/module/plan-document",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "libs/wbs/application/core/src/module/plan-document/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/http/project.routes.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/index.ts"
+          },
+          {
+            "kind": "path",
+            "path": "libs/wbs/application/core/src/service/plan-document.ts"
+          }
+        ]
+      }
     }
   ]
 }

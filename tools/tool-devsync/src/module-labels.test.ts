@@ -18,12 +18,6 @@ const MODULE_ROOTS = [
   { root: 'apps/wbs/be-01/src/module', segment: 'backend' },
 ] as const;
 
-/**
- * The sealed modules with no content-review pilot registration. Both predecessors postdate the
- * pilot's frozen `sourceRevision`, so no `sourceSelector` can bind them (task 7.5).
- */
-const UNREGISTERED = ['module.application.plan-document', 'module.application.plan-import'];
-
 /** The project a `kinds.json` shim row lives in, and the segment of the modules it may name. */
 const PROJECTS = [
   { prefix: 'libs/wbs/application/core/', segment: 'application' },
@@ -248,7 +242,7 @@ test('indexes every module under the identifier its location implies', async () 
   expect(mismatches).toEqual([]);
 });
 
-test('registers every module in the pilot under that identifier, or is known not to', async () => {
+test('registers every module in the pilot under that identifier', async () => {
   const modules = await sealedModules();
   const rows = await recordsOf('docs/wiki-policy/modules.json', 'modules');
   const boundaries = await recordsOf('docs/wiki-policy/policy.json', 'boundaries');
@@ -264,7 +258,7 @@ test('registers every module in the pilot under that identifier, or is known not
       continue;
     }
     // Proof (2026-09-24): Capacity's `modules.json` row renamed `module.application.capacities`
-    // failed "registers every module in the pilot under that identifier, or is known not to" with
+    // failed "registers every module in the pilot under that identifier" with
     // `…/capacity: modules.json does not index it once as module.application.capacity` and the
     // reverse clause's line (4 pass, 1 fail).
     if (row.length !== 1 || textOf(row[0], 'indexPath') !== `${directory}/README.md`) {
@@ -295,7 +289,9 @@ test('registers every module in the pilot under that identifier, or is known not
   expect(mismatches).toEqual([]);
   // Proof (2026-09-24): dropping Capacity's `modules.json` row and `policy.json` boundary failed
   // the same test here, the received list gaining `module.application.capacity` (4 pass, 1 fail).
-  expect(unregistered).toEqual(UNREGISTERED);
+  // Every module registers: one created after the pilot's frozen `sourceRevision` names a
+  // `creationRevision` instead of a predecessor.
+  expect(unregistered).toEqual([]);
 });
 
 test('names in kinds.json only the module that owns every export of the shim', async () => {

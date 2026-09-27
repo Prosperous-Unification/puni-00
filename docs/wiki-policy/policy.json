@@ -1314,6 +1314,98 @@
         }
       ],
       "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.plan-import",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/plan-import"
+      },
+      "creationRevision": "5a99d244f97f3ecb14174d9fa6c4a4fa6bf78434",
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "499f10e649d8017ea2e204ea060ce4b413445bbc",
+          "path": "libs/wbs/application/core/src/module/plan-import/README.md"
+        },
+        {
+          "mode": "100644",
+          "blob": "7853dcea8aba97a5e88a2154cb087a9f4d9e51e4",
+          "path": "libs/wbs/application/core/src/module/plan-import/check.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "824720978ceb8c7f8507b706734d1226071a8da5",
+          "path": "libs/wbs/application/core/src/module/plan-import/contract.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "d71cd28ab4e238ab88df0a4360eaf2eeeb266301",
+          "path": "libs/wbs/application/core/src/module/plan-import/module.test.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "894d3bbf5da87e6c45fea898abf2e36256b94a2c",
+          "path": "libs/wbs/application/core/src/module/plan-import/module.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "b3b551a1e074ff73577ecb8b4c5bf7f2bcc98138",
+          "path": "libs/wbs/application/core/src/module/plan-import/plan-import.feature.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "c7bb49b390db5fa087b19c6074f549c010511cb7",
+          "path": "libs/wbs/application/core/src/module/plan-import/prepare-import.ts"
+        }
+      ],
+      "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.application.plan-document",
+      "selector": {
+        "kind": "prefix",
+        "value": "libs/wbs/application/core/src/module/plan-document"
+      },
+      "creationRevision": "b53693a22de992d4d33f04d71c37f45744eddcf3",
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "25a2a570781a9445aea1dc49cd27a0da200db8c7",
+          "path": "libs/wbs/application/core/src/module/plan-document/README.md"
+        },
+        {
+          "mode": "100644",
+          "blob": "56597d19669d8cc0aebd5f1f2bdd5ab223ebc506",
+          "path": "libs/wbs/application/core/src/module/plan-document/check.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "8594f020a6f8e11f31705995201c6e7729b120cf",
+          "path": "libs/wbs/application/core/src/module/plan-document/contract.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "87f3300f78e69269cb19a1b0eadcf8fe97e19969",
+          "path": "libs/wbs/application/core/src/module/plan-document/module.test.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "c3ad108974e59c59dae94b2c03551c520338032c",
+          "path": "libs/wbs/application/core/src/module/plan-document/module.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "1d4c9e473bfaa329256769b47fd8318c56320ba6",
+          "path": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts"
+        },
+        {
+          "mode": "100644",
+          "blob": "4edb18880fa7d404b465f2880f796ca3e849beb4",
+          "path": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.ts"
+        }
+      ],
+      "obligationIds": []
     }
   ],
   "obligations": [],

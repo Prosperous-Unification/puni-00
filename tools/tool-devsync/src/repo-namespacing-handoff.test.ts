@@ -627,7 +627,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'historical bootstrap policy or mapping': 44,
       'historical policy selector or baseline': 89,
       'production proof or revision transition': 18,
-      'test fixture or proof': 106,
+      'test fixture or proof': 107,
     },
     coverage: {
       dockerfiles: [
@@ -873,8 +873,14 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // `apps/fe-01/src/lib/saved-plan-shelf.ts`; leaving `c0a77f33…` at 308 here failed with
     // `- Expected - 3 / + Received + 3`, `historical policy selector or baseline` 87 to 89,
     // occurrences 308 to 310, none unclassified (2026-09-27).
-    digest: 'e00989df4879377d1041074af17939a9e5385bbdf83a01ab048c9abba2629369',
-    occurrences: 310,
+    // Proof: the creation-revision negatives in the pilot suite name Plan import's pre-namespacing
+    // `libs/core/src/service/import.service.ts` as a forged predecessor; leaving `c0a77f33…` at
+    // 308 here failed on the observed digest below, `test fixture or proof` 106 to 107 and
+    // occurrences 308 to 309, none unclassified (2026-09-27).
+    // Integration round 5 carries both entries above: 308 + 2 + 1 = 311, categories unchanged; the
+    // placeholder pin failed with this digest and 311 occurrences, none unclassified (2026-09-27).
+    digest: 'e02259ffac1411deca83387d2e47576378c0bc6a37aa191da40d725021af4851',
+    occurrences: 311,
     unclassified: [],
   });
 });
