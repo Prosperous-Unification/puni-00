@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { Component, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectApi } from '@/lib/wbs-api';
@@ -79,7 +80,22 @@ const pressTab = (number: string, shiftKey = false) => {
 // test's collapsing would arrive as the next test's starting shape.
 beforeEach(() => {
   localStorage.clear();
+  window.history.replaceState(null, '', '/');
 });
+
+class PlanFaultBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  override state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  override render() {
+    return this.state.failed ? (
+      <div role="alert">Plan could not be rendered.</div>
+    ) : (
+      this.props.children
+    );
+  }
+}
 
 describe('step node details', () => {
   async function showStepNode(reference?: string | null) {
@@ -93,7 +109,10 @@ describe('step node details', () => {
       const readTree = api.tree.bind(api);
       api.tree = async (projectId) => ({
         ...(await readTree(projectId)),
-        stepNodes: [{ id: 'sn1.w1.step-dev', workItemId: row.id, stepId: DEV.id, reference }],
+        stepNodes: [
+          { id: 'sn1.w1.step-dev', workItemId: row.id, stepId: DEV.id, reference },
+          { id: 'sn1.w1.step-qa', workItemId: row.id, stepId: QA.id, reference: null },
+        ],
       });
     }
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
@@ -106,9 +125,43 @@ describe('step node details', () => {
     const estimate = await showStepNode('010.dev');
     expect(screen.getByRole('tooltip')).toHaveTextContent('010.dev · Dev');
     const copy = screen.getByRole('button', { name: 'Copy reference' });
-    fireEvent.blur(estimate, { relatedTarget: copy });
-    fireEvent.focus(copy);
-    expect(copy).toBeInTheDocument();
+    fireEvent.keyDown(estimate, { key: 'F2' });
+    expect(copy).toHaveFocus();
+  });
+
+  itDom('walks into both copy actions with keys and returns to the step cell', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    try {
+      const estimate = await showStepNode('010.dev');
+      fireEvent.keyDown(estimate, { key: 'F2' });
+      const reference = screen.getByRole('button', { name: 'Copy reference' });
+      expect(reference).toHaveFocus();
+      // jsdom does not perform a button's native Enter default action.
+      fireEvent.keyDown(reference, { key: 'Enter' });
+      reference.click();
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledWith('010.dev');
+      });
+      fireEvent.keyDown(reference, { key: 'Tab' });
+      const link = screen.getByRole('button', { name: 'Copy link' });
+      expect(link).toHaveFocus();
+      fireEvent.keyDown(link, { key: 'Enter' });
+      link.click();
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledTimes(2);
+      });
+      expect(new URL(writeText.mock.calls[1]?.[0] ?? '').searchParams.get('stepNode')).toBe(
+        'sn1.w1.step-dev',
+      );
+      fireEvent.keyDown(link, { key: 'Tab' });
+      expect(estimate).toHaveFocus();
+      fireEvent.keyDown(estimate, { key: 'F2' });
+      fireEvent.keyDown(reference, { key: 'Escape' });
+      expect(estimate).toHaveFocus();
+    } finally {
+      Reflect.deleteProperty(navigator, 'clipboard');
+    }
   });
 
   itDom('copies the canonical reference and announces it', async () => {
@@ -144,6 +197,59 @@ describe('step node details', () => {
     }
   });
 
+  itDom('opens the URL copied from a step card and focuses that step cell', async () => {
+    const api = fakeApi();
+    const row = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip',
+    });
+    const workItemId = '11111111-1111-4111-8111-111111111111';
+    const stepId = '22222222-2222-4222-8222-222222222222';
+    const storedRow = api.rows.find((candidate) => candidate.id === row.id);
+    if (storedRow === undefined) throw new Error('Missing step link fixture');
+    storedRow.id = workItemId;
+    const readSteps = api.steps.bind(api);
+    api.steps = async (projectId) =>
+      (await readSteps(projectId)).map((step) =>
+        step.id === DEV.id ? { ...step, id: stepId } : step,
+      );
+    const readTree = api.tree.bind(api);
+    api.tree = async (projectId) => {
+      const plan = await readTree(projectId);
+      return {
+        ...plan,
+        steps: plan.steps.map((step) => (step.id === DEV.id ? { ...step, id: stepId } : step)),
+        stepNodes: [
+          { id: `sn1.${workItemId}.${stepId}`, workItemId, stepId, reference: '010.dev' },
+          { id: `sn1.${workItemId}.${QA.id}`, workItemId, stepId: QA.id, reference: null },
+        ],
+      };
+    };
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    try {
+      const first = render(
+        <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />,
+      );
+      fireEvent.focus(await screen.findByLabelText('Dev estimate for 010'));
+      fireEvent.click(screen.getByRole('button', { name: 'Copy link' }));
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledOnce();
+      });
+      const copiedUrl = writeText.mock.calls[0][0];
+      first.unmount();
+      window.history.replaceState(null, '', copiedUrl);
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByLabelText('Dev estimate for 010'));
+      });
+      expect(window.location.search).toBe('');
+    } finally {
+      Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
   itDom('names an uncoded node and offers only its link', async () => {
     await showStepNode(null);
     expect(screen.getByRole('tooltip')).toHaveTextContent('Uncoded step');
@@ -155,6 +261,126 @@ describe('step node details', () => {
     await showStepNode();
     expect(screen.getByRole('tooltip')).not.toHaveTextContent('Uncoded step');
     expect(screen.queryByRole('button', { name: 'Copy link' })).toBeNull();
+  });
+
+  itDom('routes a present collection missing a leaf node to the Error Boundary', async () => {
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const readTree = api.tree.bind(api);
+    api.tree = async (projectId) => ({ ...(await readTree(projectId)), stepNodes: [] });
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      render(
+        <PlanFaultBoundary>
+          <WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />
+        </PlanFaultBoundary>,
+      );
+      expect(await screen.findByRole('alert')).toHaveTextContent('Plan could not be rendered.');
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  itDom(
+    'opens a copied node URL under a collapsed parent and focuses its offscreen cell',
+    async () => {
+      const api = fakeApi();
+      for (let index = 0; index < 80; index += 1) {
+        await api.createWorkItem('p1', {
+          parentId: null,
+          afterId: null,
+          name: `Earlier ${String(index)}`,
+        });
+      }
+      const parent = await api.createWorkItem('p1', {
+        parentId: null,
+        afterId: null,
+        name: 'Parent',
+      });
+      const child = await api.createWorkItem('p1', {
+        parentId: parent.id,
+        afterId: null,
+        name: 'Child',
+      });
+      const workItemId = '11111111-1111-4111-8111-111111111111';
+      const stepId = '22222222-2222-4222-8222-222222222222';
+      const readSteps = api.steps.bind(api);
+      api.steps = async (projectId) =>
+        (await readSteps(projectId)).map((step) =>
+          step.id === DEV.id ? { ...step, id: stepId } : step,
+        );
+      const readTree = api.tree.bind(api);
+      api.tree = async (projectId) => {
+        const plan = await readTree(projectId);
+        const workItems = plan.workItems.map((row) =>
+          row.id === child.id ? { ...row, id: workItemId } : row,
+        );
+        return {
+          ...plan,
+          workItems,
+          steps: plan.steps.map((step) => (step.id === DEV.id ? { ...step, id: stepId } : step)),
+          stepNodes: workItems
+            .filter((row) => !row.rolledUp)
+            .flatMap((row) => [
+              { id: `sn1.${row.id}.${stepId}`, workItemId: row.id, stepId, reference: 'dev' },
+              { id: `sn1.${row.id}.${QA.id}`, workItemId: row.id, stepId: QA.id, reference: null },
+            ]),
+        };
+      };
+      const number = api.rows.find((row) => row.id === child.id)?.number;
+      if (number === undefined) throw new Error('Missing child fixture');
+      localStorage.setItem('wbs.expanded.p1', JSON.stringify({ [parent.id]: false }));
+      window.history.replaceState(null, '', `/?stepNode=sn1.${workItemId}.${stepId}`);
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByLabelText(`Dev estimate for ${number}`));
+      });
+      expect(window.location.search).toBe('');
+    },
+  );
+
+  itDom('announces an invalid or unknown step node URL', async () => {
+    window.history.replaceState(null, '', '/?stepNode=sn1.bad');
+    await showStepNode();
+    expect(screen.getByRole('alert')).toHaveTextContent('Step link');
+    expect(window.location.search).toBe('');
+  });
+
+  itDom('announces a well-formed node absent from this plan', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/?stepNode=sn1.11111111-1111-4111-8111-111111111111.22222222-2222-4222-8222-222222222222',
+    );
+    await showStepNode();
+    expect(screen.getByRole('alert')).toHaveTextContent('does not name a leaf step');
+  });
+
+  itDom('announces a node URL naming a parent', async () => {
+    const api = fakeApi();
+    const parent = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Parent',
+    });
+    const child = await api.createWorkItem('p1', {
+      parentId: parent.id,
+      afterId: null,
+      name: 'Child',
+    });
+    const parentRow = api.rows.find((row) => row.id === parent.id);
+    const childRow = api.rows.find((row) => row.id === child.id);
+    if (parentRow === undefined || childRow === undefined)
+      throw new Error('Missing parent fixture');
+    parentRow.id = '11111111-1111-4111-8111-111111111111';
+    childRow.parentId = parentRow.id;
+    window.history.replaceState(
+      null,
+      '',
+      `/?stepNode=sn1.${parentRow.id}.22222222-2222-4222-8222-222222222222`,
+    );
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('does not name a leaf step');
   });
 
   itDom('renders and announces a refused clipboard write', async () => {

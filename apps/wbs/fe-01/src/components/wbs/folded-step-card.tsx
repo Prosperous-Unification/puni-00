@@ -1,3 +1,5 @@
+import type { KeyboardEvent } from 'react';
+
 import type { PlanRead } from '@/lib/wbs-api';
 
 import type { Point } from './estimate-draft';
@@ -23,7 +25,10 @@ export const SHORTHAND_HELP =
 
 export interface FoldedStepCardProps {
   stepName: string;
+  /** Null means an older read omitted node metadata or a parent has no node: hide node details. A present node with `reference: null` is uncoded and still offers Copy link. */
   stepNode: NonNullable<PlanRead['stepNodes']>[number] | null;
+  /** Returns keyboard focus from the card actions to their folded step cell. */
+  onExitActions: () => void;
   pushToast: (toast: Toast) => void;
   /** The work item's number, so a card over a busy table says whose it is. */
   number: string;
@@ -64,10 +69,16 @@ export interface FoldedStepCardProps {
  * pointer is not simply told less. That is why the step and the number are the
  * first line of the card rather than an `aria-label` on it — a label would be
  * read out *instead of* everything under it.
+ *
+ * A focused step cell offers F2 to enter its copy actions. Tab walks those
+ * actions and returns to the cell after the last one; Escape returns at once.
+ * Copy reference uses the canonical code when present. Copy link writes the
+ * node ID in `stepNode` so opening it can reveal and focus this cell.
  */
 export function FoldedStepCard({
   stepName,
   stepNode,
+  onExitActions,
   pushToast,
   number,
   id,
@@ -101,6 +112,22 @@ export function FoldedStepCard({
       },
     );
   };
+  const onActionKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onExitActions();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const parent = event.currentTarget.parentElement;
+    if (parent === null) throw new Error('Step card action has no action group');
+    const actions = [...parent.querySelectorAll('button')];
+    const current = actions.indexOf(event.currentTarget);
+    const next = current + (event.shiftKey ? -1 : 1);
+    event.preventDefault();
+    if (next < 0 || next >= actions.length) onExitActions();
+    else actions[next]?.focus();
+  };
   return (
     // Placed diagonally — past this cell and past this row — like every other
     // card a plan cell opens. {@link sidewaysPlacement} picks the side.
@@ -114,6 +141,7 @@ export function FoldedStepCard({
           {reference !== null && (
             <button
               type="button"
+              onKeyDown={onActionKeyDown}
               onClick={() => {
                 copyText(
                   reference,
@@ -127,6 +155,7 @@ export function FoldedStepCard({
           )}
           <button
             type="button"
+            onKeyDown={onActionKeyDown}
             onClick={() => {
               const url = new URL(window.location.href);
               url.searchParams.set('stepNode', stepNode.id);

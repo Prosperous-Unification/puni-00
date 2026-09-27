@@ -6,7 +6,7 @@ import { useCardOpenOn } from '../cell-card-store';
 import { CellInput } from '../cell-input';
 import { STEP_FINAL_HINT } from '../column-hints';
 import { CreatablePicker, PickerList, pickerOptionId } from '../creatable-picker';
-import { cellKey } from '../editable-grid';
+import { cellIn, cellKey } from '../editable-grid';
 import { POINTS, showTrio } from '../estimate-draft';
 import { FoldedStepCard } from '../folded-step-card';
 import { initialsOf } from '../initials';
@@ -35,6 +35,15 @@ function foldedReading(reading: EstimateReadings, stepId: string): FoldedEstimat
     throw new Error(`Expected folded estimate reading for step ${stepId}`);
   }
   return reading;
+}
+
+/** Null means an older read omitted all node metadata or this row is a parent. */
+function readStepNode(row: PlanRenderRow, stepId: string) {
+  if (row.rolledUp || row.readings.stepNodes === null) return null;
+  const node = row.readings.stepNodes.get(stepId);
+  if (node === undefined)
+    throw new Error(`Missing step node for leaf ${row.id} and step ${stepId}`);
+  return node;
 }
 
 /** Builds the estimates column family against the stable live cell contract. */
@@ -292,6 +301,16 @@ export function createEstimatesColumns({
                     live.current.readFoldedCell(row.original.id, step.id, box);
                   }}
                   onKeyDown={(e) => {
+                    if (e.key === 'F2' && carded && readStepNode(row.original, step.id) !== null) {
+                      e.preventDefault();
+                      const card = document.getElementById(cardId);
+                      const action = card?.querySelector('button');
+                      if (!(action instanceof HTMLButtonElement)) {
+                        throw new Error(`Missing step card action for ${finalCell}`);
+                      }
+                      action.focus();
+                      return;
+                    }
                     // `mentioning`, not `options.length > 0`, and the two
                     // are not the same thing: a deployment with nobody in it
                     // answers a bare `@` with no entries at all, and this
@@ -681,11 +700,17 @@ export function createEstimatesColumns({
               {carded && (
                 <FoldedStepCard
                   stepName={step.name}
-                  stepNode={
-                    row.original.rolledUp
-                      ? null
-                      : (row.original.readings.stepNodes?.get(step.id) ?? null)
-                  }
+                  stepNode={readStepNode(row.original, step.id)}
+                  onExitActions={() => {
+                    const grid = live.current.gridElement.current;
+                    const cell =
+                      grid &&
+                      cellIn(grid, { rowId: row.original.id, columnId: `${step.id}-final` });
+                    if (cell === null || cell === undefined) {
+                      throw new Error(`Missing focused step cell ${finalCell}`);
+                    }
+                    cell.focus();
+                  }}
                   pushToast={live.current.pushToast}
                   number={row.original.number}
                   id={cardId}

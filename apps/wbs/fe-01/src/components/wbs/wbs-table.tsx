@@ -1,5 +1,6 @@
 import { type Cell as TableCell, flexRender, type Header, useTable } from '@tanstack/react-table';
 import type { WorkItemStatus } from '@wbs/domain/progress';
+import { parseStepNodeId } from '@wbs/domain/step-node';
 import {
   type ChangeEventHandler,
   type ComponentProps,
@@ -1343,6 +1344,17 @@ export function WbsTable({
       nodesByRow?.set(node.workItemId, nodesByStep);
     }
     const rows = attachRowReadings(workItems, (row) => {
+      if (nodesByRow !== null && !row.rolledUp) {
+        for (const step of steps) {
+          // Proof: removing this throw made `routes a present collection missing a
+          // leaf node to the Error Boundary` render the plan instead of its
+          // fault alert when the injected read had `stepNodes: []`: Vitest
+          // reported `Unable to find role="alert"` (2026-09-27).
+          if (!nodesByRow.get(row.id)?.has(step.id)) {
+            throw new Error(`Missing step node for leaf ${row.id} and step ${step.id}`);
+          }
+        }
+      }
       const dependencyPicker = depPicker?.rowId === row.id ? depPicker : null;
       const estimateReadings = new Map<string, EstimateReadings>();
       for (const step of steps) {
@@ -1873,6 +1885,87 @@ export function WbsTable({
   const clearRequestedFocus = useCallback(() => {
     setRequestedFocus(null);
   }, []);
+
+  /**
+   * Resolves a copied step link after its tree read, opens its ancestors, then
+   * asks the viewport to mount and focus the addressed cell. A consumed or
+   * refused link is removed from history so later refetches do not steal focus.
+   */
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const id = url.searchParams.get('stepNode');
+    if (id === null || !hasSuccessfulTreeRead) return;
+    const dismissLink = (message?: string) => {
+      if (message !== undefined) pushToast({ kind: 'error', text: message });
+      url.searchParams.delete('stepNode');
+      window.history.replaceState(window.history.state, '', url.href);
+    };
+    const parsed = parseStepNodeId(id);
+    if (!parsed.ok) {
+      // Proof: omitting this notice made `announces an invalid or unknown
+      // step node URL` fail with `Unable to find ... role "alert"`
+      // (2026-09-27). An invalid URL is a visible refusal, not a render fault.
+      dismissLink('Step link is invalid.');
+      return;
+    }
+    const { workItemId, stepId } = parsed.ref;
+    const row = flat.find((candidate) => candidate.id === workItemId);
+    if (
+      row === undefined ||
+      row.rolledUp ||
+      !steps.some((step) => step.id === stepId) ||
+      !stepNodes?.some(
+        (node) => node.id === id && node.workItemId === workItemId && node.stepId === stepId,
+      )
+    ) {
+      // Proof: omitting this notice made `announces a well-formed node absent
+      // from this plan` fail with `Unable to find ... role "alert"`
+      // (2026-09-27). Parent and absent nodes share this visible refusal.
+      dismissLink('Step link does not name a leaf step in this plan.');
+      return;
+    }
+    if (hiddenColumnIds.includes(stepId)) {
+      toggleColumn(stepId);
+      return;
+    }
+    if (unfoldedSteps.includes(stepId)) {
+      toggleStep(stepId);
+      return;
+    }
+    if (!shownRowIds.includes(workItemId)) {
+      const ancestors: string[] = [];
+      let parentId = row.parentId;
+      while (parentId !== null) {
+        const parent = flat.find((candidate) => candidate.id === parentId);
+        if (parent === undefined) throw new Error(`Missing ancestor ${parentId} for step link`);
+        ancestors.push(parentId);
+        parentId = parent.parentId;
+      }
+      setExpanded((current) =>
+        current === true
+          ? current
+          : { ...current, ...Object.fromEntries(ancestors.map((ancestor) => [ancestor, true])) },
+      );
+      return;
+    }
+    setRequestedFocus({
+      cell: { rowId: workItemId, columnId: `${stepId}-final` },
+      landing: 'focus',
+    });
+    dismissLink();
+  }, [
+    flat,
+    hasSuccessfulTreeRead,
+    hiddenColumnIds,
+    pushToast,
+    setExpanded,
+    shownRowIds,
+    stepNodes,
+    steps,
+    toggleColumn,
+    toggleStep,
+    unfoldedSteps,
+  ]);
 
   /**
    * What the headings' hints may bend for, in one object beside the layout's.
