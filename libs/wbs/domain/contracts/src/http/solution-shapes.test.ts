@@ -35,7 +35,7 @@ test('emits the existing solution operation and required slug plus complete proj
   expect(operation?.responses['200']?.content?.['application/json']?.schema).toMatchObject({
     properties: {
       project: { required: Object.keys(response.project).sort() },
-      steps: { items: { required: ['code', 'id', 'name', 'position', 'projectId'] } },
+      steps: { items: { required: ['id', 'name', 'position', 'projectId'] } },
     },
   });
 });

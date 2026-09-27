@@ -16,16 +16,26 @@ const nameBody = requestSchema(type({ name: 'string' }));
  */
 const newStepBody = requestSchema(type({ name: 'string', 'code?': 'string' }));
 /**
- * One step as every read and write returns it. `code` is `null` while the step
- * is uncoded — written mid-swap by an older release and not yet backfilled —
- * which is a state the reader must render, not a missing field.
+ * One step as every read and write returns it.
+ *
+ * `code` has three readings, and they are different facts. A string is the
+ * step's code. `null` is an **uncoded** step — written mid-swap by an older
+ * release and not yet backfilled — which a reader must render as such. Absent
+ * is an **older be-01** that predates step codes answering a newer client:
+ * blue and green, or a rolled-back backend, can pair them, and refusing that
+ * answer would turn every step read and write into `invalid_response`. Every
+ * be-01 that knows codes sends the key, which its mounted tests assert.
+ *
+ * Proof: with `code` required, `still reads a step from a be-01 that predates
+ * step codes` in `step-shapes.test.ts` failed on `must have required property
+ * 'code'`; watched 2026-09-27.
  */
 export const stepShape = type({
   id: 'string',
   projectId: 'string',
   name: 'string',
   position: 'number',
-  code: 'string | null',
+  'code?': 'string | null',
 });
 const stepReply = responseSchema(type({ step: stepShape }));
 const policies = [

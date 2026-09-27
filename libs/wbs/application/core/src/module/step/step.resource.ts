@@ -142,7 +142,9 @@ export class StepService {
    *
    * Proof: with the `isReservedStepCode` refusal removed, `refuses a reserved
    * code and writes no step` in `step.controller.db.test.ts` failed on
-   * `Expected: 422, Received: 200`; watched 2026-09-27.
+   * `Expected: 422, Received: 200`; with the `isStepCode` refusal removed,
+   * `refuses a code outside the grammar, and one the project already holds`
+   * failed the same way, the step written as `Design`. Both watched 2026-09-27.
    */
   async add(projectId: string, actorId: string, name: string, code?: string): Promise<StepOutcome> {
     const clean = cleanName(name);

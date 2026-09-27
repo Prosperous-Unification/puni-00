@@ -51,7 +51,7 @@ test('declares the full step response and each usage count and assumed-assignee 
           position: { type: 'number' },
           code: { anyOf: [{ type: 'string' }, { type: 'null' }] },
         },
-        required: ['code', 'id', 'name', 'position', 'projectId'],
+        required: ['id', 'name', 'position', 'projectId'],
       },
     },
   });
@@ -73,4 +73,14 @@ test('declares the full step response and each usage count and assumed-assignee 
       },
     },
   });
+});
+
+test('still reads a step from a be-01 that predates step codes', async () => {
+  const older = { step: { id: 'step', projectId: 'project', name: 'Dev', position: 10 } };
+  const reply = addStep.responses[0].schema;
+
+  expect(await validateSchema(reply, older)).toEqual({ value: older });
+  const uncoded = { step: { ...older.step, code: null } };
+  expect(await validateSchema(reply, uncoded)).toEqual({ value: uncoded });
+  expect((await validateSchema(reply, { step: { ...older.step, code: 7 } })).issues).toBeDefined();
 });

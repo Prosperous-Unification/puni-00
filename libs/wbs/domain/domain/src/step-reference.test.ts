@@ -55,6 +55,10 @@ describe('parseStepReference', () => {
       '010.s0-dev',
       '010.s1',
       '010.s1-',
+      'garbage.dev',
+      '010..dev',
+      `010.${'a'.repeat(33)}`,
+      `010.s${'9'.repeat(20)}-dev`,
     ]) {
       expect(parseStepReference(bad)).toBeNull();
     }

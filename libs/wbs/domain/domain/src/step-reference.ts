@@ -1,3 +1,4 @@
+import { isReservedStepCode, isStepCode } from './step-code';
 import type { StepNodeRef } from './step-node';
 
 /**
@@ -24,7 +25,8 @@ export type StepReferenceRefusal =
   'malformed' | 'unknown_work_item' | 'parent' | 'unknown_code' | 'alias_mismatch';
 
 const TAIL = /^(?:s([1-9][0-9]*)-)?([a-z][a-z0-9-]*)$/;
-const RESERVED = /^s[0-9]+(?:-|$)/;
+/** A work item number: dot-separated digit groups, as `deriveNumbers` writes them. */
+const NUMBER = /^[0-9]+(?:\.[0-9]+)*$/;
 
 /**
  * The canonical step reference: work item number, a dot, step code — `010.dev`,
@@ -39,6 +41,10 @@ export function formatStepReference(number: string, code: string): string {
  * Takes a reference apart at its **last** dot — a code holds no dot, so the
  * split is unique however many segments the number has.
  *
+ * The number must be dot-separated digit groups, the shape every derived and
+ * frozen number has, and the code must be a whole step code — at most 32
+ * characters and outside the reserved namespace.
+ *
  * Also reads the input-only alias `<number>.s<ordinal>-<code>`, whose ordinal is
  * the step's 1-based displayed position. A tail that is itself reserved (`s2`)
  * is neither a code nor an alias.
@@ -48,15 +54,18 @@ export function formatStepReference(number: string, code: string): string {
 export function parseStepReference(text: string): ParsedStepReference | null {
   const cut = text.lastIndexOf('.');
   if (cut <= 0) return null;
+  const number = text.slice(0, cut);
+  if (!NUMBER.test(number)) return null;
   const tail = TAIL.exec(text.slice(cut + 1));
   if (tail === null) return null;
   // `at`, not an index: an optional group is `undefined` when it took no part
   // in the match, which only `at`'s return type says.
   const ordinal = tail.at(1);
   const code = tail[2];
-  if (RESERVED.test(code)) return null;
+  if (!isStepCode(code) || isReservedStepCode(code)) return null;
+  if (ordinal !== undefined && !Number.isSafeInteger(Number(ordinal))) return null;
   return {
-    number: text.slice(0, cut),
+    number,
     ordinal: ordinal === undefined ? null : Number(ordinal),
     code,
   };
@@ -93,6 +102,9 @@ export function resolveStepReference(
   const ordered = stepsInOrder(space.steps);
   const step = ordered.find((each) => each.code === parsed.code);
   if (step === undefined) return { ok: false, reason: 'unknown_code' };
+  // Proof: with this comparison disabled, `refuses an alias whose position
+  // names another step` failed on `- Expected - 2 / + Received + 6` — `010.s2-dev`
+  // resolved to Dev although position 2 is QA; watched 2026-09-27.
   if (parsed.ordinal !== null && ordered[parsed.ordinal - 1]?.id !== step.id) {
     return { ok: false, reason: 'alias_mismatch' };
   }
@@ -120,6 +132,8 @@ export function describeAddressSpace(projectId: string, space: AddressSpace): st
   const holders = new Map<string, string>();
   for (const each of space.workItems) {
     const holder = holders.get(each.number);
+    // Proof: with this refusal disabled, `refuses two work items holding one
+    // number` failed on `Received function did not throw`; watched 2026-09-27.
     if (holder !== undefined) {
       throw new Error(`number ${each.number} is held by ${holder} and ${each.id}`);
     }
