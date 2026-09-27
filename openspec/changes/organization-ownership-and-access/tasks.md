@@ -5,7 +5,7 @@
 - [x] 1.3 Add paired organization/membership storage migration and atomic first-super-admin creation. Red: concurrent creation and final-owner refusal. Fault: bypass final-owner guard; observe mounted demotion test fail, restore and add `Proof:`.
 - [x] 1.4 Add paired ownership/shadow-catalog migration with old-reader compatibility. Red: production-shaped apply/down and same-name catalogs in two organizations. Fault: omit one ownership mapping; observe reconciliation test fail, restore and add `Proof:`.
 - [x] 1.5 Add paired invitation, join-request and domain-claim migration. Red: up/down preserves legacy records and unique verified-domain owner. Fault: remove unique claim index; observe concurrent claim test fail, restore and add `Proof:`.
-- [ ] 1.6 Add paired additive migration for the separate durable MCP store, including bound family/session fields and credential epoch. Red: old store opens, new rows require bindings, pre-activation down preflights live new rows. Fault: accept null organization or unreadable epoch; observe startup/credential test fail, restore and add `Proof:`.
+- [x] 1.6 Add paired additive migration for the separate durable MCP store, including bound family/session fields and credential epoch. Legacy issuance remains permitted at epoch 0; bound issuance requires complete bindings at every epoch; at epoch ≥1 every issuance requires complete bindings. Red: old store opens, new rows require bindings, pre-activation down preflights live new rows. Fault: accept null organization or unreadable epoch; observe startup/credential test fail, restore and add `Proof:`.
 
 ## 2. Bridge, identity and activation state
 

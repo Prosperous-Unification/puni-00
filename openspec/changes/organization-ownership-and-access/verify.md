@@ -69,10 +69,31 @@ Branch `batch-9/010-5-2-orgs-ownership`, stacked on slice 1. `apps/wbs/be-01/dri
 
 The same-name case proves storage capability only; live two-organization naming belongs to task 3.2's mounted test. Pre-activation rollback keeps every root (`rolls back before activation, keeping every root`). Command: `env -u CLAUDECODE bun test libs/wbs/adapters/store-sqlite/src/organization-ownership.db.test.ts`: 19 pass. The earlier full `libs/wbs/adapters/store-sqlite/src` run had 789 pass and 1 fail; the failure is the `Bun.spawn` lock-holder case that also fails on an untouched main checkout on this host.
 
+## Slice 3 — MCP store migration (task 1.6)
+
+Branch `batch-9/010-5-2-orgs-2`, stacked on slice 2. `apps/wbs/mcp-01/drizzle/20260927120000_mcp_credential_binding` adds `organization_id`, `user_id`, `issuer` and `credential_epoch` to `mcp_family` and `mcp_session`, the `mcp_credential_epoch` singleton seeded at 0, and triggers for immutable bindings, session/family equality and the durable epoch. `src/store-migrations.ts` replaces the constructor's `CREATE TABLE IF NOT EXISTS` text with a checksummed `mcp_migration` ledger run under one IMMEDIATE transaction, exact-baseline adoption of pre-ledger stores, a fail-closed epoch reader and a preflighted rollback. `McpSessionStore` refuses startup at any epoch but 0 and copies each family's binding and epoch into its sessions. Nothing issues a bound credential yet (task 6.4).
+
+Astra design call (2026-09-27): keep creating an **absent** path before activation so dev, k3s and local first starts keep working; treat an existing zero-byte or empty-schema file as partial and refuse it. Activation work must withdraw creation before the epoch advances.
+
+| Check                                  | Injected fault                                             | Observed failure (`store-migrations.test.ts`, 2026-09-27)                                                                                  |
+| -------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Exact-baseline adoption                | comparison removed                                         | `refuses a partial pre-ledger store`: `Received function did not throw`                                                                    |
+| Existing empty file is not initialized | `empty && !created` guard removed                          | `refuses an existing zero-byte file instead of initializing it`: did not throw                                                             |
+| Unedited, known history                | checksum check, then prefix check, removed                 | `refuses edited SQL and unknown history`: did not throw; `undefined is not an object`                                                      |
+| Epoch unreadable                       | reader returns 0 on error                                  | `refuses startup on a missing table without reseeding`: did not throw                                                                      |
+| Epoch malformed                        | malformed throw removed                                    | `refuses startup on a malformed value …`: unsupported-epoch message instead                                                                |
+| Only epoch 0 starts                    | startup epoch check removed                                | `refuses startup on a unsupported epoch …`: did not throw                                                                                  |
+| Null organization refused              | `organization_id IS NOT NULL` dropped from the CHECK       | `rejects a family without organization`: did not throw                                                                                     |
+| Eight triggers                         | each disabled alone                                        | its own `rejects a …` case, and `refuses to refresh a family issued before the epoch advanced` for the session epoch                       |
+| Rollback preflight                     | epoch, usable-family and live-session checks, each removed | `refuses at an advanced epoch`, `refuses while a bound family without sessions can still refresh`, `refuses while a bound session is live` |
+| Dead bound rows purged on down         | purge turned into a SELECT                                 | `purges dead bound credentials, preserves legacy ones and reaches the baseline`                                                            |
+
+IMMEDIATE is not claimed as a safety check: with a deferred transaction SQLite still refuses the stale writer, so `applies each migration once when two processes start on one absent store` passes either way. Command: `env -u CLAUDECODE bun test` in `apps/wbs/mcp-01`, 196 pass.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.
-- Migration lint: slice 1's `migration.sql` passes `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts`. Paired MCP-store rollback: pending task 1.6.
+- Migration lint: slice 1's `migration.sql` passes `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts`. Paired MCP-store rollback: `rollbackMcpStore` with preflight (slice 3); the swap-level MCP rollback is task 7.2.
 - `bunx nx format:check --all` and `bunx nx run-many -t test lint typecheck build`: pending.
 - `bin/h2puni-gate.sh <sha>`: pending a committed implementation SHA; record its printed running SHA and full outcome.
 - Implementation commit range and host gate: per slice, recorded by the batch integration gate.
