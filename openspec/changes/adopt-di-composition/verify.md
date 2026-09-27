@@ -2260,12 +2260,15 @@ directory`; 0 pass, 5 fail.
 
 - A module-specifier scan (static `from`, `import()`, `require()` and `mock.module()` specifiers,
   relative and `@wbs/core/*`, over every tracked `.ts`, `.tsx`, `.mts`, `.js` and `.mjs` file)
-  found no importer of the eight be-01 forwarding shims task 7.1 names. They are deleted with their
+  found no importer of the eight be-01 forwarding shims task 7.1 names (a throwaway Python scan;
+  `bunx nx run-many -t typecheck` over the four touched projects repeats the proof for static imports). They are deleted with their
   eight `kinds.json` rows: 85 entries become 77, and 59 shim rows remain, 33 naming a module.
 - Fault: restoring the eight rows over the deleted files failed `every backend service file with no
 kind suffix is classified exactly once` in `service-kinds.test.ts`, listing
   `apps/wbs/be-01/src/service/clean-name.ts` and `…/retention-timer.ts` among the `+` lines
-  (21 pass, 1 fail); the ledger cannot keep a row for a deleted shim.
+  (21 pass, 1 fail across `env -u CLAUDECODE bun test tools/tool-devsync/src/service-kinds.test.ts
+tools/tool-devsync/src/module-labels.test.ts`, with `kinds.json` taken from `git show HEAD:` on
+  the pre-commit tree); the ledger cannot keep a row for a deleted shim.
 - After: `tool-devsync` 379 pass with three `eslint-boundaries.test.ts` timeouts under load that
   passed 18 of 18 alone, `wbs-core` `bun test src` 626 pass, be-01 `bun test src`
   1110 pass, 0 fail; `typecheck` for `wbs-core`, `wbs-be-01`, `wbs-fe-01` and `tool-devsync`
