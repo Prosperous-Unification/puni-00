@@ -10,7 +10,7 @@ export function stepRegistrations(open: OpenCase<'steps'>): readonly CaseRegistr
     storeCase('steps', 'steps.add', open, async ({ port, seed }) => {
       const projectId = seed.projectIds[0];
       const added = await port.add(
-        { id: `${projectId}:step-added`, projectId, name: 'Wiring' },
+        { id: `${projectId}:step-added`, projectId, name: 'Wiring', allowancePercent: 0 },
         seed.stamps[0],
       );
       expect(added.ok).toBe(true);

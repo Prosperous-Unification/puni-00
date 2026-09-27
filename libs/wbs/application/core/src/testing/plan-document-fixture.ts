@@ -1,9 +1,9 @@
-import type { PlanDocumentRequest } from '@wbs/contracts';
+import type { PlanDocumentImport } from '@wbs/contracts';
 
-/** A small, fully referenced version-1 document for import-boundary tests. */
-export function planDocumentFixture(): PlanDocumentRequest {
+/** A small, fully referenced current-version document for import-boundary tests. */
+export function planDocumentFixture(): PlanDocumentImport {
   return {
-    document: { format: 'wbs-plan', version: 1, exportedAt: '2026-09-13T12:30:00.000Z' },
+    document: { format: 'wbs-plan', version: 2, exportedAt: '2026-09-13T12:30:00.000Z' },
     settings: {
       name: ' Portable plan ',
       restricted: false,
@@ -72,8 +72,8 @@ export function planDocumentFixture(): PlanDocumentRequest {
       },
     ],
     steps: [
-      { id: 'step-1', name: ' Build ', position: 10 },
-      { id: 'step-2', name: 'QA', position: 20 },
+      { id: 'step-1', name: ' Build ', position: 10, allowancePercent: 0 },
+      { id: 'step-2', name: 'QA', position: 20, allowancePercent: 30 },
     ],
   };
 }

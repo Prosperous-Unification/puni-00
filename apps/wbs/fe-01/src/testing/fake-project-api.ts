@@ -1,6 +1,7 @@
 import { arrangeBySchedule as arrangeSiblings } from '@wbs/domain/arrange-siblings';
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import { deriveNumbers, type WorkItemPlacement } from '@wbs/domain/derive-numbers';
+import { allowancePercentOf, chargedDays } from '@wbs/domain/estimate';
 import { automaticColor } from '@wbs/domain/marker-color';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { byTreeOrder, treeOrder } from '@wbs/domain/tree-order';
@@ -35,12 +36,12 @@ import { refusingApi } from './refusing-api';
  */
 
 /** The first step every fixture starts with. */
-export const DEV: StepView = { id: 'step-dev', name: 'Dev' };
+export const DEV: StepView = { id: 'step-dev', name: 'Dev', allowancePercent: 0 };
 /**
  * A second step, because "one assignee is assumed to do every step" is only
  * observable when there is another step for them to be assumed into.
  */
-export const QA: StepView = { id: 'step-qa', name: 'QA' };
+export const QA: StepView = { id: 'step-qa', name: 'QA', allowancePercent: 0 };
 
 /**
  * A ProjectApi over an in-memory tree, numbering rows the way be-01 does.
@@ -195,10 +196,16 @@ export function fakeProjectApi(): ProjectApi & {
   let stackAnswer: UndoResult = { ok: true, done: 'rename “Strip”', detail: null };
 
   /** The final figure be-01 would report, under whichever method is set. */
-  const finalOf = (days: Days): number =>
-    estimateMethod === 'pert'
-      ? (days.optimistic + 4 * days.realistic + days.pessimistic) / 6
-      : days[estimateMethod];
+  const finalOf = (days: Days, stepId: string): number => {
+    const step = stepList.find((candidate) => candidate.id === stepId);
+    // Proof: disabling this guard made `refuses a broken estimate that names a step absent from the policy` fail with a TypeError instead of `Unknown step missing-step`.
+    if (step === undefined) throw new Error(`Unknown step ${stepId}`);
+    return chargedDays(
+      days,
+      { method: estimateMethod, pertWeights: DEFAULT_PERT_WEIGHTS_VIEW, rounding: 'ceil' },
+      step.allowancePercent,
+    );
+  };
 
   /**
    * The schedule be-01 would compute, in miniature.
@@ -287,6 +294,22 @@ export function fakeProjectApi(): ProjectApi & {
     };
     walk(of.id);
     return summed;
+  }
+
+  function rolledUpFinalDays(of: WorkItemView): Record<string, number> {
+    const charged: Record<string, number> = {};
+    const walk = (row: WorkItemView): void => {
+      const children = rows.filter((candidate) => candidate.parentId === row.id);
+      if (children.length > 0) {
+        for (const child of children) walk(child);
+        return;
+      }
+      for (const [stepId, days] of Object.entries(row.estimates)) {
+        charged[stepId] = (charged[stepId] ?? 0) + finalOf(days, stepId);
+      }
+    };
+    walk(of);
+    return charged;
   }
 
   /**
@@ -458,13 +481,8 @@ export function fakeProjectApi(): ProjectApi & {
           // `rolledUp` flag in the same object, so the roll-up column read
           // empty in jsdom and every claim about it was made against nothing.
           estimates: rolledUpEstimates(r),
-          finalDays: Object.fromEntries(
-            Object.entries(rolledUpEstimates(r)).map(([stepId, days]) => [stepId, finalOf(days)]),
-          ),
-          finalTotal: Object.values(rolledUpEstimates(r)).reduce(
-            (total, days) => total + finalOf(days),
-            0,
-          ),
+          finalDays: rolledUpFinalDays(r),
+          finalTotal: Object.values(rolledUpFinalDays(r)).reduce((total, days) => total + days, 0),
           // be-01 works the dates out; the fake only has to place them on the
           // calendar the same way, so the table is asserted on what it renders.
           dates: startDate === null ? null : { startsOn: startDate, endsOn: startDate },
@@ -737,7 +755,7 @@ export function fakeProjectApi(): ProjectApi & {
       if (stepList.some((step) => step.name === clean)) {
         return Promise.reject(new Error('taken'));
       }
-      const step = { id: `step-${clean.toLowerCase()}`, name: clean };
+      const step = { id: `step-${clean.toLowerCase()}`, name: clean, allowancePercent: 0 };
       stepList.push(step);
       renumber();
       return Promise.resolve(step);
@@ -752,6 +770,15 @@ export function fakeProjectApi(): ProjectApi & {
       }
       step.name = clean;
       renumber();
+      return Promise.resolve({ ...step });
+    },
+    setStepAllowance(_projectId, stepId, allowancePercent) {
+      const percent = allowancePercentOf(allowancePercent);
+      // Proof: with this refusal guard disabled, `refuses invalid allowance without changing the step` failed: fake_invalid_response replaced invalid_allowance after 30.001 reached the transport shape.
+      if (percent === null) return Promise.reject(new Error('invalid_allowance'));
+      const step = stepList.find((candidate) => candidate.id === stepId);
+      if (step === undefined) return Promise.reject(new Error('not_found'));
+      step.allowancePercent = percent;
       return Promise.resolve({ ...step });
     },
     removeStep(_projectId, stepId, cascade) {

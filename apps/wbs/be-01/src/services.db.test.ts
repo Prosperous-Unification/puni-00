@@ -100,7 +100,16 @@ async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
       id: projectId,
       ownerId,
     }),
-    [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10, code: 'dev' }],
+    [
+      {
+        id: crypto.randomUUID(),
+        projectId,
+        name: 'Dev',
+        position: 10,
+        code: 'dev',
+        allowancePercent: 0,
+      },
+    ],
     { at: 1, by: ownerId },
   );
   return { projectId: project.id, ownerId };
@@ -546,8 +555,8 @@ describe('buildServices', () => {
       ]),
     ).toEqual([
       // The current solver release composes with the current scheduler contract.
-      ['0.1.3', '11+0.1.3', 60_000],
-      ['0.1.3', '11+0.1.3', 60_000],
+      ['0.1.3', '12+0.1.3', 60_000],
+      ['0.1.3', '12+0.1.3', 60_000],
     ]);
   });
 
@@ -617,7 +626,7 @@ describe('buildServices', () => {
     // seeded failed pair and failed here with `Expected ["pri", "time"] /
     // Received []`; watched 2026-09-07.
     expect(spawned.map(({ objective }) => objective)).toEqual(['pri', 'time']);
-    expect(spawned.map(({ key }) => key.contractVersion)).toEqual(['11+0.1.3', '11+0.1.3']);
+    expect(spawned.map(({ key }) => key.contractVersion)).toEqual(['12+0.1.3', '12+0.1.3']);
     expect(
       db
         .select({ contractVersion: optimizedScheduleCache.contractVersion })

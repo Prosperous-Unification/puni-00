@@ -27,16 +27,22 @@ async function openSeededStores(): Promise<TransactionalStores> {
   await stores.users.create({ id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 }, STAMP);
   await stores.projects.create(
     projectRow({ id: PROJECT_A, ownerId: OWNER }),
-    [{ id: STEP_A, projectId: PROJECT_A, name: 'A', position: 10, code: 'a' }],
+    [{ id: STEP_A, projectId: PROJECT_A, name: 'A', position: 10, code: 'a', allowancePercent: 0 }],
     STAMP,
   );
   await stores.projects.create(
     projectRow({ id: PROJECT_B, ownerId: OWNER }),
-    [{ id: STEP_B, projectId: PROJECT_B, name: 'B', position: 10, code: 'b' }],
+    [{ id: STEP_B, projectId: PROJECT_B, name: 'B', position: 10, code: 'b', allowancePercent: 0 }],
     STAMP,
   );
-  await stores.steps.add({ id: STEP_A, projectId: PROJECT_A, name: 'A' }, STAMP);
-  await stores.steps.add({ id: STEP_B, projectId: PROJECT_B, name: 'B' }, STAMP);
+  await stores.steps.add(
+    { id: STEP_A, projectId: PROJECT_A, name: 'A', allowancePercent: 0 },
+    STAMP,
+  );
+  await stores.steps.add(
+    { id: STEP_B, projectId: PROJECT_B, name: 'B', allowancePercent: 0 },
+    STAMP,
+  );
   await stores.workItems.insert(workItemRow({ id: ROW_A, projectId: PROJECT_A }), [], STAMP);
   await stores.workItems.insert(workItemRow({ id: ROW_B, projectId: PROJECT_B }), [], STAMP);
   return stores;

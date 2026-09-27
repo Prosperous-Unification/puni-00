@@ -304,6 +304,8 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
  * The newest: the legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
@@ -642,6 +644,7 @@ describe('readMigrationFolders', () => {
       ORGANIZATION_RECORDS,
       ORGANIZATION_OWNERSHIP,
       STEP_CODE,
+      STEP_ALLOWANCE,
       ORGANIZATION_ACTIVATION,
       ORGANIZATION_BRIDGE,
     ]);
@@ -764,6 +767,7 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_RECORDS,
         ORGANIZATION_OWNERSHIP,
         STEP_CODE,
+        STEP_ALLOWANCE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_BRIDGE,
       ]);
@@ -773,6 +777,7 @@ describe('rollbackTo, against a real database', () => {
       expect(reversed).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -889,6 +894,7 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_RECORDS,
         ORGANIZATION_OWNERSHIP,
         STEP_CODE,
+        STEP_ALLOWANCE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_BRIDGE,
       ]);
@@ -963,6 +969,7 @@ describe('rollbackTo, against a real database', () => {
       expect(reversed).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1057,6 +1064,7 @@ describe('rollbackTo, against a real database', () => {
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1136,6 +1144,7 @@ describe('rollbackTo, against a real database', () => {
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
