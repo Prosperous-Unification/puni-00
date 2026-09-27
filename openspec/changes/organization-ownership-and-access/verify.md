@@ -93,6 +93,67 @@ Dev store check (2026-09-27): the orchestrator read the dev mcp-01 store's `sqli
 
 IMMEDIATE is not claimed as a safety check: with a deferred transaction SQLite still refuses the stale writer, so `applies each migration once when two processes start on one absent store` passes either way. Command: `env -u CLAUDECODE bun test` in `apps/wbs/mcp-01`, 200 pass.
 
+## Slice 4 — durable activation marker (task 2.6)
+
+Branch `batch-9/010-5-2-orgs-3`, stacked on slice 3. `apps/wbs/be-01/drizzle/20260927180000_add_organization_activation` adds the `organization_activation` singleton, seeded `pre_activation`, with CHECKs tying `activated_at` to the state and three triggers that make `activated` permanent (no update, no delete, no second insert, so `INSERT OR REPLACE` and upserts cannot replace it with `recursive_triggers` off). Its `down.sql` first proves one well-formed `pre_activation` row through a named `CHECK`, so an activated, missing or malformed marker refuses the reversal inside the runner's transaction. `readOrganizationActivation` in `@wbs/store-sqlite` throws `OrganizationActivationRefused` with `absent`, `unreadable` or `malformed` and never defaults. Nothing writes `activated` yet; activation is task 7.1.
+
+Astra design call (2026-09-27): ship the marker and reader now, and do not wire a check into `swap.ts` from the target image: a missing CLI in an older green image proves nothing about database state. The swap-level refusal and its test move to 7.3, which must use a deploy-side checker independent of the target image and cover `abortSwap`.
+
+| Check                      | Injected fault                                                                            | Observed failure (`organization-activation.db.test.ts`, 2026-09-27)                                                              |
+| -------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Absent is not inactive     | reader returns `pre_activation` when the table is missing                                 | `refuses an absent marker table`                                                                                                 |
+| Unreadable is not inactive | each catch returns `pre_activation`                                                       | `refuses an unreadable database`; `refuses an unreadable marker table`                                                           |
+| Malformed is not inactive  | malformed throw returns `pre_activation`                                                  | all seven `refuses a malformed marker` cases                                                                                     |
+| Row validation             | row count, singleton, null-time, integer-time test removed alone (`parseActivationState`) | its own case: second row, wrong singleton, time before activation, text/missing time                                             |
+| Seed                       | seed `INSERT` replaced                                                                    | 15 cases, including `reads the seeded marker as pre-activation`                                                                  |
+| Schema CHECKs              | state, singleton, integer-time, consistency CHECK removed alone                           | `refuses an unknown state`, `a wrong singleton`, `a text time`, `activation without a time`                                      |
+| Permanence                 | `WHEN 0` on `_no_delete`, `_no_revert`, `_single_row`                                     | `keeps an activated marker permanent against` delete; reset and timestamp change; replacement                                    |
+| Down guard                 | `CHECK (1)`; then the count, singleton, state and null-time predicates removed alone      | the five `refuses rollback across` damaged-marker cases; then second row, wrong singleton, unknown state, time before activation |
+
+Command: `env -u CLAUDECODE bun test` over the eleven migration-listing suites in `libs/wbs/adapters/store-sqlite` plus `organization-activation.db.test.ts`.
+
+## Slice 5 — legacy bridge (task 2.1)
+
+Branch `batch-9/010-5-2-orgs-4`, stacked on slice 4. `apps/wbs/be-01/drizzle/20260927190000_add_organization_bridge` adds an `AFTER INSERT` trigger on each of the eight root tables and an `AFTER UPDATE OF name` trigger on the six catalogs. While the marker says `pre_activation` and a legacy organization exists, they map each new root to it and keep catalog side names equal. With no legacy organization they map nothing. After activation they map nothing and never touch display names. A missing or malformed marker aborts the root write. `OrganizationOwnershipRepository.backfillLegacyOwnership` maps every unmapped root in one immediate transaction and never overwrites. It refuses when no legacy organization exists, after activation, over a broken marker, or when any root is already owned by another organization. `findCatalogNameDrift` reports legacy side names that no longer equal their root's. Saved plans map to legacy like every other root. Their project-equality check, and the rest of task 2.2's dependent reconciliation, is the next slice.
+
+| Check                                     | Injected fault                                                             | Observed failure (`organization-bridge.db.test.ts`, 2026-09-27)                                                                                    |
+| ----------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Insert bridge                             | `WHEN 0` on the `project`, then the `service`, trigger                     | `maps every root either release writes …`, `maps late writes from a second connection without another backfill` (plus backfill and rollback cases) |
+| Rename bridge                             | `WHEN 0` on the `tag` rename trigger                                       | `keeps every catalog side name equal through renames`                                                                                              |
+| Insert lifecycle                          | `pre_activation` predicate dropped (`project`, then `tag`)                 | `leaves a second organization's roots and names to explicit mappings`                                                                              |
+| Rename lifecycle                          | `pre_activation` predicate dropped (`tag`)                                 | `stops mirroring legacy catalog renames into organization display names`                                                                           |
+| Broken marker                             | the RAISE in each of the 14 triggers replaced by `SELECT 1`, one at a time | that trigger's own `refuses a <kind> insert/rename over a missing marker row` and `… malformed marker`                                             |
+| Foreign owner before activation           | refusal removed                                                            | `refuses to backfill over a root another organization owns`                                                                                        |
+| Backfill after activation / broken marker | marker read removed                                                        | `refuses to backfill after activation`, `refuses backfill over a broken marker`                                                                    |
+| Backfill without legacy                   | refusal returns empty counts                                               | `maps nothing and refuses backfill while no legacy organization exists`                                                                            |
+| Name drift                                | comparison replaced by `WHERE 0`                                           | `reports catalog name drift the bridge missed`                                                                                                     |
+
+Command: `env -u CLAUDECODE bun test` over 22 store-sqlite files, including every migration-listing suite, `directory`, `import.service` and `saved-plan*`: 378 pass.
+
+## Slice 6 — dependent reconciliation (task 2.2)
+
+Branch `batch-9/010-5-2-orgs-5`, stacked on slice 5. Following Astra's 2.1 design call, dependents have no side tables: each takes its organization from the root it hangs off, so the slice 5 triggers already bridge their late writes. `OrganizationOwnershipRepository.findOwnershipConflicts` reports every dependent whose ends disagree:
+
+- a saved plan owned apart from its project;
+- a dependency whose endpoint lies in another project;
+- a work item's parent in another project;
+- a work item's team or service in another organization;
+- a tag, team, type, service or external-ref link across organizations;
+- an assignment to another organization's person, or an assignment, estimate, actual, step progress or step measure on another project's step;
+- a person-team or team-service pair across organizations;
+- a team capacity across organizations;
+- a plan event naming another project's work item or step;
+- an event stream (`event_sequencer` or `event_log`) that names no mapped project.
+
+A deleted project's retained stream is reported rather than guessed. Its retention or purge is an open 7.1 decision. No allowance table exists. Command-journal payloads and captured schedule bodies are not parsed; 7.1 owns them.
+
+| Check                           | Injected fault                                     | Observed failure (`organization-reconciliation.db.test.ts`, 2026-09-27)                    |
+| ------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Each of the 21 conflict queries | that query alone replaced by one selecting nothing | its own `reports a <kind> conflict` case                                                   |
+| Late writes bridged             | `saved_plan_organization_bridge` set to `WHEN 0`   | `keeps late legacy-era writes of every family mapped and conflict-free through the bridge` |
+
+Command: `env -u CLAUDECODE bun test src/organization-reconciliation.db.test.ts`: 23 pass.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.
