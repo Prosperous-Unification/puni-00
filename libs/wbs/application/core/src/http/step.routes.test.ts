@@ -6,6 +6,7 @@ import type { PlanCommand } from '../service/plan-command';
 import { StepService } from '../service/step.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { EMPTY } from './endpoint';
 import { stepRoutes } from './step.routes';
 
@@ -42,7 +43,7 @@ async function fixture(restricted = false) {
     broadcast,
     service,
     commandsRun,
-    endpoints: stepRoutes(service, commands),
+    endpoints: stepRoutes(service, commands, legacyOrganizationAccess),
   };
 }
 
@@ -155,10 +156,14 @@ test('typed removal carries every usage field and only literal true confirms cas
         }),
     },
   });
-  const remove = stepRoutes(service, {
-    run: () => Promise.reject(new Error('a removal ran a command batch')),
-    runDirectory: () => Promise.reject(new Error('a removal ran a directory batch')),
-  })[2];
+  const remove = stepRoutes(
+    service,
+    {
+      run: () => Promise.reject(new Error('a removal ran a command batch')),
+      runDirectory: () => Promise.reject(new Error('a removal ran a directory batch')),
+    },
+    legacyOrganizationAccess,
+  )[2];
   for (const cascade of [undefined, '1', 'TRUE', 'false']) {
     const removeReply: unknown = await remove.handle({
       params: { id: 'project', stepId: 'step' },

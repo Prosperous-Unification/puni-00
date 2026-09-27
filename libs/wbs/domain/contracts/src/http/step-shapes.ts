@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
+import { organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 const projectParams = requestSchema(type({ id: 'string' }));
@@ -65,6 +66,7 @@ const sharedRefusals = [
     schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
   },
   { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  organizationRefusal,
   { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
 ] as const;
 const nameRefusals = [

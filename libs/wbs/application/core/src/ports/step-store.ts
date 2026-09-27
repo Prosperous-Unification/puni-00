@@ -156,8 +156,12 @@ export interface StepStore {
    * carries the place it took.
    */
   add(step: NewStep, stamp: WriteStamp): Promise<StepWritten>;
-  /** The same rules as {@link StepStore.add}, and `not_found` for a step that has gone. */
-  rename(stepId: string, name: string, stamp: WriteStamp): Promise<StepWritten>;
+  /**
+   * The same rules as {@link StepStore.add}, and `not_found` for a step that
+   * has gone or is not `projectId`'s: the project is part of the write's own
+   * predicate, so a check made before the write cannot be outrun.
+   */
+  rename(projectId: string, stepId: string, name: string, stamp: WriteStamp): Promise<StepWritten>;
   /**
    * What points at the step right now — a **fast path** for the refusal, never
    * the authority for it. Between this answer and any delete, anybody may write.

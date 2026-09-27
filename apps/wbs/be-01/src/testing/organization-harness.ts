@@ -6,6 +6,7 @@ import { SqliteOrganizationAccess } from '@wbs/store-sqlite';
 
 import { buildApp } from '../app';
 import { ActualRepository } from '../repository/actual';
+import { CalendarMarkerRepository } from '../repository/calendar-marker';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
@@ -21,6 +22,7 @@ import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { AuthService } from '../service/auth.service';
+import { CalendarMarkerService } from '../service/calendar-marker.service';
 import { DirectoryService } from '../service/directory.service';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { ProjectService } from '../service/project.service';
@@ -28,7 +30,6 @@ import { StepService } from '../service/step.service';
 import { WorkItemService } from '../service/work-item.service';
 import { TEST_JWT_KEY } from './auth-fixture';
 import { recordingBroadcaster } from './broadcast-fixture';
-import { testCalendarMarkerService } from './calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from './capacity-fixture';
 import { testClock } from './clock-fixture';
 import { testHistoryService } from './history-fixture';
@@ -84,7 +85,11 @@ export class OrganizationHarness {
       }),
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
-      calendarMarkers: testCalendarMarkerService(),
+      calendarMarkers: new CalendarMarkerService({
+        projects,
+        markers: new CalendarMarkerRepository(db, OPEN),
+        clock: testClock,
+      }),
       projects: new ProjectService({
         clock: testClock,
         projects,

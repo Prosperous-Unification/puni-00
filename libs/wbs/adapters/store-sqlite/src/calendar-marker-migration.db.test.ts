@@ -68,10 +68,15 @@ const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
  */
 const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 /**
- * The newest: the legacy bridge triggers, stamped after
+ * The legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
  */
 const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
+/**
+ * The newest: the triggers that freeze organization ownership, stamped after
+ * {@link ORGANIZATION_BRIDGE} and reversed before it.
+ */
+const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
 /** The tables {@link ORGANIZATION_RECORDS} adds, which the same rollback takes. */
 const ORGANIZATION_TABLES = [
   'organization_activation',
@@ -228,6 +233,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
       STEP_ALLOWANCE,

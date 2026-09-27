@@ -1,6 +1,5 @@
 import {
   canEditProject,
-  canEditProjectInOrganization,
   canWriteInOrganization,
   DEFAULT_ESTIMATE_RULE,
   isIsoDate,
@@ -10,7 +9,12 @@ import { NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCodes } from '@wbs/domain'
 import { type } from '@wbs/validation';
 
 import type { Clock } from '../../ports/clock';
-import type { ResourceAccess } from '../../ports/organization-access';
+import {
+  findProjectWithin,
+  LEGACY_ACCESS as LEGACY,
+  mayEditProjectWithin,
+  type ResourceAccess,
+} from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type {
   NewProject,
@@ -59,12 +63,6 @@ export type CreateOutcome =
 /** Whether the caller may write `project`, found through the caller's access. */
 export type EditAuthorization =
   { ok: true; project: Project } | { ok: false; reason: 'not_found' | 'forbidden' };
-
-/**
- * The access every unscoped method uses: deployment-wide, as before
- * organizations. Project routes never use it; they resolve access per request.
- */
-const LEGACY: ResourceAccess = { kind: 'legacy' };
 
 export interface ProjectServiceOptions {
   projects: ProjectStore;
@@ -293,7 +291,8 @@ export class ProjectService {
    * write it: the organization role and restricted-creator rule under scoped
    * access, the creator rule alone under legacy access.
    *
-   * Proof: returning the legacy `canEditProject` answer for scoped access failed
+   * Proof: returning the legacy `canEditProject` answer for scoped access (now
+   * inside `mayEditProjectWithin`) failed
    * `refuses a viewer every project write and lets the viewer read and open` in
    * `project-organization.controller.db.test.ts`; watched 2026-09-27.
    */
@@ -304,11 +303,9 @@ export class ProjectService {
   ): Promise<EditAuthorization> {
     const project = await this.find(id, access);
     if (project === null) return { ok: false, reason: 'not_found' };
-    const permitted =
-      access.kind === 'scoped'
-        ? canEditProjectInOrganization(project, access.scope)
-        : canEditProject(project, actorId);
-    return permitted ? { ok: true, project } : { ok: false, reason: 'forbidden' };
+    return mayEditProjectWithin(project, actorId, access)
+      ? { ok: true, project }
+      : { ok: false, reason: 'forbidden' };
   }
 
   /**
@@ -413,9 +410,7 @@ export class ProjectService {
   }
 
   private find(id: string, access: ResourceAccess): Promise<Project | null> {
-    return access.kind === 'scoped'
-      ? this.opts.projects.findInOrganization(id, access.scope.organizationId)
-      : this.opts.projects.findById(id);
+    return findProjectWithin(this.opts.projects, id, access);
   }
 }
 

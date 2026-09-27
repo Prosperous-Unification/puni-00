@@ -139,6 +139,8 @@ function markerListCode(refusal: RefusalOf<'getApiProjectsByIdCalendar-markers'>
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'forbidden':
     case 'not_found':
     case 'taken':
@@ -157,6 +159,8 @@ function markerWriteCode(refusal: RefusalOf<'postApiProjectsByIdCalendar-markers
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'forbidden':
     case 'not_found':
     case 'taken':
@@ -179,6 +183,8 @@ function markerRemoveCode(
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'forbidden':
     case 'not_found':
     case 'taken':
@@ -196,6 +202,8 @@ function stepWriteCode(refusal: RefusalOf<'postApiProjectsByIdSteps'>): string {
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'forbidden':
     case 'not_found':
     case 'invalid_json':
@@ -220,6 +228,8 @@ function stepRemoveCode(refusal: RefusalOf<'deleteApiProjectsByIdStepsByStepId'>
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'forbidden':
     case 'not_found':
     case 'invalid_body':

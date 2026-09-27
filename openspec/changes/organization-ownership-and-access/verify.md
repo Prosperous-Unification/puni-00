@@ -234,6 +234,41 @@ Commands, all under `env -u CLAUDECODE`:
 - fe-01 vitest, 6 files: 149.
 - tsc passes for core, be-01, store-sqlite, store-memory, contracts, conformance, fe-01 and mcp-01.
 
+## Slice 9 — steps, calendar markers and the ownership freeze (task 3.3, part 1)
+
+Branch `batch-9/010-5-2-orgs-8`, stacked on slice 8. Design call: Astra, saved in the lane records as `010-5-2-orgs-task-3.3-design.md`.
+
+**Ownership freeze.** Migration `20260927200000_freeze_organization_ownership` adds 30 triggers over the eight side tables. The database refuses:
+
+- an UPDATE of `resource_id` or `organization_id`;
+- a DELETE while the root lives (the root's own cascade passes);
+- an INSERT for an already-mapped root, which also stops `INSERT OR REPLACE`;
+- on the six catalog tables, an INSERT or name UPDATE onto a display name another root of the organization holds, which stops `INSERT OR REPLACE` and `UPDATE OR REPLACE` from deleting that root's mapping through the `(organization_id, name)` index.
+
+The migration is additive and its `down.sql` drops all 30 triggers. Reconciliation fixtures and the ownership migration's primary-key cases run below the freeze, because they build states the freeze refuses. What this proves is narrow: each tested statement shape is refused. It does not prove that no other statement can move ownership, for example a direct write with triggers dropped.
+
+**Routes.**
+
+- The three step routes and the four calendar-marker routes resolve `OrganizationAccess` first. `StepService` and `CalendarMarkerService` gain `…Within` methods, which use the shared `findProjectWithin` and `mayEditProjectWithin`.
+- A foreign project is a 404 identical to an absent one. A foreign step or marker under the caller's own project path is a 404.
+- `StepStore.rename` now takes the project and puts it in the UPDATE's own predicate, so a check made before the write cannot be outrun. `remove` already did.
+- A viewer may list markers but not write.
+
+**Accepted residual.** A client-minted marker id that collides with another organization's marker answers 409 `taken`. The foreign marker stays unchanged, which is tested. The answer reveals only that a v4 UUID the caller already holds exists. Scoping marker ids by project would need a non-additive key change. The mounted tests do not observe broadcasts.
+
+| Check                                                   | Injected fault                                                               | Observed failure (2026-09-27)                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Each of the 30 freeze triggers                          | that trigger's `WHEN` made `0` alone                                         | `organization-ownership-freeze.db.test.ts`: that table's `refuses moving the root to another organization` (update), `refuses unmapping a live root, and a second or replacing mapping` (insert, delete) or `refuses replacing another root's display name` (catalog insert, name) |
+| Catalog name clause                                     | the `OR EXISTS … name` clause removed from each catalog insert trigger alone | `refuses replacing another root's display name`                                                                                                                                                                                                                                    |
+| Step rename in its write                                | the UPDATE addressed by step id alone                                        | `step.db.test.ts` `renames nothing of another project, whatever it is called by`                                                                                                                                                                                                   |
+| Step gate scoped                                        | `gate` finds the project unscoped                                            | `step-marker-organization.controller.db.test.ts` `answers 404 alike for a foreign and an absent project on every step and marker route`                                                                                                                                            |
+| Step add scoped                                         | `addWithin` finds the project unscoped                                       | same case                                                                                                                                                                                                                                                                          |
+| Marker gate scoped                                      | marker `gate` finds the project unscoped                                     | same case                                                                                                                                                                                                                                                                          |
+| Marker list scoped                                      | `listWithin` finds the project unscoped                                      | same case                                                                                                                                                                                                                                                                          |
+| Role rule                                               | `mayEditProjectWithin` answers the legacy rule under scoped access           | `refuses a viewer every step and marker write and lets the viewer list markers`                                                                                                                                                                                                    |
+| Access resolved first                                   | resolution bypassed in each of the seven routes alone                        | `refuses an unbound session and a removed member before any lookup`, once per route                                                                                                                                                                                                |
+| Allowance edit scoped (after main's 010.4.5 allowances) | `findWithin` admission skipped before the `setStepAllowance` command         | `refuses an allowance edit of a foreign step or project, changing nothing`: B's allowance changed from 0 to 25                                                                                                                                                                     |
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.
