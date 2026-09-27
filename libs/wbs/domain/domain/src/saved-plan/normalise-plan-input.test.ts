@@ -153,9 +153,7 @@ describe('the version-1 to version-2 upgrade — step allowances', () => {
 
   /** Proof: see `withZeroStepAllowances`. */
   it('reads a version-1 body’s steps at 0% allowance', () => {
-    const upgraded = normalisePlanInputForward(versionOneBody(), 1) as {
-      steps: { allowancePercent: unknown }[];
-    };
+    const upgraded = normalisePlanInputForward(versionOneBody(), 1);
 
     expect(upgraded.steps.length).toBeGreaterThan(0);
     for (const step of upgraded.steps) expect(step.allowancePercent).toBe(0);
