@@ -1,0 +1,5 @@
+- [x] 1. Register Plan import and Plan document with creation revisions and watch the pilot admission test fail on the unknown field.
+- [x] 2. Add `creationRevision` to the trusted boundary schema with the exclusivity and pilot guards, and the Git-backed first-commit and baseline checks in the loader.
+- [x] 3. Add production-path negatives for each refusal and observe each fail with its check disabled.
+- [x] 4. Empty the module-label check's unregistered list and update both modules' READMEs.
+- [x] 5. Verify focused suites, lint, typecheck, Prettier and OpenSpec.

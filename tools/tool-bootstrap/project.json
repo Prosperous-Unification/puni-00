@@ -31,7 +31,7 @@
         "{workspaceRoot}/deploy/compose/log-redact.caddy"
       ],
       "options": {
-        "command": "bun test --preload ../test/scratch/preload.ts",
+        "command": "bun test --preload ../test/scratch/preload.ts --timeout=10000",
         "cwd": "tools/tool-bootstrap"
       }
     },

@@ -30,7 +30,10 @@ mode.
 Rules are grouped by family. The modules family checks index declarations, the direct-entry limit
 and the module layout. The relationships family checks the kind direction rules K2 to K6 on the
 import graph the package extracts, which resolves path aliases and follows re-exports, so a barrel
-cannot hide the kind of the file behind it. The code-shape family checks F1, that a service, store
+cannot hide the kind of the file behind it. A file's kind comes from its filename suffix, from a
+module `view` directory, or from the kind inventory a rule policy may name as `kindInventory`. The
+inventory is read from the selected candidate, not the checkout; a missing, malformed, duplicated,
+stale or suffix-contradicting inventory leaves every rule that reads kinds unevaluated. The code-shape family checks F1, that a service, store
 or geometry module is plain TypeScript, and F7, the file size ratchet. A rule in ratchet mode
 refuses a finding inside the consumer's adopted set and reports one outside it as debt; refusing
 because a file was touched needs a comparison base the verdict records, which this package does not

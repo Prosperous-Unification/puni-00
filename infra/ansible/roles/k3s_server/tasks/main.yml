@@ -23,6 +23,9 @@
       - puni_disable_cloud_controller is defined
       - puni_node_capabilities is defined
       - puni_k3s_cluster_init or puni_registration_url is defined
+      - puni_kubelet_system_reserved_memory is match('^[0-9]+Mi$')
+      - puni_kubelet_kube_reserved_memory is match('^[0-9]+Mi$')
+      - puni_kubelet_eviction_memory is match('^[0-9]+Mi$')
     fail_msg: k3s server identity, pinned artifact, endpoint, and tokens are required
 
 - name: Download the pinned k3s server binary

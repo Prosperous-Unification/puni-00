@@ -166,3 +166,21 @@ describe('fe-01 lint inputs', () => {
     expect(missing).toEqual([]);
   });
 });
+
+/**
+ * The host gate and CI run `test`, never `test:unit`, and only here does the
+ * fast tier differ from the full one in more than its file list: it runs under
+ * `node`, where a browser global read in production code is an unhandled
+ * `ReferenceError` that the jsdom run can never raise. So `test` depends on
+ * `test:unit`, and every gated run runs both tiers.
+ */
+describe('fe-01’s gated test target', () => {
+  it('runs the node tier before the jsdom one', () => {
+    // Proof: with `dependsOn` removed from `test` (2026-09-27), this failed on
+    // `expected undefined to deeply equal [ 'test:unit' ]`.
+    const project = JSON.parse(readFileSync(join(APP, 'project.json'), 'utf8')) as {
+      targets: { test: { dependsOn?: unknown } };
+    };
+    expect(project.targets.test.dependsOn).toEqual(['test:unit']);
+  });
+});

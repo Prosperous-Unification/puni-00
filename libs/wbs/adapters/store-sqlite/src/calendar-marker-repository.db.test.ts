@@ -96,12 +96,12 @@ describe('CalendarMarkerRepository', () => {
     const projects = new ProjectRepository(seed.db, OPEN);
     await projects.create(
       projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Build', position: 10 }],
+      [{ id: 'st-1', projectId: 'p1', name: 'Build', position: 10, code: 'build' }],
       wrote,
     );
     await projects.create(
       projectRow({ id: 'p2', name: 'Re-roof the barn', ownerId: 'owner' }),
-      [{ id: 'st-2', projectId: 'p2', name: 'Strip', position: 10 }],
+      [{ id: 'st-2', projectId: 'p2', name: 'Strip', position: 10, code: 'strip' }],
       wrote,
     );
     seed.close();

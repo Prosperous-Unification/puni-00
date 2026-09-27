@@ -92,8 +92,8 @@ beforeEach(async () => {
   await projects.create(
     project,
     [
-      { id: stepId, projectId: project.id, name: 'Dev', position: 10 },
-      { id: laterStepId, projectId: project.id, name: 'QA', position: 20 },
+      { id: stepId, projectId: project.id, name: 'Dev', position: 10, code: 'dev' },
+      { id: laterStepId, projectId: project.id, name: 'QA', position: 20, code: 'qa' },
     ],
     WROTE,
   );
@@ -182,13 +182,18 @@ async function multiPoolLeaf(
   return id;
 }
 
-/** The same leaf, estimated on both steps, so it carries a `stepOrder` floor. */
-async function twoStepLeaf(name: string, days: number, serviceTeamId: string | null = null) {
-  const id = await leaf(name, days, serviceTeamId);
+/** Estimates a leaf's later step, so that step takes schedule time and a slot. */
+async function estimateLaterStep(id: string, days: number): Promise<void> {
   await estimates.set(
     { workItemId: id, stepId: laterStepId, optimistic: days, realistic: days, pessimistic: days },
     WROTE,
   );
+}
+
+/** The same leaf, estimated on both steps, so it carries a `stepOrder` floor. */
+async function twoStepLeaf(name: string, days: number, serviceTeamId: string | null = null) {
+  const id = await leaf(name, days, serviceTeamId);
+  await estimateLaterStep(id, days);
   return id;
 }
 
@@ -521,13 +526,13 @@ describe("the materialiser's annotations, through the plan read", () => {
     // whole point of the item: the joint window is later than either pool's own
     // earliest fit. Alpha frees at day 4 and Beta at day 6, so the floor is 6.
     //
-    // The arithmetic, spelled out because every leaf carries an unestimated QA
-    // slice worth `ASSUMED_SLICE_WORKDAYS` and that slice takes a slot from the
-    // same pool its Dev slice did:
+    // The arithmetic, spelled out because each tenant carries a two-day QA
+    // slice that takes a slot from the same pool its Dev slice did. `pinned`'s
+    // own QA is unestimated and takes no schedule time:
     //
     //   Alpha: `Alpha tenant` Dev 0–2, its QA 2–4   → Alpha free at 4
     //   Beta:  `Beta tenant`  Dev 0–4, its QA 4–6   → Beta  free at 6
-    //   pinned Dev therefore 6–8, and its own QA 8–10.
+    //   pinned Dev therefore 6–8, and its own QA 8–8.
     //
     // The tenants carry a lower `priority` number than `pinned` so that order
     // is the fixture's statement rather than the float ordering's: all three
@@ -579,7 +584,9 @@ describe("the materialiser's annotations, through the plan read", () => {
     await capacity.set(projectId, ALPHA, 1, WROTE);
     await capacity.set(projectId, BETA, 1, WROTE);
     const alpha = await leaf('Alpha tenant', 2, ALPHA, 10);
+    await estimateLaterStep(alpha, 2);
     const beta = await leaf('Beta tenant', 4, BETA, 10);
+    await estimateLaterStep(beta, 2);
     const pinned = await multiPoolLeaf('Pinned', 2, [ALPHA, BETA], 90);
     // Its own QA slice moves with it, which is this file's fixture rule: a case
     // states the offsets it moves and `servedBy` fills the rest from the

@@ -330,3 +330,223 @@ describe('a refused draft typed over and refused again', () => {
     expect(screen.getByLabelText<HTMLInputElement>('Name of 010').value).toBe('Gamma');
   });
 });
+
+describe('an own edit that lands while the cell is being typed in again', () => {
+  /**
+   * `e2e/name-cell.spec.ts`'s peer-rename case, at the speed a loaded runner
+   * gives it. The name is typed and left, and the reader is back in the cell
+   * typing before that patch's answer comes home — the refetch it caused, and
+   * then the landing, both arrive while rule 2 is holding. They type back to
+   * what they had saved, a peer renames the row, and they leave.
+   *
+   * Nothing is left to send: the box says what be-01 already took. So the
+   * blur is the moment the peer's name is due, exactly as it is when the
+   * landing beat the click — and the box must not be left on the saved name
+   * for as long as nobody else happens to edit the row.
+   */
+  itDom('a peer name held back behind a slow landing arrives when the cell is left', async () => {
+    const { pending, commit } = queuedCommits();
+    const view = render(<TableFace value="" commit={commit} />);
+    typeAndLeave('Strip the wiring');
+    expect(pending.map((patch) => patch.typed)).toEqual(['Strip the wiring']);
+
+    const box = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'Strip the wiringX' } });
+
+    // The refetch the first patch caused, then its answer, both while the
+    // reader is typing.
+    view.rerender(<TableFace value="Strip the wiring" commit={commit} />);
+    await answerPatch(pending[0], 'landed');
+
+    fireEvent.change(box, { target: { value: 'Strip the wiring' } });
+    view.rerender(<TableFace value="Survey the racking" commit={commit} />);
+    expect(box.value, 'the peer edit was written into the box mid-visit').toBe('Strip the wiring');
+
+    act(() => {
+      box.blur();
+    });
+
+    expect(box.value).toBe('Survey the racking');
+    expect(pending.map((patch) => patch.typed)).toEqual(['Strip the wiring']);
+  });
+
+  /**
+   * A peer's name was written into the box between the save and the reader
+   * coming back, and they typed their saved name over it. That is an edit of
+   * the peer's name, and the late answer to the first save must not turn it
+   * into "nothing typed".
+   */
+  itDom('a save landing under an edit made over a peer name still sends it', async () => {
+    const { pending, commit } = queuedCommits();
+    const view = render(<TableFace value="Alpha" commit={commit} />);
+    typeAndLeave('Beta');
+    view.rerender(<TableFace value="Peer" commit={commit} />);
+
+    const box = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    expect(box.value).toBe('Peer');
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'Beta' } });
+    await answerPatch(pending[0], 'landed');
+    act(() => {
+      box.blur();
+    });
+
+    expect(pending.map((patch) => [patch.typed, patch.baseline])).toEqual([
+      ['Beta', 'Alpha'],
+      ['Beta', 'Peer'],
+    ]);
+    expect(box.value).toBe('Beta');
+  });
+
+  /**
+   * A save that lands with no read behind it — be-01 took the patch and the
+   * covering reread failed, which `PlanWriter.run` still answers `landed` —
+   * while the reader is back in the cell and has typed back to what they saved.
+   * The field has heard nothing newer than the name from before the save, and
+   * writing that over the box on the way out would put back a name the server
+   * no longer has.
+   *
+   * The same inputs are what a peer's revert to the old name looks like when
+   * it reaches the client before the save's reread renders, and the field
+   * cannot tell the two apart; it keeps the saved name, as it always did, and
+   * the next read settles it.
+   */
+  itDom('a landing with no read behind it keeps the saved name when the cell is left', async () => {
+    const { pending, commit } = queuedCommits();
+    render(<TableFace value="Alpha" commit={commit} />);
+    typeAndLeave('Beta');
+
+    const box = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'BetaX' } });
+    await answerPatch(pending[0], 'landed');
+    fireEvent.change(box, { target: { value: 'Beta' } });
+    act(() => {
+      box.blur();
+    });
+
+    expect(box.value).toBe('Beta');
+    expect(pending.map((patch) => patch.typed)).toEqual(['Beta']);
+  });
+
+  /**
+   * Typed back to the old name and left before the save came home: rule 3
+   * sends nothing, so what the server took is `Beta`, and the box has to say
+   * so once the answer and its reread arrive rather than keep showing `Alpha`
+   * over a name it no longer has.
+   */
+  itDom('a box left before its save lands still shows what the server took', async () => {
+    const { pending, commit } = queuedCommits();
+    const view = render(<TableFace value="Alpha" commit={commit} />);
+    typeAndLeave('Beta');
+
+    const box = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'Alpha' } });
+    act(() => {
+      box.blur();
+    });
+    await answerPatch(pending[0], 'landed');
+    view.rerender(<TableFace value="Beta" commit={commit} />);
+
+    expect(box.value).toBe('Beta');
+    expect(pending.map((patch) => patch.typed)).toEqual(['Beta']);
+  });
+
+  /**
+   * The same leave with the save still out: nothing to send again, and
+   * nothing to release either. A peer's name held back while the reader typed
+   * would otherwise be written over text be-01 has not answered yet.
+   */
+  itDom('a peer name held back is not written over a save still in the air', () => {
+    const { pending, commit } = queuedCommits();
+    const view = render(<TableFace value="Alpha" commit={commit} />);
+    typeAndLeave('Beta');
+
+    const box = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'BetaX' } });
+    view.rerender(<TableFace value="Peer" commit={commit} />);
+    fireEvent.change(box, { target: { value: 'Beta' } });
+    act(() => {
+      box.blur();
+    });
+
+    expect(box.value).toBe('Beta');
+    expect(pending.map((patch) => patch.typed)).toEqual(['Beta']);
+  });
+
+  /**
+   * A peer's name arrives while the reader is typing their edit and is held
+   * back; the edit is saved, its covering reread fails, and they come back,
+   * type, and type back to what they saved. The held name predates the save,
+   * so leaving must keep the saved name rather than put the older one back.
+   */
+  itDom('a peer name held from before a save is not written over it', async () => {
+    const { pending, commit } = queuedCommits();
+    const view = render(<TableFace value="Alpha" commit={commit} />);
+
+    const box = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'Beta' } });
+    view.rerender(<TableFace value="Peer" commit={commit} />);
+    act(() => {
+      box.blur();
+    });
+    expect(pending.map((patch) => patch.typed)).toEqual(['Beta']);
+
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'BetaX' } });
+    await answerPatch(pending[0], 'landed');
+    fireEvent.change(box, { target: { value: 'Beta' } });
+    act(() => {
+      box.blur();
+    });
+
+    expect(box.value).toBe('Beta');
+    expect(pending.map((patch) => patch.typed)).toEqual(['Beta']);
+  });
+
+  /**
+   * The save lands while the reader is typing again, and then a peer puts the
+   * name back to what it was before the save. The revert is the server's
+   * newest word and is what the box shows once they leave, even though its
+   * text is the name the field started from.
+   */
+  itDom("a peer's revert heard after a slow landing is what the box shows", async () => {
+    const { pending, commit } = queuedCommits();
+    const view = render(<TableFace value="Alpha" commit={commit} />);
+    typeAndLeave('Beta');
+
+    const box = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'BetaX' } });
+    view.rerender(<TableFace value="Beta" commit={commit} />);
+    await answerPatch(pending[0], 'landed');
+    view.rerender(<TableFace value="Alpha" commit={commit} />);
+    fireEvent.change(box, { target: { value: 'Beta' } });
+    act(() => {
+      box.blur();
+    });
+
+    expect(box.value).toBe('Alpha');
+    expect(pending.map((patch) => patch.typed)).toEqual(['Beta']);
+  });
+});

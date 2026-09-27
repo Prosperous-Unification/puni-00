@@ -1,4 +1,5 @@
 import type { PlanDocumentRequest } from '@wbs/contracts';
+import { suggestStepCode } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../compose';
@@ -697,6 +698,7 @@ export function importServiceSourceContract(
             projectId: 'source-project',
             name,
             position,
+            code: suggestStepCode(name, new Set()),
           })),
           STAMP,
         );

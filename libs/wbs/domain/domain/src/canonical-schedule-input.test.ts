@@ -271,13 +271,8 @@ describe('canonicalScheduleInput', () => {
       ],
     });
 
-    /**
-     * `null` is "nobody has estimated this" and spends
-     * {@link ASSUMED_SLICE_WORKDAYS}; `0` is "estimated, and it is nothing" and
-     * spends no time and no slot. A canonical form that let `??` collapse them
-     * would serve one plan's schedule for the other.
-     */
-    movesAPlacement('days null is not days zero', {
+    /** A two-day estimate withdrawn: the step keeps its node and loses its time. */
+    movesAPlacement('days two withdrawn to null', {
       ...BASE,
       slices: [
         step('a', 'design', null),
@@ -532,6 +527,44 @@ describe('canonicalScheduleInput', () => {
   });
 
   describe('mutations the canonical form is deliberately stricter about than today’s engine', () => {
+    /**
+     * `null` is "nobody has estimated this" and `0` is "estimated, and it is
+     * nothing". Both take zero schedule time since
+     * `unestimated-steps-take-no-schedule-time`, so their placements agree,
+     * but the schedule still reports one as unestimated and the Gantt draws a
+     * placeholder only for it. A canonical form that let `??` collapse them
+     * would serve one plan's schedule for the other.
+     *
+     * Proof: `days: slice.days ?? 0` in `canonicalScheduleInput` made this fail
+     * on its last assertion, the two canonical strings equal; watched
+     * 2026-09-27.
+     */
+    it('days null against days zero, which place alike and report apart', () => {
+      const withDays = (days: number | null): ScheduleInput => ({
+        ...BASE,
+        slices: [
+          step('a', 'design', days),
+          step('a', 'build', 3),
+          step('b', null, 2),
+          step('c', null, 2),
+        ],
+      });
+      const placements = (input: ScheduleInput) =>
+        [
+          ...schedule(
+            input.rows,
+            input.edges,
+            input.slices,
+            input.notBefore,
+            input.poolSizes,
+            input.reach,
+          ).slices.values(),
+        ].map(({ earliestStart, earliestFinish }) => [earliestStart, earliestFinish]);
+      expect(placements(withDays(null))).toEqual(placements(withDays(0)));
+      expect(run(withDays(null))).not.toEqual(run(withDays(0)));
+      expect(canonicalScheduleInput(withDays(null))).not.toBe(canonicalScheduleInput(withDays(0)));
+    });
+
     /**
      * `frozenNumber`, which since ADR 0023 cannot move a placement at all.
      *

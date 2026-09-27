@@ -7,13 +7,14 @@ import type {
   ProjectStreamHandlers,
 } from '@/modules/project/contract';
 import { fakeProjectApi } from '@/testing/fake-project-api';
+import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 
 import { createProjectOwner, installProjectRuntime } from './project-runtime';
 
 /** A source over a fresh fake client, and what its feed and its stream went through. */
 function recordedSource(options: { unsubscribe?: () => void } = {}) {
   const seen = { installs: 0, feedCloses: 0, opened: 0, closed: 0 };
-  const composed = projectServicesOver(fakeProjectApi());
+  const composed = projectServicesOver(fakeProjectApi(), NO_SAVED_PLANS);
   const services: ProjectServices = {
     ...composed,
     planFeedFor: (reader) => {
@@ -65,9 +66,62 @@ describe('the project runtime', () => {
       'projectId',
       'refusals',
       'reread',
+      'savedPlans',
       'writer',
     ]);
     await runtime.close({ timeoutMs: 1_000 });
+  });
+
+  it('stops the saved-plan shelf’s watch once, when the project is left', async () => {
+    const { source } = recordedSource();
+    let closes = 0;
+    const owner = createProjectOwner({ budgetMs: 1_000 });
+    await owner.open('p1', {
+      ...source,
+      services: {
+        ...source.services,
+        savedPlansFor: (reader) => {
+          const opened = source.services.savedPlansFor(reader);
+          return {
+            ...opened,
+            close: () => {
+              closes += 1;
+              opened.close();
+            },
+          };
+        },
+      },
+    });
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error(`p1 was not published: ${opened.status}`);
+    expect(closes).toBe(0);
+
+    await owner.leave();
+
+    expect(closes).toBe(1);
+    expect(owner.snapshot().status).toBe('empty');
+  });
+
+  it('shows a saved-plan shelf that will not stop as the fatal state', async () => {
+    const { source } = recordedSource();
+    const owner = createProjectOwner({ budgetMs: 1_000 });
+    await owner.open('p1', {
+      ...source,
+      services: {
+        ...source.services,
+        savedPlansFor: (reader) => ({
+          ...source.services.savedPlansFor(reader),
+          close: () => {
+            throw new Error('the shelf’s socket would not close');
+          },
+        }),
+      },
+    });
+
+    await expect(owner.leave()).resolves.toBeUndefined();
+
+    const left = owner.snapshot();
+    expect(left.status === 'fatal' && left.terminal).toBe(true);
   });
 
   it('tells the project’s presence who its stream says is here, and whether it is up', async () => {

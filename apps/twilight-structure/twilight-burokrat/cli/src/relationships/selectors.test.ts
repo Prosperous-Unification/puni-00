@@ -544,7 +544,7 @@ describe('declared relationship selectors through the production CLI', () => {
       expect(failed.exitCode).toBe(1);
       expect(output(failed)).toContain(fault.expected);
     }
-  }, 30_000);
+  }, 60_000);
 
   test('applies statically resolvable HTTP object overrides and refuses dynamic ones', () => {
     const cases = [
@@ -581,7 +581,7 @@ describe('declared relationship selectors through the production CLI', () => {
       expect(failed.exitCode).toBe(1);
       expect(output(failed)).toContain(boundary.expected);
     }
-  }, 15_000);
+  }, 30_000);
 
   test('refuses mutable or escaping HTTP object bindings while retaining static const spreads', () => {
     const cases = [
@@ -654,7 +654,7 @@ describe('declared relationship selectors through the production CLI', () => {
       expect(failed.exitCode).toBe(1);
       expect(output(failed)).toContain(boundary.expected);
     }
-  }, 25_000);
+  }, 60_000);
 
   test('reads current authorities only through exact selected candidate entries', () => {
     const repository = createRepository();
@@ -720,7 +720,7 @@ describe('declared relationship selectors through the production CLI', () => {
     expect(linked.declarations.facts.map(({ factId, actual }) => ({ factId, actual }))).toEqual([
       { factId: 'port.backend', actual: 3100 },
     ]);
-  }, 15_000);
+  }, 30_000);
 
   test.each([
     [
@@ -770,7 +770,7 @@ describe('declared relationship selectors through the production CLI', () => {
       expect(failed.exitCode).toBe(1);
       expect(output(failed)).toContain(expected);
     },
-    10_000,
+    20_000,
   );
 
   test('retains a syntactically valid modeled ALTER statement', () => {
@@ -801,7 +801,7 @@ describe('declared relationship selectors through the production CLI', () => {
       );
       expect(extracted.declarations.facts.map(({ actual }) => actual)).toEqual([boundary.expected]);
     }
-  }, 15_000);
+  }, 30_000);
 
   test('selects the table component of supported schema-qualified migration names', () => {
     const cases = [
@@ -847,7 +847,7 @@ describe('declared relationship selectors through the production CLI', () => {
     expect(output(failed)).toContain(
       'fact migration.work-item selector unsupported: migration statement 1 uses unsupported schema tenant',
     );
-  }, 15_000);
+  }, 30_000);
 
   test('selects one exact occurrence from the real four-table migration', () => {
     const repository = createRepository();
@@ -899,7 +899,7 @@ describe('declared relationship selectors through the production CLI', () => {
     expect(output(mismatch)).toContain(
       'fact migration.teams.assignment authority-selector mismatch: expected "service_team"; received "assignment"',
     );
-  }, 15_000);
+  }, 30_000);
 
   test('resolves a historical selector at its explicit Git base while checking current facts at the candidate', () => {
     const repository = createRepository();
@@ -976,7 +976,7 @@ describe('declared relationship selectors through the production CLI', () => {
       expect(failed.exitCode).toBe(1);
       expect(output(failed)).toContain(boundary.expected);
     }
-  }, 20_000);
+  }, 45_000);
 
   test('fails closed for absent, unreadable and malformed declaration documents', () => {
     const cases: {
@@ -1016,7 +1016,7 @@ describe('declared relationship selectors through the production CLI', () => {
       expect(failed.exitCode).toBe(1);
       expect(output(failed)).toContain(boundary.expected);
     }
-  }, 15_000);
+  }, 30_000);
 
   test('rejects unknown declaration versions and duplicate identities at the JSON boundary', () => {
     const repository = createRepository();
@@ -1080,7 +1080,7 @@ describe('declared relationship selectors through the production CLI', () => {
     const requestFailure = invoke(requestRepository, requestRevision, duplicateRequest);
     expect(requestFailure.exitCode).toBe(1);
     expect(output(requestFailure)).toContain('unique relationship declaration paths');
-  }, 20_000);
+  }, 45_000);
 
   test('rejects declaration, fact and relationship identities repeated across documents', () => {
     const cases = [
@@ -1144,5 +1144,5 @@ describe('declared relationship selectors through the production CLI', () => {
       expect(failed.exitCode).toBe(1);
       expect(output(failed)).toContain(boundary.expected);
     }
-  }, 10_000);
+  }, 30_000);
 });

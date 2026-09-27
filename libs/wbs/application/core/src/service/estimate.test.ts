@@ -33,8 +33,8 @@ beforeEach(async () => {
   await projects.create(
     project,
     [
-      { id: DEV, projectId: project.id, name: 'Dev', position: 10 },
-      { id: QA, projectId: project.id, name: 'QA', position: 20 },
+      { id: DEV, projectId: project.id, name: 'Dev', position: 10, code: 'dev' },
+      { id: QA, projectId: project.id, name: 'QA', position: 20, code: 'qa' },
     ],
     { at: 1, by: OWNER },
   );
