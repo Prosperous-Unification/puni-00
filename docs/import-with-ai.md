@@ -32,8 +32,9 @@ that breaks one fails at sign-in, not later.
 - **Callbacks (redirect URIs):** a registration is accepted only when every redirect URI is one
   of:
   - a loopback address spelled literally — `http://` or `https://` with host `localhost`,
-    `127.0.0.1` or `[::1]`, any port from 1 to 65535, any path, and no `code`, `state`, `iss`
-    or `error` query field of its own;
+    `127.0.0.1` or `[::1]` (not `127.1` or `LOCALHOST`), no port or a port from 1 to 65535
+    without leading zeros, any path, no user or password, no fragment, and none of `code`,
+    `state`, `iss`, `error`, `error_description` or `error_uri` in its own query;
   - or exactly one of these hosted callbacks: `https://claude.ai/api/mcp/auth_callback`,
     `https://claude.com/api/mcp/auth_callback`, `https://vscode.dev/redirect`,
     `https://www.perplexity.ai/rest/connections/oauth_callback`,
@@ -92,8 +93,9 @@ Finally read back the project, reconcile counts, hierarchy, estimates and depend
 
 ## Prepare the source
 
-The client reads the source without modifying it. Keep source IDs: the prompt asks the client
-to store them as external references on the imported items.
+The client reads the source without modifying it. The prompt previews source references; to
+keep them in WBS, also ask the client to store each item's source link as an external reference
+on the imported work item.
 
 ### Jira, Linear and Asana
 
@@ -116,7 +118,10 @@ outline number or parent column), the estimate and its unit, and the predecessor
 
 ### Dependencies WBS cannot represent
 
-WBS dependencies are finish-to-start between work items. Start-to-start, finish-to-finish,
+WBS dependencies are between work items. They are finish-to-start while the project's
+dependency reach is `whole-item`, the default: a successor waits for the predecessor's last
+step. With `anchor-slice` a successor starts after the predecessor's first estimated step, so
+keep `whole-item` when the source means finish-to-start. Start-to-start, finish-to-finish,
 start-to-finish, lags and leads are listed as unsupported in the preview and reported after the
 import; they are not approximated.
 
@@ -126,13 +131,14 @@ import; they are not approximated.
 checked against the WBS rules above on the date in **Checked**. It says nothing about a
 successful connection to WBS:
 
-- **Documented** — the vendor documents remote Streamable HTTP with OAuth sign-in, and nothing
-  known conflicts with the WBS rules above; where the vendor publishes its callback, WBS
-  accepts it.
+- **Documented** — the vendor documents remote Streamable HTTP with OAuth sign-in for this
+  product, and nothing known conflicts with the WBS rules above: its published callback, if
+  any, is one WBS accepts.
 - **Bridge fallback** — native remote OAuth is missing or unestablished; use the
   [desktop bridge](#desktop-bridge-for-stdio-only-clients).
-- **Unverified** — documented in part, but the callback, registration or transport is not
-  established or not accepted yet.
+- **Unverified** — the vendor's MCP sign-in is documented only in part (no OAuth for this
+  product surface, or a product in transition), or there is evidence its callback may be one
+  WBS refuses.
 - **Unsupported** — WBS refuses the client's callback today.
 
 A client becomes **WBS import tested** only after a recorded live connection naming the client
@@ -150,7 +156,7 @@ project, a reversible write, an actual refresh and the rejection of a revoked to
 | VS Code Copilot             | Bridge fallback | 2026-09-27 | `.vscode/mcp.json`: `{"servers":{"wbs":{"type":"http","url":"<WBS_MCP_URL>"}}}`                                                                                                                         | Registration by DCR lists `https://insiders.vscode.dev/redirect` beside `https://vscode.dev/redirect` and loopback; WBS refuses the whole registration for the first. Use the bridge | [VS Code MCP servers](https://code.visualstudio.com/docs/agent-customization/mcp-servers) (updated 2026-09-16), [DCR source](https://github.com/microsoft/vscode/blob/main/src/vs/base/common/oauth.ts)                                                                                           |
 | Codex CLI                   | Documented      | 2026-09-27 | `codex mcp add wbs --url <WBS_MCP_URL>` (signs in at once); again with `codex mcp login wbs --scopes wbs:read,wbs:write`                                                                                | Loopback `http://127.0.0.1/callback…`, accepted. `--scopes` or `scopes` in `config.toml` sets scopes                                                                                 | [Codex MCP](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)                                                                                                                                                                                                                                |
 | Gemini CLI                  | Documented      | 2026-09-27 | `settings.json`: `{"mcpServers":{"wbs":{"httpUrl":"<WBS_MCP_URL>"}}}` (`httpUrl` is Streamable HTTP; `url` is SSE), then `/mcp auth wbs`                                                                | Loopback `http://localhost:<port>/oauth/callback`, accepted. `oauth.scopes` sets scopes. Checks the `iss` WBS sends                                                                  | [Gemini CLI MCP](https://geminicli.com/docs/tools/mcp-server/) (2026-09-02)                                                                                                                                                                                                                       |
-| Windsurf                    | Unverified      | 2026-09-27 | Now Devin Desktop. Cascade: `mcp_config.json` `{"mcpServers":{"wbs":{"serverUrl":"<WBS_MCP_URL>"}}}`; Devin Local: `devin mcp add wbs <WBS_MCP_URL>`, `devin mcp login wbs --scopes wbs:read,wbs:write` | Callback not published                                                                                                                                                               | [Cascade MCP](https://docs.devin.ai/desktop/cascade/mcp), [Devin CLI MCP](https://docs.devin.ai/cli/extensibility/mcp/configuration)                                                                                                                                                              |
+| Windsurf                    | Unverified      | 2026-09-27 | Now Devin Desktop. Cascade: `mcp_config.json` `{"mcpServers":{"wbs":{"serverUrl":"<WBS_MCP_URL>"}}}`; Devin Local: `devin mcp add wbs <WBS_MCP_URL>`, `devin mcp login wbs --scopes wbs:read,wbs:write` | Callback not published; the Cascade page does not document OAuth                                                                                                                     | [Cascade MCP](https://docs.devin.ai/desktop/cascade/mcp), [Devin CLI MCP](https://docs.devin.ai/cli/extensibility/mcp/configuration)                                                                                                                                                              |
 | JetBrains AI Assistant      | Bridge fallback | 2026-09-27 | Settings → Tools → AI Assistant → Model Context Protocol → Add, Streamable HTTP, `{"mcpServers":{"wbs":{"url":"<WBS_MCP_URL>"}}}`                                                                       | No MCP OAuth yet (issue LLM-25012 open); use the bridge                                                                                                                              | [AI Assistant MCP](https://www.jetbrains.com/help/ai-assistant/mcp.html) (2026.2)                                                                                                                                                                                                                 |
 | Junie CLI                   | Documented      | 2026-09-27 | `.junie/mcp/mcp.json`: `{"mcpServers":{"wbs":{"url":"<WBS_MCP_URL>"}}}`, then `/mcp` → wbs → Authorize                                                                                                  | Callback and scopes not published                                                                                                                                                    | [Junie MCP](https://junie.jetbrains.com/docs/junie-cli-mcp-configuration.html) (updated 2026-09-25)                                                                                                                                                                                               |
 | Zed                         | Documented      | 2026-09-27 | `settings.json`: `{"context_servers":{"wbs":{"url":"<WBS_MCP_URL>"}}}` with no Authorization header                                                                                                     | Loopback `http://127.0.0.1:<port>/callback`, accepted. Requests the advertised scopes                                                                                                | [Zed MCP](https://zed.dev/docs/ai/mcp), [callback source](https://github.com/zed-industries/zed/blob/main/crates/oauth_callback_server/src/oauth_callback_server.rs)                                                                                                                              |
@@ -162,7 +168,7 @@ project, a reversible write, an actual refresh and the rejection of a revoked to
 | Amazon Q Developer CLI      | Documented      | 2026-09-27 | Now Kiro CLI. `.kiro/settings/mcp.json`: `{"mcpServers":{"wbs":{"url":"<WBS_MCP_URL>","oauthScopes":["wbs:read","wbs:write"]}}}`                                                                        | Loopback `http://127.0.0.1:<port>`, accepted. **Set `oauthScopes`**: the default asks for OIDC scopes WBS refuses                                                                    | [Kiro MCP configuration](https://kiro.dev/docs/mcp/configuration/) (updated 2026-09-25)                                                                                                                                                                                                           |
 | GitHub Copilot in JetBrains | Unverified      | 2026-09-27 | Copilot Chat → Agent → tools → Add MCP Tools; `mcp.json`: `{"servers":{"wbs":{"url":"<WBS_MCP_URL>"}}}`                                                                                                 | DCR announced; callback not published. Bridge is an option                                                                                                                           | [Copilot MCP in JetBrains](https://docs.github.com/en/copilot/how-tos/provide-context/use-mcp-in-your-ide/extend-copilot-chat-with-mcp?tool=jetbrains), [OAuth changelog](https://github.blog/changelog/2025-11-18-enhanced-mcp-oauth-support-for-github-copilot-in-jetbrains-eclipse-and-xcode/) |
 | LM Studio                   | Documented      | 2026-09-27 | `mcp.json`: `{"mcpServers":{"wbs":{"url":"<WBS_MCP_URL>"}}}`                                                                                                                                            | Loopback `http://127.0.0.1:33389/mcp-oauth-callback`, accepted. Scopes not published                                                                                                 | [LM Studio remote MCP](https://lmstudio.ai/docs/integrations/mcp-remote)                                                                                                                                                                                                                          |
-| Raycast                     | Unverified      | 2026-09-27 | Install MCP Server → HTTP → URL `<WBS_MCP_URL>` → OAuth Dynamic → Sign In                                                                                                                               | Callback not published for MCP; accepted only if it is loopback                                                                                                                      | [Raycast MCP](https://manual.raycast.com/ai/model-context-protocol)                                                                                                                                                                                                                               |
+| Raycast                     | Unverified      | 2026-09-27 | Install MCP Server → HTTP → URL `<WBS_MCP_URL>` → OAuth Dynamic → Sign In                                                                                                                               | Callback not published for MCP. Raycast's extension OAuth uses a `raycast://` callback, which WBS would refuse; accepted only if MCP uses loopback                                   | [Raycast MCP](https://manual.raycast.com/ai/model-context-protocol)                                                                                                                                                                                                                               |
 | Perplexity                  | Documented      | 2026-09-27 | Settings → Connectors → Custom connector → Remote → URL `<WBS_MCP_URL>` → OAuth                                                                                                                         | `https://www.perplexity.ai/rest/connections/oauth_callback` and the `enterprise.` one, both accepted. Vendor page refused our fetch; callbacks from a partner guide                  | [Custom remote connectors](https://www.perplexity.ai/help-center/en/articles/13915507-adding-custom-remote-connectors), [Qlik guide](https://community.qlik.com/t5/Official-Support-Articles/Connect-Perplexity-ai-to-Qlik-MCP-server/ta-p/2552671)                                               |
 | Mistral Le Chat / Work      | Unsupported     | 2026-09-27 | Admin: Connectors → Add Connector → Custom MCP Connector → name, URL `<WBS_MCP_URL>`                                                                                                                    | Hosted callback not published and not on WBS's list, so WBS refuses it until a reviewed entry is added                                                                               | [Mistral MCP connectors](https://docs.mistral.ai/vibe/work/connectors/mcp-connectors)                                                                                                                                                                                                             |
 | Microsoft Copilot Studio    | Unsupported     | 2026-09-27 | Tools → Add tool → MCP → URL `<WBS_MCP_URL>` → OAuth 2.0 → Dynamic discovery                                                                                                                            | Installation-specific `https://global.consent.azure-apim.net/redirect/…`, not on WBS's list                                                                                          | [Copilot Studio MCP](https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-add-existing-server-to-agent) (updated 2026-08-19)                                                                                                                                                            |
@@ -193,8 +199,9 @@ and listens on `http://localhost:<port>/oauth/callback`, which WBS accepts:
 }
 ```
 
-Put the same `command` and `args` in the client's own stdio format. **This bridge has not yet
-been run against WBS**, so a bridge fallback row is no more tested than the others. Hosted
+Put the same `command` and `args` in the client's own stdio format. **This bridge is an untested
+candidate: it has not yet been run against WBS**, so a bridge fallback row is no more tested
+than the others, and it counts as tested only after the same live record a client needs. Hosted
 clients (claude.ai, ChatGPT, Perplexity, Mistral, Copilot Studio) cannot start a local process
 and do not get this fallback.
 
@@ -205,13 +212,15 @@ and do not get this fallback.
 Check the URL ends in `/mcp` and uses `https`. Pick Streamable HTTP (often labelled "HTTP"),
 not SSE. A registration refused with `invalid_redirect_uri` means the client's callback is not
 one WBS accepts (see [the rules](#what-the-wbs-server-accepts)); a desktop client can use the
-bridge instead, a hosted one cannot. `temporarily_unavailable` is a capacity limit: wait a
-minute and retry.
+bridge instead, a hosted one cannot. `temporarily_unavailable` (HTTP 429 or 503) is a capacity
+limit or an unreachable sign-in provider: wait a minute and retry. If it persists at the
+authorization step, remove the connection and add it again, so the client registers afresh.
 
 ### Sign-in fails
 
 Sign in with the WBS account that should own the new project. `access_denied` after login
-means the account holds no `wbs:read`, or login was cancelled. If the browser never returns to
+means login was cancelled, the sign-in provider's token could not be verified, or the grant
+would not include `wbs:read` — because the account lacks it or the client did not ask for it. If the browser never returns to
 the client, the client's callback listener was closed or blocked; restart the sign-in from the
 client. After 30 days, or 14 days unused, sign in again. Never paste a token from the browser
 into the client; if a client asks for one, use the bridge instead.
@@ -225,7 +234,8 @@ authorize again. If WBS still grants only `wbs:read`, your WBS account cannot wr
 
 ### The import is rejected
 
-A rejected command batch writes nothing and names the first refused command with `at` and
-`kind`; fix it and resend. A batch holds at most 200 commands, so a large plan is several
+A rejected command batch writes nothing. A refusal about one command names it with `at` (its
+position) and usually `kind`; fix that command and resend. A refusal of the whole request, such
+as a malformed body, carries only `error`. A batch holds at most 200 commands, so a large plan is several
 batches, and each batch is its own undo: batches are not one transaction. After a timeout,
 read the project back before retrying, or the retry duplicates what already landed.

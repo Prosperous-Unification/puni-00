@@ -42,6 +42,19 @@ exactly one row`; relabeling Zed `WBS import tested` failed `labels no client te
   carry a callback WBS refuses (`cursor://`, `https://insiders.vscode.dev/redirect`, a loopback
   URI with its own `state` query), and one refused URI refuses the registration. Raycast moves to
   unverified (MCP callback unpublished). Roo Code is discontinued; Amazon Q CLI is now Kiro CLI.
+- **Astra review (gpt-6-astra, high), 2026-09-27:** no Critical. Important fixed: the Export
+  menu closed under a pointer in its own portaled dialog, hiding the focus-return trigger
+  (`close-on-outside-pointer.ts` now treats a dialog whose `aria-controls` trigger is in the
+  panel as inside; dropping that check failed `keeps Export / Import open while its Import with
+AI dialog is used`); the loopback rule now lists all six reserved query fields, literal ports
+  and no fragment; `temporarily_unavailable` and `access_denied` causes corrected; dependency
+  reach `whole-item` stated; the bridge is labelled an untested candidate and the spec and design
+  now say so, with `Unsupported` added to the status vocabulary. Minor fixed: refusal shape and
+  source-link storage wording.
+- `e2e/import-with-ai.spec.ts` drives the real menu, keyboard open, prompt copy through the
+  clipboard and Escape focus return. It was **not run locally**: `plan-import.spec.ts` fails the
+  same way here (sign-in page shows "The server returned an unexpected response"), so the local
+  stack is broken for every seeded spec; CI `pixels` runs it.
 - **Not done:** no live client connection, so no row is tested (task 3.1); the `mcp-remote`
-  bridge is pinned (0.14.3) but has not been run against WBS; no Playwright spec for the help
-  path; the public URL stays `<WBS_MCP_URL>` until the production overlay serves it.
+  bridge is pinned (0.14.3) but has not been run against WBS; the public URL stays
+  `<WBS_MCP_URL>` until the production overlay serves it.
