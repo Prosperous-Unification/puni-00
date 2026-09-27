@@ -40,6 +40,7 @@ const WORKSPACE = new URL('../../../', import.meta.url);
 
 interface ProjectTarget {
   readonly cache?: boolean;
+  readonly dependsOn?: readonly string[];
   readonly options?: Readonly<{
     command?: string;
     commands?: readonly string[];
@@ -48,6 +49,22 @@ interface ProjectTarget {
   }>;
   readonly inputs?: readonly (string | Readonly<Record<string, unknown>>)[];
 }
+
+it('runs isolated module checks from both project typecheck targets', async () => {
+  for (const [name, root] of [
+    ['wbs-core', 'libs/wbs/application/core/src/module'],
+    ['wbs-be-01', 'apps/wbs/be-01/src/module'],
+  ] as const) {
+    const project = (await projectsOnDisk()).find(({ config }) => config.name === name);
+    if (project === undefined) throw new Error(`missing project ${name}`);
+    // Proof: deleting wbs-core typecheck's dependsOn failed this test (0 pass, 1 fail)
+    // because the dependency list was missing.
+    expect(project.config.targets['typecheck']?.dependsOn).toContain('typecheck:module');
+    expect(commandsOf(project.config.targets['typecheck:module'] ?? {})).toContain(
+      `bun tools/tool-devsync/src/typecheck-modules.ts ${root}`,
+    );
+  }
+});
 
 interface ProjectConfig {
   readonly name: string;
