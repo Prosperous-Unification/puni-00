@@ -214,13 +214,18 @@ Branch `batch-9/010-5-2-orgs-7`, stacked on slice 7. Design call: Astra, saved i
 - No directory read takes an id. Directory commands, including activated create and rename and foreign-id 404, are 3.4.
 - The mounted organization suites now share `apps/wbs/be-01/src/testing/organization-harness.ts`.
 
-| Check                           | Injected fault                                           | Observed failure (`directory-organization.controller.db.test.ts`, 2026-09-27)                       |
-| ------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Side-table names and ownership  | scoped `tags` read from the root table                   | `lists only the organization's own entries under their local names`: both roots' token names listed |
-| Scoped service path             | `listWithin` answers the legacy list under scoped access | same case: both organizations' people listed                                                        |
-| Team-service owner              | owner comparison skipped                                 | `refuses a team-service link that crosses organizations`: 200 instead of 500                        |
-| Membership owner                | owner comparison skipped                                 | `refuses a membership that crosses organizations`: 200 instead of 500                               |
-| Access resolved before the read | the tags route uses legacy access without resolving      | `refuses an unbound session and a removed member on every list`: 200 with both tags                 |
+| Check                               | Injected fault                                                                                          | Observed failure (`directory-organization.controller.db.test.ts`, 2026-09-27)           |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Six side-table ownership predicates | each `organization_id` predicate removed alone (people, teams, services, tags, types, external systems) | `lists only the organization's own entries under their local names`, once per predicate |
+| Side-table names                    | scoped `tags` read from the root table                                                                  | same case: both roots' token names listed                                               |
+| Scoped service path                 | `listWithin` answers the legacy list under scoped access                                                | same case: both organizations' people listed                                            |
+| Team-service owner                  | owner comparison skipped                                                                                | `refuses a team-service link that crosses organizations`: 200 instead of 500            |
+| Team-service owner present          | the service-owner left join made inner                                                                  | `refuses a team-service link whose service has no owner`: 200                           |
+| Membership owner                    | owner comparison skipped                                                                                | `refuses a membership that crosses organizations`: 200 instead of 500                   |
+| Membership owner present            | the team-owner left join made inner                                                                     | `refuses a membership whose team has no owner`: 200                                     |
+| Access resolved before the read     | resolution bypassed in each of the six routes alone                                                     | `refuses an unbound session and a removed member on every list`, once per route         |
+
+Not a safety check: removing an ORDER BY does not fail `orders each list by the local name, not the root name, id or insertion`. SQLite already answers from the `(organization_id, name)` unique index in name order. The ORDER BY stays so the order does not depend on the query plan.
 
 Commands, all under `env -u CLAUDECODE`:
 
