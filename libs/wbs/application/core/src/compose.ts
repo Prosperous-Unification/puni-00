@@ -8,8 +8,10 @@ import type { RetentionTimer } from './module/bounded-replay-sweep/retention-tim
 import { installCalendarMarker } from './module/calendar-marker/check';
 import { installCapacity } from './module/capacity/check';
 import { installDirectory } from './module/directory/check';
+import { installEventLog } from './module/event-log/check';
 import { installPlanCommands } from './module/plan-commands/check';
 import type { PlanCommandRunner } from './module/plan-commands/plan-commands.feature';
+import { installPlanEvent } from './module/plan-event/check';
 import { installPlanHistory } from './module/plan-history/check';
 import type { HistoryService } from './module/plan-history/plan-history.feature';
 import { installPlanImport } from './module/plan-import/check';
@@ -206,8 +208,10 @@ export function composeServices(
   options: AccountfulOptions | AccountlessOptions,
 ): AccountfulServices | AccountlessServices {
   const { source, runtime, shared } = options;
+  const eventLog = installEventLog({ events: source.stores.eventLog }).eventLog;
+  const planEvents = installPlanEvent({ events: source.stores.planEvents }).planEvents;
   const realtime = installRealtime({
-    eventLog: source.stores.eventLog,
+    eventLog,
     clock: runtime.clock,
     push: runtime.push,
     maxPerSubscription: shared.replayMaxPerSubscription,
@@ -264,16 +268,16 @@ export function composeServices(
       announcements,
     }).commands,
     history: installPlanHistory({
-      projectStore: source.stores.projects,
-      planEventStore: source.stores.planEvents,
+      projects: publicServices.projects,
+      planEvents,
     }).history,
     plans: savedPlans,
     savedPlans,
     replay: realtime.replay,
     retention: installBoundedReplaySweep({
-      eventLog: source.stores.eventLog,
+      eventLog,
       maxPerSubscription: shared.replayMaxPerSubscription,
-      planEvents: source.stores.planEvents,
+      planEvents,
       planEventRetentionDays: shared.planEventRetentionDays,
       intervalMs: shared.retentionIntervalMs,
       intervals: runtime.intervals,

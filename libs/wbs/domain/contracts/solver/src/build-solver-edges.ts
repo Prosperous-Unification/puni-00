@@ -1,8 +1,8 @@
 import {
   type DependencyReach,
   type LeafEdge,
+  resolveStepNodeGraph,
   type Slice,
-  sliceGraphEdges,
   sliceKey,
 } from '@wbs/domain';
 
@@ -13,7 +13,7 @@ import type { SolverEdge } from './wire-types';
  * it.
  *
  * **This function derives nothing.** Both rules live in `@wbs/domain`'s
- * `sliceGraphEdges`, which `schedule()` itself calls: each leaf's intra-item
+ * `resolveStepNodeGraph`, which `schedule()` itself calls: each leaf's intra-item
  * step chain, and the join from the predecessor's **reached** slice to the
  * successor's **first** slice plain. What is left here is the conversion the schema's own
  * `$defs/edge` comment calls "real work rather than a rename": the domain names
@@ -43,7 +43,7 @@ export function buildSolverEdges(
    * The position is an index into the leaf's own group, and the group is the
    * one `buildSolverSlices` projected from, so this reads the same `Slice`
    * object that produced the wire slice's `key`. An out-of-range position
-   * cannot come from `sliceGraphEdges` — it emits `0` and `reachedSliceOf`'s
+   * cannot come from `resolveStepNodeGraph` — it emits `0` and `reachedSliceOf`'s
    * answer, both inside the group it was handed — but it is refused rather
    * than allowed to become `undefined` and then the string `"undefined"`,
    * which is a key the re-validator would report as a missing slice in a
@@ -65,8 +65,8 @@ export function buildSolverEdges(
     return sliceKey(slice.workItemId, slice.stepId);
   };
 
-  return sliceGraphEdges(leafIds, slicesOf, leafEdges, reach).map((edge) => ({
-    predecessorKey: keyOf(edge.from.leafId, edge.from.at),
-    successorKey: keyOf(edge.to.leafId, edge.to.at),
+  return resolveStepNodeGraph(leafIds, slicesOf, leafEdges, reach).edges.map((edge) => ({
+    predecessorKey: keyOf(edge.predecessor.leafId, edge.predecessor.at),
+    successorKey: keyOf(edge.successor.leafId, edge.successor.at),
   }));
 }

@@ -137,6 +137,7 @@ describe('the command runner builds services from each unit-of-work scope', () =
           return Promise.resolve({ ok: true, value: { id: name } });
         },
         patch: () => Promise.resolve({ ok: false as const, reason: 'not_found' as const }),
+        hasWorkItemInProject: () => Promise.resolve(false),
         undoState: () => {
           if (publicGraph) publicReads += 1;
           return Promise.resolve({

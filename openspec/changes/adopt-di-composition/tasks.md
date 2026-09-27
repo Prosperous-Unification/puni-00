@@ -308,11 +308,10 @@
       a module names the one whose files export what it re-exports. A moved file without a suffix
       inside a module directory carries no row, because `SERVICE_ROOTS` does not scan `src/module`;
       its module's README index names it instead, a known limit owned by the kind rules.
-- [ ] 7.3 Give every module a `tsconfig.json` and an Nx `typecheck:module` target, so the isolated
-      type check the design names actually runs. Proof: the target fails on a module that breaks its
-      own contract. **Open on 2026-09-24, owned by a follow-up for the isolated module type
-      check:** eighteen module directories in two projects each need a configuration and a
-      watched negative, which is build configuration rather than a ledger entry.
+- [x] 7.3 Give every module a `tsconfig.json` and an Nx `typecheck:module` target, so the isolated
+      type check the design names actually runs. Closed 2026-09-27: both normal `typecheck` targets
+      depend on discovered per-module checks; all eighteen injected contract errors and a missing
+      module config failed the production target. See `verify.md`.
 - [x] 7.4 Record, per module, which K2 and K3 obligations it does not close and where they are
       tracked. Full K2 closure stays outside this change. Recorded 2026-09-24 as `design.md`'s
       "Layering debt ledger": per module, the K2 and K3 obligations its `contract.ts` states and
@@ -431,7 +430,9 @@
       label from an installation of the one value `module.ts` exports, requires every private
       binding to be named `<label>/<identifier>`, compares shim exports to module exports by
       identity, and names Plan document and Plan import as the two unregistered modules, so a module
-      that skips task 7.5 now fails. Proof: twenty-four faults, each watched failing its named test
+      that skips task 7.5 now fails. WBS 040.10 added Plan event and Event log to that explicit
+      unregistered list because the frozen pilot has no predecessor for either new directory.
+      Proof: twenty-four faults, each watched failing its named test
       — among them Capacity's contract label renamed, which Capacity's own module tests did not
       notice. Known limits, stated in the design's "Label agreement": a module that drops its label
       and either spells `<label>/<key>` into a private key or installs an inner module sealed under
@@ -441,5 +442,15 @@
       the wording; and `apps/wbs/fe-01/src/modules` is outside this change.
 
 ## 2026-09-26 follow-up
+
+- [x] 7.7 Close K3 resource-service debt for Plan history, Realtime, Bounded replay sweep,
+      Authentication, and Saved plans (WBS 040.10). Their features now depend on resource
+      services that own repository access. The resolved-symbol boundary test rejects direct
+      repository-port references and keeps Plan import in a live debt ledger, beside Plan commands,
+      whose feature still imports work-item value types from `ports/work-item-store.ts` and
+      handles the store-bearing `Scope` (recorded in its contract and the design ledger). Plan import is
+      deferred because its admitted initialization surface and both memory and SQLite source
+      contracts need a separate slice. The production-path negatives and commands are recorded
+      in `verify.md`.
 
 The label inference limit recorded in task 7 is closed by `di-bag-label-surface` (WBS `cc9361f6`): the check reads the scanned module's `moduleLabel` getter on di-bag 0.5.1. Historical task evidence remains dated.

@@ -1,7 +1,7 @@
 import { DiBag } from 'di-bag';
 
-import type { PlanEventStore } from '../../ports/plan-event-store';
-import type { ProjectStore } from '../../ports/project-store';
+import type { PlanEventService } from '../plan-event/plan-event.resource';
+import type { ProjectService } from '../project/project.resource';
 import { PLAN_HISTORY_LABEL } from './contract';
 import { HistoryService, type HistoryServiceOptions } from './plan-history.feature';
 
@@ -23,12 +23,12 @@ export const planHistoryModule = DiBag.createBuilder()
   .withServices({
     historySettings: DiBag.createProvider(
       ({
-        projectStore,
-        planEventStore,
+        projects,
+        planEvents,
       }: {
-        projectStore: ProjectStore;
-        planEventStore: PlanEventStore;
-      }): HistoryServiceOptions => ({ projects: projectStore, events: planEventStore }),
+        projects: ProjectService;
+        planEvents: PlanEventService;
+      }): HistoryServiceOptions => ({ projects, events: planEvents }),
       { factoryReturnKind: 'sync-value' },
     ),
   })

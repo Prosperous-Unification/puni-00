@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { EventLogService } from '@wbs/core';
 import { systemTimers } from '@wbs/runtime-portable';
 import { expect, it } from 'bun:test';
 
@@ -31,7 +32,7 @@ it('allows C to overtake recorded B while its push is held', async () => {
   const delivered: { seq: number; message: { type: string } }[] = [];
   const broadcaster = new GatewayBroadcaster({
     clock: testClock,
-    eventLog,
+    eventLog: new EventLogService(eventLog),
     buffer: new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000, now: Date.now }),
     push: new PushClient({
       gwUrl: 'http://transport.test',

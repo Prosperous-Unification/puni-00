@@ -23,6 +23,7 @@
       "outputs": ["{workspaceRoot}/dist/apps/wbs/fe-01"]
     },
     "test": {
+      "dependsOn": ["test:unit"],
       "executor": "nx:run-commands",
       "options": {
         "command": "TZ=UTC bunx vitest run --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 && TZ=Pacific/Auckland bunx vitest run --config vitest.zoned.config.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000",

@@ -106,6 +106,11 @@ export class ProjectService {
     this.optimizerAvailable = opts.optimizerAvailable ?? (() => false);
   }
 
+  /** Read only the project header; History must not introduce a steps query. */
+  readProject(projectId: string): Promise<Project | null> {
+    return this.opts.projects.findById(projectId);
+  }
+
   async create(name: string, ownerId: string): Promise<ProjectWithSteps> {
     // Built before the row, because the row's own `createdAt` is this act's
     // instant: the project and the starting steps arriving in one transaction

@@ -1,8 +1,8 @@
 import { DiBag } from 'di-bag';
 
-import type { EventLogStore } from '../../ports/event-log-store';
-import type { PlanEventStore } from '../../ports/plan-event-store';
 import type { Intervals } from '../../ports/timers';
+import type { EventLogService } from '../event-log/event-log.resource';
+import type { PlanEventService } from '../plan-event/plan-event.resource';
 import { BOUNDED_REPLAY_SWEEP_LABEL } from './contract';
 import { RetentionTimer, type RetentionTimerOptions, type Swept } from './retention-timer';
 
@@ -40,8 +40,8 @@ export const boundedReplaySweepModule = DiBag.createBuilder()
         onSweep,
         onError,
       }: {
-        eventLog: EventLogStore;
-        planEvents: PlanEventStore;
+        eventLog: EventLogService;
+        planEvents: PlanEventService;
         intervals: Intervals;
         now: () => number;
         maxPerSubscription: number;

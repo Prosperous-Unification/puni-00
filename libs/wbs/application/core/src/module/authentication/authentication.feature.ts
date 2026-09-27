@@ -1,9 +1,9 @@
 import type { AuthenticatedUser, OidcIdentity } from '@wbs/contracts';
 
-import type { Clock } from '../../ports/clock';
+import type { User } from '../../ports/account-values';
 import type { OidcVerifier } from '../../ports/oidc-verifier';
 import type { PasswordHasher, TokenCodec } from '../../ports/runtime';
-import type { OidcIdentityStore, User, UserStore } from '../../ports/user-store';
+import type { AccountResource } from './account.resource';
 
 export const TOKEN_TTL_SECONDS = 12 * 60 * 60;
 
@@ -18,8 +18,7 @@ export type RegisterOutcome =
 export type LoginOutcome = { ok: true; value: SignedIn } | { ok: false; reason: 'invalid' };
 
 export interface AuthServiceOptions {
-  users: UserStore;
-  identities?: OidcIdentityStore;
+  account: AccountResource;
   oidc?: OidcVerifier;
   /** Accept locally issued password sessions after OIDC verification fails. */
   passwordSessions?: boolean;
@@ -49,8 +48,6 @@ export interface AuthServiceOptions {
    * silently reaching for a global. Watched 2026-09-08.
    */
   passwords: PasswordHasher;
-  /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
-  clock: Clock;
 }
 
 export type { AuthenticatedUser } from '@wbs/contracts';
@@ -71,11 +68,7 @@ const MAX_PASSWORD = 200;
  * handed an actor by its controller.
  */
 export class AuthService {
-  private readonly clock: Clock;
-
-  constructor(private readonly opts: AuthServiceOptions) {
-    this.clock = opts.clock;
-  }
+  constructor(private readonly opts: AuthServiceOptions) {}
 
   async register(username: string, password: string): Promise<RegisterOutcome> {
     if (!USERNAME.test(username) || password.length < MIN_PASSWORD) {
@@ -86,17 +79,14 @@ export class AuthService {
     // The act begins here, after every refusal and after the hash: argon2id
     // takes long enough that a stamp taken before it would date the row from
     // when the request arrived rather than from when the row was made.
-    const id = this.clock.newId();
-    const stamp = this.clock.stampFor(id);
-    const user: User = { id, username, passwordHash, createdAt: stamp.at };
-    const created = await this.opts.users.create(user, stamp);
+    const created = await this.opts.account.createAccount(username, passwordHash);
     if (created === null) return { ok: false, reason: 'taken' };
     return { ok: true, value: await this.issue(created) };
   }
 
   /** Invalid credentials return a refusal; unexpected store/verifier failures propagate. */
   async login(username: string, password: string): Promise<LoginOutcome> {
-    const user = await this.opts.users.findByUsername(username);
+    const user = await this.opts.account.findAccount(username);
     const passwordHash = user?.passwordHash ?? null;
     const hasUsableCredential = passwordHash !== null && password.length <= MAX_PASSWORD;
     const hash = hasUsableCredential ? passwordHash : DUMMY_HASH;
@@ -135,7 +125,7 @@ export class AuthService {
 
     const claims = await this.opts.tokens.verify(token);
     if (claims === null) return null;
-    const user = await this.opts.users.findById(claims.subject);
+    const user = await this.opts.account.readAccount(claims.subject);
     // A valid signature cannot keep a deleted account authenticated.
     if (user === null) return null;
     return { id: user.id, username: user.username, scopes: ['read', 'write', 'editor'] };
@@ -148,17 +138,15 @@ export class AuthService {
    * only actor the act can name: on the branch that writes a new row the row is
    * its own author, and on the branch that links an existing password account
    * the store deliberately moves only `updatedAt` — see
-   * {@link OidcIdentityStore.resolveOidcIdentity}. Most calls here resolve an
+   * {@link AccountResource.resolveIdentity}. Most calls here resolve an
    * account that already exists and write nothing at all, so the id and the
    * stamp are both spent only on the branch that does write.
    */
   async resolveOidcIdentity(identity: OidcIdentity): Promise<User | null> {
-    if (this.opts.identities === undefined) {
-      throw new Error('OIDC identity store is not configured');
-    }
-    const id = this.clock.newId();
-    const stamp = this.clock.stampFor(id);
-    return this.opts.identities.resolveOidcIdentity(identity, { id }, stamp);
+    // Proof (2026-09-27): converting a resource rejection to null made mounted
+    // `keeps OIDC account resolution failures unknown` return 401 instead of
+    // 500 (0 pass, 1 fail).
+    return this.opts.account.resolveIdentity(identity);
   }
 
   private async issue(user: User): Promise<SignedIn> {

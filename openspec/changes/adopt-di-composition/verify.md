@@ -2343,3 +2343,170 @@ BumpGeneration(1), BumpGeneration(2), Cancel` failed `Cancel: queue identities` 
   `blue-0`, `green-2` and `Restart(blue)` now read `east-0`, `west-2` and `Restart(east)`. After
   the rename, sabotages (a)-(f) fail 4/2, 3/3, 5/1, 4/2, 5/1, 5/1 again, and
   `env -u CLAUDECODE bunx nx run tool-devsync:test` succeeds.
+
+### Resource-service K3 closure (WBS 040.10) — 2026-09-27
+
+#### Review follow-up: repository-port boundary and value ownership
+
+The closed-module audit now discovers every production TypeScript file under each listed module,
+checks resolved declaration, parameter, property and property-access types, and rejects direct
+imports from repository-port files regardless of declaration name. A repository-port file is
+`ports/*-store.ts` or `ports/stores.ts`; resource implementations and module wiring are the
+store-owning exceptions. Feature directory discovery requires each `*.feature.ts` module to be
+closed or in the shrink-only debt ledger. Plan import and the pre-existing Plan commands
+transactional-scope coupling remain in that ledger; the five 040.10 modules are closed.
+
+The values used by those closed features now live in neutral `ports/*-values.ts` files or
+`ports/recorded-event.ts`. Store-port files re-export the same names for adapter compatibility.
+The stored-read verification JSDoc now sits on `readOfStored` in the saved-plan resource.
+
+| Fault injected                                                                            | Observed boundary-test failure                                                  |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Alias to `ProjectStore` appended to the real `plan-history.feature.ts`                    | `ReviewPortAlias` reported; 0 pass, 1 fail                                      |
+| Wildcard `export *` from `project-store` appended to that real feature                    | Repository file reported; 0 pass, 1 fail                                        |
+| Resolved alias and `opts.plans.readOf` through compatibility options in compiler overlays | Each negative received no violation before type inspection; 0 pass, 1 fail each |
+| Direct named `PlanEvent` import with the repository-file check disabled                   | Negative received no violation; 0 pass, 1 fail                                  |
+| Renamed `authentication` in the audit list                                                | `unlisted feature module` and `no production files`; 0 pass, 1 fail             |
+| Removed `authentication` from both lists                                                  | `unlisted feature module`; 0 pass, 1 fail                                       |
+| Added `authentication` to the real debt ledger                                            | `new debt is not allowed`; 0 pass, 1 fail                                       |
+| Removed malformed import-type guard with malformed import fixture                         | Audit silently returned no violation; 0 pass, 1 fail                            |
+
+The focused boundary suite passed 10/10 after those faults were restored. A direct core TypeScript
+check (`bunx tsc -p libs/wbs/application/core/tsconfig.lib.json --noEmit`) passed.
+
+Review follow-up verification under `env -u CLAUDECODE`:
+
+| Command                                                                                                     | Observed result                                                                                                            |
+| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `cd libs/wbs/application/core && bun test src`                                                              | 650 passed, 0 failed, 73 files                                                                                             |
+| `cd apps/wbs/be-01 && bun test src`                                                                         | 1,115 passed, 1 skipped, 28 failed, 97 files; 27 listener `EPERM` failures and one spawn-handshake failure in this sandbox |
+| Focused backend saved-plan, auth, history, replay, gateway and retention files                              | 266 passed, 0 failed, 24 files                                                                                             |
+| `bunx nx run-many -t typecheck lint:fast -p wbs-core wbs-be-01 tool-devsync`                                | 8 targets succeeded, 2 cache hits                                                                                          |
+| `bun test tools/tool-devsync/src/{module-labels,service-kinds,typecheck-modules,workspace-targets}.test.ts` | 50 passed, 0 failed, 4 files                                                                                               |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                    | 136 passed, 0 failed                                                                                                       |
+| `bunx prettier --check` on all touched files                                                                | passed                                                                                                                     |
+
+Five feature modules now call resource services over their stores: Plan history uses Plan event
+and Project; Realtime uses Event log; Bounded replay sweep uses Event log and Plan event;
+Authentication uses Account; Saved plans uses Saved plan persistence. Plan import remains in the
+boundary test's live debt ledger because its admitted initialization surface needs a separate
+slice covering both memory and SQLite source contracts. The new Plan event and Event log modules
+have README indexes and sealed module tests, and register in the wiki pilot through their
+creation revisions (`36d5fa69c`, `12f47ce99`), as Plan import and Plan document do.
+
+Production-path negative proofs, each restored after the named test failed:
+
+| Fault injected                                              | Observed failing test                                       |
+| ----------------------------------------------------------- | ----------------------------------------------------------- |
+| Plan history resource existence guard bypassed              | `answers not_found` (5 pass, 1 fail)                        |
+| Plan event cutoff multiplier zeroed                         | cutoff resource test (failed)                               |
+| Realtime complete-record check bypassed                     | replay test (9 pass, 2 fail)                                |
+| Realtime durable record fabricated                          | broadcaster test (1 pass, 4 fail)                           |
+| Event log prune replaced with zero                          | prune test (4 pass, 1 fail)                                 |
+| Sweep history prune bypassed                                | history prune test (6 pass, 2 fail)                         |
+| Sweep overlap guard bypassed                                | overlap test (7 pass, 1 fail)                               |
+| Mounted OIDC account failure treated as invalid credentials | HTTP test answered 401 instead of 500 (0 pass, 1 fail)      |
+| Account identity-store guard bypassed                       | account resource test (0 pass, 1 fail)                      |
+| Saved plan digest check bypassed                            | read answered `read` instead of `corrupt` (0 pass, 1 fail)  |
+| Saved plan holding quota bypassed                           | save answered `saved` instead of `refused` (0 pass, 1 fail) |
+| Saved plan project scope bypassed                           | HTTP test answered 422 instead of 404 (0 pass, 1 fail)      |
+| Saved plan authorization bypassed                           | touch authorization test (0 pass, 1 fail)                   |
+| Saved plan missing read and touch guards bypassed           | corresponding resource tests (0 pass, 1 fail each)          |
+
+The resolved-symbol boundary test failed (0 pass, 1 fail) when a repository port type was injected
+into each of the five closed modules. Separate `ProjectStore` injections through an alias,
+namespace, barrel, and `import()` type also each failed (0 pass, 1 fail). Adding clean Plan
+history to the debt ledger failed as stale debt (0 pass, 1 fail). Adjacent `Proof:`
+comments on production guards and the boundary assertion identify the injected faults.
+
+Verification on this worktree with `env -u CLAUDECODE`: `cd libs/wbs/application/core && bun
+test src` passed 638 tests, 0 failed, across 72 files. `cd apps/wbs/be-01 && bun test src` passed
+1,095 tests, skipped 1, and failed 27 across 97 files: the failures are listener `EPERM` and
+subprocess-handshake cases in this sandbox. Focused changed-service and HTTP tests passed during
+the module slices (History/Realtime 16/16, retention 2/2, auth/identity 31/31, Saved plans
+124/124). `nx run-many -t typecheck lint:fast -p wbs-core wbs-be-01` passed all four targets,
+0 cache hits. `bunx @fission-ai/openspec@1.12.0 validate --all --json` passed 131/131 items.
+The broad `tool-devsync:test` rerun passed 372 and failed 10: eight deployment-probe tests
+could not listen (`EPERM`), and two poller tests could not hardlink Git objects across devices
+(`Invalid cross-device link`). The focused module-labels, service-kinds and workspace-targets
+tests passed 41/41 after classifying the former Auth and Saved plan constructors as compatibility
+adapters and adding Plan event and Event log to the pilot's explicit unregistered list.
+The wiki pilot-policy file passed 19 tests and failed 2 across 21 tests; both failing production
+CLI cases stopped at `trusted TypeScript runtime modules are not configured`. The four on-disk
+bootstrap policy, mapping, and relationship checks passed. Prettier checked every file touched
+since the five module commits; `tool-devsync:lint:fast` and `git diff --check` passed.
+
+### Task 7.3 — isolated module type checks (2026-09-27)
+
+Each module has a non-solution `tsconfig.json` extending its project config, with `*.ts`, Bun
+types and `noEmit`. `wbs-core:typecheck` and `wbs-be-01:typecheck` depend on their respective
+`typecheck:module` targets. The runner discovers immediate child directories and invokes
+`bunx tsc -p` for each. The table records production-target negatives, run with
+`env -u CLAUDECODE NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SKIP_NX_CACHE=true`; each
+appended assignment was restored byte-for-byte in a `finally` block before the next run.
+
+| Module               | Injected fault in `module.ts`    | Observed compiler error                                                                                                                                                                      |
+| -------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| authentication       | `AuthenticationExports = {}`     | `libs/wbs/application/core/src/module/authentication/module.ts(76,7): error TS2739: Type '{}' is missing the following properties from type 'AuthenticationExports': auth, loginThrottle`    |
+| bounded-replay-sweep | `BoundedReplaySweepExports = {}` | `libs/wbs/application/core/src/module/bounded-replay-sweep/module.ts(84,7): error TS2741: Property 'retention' is missing in type '{}' but required in type 'BoundedReplaySweepExports'.`    |
+| calendar-marker      | `CalendarMarkerExports = {}`     | `libs/wbs/application/core/src/module/calendar-marker/module.ts(74,7): error TS2741: Property 'calendarMarkers' is missing in type '{}' but required in type 'CalendarMarkerExports'.`       |
+| capacity             | `CapacityExports = {}`           | `libs/wbs/application/core/src/module/capacity/module.ts(67,7): error TS2741: Property 'capacity' is missing in type '{}' but required in type 'CapacityExports'.`                           |
+| directory            | `DirectoryExports = {}`          | `libs/wbs/application/core/src/module/directory/module.ts(57,7): error TS2741: Property 'directory' is missing in type '{}' but required in type 'DirectoryExports'.`                        |
+| plan-commands        | `PlanCommandsExports = {}`       | `libs/wbs/application/core/src/module/plan-commands/module.ts(76,7): error TS2741: Property 'commands' is missing in type '{}' but required in type 'PlanCommandsExports'.`                  |
+| plan-document        | `PlanDocumentExports = {}`       | `libs/wbs/application/core/src/module/plan-document/module.ts(58,7): error TS2741: Property 'planDocuments' is missing in type '{}' but required in type 'PlanDocumentExports'.`             |
+| plan-history         | `PlanHistoryExports = {}`        | `libs/wbs/application/core/src/module/plan-history/module.ts(48,7): error TS2741: Property 'history' is missing in type '{}' but required in type 'PlanHistoryExports'.`                     |
+| plan-import          | `PlanImportExports = {}`         | `libs/wbs/application/core/src/module/plan-import/module.ts(60,7): error TS2741: Property 'imports' is missing in type '{}' but required in type 'PlanImportExports'.`                       |
+| priority-band        | `PriorityBandExports = {}`       | `libs/wbs/application/core/src/module/priority-band/module.ts(70,7): error TS2741: Property 'priorityBands' is missing in type '{}' but required in type 'PriorityBandExports'.`             |
+| project              | `ProjectExports = {}`            | `libs/wbs/application/core/src/module/project/module.ts(69,7): error TS2741: Property 'projects' is missing in type '{}' but required in type 'ProjectExports'.`                             |
+| realtime             | `RealtimeExports = {}`           | `libs/wbs/application/core/src/module/realtime/module.ts(118,7): error TS2739: Type '{}' is missing the following properties from type 'RealtimeExports': replayBuffer, broadcaster, replay` |
+| saved-plans          | `SavedPlansExports = {}`         | `libs/wbs/application/core/src/module/saved-plans/module.ts(76,7): error TS2741: Property 'savedPlans' is missing in type '{}' but required in type 'SavedPlansExports'.`                    |
+| step                 | `StepExports = {}`               | `libs/wbs/application/core/src/module/step/module.ts(66,7): error TS2741: Property 'steps' is missing in type '{}' but required in type 'StepExports'.`                                      |
+| work-item            | `WorkItemExports = {}`           | `libs/wbs/application/core/src/module/work-item/module.ts(113,7): error TS2741: Property 'workItems' is missing in type '{}' but required in type 'WorkItemExports'.`                        |
+| optimization         | `OptimizationExports = {}`       | `apps/wbs/be-01/src/module/optimization/module.ts(124,7): error TS2741: Property 'optimizer' is missing in type '{}' but required in type 'OptimizationExports'.`                            |
+| solver-launcher      | `SolverLauncherExports = {}`     | `apps/wbs/be-01/src/module/solver-launcher/module.ts(68,7): error TS2741: Property 'solverLauncher' is missing in type '{}' but required in type 'SolverLauncherExports'.`                   |
+| solver-supervisor    | `SolverSupervisorExports = {}`   | `apps/wbs/be-01/src/module/solver-supervisor/module.ts(76,7): error TS2741: Property 'spawner' is missing in type '{}' but required in type 'SolverSupervisorExports'.`                      |
+
+Removing `libs/wbs/application/core/src/module/authentication/tsconfig.json` then running
+`wbs-core:typecheck:module` exited 1 with `TS5058: The specified path does not exist` naming
+that config; the config was restored. Deleting `wbs-core:typecheck.dependsOn` made the focused
+workspace target test fail (0 pass, 1 fail) on the missing `typecheck:module` dependency; it
+was restored. Removing the runner's empty-root refusal made its focused test return exit 0
+(0 pass, 1 fail); it was restored.
+
+The runner fixture suite passed 5/5: missing config, empty root, missing CLI argument, a
+`Contract` assignment failing with TS2741, and two valid modules. Removing its empty-root guard
+failed the focused test at exit code 0; removing its argument-count guard failed the focused test
+because the usage diagnostic disappeared. The production CLI's missing-config fixture and the
+real Authentication config deletion failed with the missing path named. The fixture's broken
+contract and all eighteen real module mutations failed through TypeScript; the real runs used
+`bunx nx run <project>:typecheck:module` and reported the corresponding module path.
+
+| Verification command (all under `env -u CLAUDECODE`)                                     | Result                                                                           |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `bun test tools/tool-devsync/src/typecheck-modules.test.ts`                              | 6 passed, 0 failed (after the coverage guard below)                              |
+| `bunx nx run wbs-core:typecheck:module`                                                  | passed; 15 modules discovered                                                    |
+| `bunx nx run wbs-be-01:typecheck:module`                                                 | passed; 3 modules discovered                                                     |
+| `bunx nx run wbs-core:typecheck`                                                         | passed, including `typecheck:module` dependency                                  |
+| `bunx nx run wbs-be-01:typecheck`                                                        | passed, including `typecheck:module` dependency                                  |
+| `bun test` on workspace-targets, workspace-inventory, module-labels and service-kinds    | 46 passed, 0 failed                                                              |
+| `bunx nx run tool-devsync:typecheck`                                                     | passed                                                                           |
+| `bunx nx run tool-devsync:lint:fast`, `wbs-core:lint:fast`, `wbs-be-01:lint:fast`        | all three passed                                                                 |
+| `bunx prettier --check` on all touched files; `git diff --check`                         | passed                                                                           |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                 | 131 passed, 0 failed                                                             |
+| `bun test apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts` | 21 passed, 0 failed, 317 assertions; trusted runtime set to local `node_modules` |
+
+The first pilot-policy attempt ran before the new config files were committed and failed because
+its immutable candidate did not contain them. A second focused attempt without
+`TOOL_WIKI_TRUSTED_NODE_MODULES` failed at its explicit trusted-runtime boundary. With the
+implementation committed and that variable set to this checkout's `node_modules`, the focused
+case passed 1/1 and the full suite passed 21/21. The full host gate was intentionally skipped as
+requested for this loaded host; the focused checks above are the verification for task 7.3.
+
+Review follow-up (Astra, 2026-09-27): a module config whose `include` is dropped inherits its
+project's solution-style empty inputs, and `tsc -p` then exits 0 having read nothing. The runner
+now parses each config and refuses a module whose own `.ts` files are not all in the program. With
+the guard disabled, `names a module its config leaves unchecked` failed (5 pass, 1 fail,
+`Expected: not 0`) and `wbs-core:typecheck:module` reported success with
+`authentication/tsconfig.json`'s `include` deleted; with the guard restored the same fault failed
+the target naming `authentication (config leaves out .../module.ts, ...)`. The fixture suite also
+creates the untracked `tmp/` parent itself, so it passes in a fresh checkout.

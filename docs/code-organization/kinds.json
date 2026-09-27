@@ -183,7 +183,8 @@
     {
       "path": "libs/wbs/application/core/src/service/auth.service.ts",
       "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the authentication module directly"
+      "disposition": "compatibility adapter for direct store-based AuthService construction; delete when callers install the authentication module",
+      "rationale": "The sealed Authentication feature uses AccountResource, while direct callers still construct AuthService with UserStore and optional OidcIdentityStore."
     },
     {
       "path": "libs/wbs/application/core/src/service/calendar-marker.service.ts",
@@ -356,12 +357,14 @@
     {
       "path": "libs/wbs/application/core/src/service/saved-plan-schedule.ts",
       "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the saved-plans module directly"
+      "disposition": "compatibility adapter for direct store-based capture scheduling; delete when callers use the saved-plans module",
+      "rationale": "Direct callers still pass SavedPlanCaptureStore to captureAndSchedulePlan; the feature helper now accepts the SavedPlanResource capture surface."
     },
     {
       "path": "libs/wbs/application/core/src/service/saved-plan.service.ts",
       "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the saved-plans module directly"
+      "disposition": "compatibility adapter for direct store-based SavedPlanService construction; delete when callers install the saved-plans module",
+      "rationale": "The sealed Saved plans feature uses SavedPlanResource, while direct callers still construct SavedPlanService with capture and plans stores."
     },
     {
       "path": "libs/wbs/application/core/src/service/smoke.service.ts",

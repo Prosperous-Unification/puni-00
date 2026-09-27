@@ -1,8 +1,8 @@
 import type { InternalIdentity } from '@wbs/contracts';
 
-import type { EventLogStore } from '../../ports/event-log-store';
-import type { PlanEventStore } from '../../ports/plan-event-store';
 import type { Intervals } from '../../ports/timers';
+import type { EventLogService } from '../event-log/event-log.resource';
+import type { PlanEventService } from '../plan-event/plan-event.resource';
 import { retentionSweep } from './bounded-replay-sweep.feature';
 
 /** What one sweep removed, per table, because the two are pruned by different rules. */
@@ -14,7 +14,7 @@ export interface Swept {
 export interface RetentionTimerOptions {
   /** Trusted scheduler identity supplied by the trigger adapter. */
   principal: InternalIdentity;
-  repo: EventLogStore;
+  repo: EventLogService;
   maxPerSubscription: number;
   /**
    * The plan's history. **Required, not optional**, and for the reason
@@ -23,7 +23,7 @@ export interface RetentionTimerOptions {
    * table growing forever in the file the domain lives in looks exactly like a
    * healthy one from outside until the day it does not.
    */
-  planEvents: PlanEventStore;
+  planEvents: PlanEventService;
   /** How long a recorded event lives; {@link PLAN_EVENT_RETENTION_DAYS} in production. */
   planEventRetentionDays: number;
   intervalMs: number;
@@ -91,6 +91,8 @@ export class RetentionTimer {
       // Overwriting `inFlight` meant `stop()` waited for the newest sweep and
       // `process.exit(0)` could land inside an older DELETE — against a file
       // the other deployment colour is also writing to.
+      // Proof (2026-09-27): forcing this guard false failed `does not start a
+      // sweep on top of one still running` (7 pass, 1 fail).
       if (this.inFlight !== null) return;
       this.inFlight = this.sweep().finally(() => {
         this.inFlight = null;

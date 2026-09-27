@@ -18,27 +18,27 @@
 
 ## 4. Resolve step references
 
-- [ ] 4.1 Red: canonical `010.dev` and `020.2.review`, ordinal alias match and mismatch, unknown code, parent, stale revision.
-- [ ] 4.2 Implement `resolveStepReference` and its HTTP/MCP resolve request.
-- [ ] 4.3 Negative proof: skip the revision check; watch the stale-reference test fail, restore, add adjacent `Proof:`.
+- [x] 4.1 Red: canonical `010.dev` and `020.2.review`, ordinal alias match and mismatch, unknown code, parent, stale revision.
+- [x] 4.2 Implement `resolveStepReference` and its HTTP/MCP resolve request.
+- [x] 4.3 Negative proof: skip the revision check; watch the stale-reference test fail, restore, add adjacent `Proof:`.
 
 ## 5. Address commands by step node ID
 
-- [ ] 5.1 Red: mounted estimate, clear, actual, measure, progress and assignment by step node ID; both-or-neither refusal; old request shapes unchanged; one undo per edit.
-- [ ] 5.2 Extend command normalizers and generated OpenAPI/MCP schemas; expose node IDs and references on work-item reads.
-- [ ] 5.3 Negative proof: accept a request with both address forms; watch the refusal test fail, restore, add adjacent `Proof:`.
+- [x] 5.1 Red: mounted estimate, clear, actual, measure, progress and assignment by step node ID; both-or-neither refusal; old request shapes unchanged; one undo per edit.
+- [x] 5.2 Extend command normalizers and generated OpenAPI/MCP schemas; expose node IDs and references on work-item reads.
+- [x] 5.3 Negative proof: accept a request with both address forms; watch the refusal test fail, restore, add adjacent `Proof:`.
 
 ## 6. Resolve the graph through one seam
 
-- [ ] 6.1 Red: graph resolution tests for workflow and legacy provenance; run existing Fast and solver goldens and request-hash tests through the seam.
-- [ ] 6.2 Implement `resolveStepNodeGraph` and move Fast and the solver builder onto it.
-- [ ] 6.3 Negative proof: drop one workflow edge; watch a Fast golden fail, restore, add adjacent `Proof:`.
+- [x] 6.1 Red: graph resolution tests for workflow and legacy provenance; run existing Fast and solver goldens and request-hash tests through the seam.
+- [x] 6.2 Implement `resolveStepNodeGraph` and move Fast and the solver builder onto it.
+- [x] 6.3 Negative proof: drop one workflow edge; watch a Fast golden fail, restore, add adjacent `Proof:`.
 
 ## 7. Journal node mappings on hand-down and hand-up
 
-- [ ] 7.1 Red: mounted first-child create moves every node fact including the assignment, and undo/redo restore the original step node IDs; a move keeps node IDs; last-child deletion keeps today's fold.
-- [ ] 7.2 Move and journal assignments on hand-down; return and journal the mapping from the create transaction.
-- [ ] 7.3 Negative proofs: omit the mapping from the journal; skip the assignment move. Watch the undo identity and assignment hand-down tests fail, restore, add adjacent `Proof:`.
+- [x] 7.1 Red: mounted first-child create moves every node fact including the assignment, and undo/redo restore the original step node IDs; a move keeps node IDs; last-child deletion keeps today's fold.
+- [x] 7.2 Move and journal assignments on hand-down; return and journal the mapping from the create transaction.
+- [x] 7.3 Negative proofs: omit the mapping from the journal; skip the assignment move. Watch the undo identity and assignment hand-down tests fail, restore, add adjacent `Proof:`.
 
 ## 8. Carry codes through plan documents
 
@@ -48,9 +48,10 @@
 
 ## 9. Name the node in the step cell
 
-- [ ] 9.1 Red: fe-01 component tests for `010.dev · Dev`, copy reference, copy link and the uncoded state.
-- [ ] 9.2 Implement the detail line and actions.
-- [ ] 9.3 Negative proof: render the alias instead of the canonical reference; watch the component test fail, restore, add adjacent `Proof:`.
+- [x] 9.1 Red: fe-01 component tests for `010.dev · Dev`, copy reference, copy link and the uncoded state.
+- [x] 9.2 Implement the detail line and actions.
+- [x] 9.3 Negative proof: render the alias instead of the canonical reference; watch the component test fail, restore, add adjacent `Proof:`.
+- [x] 9.4 Review repair: select the copied link's project, keep columns and nodes on one tree snapshot, and let the pointer reach the folded card's copy actions; prove each with focused regressions.
 
 ## 10. Verify
 

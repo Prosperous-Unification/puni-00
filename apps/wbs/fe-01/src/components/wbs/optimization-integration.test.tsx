@@ -614,7 +614,7 @@ describe('project optimization in the plan', () => {
     let opened: SocketHandlers | null = null;
     return {
       deps: {
-        openSocket: (_url, handlers) => {
+        openSocket: (handlers) => {
           opened = handlers;
           return { send: () => undefined, close: () => undefined };
         },
