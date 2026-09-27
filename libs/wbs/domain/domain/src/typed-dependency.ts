@@ -2,10 +2,10 @@
  * The relationship types a typed dependency may carry.
  *
  * Stage A (`openspec/changes/add-step-finish-start-dependencies`) accepts
- * finish-to-start only. The stored column's `CHECK` already admits `SS` and
- * `FF`, so the follow-on `add-start-and-finish-dependency-types` widens this
- * list without a table rebuild; until then a stored `SS` row is a row this
- * release did not write, and {@link isRelationshipType} refuses it on read.
+ * finish-to-start only; the follow-on `add-start-and-finish-dependency-types`
+ * adds `SS` and `FF`. A stored type outside this list is a row this release did
+ * not write, and a read that meets one must refuse it through
+ * {@link isRelationshipType} rather than schedule it as FS.
  */
 export const RELATIONSHIP_TYPES = ['FS'] as const;
 export type RelationshipType = (typeof RELATIONSHIP_TYPES)[number];
@@ -36,7 +36,7 @@ export function isDependencyEndpointScope(value: unknown): value is DependencyEn
  * - `descendant-step`: one project step in every leaf beneath a parent.
  *
  * Whether the work item is a leaf or a parent is the tree's answer, not this
- * value's; {@link typedEndpointDefectOf} asks it at the write boundary.
+ * value's; {@link findTypedEndpointDefect} asks it at the write boundary.
  */
 export type DependencyEndpoint =
   | { readonly scope: 'whole'; readonly workItemId: string }
@@ -68,12 +68,17 @@ export interface EndpointContext {
 /**
  * Why `endpoint` cannot be stored in this project, or `null` when it can.
  *
- * The store's `CHECK` pairs a scope with a step id; leafhood and project-step
- * membership need the tree, so they are asked here, once, at the validated
- * write boundary. A stepless project has no step to name, so every step-scoped
+ * Leafhood and project-step membership need the tree, so a caller writing a
+ * typed dependency asks this at its validated write boundary before
+ * persisting. A stepless project has no step to name, so every step-scoped
  * endpoint in it is `unknown_step` and only `whole` remains.
+ *
+ * Proof: the `node_on_parent` line deleted made `refuses a node on a parent and
+ * a descendant-step on a leaf` fail on `Expected: "node_on_parent", Received:
+ * null`, and the `descendant_step_on_leaf` line deleted failed it on the
+ * second assertion; watched 2026-09-27.
  */
-export function typedEndpointDefectOf(
+export function findTypedEndpointDefect(
   endpoint: DependencyEndpoint,
   context: EndpointContext,
 ): TypedEndpointDefect | null {
@@ -92,7 +97,7 @@ export function typedEndpointDefectOf(
  * different endpoints, which is why the scope is part of the key rather than
  * inferred from a nullable step column.
  */
-export function typedDependencyKeyOf(
+export function formatTypedDependencyKey(
   dependency: Pick<TypedDependency, 'predecessor' | 'successor' | 'type'>,
 ): string {
   const endpointKey = (endpoint: DependencyEndpoint): string =>

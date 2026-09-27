@@ -291,6 +291,39 @@ describe('authored typed dependencies', () => {
   });
 });
 
+describe('authored edges on a missing leaf', () => {
+  it('asks the lookup for both ends of an authored edge', () => {
+    const only = (leafId: string): readonly GraphSlice[] => {
+      if (leafId !== 'A') throw new Error(`no slice for work item ${leafId}`);
+      return [{ days: 1, stepId: 'dev' }];
+    };
+    const whole = (workItemId: string): DependencyEndpoint => ({ scope: 'whole', workItemId });
+    expect(() =>
+      resolveStepNodeGraph(['A'], only, [], 'whole-item', {
+        dependencies: [{ id: 'r1', predecessor: whole('A'), successor: whole('B'), type: 'FS' }],
+        leavesUnder: (id) => [id],
+      }),
+    ).toThrow('no slice for work item B');
+  });
+
+  it('refuses to order a graph whose edge names a node it does not hold', () => {
+    expect(() =>
+      findStepNodeCycle({
+        nodes: [{ kind: 'boundary', workItemId: 'A', at: 0 }],
+        edges: [
+          {
+            predecessor: { leafId: 'A', at: 0 },
+            successor: { leafId: 'B', at: 0 },
+            type: 'FS',
+            provenance: 'authored',
+            relationshipId: 'r1',
+          },
+        ],
+      }),
+    ).toThrow('names a node the graph does not hold');
+  });
+});
+
 describe('findStepNodeCycle', () => {
   const devQa: readonly GraphSlice[] = [
     { days: 2, stepId: 'dev' },

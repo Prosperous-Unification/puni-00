@@ -332,11 +332,21 @@ function resolveEndpoint(
   // the second leaf unseen) and the parent-expansion case on `- Expected - 1`;
   // watched 2026-09-27.
   if (endpoint.scope === 'whole') {
-    return leaves.map((leafId) => ({
-      leafId,
-      at: side === 'predecessor' ? slicesOf(leafId).length - 1 : 0,
-    }));
+    return leaves.map((leafId) => {
+      // Asked on both sides, for the legacy join's reason: a successor leaf
+      // with no group must throw rather than have an edge drawn onto a
+      // position that does not exist.
+      // Proof: position 0 returned without the lookup made `asks the lookup
+      // for both ends of an authored edge` fail on `Received function did not
+      // throw`; watched 2026-09-27.
+      const own = slicesOf(leafId);
+      return { leafId, at: side === 'predecessor' ? own.length - 1 : 0 };
+    });
   }
+  // Proof: each of these two refusals deleted in turn made `refuses a node
+  // endpoint on a parent, a descendant-step on a leaf, and an unknown step`
+  // fail on `Received function did not throw` for its own assertion; watched
+  // 2026-09-27.
   if (endpoint.scope === 'node' && !isLeaf) {
     throw new Error(
       `node endpoint of ${dependency.id} names ${endpoint.workItemId}, which is not a leaf`,
@@ -349,6 +359,9 @@ function resolveEndpoint(
   }
   return leaves.map((leafId) => {
     const at = slicesOf(leafId).findIndex((slice) => slice.stepId === endpoint.stepId);
+    // Proof: this refusal deleted made the unknown-step assertion of the same
+    // case fail on `Received function did not throw` (the edge was drawn at
+    // position -1); watched 2026-09-27.
     if (at === -1) {
       throw new Error(`no step ${endpoint.stepId} in work item ${leafId} for ${dependency.id}`);
     }
@@ -373,15 +386,23 @@ export interface StepNodeCycle {
  *
  * Asked of the resolved step-node graph and never of work items: `A.dev →
  * B.dev` beside `B.qa → A.qa` looks cyclic between A and B and is a valid DAG
- * here. Every write that can change this graph asks it of the state it would
- * leave, before anything is persisted.
+ * here. A write that can change this graph is expected to ask it of the state
+ * it would leave, before anything is persisted (design.md, "Model and
+ * validation").
  *
  * Kahn's algorithm over positions. The nodes left with an incoming edge after
  * the sort are those on or behind a cycle; the authored edges between two of
  * them are the ones reported.
+ *
+ * Throws on an edge whose end is not one of `graph.nodes`: a graph that names
+ * a node it does not hold was not built by {@link resolveStepNodeGraph}, and
+ * counting that node as a source would invent it.
  */
 export function findStepNodeCycle(graph: StepNodeGraph): StepNodeCycle | null {
   const keyOf = (end: SliceEdgeEnd): string => `${end.leafId}#${String(end.at)}`;
+  // Proof: the self-pair branch disabled made `refuses a self-node pair` fail on
+  // `- Expected - 1 / + Received + 1`, a `cycle` where `self_node` was
+  // expected; watched 2026-09-27.
   const selfPairs = graph.edges.filter(
     (edge) => edge.provenance === 'authored' && keyOf(edge.predecessor) === keyOf(edge.successor),
   );
@@ -398,7 +419,14 @@ export function findStepNodeCycle(graph: StepNodeGraph): StepNodeCycle | null {
   for (const edge of graph.edges) {
     const from = keyOf(edge.predecessor);
     const to = keyOf(edge.successor);
-    indegree.set(to, (indegree.get(to) ?? 0) + 1);
+    const count = indegree.get(to);
+    // Proof: this refusal disabled made `refuses to order a graph whose edge
+    // names a node it does not hold` fail on `Received function did not
+    // throw`; watched 2026-09-27.
+    if (count === undefined || !indegree.has(from)) {
+      throw new Error(`an edge ${from} → ${to} names a node the graph does not hold`);
+    }
+    indegree.set(to, count + 1);
     const out = successors.get(from);
     if (out === undefined) successors.set(from, [to]);
     else out.push(to);
@@ -414,6 +442,10 @@ export function findStepNodeCycle(graph: StepNodeGraph): StepNodeCycle | null {
       if (count === 0) ready.push(next);
     }
   }
+  // Proof: `return null` here unconditionally made `refuses a directed cycle
+  // through the workflow chain`, `refuses a cycle a parent expansion closes`,
+  // `refuses a cycle a legacy edge closes against a typed one` and the anchor
+  // case fail on `Received: null`; watched 2026-09-27.
   if (indegree.size === 0) return null;
   const onCycle = graph.edges.filter(
     (edge) => indegree.has(keyOf(edge.predecessor)) && indegree.has(keyOf(edge.successor)),
