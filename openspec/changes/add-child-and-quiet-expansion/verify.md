@@ -27,7 +27,7 @@ Assumptions: flat-plan controls are inert rather than disabled, keeping their ex
 
 ## Slice 2 — WBS 010.4.3 (task 4), 2026-09-27
 
-Focused fe-01 runs (`TZ=UTC bunx vitest run … --testTimeout=60000`; the host sat near load 65, and the default 5s timeout failed unrelated layout cases on time alone): plan-structure 43/43, plan-cards 160 and dep-graph 22 (drag-drop included) 168/168 together.
+Focused fe-01 runs (`TZ=UTC bunx vitest run … --testTimeout=60000`; the host sat near load 65, and the default 5s timeout failed unrelated layout cases on time alone): plan-structure 45/45, plan-cards 160 and dep-graph 22 (drag-drop included) 168/168 together.
 
 - `dragging a row under another`:
   - The middle zone shows `Move under 020 · Sand` (a `role="status"` overlay under the target, laid over the table so no row moves), and the edges keep their `data-drop` lines.
@@ -47,6 +47,25 @@ Witnessed R5 faults, each restored, with adjacent `Proof:` comments:
 - Refused-drop restore removed: `explains a refused move and closes the parent the gesture opened` failed.
 - Self/descendant check removed: the subtree refusal, the no-cue case and both picker cases failed.
 - Client dependency pre-check skipped: `refuses a move that would break a dependency, and sends nothing` failed.
+
+Review round (Astra, high): no Critical findings; both Important findings fixed.
+
+1. Hover-opened parents were written into the saved expansion, so leaving the project mid-drag could persist them. They are now an overlay the table draws and the preference never sees. A drop commits them through `keep`.
+2. The client cycle branch had no mounted negative. `refuses a move whose dependencies would loop once expanded` now carries it: no cue, no request, a reason, and no picker entry.
+
+Minor findings, all fixed:
+
+- The picker renders an empty state.
+- `cueTopPx` is required, and a missing frame throws.
+- Renamed `formatDestination` and `translateMoveRefusal`.
+
+Faults re-witnessed after the rewrite:
+
+- Timer clear: 1 failed.
+- End reset: 1 failed.
+- Refused restore: 1 failed.
+- Hover written to the saved expansion: 2 failed.
+- Client cycle branch answering `null`: the new loop case failed.
 
 Assumptions:
 

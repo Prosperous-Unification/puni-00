@@ -945,9 +945,13 @@ describe('dragging a row under another', () => {
 
   itDom('opens a collapsed parent after a held hover without changing the target', async () => {
     await collapsedBranch();
+    const saved = localStorage.getItem('wbs.expanded.p1');
 
     hover('030', '010', 20);
     await holdPastTheWait();
+
+    // Drawn open, and not saved: only a drop keeps what a hover opened.
+    expect(localStorage.getItem('wbs.expanded.p1')).toBe(saved);
 
     expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '030']);
     expect(rowFor('010').getAttribute('data-drop')).toBe('into');
@@ -1008,6 +1012,43 @@ describe('dragging a row under another', () => {
     );
   });
 
+  itDom('refuses a move whose dependencies would loop once expanded', async () => {
+    // Rel waits for Sand, Sand for Strip, Strip for Paint. Under Rel, Paint
+    // inherits Rel's wait for Sand: a loop no edge closes alone, and no edge
+    // runs between Paint and Rel for the ancestor rule to catch.
+    const api = fakeApi();
+    const rel = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Rel' });
+    await api.createWorkItem('p1', { parentId: rel.id, afterId: null, name: 'Ship' });
+    const sand = await api.createWorkItem('p1', { parentId: null, afterId: rel.id, name: 'Sand' });
+    const strip = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: sand.id,
+      name: 'Strip',
+    });
+    const paint = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: strip.id,
+      name: 'Paint',
+    });
+    await api.addDependency(rel.id, sand.id);
+    await api.addDependency(sand.id, strip.id);
+    await api.addDependency(strip.id, paint.id);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 040');
+    const moves = recordCalls(api, 'moveWorkItem');
+
+    hover('040', '010', 20);
+    expect(screen.queryByRole('status', { name: /^Move under/ })).toBeNull();
+    fireEvent(rowFor('010'), dragEvent('drop', 20));
+    fireEvent.dragEnd(screen.getByLabelText('Reorder 040'));
+
+    expect(moves).toEqual([]);
+    expect(toastTexts()).toContain('That row cannot go there: its dependencies would make a loop.');
+    takeRowAction('040', 'Move under…');
+    const picker = await screen.findByRole('dialog', { name: 'Move 040 under…' });
+    expect(within(picker).queryByRole('button', { name: '010 · Rel' })).toBeNull();
+  });
+
   itDom('explains a refused move and closes the parent the gesture opened', async () => {
     const api = await collapsedBranch();
     api.moveWorkItem = () => Promise.reject(new Error('cycle'));
@@ -1055,6 +1096,23 @@ describe('moving a row under a chosen parent', () => {
       expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '020']);
     });
     expect(moves).toEqual([['w4', 'w2', null]]);
+  });
+
+  itDom('says so when no row can take it', async () => {
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 010');
+
+    takeRowAction('010', 'Move under…');
+    const picker = await screen.findByRole('dialog', { name: 'Move 010 under…' });
+
+    expect(within(picker).getByText('No row can take 010 as a child.')).toBeDefined();
+    expect(
+      within(picker)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Cancel']);
   });
 
   itDom('offers neither the row itself nor anything inside it', async () => {

@@ -29,7 +29,7 @@ import { GanttFaultBoundary } from './gantt-fault';
 import { appliedGanttHeight, DAY_PX, GanttPanel, isoToday } from './gantt-panel';
 import { KeyboardCheatSheet } from './keyboard-cheat-sheet';
 import { logicalGrid } from './logical-grid';
-import { destinationLabel, moveUnderCandidates, MoveUnderPicker } from './move-under-picker';
+import { formatDestination, moveUnderCandidates, MoveUnderPicker } from './move-under-picker';
 import { OptimizationCue } from './optimization-cue';
 import { PlanCards } from './plan-cards';
 import {
@@ -1021,8 +1021,8 @@ export function WbsTable({
     const target = flat.find((row) => row.id === dropHint.rowId);
     if (target === undefined) return null;
     return {
-      text: `Move under ${destinationLabel(target)}`,
-      topPx: dropHint.cueTopPx ?? 0,
+      text: `Move under ${formatDestination(target)}`,
+      topPx: dropHint.cueTopPx,
       leftPx: hierarchyIndentFor(collectPath(flat, target.id).length),
     };
   }, [dragging, dropHint, flat]);
@@ -1580,7 +1580,7 @@ export function WbsTable({
     // And with the overlay committed into `expanded` on the way out — the
     // merge this avoids — `clearing the search puts the reader’s own collapse
     // back` failed with the whole plan open. Both watched, 2026-08-06.
-    state: { expanded: search.expandedOverlay ?? expanded },
+    state: { expanded: search.expandedOverlay ?? hoverOpened.overlay(expanded) },
     onExpandedChange: setExpanded,
     // The expansion is this component's — remembered per project, opened on
     // a drop and on a gap visit, never the table's to reset. TanStack Table 9
@@ -2646,6 +2646,10 @@ export function WbsTable({
                             event.preventDefault();
                             const box = event.currentTarget.getBoundingClientRect();
                             const frame = frameRef.current;
+                            // This handler is on a row inside the frame, so a
+                            // frame not attached is a broken mount, not a place.
+                            if (frame === null)
+                              throw new Error('a row took a dragover outside its frame');
                             setDropHint({
                               rowId: row.original.id,
                               zone: zoneFor(event.clientY - box.top, box.height),
@@ -2653,11 +2657,7 @@ export function WbsTable({
                               // coordinates, so the cue sits beneath the
                               // target and moves nothing in the table.
                               cueTopPx:
-                                frame === null
-                                  ? box.bottom
-                                  : box.bottom -
-                                    frame.getBoundingClientRect().top +
-                                    frame.scrollTop,
+                                box.bottom - frame.getBoundingClientRect().top + frame.scrollTop,
                             });
                           }}
                           onDragLeave={() => {

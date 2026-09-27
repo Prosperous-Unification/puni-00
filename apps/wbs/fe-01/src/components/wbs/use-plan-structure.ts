@@ -251,7 +251,7 @@ export function usePlanStructure({
       void (async () => {
         const outcome = await run((write) =>
           write.perform(['tree'], () =>
-            inMoveWords(commands.moveWorkItem(draggedId, plan.parentId, plan.afterId)),
+            translateMoveRefusal(commands.moveWorkItem(draggedId, plan.parentId, plan.afterId)),
           ),
         );
         // Proof: this restore removed, `explains a refused move and closes the
@@ -275,7 +275,7 @@ export function usePlanStructure({
           .filter((each) => each.parentId === parentId && each.id !== row.id)
           .at(-1);
         await write.perform(['tree'], () =>
-          inMoveWords(commands.moveWorkItem(row.id, parentId, lastChild?.id ?? null)),
+          translateMoveRefusal(commands.moveWorkItem(row.id, parentId, lastChild?.id ?? null)),
         );
         setExpanded((current) => collectPath(flat, parentId).reduce(expandBranch, current));
         focusIntent.current.wants({ rowId: row.id, columnId: 'name' });
@@ -605,7 +605,7 @@ export const REFUSAL_MESSAGES: Partial<Record<DropRefusal, string>> = {
  * for a refused dependency, and the table's shared sentences for those words
  * are about adding an edge — which is not what the reader just did.
  */
-async function inMoveWords<T>(request: Promise<T>): Promise<T> {
+async function translateMoveRefusal<T>(request: Promise<T>): Promise<T> {
   try {
     return await request;
   } catch (thrown: unknown) {
@@ -620,16 +620,24 @@ export const HOVER_OPEN_MS = 600;
 
 /** The parents a drag hover opened, handed from {@link useHoverExpansion} to the drop. */
 export interface HoverOpened {
-  /** Takes the opened ids for a drop, so the drag's end no longer closes them. */
+  /** The reader's expansion with the hover-opened parents laid over it, for the table to draw. */
+  overlay: (expanded: ExpandedState) => ExpandedState;
+  /**
+   * Hands the hover-opened ids to a drop: they are written into the reader's
+   * own expansion and the overlay is cleared, so a landed move keeps them.
+   */
   keep: () => string[];
-  /** Closes `rowIds` again — a refused drop's way of putting the plan back. */
+  /** Closes `rowIds` again in the reader's expansion — a refused drop's way of putting the plan back. */
   restore: (rowIds: readonly string[]) => void;
 }
 
 /**
  * Opens a collapsed parent held under a drag's middle zone for
- * {@link HOVER_OPEN_MS}, and closes whatever it opened when the drag ends
- * without a drop that kept it.
+ * {@link HOVER_OPEN_MS}, as an overlay on the reader's expansion that is
+ * never saved: a drag that ends without a drop — abandoned, cancelled by a
+ * peer's edit, or unmounted by leaving the project — drops the overlay and
+ * the saved preference never saw it. Only a drop commits it, through
+ * {@link HoverOpened.keep}.
  *
  * The timer is keyed on the target id alone, so a dragover repeating on the
  * same row does not restart it and moving to another row or zone clears it.
@@ -647,16 +655,21 @@ export function useHoverExpansion({
   opensOnHover: (rowId: string) => boolean;
   setExpanded: React.Dispatch<React.SetStateAction<ExpandedState>>;
 }): HoverOpened {
-  const opened = useRef<string[]>([]);
+  const [openedIds, setOpenedIds] = useState<readonly string[]>([]);
+  const opened = useRef(openedIds);
+  opened.current = openedIds;
   const opens = useRef(opensOnHover);
   opens.current = opensOnHover;
   const target = dragging !== null && dropHint?.zone === 'into' ? dropHint.rowId : null;
 
   useEffect(() => {
-    if (target === null || !opens.current(target)) return;
+    if (target === null || opened.current.includes(target) || !opens.current(target)) return;
     const timer = setTimeout(() => {
-      opened.current.push(target);
-      setExpanded((current) => expandBranch(current, target));
+      // The overlay only. Proof: the reader's own expansion written here as
+      // well, `opens a collapsed parent after a held hover…` failed on the
+      // saved preference and `closes the parent it opened when the drag is
+      // abandoned` with 010.1 left open. Watched 2026-09-27.
+      setOpenedIds((current) => [...current, target]);
     }, HOVER_OPEN_MS);
     // Proof: this clear removed, `does not open a parent the pointer left
     // before the wait ran out` failed with 010.1 opened behind the pointer.
@@ -664,7 +677,14 @@ export function useHoverExpansion({
     return () => {
       clearTimeout(timer);
     };
-  }, [target, setExpanded]);
+  }, [target]);
+
+  // A drag that ends with nothing having kept what it opened closes it.
+  // Proof: this effect removed, `closes the parent it opened when the drag is
+  // abandoned` failed with 010.1 still on screen. Watched 2026-09-27.
+  useEffect(() => {
+    if (dragging === null) setOpenedIds([]);
+  }, [dragging]);
 
   const restore = useCallback(
     (rowIds: readonly string[]) => {
@@ -673,18 +693,18 @@ export function useHoverExpansion({
     },
     [setExpanded],
   );
-
-  // A drag that ends with nothing having kept what it opened — abandoned,
-  // cancelled by a peer's edit, or dropped where nothing moves — closes it.
-  // Proof: this effect removed, `closes the parent it opened when the drag is
-  // abandoned` failed with 010.1 still on screen. Watched 2026-09-27.
-  useEffect(() => {
-    if (dragging !== null) return;
-    restore(opened.current.splice(0));
-  }, [dragging, restore]);
-
-  const keep = useCallback(() => opened.current.splice(0), []);
-  return useMemo(() => ({ keep, restore }), [keep, restore]);
+  const keep = useCallback(() => {
+    const kept = [...opened.current];
+    opened.current = [];
+    setOpenedIds([]);
+    if (kept.length > 0) setExpanded((current) => kept.reduce(expandBranch, current));
+    return kept;
+  }, [setExpanded]);
+  const overlay = useCallback(
+    (expanded: ExpandedState) => openedIds.reduce(expandBranch, expanded),
+    [openedIds],
+  );
+  return useMemo(() => ({ overlay, keep, restore }), [overlay, keep, restore]);
 }
 
 /**

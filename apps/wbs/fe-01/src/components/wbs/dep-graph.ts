@@ -204,5 +204,7 @@ export function moveRefusalFor(
       }
     }
   }
+  // Proof: this answered `null`, `refuses a move whose dependencies would loop
+  // once expanded` failed with the cue drawn and the move sent. Watched 2026-09-27.
   return canOrder(graph.leafIds, graph.leafEdges) ? null : 'cycle';
 }

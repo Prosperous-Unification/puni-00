@@ -24,7 +24,7 @@ export function moveUnderCandidates(flat: readonly TreeRow[], row: TreeRow): Tre
 }
 
 /** How a destination is named, in the picker and in the drag's `Move under …` cue. */
-export const destinationLabel = (row: Pick<TreeRow, 'number' | 'name'>): string =>
+export const formatDestination = (row: Pick<TreeRow, 'number' | 'name'>): string =>
   row.name === '' ? row.number : `${row.number} · ${row.name}`;
 
 /**
@@ -52,6 +52,11 @@ export function MoveUnderPicker({
           <ModalTitle>Move {row.number} under…</ModalTitle>
           <ModalDescription>It becomes the last child of the row you choose.</ModalDescription>
         </ModalHeader>
+        {candidates.length === 0 && (
+          <p className="text-muted-foreground text-sm" data-empty-state>
+            No row can take {row.number} as a child.
+          </p>
+        )}
         <ul className="flex max-h-80 flex-col gap-1 overflow-auto">
           {candidates.map((candidate) => (
             <li key={candidate.id}>
@@ -63,7 +68,7 @@ export function MoveUnderPicker({
                   onChoose(candidate.id);
                 }}
               >
-                {destinationLabel(candidate)}
+                {formatDestination(candidate)}
               </Button>
             </li>
           ))}

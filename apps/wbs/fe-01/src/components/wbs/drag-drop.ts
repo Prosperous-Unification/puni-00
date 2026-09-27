@@ -28,7 +28,7 @@ export type DropRefusal =
 export interface DropHint {
   rowId: string;
   zone: DropZone;
-  cueTopPx?: number;
+  cueTopPx: number;
 }
 
 /**

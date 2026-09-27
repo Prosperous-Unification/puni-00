@@ -514,7 +514,7 @@ export const PLAN_REFUSALS: RefusalWords = {
     cycle: 'That dependency could not be added: it would make a loop.',
     ancestor: 'That dependency could not be added: the row it names is already above this one.',
     // A move refused for the dependencies it would break, re-worded by
-    // `inMoveWords` because be-01 spells it with the two words above.
+    // `translateMoveRefusal` because be-01 spells it with the two words above.
     move_ancestor:
       'That row could not be moved there: it would sit inside a row it depends on, or one that depends on it.',
     move_cycle: 'That row could not be moved there: its dependencies would make a loop.',
