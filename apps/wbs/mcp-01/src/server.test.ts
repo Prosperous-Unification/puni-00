@@ -280,13 +280,13 @@ describe('the MCP grant scope', () => {
   it('refuses a write tool to a grant without wbs:write before be-01 is called', async () => {
     const { client } = await connected([READ, WRITE], failingFetch, { authInfo: readOnly });
 
-    const result = await client.callTool({
+    const toolResponse = await client.callTool({
       name: 'patchApiWorkItemsById',
       arguments: { id: 'w-1', name: 'Renamed' },
     });
 
-    expect(result.isError).toBe(true);
-    const [content] = result.content as [{ type: string; text: string }];
+    expect(toolResponse.isError).toBe(true);
+    const [content] = toolResponse.content as [{ type: string; text: string }];
     expect(content.text).toContain('insufficient_scope');
     expect(content.text).toContain('wbs:read wbs:write');
   });
@@ -294,26 +294,40 @@ describe('the MCP grant scope', () => {
   it('refuses a write tool when no authenticated caller reached the server', async () => {
     const { client } = await connected([WRITE], failingFetch, { authInfo: null });
 
-    const result = await client.callTool({
+    const toolResponse = await client.callTool({
       name: 'patchApiWorkItemsById',
       arguments: { id: 'w-1', name: 'Renamed' },
     });
 
-    expect(result.isError).toBe(true);
-    expect(JSON.stringify(result.content)).toContain('insufficient_scope');
+    expect(toolResponse.isError).toBe(true);
+    expect(JSON.stringify(toolResponse.content)).toContain('insufficient_scope');
   });
 
   it('still reads with a read-only grant', async () => {
     const seen: Seen[] = [];
     const { client } = await connected([READ, WRITE], stub(seen, '[]'), { authInfo: readOnly });
 
-    const result = await client.callTool({
+    const toolResponse = await client.callTool({
       name: 'getApiProjectsByIdWorkItems',
       arguments: { id: 'p-1' },
     });
 
-    expect(result.isError).toBeUndefined();
+    expect(toolResponse.isError).toBeUndefined();
     expect(seen).toHaveLength(1);
+  });
+
+  it('refuses a read tool to a caller without wbs:read', async () => {
+    const { client } = await connected([READ], failingFetch, {
+      authInfo: { token: 'upstream-with-read', clientId: 'c', scopes: ['write'] },
+    });
+
+    const toolResponse = await client.callTool({
+      name: 'getApiProjectsByIdWorkItems',
+      arguments: { id: 'p-1' },
+    });
+
+    expect(toolResponse.isError).toBe(true);
+    expect(JSON.stringify(toolResponse.content)).toContain('does not include wbs:read');
   });
 
   it('marks every non-GET tool of the real document as needing be-01 write scope', () => {
@@ -434,7 +448,7 @@ describe('a call that cannot be built', () => {
       authInfo: {
         token: 'caller-token',
         clientId: 'modeled-upstream-test',
-        scopes: [],
+        scopes: ['read'],
         extra: { mcpSessionId: 'session-1' },
       },
       reportUnexpectedToolFailure: (caught) => {

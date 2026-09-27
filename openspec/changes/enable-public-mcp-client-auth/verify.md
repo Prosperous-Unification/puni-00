@@ -71,8 +71,8 @@ consistent URLs` (http.test.ts) checks status, JSON content type and resource/is
 
 - mcp-01 forwards the caller's upstream IdP token, whose groups are the account's full grant, so
   be-01 alone could not tell a `wbs:read` MCP authorization from a write one. `createServer`
-  now refuses every non-GET tool unless the verified MCP caller holds `write`, before be-01 is
-  called. A test pins that every non-GET tool of the real document is a be-01 `write-scope`
+  now refuses every non-GET tool unless the verified MCP caller holds `write`, and every GET
+  tool unless it holds `read`, before be-01 is called. A test pins that every non-GET tool of the real document is a be-01 `write-scope`
   operation.
 - The refusal is a tool result naming `insufficient_scope` and the scope to request. It is not
   an HTTP 403 `WWW-Authenticate: Bearer error="insufficient_scope"` step-up challenge; that would
@@ -81,9 +81,10 @@ consistent URLs` (http.test.ts) checks status, JSON content type and resource/is
   grants `wbs:read` and its write is refused with no be-01 call; a requested write that the
   account lacks is narrowed to `wbs:read` and refused; an explicit, granted `wbs:read wbs:write`
   writes as the signed-in user's upstream token.
-- R5 proof: disabling the guard failed the two `the MCP grant scope` refusals (server.test.ts)
-  and the omitted-scope and narrowed-scope mounted refusals on `toContain('insufficient_scope')`.
-  Restored, `bun test` in apps/wbs/mcp-01: 274 pass, 0 fail.
+- R5 proof: disabling the guard failed the two `the MCP grant scope` write refusals
+  (server.test.ts) and the omitted-scope and narrowed-scope mounted refusals on
+  `toContain('insufficient_scope')`; disabling the read half failed `refuses a read tool to a
+caller without wbs:read`. Restored, `bun test` in apps/wbs/mcp-01: 275 pass, 0 fail.
 - Not changed: standalone mode still accepts a verified upstream IdP bearer token at `/mcp`,
   whose own groups then decide write access, and gateway mode trusts decoded claims. Both are
   existing authentication contracts outside the MCP OAuth grant.

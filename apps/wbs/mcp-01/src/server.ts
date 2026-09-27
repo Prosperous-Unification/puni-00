@@ -160,14 +160,18 @@ export function createServer(deps: ServerDeps): Server {
     }
 
     // be-01 checks the forwarded upstream token, which carries the account's full IdP groups, so
-    // the narrower MCP grant is enforced here: a signed-in login is not write access. Every
-    // non-GET be-01 operation requires write scope (pinned by `the MCP grant scope` tests).
-    // Proof: on 2026-09-27, disabling this guard failed both `the MCP grant scope` refusals
-    // (server.test.ts) and the omitted-scope and narrowed-scope mounted refusals (oauth.test.ts).
-    if (tool.method !== 'get' && extra.authInfo?.scopes.includes('write') !== true) {
+    // the narrower MCP grant is enforced here: a signed-in login is not write access, and a
+    // refreshed token narrowed away from wbs:read does not read. Every non-GET be-01 operation
+    // requires write scope (pinned by `the MCP grant scope` tests).
+    // Proof: on 2026-09-27, disabling the write half failed both `the MCP grant scope` write
+    // refusals (server.test.ts) and the omitted-scope and narrowed-scope mounted refusals
+    // (oauth.test.ts); disabling the read half failed `refuses a read tool to a caller without
+    // wbs:read`.
+    const requiredScope = tool.method === 'get' ? 'read' : 'write';
+    if (extra.authInfo?.scopes.includes(requiredScope) !== true) {
       return asCallToolResult(
         errorText(
-          `${tool.name} could not be called: insufficient_scope. This MCP authorization does not include wbs:write; reauthorize requesting scope "wbs:read wbs:write".`,
+          `${tool.name} could not be called: insufficient_scope. This MCP authorization does not include wbs:${requiredScope}; reauthorize requesting scope "wbs:read wbs:write".`,
         ),
       );
     }
@@ -179,13 +183,7 @@ export function createServer(deps: ServerDeps): Server {
           request.params.arguments ?? {},
           config,
           fetchImpl,
-          callerTokenOf === undefined
-            ? (() => {
-                if (extra.authInfo === undefined)
-                  throw new Error('authenticated caller is required');
-                return extra.authInfo.token;
-              })()
-            : callerTokenOf(extra.authInfo),
+          callerTokenOf === undefined ? extra.authInfo.token : callerTokenOf(extra.authInfo),
         ),
       );
     } catch (firstCause) {
