@@ -57,12 +57,17 @@ Pre-activation rollback round trip: `rolls back before activation, taking only i
 
 Branch `batch-9/010-5-2-orgs-ownership`, stacked on slice 1. `apps/wbs/be-01/drizzle/20260927130000_add_organization_ownership` adds one `<root>_organization` side table per root (project, person, service_team, service, tag, work_item_type, external_system, saved_plan). The six catalog tables carry an organization-scoped `name` under `UNIQUE (organization_id, name)`. The legacy global name indexes are unchanged; Astra's design call was that no additive index can relax them. `ON DELETE CASCADE` lets the outgoing release delete a mapped root. `OrganizationOwnershipRepository.findUnmappedRoots` is the reconciliation that activation preflight (7.1) will require to be empty.
 
-| Check                                 | Injected fault                          | Observed failure (`organization-ownership.db.test.ts`, 2026-09-27)                               |
-| ------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Reconciliation covers every root kind | `saved_plan` filtered out of the walk   | `reports an unmapped root of every kind`: `- "saved_plan"`                                       |
-| Organization-scoped catalog name      | `tag_organization_name` made non-unique | `holds the same catalog name in two organizations, once each`: `Received function did not throw` |
+| Check                                     | Injected fault                                                                      | Observed failure (`organization-ownership.db.test.ts`, 2026-09-27)                                     |
+| ----------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Reconciliation covers every root kind     | `saved_plan` removed from the kinds and pairs                                       | `reports an unmapped root of every kind, and only the unmapped ones`                                   |
+| Ownership row well-formed (8 tables)      | `NOT NULL`, organization reference or `resource_id` primary key dropped, each alone | all eight `refuses a malformed … ownership row` cases                                                  |
+| Mapping points at a real root             | root reference dropped                                                              | those eight and the populated round trip                                                               |
+| Outgoing release can delete a mapped root | `ON DELETE CASCADE` dropped                                                         | `lets the outgoing release delete a mapped root`                                                       |
+| Organization-scoped catalog name          | `*_organization_name` made non-unique                                               | six `refuses one … name twice` cases and `holds the same catalog name in two organizations, once each` |
 
-The same-name case proves storage capability only; live two-organization naming belongs to task 3.2's mounted test. Pre-activation rollback keeps every root (`rolls back before activation, keeping every root`). Command: `env -u CLAUDECODE bun test libs/wbs/adapters/store-sqlite/src`: 789 pass, 1 fail. The failure is the `Bun.spawn` lock-holder case that also fails on an untouched main checkout on this host.
+`round-trips a populated previous schema, leaving every legacy row as it was` seeds the previous schema with linked roots, applies the migration, writes mappings and old-release inserts and deletes, reverses it, and compares every legacy table row for row.
+
+The same-name case proves storage capability only; live two-organization naming belongs to task 3.2's mounted test. Pre-activation rollback keeps every root (`rolls back before activation, keeping every root`). Command: `env -u CLAUDECODE bun test libs/wbs/adapters/store-sqlite/src/organization-ownership.db.test.ts`: 19 pass. The earlier full `libs/wbs/adapters/store-sqlite/src` run had 789 pass and 1 fail; the failure is the `Bun.spawn` lock-holder case that also fails on an untouched main checkout on this host.
 
 ## Pending gate output
 

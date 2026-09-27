@@ -19,10 +19,15 @@
 -- a tag knowing nothing of `tag_organization`, and a plain reference would
 -- turn that delete into a foreign-key failure mid-swap.
 --
--- Proof: `tag_organization_name` made non-unique failed
--- `organization-ownership.db.test.ts` `holds the same catalog name in two
--- organizations, once each` (`Received function did not throw`). Observed
--- 2026-09-27.
+-- Proof, each fault applied to all eight tables alone, observed 2026-09-27 in
+-- `organization-ownership.db.test.ts`: dropping `NOT NULL` from
+-- `organization_id`, its reference to `organization`, or the `resource_id`
+-- primary key failed all eight `refuses a malformed … ownership row` cases;
+-- dropping the root reference failed those eight and the round trip; dropping
+-- `ON DELETE CASCADE` failed `lets the outgoing release delete a mapped root`;
+-- making the `*_organization_name` indexes non-unique failed the six `refuses
+-- one … name twice in one organization` cases and `holds the same catalog name
+-- in two organizations, once each`.
 CREATE TABLE `person_organization` (
 	`resource_id` text PRIMARY KEY NOT NULL REFERENCES `person`(`id`) ON DELETE CASCADE,
 	`organization_id` text NOT NULL REFERENCES `organization`(`id`),
