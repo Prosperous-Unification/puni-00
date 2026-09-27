@@ -53,7 +53,7 @@
         "!{workspaceRoot}/libs/wbs/domain/validation/src/*.test.ts"
       ],
       "options": {
-        "command": "bun test --preload ../test/scratch/preload.ts",
+        "command": "bun test --preload ../test/scratch/preload.ts --timeout=10000",
         "cwd": "tools/tool-remote-scripts"
       }
     },

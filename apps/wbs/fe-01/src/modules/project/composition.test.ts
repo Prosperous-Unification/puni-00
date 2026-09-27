@@ -4,6 +4,7 @@ import { createChannel } from '@/modules/channel';
 import type { PlanFeedRefusal } from '@/modules/plan-feed/contract';
 import { createDeliveredPlan } from '@/modules/plan-feed/delivered-plan-store';
 import { fakeProjectApi } from '@/testing/fake-project-api';
+import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 import { recordCalls } from '@/testing/record-calls';
 
 import { projectServicesOver } from './composition';
@@ -39,7 +40,7 @@ describe('the project composition root', () => {
     for (const route of READ_ROUTES) {
       recordCalls(client, route, (...args) => reads.push([route, ...args].join(':')));
     }
-    const services = projectServicesOver(client);
+    const services = projectServicesOver(client, NO_SAVED_PLANS);
     expect(reads).toEqual([]);
 
     const reader = readerOf('p1');
@@ -59,7 +60,7 @@ describe('the project composition root', () => {
       projectId,
       marker.name,
     ]);
-    const services = projectServicesOver(client);
+    const services = projectServicesOver(client, NO_SAVED_PLANS);
     const reader = readerOf('p1');
     const feed = services.planFeedFor(reader);
     await vi.waitFor(() => {
@@ -83,7 +84,7 @@ describe('the project composition root', () => {
   it('binds each project’s commands to that project, over the same client', () => {
     const client = fakeProjectApi();
     const freezes = recordCalls(client, 'freezeProject', (projectId) => projectId);
-    const services = projectServicesOver(client);
+    const services = projectServicesOver(client, NO_SAVED_PLANS);
 
     void services.planCommandsFor('p1').freezeProject();
     void services.planCommandsFor('p2').freezeProject();
@@ -93,7 +94,7 @@ describe('the project composition root', () => {
 
   it('reaches the client at the moment of each call, not when it was composed', async () => {
     const client = fakeProjectApi();
-    const services = projectServicesOver(client);
+    const services = projectServicesOver(client, NO_SAVED_PLANS);
     const later: string[] = [];
     const tree = client.tree.bind(client);
     client.tree = (projectId) => {

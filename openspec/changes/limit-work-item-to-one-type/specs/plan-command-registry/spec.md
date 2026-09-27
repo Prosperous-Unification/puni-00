@@ -2,7 +2,7 @@
 
 ### Requirement: Commands refuse several types
 
-Patch and batch commands, over HTTP and MCP, SHALL keep the `typeIds` and `typeRefs` list shapes and SHALL refuse a list of more than one with the typed 4xx `work_item_takes_one_type`, writing nothing in that request or batch. A list of zero or one SHALL replace the work item's types. Undo and redo SHALL restore the exact prior type set, including a type conflict, and a batch SHALL apply the one-type check to the state produced by its earlier commands.
+Patch and batch commands, over HTTP and MCP, SHALL keep the `typeIds` and `typeRefs` list shapes and SHALL refuse lists that together name more than one distinct type (a repeated id names one) with the typed 4xx `work_item_takes_one_type`, writing nothing in that request or batch. A list of zero or one SHALL replace the work item's types. Undo and redo SHALL restore the exact prior type set, including a type conflict, and a batch SHALL apply the one-type check to the state produced by its earlier commands.
 
 #### Scenario: Two types in one request are refused
 

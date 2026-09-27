@@ -16,6 +16,11 @@ import {
   PartialAcquisitionError,
   type RetirableRuntime,
 } from './lifetime-slot';
+import {
+  createRetirementJoin,
+  type OwnedRetirementJoin,
+  type RetirementJoin,
+} from './retirement-join';
 
 /**
  * What the page's own runtime publishes, and the whole of it.
@@ -32,6 +37,12 @@ import {
 export interface ApplicationServices {
   readonly preferences: Preferences;
   readonly remembered: RememberedPreferences;
+  /**
+   * Where the signed-in region hands its session's retirement when it goes: the
+   * application's own retirement waits for every retirement handed here, under
+   * its own budget, and fails when one failed.
+   */
+  readonly retirements: RetirementJoin;
 }
 
 /**
@@ -115,8 +126,10 @@ export interface ApplicationDependencies {
  * two generation fences are sufficient only while construction cannot await.
  *
  * The bag is built here and nowhere else, so nothing outside this function can
- * reach a private binding or the graph itself — the returned surface is the two
- * public services, enumerated by a test.
+ * reach a private binding or the graph itself — the returned surface is the
+ * three public services, enumerated by a test. The retirement join is the graph's
+ * one disposable that waits: its close runs under the retirement's own bound, so
+ * a joined retirement that hangs makes the application's retirement outrun it.
  *
  * @throws {@link PartialAcquisitionError} when a service cannot be resolved,
  * carrying the bounded close for whatever was acquired first.
@@ -134,16 +147,32 @@ export function installApplicationRuntime(
     })
     .withServices({
       isLive: DiBag.createProvider(() => isLive, { factoryReturnKind: 'sync-value' }),
+      retirements: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider((): OwnedRetirementJoin => createRetirementJoin(), {
+          factoryReturnKind: 'sync-value',
+        }),
+        // Proof: on 2026-09-27, a disposer that waited for nothing here (a1) failed `retires only
+        // once the retirement joined to it has settled` on `expected [ 'application retired', …(1) ]
+        // to deeply equal [ 'session given back', …(1) ]`, and both `is terminally fatal when a
+        // retirement joined to it failed` and `… never settles` on `promise resolved "undefined"
+        // instead of rejecting`. The bootstrap's model (`application-bootstrap.model.test.tsx`)
+        // failed with it after 44 tests: `a joined session did not hold the application`.
+        disposeService: (join) => join.settle(),
+      }),
     })
     .buildContainer();
   // Proof: on 2026-09-22, returning the bag made this surface enumerate
   // ['preferences', 'remembered', 'bag'] (1 failed, 41 passed).
   // Proof: on 2026-09-22, hanging `resolve` beneath `preferences` made the
   // no-resolver assertion receive false (1 failed, 41 passed).
-  return acquireTransactionally(bag, () => ({
-    preferences: bag.resolve('preferences'),
-    remembered: bag.resolve('remembered'),
-  }));
+  return acquireTransactionally(bag, () => {
+    const { join } = bag.resolve('retirements');
+    return {
+      preferences: bag.resolve('preferences'),
+      remembered: bag.resolve('remembered'),
+      retirements: { join },
+    };
+  });
 }
 
 /**

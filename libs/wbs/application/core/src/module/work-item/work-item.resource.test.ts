@@ -647,19 +647,16 @@ describe('the plan waits for the people in it', () => {
     // work item is therefore 0→4 with a gap in the middle of it, rather than
     // 0→3.
     //
-    // Re-derived at `assumed-duration-schedules` (2026-08-29): the second work
-    // item's `QA` is unestimated, so it is two workdays wide and queues behind
-    // `ada`'s other work rather than taking no time at the row's own start.
-    // `ada`'s day, in order: `Rewire` Dev 0→2, `Test the rewire` Dev 2→3, that
-    // row's assumed QA 3→5, and `Rewire`'s own QA 5→6. Both rows are still
-    // pulled apart by the one person on them, which is what this test is about.
+    // The second work item's `QA` is unestimated and takes no schedule time,
+    // so it occupies nobody. `ada`'s day, in order: `Rewire` Dev 0→2, `Test the
+    // rewire` Dev 2→3, and `Rewire`'s own QA 3→4.
     expect(tree?.workItems.find((w) => w.id === next.value.id)?.schedule).toMatchObject({
       earliestStart: 2,
-      earliestFinish: 5,
+      earliestFinish: 3,
     });
     expect(tree?.workItems.find((w) => w.id === covered.value.id)?.schedule).toMatchObject({
       earliestStart: 0,
-      earliestFinish: 6,
+      earliestFinish: 4,
     });
     expect(tree?.waitingForPerson).toBe(2);
   });
@@ -669,10 +666,8 @@ describe('the plan waits for the people in it', () => {
     // free the moment her own `Dev` is done and the next work item follows it —
     // `Test the rewire`'s `Dev` still starts on day 2, which is the claim.
     //
-    // Re-derived at `assumed-duration-schedules` (2026-08-29): that row's own
-    // `QA` is unestimated, so it takes two workdays behind its `Dev` and the
-    // row ends on day 5 rather than day 3. `ada` is who it waits for, and only
-    // because it is `ada`'s next piece of work — `grace` is unaffected.
+    // That row's own `QA` is unestimated and takes no schedule time, so the
+    // row ends with its `Dev` on day 3.
     const two = await twoStepProject();
     const covered = (await service.create(two.projectId, OWNER, {
       parentId: null,
@@ -695,7 +690,7 @@ describe('the plan waits for the people in it', () => {
 
     expect(tree?.workItems.find((w) => w.id === next.value.id)?.schedule).toMatchObject({
       earliestStart: 2,
-      earliestFinish: 5,
+      earliestFinish: 3,
     });
   });
 

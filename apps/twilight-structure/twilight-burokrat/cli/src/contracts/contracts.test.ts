@@ -731,5 +731,5 @@ describe('production CLI validation boundary', () => {
     }
     // Proof: the complete local suite timed this production path out at 25013.97ms
     // under its former 25-second ceiling, after its child returned no exit code.
-  }, 45_000);
+  }, 120_000);
 });

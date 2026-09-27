@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig.module.json",
+  // The saved-plan adapter whose reply and view types the port and the feature carry.
+  "files": ["../../lib/saved-plan-api.ts"]
+}
