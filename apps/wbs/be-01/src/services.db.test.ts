@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { subscriptionFor } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -24,7 +25,6 @@ import {
 import { UserRepository } from './repository/user';
 import { WorkItemRepository } from './repository/work-item';
 import { nodeDigest } from './runtime/bun-runtime';
-import { subscriptionFor } from './service/broadcast';
 import type { ReservedSpawner, ReservedSpawnRequest } from './service/optimization-coordinator';
 import { PlanCommandRunner } from './service/plan-commands';
 import { SavedPlanService } from './service/saved-plan.service';
@@ -546,8 +546,8 @@ describe('buildServices', () => {
       ]),
     ).toEqual([
       // The current solver release composes with the current scheduler contract.
-      ['0.1.3', '10+0.1.3', 60_000],
-      ['0.1.3', '10+0.1.3', 60_000],
+      ['0.1.3', '11+0.1.3', 60_000],
+      ['0.1.3', '11+0.1.3', 60_000],
     ]);
   });
 
@@ -617,7 +617,7 @@ describe('buildServices', () => {
     // seeded failed pair and failed here with `Expected ["pri", "time"] /
     // Received []`; watched 2026-09-07.
     expect(spawned.map(({ objective }) => objective)).toEqual(['pri', 'time']);
-    expect(spawned.map(({ key }) => key.contractVersion)).toEqual(['10+0.1.3', '10+0.1.3']);
+    expect(spawned.map(({ key }) => key.contractVersion)).toEqual(['11+0.1.3', '11+0.1.3']);
     expect(
       db
         .select({ contractVersion: optimizedScheduleCache.contractVersion })

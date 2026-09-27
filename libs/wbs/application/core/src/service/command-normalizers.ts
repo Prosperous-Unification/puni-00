@@ -81,10 +81,14 @@ export const MOST_TAGS_ON_ONE_ITEM = 50;
 export const MOST_SERVICES_ON_ONE_ITEM = 10;
 
 /**
- * How many work item types one row may carry. A type vocabulary is a closed
- * handful such as Story, Bug, Spike, Epic and Task, so ten is independently bounded.
+ * How many work item types one row may carry: one (WBS 010.4.10). The list shape
+ * and the join table stay, so several types can return without a migration; a
+ * row stored with more is a type conflict that reads whole and is refused here.
+ *
+ * Kept exported beside the other caps: the retired `typeIds_must_be_at_most_10`
+ * codes stay in the contract for the length of a blue/green swap.
  */
-export const MOST_TYPES_ON_ONE_ITEM = 10;
+export const MOST_TYPES_ON_ONE_ITEM = 1;
 
 /**
  * How many external refs one work item may carry. Ref lists are open like tag
@@ -194,6 +198,30 @@ function asOptionalIds(value: unknown, field: string, most: number): readonly st
   }
   // Every member was checked above; Array.isArray alone retains unknown[].
   return value as readonly string[];
+}
+
+/**
+ * A type list of at most {@link MOST_TYPES_ON_ONE_ITEM} distinct ids, or
+ * `work_item_takes_one_type`. Distinct, because a repeated id names one type and
+ * {@link asOptionalIds} accepts duplicates for every label dimension.
+ *
+ * This is the request's early answer only. `typeIds` and `typeRefs` together, or
+ * a ref bound later in the batch, reach `WorkItemService.patch`, which holds the
+ * rule for every authored write.
+ */
+function asOptionalTypeIds(
+  value: unknown,
+  field: 'typeIds' | 'typeRefs',
+): readonly string[] | undefined {
+  const ids = asOptionalIds(value, field, Number.POSITIVE_INFINITY);
+  // Proof: `MOST_TYPES_ON_ONE_ITEM` put back to 10 made `refuses two types at the
+  // parser, before any command in the batch applies` read the name "Renamed" for
+  // two typeIds (the service refused later, after the rename had run) and
+  // `unknown_ref` for two typeRefs. Watched 2026-09-27.
+  if (ids !== undefined && new Set(ids).size > MOST_TYPES_ON_ONE_ITEM) {
+    throw new CommandNormalizationError('work_item_takes_one_type');
+  }
+  return ids;
 }
 
 function asOptionalText(value: unknown, field: string): string | undefined {
@@ -431,7 +459,7 @@ function parsePatch(body: CommandInput<'patchWorkItem'>['patch']) {
     serviceIds: asOptionalIds(body.serviceIds, 'serviceIds', MOST_SERVICES_ON_ONE_ITEM),
     maxParallel: asOptionalParallelism(body.maxParallel, 'maxParallel'),
     tagIds: asOptionalIds(body.tagIds, 'tagIds', MOST_TAGS_ON_ONE_ITEM),
-    typeIds: asOptionalIds(body.typeIds, 'typeIds', MOST_TYPES_ON_ONE_ITEM),
+    typeIds: asOptionalTypeIds(body.typeIds, 'typeIds'),
     externalRefs: asOptionalExternalRefs(body.externalRefs),
   });
 }
@@ -579,7 +607,7 @@ export const commandNormalizers = {
         ...parsePatch(patchRaw),
         serviceRefs: asOptionalIds(patchRaw.serviceRefs, 'serviceRefs', MOST_SERVICES_ON_ONE_ITEM),
         tagRefs: asOptionalIds(patchRaw.tagRefs, 'tagRefs', MOST_TAGS_ON_ONE_ITEM),
-        typeRefs: asOptionalIds(patchRaw.typeRefs, 'typeRefs', MOST_TYPES_ON_ONE_ITEM),
+        typeRefs: asOptionalTypeIds(patchRaw.typeRefs, 'typeRefs'),
         teamRefs: asOptionalIds(patchRaw.teamRefs, 'teamRefs', MOST_TEAMS_ON_ONE_ITEM),
       }),
     };

@@ -3030,3 +3030,33 @@ itDom('capacity setting refreshes only tree without a socket', async () => {
   });
   expect(reads).toEqual(['tree']);
 });
+
+describe('the mounted Type cell', () => {
+  itDom('shows a stored type conflict flagged and keeps the type picked', async () => {
+    localStorage.setItem('wbs.hiddenColumns.p1', '[]');
+    const api = fakeApi();
+    const created = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Conflicted',
+    });
+    const story = await api.addWorkItemType('Story');
+    const spike = await api.addWorkItemType('Spike');
+    // The fake stores what it is given, as an older writer mid-swap would.
+    await api.patchWorkItem(created.id, { typeIds: [story.id, spike.id] });
+
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 010');
+    await waitFor(() => {
+      expect(document.querySelector('[data-type-conflict]')).not.toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Keep Story for 010' }));
+    await waitFor(() => {
+      expect(api.rows[0]?.typeIds).toEqual([story.id]);
+    });
+    await waitFor(() => {
+      expect(document.querySelector('[data-type-conflict]')).toBeNull();
+    });
+  });
+});

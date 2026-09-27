@@ -1,21 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { SavedPlanListEntryView } from '../../lib/saved-plan-api';
-
-/**
- * What the shelf can be showing, as one value.
- *
- * A union rather than three booleans beside an array, because the states are
- * genuinely exclusive and the interesting one — `unavailable` — is not a
- * failure. A node without the routes is a healthy node that cannot answer this
- * question, and modelling it as `error` with a special code would put it one
- * `if` away from being rendered as a fault the reader is asked to retry.
- */
-export type SavedPlanListState =
-  | { readonly kind: 'unavailable' }
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'error'; readonly code: string }
-  | { readonly kind: 'ready'; readonly rows: readonly SavedPlanListEntryView[] };
+import type { SavedPlanListState } from '../../modules/saved-plans/contract';
 
 /** 6.4's sentence, in one place so the test and the surface cannot drift apart. */
 export const SAVED_PLANS_UNAVAILABLE = 'Saved plans are not available on this node yet.';

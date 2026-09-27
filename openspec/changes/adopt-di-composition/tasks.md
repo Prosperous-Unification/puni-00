@@ -165,7 +165,7 @@
       the two private bindings (`authOptions`, `throttleOptions`) exported independently, and the
       label dropped. Wiki registration (task 7.5) IS landed for this module; see 7.5's own note
       below.
-- [ ] 3.6 Optimization, with its repository ports and event projections. Sealed 2026-09-24 as
+- [x] 3.6 Optimization, with its repository ports and event projections. Sealed 2026-09-24 as
       `apps/wbs/be-01/src/module/optimization/` (`module.backend.optimization`): the moved
       `optimization.feature.ts`, its private `solver-child-lifecycle.ts` and
       `optimized-schedule-reader.ts`, a module exporting only `optimizer`, and `buildServices`
@@ -177,12 +177,10 @@
       returned coordinator, the private `optimizationOptions` binding exported, the label dropped, and
       the supplied contract version, error sink and cache-key port each replaced;
       `apps/wbs/be-01/src/service/clock.test.ts` now scans every backend module directory, watched
-      failing. **Not ticked: the repository ports are not landed.** The feature still takes the
-      SQLite `db` and calls `@wbs/store-sqlite`'s queue, admission, drain, generation, cache and
-      outcome functions directly, and its lifecycle does the same for heartbeat and release — K3
-      debt recorded in the module's `contract.ts` and tracked under 7.4. Those calls sit inside the
-      spawn, cancel and restart interleavings the coordinator owns, so replacing them needs an
-      interleaving model-based test with sabotage proofs, in a change of its own.
+      failing. Repository ports and the SQLite adapter landed 2026-09-27 with a
+      production-backed interleaving model and observed generation, acquisition,
+      cancellation, release, queued-recovery and restart negatives. The remaining K3
+      debt is the feature's repository-port dependency, tracked under 7.4.
 
 ## 4. Plan document and the adapter-side modules
 
@@ -298,7 +296,11 @@
       `directory-usage.ts`, `history.service.ts`, `optimizer-trigger-broadcaster.ts`,
       `retention-timer.ts`). Deleting a shim is a code change with its own `kinds.json` rows and
       checks, not a ledger entry; besides `service-boundaries.test.ts`, the be-01 `clock.test.ts`
-      list `AGE_THEIR_OWN_ENTRIES` names `retention-timer.ts`.
+      list `AGE_THEIR_OWN_ENTRIES` names `retention-timer.ts`. **2026-09-27:** those eight are
+      deleted with their `kinds.json` rows (59 shim rows remain, 33 of them naming a module).
+      `AGE_THEIR_OWN_ENTRIES` keeps `retention-timer.ts`: it matches by file name, and the owner
+      `module/bounded-replay-sweep/retention-timer.ts` keeps that name. The task stays open for
+      the shims that still have importers.
 - [x] 7.2 Update `docs/code-organization/kinds.json` for every moved and suffix-declared file: a
       suffix-declared path carries no entry, and a retained unsuffixed shim keeps one. Closed
       2026-09-24 by evidence: both halves hold on this tree under
@@ -420,6 +422,9 @@
       boundary needs either the pilot's `sourceRevision` moved forward or a documented exemption
       for a boundary with no predecessor, neither of which this packet decides; see
       `docs/superpowers/plans/2026-09-21-batch-6/040-6-e3-plan-import.md`.
+      Landed 2026-09-27 for Plan import and Plan document through change
+      `trusted-boundary-creation-revision`: each boundary names a `creationRevision`, the commit
+      that first added its directory (`5a99d244` and `b53693a2`), instead of a `sourceSelector`.
 - [x] 7.6 Label agreement: every sealed module's DI Bag label, the identifier its location implies,
       its README index, its wiki pilot row and boundary, and every `kinds.json` shim row naming it
       agree. Landed 2026-09-24 as `tools/tool-devsync/src/module-labels.test.ts`, which reads the

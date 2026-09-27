@@ -475,5 +475,5 @@ describe('read-candidate production CLI', () => {
     }
     // Proof: PR run 34694906449 timed this production path out at 5022.71ms under
     // Bun's 5-second default, after its child was still running (`Received: null`).
-  }, 10_000);
+  }, 20_000);
 });

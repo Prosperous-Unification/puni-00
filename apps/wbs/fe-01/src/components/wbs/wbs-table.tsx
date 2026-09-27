@@ -23,13 +23,14 @@ import type { CellRef } from './cell-navigation';
 import { type ColumnHintState, hintFor } from './column-hints';
 import { CompletionPrompt } from './completion-prompt';
 import { createDepLights, type DepLights } from './dep-light-store';
-import { type DropZone, zoneFor } from './drag-drop';
+import { type DropZone, planMove, zoneFor } from './drag-drop';
 import { cellIn, cellKey, type CellLanding, cellRefOf, focusCellAt } from './editable-grid';
 import { ExternalRefsModal } from './external-refs-modal';
 import { GanttFaultBoundary } from './gantt-fault';
 import { appliedGanttHeight, DAY_PX, GanttPanel, isoToday } from './gantt-panel';
 import { KeyboardCheatSheet } from './keyboard-cheat-sheet';
 import { logicalGrid } from './logical-grid';
+import { formatDestination, moveUnderCandidates, MoveUnderPicker } from './move-under-picker';
 import { OptimizationCue } from './optimization-cue';
 import { PlanCards } from './plan-cards';
 import {
@@ -61,6 +62,7 @@ import {
   frameLayout,
   type FrameLayoutState,
   GANTT_DOCK_SLACK,
+  hierarchyIndentFor,
   pinnedCellStyle,
   POPOVER_ROW_LAYER,
   resetHiddenColumns,
@@ -97,7 +99,9 @@ import {
 import type { WbsTableProps } from './use-plan-read';
 import { usePlanRead, usePlanReadState } from './use-plan-read';
 import {
+  collectPath,
   useAddWorkItem,
+  useHoverExpansion,
   usePlanDragState,
   usePlanStructure,
   usePlanStructureEffects,
@@ -766,6 +770,8 @@ export function WbsTable({
    * a row deleted while it asks is a prompt that is simply not there.
    */
   const [completionFor, setCompletionFor] = useState<string | null>(null);
+  /** The row the Move under… picker is open over, by id, for `completionFor`'s reason. */
+  const [moveUnderFor, setMoveUnderFor] = useState<string | null>(null);
   const { dragging, setDragging, dropHint, setDropHint } = usePlanDragState();
   /**
    * The Depends on picker: which row's cell it is open under, what has been
@@ -1006,6 +1012,26 @@ export function WbsTable({
     () => (completionFor === null ? null : (flat.find((row) => row.id === completionFor) ?? null)),
     [flat, completionFor],
   );
+  /**
+   * The `Move under …` cue for a middle zone the drop would be taken in, and
+   * nothing for an edge, a refused target or no drag. Indented one level past
+   * the target, where the moved row will stand.
+   */
+  const dropCue = useMemo(() => {
+    if (dragging === null || dropHint?.zone !== 'into') return null;
+    if (!planMove(flat, dragging, dropHint.rowId, 'into').ok) return null;
+    const target = flat.find((row) => row.id === dropHint.rowId);
+    if (target === undefined) return null;
+    return {
+      text: `Move under ${formatDestination(target)}`,
+      topPx: dropHint.cueTopPx,
+      leftPx: hierarchyIndentFor(collectPath(flat, target.id).length),
+    };
+  }, [dragging, dropHint, flat]);
+  const moveUnderRow = useMemo(
+    () => (moveUnderFor === null ? null : (flat.find((row) => row.id === moveUnderFor) ?? null)),
+    [flat, moveUnderFor],
+  );
   const {
     namedInTheTree,
     effectiveTeams,
@@ -1045,6 +1071,7 @@ export function WbsTable({
     criteria,
     search,
     filtering,
+    revealRow,
     filterLabels,
     facetTeams,
     facetTags,
@@ -1138,9 +1165,25 @@ export function WbsTable({
     setGapVisit,
     gridElement,
   });
+  const hoverOpened = useHoverExpansion({
+    dragging,
+    dropHint,
+    // A branch the reader has closed, which a middle drop there would be
+    // accepted into. Not while filtering: the filter decides what is open.
+    opensOnHover: (rowId) =>
+      dragging !== null &&
+      !filtering &&
+      expanded !== true &&
+      !expanded[rowId] &&
+      flat.some((row) => row.parentId === rowId) &&
+      planMove(flat, dragging, rowId, 'into').ok,
+    setExpanded,
+  });
   const {
     dropOn,
+    moveUnder,
     addSibling,
+    addChild,
     indent,
     outdent,
     moveAmongSiblings,
@@ -1155,6 +1198,8 @@ export function WbsTable({
     flat,
     pushToast,
     setExpanded,
+    revealRow,
+    hoverOpened,
     run,
     commands,
     focusIntent,
@@ -1483,6 +1528,8 @@ export function WbsTable({
     commands,
     run,
     duplicateRow,
+    addChild,
+    openMoveUnder: setMoveUnderFor,
     deleteRow,
     commitNameCell,
     onKeyDown,
@@ -1564,7 +1611,7 @@ export function WbsTable({
     // And with the overlay committed into `expanded` on the way out — the
     // merge this avoids — `clearing the search puts the reader’s own collapse
     // back` failed with the whole plan open. Both watched, 2026-08-06.
-    state: { expanded: search.expandedOverlay ?? expanded },
+    state: { expanded: search.expandedOverlay ?? hoverOpened.overlay(expanded) },
     onExpandedChange: setExpanded,
     // The expansion is this component's — remembered per project, opened on
     // a drop and on a gap visit, never the table's to reset. TanStack Table 9
@@ -2511,6 +2558,10 @@ export function WbsTable({
                 duplicate: (rowId) => {
                   void duplicateRow(rowId);
                 },
+                addChild: (row) => {
+                  void addChild(row);
+                },
+                moveUnder: setMoveUnderFor,
                 unfreeze: (rowId) => {
                   void run((write) =>
                     write.perform(['tree'], () => commands.unfreezeWorkItem(rowId)),
@@ -2537,7 +2588,9 @@ export function WbsTable({
               <div
                 data-table-frame
                 ref={frameRef}
-                style={TABLE_FRAME}
+                // Positioned so the drag's `Move under …` cue can be laid
+                // over the rows it names without taking room among them.
+                style={{ ...TABLE_FRAME, position: 'relative' }}
                 onDragOver={(event) => {
                   if (dragging === null) return;
                   const frame = event.currentTarget;
@@ -2710,9 +2763,19 @@ export function WbsTable({
                             // Without this the browser refuses the drop outright.
                             event.preventDefault();
                             const box = event.currentTarget.getBoundingClientRect();
+                            const frame = frameRef.current;
+                            // This handler is on a row inside the frame, so a
+                            // frame not attached is a broken mount, not a place.
+                            if (frame === null)
+                              throw new Error('a row took a dragover outside its frame');
                             setDropHint({
                               rowId: row.original.id,
                               zone: zoneFor(event.clientY - box.top, box.height),
+                              // Under the row, in the frame's scrolled
+                              // coordinates, so the cue sits beneath the
+                              // target and moves nothing in the table.
+                              cueTopPx:
+                                box.bottom - frame.getBoundingClientRect().top + frame.scrollTop,
                             });
                           }}
                           onDragLeave={() => {
@@ -2790,6 +2853,26 @@ export function WbsTable({
                     />
                   </tbody>
                 </table>
+                {dropCue !== null && (
+                  // Laid over the table rather than inserted into it: a row
+                  // added under the target would push every row below it,
+                  // and the viewport's measured positions with them.
+                  <div
+                    role="status"
+                    aria-label={dropCue.text}
+                    data-drop-cue
+                    style={{
+                      position: 'absolute',
+                      top: dropCue.topPx,
+                      left: dropCue.leftPx,
+                      pointerEvents: 'none',
+                      zIndex: POPOVER_ROW_LAYER,
+                    }}
+                    className="bg-primary text-primary-foreground rounded px-2 py-0.5 text-xs shadow"
+                  >
+                    {dropCue.text}
+                  </div>
+                )}
               </div>
             </>
           );
@@ -2934,6 +3017,19 @@ export function WbsTable({
         than an invariant: the surface simply is not there, which is what a
         deleted row's editor should be.
       */}
+      {moveUnderRow !== null && (
+        <MoveUnderPicker
+          row={moveUnderRow}
+          candidates={moveUnderCandidates(flat, moveUnderRow)}
+          onOpenChange={(open) => {
+            if (!open) setMoveUnderFor(null);
+          }}
+          onChoose={(parentId) => {
+            setMoveUnderFor(null);
+            void moveUnder(moveUnderRow, parentId);
+          }}
+        />
+      )}
       {completionRow !== null && (
         <CompletionPrompt
           number={completionRow.number}

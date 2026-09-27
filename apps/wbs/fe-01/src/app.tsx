@@ -10,6 +10,7 @@ import { HintLayer } from '@/components/wbs/hint';
 import { me as fetchMe, type Session } from '@/lib/api';
 import { failureMessage, unreachable } from '@/lib/http';
 import { ThemeProvider, useThemeChoice } from '@/lib/theme';
+import { useRetirementJoin } from '@/runtime/application-services-context';
 import { credentialOf } from '@/runtime/credential';
 import {
   createSessionOwner,
@@ -17,6 +18,14 @@ import {
   type SessionOwner,
   type SessionProjects,
 } from '@/runtime/session-runtime';
+
+/** The signed-in region's session could not be given back when the region went. */
+export class SessionRetirementError extends Error {
+  constructor() {
+    super('the session could not be given back when the signed-in region went');
+    this.name = 'SessionRetirementError';
+  }
+}
 
 /**
  * The document's whole app, inside the boundary that catches what it throws.
@@ -179,6 +188,15 @@ export interface SignedInAppProps {
  * it is asked to open, so Strict Mode's discarded initializer leaks nothing, and
  * the region going gives the session back.
  *
+ * **That retirement is the application's to wait for.** The region's cleanup
+ * hands the session's retirement to the application ({@link useRetirementJoin}),
+ * as a settlement that fails when this leave left the owner terminally fatal
+ * where it was not before. On page hide the bootstrap takes the root down first,
+ * so the application's own retirement then waits for the session's, under its
+ * own budget, and fails — drawn as the fatal page on restoration — when it
+ * failed. A session already fatal before the region went was drawn as such
+ * while the region was there, and does not fail the application again.
+ *
  * The router is drawn only while the owner publishes **this** user's runtime —
  * see {@link sessionFor} — and the sanitized fatal state when the runtime
  * could not be built or given back.
@@ -199,6 +217,7 @@ export function SignedInApp({
 }: SignedInAppProps): React.JSX.Element {
   const [sessionOwner] = useState(openOwner);
   const sessionState = useSyncExternalStore(sessionOwner.subscribe, sessionOwner.snapshot);
+  const joinRetirement = useRetirementJoin();
   useEffect(() => {
     // Proof: on 2026-09-24, opening with an empty credential (g4) failed `builds a password
     // session’s directory from the credential the login answered`: expected [ '' ] to deeply
@@ -210,11 +229,24 @@ export function SignedInApp({
   }, [sessionOwner, session]);
   useEffect(
     () => () => {
+      const failedBefore = isTerminallyFatal(sessionOwner);
       // Proof: on 2026-09-24, an unmount cleanup that left nothing (g3) failed `gives the session
       // back when the signed-in region goes`: expected 'live' to be 'empty'.
-      void sessionOwner.leave();
+      const leaving = sessionOwner.leave().then(() => {
+        // Proof: on 2026-09-27, a settlement that never failed (c2) failed `fails the
+        // application’s retirement when the session could not be given back as the region went`
+        // on `promise resolved "undefined" instead of rejecting`. Failing whenever the owner ends
+        // fatal (c4, `!failedBefore` dropped) failed `does not fail the application again for a
+        // session already drawn as fatal` on `promise rejected "DiBagDisposalError: …" instead
+        // of resolving`.
+        if (!failedBefore && isTerminallyFatal(sessionOwner)) throw new SessionRetirementError();
+      });
+      // Proof: on 2026-09-27, leaving without handing the settlement over (c3) failed `retires the
+      // application only once the region’s session has been given back` on `expected [
+      // 'application retired' ] to deeply equal []`.
+      joinRetirement(leaving);
     },
-    [sessionOwner],
+    [sessionOwner, joinRetirement],
   );
   // Proof: on 2026-09-24, never drawing the fault (g2) failed `shows the sanitized report when
   // the session cannot be built` with `Error: no fatal state yet`: no [data-lifetime-fault] drawn.
@@ -316,4 +348,10 @@ function ProjectRetirementGate({
   if (projectState.status === 'fatal' && projectState.terminal)
     return <LifetimeFault fault={projectState.fault} />;
   return children;
+}
+
+/** Whether the owner's last retirement failed or outran its wait, which nothing can undo. */
+function isTerminallyFatal(owner: SessionOwner): boolean {
+  const state = owner.snapshot();
+  return state.status === 'fatal' && state.terminal;
 }

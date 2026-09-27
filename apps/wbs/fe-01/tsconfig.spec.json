@@ -43,6 +43,7 @@
     "vite-config.test.ts",
     "browser-packages.test.ts",
     "playwright.config.ts",
-    "playwright-config.test.ts"
+    "playwright-config.test.ts",
+    "vitest-budget.test.ts"
   ]
 }

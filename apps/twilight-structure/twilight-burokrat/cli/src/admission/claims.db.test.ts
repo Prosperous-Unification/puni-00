@@ -127,7 +127,7 @@ async function observation(child: ReturnType<typeof spawnWorker>): Promise<Worke
  * never starts ends the test with its own message, and generous, because a loaded gate host starts
  * a Bun process slowly: at about five seconds CI failed `two Bun processes atomically refuse
  * overlap and both admit disjoint work` on `worker readiness absent` after 5439ms, on a change that
- * touched nothing here (2026-09-20). Kept under the preload's 30 second test limit so this message
+ * touched nothing here (2026-09-20). Kept under the `test` target's `--timeout` so this message
  * is the one that is seen.
  */
 const WORKER_READINESS_MS = 20_000;

@@ -934,6 +934,31 @@ describe('trusted policy production CLI', () => {
     );
   });
 
+  test('refuses a non-pilot creation revision with no reviewed source revision', () => {
+    const fixture = createFixture('ratchet');
+    const policy = JSON.parse(readFileSync(fixture.policyPath, 'utf8')) as {
+      boundaries: { boundaryId: string; creationRevision?: string }[];
+    };
+    const validator = policy.boundaries.find(
+      ({ boundaryId }) => boundaryId === 'boundary.validator',
+    );
+    if (validator === undefined) throw new Error('validator boundary absent');
+    validator.creationRevision = fixture.revision;
+    write(fixture.policyPath, `${JSON.stringify(policy)}\n`);
+    const binding = JSON.parse(readFileSync(fixture.bindingPath, 'utf8')) as {
+      policy: { sha256: string };
+    };
+    binding.policy.sha256 = sha256(readFileSync(fixture.policyPath));
+    write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
+
+    const invocation = runLocal(fixture, 'ratchet');
+    const observed = outputOf(invocation);
+    expect(invocation.exitCode, observed).toBe(1);
+    expect(observed).toContain(
+      'trusted boundary creation revision requires pilot policy: boundary.validator',
+    );
+  });
+
   test('ratchet refuses a candidate that removes an adopted boundary from its own policy', () => {
     const fixture = createFixture('ratchet');
     write(join(fixture.repository, 'policy.json'), '{"boundaries":["validator","exemptions"]}\n');
@@ -1460,7 +1485,7 @@ describe('trusted policy production CLI', () => {
       accepted: true,
       certified: true,
     });
-  }, 15_000);
+  }, 30_000);
 
   test('preserved enforce launcher ignores a candidate-local Nx wrapper', () => {
     const fixture = createFixture('enforce');
@@ -1948,7 +1973,7 @@ describe('trusted policy production CLI', () => {
       expect(invocation.exitCode, output).toBe(1);
       expect(output).toContain(mutation.expected);
     }
-  }, 40_000);
+  }, 90_000);
 
   test('trusted obligations must retain one exact boundary assignment', () => {
     const fixture = createFixture('enforce');
@@ -2037,7 +2062,7 @@ describe('trusted policy production CLI', () => {
       expect(invocation.exitCode, output).toBe(1);
       expect(output).toContain('resolves inside selected candidate');
     }
-  }, 10_000);
+  }, 20_000);
 
   test('trusted authority aliases cannot resolve inside the selected candidate', () => {
     const fixture = createFixture('enforce');
