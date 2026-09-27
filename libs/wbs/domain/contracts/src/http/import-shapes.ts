@@ -25,7 +25,7 @@ export const importSummary = responseSchema(
 const malformedImport = responseSchema(
   type({
     error:
-      "'invalid_body' | 'unsupported_version' | 'unknown_ref' | 'cycle' | 'ancestor' | 'deadline_before_project_start'",
+      "'invalid_body' | 'unsupported_version' | 'unknown_ref' | 'cycle' | 'ancestor' | 'deadline_before_project_start' | 'work_item_takes_one_type'",
     path: 'string',
     detail: 'string | null',
   }),

@@ -305,7 +305,9 @@ describe('adding and renaming a step', () => {
       Promise.resolve(
         response(
           200,
-          JSON.stringify({ step: { id: 'r3', projectId: 'p1', name: 'Design', position: 0 } }),
+          JSON.stringify({
+            step: { id: 'r3', projectId: 'p1', name: 'Design', position: 0, code: 'design' },
+          }),
         ),
       ),
     );

@@ -25,6 +25,11 @@ import type { DeliveredPlan } from '@/modules/plan-feed/delivered-plan-store';
 import type { Presence } from '@/modules/plan-feed/presence-store';
 import type { Busy } from '@/modules/plan-writer/busy-store';
 import type { PlanWriter, PlanWriteRefusal } from '@/modules/plan-writer/contract';
+import type {
+  OpenedSavedPlans,
+  SavedPlans,
+  SavedPlansReader,
+} from '@/modules/saved-plans/contract';
 import type { Store } from '@/modules/store';
 
 /** What a reader hands for its feed: everything the feed needs but the routes. */
@@ -35,13 +40,13 @@ export type CalendarMarkersReader = Omit<CalendarMarkersHost, 'api'>;
 
 /**
  * What a plan screen may build for the project it shows: its feed, its marker
- * gestures and its commands — feature-services only (rule K2).
+ * gestures, its commands and its saved plans — feature-services only (rule K2).
  *
  * Factories and not instances, because this is what a project runtime is
  * built **from**: `runtime/project-runtime.ts` calls each once for the one
- * project it opens, and nothing in delivery calls them. The HTTP client and
- * the three private ports cut from it are inside, and no member hands either
- * out.
+ * project it opens, and nothing in delivery calls them. The HTTP client, the
+ * three private ports cut from it and the saved plans' own port are inside, and
+ * no member hands any of them out.
  *
  * Its **identity** is the client's: the page composes once per client, and a
  * new one makes its project owner open the selected project again over it.
@@ -53,6 +58,8 @@ export interface ProjectServices {
   readonly calendarMarkersFor: (reader: CalendarMarkersReader) => CalendarMarkers;
   /** The commands of one project, bound to it, writing through the commands' routes. */
   readonly planCommandsFor: (projectId: string) => PlanCommands;
+  /** Opens one project's saved plans, whose shelf is watched until they are closed. */
+  readonly savedPlansFor: (reader: SavedPlansReader) => OpenedSavedPlans;
 }
 
 /**
@@ -96,7 +103,8 @@ export interface ProjectSource {
  *
  * One of each, built once when the project is opened and given back when it is
  * left: the delivered plan the feed writes and the table selects, busy, the two
- * announcement channels, the marker gestures, the writer and the commands. No
+ * announcement channels, the marker gestures, the writer, the commands and the
+ * saved plans. No
  * bag, no client, no port, no refresh owner and no stream is reachable from
  * here; the runtime's own suite enumerates this surface rather than trusting
  * the type.
@@ -133,6 +141,8 @@ export interface ProjectRuntime {
   readonly markers: CalendarMarkers;
   readonly writer: PlanWriter;
   readonly commands: PlanCommands;
+  /** This project's saved-plan shelf and its requests; the shelf's watch is this runtime's. */
+  readonly savedPlans: SavedPlans;
 }
 
 /**

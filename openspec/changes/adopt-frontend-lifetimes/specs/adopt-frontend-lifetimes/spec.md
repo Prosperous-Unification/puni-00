@@ -579,16 +579,17 @@ and the page SHALL open its project in the one runtime asked for afterwards.
 
 fe-01 SHALL build the plan services of one selected project - its delivered plan,
 its busy state, its refusal and command-issued channels, its plan feed, its
-calendar markers, its plan writer and its plan commands - as one DI Bag project
+calendar markers, its plan writer, its plan commands and its saved plans - as one DI Bag project
 runtime, outside React, through one project owner that holds at most one current
 runtime. The owner SHALL withdraw the current runtime synchronously when another
 project is opened or the project is left, before its disposal starts, and every
 guard inside the runtime SHALL answer from that withdrawal: a withdrawn runtime
 SHALL hand nothing on from a late answer or a stream frame, SHALL send nothing
-for a reread or a calendar-marker gesture asked of it, and SHALL NOT answer that
-it is current again. Its feed SHALL be given back exactly once, closing its
-stream, however many triggers retire it. The runtime SHALL publish only feature
-and store surfaces.
+for a reread, a calendar-marker gesture or a saved-plan request asked of it, SHALL
+never change its saved-plan shelf again, and SHALL NOT answer that it is current
+again. Its feed and its saved-plan shelf's watch SHALL each be given back exactly
+once, closing their streams, however many triggers retire it. The runtime SHALL
+publish only feature and store surfaces.
 
 #### Scenario: A late answer, a frame, a reread and a marker after a switch
 
@@ -609,6 +610,16 @@ and store surfaces.
   the previous project's stream is closed once; and when a retirement fails, the
   sanitized report and its occurrence handle are shown in place of the page's
   main and the next project is never drawn
+
+#### Scenario: The saved-plan shelf is the runtime's
+
+- **WHEN** a project's shelf has been read, a read of it is still in flight, and
+  another project is selected
+- **THEN** no shelf is drawn from the old runtime's withdrawal until the next
+  runtime is live; the in-flight answer changes nothing anybody sees; the old
+  project's shelf broadcast is unsubscribed once when its retirement runs; the
+  next project's shelf starts from loading and shows only its own rows; and a
+  shelf watch that cannot be stopped fails the retirement like any other
 
 #### Scenario: A project switch resets presence
 

@@ -50,6 +50,15 @@ export function inMemorySubtrees(
           if (!written.ok)
             throw new Error(`cannot restore team set for ${row.id}: ${written.reason}`);
         }
+        if (row.typeIds !== undefined && row.typeIds.length > 0) {
+          // The store's own patch, not the authored service path: a copy carries
+          // a type conflict unchanged, less a type the directory no longer holds
+          // (the SQLite store's rule, argued there).
+          const held = new Set((await stores.directory.listWorkItemTypes()).map((each) => each.id));
+          const typeIds = row.typeIds.filter((typeId) => held.has(typeId));
+          const typed = await stores.workItems.patch(row.id, { typeIds }, stamp);
+          if (!typed.ok) throw new Error(`cannot restore type set for ${row.id}: ${typed.reason}`);
+        }
       }
       // After the rows, because the real transaction has no choice: these point
       // at rows that must already exist. `move` is what the in-memory work item

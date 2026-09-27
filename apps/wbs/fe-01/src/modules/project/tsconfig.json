@@ -17,17 +17,21 @@
     "../plan-feed/presence-store.ts",
     "../plan-writer/busy-store.ts",
     "../plan-writer/contract.ts",
+    "../saved-plans/contract.ts",
+    "../saved-plans/saved-plans.feature.ts",
     // What those reach: the stream adapter, and the writer's local write with
     // the delivery types it takes (see `../plan-writer/tsconfig.json`).
     "../../lib/api.ts",
     "../../lib/project-stream.ts",
     "../../lib/local-write.ts",
+    "../../lib/saved-plan-api.ts",
     "../../components/wbs/cell-navigation.ts",
     "../../components/wbs/editable-grid.ts",
     "../../components/wbs/live-editing.ts",
     // Test support its suite records calls on.
     "../../testing/fake-project-api.ts",
     "../../testing/record-calls.ts",
-    "../../testing/refusing-api.ts"
+    "../../testing/refusing-api.ts",
+    "../../testing/no-saved-plans.ts"
   ]
 }

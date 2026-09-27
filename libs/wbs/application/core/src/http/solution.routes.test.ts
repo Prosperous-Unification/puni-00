@@ -25,7 +25,7 @@ test('direct solution binding reads the exact slug and complete project with ord
     restricted: true,
     solutionRef: { slug: 'linked', url: 'https://example.com/linked' },
   });
-  const steps = [{ id: 'step', projectId: 'project', name: 'Build', position: 10 }];
+  const steps = [{ id: 'step', projectId: 'project', name: 'Build', position: 10, code: 'build' }];
   await store.create(project, steps, { at: 1, by: 'owner' });
   const [endpoint] = solutionRoutes(
     new ProjectService({ clock: testClock, projects: store, broadcast: recordingBroadcaster() }),
