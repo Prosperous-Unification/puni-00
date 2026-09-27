@@ -47,10 +47,12 @@ function uniqueIndexesOn(table: string): string[][] {
   const db = openDatabase(path);
   try {
     const listed = db
-      .query<{ name: string; unique: number; partial: number }, []>(`PRAGMA index_list(${table})`)
+      .query<{ name: string; unique: number }, []>(`PRAGMA index_list(${table})`)
       .all();
+    // Partial unique indexes count: SQLite names their columns in the same
+    // message, and `organization_domain_claim_owner` is one.
     return listed
-      .filter((index) => index.unique === 1 && index.partial === 0)
+      .filter((index) => index.unique === 1)
       .map((index) =>
         db
           .query<{ seqno: number; name: string | null }, []>(`PRAGMA index_info("${index.name}")`)
@@ -123,7 +125,7 @@ describe('the unique indexes a refusal names', () => {
     // Both sides could be empty for the same wrong reason — a pragma naming a
     // table SQLite does not have would throw, but a filter that dropped every
     // index would not, and an empty list contains nothing to disagree with.
-    expect(Object.keys(UNIQUE_INDEXES).length).toBe(7);
+    expect(Object.keys(UNIQUE_INDEXES).length).toBe(8);
     expect(uniqueIndexesOn('step').length).toBeGreaterThan(0);
     expect(UNIQUE_INDEXES.stepNameInProject.length).toBe(2);
   });

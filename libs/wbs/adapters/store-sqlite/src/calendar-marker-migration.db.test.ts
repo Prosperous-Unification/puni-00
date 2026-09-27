@@ -52,6 +52,21 @@ const EXTERNAL_REF_NAME = '20260909120000_add_external_ref_name';
  * was newest.
  */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
+/**
+ * The newest: the inert organization records `organization-ownership-and-access`
+ * adds. Six `CREATE TABLE`s forward and six `DROP TABLE`s back, so it heads every
+ * descending reversal list and tails every ascending one.
+ */
+const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
+/** The tables {@link ORGANIZATION_RECORDS} adds, which the same rollback takes. */
+const ORGANIZATION_TABLES = [
+  'external_identity',
+  'organization',
+  'organization_domain_claim',
+  'organization_invitation',
+  'organization_join_request',
+  'organization_membership',
+];
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -182,6 +197,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      ORGANIZATION_RECORDS,
       WORK_ITEM_FACTS,
       EXTERNAL_REF_NAME,
       WORK_ITEM_DEADLINE,
@@ -192,7 +208,9 @@ describe('20260905090000_add_calendar_marker', () => {
     expect(afterRollback).not.toContain('calendar_marker');
     // Nothing else moved: the forward migration is additive, so its reversal
     // owes the rest of the schema byte-for-byte.
-    expect(afterRollback).toEqual(withTable.filter((n) => n !== 'calendar_marker'));
+    expect(afterRollback).toEqual(
+      withTable.filter((n) => n !== 'calendar_marker' && !ORGANIZATION_TABLES.includes(n)),
+    );
   });
 
   it('is stamped later than every folder on disk and collides with none', () => {

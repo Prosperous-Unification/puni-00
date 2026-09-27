@@ -69,6 +69,12 @@ const EXTERNAL_REF_NAME = '20260909120000_add_external_ref_name';
  * was newest.
  */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
+/**
+ * The newest: the inert organization records `organization-ownership-and-access`
+ * adds. Six `CREATE TABLE`s forward and six `DROP TABLE`s back, so it heads every
+ * descending reversal list and tails every ascending one.
+ */
+const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
 
 /** The one below it, which is where every rollback here stops. */
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
@@ -107,7 +113,17 @@ const ADDED_TABLES = [
 // Every table a rollback to LOOKUP_INDEXES takes that this migration did not
 // add: the two the saved-plan migrations above the target add, and
 // `calendar_marker`, which landed above all of them on 2026-09-05.
-const ALSO_ROLLED_BACK = ['saved_plan', 'saved_plan_body', 'calendar_marker'] as const;
+const ALSO_ROLLED_BACK = [
+  'saved_plan',
+  'saved_plan_body',
+  'calendar_marker',
+  'external_identity',
+  'organization',
+  'organization_domain_claim',
+  'organization_invitation',
+  'organization_join_request',
+  'organization_membership',
+] as const;
 
 const ADDED_INDEX = 'solver_queue_dequeue_order';
 const ADDED_PROJECT_COLUMN = 'optimization_delete_pending_at';
@@ -286,6 +302,7 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
