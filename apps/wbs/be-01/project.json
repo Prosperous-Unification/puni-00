@@ -77,7 +77,8 @@
       "executor": "nx:run-commands",
       "options": {
         "command": "bunx tsc --build --force apps/wbs/be-01/tsconfig.json"
-      }
+      },
+      "dependsOn": ["typecheck:module"]
     },
     "serve-local-solver": {
       "executor": "nx:run-commands",
@@ -87,6 +88,12 @@
         "cwd": "apps/wbs/be-01"
       },
       "cache": false
+    },
+    "typecheck:module": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun tools/tool-devsync/src/typecheck-modules.ts apps/wbs/be-01/src/module"
+      }
     }
   }
 }
