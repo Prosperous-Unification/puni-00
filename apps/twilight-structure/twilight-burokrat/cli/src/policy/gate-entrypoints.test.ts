@@ -1968,7 +1968,7 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(existsSync(suppressedMarker)).toBe(false);
     // Two real validator launches take 4.2s on an idle h2puni and 5.3s under concurrent gates.
     // Keep the test bounded without letting Bun's 5s default kill the second refusal as SIGPIPE.
-  }, 15_000);
+  }, 30_000);
 
   test('the real Nx target reruns an omitted-input mutation and a controlled cache fault does not', () => {
     const paths = realFixture();

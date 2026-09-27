@@ -2256,6 +2256,25 @@ directory`; 0 pass, 5 fail.
 - Not run by the executor: `tool-devsync:test` (it writes Git objects), the wiki pilot suite,
   `check-indexes committed` and the host gate; all are the planner's.
 
+### Dead be-01 shims, task 7.1 in part — 2026-09-27
+
+- A module-specifier scan (static `from`, `import()`, `require()` and `mock.module()` specifiers,
+  relative and `@wbs/core/*`, over every tracked `.ts`, `.tsx`, `.mts`, `.js` and `.mjs` file)
+  found no importer of the eight be-01 forwarding shims task 7.1 names (a throwaway Python scan;
+  `bunx nx run-many -t typecheck` over the four touched projects repeats the proof for static imports). They are deleted with their
+  eight `kinds.json` rows: 85 entries become 77, and 59 shim rows remain, 33 naming a module.
+- Fault: restoring the eight rows over the deleted files failed `every backend service file with no
+kind suffix is classified exactly once` in `service-kinds.test.ts`, listing
+  `apps/wbs/be-01/src/service/clean-name.ts` and `…/retention-timer.ts` among the `+` lines
+  (21 pass, 1 fail across `env -u CLAUDECODE bun test tools/tool-devsync/src/service-kinds.test.ts
+tools/tool-devsync/src/module-labels.test.ts`, with `kinds.json` taken from `git show HEAD:` on
+  the pre-commit tree); the ledger cannot keep a row for a deleted shim.
+- After: `tool-devsync` 379 pass with three `eslint-boundaries.test.ts` timeouts under load that
+  passed 18 of 18 alone, `wbs-core` `bun test src` 626 pass, be-01 `bun test src`
+  1110 pass, 0 fail; `typecheck` for `wbs-core`, `wbs-be-01`, `wbs-fe-01` and `tool-devsync`
+  and `lint:fast` for `wbs-be-01` and `wbs-fe-01` exited 0. Three fe-01 comments that named the
+  deleted be-01 paths now name the core owners.
+
 ### Optimization model, slice 1 — 2026-09-27
 
 - Review follow-up: command coverage counters now reset per test; generated histories assert only commands they generate. Spawn claims use model generation and cancel epoch, checked by objective and admission order. `ExitChild` settles through at most 80 `Bun.sleep(0)` turns. A separate four-slot fixed trace proves the newest generation's queued `pri` and `time` objectives both launch and the queue drains after old slots exit.
@@ -2376,3 +2395,78 @@ The wiki pilot-policy file passed 19 tests and failed 2 across 21 tests; both fa
 CLI cases stopped at `trusted TypeScript runtime modules are not configured`. The four on-disk
 bootstrap policy, mapping, and relationship checks passed. Prettier checked every file touched
 since the five module commits; `tool-devsync:lint:fast` and `git diff --check` passed.
+
+### Task 7.3 — isolated module type checks (2026-09-27)
+
+Each module has a non-solution `tsconfig.json` extending its project config, with `*.ts`, Bun
+types and `noEmit`. `wbs-core:typecheck` and `wbs-be-01:typecheck` depend on their respective
+`typecheck:module` targets. The runner discovers immediate child directories and invokes
+`bunx tsc -p` for each. The table records production-target negatives, run with
+`env -u CLAUDECODE NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SKIP_NX_CACHE=true`; each
+appended assignment was restored byte-for-byte in a `finally` block before the next run.
+
+| Module               | Injected fault in `module.ts`    | Observed compiler error                                                                                                                                                                      |
+| -------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| authentication       | `AuthenticationExports = {}`     | `libs/wbs/application/core/src/module/authentication/module.ts(76,7): error TS2739: Type '{}' is missing the following properties from type 'AuthenticationExports': auth, loginThrottle`    |
+| bounded-replay-sweep | `BoundedReplaySweepExports = {}` | `libs/wbs/application/core/src/module/bounded-replay-sweep/module.ts(84,7): error TS2741: Property 'retention' is missing in type '{}' but required in type 'BoundedReplaySweepExports'.`    |
+| calendar-marker      | `CalendarMarkerExports = {}`     | `libs/wbs/application/core/src/module/calendar-marker/module.ts(74,7): error TS2741: Property 'calendarMarkers' is missing in type '{}' but required in type 'CalendarMarkerExports'.`       |
+| capacity             | `CapacityExports = {}`           | `libs/wbs/application/core/src/module/capacity/module.ts(67,7): error TS2741: Property 'capacity' is missing in type '{}' but required in type 'CapacityExports'.`                           |
+| directory            | `DirectoryExports = {}`          | `libs/wbs/application/core/src/module/directory/module.ts(57,7): error TS2741: Property 'directory' is missing in type '{}' but required in type 'DirectoryExports'.`                        |
+| plan-commands        | `PlanCommandsExports = {}`       | `libs/wbs/application/core/src/module/plan-commands/module.ts(76,7): error TS2741: Property 'commands' is missing in type '{}' but required in type 'PlanCommandsExports'.`                  |
+| plan-document        | `PlanDocumentExports = {}`       | `libs/wbs/application/core/src/module/plan-document/module.ts(58,7): error TS2741: Property 'planDocuments' is missing in type '{}' but required in type 'PlanDocumentExports'.`             |
+| plan-history         | `PlanHistoryExports = {}`        | `libs/wbs/application/core/src/module/plan-history/module.ts(48,7): error TS2741: Property 'history' is missing in type '{}' but required in type 'PlanHistoryExports'.`                     |
+| plan-import          | `PlanImportExports = {}`         | `libs/wbs/application/core/src/module/plan-import/module.ts(60,7): error TS2741: Property 'imports' is missing in type '{}' but required in type 'PlanImportExports'.`                       |
+| priority-band        | `PriorityBandExports = {}`       | `libs/wbs/application/core/src/module/priority-band/module.ts(70,7): error TS2741: Property 'priorityBands' is missing in type '{}' but required in type 'PriorityBandExports'.`             |
+| project              | `ProjectExports = {}`            | `libs/wbs/application/core/src/module/project/module.ts(69,7): error TS2741: Property 'projects' is missing in type '{}' but required in type 'ProjectExports'.`                             |
+| realtime             | `RealtimeExports = {}`           | `libs/wbs/application/core/src/module/realtime/module.ts(118,7): error TS2739: Type '{}' is missing the following properties from type 'RealtimeExports': replayBuffer, broadcaster, replay` |
+| saved-plans          | `SavedPlansExports = {}`         | `libs/wbs/application/core/src/module/saved-plans/module.ts(76,7): error TS2741: Property 'savedPlans' is missing in type '{}' but required in type 'SavedPlansExports'.`                    |
+| step                 | `StepExports = {}`               | `libs/wbs/application/core/src/module/step/module.ts(66,7): error TS2741: Property 'steps' is missing in type '{}' but required in type 'StepExports'.`                                      |
+| work-item            | `WorkItemExports = {}`           | `libs/wbs/application/core/src/module/work-item/module.ts(113,7): error TS2741: Property 'workItems' is missing in type '{}' but required in type 'WorkItemExports'.`                        |
+| optimization         | `OptimizationExports = {}`       | `apps/wbs/be-01/src/module/optimization/module.ts(124,7): error TS2741: Property 'optimizer' is missing in type '{}' but required in type 'OptimizationExports'.`                            |
+| solver-launcher      | `SolverLauncherExports = {}`     | `apps/wbs/be-01/src/module/solver-launcher/module.ts(68,7): error TS2741: Property 'solverLauncher' is missing in type '{}' but required in type 'SolverLauncherExports'.`                   |
+| solver-supervisor    | `SolverSupervisorExports = {}`   | `apps/wbs/be-01/src/module/solver-supervisor/module.ts(76,7): error TS2741: Property 'spawner' is missing in type '{}' but required in type 'SolverSupervisorExports'.`                      |
+
+Removing `libs/wbs/application/core/src/module/authentication/tsconfig.json` then running
+`wbs-core:typecheck:module` exited 1 with `TS5058: The specified path does not exist` naming
+that config; the config was restored. Deleting `wbs-core:typecheck.dependsOn` made the focused
+workspace target test fail (0 pass, 1 fail) on the missing `typecheck:module` dependency; it
+was restored. Removing the runner's empty-root refusal made its focused test return exit 0
+(0 pass, 1 fail); it was restored.
+
+The runner fixture suite passed 5/5: missing config, empty root, missing CLI argument, a
+`Contract` assignment failing with TS2741, and two valid modules. Removing its empty-root guard
+failed the focused test at exit code 0; removing its argument-count guard failed the focused test
+because the usage diagnostic disappeared. The production CLI's missing-config fixture and the
+real Authentication config deletion failed with the missing path named. The fixture's broken
+contract and all eighteen real module mutations failed through TypeScript; the real runs used
+`bunx nx run <project>:typecheck:module` and reported the corresponding module path.
+
+| Verification command (all under `env -u CLAUDECODE`)                                     | Result                                                                           |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `bun test tools/tool-devsync/src/typecheck-modules.test.ts`                              | 6 passed, 0 failed (after the coverage guard below)                              |
+| `bunx nx run wbs-core:typecheck:module`                                                  | passed; 15 modules discovered                                                    |
+| `bunx nx run wbs-be-01:typecheck:module`                                                 | passed; 3 modules discovered                                                     |
+| `bunx nx run wbs-core:typecheck`                                                         | passed, including `typecheck:module` dependency                                  |
+| `bunx nx run wbs-be-01:typecheck`                                                        | passed, including `typecheck:module` dependency                                  |
+| `bun test` on workspace-targets, workspace-inventory, module-labels and service-kinds    | 46 passed, 0 failed                                                              |
+| `bunx nx run tool-devsync:typecheck`                                                     | passed                                                                           |
+| `bunx nx run tool-devsync:lint:fast`, `wbs-core:lint:fast`, `wbs-be-01:lint:fast`        | all three passed                                                                 |
+| `bunx prettier --check` on all touched files; `git diff --check`                         | passed                                                                           |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                 | 131 passed, 0 failed                                                             |
+| `bun test apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts` | 21 passed, 0 failed, 317 assertions; trusted runtime set to local `node_modules` |
+
+The first pilot-policy attempt ran before the new config files were committed and failed because
+its immutable candidate did not contain them. A second focused attempt without
+`TOOL_WIKI_TRUSTED_NODE_MODULES` failed at its explicit trusted-runtime boundary. With the
+implementation committed and that variable set to this checkout's `node_modules`, the focused
+case passed 1/1 and the full suite passed 21/21. The full host gate was intentionally skipped as
+requested for this loaded host; the focused checks above are the verification for task 7.3.
+
+Review follow-up (Astra, 2026-09-27): a module config whose `include` is dropped inherits its
+project's solution-style empty inputs, and `tsc -p` then exits 0 having read nothing. The runner
+now parses each config and refuses a module whose own `.ts` files are not all in the program. With
+the guard disabled, `names a module its config leaves unchecked` failed (5 pass, 1 fail,
+`Expected: not 0`) and `wbs-core:typecheck:module` reported success with
+`authentication/tsconfig.json`'s `include` deleted; with the guard restored the same fault failed
+the target naming `authentication (config leaves out .../module.ts, ...)`. The fixture suite also
+creates the untracked `tmp/` parent itself, so it passes in a fresh checkout.

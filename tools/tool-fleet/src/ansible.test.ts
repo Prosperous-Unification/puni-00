@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -455,8 +455,8 @@ describe('the Ansible host and k3s contract', () => {
     expect(joinPlaybook).toContain('k3s_agents');
     expect(base).toContain('puni_operator_authorized_keys is defined');
     expect(base).toContain('content: |');
-    expect(base).toContain('puni_swap_enabled is defined');
-    expect(base).toContain("ansible_distribution_version == '24.04'");
+    expect(base).toContain('puni_swap_file_mib is defined');
+    expect(base).toContain("ansible_distribution_version in ['24.04', '26.04']");
     expect(base).toContain('- jq');
     expect(base).toContain('path: /etc/systemd/journald.conf.d');
     expect(network).toContain('nft -c -f');
@@ -525,6 +525,102 @@ describe('the Ansible host and k3s contract', () => {
     ]) {
       expect(Bun.spawnSync(['bash', helper, ...argv]).exitCode).toBe(64);
     }
+  });
+
+  it('caps the kubelet below host memory and keeps pods off swap', async () => {
+    const root = join(import.meta.dir, '../../..');
+    for (const role of ['k3s_server', 'k3s_agent']) {
+      const config = await readFile(
+        join(root, `infra/ansible/roles/${role}/templates/config.yaml.j2`),
+        'utf8',
+      );
+      const tasks = await readFile(
+        join(root, `infra/ansible/roles/${role}/tasks/main.yml`),
+        'utf8',
+      );
+      expect(config).toContain('  - fail-swap-on=false');
+      expect(config).toContain('system-reserved=memory={{ puni_kubelet_system_reserved_memory }}');
+      expect(config).toContain('kube-reserved=memory={{ puni_kubelet_kube_reserved_memory }}');
+      // Overriding one hard-eviction signal resets the omitted ones to zero.
+      expect(config).toContain(
+        'eviction-hard=memory.available<{{ puni_kubelet_eviction_memory }},nodefs.available<10%,imagefs.available<15%,nodefs.inodesFree<5%',
+      );
+      expect(tasks).toContain("puni_kubelet_system_reserved_memory is match('^[0-9]+Mi$')");
+    }
+  });
+
+  it('removes k3s rules only through a checked save and restore', async () => {
+    const script = join(
+      import.meta.dir,
+      '../../../infra/ansible/playbooks/files/puni-remove-k3s-rules.sh',
+    );
+    const bin = await mkdtemp(join(tmpdir(), 'fleet-rules-'));
+    const restored = join(bin, 'restored');
+    const fake = async (saveExit: number, restoreExit: number, rules: string) => {
+      await writeFile(
+        join(bin, 'iptables-save'),
+        `#!/bin/sh\nprintf '%s\\n' '${rules}'\nexit ${String(saveExit)}\n`,
+        { mode: 0o755 },
+      );
+      await writeFile(
+        join(bin, 'iptables-restore'),
+        `#!/bin/sh\ncat > '${restored}'\nexit ${String(restoreExit)}\n`,
+        { mode: 0o755 },
+      );
+      await rm(restored, { force: true });
+      return Bun.spawnSync(['bash', script, 'iptables'], {
+        env: { PATH: `${bin}:/usr/bin:/bin` },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+    };
+    const docker = '-A FORWARD -j DOCKER-USER';
+    const kube = '-A FORWARD -j KUBE-FORWARD';
+
+    const removed = await fake(0, 0, `${docker}\n${kube}`);
+    expect(removed.exitCode).toBe(0);
+    expect(removed.stdout.toString()).toBe('changed\n');
+    expect(await readFile(restored, 'utf8')).toBe(`${docker}\n`);
+
+    const clean = await fake(0, 0, docker);
+    expect(clean.exitCode).toBe(0);
+    expect(clean.stdout.toString()).toBe('');
+    expect(await Bun.file(restored).exists()).toBe(false);
+
+    // Proof: the former inline `if save | grep -q` form exited 0 with no output for both faults.
+    const saveFailed = await fake(3, 0, kube);
+    expect(saveFailed.exitCode).not.toBe(0);
+    expect(await Bun.file(restored).exists()).toBe(false);
+    const restoreFailed = await fake(0, 4, `${docker}\n${kube}`);
+    expect(restoreFailed.exitCode).not.toBe(0);
+    expect(restoreFailed.stdout.toString()).toBe('');
+
+    expect(Bun.spawnSync(['bash', script, 'ebtables']).exitCode).toBe(64);
+  });
+
+  it('keeps the host preflight free of mutating modules', async () => {
+    const root = join(import.meta.dir, '../../..');
+    const preflight = await readFile(join(root, 'infra/ansible/playbooks/preflight.yml'), 'utf8');
+    const modules = [...preflight.matchAll(/^\s+(ansible\.builtin\.[a-z_]+):/gm)].map(
+      ([, module]) => module,
+    );
+    // The QEMU drill in enroll-existing-hosts/verify.md found no file changed by a run; this
+    // keeps writers such as file, copy, template, lineinfile, apt or service out of the play.
+    expect(new Set(modules)).toEqual(
+      new Set([
+        'ansible.builtin.assert',
+        'ansible.builtin.slurp',
+        'ansible.builtin.command',
+        'ansible.builtin.stat',
+        'ansible.builtin.shell',
+        'ansible.builtin.getent',
+        'ansible.builtin.set_fact',
+        'ansible.builtin.debug',
+      ]),
+    );
+    expect(preflight).not.toMatch(
+      /docker (?:inspect|exec|stop|start|rm|run)|systemctl (?:start|stop|restart)/,
+    );
   });
 
   it('ships no role defaults for required security or identity state', async () => {

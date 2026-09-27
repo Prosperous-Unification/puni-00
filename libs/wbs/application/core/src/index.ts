@@ -53,6 +53,7 @@ export * from './module/step/module';
 export * from './module/work-item/contract';
 export * from './module/work-item/module';
 export * from './ports/actual-store';
+export * from './ports/announcement-collector';
 // The owner-neutral marker read: `CalendarMarkerReader` and the list outcome it answers with.
 export * from './ports/calendar-marker-read';
 export * from './ports/calendar-marker-store';
@@ -99,9 +100,6 @@ export type { WriteStamp } from './ports/write-stamp';
 export { DeadlineExceeded, delay, untilAborted, withinDeadline } from './runtime/deadline';
 export * from './service/assumed-assignee';
 export * from './service/auth.service';
-// Compatibility export: the event contracts keep their barrel names from the
-// neutral port, and `AnnouncementCollector` still lives here.
-export * from './service/broadcast';
 export * from './service/calendar-marker.service';
 export * from './service/capacity.service';
 export * from './service/clean-name';

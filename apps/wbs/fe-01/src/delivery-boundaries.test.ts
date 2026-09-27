@@ -77,6 +77,13 @@ const FORBIDDEN_EXPORTS: readonly { file: string; names: readonly string[]; is: 
     is: 'a repository port',
   },
   {
+    // Proof: 2026-09-27, t1 — `export type Leak = SavedPlanRoutes` in saved-plans-panel.tsx failed
+    // with `+ …: SavedPlanRoutes is a repository port`.
+    file: 'src/modules/saved-plans/contract.ts',
+    names: ['SavedPlanRoutes'],
+    is: 'a repository port',
+  },
+  {
     // Proof: 2026-09-27, p2 — `export type Leak = ProjectCatalogRoutes` in use-plan-import.ts
     // failed with `+ …: ProjectCatalogRoutes is a repository port`.
     file: 'src/modules/project/contract.ts',
@@ -176,11 +183,6 @@ const CONTEXT_TYPES: readonly { file: string; name: string }[] = [
 // Proof: 2026-09-25, o1 — `SignedInRegion.projectApi` narrowed to `undefined` failed with
 // `- "SignedInRegion.projectApi is a broad HTTP client"`: a paid-off route fails until struck.
 const OWED: readonly string[] = [
-  // The saved-plan shelf, which has no feature facade yet: task 10's.
-  'src/components/wbs/saved-plans-panel.tsx: SavedPlanApi is a broad HTTP client',
-  'src/components/wbs/saved-plans-panel.tsx: compare is a broad HTTP client',
-  'src/components/wbs/saved-plans-panel.tsx: httpSavedPlanApi is a broad HTTP client',
-  'src/components/wbs/saved-plans-panel.tsx: rename is a broad HTTP client',
   // The resource beneath `remembered`, for `src/lib/remembered.ts` alone: task 12's accepted debt.
   'ApplicationServices.preferences is a resource-service',
 ];

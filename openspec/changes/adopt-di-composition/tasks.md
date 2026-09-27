@@ -296,7 +296,11 @@
       `directory-usage.ts`, `history.service.ts`, `optimizer-trigger-broadcaster.ts`,
       `retention-timer.ts`). Deleting a shim is a code change with its own `kinds.json` rows and
       checks, not a ledger entry; besides `service-boundaries.test.ts`, the be-01 `clock.test.ts`
-      list `AGE_THEIR_OWN_ENTRIES` names `retention-timer.ts`.
+      list `AGE_THEIR_OWN_ENTRIES` names `retention-timer.ts`. **2026-09-27:** those eight are
+      deleted with their `kinds.json` rows (59 shim rows remain, 33 of them naming a module).
+      `AGE_THEIR_OWN_ENTRIES` keeps `retention-timer.ts`: it matches by file name, and the owner
+      `module/bounded-replay-sweep/retention-timer.ts` keeps that name. The task stays open for
+      the shims that still have importers.
 - [x] 7.2 Update `docs/code-organization/kinds.json` for every moved and suffix-declared file: a
       suffix-declared path carries no entry, and a retained unsuffixed shim keeps one. Closed
       2026-09-24 by evidence: both halves hold on this tree under
@@ -304,11 +308,10 @@
       a module names the one whose files export what it re-exports. A moved file without a suffix
       inside a module directory carries no row, because `SERVICE_ROOTS` does not scan `src/module`;
       its module's README index names it instead, a known limit owned by the kind rules.
-- [ ] 7.3 Give every module a `tsconfig.json` and an Nx `typecheck:module` target, so the isolated
-      type check the design names actually runs. Proof: the target fails on a module that breaks its
-      own contract. **Open on 2026-09-24, owned by a follow-up for the isolated module type
-      check:** eighteen module directories in two projects each need a configuration and a
-      watched negative, which is build configuration rather than a ledger entry.
+- [x] 7.3 Give every module a `tsconfig.json` and an Nx `typecheck:module` target, so the isolated
+      type check the design names actually runs. Closed 2026-09-27: both normal `typecheck` targets
+      depend on discovered per-module checks; all eighteen injected contract errors and a missing
+      module config failed the production target. See `verify.md`.
 - [x] 7.4 Record, per module, which K2 and K3 obligations it does not close and where they are
       tracked. Full K2 closure stays outside this change. Recorded 2026-09-24 as `design.md`'s
       "Layering debt ledger": per module, the K2 and K3 obligations its `contract.ts` states and
@@ -418,6 +421,9 @@
       boundary needs either the pilot's `sourceRevision` moved forward or a documented exemption
       for a boundary with no predecessor, neither of which this packet decides; see
       `docs/superpowers/plans/2026-09-21-batch-6/040-6-e3-plan-import.md`.
+      Landed 2026-09-27 for Plan import and Plan document through change
+      `trusted-boundary-creation-revision`: each boundary names a `creationRevision`, the commit
+      that first added its directory (`5a99d244` and `b53693a2`), instead of a `sourceSelector`.
 - [x] 7.6 Label agreement: every sealed module's DI Bag label, the identifier its location implies,
       its README index, its wiki pilot row and boundary, and every `kinds.json` shim row naming it
       agree. Landed 2026-09-24 as `tools/tool-devsync/src/module-labels.test.ts`, which reads the

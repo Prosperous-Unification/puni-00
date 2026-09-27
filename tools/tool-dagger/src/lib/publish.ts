@@ -1,11 +1,15 @@
-import { IMAGE_NAME, type Tier } from '@tools/deploy-contract';
+import { IMAGE_NAME, type Tier as ComposeTier } from '@tools/deploy-contract';
 
 // Re-exported because this module's own callers take `Tier` from it. The image
 // names came from a second copy here until 2026-09-02, and they are the pair
 // that had to agree: `swap.js` refuses a ref that does not name the tier it was
 // asked to swap, so a drift would have passed the build and failed the deploy
 // on the server, mid-swap.
-export type { Tier };
+export type Tier = ComposeTier | 'mcp';
+
+// Proof: routing mcp to wbs-gw-01 made "names the MCP release image by its own tier" fail
+// on 2026-09-27; restoring this mapping passed.
+const RELEASE_IMAGE_NAME: Record<Tier, string> = { ...IMAGE_NAME, mcp: 'wbs-mcp-01' };
 
 const DIGEST_RE = /@(sha256:[0-9a-f]{64})\b/;
 
@@ -39,7 +43,7 @@ export function imageRef(registry: string, tier: Tier, sha: string): string {
   if (sha.trim() === '') {
     throw new Error('refusing to build an image ref with an empty sha');
   }
-  return `${registry}/${IMAGE_NAME[tier]}:${sha}`;
+  return `${registry}/${RELEASE_IMAGE_NAME[tier]}:${sha}`;
 }
 
 /**
@@ -51,7 +55,7 @@ export function digestRef(registry: string, tier: Tier, digest: string): string 
   if (!/^sha256:[0-9a-f]{64}$/.test(digest)) {
     throw new Error(`not a well-formed sha256 digest: ${digest}`);
   }
-  return `${registry}/${IMAGE_NAME[tier]}@${digest}`;
+  return `${registry}/${RELEASE_IMAGE_NAME[tier]}@${digest}`;
 }
 
 /**

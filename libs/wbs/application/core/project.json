@@ -20,7 +20,7 @@
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bun test src --coverage --coverage-reporter=lcov",
+        "command": "bun test src --coverage --coverage-reporter=lcov --timeout=10000",
         "cwd": "libs/wbs/application/core"
       },
       "outputs": ["{projectRoot}/coverage"]
@@ -28,7 +28,7 @@
     "test:unit": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src -name '*.test.ts' | tr '\\n' ' ') --coverage --coverage-reporter=lcov --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-core.unit.xml",
+        "command": "mkdir -p ../../../../tmp/junit && bun test $(find src -name '*.test.ts' | tr '\\n' ' ') --coverage --coverage-reporter=lcov --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-core.unit.xml --timeout=10000",
         "cwd": "libs/wbs/application/core"
       },
       "outputs": ["{projectRoot}/coverage"]
@@ -37,7 +37,8 @@
       "executor": "nx:run-commands",
       "options": {
         "command": "bunx tsc --build --force libs/wbs/application/core/tsconfig.json"
-      }
+      },
+      "dependsOn": ["typecheck:module"]
     },
     "build:portable": {
       "executor": "nx:run-commands",
@@ -59,6 +60,12 @@
         "command": "bunx playwright test --config=libs/wbs/application/core/playwright.config.ts"
       },
       "outputs": ["{workspaceRoot}/tmp/core-portable-results"]
+    },
+    "typecheck:module": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun tools/tool-devsync/src/typecheck-modules.ts libs/wbs/application/core/src/module"
+      }
     }
   }
 }

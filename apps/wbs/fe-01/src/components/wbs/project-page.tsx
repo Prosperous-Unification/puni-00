@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -20,6 +19,7 @@ import { cn } from '@/lib/utils';
 import type { ProjectListEntry } from '@/lib/wbs-api';
 import type { Presence } from '@/modules/plan-feed/presence-store';
 import type { ProjectCatalog } from '@/modules/project/contract';
+import type { SavedPlans } from '@/modules/saved-plans/contract';
 import type { Store } from '@/modules/store';
 import {
   type ApplicationServicesState,
@@ -32,11 +32,7 @@ import { type BesideAnchorRect, HoverCard } from './hover-card';
 import { failureText } from './plan-refusal';
 import { useRendererForViewport } from './plan-renderer';
 import { entryMeta, matchingProjects, projectCardMeta } from './project-picker';
-import {
-  browserSavedPlansDeps,
-  SavedPlansPanel,
-  type SavedPlansPanelDeps,
-} from './saved-plans-panel';
+import { SavedPlansPanel } from './saved-plans-panel';
 import { recordWbsScrollCommit } from './scroll-performance';
 import { useToasts } from './toasts';
 import { usePlanImport } from './use-plan-import';
@@ -61,15 +57,6 @@ export interface ProjectPageProps {
    * session refuses an open once it has been withdrawn.
    */
   projects: SessionProjects;
-  /**
-   * The saved-plan shelf's wiring — injected in tests, the real one by default.
-   *
-   * Not a member of the catalog, because the two answer different halves of
-   * be-01: the catalog is the project routes and this is the checkpoint routes,
-   * which a node may not have at all ({@link SavedPlansPanelDeps}'s
-   * `available`).
-   */
-  savedPlansDeps?: SavedPlansPanelDeps;
   /**
    * Who else is in the project, for the right-hand end of the header bar.
    *
@@ -418,19 +405,12 @@ function ProjectNameField({
  */
 function SavedPlanShelf({
   projectId,
-  deps,
+  savedPlans,
   placement,
 }: {
   projectId: string;
-  /**
-   * Required, and it is CI that says so. `SavedPlansPanel.deps` is not
-   * optional, so an optional prop here forwarded `SavedPlansPanelDeps |
-   * undefined` into it — `fe-01:typecheck` TS2322 at
-   * `project-page.tsx(298,50)`, red on the run at `adb58ad9` and invisible on
-   * h2puni, which OOM-killed that target three times running. The one caller
-   * has always passed the memoised `savedPlans`, which is never `undefined`.
-   */
-  deps: SavedPlansPanelDeps;
+  /** The live project runtime's saved plans, which own the shelf's watch. */
+  savedPlans: SavedPlans;
   /**
    * Which surface is drawing it, which is the whole of what differs between
    * the two: the panel *floats* over the page from the header, and *flows*
@@ -478,7 +458,7 @@ function SavedPlanShelf({
             : 'bg-popover absolute right-0 z-50 mt-1 max-h-80 w-96 overflow-y-auto rounded-md border p-3 text-sm shadow-md'
         }
       >
-        <SavedPlansPanel projectId={projectId} deps={deps} />
+        <SavedPlansPanel projectId={projectId} savedPlans={savedPlans} />
       </div>
     </details>
   );
@@ -487,26 +467,10 @@ function SavedPlanShelf({
 export function ProjectPage({
   catalog,
   projects: projectOwner,
-  savedPlansDeps: savedPlansOverride,
   presence,
   account,
   nav,
 }: ProjectPageProps) {
-  /**
-   * The shelf's wiring, memoised — and the memo is load-bearing rather than
-   * tidy.
-   *
-   * `browserSavedPlansDeps` builds a fresh object every call, and the panel
-   * puts that object in two dependency arrays (`useSavedPlanShelf`'s watch and
-   * the compare effect). Unmemoised it would be a new identity on every render
-   * of this page — every keystroke in the picker — so the shelf would resubscribe
-   * and the comparison would refetch while somebody was typing a project name.
-   */
-  const savedPlans = useMemo(
-    () => savedPlansOverride ?? browserSavedPlansDeps(),
-    [savedPlansOverride],
-  );
-
   /**
    * The picker's own box, for the one thing state cannot say: give up the
    * keyboard. See {@link ProjectPage}'s `choose`.
@@ -882,6 +846,12 @@ export function ProjectPage({
    * the project rather than drawn dead — and `projectId` is a `string` in
    * {@link SavedPlanShelf}, so absence is the type as well as the taste.
    *
+   * **Drawn only while the selected project's runtime is live**, from that
+   * runtime's own saved plans, exactly as the table is: in the interval between
+   * one project's withdrawal and the next one's publication there is no shelf,
+   * so nothing the left project's watch still delivers can be drawn under the
+   * next one's name.
+   *
    * The key remounts it per project. The panel pins its compare pair once, on
    * the first shelf that arrives (AC #4: a comparison must not be swapped under
    * the reader), and that pin is `useState` — kept across a project switch it
@@ -904,12 +874,15 @@ export function ProjectPage({
    * cancels, because a cancel is the update whose whole job is to unmount that
    * child.
    */
+  // Proof: on 2026-09-27, drawing the shelf from the last live runtime through the gap (v2) failed
+  // `draws no shelf while the last project lets go, and the next one’s own rows after` on
+  // `expected [ Array(1) ] to be null`.
   const savedPlanShelf =
-    selected === null ? null : (
+    projectState.status !== 'live' ? null : (
       <SavedPlanShelf
-        key={`saved-plans-${selected}`}
-        projectId={selected}
-        deps={savedPlans}
+        key={`saved-plans-${projectState.services.projectId}`}
+        projectId={projectState.services.projectId}
+        savedPlans={projectState.services.savedPlans}
         placement={renderer === 'cards' ? 'sheet' : 'header'}
       />
     );

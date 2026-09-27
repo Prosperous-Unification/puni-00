@@ -1,0 +1,172 @@
+---
+- name: Remove fleet enrollment from one host
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Require the confirmed host and its original private MTU
+      # Proof: running without puni_rollback_host against the lab agent stopped here (verify.md).
+      ansible.builtin.assert:
+        that:
+          - ansible_play_hosts_all | length == 1
+          - puni_rollback_host is defined
+          - puni_rollback_host == inventory_hostname
+          - puni_cluster_id is defined
+          - puni_private_interface is defined
+          - puni_rollback_private_mtu is defined
+          - puni_rollback_private_mtu | int >= 1280
+          - puni_operator_name is defined
+          - puni_rollback_remove_operator is defined
+          - puni_rollback_remove_operator in [true, false]
+        fail_msg: >-
+          Name exactly one host in puni_rollback_host, its private interface, the MTU recorded
+          by preflight and whether to remove the fleet operator
+
+    - name: Inspect k3s units
+      ansible.builtin.stat:
+        path: '/etc/systemd/system/{{ puni_unit }}.service'
+      loop: [k3s, k3s-agent, puni-k3s-firewall, puni-private-mtu]
+      loop_control:
+        loop_var: puni_unit
+      register: puni_rollback_units
+
+    - name: Stop and disable k3s and fleet host services
+      ansible.builtin.systemd_service:
+        name: '{{ puni_unit_state.puni_unit }}'
+        state: stopped
+        enabled: false
+      loop: '{{ puni_rollback_units.results }}'
+      loop_control:
+        loop_var: puni_unit_state
+      when: puni_unit_state.stat.exists
+
+    - name: Stop k3s container shims, never Docker's
+      # k3s runs its shims from its own data directory; Docker's live under /usr/bin.
+      ansible.builtin.command: pkill --signal KILL --full '^/var/lib/rancher/k3s/data/[^ ]+/bin/containerd-shim'
+      register: puni_rollback_shims
+      changed_when: puni_rollback_shims.rc == 0
+      failed_when: puni_rollback_shims.rc not in [0, 1]
+
+    - name: Unmount k3s, kubelet and CNI namespace mounts
+      ansible.builtin.shell: >-
+        set -o pipefail;
+        awk '$2 ~ "^(/run/k3s|/var/lib/kubelet|/var/lib/rancher/k3s|/run/netns/cni-)" {print $2}'
+        /proc/self/mounts | sort --reverse | uniq | tee /dev/stderr | xargs --no-run-if-empty umount
+      args:
+        executable: /bin/bash
+      register: puni_rollback_mounts
+      changed_when: puni_rollback_mounts.stderr | length > 0
+
+    - name: Delete k3s network links
+      # Proof: with a fake `ip` whose delete exits 23, this command without `set -e` exited 0 and
+      # printed `deleted`; with it, it exits 23 and the task fails.
+      ansible.builtin.shell: >-
+        set -e;
+        if ip link show {{ puni_link }} > /dev/null 2>&1; then
+        ip link delete {{ puni_link }}; echo deleted; fi
+      loop: [cni0, flannel.1, flannel-v6.1, flannel-wg, kube-ipvs0]
+      loop_control:
+        loop_var: puni_link
+      register: puni_rollback_links
+      changed_when: "'deleted' in puni_rollback_links.stdout"
+
+    - name: Remove k3s iptables chains and keep every other rule, including Docker's
+      # Proof: ansible.test.ts runs this script with a failing save and a failing restore; both exit
+      # nonzero, so the task fails instead of reporting no rules.
+      ansible.builtin.script: 'files/puni-remove-k3s-rules.sh {{ puni_rule_family }}'
+      loop: [iptables, ip6tables]
+      loop_control:
+        loop_var: puni_rule_family
+      register: puni_rollback_iptables
+      changed_when: "'changed' in puni_rollback_iptables.stdout"
+
+    - name: Inspect the fleet nftables table
+      ansible.builtin.command: nft list table inet puni_k3s
+      register: puni_rollback_nft
+      changed_when: false
+      # nft exits 1 when the table does not exist.
+      failed_when: puni_rollback_nft.rc not in [0, 1]
+
+    - name: Delete the fleet nftables table
+      ansible.builtin.command: nft delete table inet puni_k3s
+      when: puni_rollback_nft.rc == 0
+      changed_when: true
+
+    - name: Read active swap devices
+      ansible.builtin.command: cat /proc/swaps
+      register: puni_rollback_swap
+      changed_when: false
+
+    - name: Deactivate the fleet swap file
+      ansible.builtin.command: swapoff /swap.puni
+      when: "'/swap.puni' in puni_rollback_swap.stdout"
+      changed_when: true
+
+    - name: Remove the fleet swap mount
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: '^/swap\.puni\s'
+        state: absent
+
+    - name: Delete fleet files and k3s state
+      ansible.builtin.file:
+        path: '{{ puni_fleet_path }}'
+        state: absent
+      loop_control:
+        loop_var: puni_fleet_path
+      loop:
+        - /swap.puni
+        - /etc/systemd/system/k3s.service
+        - /etc/systemd/system/k3s-agent.service
+        - /etc/systemd/system/puni-k3s-firewall.service
+        - /etc/systemd/system/puni-private-mtu.service
+        - /etc/nftables.d/puni-k3s-{{ puni_cluster_id }}.nft
+        - /etc/rancher/k3s
+        - /var/lib/rancher/k3s
+        - /var/lib/kubelet
+        - /var/lib/cni
+        - /run/flannel
+        - /usr/local/bin/k3s
+        - /etc/sysctl.d/90-puni-k3s.conf
+        - /etc/modules-load.d/puni-k3s.conf
+
+    - name: Delete the fleet journald bound
+      ansible.builtin.file:
+        path: /etc/systemd/journald.conf.d/50-puni-fleet.conf
+        state: absent
+      register: puni_rollback_journald
+
+    - name: Remove the fleet operator sudo grant
+      ansible.builtin.file:
+        path: '/etc/sudoers.d/90-{{ puni_operator_name }}-fleet'
+        state: absent
+      when: puni_rollback_remove_operator
+
+    - name: Remove the fleet operator account
+      ansible.builtin.user:
+        name: '{{ puni_operator_name }}'
+        state: absent
+        remove: true
+      when: puni_rollback_remove_operator
+
+    - name: Read the private MTU
+      ansible.builtin.command: 'cat /sys/class/net/{{ puni_private_interface }}/mtu'
+      register: puni_rollback_mtu
+      changed_when: false
+
+    - name: Restore the private MTU recorded before enrollment
+      ansible.builtin.command: >-
+        ip link set dev {{ puni_private_interface }} mtu {{ puni_rollback_private_mtu }}
+      when: puni_rollback_mtu.stdout | int != puni_rollback_private_mtu | int
+      changed_when: true
+
+    - name: Reload systemd after removing fleet units
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+      changed_when: false
+
+    - name: Restart journald without the fleet bound
+      ansible.builtin.systemd_service:
+        name: systemd-journald
+        state: restarted
+      when: puni_rollback_journald is changed

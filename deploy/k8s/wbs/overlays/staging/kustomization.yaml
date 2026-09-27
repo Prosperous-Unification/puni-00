@@ -32,7 +32,12 @@ patches:
     patch: |-
       - op: replace
         path: /spec/storageClassName
-        value: hcloud-volumes
+        value: puni-retain
+  - target: { kind: PersistentVolumeClaim, name: wbs-mcp }
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: puni-retain
   # Backend OIDC egress (issuer discovery/JWKS over HTTPS) beyond the base allowances.
   - target: { kind: NetworkPolicy, name: wbs-backend-egress }
     patch: |-

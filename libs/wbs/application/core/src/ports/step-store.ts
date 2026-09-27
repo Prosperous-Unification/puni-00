@@ -12,17 +12,32 @@ export interface Step {
    * the order has to be stored rather than read off the rows as they arrive.
    */
   position: number;
+  /**
+   * The step's step code — `dev` in the reference `010.dev` — or `null` while
+   * the step is **uncoded**: an older release inserted it mid-swap without one,
+   * and the post-swap backfill has not run yet. `null` is that modeled state,
+   * never a default: an uncoded step's nodes have no step reference but keep
+   * their step node IDs. Immutable once set; a rename keeps it.
+   */
+  code: string | null;
 }
 
 /**
  * A step as a caller offers it. The project decides where in its order the step
  * lands, in the same transaction that writes it: two clients adding a step at
  * once would otherwise both read the same last place.
+ *
+ * `code` is the code the caller chose, already checked against the grammar and
+ * the reserved namespace; absent, the store suggests one from the name against
+ * the codes the project holds, inside the same transaction.
  */
-export type NewStep = Omit<Step, 'position'>;
+export type NewStep = Omit<Step, 'position' | 'code'> & { code?: string };
 
-/** Why a step could not be added or renamed. Both are states of the project, not faults. */
-type StepWriteRefusal = 'taken' | 'not_found';
+/**
+ * Why a step could not be added or renamed. All are states of the project, not
+ * faults: `taken` is the name, `code_taken` the code.
+ */
+type StepWriteRefusal = 'taken' | 'code_taken' | 'not_found';
 
 export type StepWritten = { ok: true; step: Step } | { ok: false; reason: StepWriteRefusal };
 

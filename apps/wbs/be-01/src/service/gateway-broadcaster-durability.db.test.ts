@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { EventLogService } from '@wbs/core';
+import { EventLogService, subscriptionFor } from '@wbs/core';
 import { systemTimers } from '@wbs/runtime-portable';
 import { DeadlineClock } from '@wbs/runtime-portable/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -12,7 +12,6 @@ import { DrizzleEventLogStore } from '../repository/event-log';
 import { WriteCoordinator } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { testClock } from '../testing/clock-fixture';
-import { subscriptionFor } from './broadcast';
 import { GatewayBroadcaster } from './gateway-broadcaster';
 import { PushClient } from './push-client';
 import { ReplayBuffer } from './replay-buffer';

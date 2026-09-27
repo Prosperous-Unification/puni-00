@@ -2,19 +2,9 @@
   "reviewed": "2026-09-20",
   "entries": [
     {
-      "path": "apps/wbs/be-01/src/service/assumed-assignee.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/assumed-assignee directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/auth.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core/service/auth.service directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/broadcast.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/broadcast directly"
     },
     {
       "path": "apps/wbs/be-01/src/service/calendar-marker.service.ts",
@@ -27,37 +17,12 @@
       "disposition": "re-export shim; delete when importers use @wbs/core/service/capacity.service directly"
     },
     {
-      "path": "apps/wbs/be-01/src/service/clean-name.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/clean-name directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/compensating.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/compensating directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/dependency.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/dependency directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/directory-usage.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/directory-usage directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/directory.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core/service/directory.service directly"
     },
     {
       "path": "apps/wbs/be-01/src/service/gateway-broadcaster.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/history.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core directly"
     },
@@ -75,11 +40,6 @@
       "path": "apps/wbs/be-01/src/service/optimized-schedule-reader.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use the optimization module directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/optimizer-trigger-broadcaster.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
     },
     {
       "path": "apps/wbs/be-01/src/service/optimizer-wiring.ts",
@@ -124,11 +84,6 @@
     },
     {
       "path": "apps/wbs/be-01/src/service/retention-job.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/retention-timer.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core directly"
     },
@@ -230,12 +185,6 @@
       "kind": "support",
       "disposition": "compatibility adapter for direct store-based AuthService construction; delete when callers install the authentication module",
       "rationale": "The sealed Authentication feature uses AccountResource, while direct callers still construct AuthService with UserStore and optional OidcIdentityStore."
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/broadcast.ts",
-      "kind": "support",
-      "disposition": "an implementation of the neutral Broadcaster port shared by the two admitting features, Plan commands and Plan import; barred from either feature by K6; its end state is beside that port under ports/",
-      "rationale": "the Plan commands and Plan import features each build one AnnouncementCollector per admitted act over the Broadcaster port of ports/project-event.ts, so a private owner would give the other a feature-to-feature edge; the event contracts it re-exports for compatibility live in that port"
     },
     {
       "path": "libs/wbs/application/core/src/service/calendar-marker.service.ts",

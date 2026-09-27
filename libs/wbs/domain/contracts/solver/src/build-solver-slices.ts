@@ -58,7 +58,7 @@ export interface LeafConstraintMaps {
  *
  * `Proof:` **2.7's second half, watched on h2puni at `6160aebe`.**
  * `durationUnits(slice)` replaced by the **pre-quantisation** `days / width`
- * (with `ASSUMED_SLICE_WORKDAYS` for a null estimate, undivided) gives
+ * (with the then-assumed two workdays for a null estimate, undivided) gives
  * **146 pass / 10 fail across 16 files**, and the spread is the finding: the
  * fault is caught in **five** files, not one. 2.6's width case fails as the
  * plan promised, and so do both `buildSolverSlices` cases, the golden request

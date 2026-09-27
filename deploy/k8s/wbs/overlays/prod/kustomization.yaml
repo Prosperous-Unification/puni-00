@@ -1,5 +1,6 @@
-# prod profile: plan-only in F8. Secrets named here are SOPS-encrypted and reconciled by
-# Flux (F6); this overlay never carries their values. OIDC settings are deployment inputs.
+# prod profile: plan-only in F8. The operator provisions wbs-mcp-secrets through SOPS;
+# externally-provided.json declares its key contract without storing credentials here.
+# OIDC settings are deployment inputs.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -32,7 +33,12 @@ patches:
     patch: |-
       - op: replace
         path: /spec/storageClassName
-        value: hcloud-volumes
+        value: puni-retain
+  - target: { kind: PersistentVolumeClaim, name: wbs-mcp }
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: puni-retain
   # Backend OIDC egress (issuer discovery/JWKS over HTTPS) beyond the base allowances.
   - target: { kind: NetworkPolicy, name: wbs-backend-egress }
     patch: |-

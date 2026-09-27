@@ -4,6 +4,7 @@ kind: Kustomization
 # infra/platform/policy (F6); this base owns only WBS workloads.
 resources:
   - storage.yaml
+  - mcp-storage.yaml
   - backend.yaml
   - backup.yaml
   - verify-cronjob.yaml

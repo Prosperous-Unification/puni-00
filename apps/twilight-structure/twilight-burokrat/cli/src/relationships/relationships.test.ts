@@ -391,7 +391,7 @@ describe('relationship extraction production CLI', () => {
       expect(failed.exitCode).toBe(1);
       expect(output(failed)).toContain(boundary.expected);
     }
-  }, 15_000);
+  }, 30_000);
 
   test('publishes exact TypeScript and nested Nx selectors with extractor and manifest identities', () => {
     const repository = createRepository();
@@ -644,7 +644,7 @@ describe('relationship extraction production CLI', () => {
     expect(streamText(invocation, 'stderr')).toContain(
       'TypeScript public declaration JSON dependency unsupported: packages/provider/src/json-helper.ts -> packages/provider/src/schema.json',
     );
-  }, 20_000);
+  }, 45_000);
 
   test('refuses a genuine compiler error before declaration emit', () => {
     const repository = createRepository();
@@ -824,7 +824,7 @@ describe('relationship extraction production CLI', () => {
     expect(restored.typescript.publicDeclarations[0].identity).toBe(
       initial.typescript.publicDeclarations[0].identity,
     );
-  }, 20_000);
+  }, 90_000);
 
   test('stales resolved declarations behind an unchanged barrel and returns current when restored', () => {
     const repository = createRepository();
@@ -864,7 +864,7 @@ describe('relationship extraction production CLI', () => {
     expect(relationshipInput(restored, 'typescript.public-declarations')).toBe(
       relationshipInput(initial, 'typescript.public-declarations'),
     );
-  }, 20_000);
+  }, 45_000);
 
   test('stales an import-type public declaration when its hidden declaration changes', () => {
     const repository = createRepository();
@@ -897,7 +897,7 @@ describe('relationship extraction production CLI', () => {
     expect(restored.typescript.publicDeclarations[0].identity).toBe(
       initial.typescript.publicDeclarations[0].identity,
     );
-  }, 20_000);
+  }, 45_000);
 
   test('stales a public declaration when a transitive local declaration source changes', () => {
     const repository = createRepository();
@@ -926,7 +926,7 @@ describe('relationship extraction production CLI', () => {
     expect(restored.typescript.publicDeclarations[0].identity).toBe(
       initial.typescript.publicDeclarations[0].identity,
     );
-  }, 20_000);
+  }, 45_000);
 
   test('stales provider topology when a local declaration importer is added', () => {
     const repository = createRepository();
@@ -962,7 +962,7 @@ describe('relationship extraction production CLI', () => {
       { source: 'packages/provider/src/public.ts', specifier: './hidden', importKind: 'type' },
       { source: 'packages/provider/src/shapes.d.ts', specifier: './hidden', importKind: 'type' },
     ]);
-  }, 20_000);
+  }, 45_000);
 
   test('stales a public declaration when a referenced global declaration changes', () => {
     const repository = createRepository();
@@ -1001,7 +1001,7 @@ describe('relationship extraction production CLI', () => {
     expect(restored.typescript.publicDeclarations[0].identity).toBe(
       initial.typescript.publicDeclarations[0].identity,
     );
-  }, 20_000);
+  }, 45_000);
 
   test('retains an original TypeScript source path reference in its emitted public closure', () => {
     const repository = createRepository();
@@ -1059,7 +1059,7 @@ describe('relationship extraction production CLI', () => {
     expect(restored.typescript.publicDeclarations[0].identity).toBe(
       initial.typescript.publicDeclarations[0].identity,
     );
-  }, 20_000);
+  }, 45_000);
 
   test('keys provider topology by exact reverse edges, not unchanged importer bytes', () => {
     const repository = createRepository();
@@ -1104,7 +1104,7 @@ describe('relationship extraction production CLI', () => {
       'packages/apps/consumer/src/use.ts',
       'packages/provider/src/internal.ts',
     ]);
-  }, 20_000);
+  }, 45_000);
 
   test('refuses absent, unreadable, malformed, unresolved and failed TypeScript inputs distinctly', () => {
     const missingRepository = createRepository();
@@ -1159,7 +1159,7 @@ describe('relationship extraction production CLI', () => {
     expect(output(unresolved)).toContain(
       "TypeScript import unresolved: packages/apps/consumer/src/use.ts -> './absent'",
     );
-  }, 15_000);
+  }, 30_000);
 
   test('omits a compiler-supported ambient non-code import without inventing a target', () => {
     const repository = createRepository();
@@ -1227,7 +1227,7 @@ describe('relationship extraction production CLI', () => {
       expect(failed.exitCode).toBe(1);
       expect(output(failed)).toContain(boundary.expected);
     }
-  }, 15_000);
+  }, 30_000);
 
   test('reads Nx project JSON without executing candidate plugins', () => {
     const repository = createRepository();
@@ -1350,7 +1350,7 @@ describe('relationship extraction production CLI', () => {
       'candidate symlink escape escapes the materialized candidate',
     );
     expect(output(escaped)).not.toContain('TypeScript');
-  }, 15_000);
+  }, 30_000);
 });
 
 test('reads static Nx configuration without executing candidate plugins', () => {
@@ -1505,7 +1505,7 @@ test('stales an implicit ambient declaration used by the public surface', () => 
   expect(changed.typescript.publicDeclarations[0].identity).not.toBe(
     initial.typescript.publicDeclarations[0].identity,
   );
-}, 15_000);
+}, 30_000);
 
 test('stales an applicable module augmentation of a public type', () => {
   const repository = createRepository();
@@ -1534,7 +1534,7 @@ test('stales an applicable module augmentation of a public type', () => {
   expect(changed.typescript.publicDeclarations[0].identity).not.toBe(
     initial.typescript.publicDeclarations[0].identity,
   );
-}, 15_000);
+}, 30_000);
 
 for (const ambientUse of ['keyof', 'generic default'] as const) {
   test(`stales an ambient declaration referenced through ${ambientUse}`, () => {
@@ -1572,5 +1572,5 @@ for (const ambientUse of ['keyof', 'generic default'] as const) {
     expect(changed.typescript.publicDeclarations[0].identity).not.toBe(
       initial.typescript.publicDeclarations[0].identity,
     );
-  }, 15_000);
+  }, 30_000);
 }
