@@ -399,30 +399,23 @@ export interface StepNodeCycle {
  * counting that node as a source would invent it.
  */
 export function findStepNodeCycle(graph: StepNodeGraph): StepNodeCycle | null {
-  const keyOf = (end: SliceEdgeEnd): string => `${end.leafId}#${String(end.at)}`;
-  // Proof: the self-pair branch disabled made `refuses a self-node pair` fail on
-  // `- Expected - 1 / + Received + 1`, a `cycle` where `self_node` was
-  // expected; watched 2026-09-27.
-  const selfPairs = graph.edges.filter(
-    (edge) => edge.provenance === 'authored' && keyOf(edge.predecessor) === keyOf(edge.successor),
-  );
-  if (selfPairs.length > 0) {
-    return { kind: 'self_node', relationshipIds: authoredIdsOf(selfPairs) };
-  }
-
+  const formatNodeKey = (end: SliceEdgeEnd): string => `${end.leafId}#${String(end.at)}`;
   const indegree = new Map<string, number>();
   const successors = new Map<string, string[]>();
   for (const graphNode of graph.nodes) {
     const leafId = graphNode.kind === 'step' ? graphNode.ref.workItemId : graphNode.workItemId;
-    indegree.set(keyOf({ leafId, at: graphNode.at }), 0);
+    indegree.set(formatNodeKey({ leafId, at: graphNode.at }), 0);
   }
   for (const edge of graph.edges) {
-    const from = keyOf(edge.predecessor);
-    const to = keyOf(edge.successor);
+    const from = formatNodeKey(edge.predecessor);
+    const to = formatNodeKey(edge.successor);
     const count = indegree.get(to);
+    // Checked before the self-pair answer, so an unheld node never passes as
+    // a self-node pair.
     // Proof: this refusal disabled made `refuses to order a graph whose edge
-    // names a node it does not hold` fail on `Received function did not
-    // throw`; watched 2026-09-27.
+    // names a node it does not hold` and `refuses an unheld node before
+    // answering a self-node pair` fail on `Received function did not throw`;
+    // watched 2026-09-27.
     if (count === undefined || !indegree.has(from)) {
       throw new Error(`an edge ${from} → ${to} names a node the graph does not hold`);
     }
@@ -431,13 +424,27 @@ export function findStepNodeCycle(graph: StepNodeGraph): StepNodeCycle | null {
     if (out === undefined) successors.set(from, [to]);
     else out.push(to);
   }
+
+  // Proof: the self-pair branch disabled made `refuses a self-node pair` fail on
+  // `- Expected - 1 / + Received + 1`, a `cycle` where `self_node` was
+  // expected; watched 2026-09-27.
+  const selfPairs = graph.edges.filter(
+    (edge) =>
+      edge.provenance === 'authored' &&
+      formatNodeKey(edge.predecessor) === formatNodeKey(edge.successor),
+  );
+  if (selfPairs.length > 0) {
+    return { kind: 'self_node', relationshipIds: collectAuthoredIds(selfPairs) };
+  }
   const ready = [...indegree].filter(([, count]) => count === 0).map(([key]) => key);
   while (ready.length > 0) {
     const key = ready.pop();
-    if (key === undefined) break;
+    if (key === undefined) throw new Error('the ready list emptied while it had length');
     indegree.delete(key);
     for (const next of successors.get(key) ?? []) {
-      const count = (indegree.get(next) ?? 0) - 1;
+      const held = indegree.get(next);
+      if (held === undefined) throw new Error(`node ${next} was released twice`);
+      const count = held - 1;
       indegree.set(next, count);
       if (count === 0) ready.push(next);
     }
@@ -448,12 +455,13 @@ export function findStepNodeCycle(graph: StepNodeGraph): StepNodeCycle | null {
   // case fail on `Received: null`; watched 2026-09-27.
   if (indegree.size === 0) return null;
   const onCycle = graph.edges.filter(
-    (edge) => indegree.has(keyOf(edge.predecessor)) && indegree.has(keyOf(edge.successor)),
+    (edge) =>
+      indegree.has(formatNodeKey(edge.predecessor)) && indegree.has(formatNodeKey(edge.successor)),
   );
-  return { kind: 'cycle', relationshipIds: authoredIdsOf(onCycle) };
+  return { kind: 'cycle', relationshipIds: collectAuthoredIds(onCycle) };
 }
 
-function authoredIdsOf(edges: readonly StepNodeGraphEdge[]): string[] {
+function collectAuthoredIds(edges: readonly StepNodeGraphEdge[]): string[] {
   return [
     ...new Set(
       edges.flatMap((edge) => (edge.provenance === 'authored' ? [edge.relationshipId] : [])),

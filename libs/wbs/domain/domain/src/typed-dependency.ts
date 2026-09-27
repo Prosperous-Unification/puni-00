@@ -73,6 +73,11 @@ export interface EndpointContext {
  * persisting. A stepless project has no step to name, so every step-scoped
  * endpoint in it is `unknown_step` and only `whole` remains.
  *
+ * Proof: the `not_found` line deleted made `refuses an unknown work item and a
+ * step outside the project` fail on `Expected: "not_found", Received: null`,
+ * and the `unknown_step` line deleted failed it on `Expected: "unknown_step",
+ * Received: null`; watched 2026-09-27.
+ *
  * Proof: the `node_on_parent` line deleted made `refuses a node on a parent and
  * a descendant-step on a leaf` fail on `Expected: "node_on_parent", Received:
  * null`, and the `descendant_step_on_leaf` line deleted failed it on the
@@ -82,12 +87,12 @@ export function findTypedEndpointDefect(
   endpoint: DependencyEndpoint,
   context: EndpointContext,
 ): TypedEndpointDefect | null {
-  const leaf = context.isLeaf(endpoint.workItemId);
-  if (leaf === undefined) return 'not_found';
+  const isLeaf = context.isLeaf(endpoint.workItemId);
+  if (isLeaf === undefined) return 'not_found';
   if (endpoint.scope === 'whole') return null;
   if (!context.hasStep(endpoint.stepId)) return 'unknown_step';
-  if (endpoint.scope === 'node' && !leaf) return 'node_on_parent';
-  if (endpoint.scope === 'descendant-step' && leaf) return 'descendant_step_on_leaf';
+  if (endpoint.scope === 'node' && !isLeaf) return 'node_on_parent';
+  if (endpoint.scope === 'descendant-step' && isLeaf) return 'descendant_step_on_leaf';
   return null;
 }
 
@@ -100,9 +105,9 @@ export function findTypedEndpointDefect(
 export function formatTypedDependencyKey(
   dependency: Pick<TypedDependency, 'predecessor' | 'successor' | 'type'>,
 ): string {
-  const endpointKey = (endpoint: DependencyEndpoint): string =>
+  const formatEndpointKey = (endpoint: DependencyEndpoint): string =>
     endpoint.scope === 'whole'
       ? `whole:${endpoint.workItemId}`
       : `${endpoint.scope}:${endpoint.workItemId}:${endpoint.stepId}`;
-  return `${endpointKey(dependency.predecessor)}|${endpointKey(dependency.successor)}|${dependency.type}`;
+  return `${formatEndpointKey(dependency.predecessor)}|${formatEndpointKey(dependency.successor)}|${dependency.type}`;
 }

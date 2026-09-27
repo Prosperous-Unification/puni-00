@@ -248,6 +248,23 @@ describe('authored typed dependencies', () => {
     expect(authoredOf([fs('r2', whole('A'), whole('P'))])).toEqual(['A1→P10', 'A1→P20']);
   });
 
+  it('constrains every pair when both ends are parents', () => {
+    const tree2: Record<string, readonly string[] | undefined> = {
+      ...tree,
+      Q: ['A', 'B'],
+    };
+    const edges = resolveStepNodeGraph(leaves, devQaOf, [], 'whole-item', {
+      dependencies: [fs('r1', whole('P'), whole('Q'))],
+      leavesUnder: (id) => {
+        const found = tree2[id];
+        if (found === undefined) throw new Error(`no work item ${id}`);
+        return found;
+      },
+    }).edges.filter((edge) => edge.provenance === 'authored');
+    expect(wire(edges)).toEqual(['P11→A0', 'P11→B0', 'P21→A0', 'P21→B0']);
+    expect(edges.map((edge) => edge.relationshipId)).toEqual(['r1', 'r1', 'r1', 'r1']);
+  });
+
   it('expands a descendant-step endpoint to that step’s node in every leaf beneath it', () => {
     expect(authoredOf([fs('r1', descendants('P', 'dev'), node('B', 'dev'))])).toEqual([
       'P10→B0',
@@ -314,6 +331,24 @@ describe('authored edges on a missing leaf', () => {
           {
             predecessor: { leafId: 'A', at: 0 },
             successor: { leafId: 'B', at: 0 },
+            type: 'FS',
+            provenance: 'authored',
+            relationshipId: 'r1',
+          },
+        ],
+      }),
+    ).toThrow('names a node the graph does not hold');
+  });
+
+  it('refuses an unheld node before answering a self-node pair', () => {
+    const end = { leafId: 'B', at: 0 };
+    expect(() =>
+      findStepNodeCycle({
+        nodes: [{ kind: 'boundary', workItemId: 'A', at: 0 }],
+        edges: [
+          {
+            predecessor: end,
+            successor: end,
             type: 'FS',
             provenance: 'authored',
             relationshipId: 'r1',
