@@ -12,7 +12,8 @@ import { OrganizationOwnershipRepository, type UnmappedRoot } from './organizati
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
-/** The newest: the step code column `address-step-nodes` adds, reversed first. */
+const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
+/** The step code column `address-step-nodes` adds. */
 const STEP_CODE = '20260927150000_add_step_code';
 
 let dir: string;
@@ -220,6 +221,7 @@ describe('20260927130000_add_organization_ownership', () => {
     // The previous release's schema, populated the way it populates it, then
     // this migration applied, used by both releases, and reversed.
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      ORGANIZATION_ACTIVATION,
       STEP_CODE,
       ORGANIZATION_OWNERSHIP,
     ]);
@@ -239,6 +241,7 @@ describe('20260927130000_add_organization_ownership', () => {
       "DELETE FROM tag WHERE id = 't-old'",
     ]);
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      ORGANIZATION_ACTIVATION,
       STEP_CODE,
       ORGANIZATION_OWNERSHIP,
     ]);
