@@ -238,7 +238,7 @@ describe('after activation', () => {
         { kind: 'setAssignee', workItemId: row, stepId: ownStep, personId: 'pe-b' },
         'unknown_person',
       ],
-      [{ kind: 'setCapacity', teamId: 'tm-b', size: 3 }, 'unknown_team'],
+      [{ kind: 'setCapacity', teamId: 'tm-b', size: 3 }, 'not_found'],
       [{ kind: 'addDependency', workItemId: row, predecessorId: theirs }, 'not_found'],
     ];
     for (const [command, error] of cases) {
@@ -363,4 +363,150 @@ describe('after activation', () => {
     expect(rowOf(foreign).name).toBe(theirs.name);
     expect(snapshot()).toEqual(before);
   });
+
+  it("refuses clearing a foreign team's capacity as it refuses an absent team's", async () => {
+    const before = snapshot();
+    const absent = await batch('ada', own, [
+      { kind: 'setCapacity', teamId: 'no-team', size: null },
+    ]);
+    expect(absent).toMatchObject({ status: 404, body: { error: 'not_found', at: 0 } });
+    expect(await batch('ada', own, [{ kind: 'setCapacity', teamId: 'tm-b', size: null }])).toEqual(
+      absent,
+    );
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('fails closed on a project another project reaches into, changing neither', async () => {
+    const mine = rowOf(own).id;
+    const theirs = rowOf(foreign).id;
+    for (const [kind, statement, params] of [
+      [
+        'incoming_step_row',
+        'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 2, 3)',
+        [theirs, ownStep],
+      ],
+      [
+        'incoming_parent',
+        "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-in', ?, ?, 9, 'In')",
+        [foreign, mine],
+      ],
+      [
+        'incoming_dependency',
+        "INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('d-in', ?, ?, ?)",
+        [foreign, mine, theirs],
+      ],
+    ] as const) {
+      h.sqlite.run(statement, [...params]);
+      const before = snapshot();
+      for (const command of [
+        { kind: 'patchWorkItem', workItemId: mine, patch: { name: 'Renamed' } },
+        { kind: 'deleteWorkItem', workItemId: mine },
+      ]) {
+        const answer = await batch('ada', own, [command]);
+        expect({ kind, command, status: answer.status }).toEqual({ kind, command, status: 500 });
+      }
+      expect(snapshot()).toEqual(before);
+      h.sqlite.run('DELETE FROM estimate WHERE step_id = ?', [ownStep]);
+      h.sqlite.run("DELETE FROM work_item WHERE id = 'w-in'");
+      h.sqlite.run("DELETE FROM dependency WHERE id = 'd-in'");
+    }
+  });
+});
+
+/** Replaces the inverse of `own`'s newest journal entry, as a pre-activation entry could hold. */
+function plantInverse(inverse: unknown): void {
+  h.sqlite.run(
+    'UPDATE command_journal SET inverse = ? WHERE id = (SELECT id FROM command_journal WHERE project_id = ? ORDER BY seq DESC LIMIT 1)',
+    [JSON.stringify(inverse), own],
+  );
+}
+
+describe('a replayed entry that names anything outside the organization', () => {
+  let row: string;
+
+  beforeEach(async () => {
+    row = rowOf(own).id;
+    await expectApplied(
+      await batch('ada', own, [
+        { kind: 'patchWorkItem', workItemId: row, patch: { name: 'Mine' } },
+      ]),
+    );
+  });
+
+  const planted: [string, () => unknown][] = [
+    [
+      'a step of another project',
+      () => ({
+        do: 'set_estimate',
+        workItemId: row,
+        stepId: foreignStep,
+        days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+      }),
+    ],
+    [
+      'a foreign label added and cleared again in one nested batch',
+      () => ({
+        do: 'batch',
+        steps: [
+          { do: 'patch', workItemId: row, patch: { tagIds: ['tg-b'] } },
+          { do: 'patch', workItemId: row, patch: { tagIds: [] } },
+        ],
+      }),
+    ],
+    [
+      'a restored row of another project',
+      () => ({
+        do: 'restore_subtree',
+        rows: [
+          {
+            id: 'w-planted',
+            projectId: foreign,
+            parentId: null,
+            position: 5,
+            name: 'Planted',
+            notes: '',
+            frozenNumber: null,
+            startNoEarlierThan: null,
+            startNoEarlierThanReason: null,
+            deadline: null,
+            factStart: null,
+            factEnd: null,
+            priority: null,
+            serviceTeamId: null,
+            serviceId: null,
+            maxParallel: 1,
+            revision: 1,
+          },
+        ],
+        rootPosition: 5,
+        reparented: [],
+        estimates: [],
+        actuals: [],
+        progress: [],
+        measures: [],
+        assignments: [],
+        internalDependencies: [],
+        externalDependencies: [],
+        removedEstimates: [],
+        removedActuals: [],
+        removedProgress: [],
+        removedMeasures: [],
+      }),
+    ],
+    [
+      'a foreign assignee',
+      () => ({ do: 'assign', workItemId: row, stepId: ownStep, personId: 'pe-b' }),
+    ],
+  ];
+  for (const [what, inverse] of planted) {
+    it(`is refused as not found, keeping the entry: ${what}`, async () => {
+      plantInverse(inverse());
+      const before = snapshot();
+      expect(await h.call('ada', 'POST', `/api/projects/${own}/undo`)).toEqual({
+        status: 404,
+        body: { error: 'not_found' },
+      });
+      expect(snapshot()).toEqual(before);
+    });
+  }
 });

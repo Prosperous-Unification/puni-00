@@ -441,10 +441,12 @@ export class PlanCommandRunner {
         const { workItems } = graph;
         const collected = await workItems.collect(() => step(graph));
         if (collected.result.ok && access.kind === 'scoped') {
-          // Proof: skipping this closure check made `rolls back an undo that
-          // would restore a foreign label` in
-          // `command-organization.controller.db.test.ts` answer 200 instead of
-          // 404; watched 2026-09-27.
+          // A backstop behind `undoWithin`'s own reference check, which refuses
+          // every case the suite plants first.
+          // Proof: skipping this closure check together with that reference
+          // check made `rolls back an undo that would restore a foreign label`
+          // in `command-organization.controller.db.test.ts` answer 200 instead
+          // of 404; watched 2026-09-27.
           const crossing = await scope.stores.projects.findCrossReferences(
             projectId,
             access.scope.organizationId,
@@ -543,7 +545,9 @@ export class PlanCommandRunner {
         if (commandDefinitions[command.kind].scope === 'directory') {
           context.refuse({ reason: 'forbidden' });
         }
-        if (projectId !== null) await refuseForeignReferences(graph, projectId, command, context);
+        if (projectId !== null) {
+          await refuseForeignReferences(graph, projectId, command, context, access.scope);
+        }
       }
       applied.push(await applyCommand(bindings, command, context));
       if (access.kind === 'scoped' && projectId !== null) {
@@ -611,13 +615,15 @@ async function refuseOutsideScope(
  * references a command can name without leaving them in the project's final
  * state — a removed dependency's predecessor, a cleared value's step, a
  * placement's parent or sibling — which the closure check after the command
- * would never see.
+ * would never see — and a capacity's team, which a cleared capacity leaves
+ * nowhere at all.
  */
 async function refuseForeignReferences(
   graph: PlanCommandServices,
   projectId: string,
   command: PlanCommand,
   context: CommandContext,
+  scope: OrganizationScope,
 ): Promise<void> {
   const named = (id: unknown, ref: unknown): string | null =>
     context.id(typeof id === 'string' ? id : undefined, typeof ref === 'string' ? ref : undefined);
@@ -649,6 +655,19 @@ async function refuseForeignReferences(
     if (id !== null && !(await graph.workItems.hasWorkItemInProject(projectId, id))) {
       context.refuse({ reason: 'not_found' });
     }
+  }
+  // Proof: skipping this check made `refuses clearing a foreign team's
+  // capacity as it refuses an absent team's` in
+  // `command-organization.controller.db.test.ts` answer 200 instead of 404;
+  // watched 2026-09-27.
+  if (command.kind === 'setCapacity') {
+    const teamId = context.required(command.teamId, command.teamRef);
+    const owned = await graph.directory.listWithin('teams', {
+      kind: 'scoped',
+      scope,
+    });
+    // `not_found`, the answer the capacity service gives a team nobody holds.
+    if (!owned.some((team) => team.id === teamId)) context.refuse({ reason: 'not_found' });
   }
   // Proof: skipping the step check alone made the same test answer 200 instead
   // of 404 `unknown_step` for the foreign-step `clearEstimate`; watched
@@ -688,6 +707,9 @@ function crossingRefusal(kind: ProjectCrossReferenceKind): PlainReason {
       return 'unknown_system';
     case 'work_item_parent':
     case 'dependency_endpoint':
+    case 'incoming_step_row':
+    case 'incoming_parent':
+    case 'incoming_dependency':
       return 'not_found';
   }
 }

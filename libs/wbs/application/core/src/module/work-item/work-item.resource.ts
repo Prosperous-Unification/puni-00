@@ -58,7 +58,7 @@ import type {
   UndoState,
 } from '../../ports/command-journal-store';
 import type { DependencyStore, StoredDependency } from '../../ports/dependency-store';
-import type { Assignment, DirectoryStore } from '../../ports/directory-store';
+import type { Assignment, DirectoryCatalog, DirectoryStore } from '../../ports/directory-store';
 import type { EstimateStore, StoredEstimate } from '../../ports/estimate-store';
 import type { MeasureStore, StoredMeasure } from '../../ports/measure-store';
 import {
@@ -89,10 +89,12 @@ import type { WriteStamp } from '../../ports/write-stamp';
 import { assumedAssignee } from '../../service/assumed-assignee';
 import {
   type CompensatingCommand,
+  type CompensatingReferences,
   quoteName,
   readCommand,
   readPayload,
   readPreconditions,
+  referencesOf,
   type Revisions,
   subjectOf,
   touchedBy,
@@ -1419,11 +1421,42 @@ export class WorkItemService {
     return true;
   }
 
-  /** Whether any of `ids` names a work item that exists in another project. */
-  private async writesOutside(projectId: string, ids: readonly string[]): Promise<boolean> {
-    for (const id of new Set(ids)) {
+  /**
+   * Whether a replay would name anything outside the project or its
+   * organization: a row that exists in another project, a restored row or
+   * dependency claiming another project, a step of another project, or a
+   * directory entry the organization does not own. Checked whole, nested
+   * batches included, before the replay writes anything, so no intermediate
+   * step can cross and be cleared again before a later check.
+   */
+  private async namesOutside(
+    projectId: string,
+    organizationId: string,
+    references: CompensatingReferences,
+  ): Promise<boolean> {
+    if (references.projects.some((each) => each !== projectId)) return true;
+    for (const id of new Set(references.workItems)) {
       const row = await this.opts.workItems.findById(id);
       if (row !== null && row.projectId !== projectId) return true;
+    }
+    const steps = new Set((await this.opts.projects.stepsOf(projectId)).map((step) => step.id));
+    if (references.steps.some((id) => !steps.has(id))) return true;
+    const catalogs: [DirectoryCatalog, readonly string[]][] = [
+      ['people', references.people],
+      ['teams', references.teams],
+      ['services', references.services],
+      ['tags', references.tags],
+      ['workItemTypes', references.types],
+      ['externalSystems', references.systems],
+    ];
+    for (const [catalog, ids] of catalogs) {
+      if (ids.length === 0) continue;
+      const owned = new Set(
+        (await this.opts.directory.listInOrganization(catalog, organizationId)).map(
+          (entry) => entry.id,
+        ),
+      );
+      if (ids.some((id) => !owned.has(id))) return true;
     }
     return false;
   }
@@ -3997,11 +4030,15 @@ export class WorkItemService {
     const command = direction === 'undo' ? readCommand(entry.inverse) : payload.forward;
     const preconditions = readPreconditions(entry.preconditions);
 
-    // Proof: removing this check made `refuses an undo whose entry names
-    // another project's row, writing nothing` in
-    // `command-organization.controller.db.test.ts` answer 200 (`rename “Mine”`)
-    // instead of 404; watched 2026-09-27.
-    if (access.kind === 'scoped' && (await this.writesOutside(projectId, touchedBy(command)))) {
+    // Proof: disabling this check made `command-organization.controller.db.test.ts`
+    // answer 200 instead of 404 for `refuses an undo whose entry names another
+    // project's row`, for the nested foreign label and for the restored row of
+    // another project, and 409 `stale_undo` (discarding the entry) for a step
+    // of another project; watched 2026-09-27.
+    if (
+      access.kind === 'scoped' &&
+      (await this.namesOutside(projectId, access.scope.organizationId, referencesOf(command)))
+    ) {
       return { ok: false, reason: 'not_found', detail: null };
     }
 

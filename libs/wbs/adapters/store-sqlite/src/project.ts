@@ -511,6 +511,30 @@ export class ProjectRepository implements ProjectStore {
         WHERE d.project_id = ${p} AND (pre.project_id IS NOT ${p} OR suc.project_id IS NOT ${p})`,
       sql`SELECT 'project_team_capacity' AS kind, c.service_team_id AS id FROM project_team_capacity AS c
         WHERE c.project_id = ${p} AND ${ownerOf('service_team_organization', 'c.service_team_id')} IS NOT ${o}`,
+      // References into the project. Proof: each of the three kinds below
+      // disabled alone made `fails closed on a project another project reaches
+      // into, changing neither` in `command-organization.controller.db.test.ts`
+      // answer 200 instead of 500; watched 2026-09-27.
+      ...(
+        [
+          ['estimate', "l.work_item_id || '/' || l.step_id"],
+          ['actual', "l.work_item_id || '/' || l.step_id"],
+          ['step_progress', "l.work_item_id || '/' || l.step_id"],
+          ['step_measure', "l.work_item_id || '/' || l.step_id || '/' || l.metric"],
+          ['assignment', "l.work_item_id || '/' || l.step_id || '/' || l.person_id"],
+        ] as const
+      ).map(
+        ([table, id]) => sql`
+      SELECT 'incoming_step_row' AS kind, ${sql.raw(id)} AS id FROM ${sql.raw(table)} AS l
+        JOIN work_item AS w ON w.id = l.work_item_id JOIN step AS st ON st.id = l.step_id
+        WHERE st.project_id = ${p} AND w.project_id IS NOT ${p}`,
+      ),
+      sql`SELECT 'incoming_parent' AS kind, w.id AS id FROM work_item AS w
+        JOIN work_item AS parent ON parent.id = w.parent_id
+        WHERE parent.project_id = ${p} AND w.project_id IS NOT ${p}`,
+      sql`SELECT 'incoming_dependency' AS kind, d.id AS id FROM dependency AS d
+        JOIN work_item AS pre ON pre.id = d.predecessor_id JOIN work_item AS suc ON suc.id = d.successor_id
+        WHERE d.project_id IS NOT ${p} AND (pre.project_id = ${p} OR suc.project_id = ${p})`,
     ];
     // Typed, not parsed: every `kind` is one of the literals written in the arms
     // above, and `PROJECT_CROSS_REFERENCE_KINDS` is their closed list.

@@ -25,6 +25,9 @@ export const PROJECT_CROSS_REFERENCE_KINDS = [
   'work_item_parent',
   'dependency_endpoint',
   'project_team_capacity',
+  'incoming_step_row',
+  'incoming_parent',
+  'incoming_dependency',
 ] as const;
 
 export type ProjectCrossReferenceKind = (typeof PROJECT_CROSS_REFERENCE_KINDS)[number];
@@ -63,7 +66,12 @@ export interface ProjectStore {
    * project's step, a work item's parent or dependency endpoint in another
    * project, and a team, service, tag, type, external system, assignee or
    * capacity team that the organization does not own (an unmapped one
-   * included). Empty for a coherent project.
+   * included). Also every reference **into** the project from another: a
+   * per-step row of another project's work item on this project's step, a
+   * work item of another project under one of this project's rows, and a
+   * dependency filed under another project with an endpoint here. A write to
+   * this project would otherwise change those rows. Empty for a coherent
+   * project.
    */
   findCrossReferences(
     projectId: string,
