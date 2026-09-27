@@ -2138,6 +2138,96 @@ describe('dependency commands', () => {
     expect(await res.json()).toEqual({ error: 'ancestor', at: 0, kind: 'addDependency' });
   });
 
+  describe('a move that would break an existing dependency', () => {
+    const parentsOf = async (send: Send, token: string, projectId: string) => {
+      const tree = await send(`/api/projects/${projectId}/work-items`, token);
+      const body = (await tree.json()) as { workItems: { id: string; parentId: string | null }[] };
+      return body.workItems.map((w) => [w.id, w.parentId]);
+    };
+
+    it('answers 409 ancestor for a move under its own predecessor and moves nothing', async () => {
+      // Sent straight to the command route, as no drag would: the refusal has
+      // to be be-01's, because a client that skips its own preview reaches here.
+      const { token, send, projectId } = await setup();
+      const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+      const sand = await addWorkItem(send, token, projectId, { parentId: null, name: 'Sand' });
+      await command(send, token, projectId, {
+        kind: 'addDependency',
+        workItemId: sand,
+        predecessorId: strip,
+      });
+      const before = await parentsOf(send, token, projectId);
+
+      const res = await command(send, token, projectId, {
+        kind: 'moveWorkItem',
+        workItemId: sand,
+        parentId: strip,
+        afterId: null,
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: 'ancestor', at: 0, kind: 'moveWorkItem' });
+      expect(await parentsOf(send, token, projectId)).toEqual(before);
+    });
+
+    it('answers 409 cycle for a move whose expanded graph loops and moves nothing', async () => {
+      // Rel waits for Sand, Sand for Strip, Strip for Paint. Under Rel, Paint
+      // inherits Rel's wait for Sand, so Paint → Sand → Strip → Paint closes a
+      // loop that no single edge closes on its own.
+      const { token, send, projectId } = await setup();
+      const release = await addWorkItem(send, token, projectId, { parentId: null, name: 'Rel' });
+      await addWorkItem(send, token, projectId, { parentId: release, name: 'Ship' });
+      const sand = await addWorkItem(send, token, projectId, { parentId: null, name: 'Sand' });
+      const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+      const paint = await addWorkItem(send, token, projectId, { parentId: null, name: 'Paint' });
+      for (const [workItemId, predecessorId] of [
+        [release, sand],
+        [sand, strip],
+        [strip, paint],
+      ]) {
+        const added = await command(send, token, projectId, {
+          kind: 'addDependency',
+          workItemId,
+          predecessorId,
+        });
+        expect(added.status).toBe(200);
+      }
+      const before = await parentsOf(send, token, projectId);
+
+      const res = await command(send, token, projectId, {
+        kind: 'moveWorkItem',
+        workItemId: paint,
+        parentId: release,
+        afterId: null,
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: 'cycle', at: 0, kind: 'moveWorkItem' });
+      expect(await parentsOf(send, token, projectId)).toEqual(before);
+    });
+
+    it('still moves a row whose dependencies stay valid', async () => {
+      const { token, send, projectId } = await setup();
+      const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+      const sand = await addWorkItem(send, token, projectId, { parentId: null, name: 'Sand' });
+      const paint = await addWorkItem(send, token, projectId, { parentId: null, name: 'Paint' });
+      await command(send, token, projectId, {
+        kind: 'addDependency',
+        workItemId: sand,
+        predecessorId: strip,
+      });
+
+      const res = await command(send, token, projectId, {
+        kind: 'moveWorkItem',
+        workItemId: sand,
+        parentId: paint,
+        afterId: null,
+      });
+
+      expect(res.status).toBe(200);
+    });
+  });
+
   it('answers 400 when no predecessor is named', async () => {
     // Missing targets reach runner semantics; misspelled fields are now a
     // structural invalid_body refusal at the shared request boundary.

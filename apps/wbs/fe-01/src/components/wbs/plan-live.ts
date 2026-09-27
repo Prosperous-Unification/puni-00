@@ -26,6 +26,7 @@ export interface PlanLiveValues {
   commands: PlanCommands;
   run: RunPlanWrite;
   duplicateRow: (id: string) => Promise<CommitOutcome>;
+  addChild: (parent: TreeRow) => Promise<CommitOutcome>;
   deleteRow: (row: TreeRow) => Promise<CommitOutcome>;
   commitNameCell: (rowId: string, typed: string, baseline: string) => Promise<CommitOutcome>;
   onKeyDown: (event: React.KeyboardEvent, row: TreeRow) => void;

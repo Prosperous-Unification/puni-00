@@ -9,6 +9,8 @@ import { recordCalls } from '@/testing/record-calls';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import type * as TableFrameModule from './table-frame';
+import { collectPath } from './use-plan-structure';
+import type { TreeRow } from './wbs-rows';
 import { type SubscriptionHandlers } from './wbs-table';
 
 /** The two elements a table cell can be, since a wrapping cell is a textarea. */
@@ -281,6 +283,156 @@ describe('duplicating a branch', () => {
   });
 });
 
+describe('collectPath', () => {
+  it('walks a row up to its root, and throws on a parent the tree does not hold', () => {
+    const rows = [
+      { id: 'a', parentId: null },
+      { id: 'a1', parentId: 'a' },
+      { id: 'x', parentId: 'gone' },
+    ] as TreeRow[];
+
+    expect(collectPath(rows, 'a1')).toEqual(['a1', 'a']);
+    // Proof: the throw replaced with a `break`, this failed on `expected
+    // [Function] to throw an error`. Watched 2026-09-27.
+    expect(() => collectPath(rows, 'x')).toThrow('row gone is not in the tree on screen');
+  });
+});
+
+describe('adding a child from the row menu', () => {
+  /** `010 Strip` with `010.1 Sockets` under it, and `020 Sand`, already on screen. */
+  async function shownBranch(api: ProjectApi, shown: ProjectApi = api): Promise<void> {
+    const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    await api.createWorkItem('p1', { parentId: strip.id, afterId: null, name: 'Sockets' });
+    await api.createWorkItem('p1', { parentId: null, afterId: strip.id, name: 'Sand' });
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(shown)} />);
+    await screen.findByLabelText('Name of 020');
+  }
+
+  itDom('makes a leaf a parent with one create and lands the caret in the child', async () => {
+    const api = fakeApi();
+    await shownBranch(api);
+    const creates = recordCalls(api, 'createWorkItem', (_projectId, input) => input);
+    const moves = recordCalls(api, 'moveWorkItem');
+
+    takeRowAction('020', 'Add child');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020', '020.1']);
+    });
+    // One request, so be-01's first-child hand-down and its one journal entry
+    // — one undo — are the create's own, not a client's sequence of writes.
+    expect(creates).toEqual([{ parentId: 'w3', afterId: null, name: '' }]);
+    expect(moves).toEqual([]);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 020.1'));
+    });
+  });
+
+  itDom('adds the last child of a parent', async () => {
+    const api = fakeApi();
+    await shownBranch(api);
+    const creates = recordCalls(api, 'createWorkItem', (_projectId, input) => input);
+
+    takeRowAction('010', 'Add child');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020']);
+    });
+    expect(creates).toEqual([{ parentId: 'w1', afterId: 'w2', name: '' }]);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 010.2'));
+    });
+  });
+
+  itDom('opens a collapsed frozen parent so the new child is visible', async () => {
+    const api = fakeApi();
+    await shownBranch(api);
+    takeFreezeAction('Freeze numbering');
+    await waitFor(() => {
+      expect(screen.getAllByLabelText('Number is frozen')).toHaveLength(3);
+    });
+    click('Collapse all');
+    expect(numbersOnScreen()).toEqual(['010', '020']);
+
+    takeRowAction('010', 'Add child');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.2', '020']);
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 010.2'));
+    });
+  });
+
+  itDom('opens a collapsed leaf’s first child after an earlier Collapse all', async () => {
+    // Collapse all on a nested plan writes a record, and in a record an absent
+    // key reads as closed — so a leaf that becomes a parent arrives shut
+    // unless the create opens it.
+    const api = fakeApi();
+    await shownBranch(api);
+    click('Collapse all');
+
+    takeRowAction('020', 'Add child');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '020', '020.1']);
+    });
+  });
+
+  itDom('reveals a child made under a filter and opens every ancestor it sits under', async () => {
+    // A filter shows `Sockets` as the ancestor of a match while the reader's
+    // own expansion has every branch shut. The new blank child matches
+    // nothing, so it stays on screen only because it was just made here, and
+    // clearing the filter must find its whole line open in the saved state.
+    const api = fakeApi();
+    const strip = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const sockets = await api.createWorkItem('p1', {
+      parentId: strip.id,
+      afterId: null,
+      name: 'Sockets',
+    });
+    await api.createWorkItem('p1', { parentId: sockets.id, afterId: null, name: 'Back boxes' });
+    await api.createWorkItem('p1', { parentId: null, afterId: strip.id, name: 'Sand' });
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    click('Collapse all');
+    fireEvent.change(screen.getByLabelText('Find'), { target: { value: 'Back' } });
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1']);
+    });
+
+    takeRowAction('010.1', 'Add child');
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.1.2']);
+    });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByLabelText('Name of 010.1.2'));
+    });
+
+    fireEvent.change(screen.getByLabelText('Find'), { target: { value: '' } });
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '010.1.1', '010.1.2', '020']);
+    });
+  });
+
+  itDom('says why a child was refused, adds nothing and leaves the focus alone', async () => {
+    const api = fakeApi();
+    await shownBranch(api, {
+      ...api,
+      createWorkItem: () => Promise.reject(new Error('frozen')),
+    });
+
+    takeRowAction('020', 'Add child');
+
+    await waitFor(() => {
+      expect(toastTexts()).toContain('That change could not be completed (frozen).');
+    });
+    expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Actions for 020' }));
+  });
+});
+
 describe('the row actions menu', () => {
   /** Three root rows, named, already on screen. */
   async function threeRows(api: ProjectApi): Promise<void> {
@@ -299,6 +451,7 @@ describe('the row actions menu', () => {
 
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
       'Set status to Done',
+      'Add child',
       'Duplicate',
       'Delete',
     ]);

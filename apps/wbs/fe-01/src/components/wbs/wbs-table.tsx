@@ -1043,6 +1043,7 @@ export function WbsTable({
     criteria,
     search,
     filtering,
+    revealRow,
     filterLabels,
     facetTeams,
     facetTags,
@@ -1139,6 +1140,7 @@ export function WbsTable({
   const {
     dropOn,
     addSibling,
+    addChild,
     indent,
     outdent,
     moveAmongSiblings,
@@ -1153,6 +1155,7 @@ export function WbsTable({
     flat,
     pushToast,
     setExpanded,
+    revealRow,
     run,
     commands,
     focusIntent,
@@ -1452,6 +1455,7 @@ export function WbsTable({
     commands,
     run,
     duplicateRow,
+    addChild,
     deleteRow,
     commitNameCell,
     onKeyDown,
@@ -2392,6 +2396,9 @@ export function WbsTable({
                 busy,
                 duplicate: (rowId) => {
                   void duplicateRow(rowId);
+                },
+                addChild: (row) => {
+                  void addChild(row);
                 },
                 unfreeze: (rowId) => {
                   void run((write) =>
