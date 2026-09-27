@@ -463,6 +463,25 @@ test.describe('what the dark palette paints', () => {
 
     const ratio = await contrastOf(trio);
     expect(ratio, `the quiet trio reads at ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(READABLE);
+
+    // A single-number shorthand remains the cell's visible reading at rest,
+    // including after the stored estimate is fetched on reload.
+    await trio.fill('5');
+    await trio.blur();
+    await expect(trio.locator('xpath=ancestor::tr[1]').locator('[data-final-total]')).toHaveText(
+      '5',
+    );
+    await page.reload();
+    const savedTrio = page.getByLabel('Dev estimate for 010');
+    await expect(savedTrio).toHaveValue('5');
+    await expect(
+      savedTrio.locator('xpath=ancestor::td[1]').locator('[data-folded-final]'),
+    ).toHaveCount(0);
+    const savedRatio = await contrastOf(savedTrio);
+    expect(
+      savedRatio,
+      `the saved single estimate reads at ${savedRatio.toFixed(2)}:1`,
+    ).toBeGreaterThanOrEqual(READABLE);
   });
 
   test('the way out of the app stands off the menu it is in', async ({ page }) => {

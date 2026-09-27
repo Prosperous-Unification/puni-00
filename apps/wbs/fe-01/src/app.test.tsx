@@ -8,7 +8,6 @@ import type * as Api from '@/lib/api';
 import { ThemeProvider } from '@/lib/theme';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
 import { browserStorage } from '@/modules/preferences/browser-storage.repository';
-import { projectServicesOver } from '@/modules/project/composition';
 import { type ApplicationServices, installApplicationRuntime } from '@/runtime/application-runtime';
 import { ApplicationServicesProvider } from '@/runtime/application-services-context';
 import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
@@ -487,6 +486,7 @@ describe('log out', () => {
   ): SessionOwner =>
     createSessionOwner({
       clientFor: () => fakeDirectoryApi(),
+      projectClientFor: () => fakeProjectApi(),
       install: (dependencies) => {
         const installed = installSessionRuntime(dependencies);
         return {
@@ -533,10 +533,7 @@ describe('log out', () => {
     const opened = owner.snapshot();
     if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
     await act(async () => {
-      await opened.services.projects.open('p1', {
-        services: projectServicesOver(fakeProjectApi()),
-        subscribe: undefined,
-      });
+      await opened.services.projects.open('p1');
     });
     expect(opened.services.projects.snapshot().status).toBe('live');
     return opened.services;
@@ -701,6 +698,7 @@ describe('the selected project, through the router', () => {
   ): SessionOwner =>
     createSessionOwner({
       clientFor: () => fakeDirectoryApi(),
+      projectClientFor: () => fakeProjectApi(),
       install: (dependencies) => {
         const installed = installSessionRuntime(dependencies);
         events.push('session built');
@@ -745,7 +743,6 @@ describe('the selected project, through the router', () => {
             session={{ token: '', user: KAT }}
             onSignedOut={() => undefined}
             openOwner={() => owner}
-            projectApi={fakeProjectApi()}
           />
         </ThemeProvider>
       </ApplicationServicesProvider>

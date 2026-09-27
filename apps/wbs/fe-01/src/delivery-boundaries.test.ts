@@ -77,6 +77,22 @@ const FORBIDDEN_EXPORTS: readonly { file: string; names: readonly string[]; is: 
     is: 'a repository port',
   },
   {
+    // Proof: 2026-09-27, p2 — `export type Leak = ProjectCatalogRoutes` in use-plan-import.ts
+    // failed with `+ …: ProjectCatalogRoutes is a repository port`.
+    file: 'src/modules/project/contract.ts',
+    names: ['ProjectCatalogRoutes'],
+    is: 'a repository port',
+  },
+  {
+    // Proof: 2026-09-27, p1 — `SignedInRegion` given `token?: import('@/runtime/credential').Credential`
+    // failed with `+ "SignedInRegion.token is a credential"` and
+    // `+ "src/app-router.tsx: Credential is a credential"`: a raw token handed to delivery is caught
+    // by its brand.
+    file: 'src/runtime/credential.ts',
+    names: ['Credential', 'credentialOf'],
+    is: 'a credential',
+  },
+  {
     file: 'src/modules/preferences/contract.ts',
     names: ['BrowserStorage', 'RevocableBrowserStorage'],
     is: 'a repository',
@@ -143,6 +159,8 @@ const FORBIDDEN_GLOBALS: readonly { names: readonly string[]; is: string }[] = [
  */
 const CONTEXT_TYPES: readonly { file: string; name: string }[] = [
   { file: 'src/runtime/application-runtime.ts', name: 'ApplicationServices' },
+  // Proof: 2026-09-27, p3 — `SessionRuntime` given `readonly projectClient?: ProjectApi` failed
+  // with `+ "SessionRuntime.projectClient is a broad HTTP client"`.
   { file: 'src/runtime/session-runtime.ts', name: 'SessionRuntime' },
   // Proof: 2026-09-25, c1 — `ProjectRuntime` given `readonly client: ProjectApi` failed with
   // `+ "ProjectRuntime.client is a broad HTTP client"`.
@@ -158,24 +176,6 @@ const CONTEXT_TYPES: readonly { file: string; name: string }[] = [
 // Proof: 2026-09-25, o1 — `SignedInRegion.projectApi` narrowed to `undefined` failed with
 // `- "SignedInRegion.projectApi is a broad HTTP client"`: a paid-off route fails until struck.
 const OWED: readonly string[] = [
-  // The project catalog and the archival import: the catalog facade, task 13's remainder.
-  'src/app-router.tsx: ProjectApi is a broad HTTP client',
-  'src/components/wbs/project-page.tsx: ProjectApi is a broad HTTP client',
-  'src/components/wbs/project-page.tsx: createProject is a broad HTTP client',
-  'src/components/wbs/project-page.tsx: httpProjectApi is a broad HTTP client',
-  'src/components/wbs/project-page.tsx: listProjects is a broad HTTP client',
-  'src/components/wbs/project-page.tsx: openProject is a broad HTTP client',
-  'src/components/wbs/project-page.tsx: renameProject is a broad HTTP client',
-  'src/components/wbs/use-plan-import.ts: ProjectApi is a broad HTTP client',
-  'src/components/wbs/use-plan-import.ts: importPlan is a broad HTTP client',
-  'SignedInRegion.projectApi is a broad HTTP client',
-  // The project runtime's source, which the page still builds: task 13's remainder.
-  "src/components/wbs/project-page.tsx: '@/lib/project-stream' is a socket",
-  "src/components/wbs/project-page.tsx: '@/modules/project/composition' is a composition root",
-  'src/components/wbs/project-page.tsx: ProjectStream is a socket',
-  'src/components/wbs/project-page.tsx: ProjectStreamDeps is a socket',
-  'src/components/wbs/project-page.tsx: projectServicesOver is a composition root',
-  'src/components/wbs/project-page.tsx: subscribeToProject is a socket',
   // The saved-plan shelf, which has no feature facade yet: task 10's.
   'src/components/wbs/saved-plans-panel.tsx: SavedPlanApi is a broad HTTP client',
   'src/components/wbs/saved-plans-panel.tsx: compare is a broad HTTP client',

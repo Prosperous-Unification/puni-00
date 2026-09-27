@@ -5,9 +5,9 @@ import {
   PlanDocumentSchemaError,
   PlanImportRefusalError,
   type PlanImportSummary,
-  type ProjectApi,
   type ProjectListEntry,
 } from '@/lib/wbs-api';
+import type { ProjectCatalog } from '@/modules/project/contract';
 
 import { failureText } from './plan-refusal';
 import type { ToastStackApi } from './toasts';
@@ -72,21 +72,21 @@ export interface PlanImportControl {
 
 /** Owns one archival import attempt across the keyed plan table's lifetime. */
 export function usePlanImport({
-  api,
+  catalog,
   selectedProjectId,
   fetchProjects,
   installProjects,
   openProject,
   pushToast,
 }: {
-  api: ProjectApi;
+  catalog: ProjectCatalog;
   selectedProjectId: string | null;
   fetchProjects: () => Promise<ProjectListEntry[]>;
   installProjects: (projects: ProjectListEntry[]) => void;
   openProject: (projectId: string) => void;
   pushToast: ToastStackApi['pushToast'];
 }): PlanImportControl {
-  const lifetime = useMemo(() => ({ api }), [api]);
+  const lifetime = useMemo(() => ({ catalog }), [catalog]);
   const [busyLifetime, setBusyLifetime] = useState<object | null>(null);
   const admittedLifetime = useRef<object | null>(null);
   const currentLifetime = useRef<object | null>(lifetime);
@@ -126,7 +126,7 @@ export function usePlanImport({
           if (currentLifetime.current !== lifetime) return;
           const document = await planDocumentRequestFromJson(source);
           if (currentLifetime.current !== lifetime) return;
-          const summary = await api.importPlan(document);
+          const summary = await catalog.importPlan(document);
           if (currentLifetime.current !== lifetime) return;
           const catalogue = await fetchProjects();
           // Proof: installing before this post-fetch boundary let exact stale
@@ -157,7 +157,7 @@ export function usePlanImport({
         }
       })();
     },
-    [api, fetchProjects, installProjects, lifetime, openProject, pushToast, selectedProjectId],
+    [catalog, fetchProjects, installProjects, lifetime, openProject, pushToast, selectedProjectId],
   );
 
   return { busy: busyLifetime === lifetime, chooseFile };
