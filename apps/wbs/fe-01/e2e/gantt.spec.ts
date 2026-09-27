@@ -958,22 +958,18 @@ test.describe('the chart, after the browser has scaled it', () => {
   });
 
   /**
-   * The change's headline, in pixels: an entirely unestimated predecessor holds
-   * its successor back.
+   * An entirely unestimated predecessor holds its successor back by nothing.
    *
-   * jsdom can say what `earliestStart` be-01 sent. Only a browser can say that
-   * the bar a reader sees is drawn to the right of the bars it waits for, at a
-   * width that is there to be seen — which is the whole complaint
-   * `assumed-duration-schedules` answers: unsized work used to be free, and the
-   * chart drew the plan as if it were.
+   * WBS 010.4.4 (`unestimated-steps-take-no-schedule-time`): an unknown step
+   * takes zero schedule time, so the successor starts where the predecessor
+   * does, while the predecessor's placeholders are still drawn two workdays
+   * wide and reach past that start. Only a browser can say both at once.
    *
    * Every box is asserted to have area **before** any of them are compared, for
    * the reason `AGENTS.md` records against `G gantt-calendar-axis`: a
-   * zero-width bar makes an overlap or ordering check unfailable, and the first
-   * version of that test compared a caret against exactly such a mark and could
-   * not see the fault it was written for.
+   * zero-width bar makes an overlap or ordering check unfailable.
    */
-  test('draws a successor after the predecessor nobody estimated', async ({ page }) => {
+  test('starts a successor beside the predecessor nobody estimated', async ({ page }) => {
     await seedUnestimatedChain(page, nextAccount());
     await openTheChart(page);
     // One arrow: `020` waits for `010` and there is nothing else in the plan.
@@ -1016,22 +1012,24 @@ test.describe('the chart, after the browser has scaled it', () => {
     }
 
     // And the claim. `NEARLY` of tolerance, because the two are laid out by the
-    // same transform and a sub-pixel boundary is not a schedule.
+    // same transform and a sub-pixel boundary is not a schedule. The successor
+    // starts where the unknown predecessor stands, and the placeholders still
+    // reach past that start: drawn, but not waited for.
     //
-    // Proof: `durationOf`'s assumed arm removed in `apps/wbs/be-01/src/service/
-    // schedule.ts`, so an unestimated slice is zero days again — this failed on
-    // `the successor is drawn left of the work it waits for: Expected: > 259 /
-    // Received: 204`, the successor's bar back at the project's first workday
-    // beside the work it depends on. The predecessor's two bars keep their
-    // width through that fault, because the **drawing** has assumed two
-    // workdays since `gantt-view`; it is the successor's placement that this
-    // change moved, and it is the ordering rather than the widths that sees it.
-    // Watched 2026-08-30.
-    const holdsUntil = Math.max(...drawn.predecessor.map((bar) => bar.right));
+    // Proof: `durationOf` answering 2 for null days in
+    // `libs/wbs/domain/domain/src/schedule.ts` failed this on `the successor
+    // waits for a placeholder nobody estimated: Expected: < 1 / Received: 112`;
+    // watched in local Chromium 2026-09-27.
+    const standsAt = Math.min(...drawn.predecessor.map((bar) => bar.left));
+    const drawnUntil = Math.max(...drawn.predecessor.map((bar) => bar.right));
     expect(
-      drawn.successor[0].left,
-      'the successor is drawn left of the work it waits for',
-    ).toBeGreaterThan(holdsUntil - NEARLY);
+      Math.abs(drawn.successor[0].left - standsAt),
+      'the successor waits for a placeholder nobody estimated',
+    ).toBeLessThan(NEARLY);
+    expect(
+      drawnUntil,
+      'the unestimated predecessor is no longer drawn past its zero-time finish',
+    ).toBeGreaterThan(drawn.successor[0].left + NEARLY);
   });
 
   /**
@@ -1339,24 +1337,19 @@ test.describe('the chart under a plan being edited', () => {
     // PERT. The dependent `010.2` follows — its own not-before still names day
     // 4, and the dependency out-floors it.
     //
-    // **It follows to day 12, not day 10, and the two workdays between are the
-    // whole of what `dep-reach-whole-item` and `assumed-duration-schedules`
-    // compose to.** Under the anchor rule `010.2` waited for `010.1`'s first
-    // *estimated* slice — its `Dev`, finishing at 10. Under `whole-item`, now
-    // the default, it waits for the whole work item, and `010.1`'s last slice
-    // is a `QA` nobody estimated, which since `assumed-duration-schedules`
-    // takes two workdays rather than none. So `010.1` is 0→10 then 10→12, and
-    // `010.2` is 12→16. Measured on the merged tree rather than re-derived:
-    // every bar's `data-start`/`data-finish` read out of the page, 2026-08-30.
+    // It follows to day 10, the end of the whole of `010.1` under the
+    // `whole-item` default: `010.1`'s last slice is a `QA` nobody estimated,
+    // which takes no schedule time (WBS 010.4.4) and stands at 10→10 while
+    // its placeholder is drawn two workdays wide. So `010.2` is 10→14.
     const estimate = page.getByLabel('Dev estimate for 010.1');
     await estimate.fill('8/10/12');
     const savedEstimate = savedCommand(page, 'setEstimate');
     await estimate.blur();
     await savedEstimate;
     await expect(firstBar).toHaveAttribute('data-finish', '10');
-    // `010.1`'s own assumed `QA`, which is the slice the dependency now reaches.
-    await expect(page.locator('[data-gantt-bar][data-start="10"][data-finish="12"]')).toBeVisible();
-    await expect(page.locator('[data-gantt-bar][data-start="12"][data-finish="16"]')).toBeVisible();
+    // `010.1`'s own unestimated `QA`, which is the slice the dependency reaches.
+    await expect(page.locator('[data-gantt-bar][data-start="10"][data-finish="10"]')).toBeVisible();
+    await expect(page.locator('[data-gantt-bar][data-start="10"][data-finish="14"]')).toBeVisible();
 
     // A not-before edit past everything else moves the row's bar to the day it
     // names: 2026-09-07 is workday 20 of a plan starting Monday 2026-08-10.
@@ -3959,7 +3952,8 @@ test.describe('the marker rule, measured in the columns it paints', () => {
       ).toEqual({ width: where.body.width, height: where.body.height });
       console.info(
         `[marker-pixel-oracle] rung=${String(rung)} body=${String(bodyDifference.width)}x${String(bodyDifference.height)} ` +
-          `changedPixels=${String(bodyDifference.changedPixels)} maxDelta=${String(bodyDifference.greatestChannelDelta)}`,
+          `changedPixels=${String(bodyDifference.changedPixels)} maxDelta=${String(bodyDifference.greatestChannelDelta)} ` +
+          `columns=${bodyDifference.differingColumns.join(',')}`,
       );
       expect(
         bodyDifference.greatestChannelDelta,

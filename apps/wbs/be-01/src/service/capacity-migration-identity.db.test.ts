@@ -13,12 +13,6 @@ import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { rollbackTo } from '../repository/migrate-down';
 import { inMemoryActuals } from '../testing/actual-fixture';
-import {
-  countMovedDates,
-  isFullyEstimated,
-  withoutPlacement,
-  withSnappedRollUps,
-} from '../testing/assumed-duration-oracle';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
@@ -31,6 +25,7 @@ import { inMemoryMeasures } from '../testing/measure-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { inMemoryProgress } from '../testing/progress-fixture';
 import { inMemoryProjects, projectRow } from '../testing/project-fixture';
+import { withSnappedRollUps } from '../testing/snapped-roll-ups';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems, workItemRow } from '../testing/work-item-fixture';
 import captured from './fixtures/capacity-oracle-2026-08-13.json';
@@ -197,8 +192,6 @@ describe('every plan schedules identically across the migration', () => {
   });
 
   it('answers exactly what be-01 answered, with the migration’s own seeded numbers', async () => {
-    let fullyEstimated = 0;
-    let moved = 0;
     // The claim, and the two halves of how it is set up are both load-bearing.
     //
     // The **numbers** come from the real migration: a temp database rolled back to
@@ -438,19 +431,16 @@ describe('every plan schedules identically across the migration', () => {
           },
         ),
       };
-      // `assumed-duration-schedules` (2026-08-29): thirteen of these sixteen
-      // plans leave a pair unestimated, and this change moves exactly those
-      // plans' placement on purpose. The document is compared whole where the
-      // two engines coincide and with the placement set aside where they do
-      // not — see {@link withoutPlacement}, which also says what is *not* set
-      // aside. `countMovedDates` below holds the part that is.
+      // Compared whole on all sixteen plans. Thirteen of them leave a pair
+      // unestimated; from `assumed-duration-schedules` (2026-08-29) until
+      // `unestimated-steps-take-no-schedule-time` (2026-09-27) their placement
+      // was set aside, and with an unknown length back to zero schedule time
+      // it is the capture's again.
       // `withSnappedRollUps` on both sides for the reassociated parent totals
       // `estimate-weights-and-rounding` introduced — see its JSDoc for the one
       // row in this corpus it is about and why 1e-9 cannot hide a real move.
       const narrow = (document: Record<string, unknown>): Record<string, unknown> =>
-        withSnappedRollUps(isFullyEstimated(plan) ? document : withoutPlacement(document));
-      moved += countMovedDates(answer, tree);
-      if (isFullyEstimated(plan)) fullyEstimated += 1;
+        withSnappedRollUps(document);
       expect(narrow({ project: plan.projectId, ...lifted })).toEqual(
         narrow({
           project: plan.projectId,
@@ -474,11 +464,6 @@ describe('every plan schedules identically across the migration', () => {
         }),
       );
     }
-    // The corpus halves of the narrowing, both of which a silent regression
-    // would take with it: three plans compared whole, and a placement that
-    // really did move on the other thirteen.
-    expect(fullyEstimated).toBe(3);
-    expect(moved).toBeGreaterThan(0);
   });
 
   it('gives every project the same numbers, which is what makes the identity hold', async () => {

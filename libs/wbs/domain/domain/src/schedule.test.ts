@@ -316,15 +316,11 @@ describe('schedule — a work item’s steps run one after another', () => {
     expect(sliceOf(found, 'a', DEV)).toMatchObject({ earliestStart: 2, earliestFinish: 5 });
   });
 
-  it('gives an unestimated slice its assumed duration, and still says nobody has looked', () => {
-    // Re-derived by `assumed-duration-schedules` (2026-08-29). The `Dev` nobody
-    // estimated used to run 0→0 and the `QA` behind it started on day zero;
-    // the slice is now two workdays wide and `QA` starts where it ends.
-    //
-    // The two fields beside the dates are the ones that did **not** move, and
-    // they are the point: `duration` is expected days and `estimated` is
-    // whether anybody supplied any, and this change supplied none. A slice with
-    // a span and no estimate is exactly the state the change creates.
+  it('gives an unestimated slice zero schedule time, and still says nobody has looked', () => {
+    // `unestimated-steps-take-no-schedule-time`: the `Dev` nobody estimated
+    // runs 0→0 and the `QA` behind it starts on day zero. The Gantt draws a
+    // placeholder for it; the schedule does not spend one. `duration` and
+    // `estimated` still say nobody supplied an estimate.
     const rows = [item('a')];
 
     const found = planSlices(rows, [], [work('a', DEV, null), work('a', QA, 4)]);
@@ -333,9 +329,9 @@ describe('schedule — a work item’s steps run one after another', () => {
       duration: 0,
       estimated: false,
       earliestStart: 0,
-      earliestFinish: 2,
+      earliestFinish: 0,
     });
-    expect(sliceOf(found, 'a', QA)).toMatchObject({ earliestStart: 2, earliestFinish: 6 });
+    expect(sliceOf(found, 'a', QA)).toMatchObject({ earliestStart: 0, earliestFinish: 4 });
   });
 });
 
@@ -354,11 +350,9 @@ describe('schedule — where a dependency lands on the slices', () => {
     );
 
     expect(sliceOf(found, 'b', DEV)).toMatchObject({ earliestStart: 5, earliestFinish: 6 });
-    // `b`'s own QA is unestimated and two assumed workdays wide since
-    // `assumed-duration-schedules`, so the row spans 5→8 while the Dev slice
-    // this case is about still runs 5→6. The wait is what moved; the length of
-    // `b` is somebody else's change.
-    expect(found.workItems.get('b')).toMatchObject({ earliestStart: 5, earliestFinish: 8 });
+    // `b`'s own QA is unestimated and takes no schedule time, so the row ends
+    // with its Dev on day 6.
+    expect(found.workItems.get('b')).toMatchObject({ earliestStart: 5, earliestFinish: 6 });
     expect(sliceOf(found, 'a', QA)).toMatchObject({ earliestStart: 3, earliestFinish: 5 });
   });
 
@@ -379,11 +373,9 @@ describe('schedule — where a dependency lands on the slices', () => {
     );
 
     expect(sliceOf(found, 'b', DEV)).toMatchObject({ earliestStart: 3, earliestFinish: 4 });
-    // Re-derived (`assumed-duration-schedules`): `b`'s own unestimated `QA`
-    // runs 4→6 behind its `Dev` instead of 4→4, so the row ends on day 6. The
-    // anchor rule itself is untouched — `b` still starts at `a`'s `Dev` finish
-    // and `a`'s `QA` still runs alongside it.
-    expect(found.workItems.get('b')).toMatchObject({ earliestStart: 3, earliestFinish: 6 });
+    // `b`'s own unestimated `QA` stands at 4→4 behind its `Dev`, so the row
+    // ends on day 4.
+    expect(found.workItems.get('b')).toMatchObject({ earliestStart: 3, earliestFinish: 4 });
     expect(sliceOf(found, 'a', QA)).toMatchObject({ earliestStart: 3, earliestFinish: 5 });
   });
 
@@ -400,13 +392,11 @@ describe('schedule — where a dependency lands on the slices', () => {
       [work('a', DEV, 3), work('b', DEV, null), work('b', QA, 2)],
     );
 
-    // Re-derived (`assumed-duration-schedules`): `b`'s `Dev` is two workdays
-    // wide rather than none, so its `QA` follows at 5 instead of 3. What the
-    // test is about is unmoved — the edge still lands on `b`'s first slice
-    // plain, and `b` still starts at day 3 rather than day zero.
-    expect(sliceOf(found, 'b', DEV)).toMatchObject({ earliestStart: 3, earliestFinish: 5 });
-    expect(sliceOf(found, 'b', QA)).toMatchObject({ earliestStart: 5, earliestFinish: 7 });
-    expect(found.workItems.get('b')).toMatchObject({ earliestStart: 3, earliestFinish: 7 });
+    // `b`'s unknown `Dev` takes no time, so its `QA` follows at 3, and `b`
+    // still starts at day 3 rather than day zero.
+    expect(sliceOf(found, 'b', DEV)).toMatchObject({ earliestStart: 3, earliestFinish: 3 });
+    expect(sliceOf(found, 'b', QA)).toMatchObject({ earliestStart: 3, earliestFinish: 5 });
+    expect(found.workItems.get('b')).toMatchObject({ earliestStart: 3, earliestFinish: 5 });
   });
 
   it('puts a not-before floor on the first slice, and thereby on all of them', () => {
@@ -419,11 +409,10 @@ describe('schedule — where a dependency lands on the slices', () => {
       new Map([['a', 4]]),
     );
 
-    // Re-derived (`assumed-duration-schedules`): the floor still lands on the
-    // first slice and still only pushes, and the unestimated `Dev` it lands on
-    // now occupies 4→6, so `QA` runs 6→8 rather than 4→6.
-    expect(sliceOf(found, 'a', DEV)).toMatchObject({ earliestStart: 4, earliestFinish: 6 });
-    expect(sliceOf(found, 'a', QA)).toMatchObject({ earliestStart: 6, earliestFinish: 8 });
+    // The floor lands on the unknown first slice, which takes no time, and
+    // carries through it to `QA`.
+    expect(sliceOf(found, 'a', DEV)).toMatchObject({ earliestStart: 4, earliestFinish: 4 });
+    expect(sliceOf(found, 'a', QA)).toMatchObject({ earliestStart: 4, earliestFinish: 6 });
   });
 });
 
@@ -455,11 +444,9 @@ describe('schedule — the projection back onto the work item', () => {
     );
 
     expect(found.workItems.get('long')).toMatchObject({ float: 0, critical: true });
-    // Re-derived (`assumed-duration-schedules`): `short`'s unestimated `QA`
-    // runs 1→3 rather than 1→1, so the row ends on day 3 in a six-day project
-    // and has three days of slack rather than five. Still white, still slack —
-    // the change moved how much, not which.
-    expect(found.workItems.get('short')).toMatchObject({ float: 3, critical: false });
+    // `short`'s unestimated `QA` stands at 1→1, so the row ends on day 1 in a
+    // six-day project and has five days of slack.
+    expect(found.workItems.get('short')).toMatchObject({ float: 5, critical: false });
   });
 
   it('schedules a leaf in a project that holds no steps at all', () => {
@@ -473,13 +460,10 @@ describe('schedule — the projection back onto the work item', () => {
       [work('a', null, null), work('b', null, null)],
     );
 
-    // Re-derived (`assumed-duration-schedules`): a project with no steps gives
-    // each leaf one unestimated slice, which is now two workdays wide, so `a`
-    // ends on day 2 and `b` — which waits on it — starts there instead of
-    // beside it. Both are still `estimated: false`: a plan nobody has estimated
-    // has an order now, and still has no estimates.
-    expect(found.workItems.get('a')).toMatchObject({ estimated: false, earliestFinish: 2 });
-    expect(found.workItems.get('b')).toMatchObject({ estimated: false, earliestStart: 2 });
+    // A project with no steps gives each leaf one unestimated slice of zero
+    // schedule time, so `a` ends where it starts and `b` waits on that finish.
+    expect(found.workItems.get('a')).toMatchObject({ estimated: false, earliestFinish: 0 });
+    expect(found.workItems.get('b')).toMatchObject({ estimated: false, earliestStart: 0 });
   });
 });
 
