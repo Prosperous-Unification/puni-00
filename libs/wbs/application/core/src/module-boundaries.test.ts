@@ -6,13 +6,7 @@ import ts from 'typescript';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const sourceRoot = `${root}src/`;
-const debt = new Set([
-  'realtime',
-  'bounded-replay-sweep',
-  'authentication',
-  'saved-plans',
-  'plan-import',
-]);
+const debt = new Set(['bounded-replay-sweep', 'authentication', 'saved-plans', 'plan-import']);
 const inspected = [
   'plan-history',
   'realtime',
@@ -107,5 +101,7 @@ test('closed feature modules do not reference repository ports and debt stays li
   // Proof (2026-09-27): injecting an import() type reference to ProjectStore into
   // plan-history.feature.ts made this assertion report that resolved declaration
   // with 0 pass and 1 fail; removing the import restored 1 pass.
+  // Proof (2026-09-27): injecting an import() type reference to EventLogStore
+  // into gateway-broadcaster.ts made this assertion fail (0 pass, 1 fail).
   expect(failed).toEqual([]);
 }, 120_000);

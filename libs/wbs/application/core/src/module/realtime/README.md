@@ -4,9 +4,8 @@
 
 The third sealed DI Bag module in the core, following Plan history's and Bounded replay sweep's
 pattern: `module.ts` seals the graph, `check.ts` is the only place that builds a bag, and
-`contract.ts` states the two runtime ports and the buffer/replay limits a host must supply — the
-same preserved K3 debt Plan history's and Bounded replay sweep's contracts record for their own
-repository ports, not compliance. Private bindings are named under the `application.realtime`
+`contract.ts` states the Event log resource, two runtime ports, and the buffer/replay limits a host
+must supply. Private bindings are named under the `application.realtime`
 label, so a DI failure says which module asked.
 
 `realtime.feature.ts` (the moved `use-cases/replay.ts`) admits an internal principal before

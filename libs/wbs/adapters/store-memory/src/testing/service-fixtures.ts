@@ -16,6 +16,7 @@ import {
   CalendarMarkerService,
   CapacityService,
   DirectoryService,
+  EventLogService,
   HistoryService,
   PlanEventService,
   PriorityBandService,
@@ -101,7 +102,11 @@ export function testReplay(maxEvents?: number) {
     maxAgeMs: 5 * 60_000,
     now: () => 1_000,
   });
-  return { log, buffer, replay: new ReplayOrchestrator({ log, buffer, maxEvents }) };
+  return {
+    log,
+    buffer,
+    replay: new ReplayOrchestrator({ log: new EventLogService(log), buffer, maxEvents }),
+  };
 }
 
 export async function personAdded(added: Promise<PersonAdded>): Promise<Person> {

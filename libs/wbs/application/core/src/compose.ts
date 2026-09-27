@@ -8,6 +8,7 @@ import type { RetentionTimer } from './module/bounded-replay-sweep/retention-tim
 import { installCalendarMarker } from './module/calendar-marker/check';
 import { installCapacity } from './module/capacity/check';
 import { installDirectory } from './module/directory/check';
+import { installEventLog } from './module/event-log/check';
 import { installPlanCommands } from './module/plan-commands/check';
 import type { PlanCommandRunner } from './module/plan-commands/plan-commands.feature';
 import { installPlanEvent } from './module/plan-event/check';
@@ -207,8 +208,9 @@ export function composeServices(
   options: AccountfulOptions | AccountlessOptions,
 ): AccountfulServices | AccountlessServices {
   const { source, runtime, shared } = options;
+  const eventLog = installEventLog({ events: source.stores.eventLog }).eventLog;
   const realtime = installRealtime({
-    eventLog: source.stores.eventLog,
+    eventLog,
     clock: runtime.clock,
     push: runtime.push,
     maxPerSubscription: shared.replayMaxPerSubscription,
