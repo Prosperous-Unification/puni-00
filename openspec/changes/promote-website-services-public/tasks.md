@@ -9,4 +9,5 @@
 - [x] Replace operator password comparison with an adaptive verifier; prove wrong credentials cannot create an operator session.
 - [x] Select a bounded plain-text concept subject; prove nested markup and URL schemes do not reach `/concept`.
 - [x] Move the byte-identical initial SQL pair under `migrations/001_initial`, update runtime/build paths, and prove old database reopen plus built-package assets.
-- [ ] Re-run affected checks and CodeQL on the new public PR head, prove trusted content classification, then update the private pinned snapshot.
+- [x] Extend the finite public CI job budget after the full matrix passed but the one-hour limit skipped later safety checks; keep every stage in place.
+- [ ] Re-run affected checks and CodeQL on the new public PR head, prove trusted content classification and complete CI admission, then update the private pinned snapshot.

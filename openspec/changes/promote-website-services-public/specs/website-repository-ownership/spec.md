@@ -56,3 +56,12 @@ The operator password SHALL be checked with an adaptive password hash. Opaque ra
 
 - **WHEN** a request description contains nested markup or begins with a URL scheme, including `vbscript:`
 - **THEN** the generated concept uses only an initial allowed plain-text prefix or the fixed fallback, and never carries markup or a URL scheme into the subject
+
+### Requirement: Complete public CI admission
+
+The public PR gate SHALL retain a finite runtime allowance that lets the full project matrix and every subsequent safety check finish for the website promotion candidate.
+
+#### Scenario: Full matrix exceeds the former one-hour limit
+
+- **WHEN** the full Nx gate, packed package suite, solver image smoke, and heavy-lock checks consume about one hour
+- **THEN** the CI job continues to gate head pinning, secrets scan, migration lint, and OpenSpec validation instead of cancelling those checks at the former timeout
