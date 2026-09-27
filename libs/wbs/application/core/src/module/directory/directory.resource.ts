@@ -3,6 +3,8 @@ import { PERSON_KINDS } from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
 import type {
+  DirectoryCatalog,
+  DirectoryCatalogRows,
   DirectoryRemoved,
   DirectoryStore,
   DirectoryUsageRows,
@@ -14,6 +16,7 @@ import type {
   TeamWithServices,
   TouchedProjects,
 } from '../../ports/directory-store';
+import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
 import type { WriteStamp } from '../../ports/write-stamp';
@@ -289,6 +292,34 @@ export class DirectoryService {
     remove: (id, cascade, stamp) => this.opts.directory.removeService(id, cascade, stamp),
     usageIn: directoryUsageOfService,
   };
+
+  /**
+   * One catalog through the caller's access: the whole deployment's under
+   * legacy access, only the organization's own, under its local names, under
+   * scoped access. The directory list routes read through this.
+   *
+   * Proof: answering the legacy list under scoped access made `lists only the
+   * organization's own entries under their local names` in
+   * `directory-organization.controller.db.test.ts` list both organizations'
+   * entries; watched 2026-09-27.
+   */
+  listWithin<C extends DirectoryCatalog>(
+    catalog: C,
+    access: ResourceAccess,
+  ): Promise<DirectoryCatalogRows[C]> {
+    if (access.kind === 'scoped') {
+      return this.opts.directory.listInOrganization(catalog, access.scope.organizationId);
+    }
+    const legacy: { [K in DirectoryCatalog]: () => Promise<DirectoryCatalogRows[K]> } = {
+      people: () => this.listPeople(),
+      teams: () => this.listTeams(),
+      services: () => this.listServices(),
+      tags: () => this.listTags(),
+      workItemTypes: () => this.listWorkItemTypes(),
+      externalSystems: () => this.listExternalSystems(),
+    };
+    return legacy[catalog]();
+  }
 
   /** Every team **with the services it owns** — the map ships whole, design D4. */
   listTeams(): Promise<TeamWithServices[]> {

@@ -12,7 +12,7 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import { installPlanDocument } from '../module/plan-document/check';
 import type { Clock } from '../ports/clock';
-import type { OrganizationAccess, OrganizationAccessRefusal } from '../ports/organization-access';
+import type { OrganizationAccess } from '../ports/organization-access';
 import type { Project } from '../ports/project-store';
 import type { OptimizationVariantState } from '../ports/scheduler';
 import type { CalendarMarkerService } from '../service/calendar-marker.service';
@@ -20,6 +20,7 @@ import type { DirectoryService } from '../service/directory.service';
 import type { ProjectService } from '../service/project.service';
 import type { WorkItemService } from '../service/work-item.service';
 import { bind, EMPTY, type HttpReply, type RequestFailure } from './endpoint';
+import { organizationRefusal } from './organization-refusal';
 
 export interface OptimizationRetry {
   retry(ask: {
@@ -104,10 +105,6 @@ function classifyExportFailure(failure: RequestFailure) {
     ? ({ ok: false, status: 400, body: { error: 'invalid_params' } } as const)
     : ({ ok: false, status: 400, body: { error: 'invalid_body' } } as const);
 }
-
-/** An authenticated caller with no organization authority: typed 403, never a lookup. */
-const organizationRefusal = (refusal: OrganizationAccessRefusal) =>
-  ({ ok: false, status: 403, body: { error: refusal } }) as const;
 
 /**
  * Project operations share wire declarations; ProjectService retains ownership

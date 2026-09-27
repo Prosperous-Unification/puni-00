@@ -204,6 +204,36 @@ Commands, all under `env -u CLAUDECODE`:
 - mcp-01: 212 pass.
 - fe-01 vitest, 6 refusal and project files: 129 pass.
 
+## Slice 8 — directory lists (task 3.2)
+
+Branch `batch-9/010-5-2-orgs-7`, stacked on slice 7. Design call: Astra, saved in the lane records as `010-5-2-orgs-task-3.2-design.md`.
+
+- The six directory list routes resolve `OrganizationAccess` before any read, using `DirectoryService.listWithin`.
+- Under scoped access, `DirectoryStore.listInOrganization` reads only the organization's side-table rows, under their organization-local display names, ordered by them. Two organizations can each show `urgent` over distinct opaque root names.
+- A person's `teamIds` and a team's `serviceIds` must be the organization's own. A crossing link is corrupt trusted state: the read throws and answers 500 rather than reveal a foreign id.
+- No directory read takes an id. Directory commands, including activated create and rename and foreign-id 404, are 3.4.
+- The mounted organization suites now share `apps/wbs/be-01/src/testing/organization-harness.ts`.
+
+| Check                               | Injected fault                                                                                          | Observed failure (`directory-organization.controller.db.test.ts`, 2026-09-27)           |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Six side-table ownership predicates | each `organization_id` predicate removed alone (people, teams, services, tags, types, external systems) | `lists only the organization's own entries under their local names`, once per predicate |
+| Side-table names                    | scoped `tags` read from the root table                                                                  | same case: both roots' token names listed                                               |
+| Scoped service path                 | `listWithin` answers the legacy list under scoped access                                                | same case: both organizations' people listed                                            |
+| Team-service owner                  | owner comparison skipped                                                                                | `refuses a team-service link that crosses organizations`: 200 instead of 500            |
+| Team-service owner present          | the service-owner left join made inner                                                                  | `refuses a team-service link whose service has no owner`: 200                           |
+| Membership owner                    | owner comparison skipped                                                                                | `refuses a membership that crosses organizations`: 200 instead of 500                   |
+| Membership owner present            | the team-owner left join made inner                                                                     | `refuses a membership whose team has no owner`: 200                                     |
+| Access resolved before the read     | resolution bypassed in each of the six routes alone                                                     | `refuses an unbound session and a removed member on every list`, once per route         |
+
+Not a safety check: removing an ORDER BY does not fail `orders each list by the local name, not the root name, id or insertion`. SQLite already answers from the `(organization_id, name)` unique index in name order. The ORDER BY stays so the order does not depend on the query plan.
+
+Commands, all under `env -u CLAUDECODE`:
+
+- be-01 `bun test src`: 1163 pass and 1 fail before the tier check learned about `OrganizationHarness.open`. After that, the three organization and boot files pass 48 of 48, and `test-tiers.test.ts` passes.
+- wbs-core `bun test src`: 629. store-sqlite: 929. store-memory: 113. contracts: 397. conformance: 35. mcp-01: 212.
+- fe-01 vitest, 6 files: 149.
+- tsc passes for core, be-01, store-sqlite, store-memory, contracts, conformance, fe-01 and mcp-01.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.
