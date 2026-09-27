@@ -662,7 +662,9 @@ describe('every Bun test command states its own time budget', () => {
  * Proof: with `--testTimeout=30000` removed from the zoned half of `wbs-fe-01:test`, this failed
  * naming `wbs-fe-01:test` (2026-09-27). With `--hookTimeout=30000` removed from `wbs-fe-01:test:unit`
  * it failed naming `wbs-fe-01:test:unit`. With the Vitest-command pattern misspelled so the sweep
- * matched nothing, it failed on `Expected: >= 3 · Received: 0` (2026-09-27).
+ * matched nothing, it failed on `Expected: >= 3 · Received: 0` (2026-09-27). With
+ * `--testTimeout=0` in the UTC half of `wbs-fe-01:test`, and with `--hookTimeout 0` appended to
+ * `wbs-fe-01:test:unit` after its budget, each failed naming that target (2026-09-27).
  */
 describe('every Vitest command states its own time budgets', () => {
   it('passes --testTimeout=<ms> and --hookTimeout=<ms> to each vitest it runs', async () => {
@@ -700,8 +702,14 @@ describe('every Vitest command states its own time budgets', () => {
           // a path, not a run.
           .filter((segment) => /(?:^|\s)vitest(?:\s|$)/.test(segment));
         seen += runs.length;
-        const states = (segment: string, flag: string): boolean =>
-          new RegExp(`(?:^|\\s)--${flag}=\\d+(?:\\s|$)`).test(segment);
+        // Vitest reads 0 as no limit at all, and a repeated flag's last value wins, so every
+        // spelling of the flag must carry a positive number.
+        const states = (segment: string, flag: string): boolean => {
+          const values = [
+            ...segment.matchAll(new RegExp(`(?:^|\\s)--${flag}(?:=|\\s+)(\\S*)`, 'g')),
+          ];
+          return values.length > 0 && values.every(([, value]) => /^[1-9]\d*$/.test(value));
+        };
         if (runs.some((run) => !states(run, 'testTimeout') || !states(run, 'hookTimeout'))) {
           unbudgeted.push(`${project}:${target}`);
         }
