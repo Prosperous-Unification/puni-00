@@ -300,12 +300,14 @@ export class DirectoryRepository implements DirectoryStore {
   /**
    * One organization's catalog, read from its ownership side table: the side
    * row is both the ownership and the organization-local display name, so the
-   * legacy root name is never read here.
+   * legacy root name is never read here. Ordered by that name; SQLite already
+   * answers in that order from the `(organization_id, name)` unique index, and
+   * the explicit ORDER BY keeps the order independent of the plan.
    *
-   * Proof: reading `tags` from the root table instead made `lists only the
-   * organization's own entries under their local names` in
-   * `directory-organization.controller.db.test.ts` list organization B's tag; watched
-   * 2026-09-27.
+   * Proof: each of the six organization predicates removed alone, and the tags
+   * read switched to the root table, failed `lists only the organization's own
+   * entries under their local names` in
+   * `directory-organization.controller.db.test.ts`; watched 2026-09-27.
    */
   listInOrganization<C extends DirectoryCatalog>(
     catalog: C,
@@ -369,8 +371,10 @@ export class DirectoryRepository implements DirectoryStore {
    * @throws when a team owns a service of another organization.
    *
    * Proof: skipping the owner comparison made `refuses a team-service link
-   * that crosses organizations` in `directory-organization.controller.db.test.ts` answer 200
-   * instead of 500; watched 2026-09-27.
+   * that crosses organizations` in `directory-organization.controller.db.test.ts`
+   * answer 200 instead of 500, and an inner join on the service's owner made
+   * `refuses a team-service link whose service has no owner` answer 200;
+   * watched 2026-09-27.
    */
   private async listTeamsIn(organizationId: string): Promise<TeamWithServices[]> {
     const teams = await this.listNamedIn('teams', organizationId);
@@ -402,8 +406,10 @@ export class DirectoryRepository implements DirectoryStore {
    * @throws when a person belongs to a team of another organization.
    *
    * Proof: skipping the owner comparison made `refuses a membership that
-   * crosses organizations` in `directory-organization.controller.db.test.ts` answer 200
-   * instead of 500; watched 2026-09-27.
+   * crosses organizations` in `directory-organization.controller.db.test.ts`
+   * answer 200 instead of 500, and an inner join on the team's owner made
+   * `refuses a membership whose team has no owner` answer 200; watched
+   * 2026-09-27.
    */
   private async listPeopleIn(organizationId: string): Promise<PersonWithTeams[]> {
     const people = await this.db

@@ -17,8 +17,8 @@ import { organizationRefusal } from './organization-refusal';
  * deployment's before activation, the active organization's own after it.
  * Organization authority is resolved before any read, so an unbound or removed
  * caller learns nothing about the directory.
- * Proof: listing tags without resolving access made `refuses an unbound
- * session and a removed member on every list` in
+ * Proof: bypassing the resolution in any one of the six routes alone made
+ * `refuses an unbound session and a removed member on every list` in
  * `directory-organization.controller.db.test.ts` answer 200; watched 2026-09-27. Identity and
  * structural admission belong to the mounted declarations; service failures
  * propagate so an unavailable directory cannot appear empty.

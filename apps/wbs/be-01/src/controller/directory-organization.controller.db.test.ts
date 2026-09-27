@@ -124,6 +124,43 @@ describe('after activation', () => {
     expect((await h.call('ada', 'GET', '/api/teams')).status).toBe(500);
   });
 
+  it('refuses a team-service link whose service has no owner', async () => {
+    h.activate();
+    h.sqlite.run("DELETE FROM service_organization WHERE resource_id = 'a-service'");
+    expect((await h.call('ada', 'GET', '/api/teams')).status).toBe(500);
+  });
+
+  it('refuses a membership whose team has no owner', async () => {
+    h.activate();
+    h.sqlite.run("DELETE FROM service_team_organization WHERE resource_id = 'a-service_team'");
+    expect((await h.call('ada', 'GET', '/api/people')).status).toBe(500);
+  });
+
+  it('orders each list by the local name, not the root name, id or insertion', async () => {
+    for (const [, root, side] of CATALOGS) {
+      h.sqlite.run(`INSERT INTO ${root} (id, name) VALUES (?, ?)`, [`a0-${root}`, `zzz-${root}`]);
+      h.sqlite.run(`INSERT INTO ${side} (resource_id, organization_id, name) VALUES (?, ?, ?)`, [
+        `a0-${root}`,
+        'org-a',
+        'alpha',
+      ]);
+    }
+    h.activate();
+    for (const [path, root, , key] of CATALOGS) {
+      const listed = (await h.call('ada', 'GET', path)).body as Record<
+        string,
+        { id: string; name: string }[]
+      >;
+      expect({ path, order: listed[key].map((entry) => [entry.id, entry.name]) }).toEqual({
+        path,
+        order: [
+          [`a0-${root}`, 'alpha'],
+          [`a-${root}`, 'urgent'],
+        ],
+      });
+    }
+  });
+
   it('refuses a membership that crosses organizations', async () => {
     h.activate();
     h.sqlite.run(

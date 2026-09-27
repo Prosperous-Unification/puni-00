@@ -18,7 +18,8 @@ const refusals = [
 ] as const;
 
 /**
- * Reads the global teams directory for a signed-in account.
+ * Reads the teams directory: deployment-wide before organization activation,
+ * the active organization's own under its local names after it.
  * Proof: optional serviceIds admitted a damaged row,200 instead of500 in the
  * mounted damaged-directory case. Adding a tolerant query declaration returned
  *200 instead of400 in the mounted undeclared-query case.
@@ -72,7 +73,10 @@ export const listPeople = defineEndpointShape({
   document: { summary: 'List people.' },
 });
 
-/** Reads the global tags directory for a signed-in account. */
+/**
+ * Reads the tags directory: deployment-wide before organization
+ * activation, the active organization's own under its local names after it.
+ */
 export const listTags = defineEndpointShape({
   method: 'GET',
   path: '/api/tags',
@@ -85,7 +89,10 @@ export const listTags = defineEndpointShape({
   document: { summary: 'List tags.' },
 });
 
-/** Reads the global services directory for a signed-in account. */
+/**
+ * Reads the services directory: deployment-wide before organization
+ * activation, the active organization's own under its local names after it.
+ */
 export const listServices = defineEndpointShape({
   method: 'GET',
   path: '/api/services',
@@ -98,7 +105,10 @@ export const listServices = defineEndpointShape({
   document: { summary: 'List services.' },
 });
 
-/** Reads the global work-item-types directory for a signed-in account. */
+/**
+ * Reads the work-item-types directory: deployment-wide before organization
+ * activation, the active organization's own under its local names after it.
+ */
 export const listWorkItemTypes = defineEndpointShape({
   method: 'GET',
   path: '/api/work-item-types',
@@ -115,7 +125,10 @@ export const listWorkItemTypes = defineEndpointShape({
   document: { summary: 'List work-item-types.' },
 });
 
-/** Reads the global external-systems directory for a signed-in account. */
+/**
+ * Reads the external-systems directory: deployment-wide before organization
+ * activation, the active organization's own under its local names after it.
+ */
 export const listExternalSystems = defineEndpointShape({
   method: 'GET',
   path: '/api/external-systems',
