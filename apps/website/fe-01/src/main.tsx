@@ -858,9 +858,6 @@ function Header() {
   return (
     <header className="site-header">
       <a className="brand" href={`${siteOrigin}/`} aria-label="PUNI home">
-        <span className="brand-mark" aria-hidden="true">
-          P
-        </span>
         <span>PUNI</span>
       </a>
       <nav aria-label="Primary">
