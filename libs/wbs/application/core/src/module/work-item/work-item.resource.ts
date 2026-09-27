@@ -3,6 +3,7 @@ import {
   CalendarRangeError,
   deadlineOffsetOf,
   deadlineOffsetsOf,
+  type DependencyEndpoint,
   type DependencyReach,
   deriveNumbers,
   effectiveTeamsOf,
@@ -10,10 +11,13 @@ import {
   type EstimateRounding,
   type EstimateRule,
   finalDays,
+  findTypedEndpointDefect,
   firstWorkdayOf,
   formatStepNodeId,
+  formatTypedDependencyKey,
   type IsoDate,
   isoDateOfInstant,
+  isRelationshipType,
   isWithin,
   lastWorkdayOf,
   type MeasureMetric,
@@ -73,7 +77,10 @@ import type {
 } from '../../ports/scheduler';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeStore } from '../../ports/subtree-store';
-import type { TypedDependencyStore } from '../../ports/typed-dependency-store';
+import type {
+  StoredTypedDependency,
+  TypedDependencyStore,
+} from '../../ports/typed-dependency-store';
 import type {
   LabelledWorkItem,
   Reparented,
@@ -622,6 +629,14 @@ export type WorkItemRefusal =
    * wrong whatever else the plan holds.
    */
   | 'self_node'
+  /** A descendant-step selector needs a parent with descendant leaves. */
+  | 'not_a_parent'
+  /** The addressed typed relationship no longer exists in this project. */
+  | 'unknown_dependency'
+  /** Another relationship already names these endpoints and this type. */
+  | 'duplicate_dependency'
+  /** This release understands only the relationship types in RELATIONSHIP_TYPES. */
+  | 'unsupported_relationship_type'
   /** A subtree past {@link MAX_DUPLICATED_ROWS}. */
   | 'too_large'
   /**
@@ -1591,6 +1606,13 @@ export class WorkItemService {
          * below it, each of which carries its own.
          */
         projectRevision: number;
+        /** Authored relationships, with stable node addresses for readers. */
+        typedDependencies: {
+          id: string;
+          predecessor: DependencyEndpoint & { stepNodeId?: string };
+          successor: DependencyEndpoint & { stepNodeId?: string };
+          type: string;
+        }[];
         /** Present when this process has the optimizer runtime wired. */
         optimization?: PlanOptimization;
       }
@@ -1617,6 +1639,7 @@ export class WorkItemService {
     // {@link MeasureStore}.
     const measured = await this.opts.measures.listByProject(projectId);
     const edges = await this.opts.dependencies.listByProject(projectId);
+    const authored = await this.opts.typedDependencies.listByProject(projectId);
     // Proof: restoring listPeople() followed by the assigned-id filter made
     // `materializes only assigned project rows and names during a tiny tree read`
     // fail on 41 materialized people, expected at most 1, with the same payload.
@@ -1909,6 +1932,18 @@ export class WorkItemService {
       .sort(byTreeOrder(treeOrder(rows)));
     return {
       workItems,
+      typedDependencies: authored.map(({ id, predecessor, successor, type }) => ({
+        id,
+        predecessor:
+          predecessor.scope === 'node'
+            ? { ...predecessor, stepNodeId: formatStepNodeId(predecessor) }
+            : predecessor,
+        successor:
+          successor.scope === 'node'
+            ? { ...successor, stepNodeId: formatStepNodeId(successor) }
+            : successor,
+        type,
+      })),
       seq,
       scheduleError,
       waitingForPerson,
@@ -3754,6 +3789,170 @@ export class WorkItemService {
    * downstream of it, and working out which rows those are is the schedule's
    * job, computed on read.
    */
+  /** Validates a typed row against this project's current tree and combined graph. */
+  private async typedRefusal(
+    projectId: string,
+    rows: readonly WorkItem[],
+    existing: readonly StoredTypedDependency[],
+    proposed: StoredTypedDependency,
+  ): Promise<WorkItemRefusal | null> {
+    if (!isRelationshipType(proposed.type)) return 'unsupported_relationship_type';
+    const leaves = new Map(
+      rows.map((row) => [row.id, !rows.some((child) => child.parentId === row.id)]),
+    );
+    const steps = new Set((await this.opts.projects.stepsOf(projectId)).map((step) => step.id));
+    for (const endpoint of [proposed.predecessor, proposed.successor]) {
+      // Proof: bypassing endpoint validation made `refuses invalid typed endpoints, duplicate keys,
+      // unsupported types and absent relationships` return 500 instead of 404 for an unknown step; watched 2026-09-27.
+      const defect = findTypedEndpointDefect(endpoint, {
+        isLeaf: (id) => leaves.get(id),
+        hasStep: (id) => steps.has(id),
+      });
+      if (defect !== null)
+        return defect === 'node_on_parent'
+          ? 'rolled_up'
+          : defect === 'descendant_step_on_leaf'
+            ? 'not_a_parent'
+            : defect;
+    }
+    // Proof: bypassing key comparison made the mounted duplicate case return 500 instead of 409; watched 2026-09-27.
+    if (
+      existing.some(
+        (row) =>
+          row.id !== proposed.id &&
+          formatTypedDependencyKey(row) === formatTypedDependencyKey(proposed),
+      )
+    )
+      return 'duplicate_dependency';
+    // Proof: bypassing this check made `rejects a cycle introduced by the second typed add`
+    // return 200 instead of 409; watched 2026-09-27.
+    const cycle = await this.graph.findCycle(projectId, {
+      typed: [...existing.filter((row) => row.id !== proposed.id), proposed],
+    });
+    return cycle === null ? null : cycle.kind === 'self_node' ? 'self_node' : 'cycle';
+  }
+
+  /** Compares a journalled relationship with the current stored row. */
+  private sameTypedDependency(
+    left: StoredTypedDependency | undefined,
+    right: StoredTypedDependency,
+  ): boolean {
+    if (left === undefined) return false;
+    return (
+      left.id === right.id &&
+      left.projectId === right.projectId &&
+      formatTypedDependencyKey(left) === formatTypedDependencyKey(right)
+    );
+  }
+
+  /** Adds a typed relationship and returns the minted stable identity. */
+  async addTypedDependency(
+    projectId: string,
+    actorId: string,
+    input: { predecessor: DependencyEndpoint; successor: DependencyEndpoint; type: string },
+  ): Promise<WorkItemOutcome<string>> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { ok: false, reason: 'not_found' };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!isRelationshipType(input.type))
+      return { ok: false, reason: 'unsupported_relationship_type' };
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const existing = await this.opts.typedDependencies.listByProject(projectId);
+    const dependency: StoredTypedDependency = {
+      id: this.clock.newId(),
+      projectId,
+      ...input,
+      type: input.type,
+    };
+    const refusal = await this.typedRefusal(projectId, rows, existing, dependency);
+    if (refusal !== null) return { ok: false, reason: refusal };
+    const stamp = this.clock.stampFor(actorId);
+    await this.opts.typedDependencies.add(dependency, stamp);
+    await this.announceTree(projectId);
+    await this.record(
+      projectId,
+      stamp,
+      'add_typed_dependency',
+      `make ${quoteName(nameOf(rows, input.successor.workItemId))} wait for ${quoteName(nameOf(rows, input.predecessor.workItemId))}`,
+      {
+        forward: { do: 'add_typed_dependency', dependency },
+        inverse: { do: 'remove_typed_dependency', dependency },
+        touched: touchedBy({ do: 'add_typed_dependency', dependency }),
+        before: rows,
+      },
+    );
+    return { ok: true, value: dependency.id };
+  }
+
+  /** Updates one typed relationship without changing its identity. */
+  async updateTypedDependency(
+    projectId: string,
+    actorId: string,
+    dependencyId: string,
+    input: { predecessor: DependencyEndpoint; successor: DependencyEndpoint; type: string },
+  ): Promise<WorkItemOutcome<null>> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { ok: false, reason: 'not_found' };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!isRelationshipType(input.type))
+      return { ok: false, reason: 'unsupported_relationship_type' };
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const existing = await this.opts.typedDependencies.listByProject(projectId);
+    const from = existing.find((row) => row.id === dependencyId);
+    if (from === undefined) return { ok: false, reason: 'unknown_dependency' };
+    const to: StoredTypedDependency = { id: dependencyId, projectId, ...input, type: input.type };
+    const refusal = await this.typedRefusal(projectId, rows, existing, to);
+    if (refusal !== null) return { ok: false, reason: refusal };
+    const stamp = this.clock.stampFor(actorId);
+    await this.opts.typedDependencies.update(to, stamp);
+    await this.announceTree(projectId);
+    await this.record(
+      projectId,
+      stamp,
+      'update_typed_dependency',
+      `change dependency from ${quoteName(nameOf(rows, to.predecessor.workItemId))} to ${quoteName(nameOf(rows, to.successor.workItemId))}`,
+      {
+        forward: { do: 'update_typed_dependency', from, to },
+        inverse: { do: 'update_typed_dependency', from: to, to: from },
+        touched: touchedBy({ do: 'update_typed_dependency', from, to }),
+        before: rows,
+      },
+    );
+    return { ok: true, value: null };
+  }
+
+  /** Removes one typed relationship by stable identity. */
+  async removeTypedDependency(
+    projectId: string,
+    actorId: string,
+    dependencyId: string,
+  ): Promise<WorkItemOutcome<null>> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { ok: false, reason: 'not_found' };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const dependency = (await this.opts.typedDependencies.listByProject(projectId)).find(
+      (row) => row.id === dependencyId,
+    );
+    if (dependency === undefined) return { ok: false, reason: 'unknown_dependency' };
+    const stamp = this.clock.stampFor(actorId);
+    await this.opts.typedDependencies.remove(dependencyId, stamp);
+    await this.announceTree(projectId);
+    await this.record(
+      projectId,
+      stamp,
+      'remove_typed_dependency',
+      `remove dependency from ${quoteName(nameOf(rows, dependency.predecessor.workItemId))} to ${quoteName(nameOf(rows, dependency.successor.workItemId))}`,
+      {
+        forward: { do: 'remove_typed_dependency', dependency },
+        inverse: { do: 'add_typed_dependency', dependency },
+        touched: touchedBy({ do: 'remove_typed_dependency', dependency }),
+        before: rows,
+      },
+    );
+    return { ok: true, value: null };
+  }
+
   async addDependency(
     id: string,
     actorId: string,
@@ -4256,6 +4455,49 @@ export class WorkItemService {
       case 'remove_dependency':
         await this.opts.dependencies.remove(command.predecessorId, command.successorId, stamp);
         return { ok: true, detail: null };
+      case 'add_typed_dependency': {
+        const existing = await this.opts.typedDependencies.listByProject(projectId);
+        // Proof: bypassing this identity check made `refuses redo when its relationship
+        // ID has been reused` receive 500 instead of 409; watched 2026-09-27.
+        if (existing.some((row) => row.id === command.dependency.id))
+          return { ok: false, detail: 'that relationship identity is already in use.' };
+        const rows = await this.opts.workItems.listByProject(projectId);
+        const refusal = await this.typedRefusal(projectId, rows, existing, command.dependency);
+        if (refusal !== null)
+          return { ok: false, detail: `that relationship would now be refused: ${refusal}.` };
+        await this.opts.typedDependencies.add(command.dependency, stamp);
+        return { ok: true, detail: null };
+      }
+      case 'remove_typed_dependency': {
+        const existing = await this.opts.typedDependencies.listByProject(projectId);
+        // Proof: bypassing this comparison made `refuses undo when the stored relationship
+        // changed outside the journal` return 200 instead of 409; watched 2026-09-27.
+        if (
+          !this.sameTypedDependency(
+            existing.find((row) => row.id === command.dependency.id),
+            command.dependency,
+          )
+        )
+          return { ok: false, detail: 'that relationship has changed since this command.' };
+        await this.opts.typedDependencies.remove(command.dependency.id, stamp);
+        return { ok: true, detail: null };
+      }
+      case 'update_typed_dependency': {
+        const existing = await this.opts.typedDependencies.listByProject(projectId);
+        if (
+          !this.sameTypedDependency(
+            existing.find((row) => row.id === command.from.id),
+            command.from,
+          )
+        )
+          return { ok: false, detail: 'that relationship has changed since this command.' };
+        const rows = await this.opts.workItems.listByProject(projectId);
+        const refusal = await this.typedRefusal(projectId, rows, existing, command.to);
+        if (refusal !== null)
+          return { ok: false, detail: `that relationship would now be refused: ${refusal}.` };
+        await this.opts.typedDependencies.update(command.to, stamp);
+        return { ok: true, detail: null };
+      }
       case 'move':
         return this.applyMove(
           projectId,

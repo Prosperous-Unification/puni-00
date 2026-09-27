@@ -553,6 +553,42 @@ function normalizeStepAddress(raw: InputWith<'stepId' | 'stepNodeId'>): {
   return { ...target(raw), stepId: asText(raw.stepId, 'stepId') };
 }
 
+type TypedEndpointInput = CommandInput<'addTypedDependency'>['predecessor'];
+
+/** Parses one typed endpoint before batch reference binding. */
+function normalizeTypedEndpoint(raw: TypedEndpointInput) {
+  const { scope, workItemId, workItemRef, stepId, stepNodeId } = raw;
+  if (scope === 'whole') {
+    // Proof: deleting this check made the mounted whole-with-step refusal return 200 instead of 400; watched 2026-09-27.
+    if (
+      (workItemId === undefined) === (workItemRef === undefined) ||
+      stepId !== undefined ||
+      stepNodeId !== undefined
+    )
+      throw new CommandNormalizationError('invalid_typed_endpoint');
+    return present({ scope, workItemId, workItemRef });
+  }
+  if (scope === 'node' && stepNodeId !== undefined) {
+    if (workItemId !== undefined || workItemRef !== undefined || stepId !== undefined)
+      throw new CommandNormalizationError('invalid_typed_endpoint');
+    const parsed = parseStepNodeId(stepNodeId);
+    if (!parsed.ok)
+      throw new CommandNormalizationError(
+        parsed.reason === 'unknown_encoding'
+          ? 'unknown_step_node_encoding'
+          : 'invalid_step_node_id',
+      );
+    return { scope, ...parsed.ref };
+  }
+  if (
+    (workItemId === undefined) === (workItemRef === undefined) ||
+    stepId === undefined ||
+    stepNodeId !== undefined
+  )
+    throw new CommandNormalizationError('invalid_typed_endpoint');
+  return present({ scope, workItemId, workItemRef, stepId });
+}
+
 function normalizedRef(value: unknown) {
   return present({ ref: asOptionalId(value, 'ref') });
 }
@@ -704,6 +740,23 @@ export const commandNormalizers = {
       predecessorId: asOptionalId(raw.predecessorId, 'predecessorId'),
       predecessorRef: asOptionalId(raw.predecessorRef, 'predecessorRef'),
     }),
+  addTypedDependency: (raw: CommandInput<'addTypedDependency'>) => ({
+    kind: 'addTypedDependency' as const,
+    predecessor: normalizeTypedEndpoint(raw.predecessor),
+    successor: normalizeTypedEndpoint(raw.successor),
+    type: asText(raw.type, 'type'),
+  }),
+  updateTypedDependency: (raw: CommandInput<'updateTypedDependency'>) => ({
+    kind: 'updateTypedDependency' as const,
+    dependencyId: asText(raw.dependencyId, 'dependencyId'),
+    predecessor: normalizeTypedEndpoint(raw.predecessor),
+    successor: normalizeTypedEndpoint(raw.successor),
+    type: asText(raw.type, 'type'),
+  }),
+  removeTypedDependency: (raw: CommandInput<'removeTypedDependency'>) => ({
+    kind: 'removeTypedDependency' as const,
+    dependencyId: asText(raw.dependencyId, 'dependencyId'),
+  }),
   arrangeBySchedule: (_raw: CommandInput<'arrangeBySchedule'>) => ({
     kind: 'arrangeBySchedule' as const,
   }),

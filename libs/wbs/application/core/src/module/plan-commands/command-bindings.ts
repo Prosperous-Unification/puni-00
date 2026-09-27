@@ -1,5 +1,6 @@
 import type { PlanCommandKind } from '@wbs/contracts';
 import { commandDefinitions } from '@wbs/contracts';
+import type { DependencyEndpoint } from '@wbs/domain';
 
 import type { PlanCommand } from '../../service/plan-command';
 import type {
@@ -19,6 +20,16 @@ export type CommandBindings = {
     context: CommandContext,
   ) => Promise<AppliedFor<K>>;
 };
+
+function bindTypedEndpoint(
+  endpoint: CommandFor<'addTypedDependency'>['predecessor'],
+  context: CommandContext,
+): DependencyEndpoint {
+  const workItemId = context.required(endpoint.workItemId, endpoint.workItemRef);
+  return endpoint.scope === 'whole'
+    ? { scope: 'whole', workItemId }
+    : { scope: endpoint.scope, workItemId, stepId: endpoint.stepId };
+}
 
 /** Stops one binding while retaining the command position and typed refusal. */
 export class CommandRefused extends Error {
@@ -359,6 +370,8 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       return { ...context.plain(), kind: command.kind };
     },
     addDependency: async (command, context) => {
+      // Proof: routing this legacy command to addTypedDependency made `keeps legacy
+      // addDependency semantics and stores no typed row` receive 404 instead of 200; watched 2026-09-27.
       context.value(
         await workItems.addDependency(
           context.required(command.workItemId, command.workItemRef),
@@ -374,6 +387,41 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.required(command.workItemId, command.workItemRef),
           context.actorId,
           context.required(command.predecessorId, command.predecessorRef),
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    addTypedDependency: async (command, context) => {
+      const id = context.value(
+        await workItems.addTypedDependency(context.requireProjectId(), context.actorId, {
+          predecessor: bindTypedEndpoint(command.predecessor, context),
+          successor: bindTypedEndpoint(command.successor, context),
+          type: command.type,
+        }),
+      );
+      return { ...context.mint(undefined, id), kind: command.kind };
+    },
+    updateTypedDependency: async (command, context) => {
+      context.value(
+        await workItems.updateTypedDependency(
+          context.requireProjectId(),
+          context.actorId,
+          command.dependencyId,
+          {
+            predecessor: bindTypedEndpoint(command.predecessor, context),
+            successor: bindTypedEndpoint(command.successor, context),
+            type: command.type,
+          },
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    removeTypedDependency: async (command, context) => {
+      context.value(
+        await workItems.removeTypedDependency(
+          context.requireProjectId(),
+          context.actorId,
+          command.dependencyId,
         ),
       );
       return { ...context.plain(), kind: command.kind };

@@ -225,6 +225,7 @@ function answerBatch(
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
     case 'calendar_range':
+    case 'unsupported_relationship_type':
       return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
     case 'taken':
       return {
@@ -243,6 +244,7 @@ function answerBatch(
     case 'not_found':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_step':
+    case 'unknown_dependency':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_metric':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
@@ -273,6 +275,8 @@ function answerBatch(
     case 'ancestor':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'self_node':
+    case 'not_a_parent':
+    case 'duplicate_dependency':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'too_large':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
@@ -325,6 +329,7 @@ async function appliedWire(applied: AppliedCommand) {
   switch (kind) {
     case 'createWorkItem':
     case 'duplicateWorkItem':
+    case 'addTypedDependency':
     case 'createTeam':
     case 'createPerson':
     case 'createTag':

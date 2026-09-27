@@ -21,7 +21,12 @@ import type { DirectoryUsage } from '../../service/directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
 import type { PriorityBandService } from '../../service/priority-band.service';
 import type { WorkItemRefusal } from '../../service/work-item.service';
-import type { Collected, UndoOutcome, WorkItemService } from '../../service/work-item.service';
+import type {
+  Collected,
+  UndoOutcome,
+  WorkItemOutcome,
+  WorkItemService,
+} from '../../service/work-item.service';
 import { applyCommand, bindCommands, CommandContext, CommandRefused } from './command-bindings';
 import { createWorkingPlan } from './working-plan.resource';
 
@@ -60,7 +65,11 @@ interface CommandEntities {
 }
 type EntityKind = keyof CommandEntities;
 type PlainKind = Exclude<PlanCommandKind, EntityKind>;
-type MintedKind = 'createWorkItem' | 'duplicateWorkItem' | Extract<EntityKind, `create${string}`>;
+type MintedKind =
+  | 'createWorkItem'
+  | 'duplicateWorkItem'
+  | 'addTypedDependency'
+  | Extract<EntityKind, `create${string}`>;
 // Proof: making minted id optional produced two TS2578 diagnostics in the created-result fixtures.
 export type MintedBase = AppliedBase & { id: string };
 /** Internal kind identifies the producer's exact entity contract; controllers erase it from the unchanged wire. */
@@ -94,6 +103,7 @@ export type Refusal =
 /** A runtime refusal always carries its command index and recognized kind. */
 export type BatchRefusal = { ok: false; at: number; kind: PlanCommandKind } & Refusal;
 export type ServiceRefusal =
+  | Extract<WorkItemOutcome<never>, { ok: false }>
   | { ok: false; reason: PlainReason }
   | {
       ok: false;
