@@ -58,6 +58,8 @@ and `stepId` pair. One call drafts a plan:
 A refused command refuses the whole batch with `{ "error", "at", "kind" }` and
 nothing is applied; fix that command and resend.
 
+Connecting an AI client and importing a project through it: [docs/import-with-ai.md](../../../docs/import-with-ai.md).
+
 ## Endpoint and probes
 
 - MCP: `POST|GET|DELETE /mcp`

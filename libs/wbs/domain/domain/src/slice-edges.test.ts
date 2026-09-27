@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'bun:test';
 
 import type { GraphSlice, LeafEdge, StepNodeGraphEdge } from './slice-edges';
-import { reachedSliceOf, resolveStepNodeGraph } from './slice-edges';
+import { findStepNodeCycle, reachedSliceOf, resolveStepNodeGraph } from './slice-edges';
+import type { DependencyEndpoint, TypedDependency } from './typed-dependency';
 
 /**
  * Three leaves. `A` has three steps and nobody estimated its first two, `B` has
@@ -166,5 +167,300 @@ describe('resolveStepNodeGraph', () => {
         'whole-item',
       ),
     ).toThrow('no slice for work item gone');
+  });
+});
+
+describe('authored typed dependencies', () => {
+  /**
+   * Parent `P` over leaves `P1` and `P2`, and leaves `A`, `B`, each with Dev
+   * then QA. `S` is a stepless project's lone boundary node.
+   */
+  const devQa: readonly GraphSlice[] = [
+    { days: 2, stepId: 'dev' },
+    { days: 1, stepId: 'qa' },
+  ];
+  const tree: Record<string, readonly string[] | undefined> = {
+    A: ['A'],
+    B: ['B'],
+    P: ['P1', 'P2'],
+    P1: ['P1'],
+    P2: ['P2'],
+  };
+  const leavesUnder = (id: string): readonly string[] => {
+    const found = tree[id];
+    if (found === undefined) throw new Error(`no work item ${id}`);
+    return found;
+  };
+  const leaves = ['A', 'B', 'P1', 'P2'];
+  const devQaOf = (leafId: string): readonly GraphSlice[] => {
+    if (!leaves.includes(leafId)) throw new Error(`no slice for work item ${leafId}`);
+    return devQa;
+  };
+  const whole = (workItemId: string): DependencyEndpoint => ({ scope: 'whole', workItemId });
+  const node = (workItemId: string, stepId: string): DependencyEndpoint => ({
+    scope: 'node',
+    workItemId,
+    stepId,
+  });
+  const descendants = (workItemId: string, stepId: string): DependencyEndpoint => ({
+    scope: 'descendant-step',
+    workItemId,
+    stepId,
+  });
+  const fs = (
+    id: string,
+    predecessor: DependencyEndpoint,
+    successor: DependencyEndpoint,
+  ): TypedDependency => ({ id, predecessor, successor, type: 'FS' });
+  const authoredOf = (dependencies: readonly TypedDependency[]): string[] =>
+    wire(
+      resolveStepNodeGraph(leaves, devQaOf, [], 'whole-item', {
+        dependencies,
+        leavesUnder,
+      }).edges.filter((edge) => edge.provenance === 'authored'),
+    );
+
+  it('resolves Whole to Whole as the predecessor’s last node to the successor’s first', () => {
+    expect(authoredOf([fs('r1', whole('A'), whole('B'))])).toEqual(['A1→B0']);
+  });
+
+  it('carries authored provenance and the relationship id on each resolved edge', () => {
+    const edges = resolveStepNodeGraph(leaves, devQaOf, [], 'whole-item', {
+      dependencies: [fs('r1', node('A', 'dev'), node('B', 'dev'))],
+      leavesUnder,
+    }).edges;
+    expect(edges.at(-1)).toEqual({
+      predecessor: { leafId: 'A', at: 0 },
+      successor: { leafId: 'B', at: 0 },
+      type: 'FS',
+      provenance: 'authored',
+      relationshipId: 'r1',
+    });
+  });
+
+  it('joins node to whole at the successor’s first node, and whole to node from the predecessor’s last', () => {
+    expect(authoredOf([fs('r1', node('A', 'dev'), whole('B'))])).toEqual(['A0→B0']);
+    expect(authoredOf([fs('r2', whole('A'), node('B', 'qa'))])).toEqual(['A1→B1']);
+  });
+
+  it('expands a whole parent to every descendant leaf, every pair constrained', () => {
+    expect(authoredOf([fs('r1', whole('P'), whole('B'))])).toEqual(['P11→B0', 'P21→B0']);
+    expect(authoredOf([fs('r2', whole('A'), whole('P'))])).toEqual(['A1→P10', 'A1→P20']);
+  });
+
+  it('constrains every pair when both ends are parents', () => {
+    const tree2: Record<string, readonly string[] | undefined> = {
+      ...tree,
+      Q: ['A', 'B'],
+    };
+    const edges = resolveStepNodeGraph(leaves, devQaOf, [], 'whole-item', {
+      dependencies: [fs('r1', whole('P'), whole('Q'))],
+      leavesUnder: (id) => {
+        const found = tree2[id];
+        if (found === undefined) throw new Error(`no work item ${id}`);
+        return found;
+      },
+    }).edges.filter((edge) => edge.provenance === 'authored');
+    expect(wire(edges)).toEqual(['P11→A0', 'P11→B0', 'P21→A0', 'P21→B0']);
+    expect(edges.map((edge) => edge.relationshipId)).toEqual(['r1', 'r1', 'r1', 'r1']);
+  });
+
+  it('expands a descendant-step endpoint to that step’s node in every leaf beneath it', () => {
+    expect(authoredOf([fs('r1', descendants('P', 'dev'), node('B', 'dev'))])).toEqual([
+      'P10→B0',
+      'P20→B0',
+    ]);
+  });
+
+  it('keeps overlapping relationships distinct, each with its own provenance', () => {
+    const edges = resolveStepNodeGraph(leaves, devQaOf, [], 'whole-item', {
+      dependencies: [fs('r1', whole('A'), whole('B')), fs('r2', node('A', 'qa'), node('B', 'dev'))],
+      leavesUnder,
+    }).edges.filter((edge) => edge.provenance === 'authored');
+    expect(edges.map((edge) => edge.relationshipId)).toEqual(['r1', 'r2']);
+    expect(wire(edges)).toEqual(['A1→B0', 'A1→B0']);
+  });
+
+  it('resolves a stepless project’s whole endpoint to the work-item boundary', () => {
+    const boundary: readonly GraphSlice[] = [{ days: null, stepId: null }];
+    const edges = resolveStepNodeGraph(['A', 'B'], () => boundary, [], 'whole-item', {
+      dependencies: [fs('r1', whole('A'), whole('B'))],
+      leavesUnder,
+    }).edges;
+    expect(wire(edges)).toEqual(['A0→B0']);
+  });
+
+  it('refuses a node endpoint on a parent, a descendant-step on a leaf, and an unknown step', () => {
+    const resolve = (dependency: TypedDependency): unknown =>
+      resolveStepNodeGraph(leaves, devQaOf, [], 'whole-item', {
+        dependencies: [dependency],
+        leavesUnder,
+      });
+    expect(() => resolve(fs('r1', node('P', 'dev'), whole('B')))).toThrow(
+      'node endpoint of r1 names P, which is not a leaf',
+    );
+    expect(() => resolve(fs('r2', descendants('A', 'dev'), whole('B')))).toThrow(
+      'descendant-step endpoint of r2 names A, which is a leaf',
+    );
+    expect(() => resolve(fs('r3', node('A', 'design'), whole('B')))).toThrow(
+      'no step design in work item A for r3',
+    );
+  });
+});
+
+describe('authored edges on a missing leaf', () => {
+  it('asks the lookup for both ends of an authored edge', () => {
+    const only = (leafId: string): readonly GraphSlice[] => {
+      if (leafId !== 'A') throw new Error(`no slice for work item ${leafId}`);
+      return [{ days: 1, stepId: 'dev' }];
+    };
+    const whole = (workItemId: string): DependencyEndpoint => ({ scope: 'whole', workItemId });
+    expect(() =>
+      resolveStepNodeGraph(['A'], only, [], 'whole-item', {
+        dependencies: [{ id: 'r1', predecessor: whole('A'), successor: whole('B'), type: 'FS' }],
+        leavesUnder: (id) => [id],
+      }),
+    ).toThrow('no slice for work item B');
+  });
+
+  it('refuses to order a graph whose edge names a node it does not hold', () => {
+    expect(() =>
+      findStepNodeCycle({
+        nodes: [{ kind: 'boundary', workItemId: 'A', at: 0 }],
+        edges: [
+          {
+            predecessor: { leafId: 'A', at: 0 },
+            successor: { leafId: 'B', at: 0 },
+            type: 'FS',
+            provenance: 'authored',
+            relationshipId: 'r1',
+          },
+        ],
+      }),
+    ).toThrow('names a node the graph does not hold');
+  });
+
+  it('refuses an unheld node before answering a self-node pair', () => {
+    const end = { leafId: 'B', at: 0 };
+    expect(() =>
+      findStepNodeCycle({
+        nodes: [{ kind: 'boundary', workItemId: 'A', at: 0 }],
+        edges: [
+          {
+            predecessor: end,
+            successor: end,
+            type: 'FS',
+            provenance: 'authored',
+            relationshipId: 'r1',
+          },
+        ],
+      }),
+    ).toThrow('names a node the graph does not hold');
+  });
+});
+
+describe('findStepNodeCycle', () => {
+  const devQa: readonly GraphSlice[] = [
+    { days: 2, stepId: 'dev' },
+    { days: 1, stepId: 'qa' },
+  ];
+  const tree: Record<string, readonly string[] | undefined> = {
+    A: ['A'],
+    B: ['B'],
+    C: ['C'],
+    P: ['P1', 'B'],
+    P1: ['P1'],
+  };
+  const leavesUnder = (id: string): readonly string[] => {
+    const found = tree[id];
+    if (found === undefined) throw new Error(`no work item ${id}`);
+    return found;
+  };
+  const leaves = ['A', 'B', 'C', 'P1'];
+  const node = (workItemId: string, stepId: string): DependencyEndpoint => ({
+    scope: 'node',
+    workItemId,
+    stepId,
+  });
+  const whole = (workItemId: string): DependencyEndpoint => ({ scope: 'whole', workItemId });
+  const fs = (
+    id: string,
+    predecessor: DependencyEndpoint,
+    successor: DependencyEndpoint,
+  ): TypedDependency => ({ id, predecessor, successor, type: 'FS' });
+  const cycleOf = (
+    dependencies: readonly TypedDependency[],
+    legacy: readonly LeafEdge[] = [],
+    reach: 'whole-item' | 'anchor-slice' = 'whole-item',
+    slicesOf: (leafId: string) => readonly GraphSlice[] = () => devQa,
+  ): ReturnType<typeof findStepNodeCycle> =>
+    findStepNodeCycle(
+      resolveStepNodeGraph(leaves, slicesOf, legacy, reach, { dependencies, leavesUnder }),
+    );
+
+  it('accepts an apparent work-item cycle that is a step-node DAG', () => {
+    expect(
+      cycleOf([
+        fs('r1', node('A', 'dev'), node('B', 'dev')),
+        fs('r2', node('B', 'qa'), node('A', 'qa')),
+      ]),
+    ).toBeNull();
+  });
+
+  it('refuses a directed cycle through the workflow chain, naming the authored edges in it', () => {
+    expect(
+      cycleOf([
+        fs('r1', node('A', 'qa'), node('B', 'dev')),
+        fs('r2', node('B', 'qa'), node('A', 'dev')),
+      ]),
+    ).toEqual({ kind: 'cycle', relationshipIds: ['r1', 'r2'] });
+  });
+
+  it('refuses a self-node pair', () => {
+    expect(cycleOf([fs('r1', node('B', 'dev'), node('B', 'dev'))])).toEqual({
+      kind: 'self_node',
+      relationshipIds: ['r1'],
+    });
+  });
+
+  it('refuses a cycle a parent expansion closes', () => {
+    // P holds P1 and B, so whole P → node B.dev expands to P1.qa → B.dev and
+    // B.qa → B.dev, and the second closes a cycle through B's own workflow
+    // edge. Omitting that second leaf's pair would accept it.
+    expect(cycleOf([fs('r2', whole('P'), node('B', 'dev'))])).toEqual({
+      kind: 'cycle',
+      relationshipIds: ['r2'],
+    });
+  });
+
+  it('refuses a cycle a legacy edge closes against a typed one', () => {
+    expect(
+      cycleOf(
+        [fs('r1', node('A', 'qa'), node('B', 'qa'))],
+        [{ predecessorId: 'B', successorId: 'A' }],
+      ),
+    ).toEqual({ kind: 'cycle', relationshipIds: ['r1'] });
+  });
+
+  it('reads the legacy anchor dynamically: clearing B.dev’s estimate moves it into a cycle', () => {
+    const legacy = [{ predecessorId: 'B', successorId: 'A' }];
+    const typed = [fs('r1', node('A', 'qa'), node('B', 'qa'))];
+    const estimated = (): readonly GraphSlice[] => devQa;
+    expect(cycleOf(typed, legacy, 'anchor-slice', estimated)).toBeNull();
+    const cleared = (leafId: string): readonly GraphSlice[] =>
+      leafId === 'B'
+        ? [
+            { days: null, stepId: 'dev' },
+            { days: 1, stepId: 'qa' },
+          ]
+        : devQa;
+    expect(cycleOf(typed, legacy, 'anchor-slice', cleared)).toEqual({
+      kind: 'cycle',
+      relationshipIds: ['r1'],
+    });
+  });
+
+  it('answers null for a graph with no authored edges and no cycle', () => {
+    expect(cycleOf([])).toBeNull();
   });
 });
