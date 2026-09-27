@@ -3,7 +3,7 @@
 The R5 entries recorded here after the wbs-tool-v1 history was merged in. They continue
 [the inherited catalogue](checks-that-cannot-fail.md#r5-catalogue-heading), which is pinned
 block-for-block by `root-migration.v1.json` and so cannot take additions. With these, the
-count is **thirty-one**.
+count is **thirty-two**.
 
 Two more on 2026-09-06 in `twilight-review-hardening` and the Twilight plan review, and
 **neither shipped**. Marking each generated workflow copy with the source a human should edit
@@ -70,3 +70,17 @@ on 2026-09-26), each read as a flake. Two hung suites under one preload showed `
 first and `5000ms` for the rest; `--timeout` reached all three. Every Bun test target now states
 `--timeout=<ms>`, the preload sets nothing, and `scratch.test.ts` hangs two files. **A proof run
 on one file says nothing about the second.**
+
+One more on 2026-09-27, found by the `poller-overlap-hang` lane, and it **shipped** — the
+thirty-second. `bin/heavy-lock-lib.sh` took the host-wide heavy lock with `mkdir "<lock>.d"` and
+its comment called `mkdir` atomic on every POSIX filesystem. The syscall is; the command on
+h2puni is not. Ubuntu 26.04 ships uutils coreutils 0.8.0 as `/usr/bin/mkdir`, and two concurrent
+`mkdir d` there both exit 0 — 47 of 300 races on 2026-09-26, 10 of 300 on 2026-09-27, against 0
+of 300 for GNU `gnumkdir` and for bash's own noclobber redirect. Every lock test passed on GNU
+coreutils, where the race cannot happen, so the suite proved the lock only on hosts that did not
+need proving. Two gates could have run in the one shared gate tree at once. An audit of the
+2026-09-26/27 gate logs and the gate tree's reflog found no overlap: every checkout followed the
+previous gate's restore. The claim now takes `flock(2)` through `perl` and treats the directory
+as a record; case 28 races two claimants under a `mkdir` shim that always succeeds and was
+watched failing on the old claim, and again with the flock bypassed. **A check proved on one
+implementation of a command is not proved on the host that runs a different one.**
