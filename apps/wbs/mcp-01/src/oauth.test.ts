@@ -7,8 +7,10 @@ import type { BrowserOidcClient, JwtClaims } from '@wbs/auth';
 import { describe, expect, it } from 'bun:test';
 
 import type { McpConfig } from './config';
-import { mcpHttpResponse } from './http';
+import { mcpFetchHandler, mcpHttpResponse } from './http';
 import { InMemoryMcpOAuth, mcpOAuthFromEnv, type OAuthRouteEvidence } from './oauth';
+import type { DerivedTool } from './openapi-tools';
+import { createServer } from './server';
 import { McpSessionStore } from './session-store';
 import { EdgeGate, SessionRefreshRefused } from './wbs-client';
 
@@ -1877,5 +1879,130 @@ describe('OAuth client redirects', () => {
     const failure = await codeFor(refused.oauth, refusedClient, CALLBACK, 'j'.repeat(43));
     expect(failure.searchParams.get('error')).toBe('access_denied');
     expect(failure.searchParams.get('iss')).toBe('https://dev.wbs.bulletpoints.club/mcp/oauth');
+  });
+});
+
+describe('MCP write scope through the mounted endpoint', () => {
+  const RENAME: DerivedTool = {
+    name: 'patchApiProjectsById',
+    description: 'Rename a project',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' }, name: { type: 'string' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    method: 'patch',
+    path: '/api/projects/{id}',
+    locations: { id: 'path', name: 'body' },
+  };
+
+  /** Signs in with `scope` (omitted when undefined) and returns the issued token body. */
+  async function signIn(
+    oauth: InMemoryMcpOAuth,
+    scope: string | undefined,
+  ): Promise<{ access_token: string; refresh_token: string; scope: string }> {
+    const clientId = await register(oauth);
+    const verifier = 'w'.repeat(43);
+    const url = authorizeUrl(clientId);
+    url.searchParams.set('code_challenge', challengeOf(verifier));
+    if (scope === undefined) url.searchParams.delete('scope');
+    else url.searchParams.set('scope', scope);
+    const started = await oauth.response(new Request(url));
+    const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    const upstream = new URL(started?.headers.get('location') ?? 'https://invalid');
+    const completed = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=upstream&state=${String(upstream.searchParams.get('state'))}`,
+        { headers: { cookie: binding } },
+      ),
+    );
+    const code =
+      new URL(completed?.headers.get('location') ?? 'https://invalid').searchParams.get('code') ??
+      '';
+    const issued = await tokenResponse(oauth, clientId, code, verifier);
+    expect(issued.status).toBe(200);
+    return (await issued.json()) as { access_token: string; refresh_token: string; scope: string };
+  }
+
+  function endpoint(oauth: InMemoryMcpOAuth, be01Calls: string[]) {
+    return mcpFetchHandler(
+      () =>
+        createServer({
+          tools: [RENAME],
+          config: CONFIG,
+          fetchImpl: (url, init) => {
+            be01Calls.push(`${init.method} ${url} ${init.headers['authorization'] ?? ''}`);
+            return Promise.resolve(Response.json({ id: 'p-1' }));
+          },
+          reportUnexpectedToolFailure: () => ({ sentence: 'unused', occurrenceId: 'UNUSED' }),
+        }),
+      CONFIG,
+      oauth,
+      {},
+      oauth,
+    );
+  }
+
+  function rename(token: string): Request {
+    return new Request('https://dev.wbs.bulletpoints.club/mcp', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: RENAME.name, arguments: { id: 'p-1', name: 'Renamed' } },
+      }),
+    });
+  }
+
+  // Proof: on 2026-09-27, disabling the write-scope guard in createServer failed this test and
+  // the narrowed-scope one on `toContain('insufficient_scope')`.
+  it('grants read only when scope is omitted, and refuses a write with that login', async () => {
+    const { oauth } = fixture();
+    const tokens = await signIn(oauth, undefined);
+    const be01Calls: string[] = [];
+
+    expect(tokens.scope).toBe('wbs:read');
+    const response = await endpoint(oauth, be01Calls)(rename(tokens.access_token));
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(await response.json())).toContain('insufficient_scope');
+    expect(be01Calls).toEqual([]);
+  });
+
+  it('narrows a requested write to what the account holds, and refuses the write', async () => {
+    const { oauth } = fixture({
+      verifyUpstream: () =>
+        Promise.resolve({
+          iss: 'https://idp.example',
+          sub: 'person-1',
+          wbs_groups: ['dev:wbs:read'],
+        }),
+    });
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const be01Calls: string[] = [];
+
+    expect(tokens.scope).toBe('wbs:read');
+    const response = await endpoint(oauth, be01Calls)(rename(tokens.access_token));
+    expect(JSON.stringify(await response.json())).toContain('insufficient_scope');
+    expect(be01Calls).toEqual([]);
+  });
+
+  it('writes as the signed-in user when read and write were requested and granted', async () => {
+    const { oauth } = fixture();
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const be01Calls: string[] = [];
+
+    expect(tokens.scope).toBe('wbs:read wbs:write');
+    const response = await endpoint(oauth, be01Calls)(rename(tokens.access_token));
+    expect(JSON.stringify(await response.json())).not.toContain('insufficient_scope');
+    expect(be01Calls).toEqual([
+      'PATCH https://dev.wbs.bulletpoints.club/api/projects/p-1 Bearer upstream-okta-token',
+    ]);
   });
 });
