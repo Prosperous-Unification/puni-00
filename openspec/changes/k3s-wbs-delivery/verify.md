@@ -93,7 +93,7 @@ formatting. Run 7 repeats the lab on the committed SHA.
 
 The lab builds be/gw/fe from their repository Dockerfiles, and MCP from
 `deploy/k8s/wbs/lab/mcp-01.Dockerfile`. It pushes them to the lab registry only. It also
-derives two candidates from v1: `v2`, which adds `20260918000000_lab_additive`
+derives two candidates from v1: `v2`, which adds `29991231000000_lab_additive` (stamped `20260918000000` before 2026-09-27)
 (`ALTER TABLE work_item ADD lab_marker`), and `v2-unhealthy`, which is v2 with a CMD that exits
 before it serves (the injected health fault).
 
@@ -459,3 +459,30 @@ GitHub Actions, staging, the h2puni gate and the production cutover stay open, e
 next command. F12 fixed the `descriptor -- seal` example in `docs/infra/deployment.md` (it
 lacked `--repository` and `--main-ref`) and bounded the `test:k3s` wait for the `migrated`
 phase at 900 s. The command-table runs are in the k3s-platform verify.md, F12.
+
+## Lab migration stamp overtaken on main (2026-09-27)
+
+CI run 36296199037 (infra-check on `a6004037f`) failed `k3s-rehearsal` with `ASSERTION
+FAILED: release ended rolled-back`. The MCP readiness warning in the collected diagnostics was
+a normal start-up probe: the pod was Ready and had not restarted. The real failure was in
+scenario 1: `rollback-schema failed: after rollback the database records [...,
+20260918000000_lab_additive, 20260927120000_add_organization_records, ...]`. Round 6 had
+landed `20260927120000`, `20260927130000` and `20260927150000`. The lab migration's stamp now
+sorted before the captured baseline, and `migrationsToRollback` reverses only `created_at >
+baseline`, so the lab column survived the rollback.
+
+Fix: the lab migration is restamped `29991231000000_lab_additive` (`LAB_MIGRATION` in
+`lab.ts`). `lab-migration.test.ts` requires it to sort after every folder in
+`apps/wbs/be-01/drizzle`. `infra-check.yml` now also runs on `apps/wbs/be-01/drizzle/**` and
+`libs/wbs/adapters/store-sqlite/src/migrate-down.ts`, because the PRs that added those
+migrations never ran the rehearsal.
+
+| Command (`K3D`, `KUBECTL` = locked v5.9.0 / v1.36.4, `env -u CLAUDECODE`)      | Source             | Result                                                                                       |
+| ------------------------------------------------------------------------------ | ------------------ | -------------------------------------------------------------------------------------------- |
+| `bunx nx run tool-deploy:test:k3s`                                             | `8926d6be2` (main) | exit 1: scenario 1 `rollback-schema failed`, then `release ended rolled-back`; reproduces CI |
+| `bun test src/k8s/lab-migration.test.ts`, old stamp                            | `8926d6be2` + test | fail: `Expected: > 20260927150000`, `Received: 20260918000000`                               |
+| `bunx nx run tool-deploy:test:k3s --skip-nx-cache`, restamped, clean lab state | `8926d6be2` + fix  | exit 0, 38 assertions, `all lab assertions passed`                                           |
+
+A rerun right after the failed run, reusing `tmp/puni-f8-lab`, failed before `validate`
+because the failed run left its `health-failure.json` journal behind. Removing the lab state
+directory fixed it. CI runners always start from a clean state.
