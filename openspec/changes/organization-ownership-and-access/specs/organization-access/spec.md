@@ -32,6 +32,18 @@ An authenticated WBS request SHALL carry exactly one server-validated active org
 - **WHEN** an administrator removes the membership and the user calls a protected A route
 - **THEN** be-01 answers 403 without waiting for token expiry
 
+#### Scenario: Foreign project is indistinguishable from an absent one
+
+- **GIVEN** an active member of A and a project owned by B
+- **WHEN** the member reads, exports, opens, edits or retries that project by its id
+- **THEN** be-01 answers the same typed 404 it answers for an id that names no project, and changes nothing
+
+#### Scenario: Organization-unaware behaviour until activation
+
+- **GIVEN** the durable activation marker says `pre_activation`
+- **WHEN** any authenticated account calls a project route
+- **THEN** be-01 answers as it did before organizations, and re-reads the marker on the next request so activation by another process takes effect without restart
+
 #### Scenario: Multi-organization switch
 
 - **GIVEN** a user belongs to A and B and has A active

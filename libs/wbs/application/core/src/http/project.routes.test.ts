@@ -7,6 +7,7 @@ import {
 } from '@wbs/store-memory/testing/service-fixtures';
 import { expect, spyOn, test } from 'bun:test';
 
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { EMPTY } from './endpoint';
 import { projectRoutes } from './project.routes';
 
@@ -21,6 +22,7 @@ test('direct project bindings create, read, patch and record opening with admitt
   const projects = testProjectService();
   const endpoints = projectRoutes(
     projects,
+    legacyOrganizationAccess,
     testWorkItemService(),
     testDirectoryService(),
     testCalendarMarkerService(),
@@ -61,13 +63,14 @@ test('direct project and export failures propagate without conversion to not_fou
   const projects = testProjectService();
   const endpoints = projectRoutes(
     projects,
+    legacyOrganizationAccess,
     testWorkItemService(),
     testDirectoryService(),
     testCalendarMarkerService(),
     { now: () => 0 },
   );
   const failure = new Error('project store unavailable');
-  const read = spyOn(projects, 'read').mockRejectedValue(failure);
+  const read = spyOn(projects, 'readWithin').mockRejectedValue(failure);
   try {
     const input = { params: { id: 'p' }, query: undefined, body: undefined, principal, request };
     expect(await endpoints[4].handle(input).catch((cause: unknown) => cause)).toBe(failure);

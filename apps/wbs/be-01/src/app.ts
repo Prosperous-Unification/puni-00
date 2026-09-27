@@ -3,6 +3,7 @@ import type {
   Clock,
   HistoryService,
   ImportService,
+  OrganizationAccess,
   ReplayOrchestrator,
   SavedPlanService,
 } from '@wbs/core';
@@ -65,6 +66,12 @@ export interface AppOptions {
    * rather than a process built without its domain.
    */
   projects: ProjectService;
+  /**
+   * Resolves each protected request's organization authority. Required: a
+   * default would have to be legacy access, which is exactly the answer an
+   * activated deployment must never give by omission.
+   */
+  organizations: OrganizationAccess;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
   /** The manual Retry admission seam; absent only in optimizer-less deployments and tests. */
@@ -231,13 +238,14 @@ export function mountedEndpoints(
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
     ...stepRoutes(opts.steps, commands),
-    ...directoryRoutes(opts.directory),
+    ...directoryRoutes(opts.directory, opts.organizations),
     ...historyRoutes(opts.history),
     ...solutionRoutes(opts.projects),
     // Proof: omitting this spread made the production import reachability test receive 404.
     ...importRoutes(opts.writes.imports),
     ...projectRoutes(
       opts.projects,
+      opts.organizations,
       opts.workItems,
       opts.directory,
       opts.calendarMarkers,

@@ -21,6 +21,7 @@ import { testClock } from './testing/clock-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
 import { testHistoryService } from './testing/history-fixture';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
+import { legacyOrganizationAccess } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { inMemoryProjects, testProjectService } from './testing/project-fixture';
 import { testReplay } from './testing/replay-fixture';
@@ -31,6 +32,7 @@ import { testWrites } from './testing/writes-fixture';
 
 function options(): AppOptions {
   return {
+    organizations: legacyOrganizationAccess,
     appOrigin: 'http://localhost',
     loginThrottle: testLoginThrottle(),
     clock: testClock,

@@ -154,6 +154,86 @@ A deleted project's retained stream is reported rather than guessed. Its retenti
 
 Command: `env -u CLAUDECODE bun test src/organization-reconciliation.db.test.ts`: 23 pass.
 
+## Slice 7 — project boundary (task 3.1)
+
+Branch `batch-9/010-5-2-orgs-6`, stacked on slice 6. Design call: Astra, saved in the lane records as `010-5-2-orgs-task-3.1-design.md`.
+
+- Every project route (`list`, `read`, `opened`, `create`, `PATCH`, `export`, and the optimization `retry`) resolves `OrganizationAccess` before any lookup.
+- `SqliteOrganizationAccess` re-reads the activation marker on every request:
+  - an explicit `pre_activation` answers `legacy`, which is the old deployment-wide behaviour;
+  - a broken marker throws, and the request answers 500;
+  - after activation, the session's bound organization must still list the user. No binding answers typed 403 `no_active_organization`, and no current membership answers 403 `not_a_member`.
+- Scoped reads, and the ownership predicate inside each scoped write (`updateInOrganization`, `recordOpenInOrganization`), go through `project_organization`. A foreign project and an absent one both answer the same 404. Scoped creation writes the ownership row in the project's own transaction.
+- Viewers may read and open but not write. A restricted project stays creator-only.
+- Inert: production wires `NO_BOUND_ORGANIZATION` until task 2.4. After activation every project route would answer 403, so activation (7.1) must wait for 2.4.
+- Not in this slice:
+  - The super-admin recovery override: it must be audited, so 3.7 owns it. Until then it fails closed.
+  - `readBySolutionSlug`, and the saved-plan routes' project reads: 3.5 and 3.6.
+  - Export's tree and references beyond the project itself: 3.5.
+  - Solution links: slugs are still unique across the deployment, so a collision would reveal another organization's project. After activation, setting `solutionRef` is refused with 403 `forbidden` until 3.5 scopes solution references. Clearing a link stays allowed.
+- A stored membership role outside the four known roles throws, and the request answers 500.
+- No project delete endpoint exists.
+
+| Check                                  | Injected fault                                                 | Observed failure (2026-09-27)                                                                                                                    |
+| -------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Viewer write policy                    | `canWriteInOrganization` answers `true`                        | `refuses a viewer every project write and lets the viewer read and open`                                                                         |
+| Restricted creator rule                | `canEditProjectInOrganization` drops `canEditProject`          | `lets only the creator edit a restricted project, super-admin included`: the super-admin PATCH answered the renamed project                      |
+| Scoped create refusal                  | viewer check in `createWithin` disabled                        | the viewer case                                                                                                                                  |
+| Scoped edit policy                     | `authorizeEdit` uses legacy `canEditProject` for scoped access | the viewer case                                                                                                                                  |
+| Scoped find                            | `findInOrganization` predicate made tautological               | `answers 404 alike for a foreign and an absent project, and changes nothing`: the foreign read answered 200                                      |
+| Scoped list                            | `listForInOrganization` predicate removed                      | `lists only the active organization's projects`: `B plan` listed                                                                                 |
+| Scoped create mapping                  | `project_organization` insert skipped                          | `creates a project only its own organization can see`: the creator's read answered 404                                                           |
+| Marker read per request                | `resolve` answers `legacy` without the marker                  | `scopes the same running app once another connection activates isolation`                                                                        |
+| Current membership                     | membership lookup bypassed                                     | `refuses a removed member on the next request`: 200                                                                                              |
+| Export reads through access            | export reads with unscoped `projects.read`                     | the 404 case: the foreign Markdown answered 200                                                                                                  |
+| Production wiring                      | `boot.ts` wires legacy access                                  | `boot.db.test.ts` `refuses the project list after activation until a session binds an organization`: 200                                         |
+| No bound organization                  | `resolve` answers `legacy` for an unbound session              | `refuses a session bound to no organization before any lookup`: the list answered 200                                                            |
+| Stored role validated                  | `validateStoredRole` returns the value unchecked               | `fails as a server error on a malformed membership role`: 200 instead of 500                                                                     |
+| Solution link refused after activation | scoped `solutionRef` refusal disabled                          | `refuses a solution link that could reveal another organization's project`: 500 for the foreign slug, where 403 was expected                     |
+| Scoped update in the write             | `updateInOrganization` ownership predicate dropped             | `project.db.test.ts` `records an open and a write only while the organization owns the project`: the foreign rename was answered instead of null |
+| Scoped open in the write               | `recordOpenInOrganization` ownership check dropped             | same case: `true` for the foreign open                                                                                                           |
+
+Commands, all under `env -u CLAUDECODE`:
+
+- `bun test` in `apps/wbs/be-01`: 1157 pass, 0 fail (1158 tests across 98 files).
+- wbs-core: 629 pass.
+- store-sqlite: 929 pass. `audit.test.ts` exempts `projectOrganization`, which carries no audit columns.
+- store-memory: 113 pass.
+- domain: 692 pass.
+- contracts: 397 pass.
+- mcp-01: 212 pass.
+- fe-01 vitest, 6 refusal and project files: 129 pass.
+
+## Slice 8 — directory lists (task 3.2)
+
+Branch `batch-9/010-5-2-orgs-7`, stacked on slice 7. Design call: Astra, saved in the lane records as `010-5-2-orgs-task-3.2-design.md`.
+
+- The six directory list routes resolve `OrganizationAccess` before any read, using `DirectoryService.listWithin`.
+- Under scoped access, `DirectoryStore.listInOrganization` reads only the organization's side-table rows, under their organization-local display names, ordered by them. Two organizations can each show `urgent` over distinct opaque root names.
+- A person's `teamIds` and a team's `serviceIds` must be the organization's own. A crossing link is corrupt trusted state: the read throws and answers 500 rather than reveal a foreign id.
+- No directory read takes an id. Directory commands, including activated create and rename and foreign-id 404, are 3.4.
+- The mounted organization suites now share `apps/wbs/be-01/src/testing/organization-harness.ts`.
+
+| Check                               | Injected fault                                                                                          | Observed failure (`directory-organization.controller.db.test.ts`, 2026-09-27)           |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Six side-table ownership predicates | each `organization_id` predicate removed alone (people, teams, services, tags, types, external systems) | `lists only the organization's own entries under their local names`, once per predicate |
+| Side-table names                    | scoped `tags` read from the root table                                                                  | same case: both roots' token names listed                                               |
+| Scoped service path                 | `listWithin` answers the legacy list under scoped access                                                | same case: both organizations' people listed                                            |
+| Team-service owner                  | owner comparison skipped                                                                                | `refuses a team-service link that crosses organizations`: 200 instead of 500            |
+| Team-service owner present          | the service-owner left join made inner                                                                  | `refuses a team-service link whose service has no owner`: 200                           |
+| Membership owner                    | owner comparison skipped                                                                                | `refuses a membership that crosses organizations`: 200 instead of 500                   |
+| Membership owner present            | the team-owner left join made inner                                                                     | `refuses a membership whose team has no owner`: 200                                     |
+| Access resolved before the read     | resolution bypassed in each of the six routes alone                                                     | `refuses an unbound session and a removed member on every list`, once per route         |
+
+Not a safety check: removing an ORDER BY does not fail `orders each list by the local name, not the root name, id or insertion`. SQLite already answers from the `(organization_id, name)` unique index in name order. The ORDER BY stays so the order does not depend on the query plan.
+
+Commands, all under `env -u CLAUDECODE`:
+
+- be-01 `bun test src`: 1163 pass and 1 fail before the tier check learned about `OrganizationHarness.open`. After that, the three organization and boot files pass 48 of 48, and `test-tiers.test.ts` passes.
+- wbs-core `bun test src`: 629. store-sqlite: 929. store-memory: 113. contracts: 397. conformance: 35. mcp-01: 212.
+- fe-01 vitest, 6 files: 149.
+- tsc passes for core, be-01, store-sqlite, store-memory, contracts, conformance, fe-01 and mcp-01.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

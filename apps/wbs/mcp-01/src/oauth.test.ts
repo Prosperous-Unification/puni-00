@@ -7,8 +7,10 @@ import type { BrowserOidcClient, JwtClaims } from '@wbs/auth';
 import { describe, expect, it } from 'bun:test';
 
 import type { McpConfig } from './config';
-import { mcpHttpResponse } from './http';
+import { mcpFetchHandler, mcpHttpResponse } from './http';
 import { InMemoryMcpOAuth, mcpOAuthFromEnv, type OAuthRouteEvidence } from './oauth';
+import type { DerivedTool } from './openapi-tools';
+import { createServer } from './server';
 import { McpSessionStore } from './session-store';
 import { EdgeGate, SessionRefreshRefused } from './wbs-client';
 
@@ -1670,5 +1672,572 @@ describe('InMemoryMcpOAuth', () => {
       new URL(failed?.headers.get('location') ?? 'https://invalid').searchParams.get('error'),
     ).toBe('access_denied');
     expect(revoked).toEqual(['provider-refresh-token']);
+  });
+});
+
+describe('OAuth client redirects', () => {
+  const HOSTED = [
+    'https://claude.ai/api/mcp/auth_callback',
+    'https://claude.com/api/mcp/auth_callback',
+    'https://vscode.dev/redirect',
+    'https://www.perplexity.ai/rest/connections/oauth_callback',
+    'https://enterprise.perplexity.ai/rest/connections/oauth_callback',
+  ];
+
+  it.each(HOSTED)('registers the reviewed hosted callback %s', async (uri) => {
+    const { oauth } = fixture();
+    expect((await registrationResponse(oauth, [uri])).status).toBe(201);
+  });
+
+  it.each([
+    'http://127.0.0.1:1/callback',
+    'http://127.0.0.1:54321/oauth/callback',
+    'http://localhost:65535/callback',
+    'http://localhost/callback',
+    'http://[::1]:49152/callback',
+    'https://127.0.0.1:8443/callback',
+    'http://localhost:6274/oauth/callback?client=inspector',
+  ])('registers the loopback callback %s at any valid port', async (uri) => {
+    const { oauth } = fixture();
+    expect((await registrationResponse(oauth, [uri])).status).toBe(201);
+  });
+
+  // Proof: on 2026-09-27, admitting a parsed https host that `endsWith` a reviewed hostname on the
+  // same path failed this test for evilvscode.dev, evilclaude.ai, VSCODE.dev, :443, :8443, the
+  // dot-segment path, credentials, query and fragment (`Expected: 400`, `Received: 201`).
+  it.each([
+    'https://claude.ai.evil.example/api/mcp/auth_callback',
+    'https://evilclaude.ai/api/mcp/auth_callback',
+    'https://evilvscode.dev/redirect',
+    'https://vscode.dev.evil.example/redirect',
+    'https://vscode.dev/redirect/',
+    'https://vscode.dev/Redirect',
+    'https://VSCODE.dev/redirect',
+    'https://vscode.dev:443/redirect',
+    'https://vscode.dev:8443/redirect',
+    'http://vscode.dev/redirect',
+    'https://vscode.dev/redirect?next=1',
+    'https://vscode.dev/redirect#fragment',
+    'https://user:secret@vscode.dev/redirect',
+    'https://vscode.dev/a/../redirect',
+    'https://perplexity.ai/rest/connections/oauth_callback',
+    'https://www.perplexity.ai.evil.example/rest/connections/oauth_callback',
+    'https://chatgpt.com/connector_platform_oauth_redirect',
+    'https://chatgpt.com/connector/oauth/abc123',
+    'https://chatgpt.com/connector_platform_oauth_redirect/extra',
+    'https://10.0.0.1/callback',
+    'http://192.168.1.2:8080/callback',
+    'http://0.0.0.0:8080/callback',
+    'http://127.1:8080/callback',
+    'http://LOCALHOST:8080/callback',
+    'http://localhost.evil.example:8080/callback',
+    'http://127.0.0.1:0/callback',
+    'http://[::1]:0/callback',
+    'http://localhost:080/callback',
+    'http://localhost:65536/callback',
+    'http://user@localhost:8080/callback',
+    'http://localhost:8080/callback#fragment',
+    'http://localhost:8080/callback?code=planted',
+    'http://localhost:8080/callback?state=planted',
+    'http://localhost:8080/callback?iss=planted',
+    'http://localhost:8080/callback?error=planted',
+    'javascript://localhost/%0aalert(1)',
+  ])('refuses the near-miss callback %s', async (uri) => {
+    const { oauth } = fixture();
+    const response = await registrationResponse(oauth, [uri]);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'invalid_redirect_uri' });
+  });
+
+  async function registeredClient(
+    oauth: InMemoryMcpOAuth,
+    redirectUris: readonly string[],
+  ): Promise<string> {
+    const registration = await registrationResponse(oauth, redirectUris);
+    expect(registration.status).toBe(201);
+    return ((await registration.json()) as { client_id: string }).client_id;
+  }
+
+  async function codeFor(
+    oauth: InMemoryMcpOAuth,
+    clientId: string,
+    redirectUri: string,
+    verifier: string,
+  ): Promise<URL> {
+    const url = authorizeUrl(clientId, redirectUri);
+    url.searchParams.set('code_challenge', challengeOf(verifier));
+    const started = await oauth.response(new Request(url));
+    expect(started?.status).toBe(302);
+    const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    const upstream = new URL(started?.headers.get('location') ?? 'https://invalid');
+    const completed = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=upstream&state=${String(upstream.searchParams.get('state'))}`,
+        { headers: { cookie: binding } },
+      ),
+    );
+    expect(completed?.status).toBe(302);
+    return new URL(completed?.headers.get('location') ?? 'https://invalid');
+  }
+
+  function exchange(
+    oauth: InMemoryMcpOAuth,
+    clientId: string,
+    code: string,
+    verifier: string,
+    redirectUri: string,
+  ): Promise<Response | undefined> {
+    return oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+        body: new URLSearchParams({
+          client_id: clientId,
+          code,
+          code_verifier: verifier,
+          grant_type: 'authorization_code',
+          redirect_uri: redirectUri,
+        }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+  }
+
+  it('carries a loopback client through authorization and token exchange at its own port', async () => {
+    const { oauth } = fixture();
+    const loopback = 'http://127.0.0.1:54321/oauth/callback';
+    const clientId = await registeredClient(oauth, [loopback]);
+    const verifier = 'l'.repeat(43);
+    const returned = await codeFor(oauth, clientId, loopback, verifier);
+
+    expect(`${returned.origin}${returned.pathname}`).toBe(loopback);
+    const code = returned.searchParams.get('code') ?? '';
+    const otherPort = await exchange(
+      oauth,
+      clientId,
+      code,
+      verifier,
+      'http://127.0.0.1:54322/oauth/callback',
+    );
+    expect(otherPort?.status).toBe(400);
+    expect(await otherPort?.json()).toEqual({ error: 'invalid_grant' });
+  });
+
+  it('exchanges a loopback code only with the unchanged redirect', async () => {
+    const { oauth } = fixture();
+    const loopback = 'http://[::1]:49152/callback';
+    const clientId = await registeredClient(oauth, [loopback]);
+    const verifier = 'm'.repeat(43);
+    const code = (await codeFor(oauth, clientId, loopback, verifier)).searchParams.get('code');
+
+    expect((await exchange(oauth, clientId, code ?? '', verifier, loopback))?.status).toBe(200);
+  });
+
+  it('authorizes only a URI registered to that client, even when it is allowlisted', async () => {
+    const { oauth } = fixture();
+    const clientId = await registeredClient(oauth, ['https://vscode.dev/redirect']);
+    const response = await oauth.response(
+      new Request(
+        authorizeUrl(clientId, 'https://www.perplexity.ai/rest/connections/oauth_callback'),
+      ),
+    );
+
+    expect(response?.status).toBe(400);
+    expect(response?.headers.get('location')).toBeNull();
+    expect(await response?.json()).toEqual({ error: 'invalid_request' });
+  });
+
+  // Proof: on 2026-09-27, dropping the `redirect_uri !== grant.redirectUri` comparison from token
+  // exchange failed this test and the loopback other-port test (`Expected: 400`, `Received: 200`).
+  it('refuses a token exchange that substitutes another registered redirect, and burns the code', async () => {
+    const { oauth } = fixture();
+    const vscode = 'https://vscode.dev/redirect';
+    const claude = 'https://claude.ai/api/mcp/auth_callback';
+    const clientId = await registeredClient(oauth, [vscode, claude]);
+    const verifier = 's'.repeat(43);
+    const code = (await codeFor(oauth, clientId, vscode, verifier)).searchParams.get('code') ?? '';
+
+    const substituted = await exchange(oauth, clientId, code, verifier, claude);
+    expect(substituted?.status).toBe(400);
+    expect(await substituted?.json()).toEqual({ error: 'invalid_grant' });
+    expect((await exchange(oauth, clientId, code, verifier, vscode))?.status).toBe(400);
+  });
+
+  // RFC 9207: the issuer in every authorization response lets a client with several
+  // authorization servers detect a mix-up; ChatGPT requires it before its callback is admitted.
+  it('names the WBS issuer on successful and failed authorization redirects', async () => {
+    const { oauth } = fixture();
+    const clientId = await registeredClient(oauth, ['https://vscode.dev/redirect']);
+    const success = await codeFor(oauth, clientId, 'https://vscode.dev/redirect', 'i'.repeat(43));
+    expect(success.searchParams.get('iss')).toBe('https://dev.wbs.bulletpoints.club/mcp/oauth');
+    expect(success.searchParams.get('code')).not.toBeNull();
+
+    const refused = fixture({
+      verifyUpstream: () =>
+        Promise.resolve({ iss: 'https://idp.example', sub: 'person-1', wbs_groups: [] }),
+    });
+    const refusedClient = await registeredClient(refused.oauth, [CALLBACK]);
+    const failure = await codeFor(refused.oauth, refusedClient, CALLBACK, 'j'.repeat(43));
+    expect(failure.searchParams.get('error')).toBe('access_denied');
+    expect(failure.searchParams.get('iss')).toBe('https://dev.wbs.bulletpoints.club/mcp/oauth');
+  });
+});
+
+describe('MCP write scope, refresh and revocation through the mounted endpoint', () => {
+  const RENAME: DerivedTool = {
+    name: 'patchApiProjectsById',
+    description: 'Rename a project',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' }, name: { type: 'string' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    method: 'patch',
+    path: '/api/projects/{id}',
+    locations: { id: 'path', name: 'body' },
+  };
+
+  /** Signs in with `scope` (omitted when undefined) and returns the issued token body. */
+  async function signIn(
+    oauth: InMemoryMcpOAuth,
+    scope: string | undefined,
+  ): Promise<{ access_token: string; refresh_token: string; scope: string }> {
+    const clientId = await register(oauth);
+    const verifier = 'w'.repeat(43);
+    const url = authorizeUrl(clientId);
+    url.searchParams.set('code_challenge', challengeOf(verifier));
+    if (scope === undefined) url.searchParams.delete('scope');
+    else url.searchParams.set('scope', scope);
+    const started = await oauth.response(new Request(url));
+    const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    const upstream = new URL(started?.headers.get('location') ?? 'https://invalid');
+    const completed = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=upstream&state=${String(upstream.searchParams.get('state'))}`,
+        { headers: { cookie: binding } },
+      ),
+    );
+    const code =
+      new URL(completed?.headers.get('location') ?? 'https://invalid').searchParams.get('code') ??
+      '';
+    const issued = await tokenResponse(oauth, clientId, code, verifier);
+    expect(issued.status).toBe(200);
+    return (await issued.json()) as { access_token: string; refresh_token: string; scope: string };
+  }
+
+  const EXPORT: DerivedTool = {
+    name: 'getApiProjectsByIdExport',
+    description: 'Export a project',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    method: 'get',
+    path: '/api/projects/{id}/export',
+    locations: { id: 'path' },
+  };
+
+  function endpoint(oauth: InMemoryMcpOAuth, be01Calls: string[]) {
+    return mcpFetchHandler(
+      () =>
+        createServer({
+          tools: [RENAME, EXPORT],
+          config: CONFIG,
+          fetchImpl: (url, init) => {
+            be01Calls.push(`${init.method} ${url} ${init.headers['authorization'] ?? ''}`);
+            return Promise.resolve(Response.json({ id: 'p-1' }));
+          },
+          reportUnexpectedToolFailure: () => ({ sentence: 'unused', occurrenceId: 'UNUSED' }),
+        }),
+      CONFIG,
+      oauth,
+      {},
+      oauth,
+    );
+  }
+
+  function exportProject(token: string): Request {
+    return new Request('https://dev.wbs.bulletpoints.club/mcp', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: EXPORT.name, arguments: { id: 'p-1' } },
+      }),
+    });
+  }
+
+  function rename(token: string): Request {
+    return new Request('https://dev.wbs.bulletpoints.club/mcp', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: RENAME.name, arguments: { id: 'p-1', name: 'Renamed' } },
+      }),
+    });
+  }
+
+  // Proof: on 2026-09-27, disabling the write-scope guard in createServer failed this test and
+  // the narrowed-scope one on `toContain('insufficient_scope')`.
+  it('grants read only when scope is omitted, and refuses a write with that login', async () => {
+    const { oauth } = fixture();
+    const tokens = await signIn(oauth, undefined);
+    const be01Calls: string[] = [];
+
+    expect(tokens.scope).toBe('wbs:read');
+    const response = await endpoint(oauth, be01Calls)(rename(tokens.access_token));
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(await response.json())).toContain('insufficient_scope');
+    expect(be01Calls).toEqual([]);
+  });
+
+  it('narrows a requested write to what the account holds, and refuses the write', async () => {
+    const { oauth } = fixture({
+      verifyUpstream: () =>
+        Promise.resolve({
+          iss: 'https://idp.example',
+          sub: 'person-1',
+          wbs_groups: ['dev:wbs:read'],
+        }),
+    });
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const be01Calls: string[] = [];
+
+    expect(tokens.scope).toBe('wbs:read');
+    const response = await endpoint(oauth, be01Calls)(rename(tokens.access_token));
+    expect(JSON.stringify(await response.json())).toContain('insufficient_scope');
+    expect(be01Calls).toEqual([]);
+  });
+
+  it('writes as the signed-in user when read and write were requested and granted', async () => {
+    const { oauth } = fixture();
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const be01Calls: string[] = [];
+
+    expect(tokens.scope).toBe('wbs:read wbs:write');
+    const response = await endpoint(oauth, be01Calls)(rename(tokens.access_token));
+    expect(JSON.stringify(await response.json())).not.toContain('insufficient_scope');
+    expect(be01Calls).toEqual([
+      'PATCH https://dev.wbs.bulletpoints.club/api/projects/p-1 Bearer upstream-okta-token',
+    ]);
+  });
+
+  const renewing = {
+    exchange: () =>
+      Promise.resolve({
+        accessToken: 'upstream-okta-token',
+        expiresIn: 300,
+        refreshToken: 'upstream-refresh-token',
+      }),
+    refresh: () =>
+      Promise.resolve({
+        accessToken: 'refreshed-upstream-token',
+        expiresIn: 300,
+        refreshToken: 'rotated-upstream-refresh',
+      }),
+    verifyUpstream: (token: string) =>
+      token === 'upstream-okta-token' || token === 'refreshed-upstream-token'
+        ? Promise.resolve({
+            iss: 'https://idp.example',
+            sub: 'person-1',
+            wbs_groups: ['dev:wbs:read', 'dev:wbs:write'],
+          })
+        : Promise.reject(new Error('not an upstream token')),
+  };
+
+  function refresh(
+    oauth: InMemoryMcpOAuth,
+    refreshToken: string,
+    scope?: string,
+  ): Promise<Response | undefined> {
+    return oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+        body: new URLSearchParams({
+          client_id: 'random-1',
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+          ...(scope === undefined ? {} : { scope }),
+        }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+  }
+
+  function revoke(oauth: InMemoryMcpOAuth, token: string): Promise<Response | undefined> {
+    return oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/revoke', {
+        body: new URLSearchParams({ token }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+  }
+
+  it('writes again after the access token expires and a refresh grant succeeds', async () => {
+    const { oauth, advance } = fixture(renewing);
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const be01Calls: string[] = [];
+    const fetchMcp = endpoint(oauth, be01Calls);
+
+    advance(3_601_000);
+    expect((await fetchMcp(rename(tokens.access_token))).status).toBe(401);
+    const refreshed = await refresh(oauth, tokens.refresh_token);
+    expect(refreshed?.status).toBe(200);
+    const successor = (await refreshed?.json()) as { access_token: string; scope: string };
+    expect(successor.scope).toBe('wbs:read wbs:write');
+
+    const written = await fetchMcp(rename(successor.access_token));
+    expect(JSON.stringify(await written.json())).not.toContain('insufficient_scope');
+    expect(be01Calls).toEqual([
+      'PATCH https://dev.wbs.bulletpoints.club/api/projects/p-1 Bearer refreshed-upstream-token',
+    ]);
+  });
+
+  it('ends the family when a consumed refresh token is replayed', async () => {
+    const { oauth } = fixture(renewing);
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const successor = (await (await refresh(oauth, tokens.refresh_token))?.json()) as {
+      access_token: string;
+      refresh_token: string;
+    };
+    const be01Calls: string[] = [];
+
+    expect((await refresh(oauth, tokens.refresh_token))?.status).toBe(400);
+    expect((await endpoint(oauth, be01Calls)(rename(successor.access_token))).status).toBe(401);
+    expect((await refresh(oauth, successor.refresh_token))?.status).toBe(400);
+    expect(be01Calls).toEqual([]);
+  });
+
+  // Proof: on 2026-09-27, checking session capacity before the refresh token (the order before
+  // this change) failed this test: the replay answered 429 and the family stayed live.
+  it('ends the family on replay even when sessions are at capacity', async () => {
+    const { oauth } = fixture({ ...renewing, sessionLimit: 2 });
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const successor = (await (await refresh(oauth, tokens.refresh_token))?.json()) as {
+      access_token: string;
+    };
+
+    const replay = await refresh(oauth, tokens.refresh_token);
+    expect(replay?.status).toBe(400);
+    expect(await replay?.json()).toEqual({ error: 'invalid_grant' });
+    expect((await endpoint(oauth, [])(rename(successor.access_token))).status).toBe(401);
+  });
+
+  // Proof: on 2026-09-27, skipping `revokeFamily` in the revocation endpoint failed this test:
+  // the write after revocation answered 200 instead of 401.
+  it('ends access and refresh when the refresh token is revoked', async () => {
+    const { oauth } = fixture(renewing);
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const be01Calls: string[] = [];
+
+    expect((await revoke(oauth, tokens.refresh_token))?.status).toBe(200);
+    expect((await endpoint(oauth, be01Calls)(rename(tokens.access_token))).status).toBe(401);
+    expect((await refresh(oauth, tokens.refresh_token))?.status).toBe(400);
+    expect(be01Calls).toEqual([]);
+  });
+
+  // Proof: on 2026-09-27, ignoring the refresh `scope` parameter (the behaviour before this
+  // change) failed this test: the narrowed refresh returned `wbs:read wbs:write` and wrote.
+  it('narrows one refreshed access token to a requested subset without shrinking the family', async () => {
+    const { oauth } = fixture(renewing);
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const narrowed = await refresh(oauth, tokens.refresh_token, 'wbs:read');
+    expect(narrowed?.status).toBe(200);
+    const narrowedBody = (await narrowed?.json()) as {
+      access_token: string;
+      refresh_token: string;
+      scope: string;
+    };
+    const be01Calls: string[] = [];
+
+    expect(narrowedBody.scope).toBe('wbs:read');
+    const refused = await endpoint(oauth, be01Calls)(rename(narrowedBody.access_token));
+    expect(JSON.stringify(await refused.json())).toContain('insufficient_scope');
+    expect(be01Calls).toEqual([]);
+    const restored = (await (await refresh(oauth, narrowedBody.refresh_token))?.json()) as {
+      scope: string;
+    };
+    expect(restored.scope).toBe('wbs:read wbs:write');
+  });
+
+  // Proof: on 2026-09-27, ignoring the refresh `scope` parameter failed this test: the expanding
+  // refresh answered 200 with `wbs:read` instead of 400 invalid_scope.
+  it('refuses a refresh that asks for more than the family holds, and keeps the token usable', async () => {
+    const { oauth } = fixture(renewing);
+    const tokens = await signIn(oauth, undefined);
+
+    const expanded = await refresh(oauth, tokens.refresh_token, 'wbs:read wbs:write');
+    expect(expanded?.status).toBe(400);
+    expect(await expanded?.json()).toEqual({ error: 'invalid_scope' });
+    expect((await refresh(oauth, tokens.refresh_token))?.status).toBe(200);
+  });
+
+  // Proof: on 2026-09-27, the catch-all around revocation (the behaviour before this change)
+  // failed this test: a closed store answered 200 as if the family were revoked.
+  it('surfaces a store failure during revocation instead of reporting success', async () => {
+    const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+    const { oauth } = fixture({ ...renewing, store });
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    store.close();
+
+    expect(revoke(oauth, tokens.refresh_token)).rejects.toThrow();
+  });
+
+  // Proof: on 2026-09-27, requiring no scope for GET tools in createServer failed this test: the
+  // write-only token's export reached be-01.
+  it('refuses a read with a refreshed token narrowed to wbs:write', async () => {
+    const { oauth } = fixture(renewing);
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    const narrowed = (await (await refresh(oauth, tokens.refresh_token, 'wbs:write'))?.json()) as {
+      access_token: string;
+      scope: string;
+    };
+    const be01Calls: string[] = [];
+
+    expect(narrowed.scope).toBe('wbs:write');
+    const refused = await endpoint(oauth, be01Calls)(exportProject(narrowed.access_token));
+    expect(JSON.stringify(await refused.json())).toContain('does not include wbs:read');
+    expect(be01Calls).toEqual([]);
+  });
+
+  it('refuses a refresh whose scope is not text', async () => {
+    const { oauth } = fixture(renewing);
+    const tokens = await signIn(oauth, 'wbs:read');
+    const body = new FormData();
+    body.set('client_id', 'random-1');
+    body.set('grant_type', 'refresh_token');
+    body.set('refresh_token', tokens.refresh_token);
+    body.set('scope', new File(['wbs:read wbs:write'], 'scope.txt'));
+
+    const response = await oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', { body, method: 'POST' }),
+    );
+    expect(response?.status).toBe(400);
+    expect(await response?.json()).toEqual({ error: 'invalid_request' });
+  });
+
+  it('surfaces a store failure during refresh instead of refusing the grant', async () => {
+    const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+    const { oauth } = fixture({ ...renewing, store });
+    const tokens = await signIn(oauth, 'wbs:read wbs:write');
+    store.close();
+
+    expect(refresh(oauth, tokens.refresh_token)).rejects.toThrow();
   });
 });

@@ -8,6 +8,7 @@ import { testClock } from './testing/clock-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
 import { testHistoryService } from './testing/history-fixture';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
+import { legacyOrganizationAccess } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { testProjectService } from './testing/project-fixture';
 import { testReplay } from './testing/replay-fixture';
@@ -20,6 +21,7 @@ describe('migrate lifecycle', () => {
   it('exposes 503 before migrations complete then 200 after', async () => {
     const state = { migrationsApplied: false };
     const app = buildApp({
+      organizations: legacyOrganizationAccess,
       clock: testClock,
       loginThrottle: testLoginThrottle(),
       appOrigin: 'http://localhost',

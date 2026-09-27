@@ -16,6 +16,8 @@ function directoryReadCode(refusal: RefusalOf<'getApiPeople'>): string {
     case 'invalid_params':
     case 'invalid_body':
     case 'unauthenticated':
+    case 'no_active_organization':
+    case 'not_a_member':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -31,6 +33,9 @@ function projectCreateCode(refusal: RefusalOf<'postApiProjects'>): string {
     case 'insufficient_scope':
     case 'invalid_json':
     case 'invalid_body':
+    case 'no_active_organization':
+    case 'not_a_member':
+    case 'forbidden':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -46,6 +51,8 @@ function projectOpenCode(refusal: RefusalOf<'postApiProjectsByIdOpened'>): strin
     case 'insufficient_scope':
     case 'not_found':
     case 'invalid_body':
+    case 'no_active_organization':
+    case 'not_a_member':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -59,6 +66,8 @@ function projectReadCode(refusal: RefusalOf<'getApiProjectsById'>): string {
     case 'invalid_params':
     case 'unauthenticated':
     case 'not_found':
+    case 'no_active_organization':
+    case 'not_a_member':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -79,6 +88,8 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
     case 'bad_start_date':
     case 'bad_pert_weights':
     case 'optimizer_unavailable':
+    case 'no_active_organization':
+    case 'not_a_member':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -372,6 +383,8 @@ function optimizationRetryCode(refusal: RefusalOf<'postApiProjectsByIdOptimizati
     case 'insufficient_scope':
     case 'forbidden':
     case 'not_found':
+    case 'no_active_organization':
+    case 'not_a_member':
       return refusal.error;
     default:
       return unreachable(refusal);

@@ -135,7 +135,7 @@ test('reports one unexpected production tool failure under its shared occurrence
   const authInfo: AuthInfo = {
     token: 'production-upstream-token',
     clientId: 'production-wiring-test',
-    scopes: [],
+    scopes: ['read'],
   };
   const send = clientTransport.send.bind(clientTransport);
   clientTransport.send = (message, options) => send(message, { ...options, authInfo });
@@ -254,7 +254,7 @@ async function connectSessionClient(oauth: ReturnType<typeof oauthFixture>): Pro
   const authInfo: AuthInfo = {
     token: 'production-upstream-token',
     clientId: 'production-session-test',
-    scopes: [],
+    scopes: ['read'],
     extra: { mcpSessionId: 'session-1' },
   };
   const send = clientTransport.send.bind(clientTransport);
