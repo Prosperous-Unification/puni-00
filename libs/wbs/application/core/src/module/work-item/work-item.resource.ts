@@ -1337,6 +1337,24 @@ export class WorkItemService {
     );
   }
 
+  /** Returns a refusal for a parent or a step outside the project; the caller has checked membership. */
+  async validateStepNode(
+    projectId: string,
+    workItemId: string,
+    stepId: string,
+  ): Promise<'rolled_up' | 'unknown_step' | null> {
+    const rows = await this.opts.workItems.listByProject(projectId);
+    // The batch seam checks membership before calling this method.
+    // Proof: bypassing node validation made the mounted parent clear return 200
+    // instead of 409 (2026-09-27).
+    if (rows.some((row) => row.parentId === workItemId)) return 'rolled_up';
+    const steps = await this.opts.projects.stepsOf(projectId);
+    // Proof: bypassing node validation made the mounted unknown-step clear return
+    // 200 instead of 404 (2026-09-27).
+    if (!steps.some((step) => step.id === stepId)) return 'unknown_step';
+    return null;
+  }
+
   /**
    * Reads only effective numbers and project steps for revision-bound
    * references — the numbers the tree read shows, without scheduling.
