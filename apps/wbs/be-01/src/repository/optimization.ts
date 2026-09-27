@@ -63,9 +63,14 @@ function projectCachedPair(pair: ReturnType<typeof readOptimizedPair>): Optimiza
   const project = (outcome: typeof pair.pri): OptimizationCachedPair['pri'] => {
     const state = optimizationVariantState(outcome, false);
     if (outcome.kind === 'ok') {
+      // Proof (2026-09-27): making store-sqlite's optimizationVariantState answer idle for an
+      // ok row failed `runs bound children through evaluation, the token-fenced store, and
+      // release` in optimization-coordinator.db.test.ts with this error.
       if (state.state !== 'ready') throw new Error('stored optimized outcome is not ready');
       return { kind: 'ready', state, schedule: outcome.result.schedule };
     }
+    // Proof (2026-09-27): making it answer ready for a miss failed `debounces edits and reads
+    // the newest enabled input once` in optimization-coordinator.db.test.ts with this error.
     if (state.state === 'ready') throw new Error('non-ready outcome projected as ready');
     return { kind: 'non-ready', state, schedule: null };
   };

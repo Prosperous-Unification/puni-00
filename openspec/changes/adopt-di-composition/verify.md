@@ -2310,3 +2310,10 @@ Restored: 6 pass, 0 fail, 18,137 assertions, about 9 s. Outside the sandbox,
 `cd apps/wbs/be-01 && env -u CLAUDECODE bun test src`: 1121 pass, 1 skip (pre-existing), 0 fail;
 the EPERM failures recorded above were the sandbox's. `nx run-many -t typecheck -p wbs-be-01 wbs-core tool-devsync`
 and `nx run wbs-be-01:lint:fast` exit 0.
+
+- Second review: the model now clears its queue on OFF (without that, the fixed trace `ReadPlan(blue),
+BumpGeneration(1), BumpGeneration(2), Cancel` failed `Cancel: queue identities` on correct
+  production behaviour), and a crashed incarnation's child exits are no longer delivered. The two
+  projection guards in `repository/optimization.ts` carry observed proofs. Sabotages (a) to (f)
+  re-run on this tree fail as tabled above (4/2, 3/3, 5/1, 4/2, 5/1, 5/1 pass/fail). Known limit:
+  settling still uses a bounded twelve-microtask flush after the scheduler goes idle.

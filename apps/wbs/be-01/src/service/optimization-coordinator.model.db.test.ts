@@ -686,7 +686,17 @@ class ExitChild implements Command {
   }
   async run(model: Model, world: World): Promise<void> {
     note('exit');
-    const open = world.attempts.filter((attempt) => !attempt.exited);
+    // A crashed incarnation's process is gone: nothing delivers its child's exit to a
+    // lifecycle any more, so its slot stays counted until reclamation.
+    const open = world.attempts.filter(
+      (candidate) =>
+        !candidate.exited && candidate.incarnation === world.incarnations[candidate.owner],
+    );
+    if (open.length === 0) {
+      note('exitOfCrashedOwnerOnly');
+      assertState(model, world, this.toString());
+      return;
+    }
     const attempt = open[this.ordinal % open.length];
     const current =
       attempt.generation === model.generation && attempt.epoch === model.epoch && model.enabled;
@@ -798,6 +808,9 @@ class Toggle implements Command {
       { ok: true },
     );
     if (!this.enabled && model.enabled && model.hash !== null) model.epoch++;
+    // Switching optimization OFF deletes the project's queued requests in the same
+    // project-update transaction (`libs/wbs/adapters/store-sqlite/src/project.ts`).
+    if (!this.enabled) model.queue.clear();
     model.enabled = this.enabled;
     assertState(model, world, this.toString());
   }
@@ -1241,6 +1254,16 @@ describe('OptimizationCoordinator production SQLite model', () => {
     await trace([new ReadPlan('blue'), new ExitChild(0, 'feasible')]);
     await trace([new ReadPlan('blue'), new ExitChild(0), new Retry('green'), new ExitChild(1)]);
     await trace([new ReadPlan('blue'), new Toggle(false), new Toggle(false), new Toggle(true)]);
+    // OFF deletes queued requests: without clearing the model's queue on OFF this trace
+    // failed its queue-identity assertion on correct production behaviour (2026-09-27).
+    await trace([
+      new ReadPlan('blue'),
+      new BumpGeneration(1),
+      new BumpGeneration(2),
+      new Toggle(false),
+    ]);
+    // A crashed owner's child exit is never delivered; its slot stays counted.
+    await trace([new ReadPlan('blue'), new Restart('blue'), new ExitChild(0)]);
     // Proof: suppressing startup reconciliation leaves expired slots and a drain; Restart(blue) reports I5 expired slots (2026-09-27).
     await trace([
       new ReadPlan('blue'),
