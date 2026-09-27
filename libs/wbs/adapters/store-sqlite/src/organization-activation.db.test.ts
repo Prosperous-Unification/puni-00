@@ -32,6 +32,8 @@ const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
  * {@link ORGANIZATION_BRIDGE} and reversed before it.
  */
 const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
+/** The step allowance column, stamped between {@link STEP_CODE} and the marker. */
+const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 
 let dir: string;
 let path: string;
@@ -210,6 +212,7 @@ describe('organization activation marker schema', () => {
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
+      STEP_ALLOWANCE,
       STEP_CODE,
     ]);
     expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_OWNERSHIP);

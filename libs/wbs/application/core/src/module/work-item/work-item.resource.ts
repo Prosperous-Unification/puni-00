@@ -1,6 +1,9 @@
 import {
   addWorkdays,
+  allowanceOf,
+  type AllowancePercent,
   CalendarRangeError,
+  chargedDays,
   deadlineOffsetOf,
   deadlineOffsetsOf,
   type DependencyReach,
@@ -9,7 +12,6 @@ import {
   type EstimateMethod,
   type EstimateRounding,
   type EstimateRule,
-  finalDays,
   firstWorkdayOf,
   formatStepNodeId,
   type IsoDate,
@@ -26,6 +28,8 @@ import {
   type PriorityBand,
   type SettableStatus,
   type Sibling,
+  type StepAllowances,
+  type StepPolicy,
   type StepState,
   UNKNOWN,
   workdaysBetween,
@@ -96,6 +100,8 @@ import {
   readPreconditions,
   referencesOf,
   type Revisions,
+  stepOfRevisionKey,
+  stepRevisionKey,
   subjectOf,
   touchedBy,
 } from '../../service/compensating';
@@ -248,10 +254,15 @@ export function slicesOf(
   rows: readonly WorkItem[],
   estimates: readonly StoredEstimate[],
   hasChildren: ReadonlySet<string>,
-  stepIds: readonly string[],
+  /**
+   * The project's steps in step order, each with its allowance. Every estimate
+   * must name one of them: {@link allowanceOf} throws for a step outside this
+   * list rather than charging it at no allowance.
+   */
+  steps: readonly StepPolicy[],
   /**
    * The project's whole estimate arithmetic — method, weights and rounding.
-   * The number a slice runs for is `finalDays`' own, so the bar the chart
+   * The number a slice runs for is `chargedDays`' own, so the bar the chart
    * draws and the figure the table prints are one number rather than two
    * roundings of one estimate.
    */
@@ -282,17 +293,25 @@ export function slicesOf(
   teamSizes: ReadonlyMap<string, number>,
 ): Slice[] {
   const inProject = new Set(rows.map((row) => row.id));
-  const held = new Set(stepIds);
+  const allowances: StepAllowances = new Map(steps.map((step) => [step.id, step.allowancePercent]));
   const days = new Map<string, number>();
-  const unlisted = new Set<string>();
   for (const estimate of estimates) {
     if (hasChildren.has(estimate.workItemId)) continue;
     if (!inProject.has(estimate.workItemId)) continue;
-    days.set(sliceKey(estimate.workItemId, estimate.stepId), finalDays(estimate, rule));
-    if (!held.has(estimate.stepId)) unlisted.add(estimate.stepId);
+    // The shared slice seam: Fast, the solver request and a saved plan's
+    // schedule all read charged effort from here, so the allowance is applied
+    // once, before rounding, for every scheduler.
+    //
+    // Proof: with the allowance replaced by 0 here, `schedules charged effort,
+    // and the edit changes the canonical input` failed on `Expected: 3,
+    // Received: 2` (2026-09-27).
+    days.set(
+      sliceKey(estimate.workItemId, estimate.stepId),
+      chargedDays(estimate, rule, allowanceOf(allowances, estimate.stepId)),
+    );
   }
 
-  const order = [...stepIds, ...[...unlisted].sort()];
+  const order = steps.map((step) => step.id);
   const slices: Slice[] = [];
   for (const row of rows) {
     if (hasChildren.has(row.id)) continue;
@@ -447,7 +466,7 @@ function canonicalScheduleParts(
     rows,
     estimates,
     hasChildren,
-    steps.map((step) => step.id),
+    steps,
     rule,
     assigneesOf,
     effectiveTeamsOf(rows),
@@ -1336,6 +1355,13 @@ export interface Recording {
    * see `Preconditions` in `compensating.ts`.
    */
   before: readonly WorkItem[];
+  /**
+   * The allowance revision each step this command wrote held **before** it
+   * wrote, under {@link stepRevisionKey} — the step half of `before`, which
+   * `rebase` needs to carry the entry below past this one's undo. Absent for
+   * a command that writes no step.
+   */
+  stepsBefore?: Revisions;
 }
 
 export class WorkItemService {
@@ -1797,10 +1823,15 @@ export class WorkItemService {
       slotsOf,
     );
     const { assigneesOf, hasChildren, rule } = canonical;
-    // What each row is **charged**, per step: a leaf's own estimate rounded, a
-    // parent's the sum of its descendants' rounded figures. Not `totals` put
-    // through the method — see `rollUpFinals`.
-    const charged = rollUpFinals(rows, stored, rule);
+    // What each row is **charged**, per step: a leaf's own estimate uplifted by
+    // its step's allowance and rounded, a parent's the sum of its descendants'
+    // charged figures. Not `totals` put through the method — see `rollUpFinals`.
+    const charged = rollUpFinals(
+      rows,
+      stored,
+      rule,
+      new Map(steps.map((step) => [step.id, step.allowancePercent])),
+    );
     let optimization: PlanOptimization | undefined;
     let timing = new Map<string, Scheduled>();
     let scheduleError: ScheduleError = null;
@@ -3141,6 +3172,62 @@ export class WorkItemService {
   }
 
   /**
+   * Sets a project step's estimate allowance: one journalled, undoable edit.
+   *
+   * Here rather than on `StepService` because an allowance changes what every
+   * estimate of the step charges, and the journal that makes it one undo lives
+   * here. HTTP (`PATCH` a step), the command batch and MCP all reach this one
+   * method through the `setStepAllowance` command.
+   *
+   * `allowancePercent` has been validated by the command boundary. An edit that
+   * leaves the allowance where it was writes and announces, but is not
+   * journalled: there is nothing to reverse.
+   *
+   * Proof: with the `record` call skipped, `undoes an allowance edit in one
+   * step` failed on `undone.ok` (`Expected: true, Received: false`), the undo
+   * answering `nothing_to_undo` (2026-09-27).
+   */
+  async setStepAllowance(
+    projectId: string,
+    actorId: string,
+    stepId: string,
+    allowancePercent: AllowancePercent,
+  ): Promise<WorkItemOutcome<null>> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { ok: false, reason: 'not_found' };
+    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+
+    const stamp = this.clock.stampFor(actorId);
+    const written = await this.opts.projects.setStepAllowance(
+      projectId,
+      stepId,
+      allowancePercent,
+      stamp,
+    );
+    if (!written.ok) return { ok: false, reason: 'not_found' };
+    await this.opts.broadcast.publish(projectId, { type: 'step_updated', step: written.step });
+    await this.announceTree(projectId);
+    if (written.previousPercent !== allowancePercent) {
+      const rows = await this.opts.workItems.listByProject(projectId);
+      await this.record(
+        projectId,
+        stamp,
+        'set_step_allowance',
+        `set the ${written.step.name} allowance to +${String(allowancePercent)}%`,
+        {
+          forward: { do: 'set_step_allowance', stepId, allowancePercent },
+          inverse: { do: 'set_step_allowance', stepId, allowancePercent: written.previousPercent },
+          touched: [stepRevisionKey(stepId)],
+          before: rows,
+          // Every allowance write moves the revision by exactly one.
+          stepsBefore: { [stepRevisionKey(stepId)]: written.revision - 1 },
+        },
+      );
+    }
+    return { ok: true, value: null };
+  }
+
+  /**
    * Writes the currently derived number of every work item that has none stored.
    *
    * Work items added afterwards keep deriving, so a project can be frozen,
@@ -4133,7 +4220,18 @@ export class WorkItemService {
   private async staleness(projectId: string, expected: Revisions): Promise<string | null> {
     const rows = await this.opts.workItems.listByProject(projectId);
     const byId = new Map(rows.map((row) => [row.id, row]));
+    const stepRevisions = await this.opts.projects.stepAllowanceRevisions(projectId);
     for (const [id, revision] of Object.entries(expected)) {
+      const stepId = stepOfRevisionKey(id);
+      if (stepId !== null) {
+        const held = stepRevisions.get(stepId);
+        if (held === undefined) return 'a step this change touched has been removed since then.';
+        // Proof: with this comparison removed, `refuses an allowance undo
+        // after somebody else changed it and changed it back` failed: the undo
+        // answered ok and overwrote the peer's 30% (2026-09-27).
+        if (held !== revision) return 'that step’s allowance has changed since then.';
+        continue;
+      }
       const row = byId.get(id);
       // "since then" rather than a bare "since": these are read out at the end
       // of the caller's own sentence — `That could not be undone: “Roof it” has
@@ -4157,7 +4255,15 @@ export class WorkItemService {
    */
   private async revisionsOf(projectId: string, ids: readonly string[]): Promise<Revisions> {
     const rows = await this.opts.workItems.listByProject(projectId);
-    return revisionsIn(rows, ids);
+    const out = revisionsIn(rows, ids);
+    const stepIds = ids.flatMap((id) => stepOfRevisionKey(id) ?? []);
+    if (stepIds.length === 0) return out;
+    const stepRevisions = await this.opts.projects.stepAllowanceRevisions(projectId);
+    for (const stepId of stepIds) {
+      const revision = stepRevisions.get(stepId);
+      if (revision !== undefined) out[stepRevisionKey(stepId)] = revision;
+    }
+    return out;
   }
 
   /**
@@ -4401,6 +4507,19 @@ export class WorkItemService {
           };
         }
         await this.opts.workItems.setFrozenNumbers(command.updates, stamp);
+        return { ok: true, detail: null };
+      }
+      case 'set_step_allowance': {
+        // Unconditional here: `staleness` has already compared the step's
+        // allowance revision, inside this same unit of work.
+        const written = await this.opts.projects.setStepAllowance(
+          projectId,
+          command.stepId,
+          command.allowancePercent,
+          stamp,
+        );
+        if (!written.ok) return { ok: false, detail: 'that step is no longer in this project.' };
+        await this.opts.broadcast.publish(projectId, { type: 'step_updated', step: written.step });
         return { ok: true, detail: null };
       }
       case 'delete_subtree':
@@ -4706,6 +4825,12 @@ export class WorkItemService {
       },
       touched: [...new Set(recordings.flatMap((each) => each.recording.touched))],
       before: only.recording.before,
+      // The first step to write each step is the one whose before-state the
+      // batch started from, so later steps never overwrite it.
+      stepsBefore: recordings.reduceRight<Revisions>(
+        (later, each) => ({ ...later, ...each.recording.stepsBefore }),
+        {},
+      ),
     });
   }
 
@@ -4754,7 +4879,7 @@ export class WorkItemService {
           // list the mutation's own guard produced. Nothing is checked against
           // it — it is what tells a later undo whether the entry beneath this
           // one is still describing an unbroken chain. See `Preconditions`.
-          from: revisionsIn(recording.before, recording.touched),
+          from: { ...revisionsIn(recording.before, recording.touched), ...recording.stepsBefore },
         },
         createdAt: stamp.at,
       },

@@ -5,7 +5,8 @@ import { type Answer, OrganizationHarness } from '../testing/organization-harnes
 /**
  * Steps and calendar markers under organization isolation (task 3.3), over
  * real SQLite and the production organization access; see
- * {@link OrganizationHarness}.
+ * {@link OrganizationHarness.openComposed}, whose real units of work the
+ * allowance edit's command batch needs.
  */
 let h: OrganizationHarness;
 let own: string;
@@ -16,7 +17,7 @@ const MARKER = '6b0d9f3e-4c1a-4c77-9a53-1b2f0e6d7c11';
 const FOREIGN_MARKER = '0f3c7a2e-8d14-4b6e-a1c9-5e2d7b3f9a40';
 
 beforeEach(async () => {
-  h = OrganizationHarness.open();
+  h = OrganizationHarness.openComposed();
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
@@ -66,6 +67,7 @@ function routes(projectId: string, stepId: string, markerId: string): [string, s
   return [
     ['POST', `/api/projects/${projectId}/steps`, { name: 'Review' }],
     ['PATCH', `/api/projects/${projectId}/steps/${stepId}`, { name: 'Renamed' }],
+    ['PATCH', `/api/projects/${projectId}/steps/${stepId}`, { allowancePercent: 10 }],
     ['DELETE', `/api/projects/${projectId}/steps/${stepId}?cascade=true`],
     ['GET', `/api/projects/${projectId}/calendar-markers`],
     [
@@ -89,7 +91,7 @@ async function foreignState(): Promise<Answer[]> {
 describe('before activation', () => {
   it('keeps deployment-wide step and marker access across organizations', async () => {
     h.close();
-    h = OrganizationHarness.open();
+    h = OrganizationHarness.openComposed();
     for (const username of ['ada', 'grace']) await h.register(username);
     h.organization('org-b');
     h.member('org-b', 'grace', 'member');
@@ -154,6 +156,21 @@ describe('after activation', () => {
     expect(await foreignState()).toEqual(before);
   });
 
+  it('refuses an allowance edit of a foreign step or project, changing nothing', async () => {
+    const before = await foreignState();
+    for (const [path, body] of [
+      [`/api/projects/${foreign}/steps/${foreignStep}`, { allowancePercent: 25 }],
+      [`/api/projects/${own}/steps/${foreignStep}`, { allowancePercent: 25 }],
+      [`/api/projects/${own}/steps/${foreignStep}`, { name: 'Taken', allowancePercent: 25 }],
+    ] as const) {
+      expect(await h.call('ada', 'PATCH', path, body)).toEqual({
+        status: 404,
+        body: { error: 'not_found' },
+      });
+    }
+    expect(await foreignState()).toEqual(before);
+  });
+
   it('refuses a viewer every step and marker write and lets the viewer list markers', async () => {
     const step = await firstStep('ada', own);
     const mine = await marker('ada', own, MARKER);
@@ -170,6 +187,10 @@ describe('after activation', () => {
     expect(
       (await h.call('ada', 'POST', `/api/projects/${own}/steps`, { name: 'Review' })).status,
     ).toBe(200);
+    const step = await firstStep('ada', own);
+    expect(
+      await h.call('ada', 'PATCH', `/api/projects/${own}/steps/${step}`, { allowancePercent: 15 }),
+    ).toMatchObject({ status: 200, body: { step: { id: step, allowancePercent: 15 } } });
     await marker('ada', own, MARKER);
     expect(
       (

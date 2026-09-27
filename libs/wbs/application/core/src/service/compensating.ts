@@ -1,4 +1,4 @@
-import type { MeasureMetric } from '@wbs/domain';
+import type { AllowancePercent, MeasureMetric } from '@wbs/domain';
 import type { StepState } from '@wbs/domain';
 
 import type { ActualKey, StoredActual } from '../ports/actual-store';
@@ -87,6 +87,15 @@ export type CompensatingCommand =
    */
   | { do: 'set_positions'; placements: Reparented[]; moved: string[] }
   | { do: 'set_frozen'; updates: FrozenNumber[] }
+  /**
+   * A project step's allowance, set to `allowancePercent`.
+   *
+   * Its precondition is the step's **allowance revision**, held in
+   * {@link Preconditions} under {@link stepRevisionKey}: an undo after
+   * somebody else's edit — even one that put the value back — or after the
+   * step's removal is refused as stale rather than overwriting newer work.
+   */
+  | { do: 'set_step_allowance'; stepId: string; allowancePercent: AllowancePercent }
   | DeleteSubtree
   | RestoreSubtree
   | Batch;
@@ -262,8 +271,26 @@ export interface JournalPayload {
   forward: CompensatingCommand;
 }
 
-/** `{workItemId: revision}`, for one moment in one entity's life. */
+/**
+ * `{workItemId: revision}`, for one moment in one entity's life — and, under
+ * {@link stepRevisionKey}, a step's allowance revision.
+ */
 export type Revisions = Record<string, number>;
+
+const STEP_REVISION_PREFIX = 'step:';
+
+/**
+ * The {@link Revisions} key a step's allowance revision is held under.
+ * Work item ids are UUIDs, so the prefix cannot collide with one.
+ */
+export function stepRevisionKey(stepId: string): string {
+  return `${STEP_REVISION_PREFIX}${stepId}`;
+}
+
+/** The step a {@link Revisions} key names, or `null` for a work item's key. */
+export function stepOfRevisionKey(key: string): string | null {
+  return key.startsWith(STEP_REVISION_PREFIX) ? key.slice(STEP_REVISION_PREFIX.length) : null;
+}
 
 /**
  * What an entry checks before it applies, and what lets the entry below it
@@ -307,6 +334,7 @@ const COMMANDS = [
   'remove_dependency',
   'move',
   'set_frozen',
+  'set_step_allowance',
   'set_positions',
   'delete_subtree',
   'restore_subtree',
@@ -404,6 +432,8 @@ export function touchedBy(command: CompensatingCommand): string[] {
       return [command.workItemId];
     case 'set_frozen':
       return command.updates.map((each) => each.id);
+    case 'set_step_allowance':
+      return [stepRevisionKey(command.stepId)];
     case 'set_positions':
       // The rows whose place changed, never every placement: the respaced ones
       // kept their place, took no revision, and must not have a peer's undo
@@ -622,6 +652,10 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
       // is refused by `applyRestore` before it can be journalled, and would be a
       // restore of nothing.
       return { workItemId: command.rows.at(0)?.id ?? null, stepId: null };
+    case 'set_step_allowance':
+      // A project setting aimed at one step: an item's history does not claim
+      // it, and a step's history does.
+      return { workItemId: null, stepId: command.stepId };
     case 'set_frozen':
       // The whole plan, even when one row's number moved: freezing is a project
       // act and the label says so. Naming `updates[0]` would make a plan-wide

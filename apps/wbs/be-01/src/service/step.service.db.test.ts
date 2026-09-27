@@ -148,7 +148,7 @@ afterEach(() => {
 
 describe('StepService.add', () => {
   it('adds a step and announces it', async () => {
-    const outcome = await steps.add(projectId, ownerId, 'Design');
+    const outcome = await steps.add(projectId, ownerId, 'Design', 0);
 
     if (!outcome.ok) throw new Error(`add refused: ${outcome.reason}`);
     expect(outcome.value.name).toBe('Design');
@@ -161,10 +161,10 @@ describe('StepService.add', () => {
   });
 
   it('trims the name, and refuses one that is only spaces', async () => {
-    const trimmed = await steps.add(projectId, ownerId, '  Design  ');
+    const trimmed = await steps.add(projectId, ownerId, '  Design  ', 0);
     if (!trimmed.ok) throw new Error(`add refused: ${trimmed.reason}`);
     expect(trimmed.value.name).toBe('Design');
-    expect(await steps.add(projectId, ownerId, '   ')).toEqual({
+    expect(await steps.add(projectId, ownerId, '   ', 0)).toEqual({
       ok: false,
       reason: 'name_required',
     });
@@ -173,23 +173,23 @@ describe('StepService.add', () => {
   });
 
   it('refuses a name the project already holds', async () => {
-    expect(await steps.add(projectId, ownerId, 'QA')).toEqual({ ok: false, reason: 'taken' });
+    expect(await steps.add(projectId, ownerId, 'QA', 0)).toEqual({ ok: false, reason: 'taken' });
     expect(broadcast.published).toEqual([]);
   });
 
   it('refuses a project that is not there, and one the caller may not write to', async () => {
-    expect(await steps.add(crypto.randomUUID(), ownerId, 'Design')).toEqual({
+    expect(await steps.add(crypto.randomUUID(), ownerId, 'Design', 0)).toEqual({
       ok: false,
       reason: 'not_found',
     });
 
     await projectStore.update(projectId, { restricted: true }, wrote());
-    expect(await steps.add(projectId, strangerId, 'Design')).toEqual({
+    expect(await steps.add(projectId, strangerId, 'Design', 0)).toEqual({
       ok: false,
       reason: 'forbidden',
     });
     // The owner of the restricted project still may.
-    expect((await steps.add(projectId, ownerId, 'Design')).ok).toBe(true);
+    expect((await steps.add(projectId, ownerId, 'Design', 0)).ok).toBe(true);
   });
 });
 
@@ -199,14 +199,21 @@ describe('StepService.rename', () => {
 
     expect(outcome).toEqual({
       ok: true,
-      value: { id: qaId, projectId, name: 'Review', position: 20, code: 'qa' },
+      value: { id: qaId, projectId, name: 'Review', position: 20, code: 'qa', allowancePercent: 0 },
     });
     expect(broadcast.published).toEqual([
       {
         projectId,
         event: {
           type: 'step_renamed',
-          step: { id: qaId, projectId, name: 'Review', position: 20, code: 'qa' },
+          step: {
+            id: qaId,
+            projectId,
+            name: 'Review',
+            position: 20,
+            code: 'qa',
+            allowancePercent: 0,
+          },
         },
       },
     ]);
@@ -603,7 +610,7 @@ describe('step events', () => {
       broadcast: watching,
     });
 
-    await service.add(projectId, ownerId, 'Design');
+    await service.add(projectId, ownerId, 'Design', 0);
     await service.remove(projectId, qaId, ownerId, true);
 
     expect(watching.stepsAtPublish[0]).toContain('Design');
@@ -642,7 +649,7 @@ describe('step events', () => {
     });
     const subscription = `project:${projectId}`;
 
-    await durable.add(projectId, ownerId, 'Design');
+    await durable.add(projectId, ownerId, 'Design', 0);
     const seenUpTo = await eventLog.latestSeq(subscription);
     await durable.remove(projectId, qaId, ownerId, true);
 

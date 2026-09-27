@@ -19,7 +19,12 @@ export function resourcesFor(changed?: string | null): readonly RefreshResource[
   // Proof: removing `plan_unavailable` made its peer-refetch test ask for
   // `[tree, steps, directory, markers]`, expected the one `tree` resource.
   if (changed === 'tree_replaced' || changed === 'plan_unavailable') return ['tree'];
-  if (changed === 'step_added' || changed === 'step_renamed' || changed === 'step_removed') {
+  if (
+    changed === 'step_added' ||
+    changed === 'step_renamed' ||
+    changed === 'step_updated' ||
+    changed === 'step_removed'
+  ) {
     return ['tree', 'steps'];
   }
   if (changed === 'calendar_markers_changed') return ['markers'];

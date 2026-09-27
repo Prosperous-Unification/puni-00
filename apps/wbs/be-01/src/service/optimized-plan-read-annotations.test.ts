@@ -92,8 +92,22 @@ beforeEach(async () => {
   await projects.create(
     project,
     [
-      { id: stepId, projectId: project.id, name: 'Dev', position: 10, code: 'dev' },
-      { id: laterStepId, projectId: project.id, name: 'QA', position: 20, code: 'qa' },
+      {
+        id: stepId,
+        projectId: project.id,
+        name: 'Dev',
+        position: 10,
+        code: 'dev',
+        allowancePercent: 0,
+      },
+      {
+        id: laterStepId,
+        projectId: project.id,
+        name: 'QA',
+        position: 20,
+        code: 'qa',
+        allowancePercent: 0,
+      },
     ],
     WROTE,
   );

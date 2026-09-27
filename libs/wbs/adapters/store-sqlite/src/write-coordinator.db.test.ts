@@ -245,7 +245,7 @@ describe('the write coordinator', () => {
     // Started while the batch holds the transaction open, and deliberately not
     // awaited yet: what this case is about is where the write *lands*, and on a
     // process whose route writes take no turn it lands inside the batch.
-    const added = steps.add(projectId, ownerId, 'Wiring');
+    const added = steps.add(projectId, ownerId, 'Wiring', 0);
     hold.release();
 
     const outcome = await batch;
@@ -279,7 +279,10 @@ describe('the write coordinator', () => {
     await hold.reached;
 
     const writes = [
-      stepStore.add({ id: crypto.randomUUID(), projectId, name: 'Wiring' }, stamp),
+      stepStore.add(
+        { id: crypto.randomUUID(), projectId, name: 'Wiring', allowancePercent: 0 },
+        stamp,
+      ),
       publicDirectory.addTag({ id: crypto.randomUUID(), name: 'urgent' }, stamp),
       publicEventLog.recordEvent(`project:${projectId}`, { type: 'saved_plans_changed' }, 1),
       publicProjects.update(projectId, { name: 'Rewire the shed, again' }, stamp),

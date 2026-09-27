@@ -505,6 +505,27 @@ export interface WorkItemView {
 export interface StepView {
   id: string;
   name: string;
+  allowancePercent: number;
+}
+
+/**
+ * One step as be-01 sent it, read into a {@link StepView}.
+ *
+ * An absent `allowancePercent` is a modeled state, not a missing default: blue
+ * and green serve side by side during a swap, and an older be-01 that predates
+ * step allowances sends no field. That server charged every step at 0%, so 0%
+ * is what it means, and it is what the page shows until the reader reaches a
+ * be-01 that sends the field.
+ *
+ * Proof: with the absent case read as 30, `reads a step from an older be-01
+ * at 0%` failed (2026-09-27).
+ */
+export function stepViewOf(step: {
+  id: string;
+  name: string;
+  allowancePercent?: number;
+}): StepView {
+  return { id: step.id, name: step.name, allowancePercent: step.allowancePercent ?? 0 };
 }
 
 /**
@@ -1498,6 +1519,7 @@ export interface ProjectApi {
   /** Adds a step to the project. Throws `taken` when the name is already one. */
   addStep(projectId: string, name: string): Promise<StepView>;
   renameStep(projectId: string, stepId: string, name: string): Promise<StepView>;
+  setStepAllowance(projectId: string, stepId: string, allowancePercent: number): Promise<StepView>;
   /**
    * Removes a step, or answers what it would take.
    *
@@ -1899,6 +1921,7 @@ export const STEP_REFUSALS: RefusalWords = {
   sentences: {
     taken: 'That name is already a step on this plan.',
     name_required: 'A step needs a name.',
+    invalid_allowance: 'Invalid allowance. Enter 0–1000 with at most two decimal places.',
     in_use: 'That step still holds estimates or assignments on this plan.',
     unknown_step: 'That step is no longer on this plan — somebody else removed it.',
     not_found: 'That step is no longer on this plan.',
@@ -2454,6 +2477,7 @@ export function httpProjectApi(token: string): ProjectApi {
       );
       const plan: PlanRead = {
         ...tree,
+        steps: tree.steps.map(stepViewOf),
         workItems: tree.workItems.map((row) => ({
           ...row,
           teamIds: [...row.teamIds],
@@ -2625,7 +2649,7 @@ export function httpProjectApi(token: string): ProjectApi {
       return jsonBody(
         readProjectShape,
         await client.getApiProjectsById({ params: { id: projectId }, headers: auth(token) }),
-      ).steps.map(({ id, name }) => ({ id, name }));
+      ).steps.map(stepViewOf);
     },
     async addStep(projectId, name) {
       const { step } = jsonBody(
@@ -2636,7 +2660,7 @@ export function httpProjectApi(token: string): ProjectApi {
           headers: auth(token),
         }),
       );
-      return { id: step.id, name: step.name };
+      return stepViewOf(step);
     },
     async renameStep(projectId, stepId, name) {
       const { step } = jsonBody(
@@ -2647,7 +2671,18 @@ export function httpProjectApi(token: string): ProjectApi {
           headers: auth(token),
         }),
       );
-      return { id: step.id, name: step.name };
+      return stepViewOf(step);
+    },
+    async setStepAllowance(projectId, stepId, allowancePercent) {
+      const { step } = jsonBody(
+        renameStepShape,
+        await client.patchApiProjectsByIdStepsByStepId({
+          params: { id: projectId, stepId },
+          body: { allowancePercent },
+          headers: auth(token),
+        }),
+      );
+      return stepViewOf(step);
     },
     async removeStep(projectId, stepId, cascade) {
       const reply = await client.deleteApiProjectsByIdStepsByStepId({
