@@ -24,15 +24,15 @@
 
 ## 5. Address commands by step node ID
 
-- [ ] 5.1 Red: mounted estimate, clear, actual, measure, progress and assignment by step node ID; both-or-neither refusal; old request shapes unchanged; one undo per edit.
-- [ ] 5.2 Extend command normalizers and generated OpenAPI/MCP schemas; expose node IDs and references on work-item reads.
-- [ ] 5.3 Negative proof: accept a request with both address forms; watch the refusal test fail, restore, add adjacent `Proof:`.
+- [x] 5.1 Red: mounted estimate, clear, actual, measure, progress and assignment by step node ID; both-or-neither refusal; old request shapes unchanged; one undo per edit.
+- [x] 5.2 Extend command normalizers and generated OpenAPI/MCP schemas; expose node IDs and references on work-item reads.
+- [x] 5.3 Negative proof: accept a request with both address forms; watch the refusal test fail, restore, add adjacent `Proof:`.
 
 ## 6. Resolve the graph through one seam
 
-- [ ] 6.1 Red: graph resolution tests for workflow and legacy provenance; run existing Fast and solver goldens and request-hash tests through the seam.
-- [ ] 6.2 Implement `resolveStepNodeGraph` and move Fast and the solver builder onto it.
-- [ ] 6.3 Negative proof: drop one workflow edge; watch a Fast golden fail, restore, add adjacent `Proof:`.
+- [x] 6.1 Red: graph resolution tests for workflow and legacy provenance; run existing Fast and solver goldens and request-hash tests through the seam.
+- [x] 6.2 Implement `resolveStepNodeGraph` and move Fast and the solver builder onto it.
+- [x] 6.3 Negative proof: drop one workflow edge; watch a Fast golden fail, restore, add adjacent `Proof:`.
 
 ## 7. Journal node mappings on hand-down and hand-up
 

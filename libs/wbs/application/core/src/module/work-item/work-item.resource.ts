@@ -1331,8 +1331,39 @@ export class WorkItemService {
     this.clock = opts.clock;
   }
 
-  /** Reads only effective numbers and project steps for revision-bound references. */
-  async addresses(projectId: string): Promise<{
+  /** Whether a batch target is currently a row of this project, including rows created earlier in the batch. */
+  async hasWorkItemInProject(projectId: string, workItemId: string): Promise<boolean> {
+    return (await this.opts.workItems.listByIds(projectId, [workItemId])).some(
+      (row) => row.id === workItemId && row.projectId === projectId,
+    );
+  }
+
+  /** Returns a refusal for a parent or a step outside the project; the caller has checked membership. */
+  async validateStepNode(
+    projectId: string,
+    workItemId: string,
+    stepId: string,
+  ): Promise<'rolled_up' | 'unknown_step' | null> {
+    const rows = await this.opts.workItems.listByProject(projectId);
+    // The batch seam checks membership before calling this method.
+    // Proof: bypassing node validation made the mounted parent clear return 200
+    // instead of 409 (2026-09-27).
+    if (rows.some((row) => row.parentId === workItemId)) return 'rolled_up';
+    const steps = await this.opts.projects.stepsOf(projectId);
+    // Proof: bypassing node validation made the mounted unknown-step clear return
+    // 200 instead of 404 (2026-09-27).
+    if (!steps.some((step) => step.id === stepId)) return 'unknown_step';
+    return null;
+  }
+
+  /**
+   * Reads only effective numbers and project steps for revision-bound
+   * references — the numbers the tree read shows, without scheduling.
+   *
+   * @returns `null` for an unknown project.
+   * @throws when the numbering misses a row.
+   */
+  async readAddresses(projectId: string): Promise<{
     workItems: { id: string; parentId: string | null; number: string }[];
     steps: Step[];
   } | null> {
@@ -1343,6 +1374,12 @@ export class WorkItemService {
     return {
       workItems: rows.map((row) => {
         const number = numbers.get(row.id);
+        // `deriveNumbers` numbers every reachable row and throws on the rest, so a
+        // miss is a broken numbering, never a row to leave out of the addresses.
+        // Proof: with the first row dropped from the numbering, the mounted
+        // resolve cases failed `Expected: 409, Received: 500` naming `no effective
+        // number for work item …` instead of resolving against a partial space;
+        // watched 2026-09-27.
         if (number === undefined) throw new Error(`no effective number for work item ${row.id}`);
         return { id: row.id, parentId: row.parentId, number };
       }),

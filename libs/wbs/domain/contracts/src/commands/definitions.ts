@@ -36,7 +36,7 @@ const placement = {
 } as const;
 const reference = { 'ref?': 'string' } as const;
 const named = { ...reference, name: 'string' } as const;
-const step = { ...target, stepId: 'string' } as const;
+const step = { ...target, 'stepId?': 'string', 'stepNodeId?': 'string' } as const;
 const predecessor = {
   ...target,
   'predecessorId?': 'string',
@@ -111,32 +111,38 @@ export const commandDefinitions = {
       days: { optimistic: 'number', realistic: 'number', pessimistic: 'number' },
     }),
     scope: 'project',
-    description: 'Set the three-point estimate of one step on a leaf work item.',
+    description:
+      'Set the three-point estimate of one step on a leaf work item. Address it with workItemId/workItemRef and stepId, or stepNodeId (sn1.<workItemId>.<stepId>).',
   }),
   clearEstimate: defineCommand('clearEstimate', {
     schema: type({ kind: "'clearEstimate'", ...step }),
     scope: 'project',
-    description: 'Remove one step’s estimate from a work item.',
+    description:
+      'Remove one step’s estimate from a work item. Accepts stepNodeId in place of the work-item and step pair.',
   }),
   setActual: defineCommand('setActual', {
     schema: type({ kind: "'setActual'", ...step, days: 'number' }),
     scope: 'project',
-    description: 'Record the days one step actually took on a work item.',
+    description:
+      'Record the days one step actually took on a work item. Accepts stepNodeId in place of the work-item and step pair.',
   }),
   clearActual: defineCommand('clearActual', {
     schema: type({ kind: "'clearActual'", ...step }),
     scope: 'project',
-    description: 'Remove one step’s actual from a work item.',
+    description:
+      'Remove one step’s actual from a work item. Accepts stepNodeId in place of the work-item and step pair.',
   }),
   setProgress: defineCommand('setProgress', {
     schema: type({ kind: "'setProgress'", ...step, state: "'in_progress' | 'done'" }),
     scope: 'project',
-    description: 'Mark one step of a work item in progress or done.',
+    description:
+      'Mark one step of a work item in progress or done. Accepts stepNodeId in place of the work-item and step pair.',
   }),
   clearProgress: defineCommand('clearProgress', {
     schema: type({ kind: "'clearProgress'", ...step }),
     scope: 'project',
-    description: 'Take a step back to not started.',
+    description:
+      'Take a step back to not started. Accepts stepNodeId in place of the work-item and step pair.',
   }),
   setStatus: defineCommand('setStatus', {
     schema: type({
@@ -153,12 +159,14 @@ export const commandDefinitions = {
   setMeasure: defineCommand('setMeasure', {
     schema: type({ kind: "'setMeasure'", ...step, metric: 'string', value: 'number' }),
     scope: 'project',
-    description: 'Record a measured figure (tokens, hours…) for one step of a work item.',
+    description:
+      'Record a measured figure (tokens, hours…) for one step of a work item. Accepts stepNodeId in place of the work-item and step pair.',
   }),
   clearMeasure: defineCommand('clearMeasure', {
     schema: type({ kind: "'clearMeasure'", ...step, metric: 'string' }),
     scope: 'project',
-    description: 'Remove one measured figure.',
+    description:
+      'Remove one measured figure. Accepts stepNodeId in place of the work-item and step pair.',
   }),
   setAssignee: defineCommand('setAssignee', {
     schema: type({
@@ -168,7 +176,8 @@ export const commandDefinitions = {
       'personRef?': 'string',
     }),
     scope: 'project',
-    description: 'Name who does one step of a work item, or null to unassign.',
+    description:
+      'Name who does one step of a work item, or null to unassign. Accepts stepNodeId in place of the work-item and step pair.',
   }),
   addDependency: defineCommand('addDependency', {
     schema: type({ kind: "'addDependency'", ...predecessor }),
