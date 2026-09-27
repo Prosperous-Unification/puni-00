@@ -6,7 +6,7 @@ import ts from 'typescript';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const sourceRoot = `${root}src/`;
-const debt = new Set(['authentication', 'saved-plans', 'plan-import']);
+const debt = new Set(['saved-plans', 'plan-import']);
 const inspected = [
   'plan-history',
   'realtime',
@@ -105,5 +105,7 @@ test('closed feature modules do not reference repository ports and debt stays li
   // into gateway-broadcaster.ts made this assertion fail (0 pass, 1 fail).
   // Proof (2026-09-27): injecting the same import() type into retention-timer.ts
   // made this assertion fail (0 pass, 1 fail).
+  // Proof (2026-09-27): injecting an import() type reference to UserStore into
+  // authentication.feature.ts made this assertion fail (0 pass, 1 fail).
   expect(failed).toEqual([]);
 }, 120_000);
