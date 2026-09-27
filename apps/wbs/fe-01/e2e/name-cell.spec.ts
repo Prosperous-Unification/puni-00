@@ -382,6 +382,72 @@ test.describe('the Name cell at rest is the name alone', () => {
   });
 
   /**
+   * The case above at the speed CI gives it, made deterministic: the reader's
+   * own save of the name is held at the network until they are back in the
+   * cell and have typed, so its refetch and its answer both arrive while rule
+   * 2 is holding. That is the order a loaded runner produced on pixels shard 3
+   * (pull requests 39 and 40), where the case above failed on `the peer name
+   * never reached the box` with the box still on `Strip the wiring` — never
+   * late, stuck: `LiveField` kept the name from before the save as its
+   * baseline, took the typed-back name for an edit already sent, and nothing
+   * released the peer's name.
+   *
+   * Proof: `LiveField.submit`'s baseline advance removed, this failed on `the
+   * peer name never reached the box` with `Received: "Strip the wiring"`.
+   * Watched in Chromium, 2026-09-27.
+   */
+  test("a peer's longer name still arrives when my own save came back while I was typing", async ({
+    page,
+  }) => {
+    await seedRows(page, `e2e-name-${String(Date.now())}-${String(account)}`, 2);
+
+    const mine = page.getByLabel('Name of 010');
+    const theirs = page.getByLabel('Name of 020');
+    const mineId = await idOf(mine);
+    const isMySave = (body: string | null): boolean =>
+      body !== null && body.includes(mineId) && body.includes(SHORT_NAME);
+
+    let releaseSave = (): void => undefined;
+    const saveReleased = new Promise<void>((resolve) => {
+      releaseSave = resolve;
+    });
+    await page.route('**/api/projects/*/commands', async (route) => {
+      if (isMySave(route.request().postData())) await saveReleased;
+      await route.continue();
+    });
+    const saveAnswered = page.waitForResponse(
+      (response) => response.url().endsWith('/commands') && isMySave(response.request().postData()),
+    );
+
+    await writeInto(mine, SHORT_NAME);
+    const atRest = await boxOf(mine);
+    await mine.click();
+    await expect(mine).toBeFocused();
+    await mine.press('X');
+    releaseSave();
+    expect((await saveAnswered).status(), 'be-01 refused the save').toBe(200);
+    await mine.press('Backspace');
+
+    await aPeerRenames(page, mineId, LONG_NAME);
+    await aPeerRenames(page, await idOf(theirs), 'Their new name');
+    await expect(theirs).toHaveValue('Their new name');
+    expect(await mine.inputValue(), 'the peer edit was written into the box mid-visit').toBe(
+      SHORT_NAME,
+    );
+
+    await mine.blur();
+    await expect(mine).not.toBeFocused();
+    await expect(mine, 'the peer name never reached the box').toHaveValue(LONG_NAME);
+    const after = await boxOf(mine);
+    expect(linesHidden(after), "a line of the peer's name is hidden after the blur").toBeLessThan(
+      0.5,
+    );
+    expect(after.clientHeight, 'the box was never re-measured for the longer name').toBeGreaterThan(
+      atRest.clientHeight,
+    );
+  });
+
+  /**
    * The clamp measures by putting the first line in the box alone for one
    * `scrollHeight` read, and a `textarea`'s `value` setter drops the selection
    * — on an unfocused box as much as a focused one.
