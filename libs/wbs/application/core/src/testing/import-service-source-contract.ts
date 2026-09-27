@@ -1146,6 +1146,29 @@ export function importServiceSourceContract(
       },
     );
 
+    it('refuses a version-3 file with a duplicate step code, writing no project', async () => {
+      const source = await ownedSource();
+      try {
+        const before = await source.stores.projects.list();
+        const duplicated = roundTripFixture();
+        const verify = duplicated.steps.at(2);
+        if (verify === undefined) throw new Error('round-trip fixture lacks its third step');
+        verify.code = 'impl';
+
+        const refused = await importService(source).import(duplicated, ACTOR);
+
+        expect(refused).toMatchObject({
+          ok: false,
+          code: 'invalid_body',
+          path: 'steps[2].code',
+          detail: 'impl',
+        });
+        expect(await source.stores.projects.list()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    });
+
     it('round trips every authored input while storing leaf values only', async () => {
       const source = await ownedSource();
       try {

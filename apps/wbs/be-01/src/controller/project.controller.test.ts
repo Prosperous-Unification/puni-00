@@ -200,9 +200,8 @@ const PROJECT_FIELDS = [
 
 describe('projects', () => {
   /**
-   * Proof: with the `uncoded_steps` reply in `project.routes.ts` replaced by
-   * the 200 export, this received 500 — the response schema refused the null
-   * code — instead of the declared 409 (2026-09-27).
+   * Proof: with the uncoded-step branch of `PlanDocumentService.export`
+   * removed, this received 500 instead of the declared 409 (2026-09-27).
    */
   it('refuses a JSON export while a step is uncoded, naming it and the backfill', async () => {
     const { register, send, projectTables } = buildHarness();

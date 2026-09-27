@@ -75,10 +75,12 @@ export class PlanDocumentService {
     const coded: PlanDocument['steps'] = [];
     const uncoded: { id: string; name: string }[] = [];
     for (const step of tree.steps) {
+      // Proof: with this throw removed, `throws on a step read without a code
+      // key` received an export instead of an Error (2026-09-27).
       if (step.code === undefined) throw new Error(`step "${step.id}" was read without a code`);
       // Proof: with this branch removed, `refuses to export a project holding
-      // an uncoded step, naming it` received ok: true — the response schema
-      // is not checked by the service itself (2026-09-27).
+      // an uncoded step, naming it` received ok: true, and the mounted be-01
+      // export received 500 instead of 409 (2026-09-27).
       if (step.code === null) uncoded.push({ id: step.id, name: step.name });
       else coded.push({ ...step, code: step.code });
     }
@@ -207,8 +209,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       continue;
     }
     // Proof: with this refusal removed, `refuses a version-3 file whose step
-    // has no string code` classified the file with a non-string code
-    // (2026-09-27).
+    // has no string code` received ok: true (2026-09-27).
     if (typeof code !== 'string')
       return { ok: false, code: 'invalid_body', path: `steps[${String(at)}].code` };
     steps.push({ ...step, allowancePercent: step.allowancePercent, code });

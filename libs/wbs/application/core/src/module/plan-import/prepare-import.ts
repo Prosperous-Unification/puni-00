@@ -644,8 +644,8 @@ export function prepareImport(
     // `s1-qa` instead of refusing it (2026-09-27).
     if (isReservedStepCode(step.code))
       return refuses('invalid_body', `steps[${String(at)}].code`, step.code);
-    // Proof: with this guard bypassed, the same test prepared two steps coded
-    // `qa` instead of refusing the second (2026-09-27).
+    // Proof: with this guard bypassed, the same test prepared a second step
+    // coded `impl` instead of refusing it (2026-09-27).
     if (stepCodes.has(step.code))
       return refuses('invalid_body', `steps[${String(at)}].code`, step.code);
     stepCodes.add(step.code);
