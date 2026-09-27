@@ -89,6 +89,8 @@ Astra design call (2026-09-27): keep creating an **absent** path before activati
 | Rollback preflight                             | epoch, usable-family and live-session checks, each removed   | `refuses at an advanced epoch`, `refuses while a bound family without sessions can still refresh`, `refuses while a bound session is live` |
 | Dead bound rows purged on down                 | refresh purge, then family purge, turned into a SELECT       | `purges dead bound credentials, preserves legacy ones and reaches the baseline`; its connection has foreign keys off, so no cascade helps  |
 
+Dev store check (2026-09-27): the orchestrator read the dev mcp-01 store's `sqlite_master` read-only. Its five objects equal the baseline under the adoption normalisation, and `migrateMcpStore(db, false)` adopted a copy built from that text. Main's first-parent history shipped one constructor schema only (`git log --first-parent` on `session-store.ts`); the variant without `upstream_refreshed_at` lived only inside PR #27. `adopts the dev store schema read from its sqlite_master on 2026-09-27` pins the dev text; with `upstream_refreshed_at` removed from it the test failed with the baseline refusal.
+
 IMMEDIATE is not claimed as a safety check: with a deferred transaction SQLite still refuses the stale writer, so `applies each migration once when two processes start on one absent store` passes either way. Command: `env -u CLAUDECODE bun test` in `apps/wbs/mcp-01`, 200 pass.
 
 ## Pending gate output

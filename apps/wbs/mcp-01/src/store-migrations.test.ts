@@ -27,6 +27,24 @@ CREATE TABLE IF NOT EXISTS mcp_refresh (token_digest BLOB PRIMARY KEY, family_id
 CREATE INDEX IF NOT EXISTS mcp_session_family ON mcp_session(family_id);
 CREATE INDEX IF NOT EXISTS mcp_refresh_family ON mcp_refresh(family_id);`;
 
+/**
+ * The dev mcp-01 store's `sqlite_master.sql`, verbatim, as read on 2026-09-27. SQLite drops
+ * `IF NOT EXISTS` when it records DDL, so this is what a real pre-ledger store holds.
+ */
+const DEV_STORE_SCHEMA = [
+  'CREATE TABLE mcp_family (family_id TEXT PRIMARY KEY, client_id TEXT NOT NULL, subject TEXT NOT NULL, scope TEXT NOT NULL, upstream_access_ct BLOB NOT NULL, upstream_refresh_ct BLOB, upstream_expires_at INTEGER NOT NULL, upstream_refreshed_at INTEGER, idle_expires_at INTEGER NOT NULL, absolute_expires_at INTEGER NOT NULL, revoked_at INTEGER, lease_owner TEXT, lease_until INTEGER, version INTEGER NOT NULL)',
+  'CREATE TABLE mcp_refresh (token_digest BLOB PRIMARY KEY, family_id TEXT NOT NULL REFERENCES mcp_family(family_id) ON DELETE CASCADE, consumed_at INTEGER, expires_at INTEGER NOT NULL)',
+  'CREATE INDEX mcp_refresh_family ON mcp_refresh(family_id)',
+  'CREATE TABLE mcp_session (jti TEXT PRIMARY KEY, family_id TEXT NOT NULL REFERENCES mcp_family(family_id) ON DELETE CASCADE, expires_at INTEGER NOT NULL)',
+  'CREATE INDEX mcp_session_family ON mcp_session(family_id)',
+] as const;
+
+/** Orders DDL like `ORDER BY type, name`: indexes before tables, then by object name. */
+function bySqliteMasterOrder(left: string, right: string): number {
+  const key = (sql: string): string => sql.replace(/^CREATE (\w+) (\w+).*$/s, '$1 $2');
+  return key(left).localeCompare(key(right));
+}
+
 function storePath(): string {
   const root = mkdtempSync(join(tmpdir(), 'mcp-store-migrations-'));
   roots.push(root);
@@ -134,6 +152,23 @@ describe('MCP store migrations', () => {
     ).toBe('ok');
     expect(store.familyForSession('legacy-session-2', NOW)?.credentialEpoch).toBe(0);
     store.close();
+  });
+
+  it('adopts the dev store schema read from its sqlite_master on 2026-09-27', () => {
+    const path = storePath();
+    withDb(path, (db) => {
+      for (const statement of DEV_STORE_SCHEMA) db.run(statement);
+      expect(
+        db
+          .query<{ sql: string }, []>(
+            'SELECT sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type, name',
+          )
+          .all()
+          .map((row) => row.sql),
+      ).toEqual([...DEV_STORE_SCHEMA].sort(bySqliteMasterOrder));
+    });
+    new McpSessionStore(path, [KEY]).close();
+    expect(ledger(path)).toEqual([BASELINE, BINDING]);
   });
 
   it.each([
