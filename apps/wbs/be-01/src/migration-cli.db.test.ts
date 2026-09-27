@@ -55,6 +55,10 @@ describe('migration deploy entrypoints', () => {
         'migrate-status-cli.ts',
         ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/migrate-down'"],
       ],
+      [
+        'backfill-step-codes-cli.ts',
+        ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/step-code-backfill'"],
+      ],
     ]);
     for (const [file, imports] of expectedImports) {
       const source = readFileSync(join(APP_ROOT, 'src', file), 'utf8');
@@ -95,5 +99,45 @@ describe('migration deploy entrypoints', () => {
     expect(down.stdout).toContain(`rolled back: ${latest}`);
     expect(schemaAt(dbPath)).toEqual(priorSchema);
     expect((await runCli('migrate-status-cli.ts', dbPath)).stdout.trim()).toBe(baseline);
+  }, 60_000);
+
+  it('codes the steps an older release left uncoded, and codes nothing on a rerun', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-backfill-cli-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    runMigrations(dbPath, MIGRATIONS);
+    const sqlite = openDatabase(dbPath);
+    try {
+      sqlite.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+      );
+      sqlite.run(
+        'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+          " VALUES ('p', 'Shed', 'u', 0, 'pert', NULL, 0, 1)",
+      );
+      // The outgoing release's statement: it names no `code`.
+      sqlite.run("INSERT INTO step (id, project_id, name, position) VALUES ('s', 'p', 'Dev', 10)");
+    } finally {
+      sqlite.close();
+    }
+
+    const first = await runCli('backfill-step-codes-cli.ts', dbPath);
+    expect(first).toEqual({
+      exitCode: 0,
+      stdout: 'coded step s in project p as dev\nstep codes backfilled: 1\n',
+      stderr: '',
+    });
+    const again = await runCli('backfill-step-codes-cli.ts', dbPath);
+    expect(again).toEqual({ exitCode: 0, stdout: 'step codes backfilled: 0\n', stderr: '' });
+  }, 60_000);
+
+  it('exits non-zero when the backfill cannot run', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-backfill-cli-'));
+    roots.push(root);
+    // An unmigrated file has no `step` table: the backfill must fail the
+    // command, not report zero steps coded.
+    const failed = await runCli('backfill-step-codes-cli.ts', join(root, 'empty.db'));
+    expect(failed.exitCode).not.toBe(0);
+    expect(failed.stderr).toContain('no such table: step');
   }, 60_000);
 });

@@ -54,6 +54,7 @@ import { readPhase, writePhase } from './lib/phase';
 import { type Observed, planSwap, type SwapPlan, type SwapStep } from './lib/reconcile';
 import { mcpExposureEnabled, routedColorFromAdminConfig, siteContext } from './lib/site';
 import { type Color, parseStateJson, renderStateJson, type Tier } from './lib/state';
+import { runStepCodeBackfill } from './lib/step-code-backfill';
 
 // No REGISTRY here, deliberately. The publish address arrives as part of
 // `--image`, which is `release.json`'s `image` field passed through verbatim
@@ -497,7 +498,7 @@ export async function startGreen(
 // Steps at or before `reload` are still reversible: nothing client-facing has
 // switched over yet (or, for `reload` itself, the switch is what's failing).
 // A failure anywhere in this window must delegate to `abortSwap`. Steps after
-// `reload` (`drain`, `revoke-alias`, `stop-blue`, `commit`) are NOT reversible
+// `reload` (`drain`, `revoke-alias`, `stop-blue`, `backfill-step-codes`, `commit`) are NOT reversible
 // by this mechanism: routing has already moved to `to`, which is now the
 // legitimately live colour, so rolling back to `from` would be exactly
 // backwards. See the boundary enforced in `execute`'s per-step try/catch.
@@ -850,6 +851,13 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
           if (from !== null) await sh(['stop', containerName(tier, from)]);
           break;
 
+        case 'backfill-step-codes':
+          // After `stop-blue`, so this is outside `ABORTABLE_STEPS`: a failure
+          // throws past `commit`, leaving the new colour serving and the deploy
+          // unrecorded, with the manual command in the message.
+          console.log(`[swap-${tier}] ${(await runStepCodeBackfill(greenName, sh)).trim()}`);
+          break;
+
         case 'commit':
           await writePhase(phasePath, 'committed');
           await writeAtomic(
@@ -866,7 +874,7 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
         await abortSwap(`${tier}-${to} failed during '${step}'`, e);
       }
       // Steps after `reload` (`drain`, `revoke-alias`, `stop-blue`,
-      // `commit`): routing has already moved onto `to`, which is now the
+      // `backfill-step-codes`, `commit`): routing has already moved onto `to`, which is now the
       // legitimately live colour — that is the explicit boundary
       // `ABORTABLE_STEPS` draws. Rolling back to `from` here would be
       // exactly backwards: Caddy and (for `be`) gw's forward alias already
