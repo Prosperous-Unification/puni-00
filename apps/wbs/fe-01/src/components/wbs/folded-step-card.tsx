@@ -1,6 +1,11 @@
+import { beforeRoundingDays, combinedDays, type EstimateRule } from '@wbs/domain/estimate';
+
+import type { Days } from '@/lib/wbs-api';
+
 import type { Point } from './estimate-draft';
 import { HoverCard } from './hover-card';
 import type { CardAssignee } from './plan-cards';
+import { showDay } from './plan-number-format';
 
 /** One of the three points, as the row holds it: `''` where nobody typed one. */
 export interface FoldedStepPoint {
@@ -33,6 +38,9 @@ export interface FoldedStepCardProps {
   points: readonly FoldedStepPoint[];
   /** The figure the folded cell shows — `''` where there is nothing to show. */
   final: string;
+  estimate?: Days;
+  allowancePercent: number;
+  rule: EstimateRule;
   doing: CardAssignee | null;
   /**
    * The cell's complaint, where it holds one — a typed trio that saves
@@ -66,6 +74,9 @@ export function FoldedStepCard({
   id,
   points,
   final,
+  estimate,
+  allowancePercent,
+  rule,
   doing,
   problem,
 }: FoldedStepCardProps) {
@@ -86,7 +97,18 @@ export function FoldedStepCard({
           ? points.map((each) => `${each.point} ${each.days === '' ? '—' : each.days}`).join(' · ')
           : 'No estimate yet'}
       </div>
-      {final !== '' && <div>Final {final} days</div>}
+      {estimate !== undefined && allowancePercent !== 0 ? (
+        <>
+          <div>Base estimate {showDay(combinedDays(estimate, rule))} days</div>
+          <div>Allowance +{String(allowancePercent)}%</div>
+          <div>
+            Before rounding {showDay(beforeRoundingDays(estimate, rule, allowancePercent))} days
+          </div>
+          <div>Charged {final} days</div>
+        </>
+      ) : (
+        final !== '' && <div>Final {final} days</div>
+      )}
       {doing !== null && (
         <div>
           {doing.name}

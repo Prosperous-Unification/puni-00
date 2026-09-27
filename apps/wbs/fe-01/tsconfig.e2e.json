@@ -6,6 +6,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@wbs/domain/workday": ["../../../libs/wbs/domain/domain/src/workday.ts"],
+      "@wbs/domain/estimate": ["../../../libs/wbs/domain/domain/src/estimate.ts"],
       "@wbs/domain/deadline-offsets": ["../../../libs/wbs/domain/domain/src/deadline-offsets.ts"],
       "@wbs/domain/progress": ["../../../libs/wbs/domain/domain/src/progress.ts"],
       "@wbs/domain/assumed-duration": ["../../../libs/wbs/domain/domain/src/assumed-duration.ts"],

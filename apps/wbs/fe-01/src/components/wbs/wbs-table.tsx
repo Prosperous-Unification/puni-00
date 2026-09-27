@@ -1509,13 +1509,25 @@ export function WbsTable({
   const live = useRef(liveNow);
   live.current = liveNow;
 
+  // Keyed on the rule's values, not on the read's object identities: every
+  // tree read hands over a fresh `pertWeights`, and a new rule each read would
+  // rebuild every cell — the focus fault the proof below describes.
+  const { optimistic, realistic, pessimistic } = chartRead.pertWeights;
+  const rule = useMemo(
+    () => ({
+      method: estimateMethod,
+      pertWeights: { optimistic, realistic, pessimistic },
+      rounding: chartRead.estimateRounding,
+    }),
+    [estimateMethod, optimistic, realistic, pessimistic, chartRead.estimateRounding],
+  );
   const columns = useMemo(
-    () => createPlanColumns(steps, unfoldedSteps, hiddenColumnIds, live),
+    () => createPlanColumns(steps, unfoldedSteps, hiddenColumnIds, live, rule),
     // PlanLiveValues declares the structural inputs allowed to replace cells.
     // Proof: adding workItems here failed plan-read-and-write.test.tsx’s
     // `does not take the focus or the half-typed value` at the focus assertion:
     // activeElement was body instead of the Name cell (2026-09-06).
-    [steps, unfoldedSteps, hiddenColumnIds],
+    [steps, unfoldedSteps, hiddenColumnIds, rule],
   );
 
   const table = useTable({

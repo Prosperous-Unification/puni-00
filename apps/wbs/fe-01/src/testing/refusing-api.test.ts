@@ -352,7 +352,9 @@ describe('refusingApi contract boundary', () => {
   });
 
   it('refuses a malformed stated request before the answer can mutate', async () => {
-    const addStep = vi.fn(() => Promise.resolve({ id: 'step-dev', name: 'Dev' }));
+    const addStep = vi.fn(() =>
+      Promise.resolve({ id: 'step-dev', name: 'Dev', allowancePercent: 0 }),
+    );
     const api = refusingApi({ addStep });
 
     await expect(api.addStep('p1', 7 as never)).rejects.toThrow('fake_invalid_request');

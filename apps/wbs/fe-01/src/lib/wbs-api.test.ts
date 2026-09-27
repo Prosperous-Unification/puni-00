@@ -126,7 +126,7 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
   return {
     ...tree,
     project: PROJECT,
-    document: { format: 'wbs-plan', version: 1, exportedAt: '2026-09-14T08:30:00.000Z' },
+    document: { format: 'wbs-plan', version: 2, exportedAt: '2026-09-14T08:30:00.000Z' },
     settings: {
       name: PROJECT.name,
       restricted: PROJECT.restricted,
@@ -300,12 +300,84 @@ describe('removing a step', () => {
 });
 
 describe('adding and renaming a step', () => {
+  it('keeps allowances on project reads and rename replies', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve(
+          url === '/api/projects/p1'
+            ? response(
+                200,
+                JSON.stringify({
+                  project: PROJECT,
+                  steps: [
+                    { id: 'r3', projectId: 'p1', name: 'QA', position: 0, allowancePercent: 30 },
+                  ],
+                }),
+              )
+            : response(
+                200,
+                JSON.stringify({
+                  step: {
+                    id: 'r3',
+                    projectId: 'p1',
+                    name: 'Review',
+                    position: 0,
+                    allowancePercent: 30,
+                  },
+                }),
+              ),
+        ),
+      ),
+    );
+    const api = httpProjectApi('t');
+    await expect(api.steps('p1')).resolves.toEqual([
+      { id: 'r3', name: 'QA', allowancePercent: 30 },
+    ]);
+    await expect(api.renameStep('p1', 'r3', 'Review')).resolves.toEqual({
+      id: 'r3',
+      name: 'Review',
+      allowancePercent: 30,
+    });
+  });
+
+  it('sends an allowance patch and returns the updated policy', async () => {
+    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(
+        response(
+          200,
+          JSON.stringify({
+            step: { id: 'r3', projectId: 'p1', name: 'QA', position: 0, allowancePercent: 30 },
+          }),
+        ),
+      ),
+    );
+    vi.stubGlobal('fetch', fetched);
+    await expect(httpProjectApi('t').setStepAllowance('p1', 'r3', 30)).resolves.toEqual({
+      id: 'r3',
+      name: 'QA',
+      allowancePercent: 30,
+    });
+    expect(fetched.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ allowancePercent: 30 }));
+  });
+
+  it('throws the invalid allowance refusal', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response(422, JSON.stringify({ error: 'invalid_allowance' })))),
+    );
+    await expect(httpProjectApi('t').setStepAllowance('p1', 'r3', 30.001)).rejects.toMatchObject({
+      message: 'invalid_allowance',
+    });
+  });
   it('sends the name and answers with the step', async () => {
     const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
       Promise.resolve(
         response(
           200,
-          JSON.stringify({ step: { id: 'r3', projectId: 'p1', name: 'Design', position: 0 } }),
+          JSON.stringify({
+            step: { id: 'r3', projectId: 'p1', name: 'Design', position: 0, allowancePercent: 0 },
+          }),
         ),
       ),
     );
@@ -313,6 +385,7 @@ describe('adding and renaming a step', () => {
     await expect(httpProjectApi('t').addStep('p1', 'Design')).resolves.toEqual({
       id: 'r3',
       name: 'Design',
+      allowancePercent: 0,
     });
     expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/steps');
     expect(fetched.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ name: 'Design' }));

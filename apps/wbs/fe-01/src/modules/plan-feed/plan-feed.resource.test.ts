@@ -50,7 +50,7 @@ const VOCABULARY: DirectoryRead = {
   externalSystems: [],
   people: [],
 };
-const STEPS: readonly StepView[] = [{ id: 's1', name: 'Build' }];
+const STEPS: readonly StepView[] = [{ id: 's1', name: 'Build', allowancePercent: 0 }];
 /**
  * Empty, and that is enough: these cases are about **which** payload a delivery
  * carries and about the identity of the object it carries, never about what is
