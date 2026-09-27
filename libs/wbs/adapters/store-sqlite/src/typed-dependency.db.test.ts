@@ -223,6 +223,7 @@ describe('TypedDependencyRepository', () => {
           name: 'Dev',
           position: 10,
           code: 'dev',
+          allowancePercent: 0,
         },
       ],
       wrote(),
