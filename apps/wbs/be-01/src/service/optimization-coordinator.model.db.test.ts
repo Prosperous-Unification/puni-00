@@ -33,7 +33,7 @@ function resetReached(): void {
 function note(command: string): void {
   reached.set(command, (reached.get(command) ?? 0) + 1);
 }
-type Owner = 'blue' | 'green';
+type Owner = 'east' | 'west';
 type Objective = 'pri' | 'time';
 interface Row {
   readonly project_id: string;
@@ -208,9 +208,9 @@ function createWorld(scheduler: ReturnType<typeof sampledScheduler>): World {
   const world: World = {
     path,
     dir,
-    connections: { blue: openDrizzle(path), green: openDrizzle(path) },
+    connections: { east: openDrizzle(path), west: openDrizzle(path) },
     coordinators: {} as Record<Owner, OptimizationCoordinator>,
-    ticks: { blue: () => undefined, green: () => undefined },
+    ticks: { east: () => undefined, west: () => undefined },
     attempts: [],
     errors: [],
     pushes: [],
@@ -221,9 +221,9 @@ function createWorld(scheduler: ReturnType<typeof sampledScheduler>): World {
     nextPid: 100,
     heartbeat: new Map(),
     completed: new Map(),
-    incarnations: { blue: 0, green: 0 },
+    incarnations: { east: 0, west: 0 },
   };
-  for (const owner of ['blue', 'green'] as const)
+  for (const owner of ['east', 'west'] as const)
     world.coordinators[owner] = coordinator(world, owner);
   return world;
 }
@@ -668,7 +668,7 @@ class BumpGeneration implements Command {
     note('edit');
     model.revision = this.revision;
     world.revision = this.revision;
-    await new ReadPlan('green').run(model, world);
+    await new ReadPlan('west').run(model, world);
   }
   toString(): string {
     return `BumpGeneration(${String(this.revision)})`;
@@ -796,7 +796,7 @@ class Toggle implements Command {
   async run(model: Model, world: World): Promise<void> {
     note(this.enabled ? 'enable' : 'cancel');
     const service = new ProjectService({
-      projects: new ProjectRepository(world.connections.green, OPEN),
+      projects: new ProjectRepository(world.connections.west, OPEN),
       broadcast: recordingBroadcaster(),
       optimizerAvailable: () => true,
       clock: clockOf({
@@ -896,12 +896,7 @@ class BeginDrain implements Command {
     note('drain');
     const held = rows(world, 'solver_slot').length;
     expect(
-      beginOptimizationDrain(
-        world.connections.green,
-        'p-1',
-        { at: world.now, by: 'u-1' },
-        CONTRACT,
-      ),
+      beginOptimizationDrain(world.connections.west, 'p-1', { at: world.now, by: 'u-1' }, CONTRACT),
     ).toBe(held);
     model.draining = true;
     model.epoch++;
@@ -1044,7 +1039,7 @@ async function trace(commands: Iterable<Command>, scheduler = sampledScheduler()
     draining: false,
     recoveryOnly: false,
     queuedGeneration: null,
-    ownerIncarnations: { blue: 0, green: 0 },
+    ownerIncarnations: { east: 0, west: 0 },
   };
   let failure: Error | null = null;
   try {
@@ -1069,7 +1064,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
   it('holds counted admissions while cancellation arrives before scheduled spawn answers', async () => {
     const world = createWorld(sampledScheduler());
     try {
-      world.coordinators.blue.readPlan({
+      world.coordinators.east.readPlan({
         projectId: 'p-1',
         objective: 'pri',
         input: inputAt(0),
@@ -1078,7 +1073,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
       expect(world.attempts).toHaveLength(2);
       expect(world.attempts.every((attempt) => attempt.verdicts.length === 0)).toBe(true);
       const service = new ProjectService({
-        projects: new ProjectRepository(world.connections.green, OPEN),
+        projects: new ProjectRepository(world.connections.west, OPEN),
         broadcast: recordingBroadcaster(),
         optimizerAvailable: () => true,
         clock: clockOf({
@@ -1114,12 +1109,12 @@ describe('OptimizationCoordinator production SQLite model', () => {
         const project = `p-${String(index)}`;
         const admitted = index <= 8;
         for (const objective of ['pri', 'time'] as const) {
-          const token = `blue-${String(world.nextToken + (objective === 'pri' ? 0 : 1))}`;
+          const token = `east-${String(world.nextToken + (objective === 'pri' ? 0 : 1))}`;
           if (admitted)
-            expectedSlots.push({ project, generation: 1, objective, owner: 'blue', token });
+            expectedSlots.push({ project, generation: 1, objective, owner: 'east', token });
           else expectedQueue.push({ project, generation: 1, objective });
         }
-        const read = world.coordinators.blue.readPlan({
+        const read = world.coordinators.east.readPlan({
           projectId: project,
           objective: 'pri',
           input: inputAt(0),
@@ -1165,7 +1160,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
   it('keeps a matching queue head behind a crashed owner until its stored deadline', async () => {
     const world = createWorld(sampledScheduler());
     try {
-      world.coordinators.blue.readPlan({
+      world.coordinators.east.readPlan({
         projectId: 'p-1',
         objective: 'pri',
         input: inputAt(0),
@@ -1173,10 +1168,10 @@ describe('OptimizationCoordinator production SQLite model', () => {
       });
       await answerScheduled(world);
       const original = rows(world, 'solver_slot').find((row) => row.objective === 'pri');
-      if (original === undefined) throw new Error('expected blue admission');
+      if (original === undefined) throw new Error('expected east admission');
       const repository = createOptimizationRepository(
-        world.connections.green,
-        new DrizzleEventLogStore(world.connections.green, OPEN),
+        world.connections.west,
+        new DrizzleEventLogStore(world.connections.west, OPEN),
       );
       expect(
         repository.enqueueRequest({
@@ -1188,28 +1183,28 @@ describe('OptimizationCoordinator production SQLite model', () => {
           enqueuedAt: world.now,
         }),
       ).toEqual({ kind: 'queued' });
-      // Blue's incarnation has crashed: none of its heartbeat, exit, pump or push
+      // East's incarnation has crashed: none of its heartbeat, exit, pump or push
       // callbacks are delivered; its counted row remains durable.
-      world.incarnations.blue++;
-      world.coordinators.green.start();
+      world.incarnations.east++;
+      world.coordinators.west.start();
       await answerScheduled(world);
       // Proof: deleting the matching head on already-present made this
       // assertion receive [] instead of ['pri'] (2026-09-27).
       expect(rows(world, 'solver_queue').map((row) => row.objective)).toEqual(['pri']);
-      expect(world.attempts.filter((attempt) => attempt.owner === 'green')).toEqual([]);
+      expect(world.attempts.filter((attempt) => attempt.owner === 'west')).toEqual([]);
       const deadline = (original as Row & { admitted_deadline_at: number }).admitted_deadline_at;
       world.now = deadline;
-      world.ticks.green();
+      world.ticks.west();
       expect(
         rows(world, 'solver_slot').some(
-          (row) => row.owner_id === 'green' && row.objective === 'pri',
+          (row) => row.owner_id === 'west' && row.objective === 'pri',
         ),
       ).toBe(true);
-      expect(world.attempts.filter((attempt) => attempt.owner === 'green')).toEqual([]);
+      expect(world.attempts.filter((attempt) => attempt.owner === 'west')).toEqual([]);
       note('dequeueBeforeInput');
       await answerScheduled(world);
       expect(rows(world, 'solver_queue')).toEqual([]);
-      const resumed = world.attempts.filter((attempt) => attempt.owner === 'green');
+      const resumed = world.attempts.filter((attempt) => attempt.owner === 'west');
       expect(resumed).toHaveLength(1);
       expect(resumed[0].token).not.toBe(original.attempt_token);
       expect(resumed[0]).toMatchObject({
@@ -1227,49 +1222,49 @@ describe('OptimizationCoordinator production SQLite model', () => {
     resetReached();
     // Proof: dropping generation equality in admissionStillCurrent writes an old A outcome; ExitChild reports I3 unexpected publication (2026-09-27).
     await trace([
-      new ReadPlan('blue'),
-      new ReadPlan('green'),
+      new ReadPlan('east'),
+      new ReadPlan('west'),
       new BumpGeneration(1),
       new BumpGeneration(0),
       new ExitChild(0, 'failed', 'exit-first'),
     ]);
-    // Proof: deleting the occupied row and reserving afresh in reserveSolverSlotIn makes ReadPlan(green) report I2 unexpected token green-2 (2026-09-27).
-    await trace([new ReadPlan('blue'), new ReadPlan('green')]);
+    // Proof: deleting the occupied row and reserving afresh in reserveSolverSlotIn makes ReadPlan(west) report I2 unexpected token west-2 (2026-09-27).
+    await trace([new ReadPlan('east'), new ReadPlan('west')]);
     // Proof: dropping cancel-epoch equality writes after OFF/ON; ExitChild reports I3 unexpected publication (2026-09-27).
     await trace([
-      new ReadPlan('blue'),
+      new ReadPlan('east'),
       new Toggle(false),
       new Toggle(true),
       new ExitChild(0, 'failed', 'exit-first'),
     ]);
     await trace([
-      new ReadPlan('blue'),
+      new ReadPlan('east'),
       new Toggle(false),
       new Toggle(true),
       new HeartbeatTick(),
       new ExitChild(0),
     ]);
     // Proof: removing normal-exit release leaves the finished token in solver_slot; ExitChild reports I4 exited child retains slot (2026-09-27).
-    await trace([new ReadPlan('blue'), new ExitChild(0)]);
-    await trace([new ReadPlan('blue'), new ExitChild(0, 'feasible')]);
-    await trace([new ReadPlan('blue'), new ExitChild(0), new Retry('green'), new ExitChild(1)]);
-    await trace([new ReadPlan('blue'), new Toggle(false), new Toggle(false), new Toggle(true)]);
+    await trace([new ReadPlan('east'), new ExitChild(0)]);
+    await trace([new ReadPlan('east'), new ExitChild(0, 'feasible')]);
+    await trace([new ReadPlan('east'), new ExitChild(0), new Retry('west'), new ExitChild(1)]);
+    await trace([new ReadPlan('east'), new Toggle(false), new Toggle(false), new Toggle(true)]);
     // OFF deletes queued requests: without clearing the model's queue on OFF this trace
     // failed its queue-identity assertion on correct production behaviour (2026-09-27).
     await trace([
-      new ReadPlan('blue'),
+      new ReadPlan('east'),
       new BumpGeneration(1),
       new BumpGeneration(2),
       new Toggle(false),
     ]);
     // A crashed owner's child exit is never delivered; its slot stays counted.
-    await trace([new ReadPlan('blue'), new Restart('blue'), new ExitChild(0)]);
-    // Proof: suppressing startup reconciliation leaves expired slots and a drain; Restart(blue) reports I5 expired slots (2026-09-27).
+    await trace([new ReadPlan('east'), new Restart('east'), new ExitChild(0)]);
+    // Proof: suppressing startup reconciliation leaves expired slots and a drain; Restart(east) reports I5 expired slots (2026-09-27).
     await trace([
-      new ReadPlan('blue'),
+      new ReadPlan('east'),
       new BeginDrain(),
       new AdvanceToDeadline(),
-      new Restart('blue'),
+      new Restart('east'),
     ]);
     for (const boundary of ['abaExit', 'cancelledExit']) {
       expect(reached.get(boundary) ?? 0, `model never reached ${boundary}`).toBeGreaterThan(0);
@@ -1281,13 +1276,13 @@ describe('OptimizationCoordinator production SQLite model', () => {
     // Proof: suppressing normal-exit release retains four older slots; after
     // both exits and a pump, ExpectRecovery reports I5 queued objectives did not start.
     await trace([
-      new ReadPlan('blue'),
+      new ReadPlan('east'),
       new BumpGeneration(1),
       new BumpGeneration(2),
       new ExpectQueued(),
       new ExitChild(0),
       new ExitChild(0),
-      new Pump('green'),
+      new Pump('west'),
       new ExpectRecovery(),
     ]);
     expect(reached.get('queuedRecovery')).toBe(1);
@@ -1298,16 +1293,16 @@ describe('OptimizationCoordinator production SQLite model', () => {
     expect(fc.__version).toBe('4.9.0');
     const commands = fc.commands<Model, World, false>(
       [
-        fc.constantFrom(new ReadPlan('blue'), new ReadPlan('green')),
+        fc.constantFrom(new ReadPlan('east'), new ReadPlan('west')),
         fc.integer({ min: 0, max: 2 }).map((revision) => new BumpGeneration(revision)),
         fc.integer({ min: 0, max: 3 }).map((ordinal) => new ExitChild(ordinal)),
         fc.constantFrom(
           new Toggle(false),
           new Toggle(true),
           new HeartbeatTick(),
-          new Pump('blue'),
-          new Pump('green'),
-          new Retry('blue'),
+          new Pump('east'),
+          new Pump('west'),
+          new Retry('east'),
           new AdvanceClock(1),
         ),
       ],

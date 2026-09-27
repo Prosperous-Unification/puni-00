@@ -2317,3 +2317,10 @@ BumpGeneration(1), BumpGeneration(2), Cancel` failed `Cancel: queue identities` 
   projection guards in `repository/optimization.ts` carry observed proofs. Sabotages (a) to (f)
   re-run on this tree fail as tabled above (4/2, 3/3, 5/1, 4/2, 5/1, 5/1 pass/fail). Known limit:
   settling still uses a bounded twelve-microtask flush after the scheduler goes idle.
+- The model's two coordinators are now `east` and `west`, not `blue` and `green`:
+  `workspace-targets.test.ts` refuses re-declaring the deploy colour union `'blue' | 'green'`, and
+  these owners are not deploy colours (CI `tool-devsync:test` failed on
+  `…optimization-coordinator.model.db.test.ts re-declares 'blue' | 'green'`). The table's
+  `blue-0`, `green-2` and `Restart(blue)` now read `east-0`, `west-2` and `Restart(east)`. After
+  the rename, sabotages (a)-(f) fail 4/2, 3/3, 5/1, 4/2, 5/1, 5/1 again, and
+  `env -u CLAUDECODE bunx nx run tool-devsync:test` succeeds.
