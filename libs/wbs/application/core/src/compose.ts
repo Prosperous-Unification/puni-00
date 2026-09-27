@@ -209,6 +209,7 @@ export function composeServices(
 ): AccountfulServices | AccountlessServices {
   const { source, runtime, shared } = options;
   const eventLog = installEventLog({ events: source.stores.eventLog }).eventLog;
+  const planEvents = installPlanEvent({ events: source.stores.planEvents }).planEvents;
   const realtime = installRealtime({
     eventLog,
     clock: runtime.clock,
@@ -268,15 +269,15 @@ export function composeServices(
     }).commands,
     history: installPlanHistory({
       projects: publicServices.projects,
-      planEvents: installPlanEvent({ events: source.stores.planEvents }).planEvents,
+      planEvents,
     }).history,
     plans: savedPlans,
     savedPlans,
     replay: realtime.replay,
     retention: installBoundedReplaySweep({
-      eventLog: source.stores.eventLog,
+      eventLog,
       maxPerSubscription: shared.replayMaxPerSubscription,
-      planEvents: source.stores.planEvents,
+      planEvents,
       planEventRetentionDays: shared.planEventRetentionDays,
       intervalMs: shared.retentionIntervalMs,
       intervals: runtime.intervals,

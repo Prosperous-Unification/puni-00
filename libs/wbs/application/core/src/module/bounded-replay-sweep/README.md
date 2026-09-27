@@ -4,13 +4,12 @@
 
 The bounded replay sweep, run on a schedule. This is the second sealed DI Bag module in the core,
 following Plan history's pattern: `module.ts` seals the graph and exports `retention` alone,
-`check.ts` is the only place that builds a bag, and `contract.ts` states the two repository ports
-and the scheduling primitives a host must supply — the same preserved K3 debt Plan history's
-contract records, not compliance. Private bindings are named under the
+`check.ts` builds the bag, and `contract.ts` states the Event log and Plan event resources and the
+scheduling primitives a host must supply. Private bindings are named under the
 `application.bounded-replay-sweep` label, so a DI failure says which module asked.
 
 `bounded-replay-sweep.feature.ts` (the moved `use-cases/retention-sweep.ts`) coordinates both
-bounded rules; `retention-job.ts` is its private port-backed pruning pair; `retention-timer.ts` is
+bounded rules; `retention-job.ts` forwards each rule to its resource; `retention-timer.ts` is
 the lifecycle adapter that runs the sweep on a schedule — its `start()`/`stop()` stay called by
 `bootBe01` exactly as before this module existed, so the module registers no disposer of its own.
 
