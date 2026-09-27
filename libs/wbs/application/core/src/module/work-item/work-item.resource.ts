@@ -1031,6 +1031,26 @@ function subtreeOf(rows: readonly WorkItem[], rootId: string): string[] {
   return collected;
 }
 
+/** Finds a relationship whose step endpoint no longer fits a projected tree. */
+function findInvalidTypedShape(
+  rows: readonly WorkItem[],
+  relationships: readonly StoredTypedDependency[],
+): StoredTypedDependency | undefined {
+  const held = new Set(rows.map((row) => row.id));
+  const parents = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
+  return relationships.find((relationship) =>
+    [relationship.predecessor, relationship.successor].some((endpoint) => {
+      if (!held.has(endpoint.workItemId)) {
+        throw new Error(`typed relationship ${relationship.id} names a missing work item`);
+      }
+      return (
+        (endpoint.scope === 'node' && parents.has(endpoint.workItemId)) ||
+        (endpoint.scope === 'descendant-step' && !parents.has(endpoint.workItemId))
+      );
+    }),
+  );
+}
+
 /** One row of `rows`, or a throw: an id from the same read is not allowed to be missing. */
 function rowOf<Row extends WorkItem>(rows: readonly Row[], id: string): Row {
   const found = rows.find((row) => row.id === id);
@@ -2835,18 +2855,25 @@ export class WorkItemService {
     const allEdges = await this.opts.dependencies.listByProject(workItem.projectId);
     const authored = await this.opts.typedDependencies.listByProject(workItem.projectId);
     const survivor = workItem.parentId;
+    const doomed = children.length === 0 || strategy === 'cascade' ? subtreeOf(rows, id) : [id];
+    const inside = new Set(doomed);
     if (
       survivor !== null &&
       (children.length === 0 || strategy === 'cascade') &&
       rows.filter((row) => row.parentId === survivor).length === 1
     ) {
-      const stranded = authored.filter((dependency) =>
-        [dependency.predecessor, dependency.successor].some(
-          (endpoint) => endpoint.scope === 'descendant-step' && endpoint.workItemId === survivor,
-        ),
+      const stranded = authored.filter(
+        (dependency) =>
+          ![dependency.predecessor, dependency.successor].some((endpoint) =>
+            inside.has(endpoint.workItemId),
+          ) &&
+          [dependency.predecessor, dependency.successor].some(
+            (endpoint) => endpoint.scope === 'descendant-step' && endpoint.workItemId === survivor,
+          ),
       );
-      // Proof: skipping this refusal made mounted last-child delete answer 500
-      // instead of 409 with the relationship id; watched 2026-09-27.
+      // Proof: including relationships removed with the subtree made mounted
+      // last-child delete return 409 instead of 200; watched 2026-09-27.
+      // Skipping the refusal made the surviving-relationship case return 500.
       if (stranded.length > 0) {
         return {
           ok: false,
@@ -2865,8 +2892,6 @@ export class WorkItemService {
       // it holds no estimate rows of its own, so nothing moved and the whole
       // subtree's estimates were then deleted with it.
       const parentId = workItem.parentId;
-      const doomed = subtreeOf(rows, id);
-      const inside = new Set(doomed);
       const handedUp: StoredEstimate[] = [];
       // The same rule, one table over: the parent is about to become a leaf
       // again, and a leaf reports what it holds. Without this the days the
@@ -4825,33 +4850,14 @@ export class WorkItemService {
     }
     if (moving.parentId !== parentId) {
       const authored = await this.opts.typedDependencies.listByProject(projectId);
-      const oldParent = moving.parentId;
-      // Proof: bypassing this replay guard made mounted undo of a move with a
-      // newer descendant-step relationship return 500 instead of 409; watched 2026-09-27.
-      if (
-        oldParent !== null &&
-        rows.filter((row) => row.parentId === oldParent).length === 1 &&
-        authored.some((dependency) =>
-          [dependency.predecessor, dependency.successor].some(
-            (endpoint) => endpoint.scope === 'descendant-step' && endpoint.workItemId === oldParent,
-          ),
-        )
-      ) {
-        return { ok: false, detail: 'a descendant-step relationship now names the former parent.' };
-      }
-      // Proof: bypassing this replay guard made mounted undo into a newly
-      // node-pinned leaf return 500 instead of 409; watched 2026-09-27.
-      if (
-        parentId !== null &&
-        !rows.some((row) => row.parentId === parentId) &&
-        authored.some((dependency) =>
-          [dependency.predecessor, dependency.successor].some(
-            (endpoint) => endpoint.scope === 'node' && endpoint.workItemId === parentId,
-          ),
-        )
-      ) {
-        return { ok: false, detail: 'a node relationship now names the new parent.' };
-      }
+      const invalid = findInvalidTypedShape(
+        rows.map((row) => (row.id === id ? { ...row, parentId } : row)),
+        authored,
+      );
+      // Proof: bypassing replay shape validation made mounted undo with a
+      // newer descendant-step or node relationship return 500 instead of 409.
+      if (invalid !== undefined)
+        return { ok: false, detail: `relationship ${invalid.id} no longer fits this tree.` };
     }
     const placed = placeAfter(group, afterId);
     await this.opts.workItems.move(id, parentId, placed.position, placed.renumbered, stamp);
@@ -4911,30 +4917,25 @@ export class WorkItemService {
     }
     const root = rows.find((row) => row.id === command.rootId);
     if (root === undefined) throw new Error('delete root disappeared after its existence check');
-    const survivor = root.parentId;
-    // Proof: bypassing this replay guard made mounted redo of a deletion with
-    // a newer descendant-step relationship return 500 instead of 409; watched 2026-09-27.
-    if (
-      survivor !== null &&
-      !command.reparented.some(
-        (row) => row.parentId === survivor && !command.remove.includes(row.id),
-      ) &&
-      rows.filter((row) => row.parentId === survivor).length === 1
-    ) {
-      const authored = await this.opts.typedDependencies.listByProject(projectId);
-      if (
-        authored.some((dependency) =>
-          [dependency.predecessor, dependency.successor].some(
-            (endpoint) => endpoint.scope === 'descendant-step' && endpoint.workItemId === survivor,
-          ),
-        )
-      ) {
-        return {
-          ok: false,
-          detail: 'a descendant-step relationship now names the surviving parent.',
-        };
-      }
-    }
+    const removed = new Set(command.remove);
+    const reparented = new Map(command.reparented.map((row) => [row.id, row]));
+    const projected = rows
+      .filter((row) => !removed.has(row.id))
+      .map((row) => {
+        const moved = reparented.get(row.id);
+        return moved === undefined ? row : { ...row, parentId: moved.parentId };
+      });
+    const authored = (await this.opts.typedDependencies.listByProject(projectId)).filter(
+      (relationship) =>
+        ![relationship.predecessor, relationship.successor].some((endpoint) =>
+          removed.has(endpoint.workItemId),
+        ),
+    );
+    const invalid = findInvalidTypedShape(projected, authored);
+    // Proof: bypassing replay shape validation made mounted redo of a deletion
+    // with a surviving descendant-step relationship return 500 instead of 409.
+    if (invalid !== undefined)
+      return { ok: false, detail: `relationship ${invalid.id} no longer fits this tree.` };
     await this.opts.dependencies.removeAllFor(command.remove, stamp);
     await this.opts.typedDependencies.removeAllFor(command.remove, stamp);
     await this.opts.workItems.remove(command.remove, command.reparented, stamp);
@@ -4972,6 +4973,22 @@ export class WorkItemService {
     if (root.parentId !== null && !rows.some((each) => each.id === root.parentId)) {
       return { ok: false, detail: 'the work item it sat under has been deleted since then.' };
     }
+    const reparented = new Map(command.reparented.map((row) => [row.id, row]));
+    const projectedTree = [
+      ...rows.map((row) => {
+        const moved = reparented.get(row.id);
+        return moved === undefined ? row : { ...row, parentId: moved.parentId };
+      }),
+      ...command.rows,
+    ];
+    const invalid = findInvalidTypedShape(
+      projectedTree,
+      await this.opts.typedDependencies.listByProject(projectId),
+    );
+    // Proof: disabling this projected shape check made mounted undo restore a
+    // child beneath a newer node endpoint and return 500 instead of 409.
+    if (invalid !== undefined)
+      return { ok: false, detail: `relationship ${invalid.id} no longer fits this tree.` };
 
     // The sibling group as it will be once the reparenting has happened: the
     // rows going back under this branch leave it, and the ones the deletion

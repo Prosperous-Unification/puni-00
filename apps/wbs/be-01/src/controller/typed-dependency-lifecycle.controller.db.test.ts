@@ -183,6 +183,8 @@ async function setup() {
   const projectId = project.project.id;
   const devId = project.steps.find((step) => step.name === 'Dev')?.id;
   if (devId === undefined) throw new Error('Dev step missing');
+  const qaId = project.steps.find((step) => step.name === 'QA')?.id;
+  if (qaId === undefined) throw new Error('QA step missing');
   const command = (step: object) =>
     send(`/api/projects/${projectId}/commands`, token, { commands: [step] });
   const create = async (name: string, parentId: string | null = null) => {
@@ -202,7 +204,7 @@ async function setup() {
     const body = (await response.json()) as { results: { id: string }[] };
     return body.results[0].id;
   };
-  return { token, userId: user.id, projectId, devId, command, create, add };
+  return { token, userId: user.id, projectId, devId, qaId, command, create, add };
 }
 
 const node = (workItemId: string, stepId: string): DependencyEndpoint => ({
@@ -350,6 +352,104 @@ it('removes a relationship internal to a deleted subtree and restores it on undo
   ).toBe(200);
   expect(await typed.listByProject(plan.projectId)).toMatchObject([
     { id, predecessor: whole(first), successor: whole(second) },
+  ]);
+});
+
+it('deletes a last child when its descendant-step relationship is removed with it', async () => {
+  const plan = await setup();
+  const parent = await plan.create('010');
+  const child = await plan.create('010.1', parent);
+  const id = await plan.add(
+    { scope: 'descendant-step', workItemId: parent, stepId: plan.devId },
+    node(child, plan.qaId),
+  );
+  const deletion = { kind: 'deleteWorkItem', workItemId: child, strategy: 'cascade' };
+  expect((await plan.command(deletion)).status).toBe(200);
+  expect(await typed.listByProject(plan.projectId)).toEqual([]);
+  const undo = await send(`/api/projects/${plan.projectId}/undo`, plan.token, undefined, 'POST');
+  expect(undo.status).toBe(200);
+  expect(await typed.listByProject(plan.projectId)).toMatchObject([
+    {
+      id,
+      predecessor: { scope: 'descendant-step', workItemId: parent, stepId: plan.devId },
+      successor: node(child, plan.qaId),
+    },
+  ]);
+  expect(
+    (await send(`/api/projects/${plan.projectId}/redo`, plan.token, undefined, 'POST')).status,
+  ).toBe(200);
+  expect(await typed.listByProject(plan.projectId)).toEqual([]);
+});
+
+it('refuses restore when a newer node relationship pins the deleted child’s parent', async () => {
+  const plan = await setup();
+  const parent = await plan.create('010');
+  const child = await plan.create('010.1', parent);
+  const other = await plan.create('020');
+  expect(
+    (await plan.command({ kind: 'deleteWorkItem', workItemId: child, strategy: 'cascade' })).status,
+  ).toBe(200);
+  const id = 'peer-node-relationship';
+  const registered = await app.handle(
+    new Request('http://localhost/api/auth/register', {
+      method: 'POST',
+      headers: { origin: 'http://localhost', 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'peer', password: 'correct-horse' }),
+    }),
+  );
+  expect(registered.status).toBe(200);
+  const peer = (await registered.json()) as { user: { id: string } };
+  await typed.add(
+    {
+      id,
+      projectId: plan.projectId,
+      predecessor: node(parent, plan.devId),
+      successor: whole(other),
+      type: 'FS',
+    },
+    testClock.stampFor(peer.user.id),
+  );
+  const undo = await send(`/api/projects/${plan.projectId}/undo`, plan.token, undefined, 'POST');
+  expect(undo.status).toBe(409);
+  const refusal = (await undo.json()) as { error: string; detail: string };
+  expect(refusal.error).toBe('stale_undo');
+  expect(refusal.detail).toContain(id);
+  const tree = await send(`/api/projects/${plan.projectId}/work-items`, plan.token);
+  const body = (await tree.json()) as { workItems: { id: string }[] };
+  expect(body.workItems.some((row) => row.id === child)).toBe(false);
+  expect(await typed.listByProject(plan.projectId)).toMatchObject([
+    { id, predecessor: node(parent, plan.devId), successor: whole(other) },
+  ]);
+});
+
+it('refuses redo of a child create when a newer node relationship pins its parent', async () => {
+  const plan = await setup();
+  const parent = await plan.create('010');
+  const other = await plan.create('020');
+  const child = await plan.create('010.1', parent);
+  expect(
+    (await send(`/api/projects/${plan.projectId}/undo`, plan.token, undefined, 'POST')).status,
+  ).toBe(200);
+  await typed.add(
+    {
+      id: 'redo-create-relationship',
+      projectId: plan.projectId,
+      predecessor: node(parent, plan.devId),
+      successor: whole(other),
+      type: 'FS',
+    },
+    testClock.stampFor(plan.userId),
+  );
+  const redo = await send(`/api/projects/${plan.projectId}/redo`, plan.token, undefined, 'POST');
+  expect(redo.status).toBe(409);
+  const refusal = (await redo.json()) as { error: string; detail: string };
+  expect(refusal.error).toBe('stale_undo');
+  expect(refusal.detail).toContain('redo-create-relationship');
+  const tree = await send(`/api/projects/${plan.projectId}/work-items`, plan.token);
+  const body = (await tree.json()) as { workItems: { id: string }[] };
+  expect(body.workItems.some((row) => row.id === child)).toBe(false);
+  expect(await typed.listByProject(plan.projectId)).toMatchObject([
+    { id: 'redo-create-relationship', predecessor: node(parent, plan.devId) },
   ]);
 });
 
