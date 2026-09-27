@@ -36,7 +36,7 @@ function withDatabase<T>(read: (sqlite: Database) => T): T {
   }
 }
 
-function stepColumns(): { name: string; notnull: number; dflt_value: string | null }[] {
+function readStepColumns(): { name: string; notnull: number; dflt_value: string | null }[] {
   return withDatabase((sqlite) =>
     sqlite
       .query<{ name: string; notnull: number; dflt_value: string | null }, []>(
@@ -46,7 +46,7 @@ function stepColumns(): { name: string; notnull: number; dflt_value: string | nu
   );
 }
 
-function stepIndexSql(): (string | null)[] {
+function readStepIndexSql(): (string | null)[] {
   return withDatabase((sqlite) =>
     sqlite
       .query<{ sql: string | null }, []>(
@@ -75,9 +75,9 @@ function seedProjects(sqlite: Database): void {
 
 describe(STEP_CODE, () => {
   it('adds one nullable column with no default and one partial unique index', () => {
-    const code = stepColumns().find((column) => column.name === 'code');
+    const code = readStepColumns().find((column) => column.name === 'code');
     expect(code).toEqual({ name: 'code', notnull: 0, dflt_value: null });
-    expect(stepIndexSql()).toContain(
+    expect(readStepIndexSql()).toContain(
       'CREATE UNIQUE INDEX `step_project_code` ON `step` (`project_id`,`code`) WHERE `code` IS NOT NULL',
     );
   });
@@ -97,6 +97,11 @@ describe(STEP_CODE, () => {
     });
   });
 
+  /**
+   * Proof: with `CREATE UNIQUE INDEX` made `CREATE INDEX` in `migration.sql`,
+   * this case failed on `Received function did not throw` — the third insert
+   * gave a second step in project `p` the code `qa`; watched 2026-09-27.
+   */
   it('refuses a code already held in the project, and allows it in another project', () => {
     withDatabase((sqlite) => {
       seedProjects(sqlite);
@@ -115,21 +120,23 @@ describe(STEP_CODE, () => {
       seedProjects(sqlite);
       sqlite.run("INSERT INTO step (id, project_id, name, code) VALUES ('s1', 'p', 'Dev', 'dev')");
     });
-    const before = stepColumns().map((column) => column.name);
+    const before = readStepColumns().map((column) => column.name);
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([STEP_CODE]);
 
-    expect(stepColumns().map((column) => column.name)).toEqual(
+    expect(readStepColumns().map((column) => column.name)).toEqual(
       before.filter((name) => name !== 'code'),
     );
-    expect(stepIndexSql().some((sql) => sql?.includes('step_project_code') === true)).toBe(false);
+    expect(readStepIndexSql().some((sql) => sql?.includes('step_project_code') === true)).toBe(
+      false,
+    );
     // The step itself stays: what a rollback loses is the code, never the step.
     expect(
       withDatabase((sqlite) => sqlite.query<{ id: string }, []>('SELECT id FROM step').all()),
     ).toEqual([{ id: 's1' }]);
 
     runMigrations(path, FOLDER);
-    expect(stepColumns().map((column) => column.name)).toEqual(before);
+    expect(readStepColumns().map((column) => column.name)).toEqual(before);
     // Re-applied uncoded, not restored: the backfill derives it again.
     expect(
       withDatabase((sqlite) =>

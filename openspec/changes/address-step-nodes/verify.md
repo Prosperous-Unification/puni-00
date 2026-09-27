@@ -26,6 +26,7 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` on 2026
 ## Pending checks
 
 - **Done (2026-09-27, migration PR):** `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts` on `20260927150000_add_step_code/{migration,down}.sql` exited 0. `step-code-migration.db.test.ts` (5 pass) applies the migration, inserts through the outgoing release's three-column `INSERT` and reads `code` NULL, refuses a duplicate code in one project while allowing it in another, rolls back to `20260912120000_add_work_item_facts` and re-applies. Every reversal list in the store's migration tests names the new folder (185 pass across those files).
+- **Proof (unique within a project):** with `CREATE UNIQUE INDEX` made `CREATE INDEX` in `migration.sql`, `refuses a code already held in the project, and allows it in another project` failed on `Received function did not throw`; restored.
 - **Proof (strict rollback):** with `IF EXISTS` restored on the `DROP INDEX` in `down.sql`, `refuses to roll back a schema whose code index is already gone` failed on `Received function did not throw`; restored.
 - **Pending:** uncoded read through the store after an old-writer insert (lands with the contracts' uncoded union).
 - **Pending:** Unchanged Fast and solver goldens and request hashes through the new seam.
