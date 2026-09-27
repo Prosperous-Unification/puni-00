@@ -26,3 +26,9 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
 ## Rebase note
 
 2026-09-27 (WBS 010.4.11.1): endpoints, validation, picker defaults and lifecycle rebased on `address-step-nodes`. Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` on 2026-09-27, after the Astra high review fixes on branch `batch-9/step-nodes-spec`, reported 129 items, 129 passed, 0 failed; this change was valid. File-scoped `bunx prettier --check` on every touched file reported all files use Prettier style. No application behavior is verified by this packet; the h2puni gate result is recorded in the PR.
+
+## Task 1 — endpoints on the step-node graph (WBS 010.4.6, 2026-09-27)
+
+- `env -u CLAUDECODE bun test libs/wbs/domain/contracts libs/wbs/domain/domain`: 1110 pass, 0 fail.
+- `bunx nx run-many -t typecheck lint:fast -p wbs-domain wbs-contracts wbs-core`: green.
+- **R5 proof (1.3):** `resolveEndpoint` narrowed to `leaves.slice(0, 1)` for a whole endpoint; `refuses a cycle a parent expansion closes` failed on `- Expected - 6 / + Received + 1` (the cycle through the second leaf went unseen) and `expands a whole parent to every descendant leaf` on `- Expected - 1`. Restored; `Proof:` comment beside the expansion in `slice-edges.ts`.
