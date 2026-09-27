@@ -133,7 +133,7 @@ support a resource still imports.
 | Saved plans          | rename and delete publish in `http/saved-plan.routes.ts` (task 3.3)              | `plans` and `capture`                        | task 3.3's owner; resource-services |
 | Plan import          | none stated                                                                      | the direct store writes inside its `uow` run | resource-services                   |
 | Authentication       | throttle orchestration stays in delivery                                         | `users` and `identities`                     | feature owners; resource-services   |
-| Optimization         | none stated                                                                      | the SQLite `db` and its repository functions | Optimization repository ports (3.6) |
+| Optimization         | none stated                                                                      | feature depends on a repository port         | resource-services follow-up (7.4)   |
 | Plan commands        | be-01 constructs `PlanCommandRunner`; routes take `WorkItemService`              | none                                         | feature owners                      |
 | Plan document        | `http/project.routes.ts` installs it (a composition export changes `AppOptions`) | none                                         | Plan document composition export    |
 | Calendar marker      | routes take `CalendarMarkerService`                                              | none                                         | feature owners                      |
@@ -145,3 +145,54 @@ support a resource still imports.
 | Work item            | routes, Plan commands, Plan import and Saved plans name it                       | none (K4 support: task 6.1)                  | feature owners; task 6.1            |
 | Solver launcher      | none                                                                             | none                                         | —                                   |
 | Solver supervisor    | none                                                                             | none (K5 by the map's carve-out)             | —                                   |
+
+## Optimization attempts and repository ports
+
+The coordinator owns asynchronous orchestration; the proposed repository ports own durable observations and atomic decisions. This slice records the model and tests the current implementation before extraction.
+
+| Concept        | Identity                                                                             |
+| -------------- | ------------------------------------------------------------------------------------ |
+| Generation     | `(projectId, contractVersion)` with generation, input hash, cancel epoch             |
+| Solver slot    | `(projectId, contractVersion, generation, objective, budgetMs)`                      |
+| Attempt        | Slot identity plus attempt token; owner ID identifies its coordinator                |
+| Queue entry    | `(projectId, contractVersion, objective, budgetMs)` with generation and cancel epoch |
+| Cached outcome | `(projectId, inputHash, objective, contractVersion, budgetMs)` with generation       |
+
+Queued work is not an attempt. Dequeue reserves one; a queue entry can coexist with a matching retained slot. An attempt has independent **phase** (`reserved`, `binding`, `running`, `stopping`, `settling`, `finished`, `unobserved`), **ownership** (`held`, `released`, `reclaimed`), and **validity** (`current`, `cancelled`, `superseded`). These are model states, not new columns; persisted slot lifecycle remains `starting` or `running`. Publication is a separate result: stored, superseded, already recorded, or not attempted.
+
+| Event                         | Transition and durable effect                                                                                                                                    |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Enabled plan read             | Allocate/reuse generation; read both outcomes; admit misses only.                                                                                                |
+| Capacity refusal              | Queue objective; do not launch.                                                                                                                                  |
+| Admission/dequeue             | Reserve counted `starting` slot with token, epoch, and deadlines; dequeue also removes the validated FIFO entry atomically.                                      |
+| Preflight failure             | Record fenced failure and event, then release separately.                                                                                                        |
+| Launcher/bind                 | Bind exact token and PID; send `bound` only on successful bind, otherwise abort and await exit.                                                                  |
+| Generation change/OFF         | Supersede/cancel attempts but retain slots; allocation evicts old cache/queue, while OFF advances epochs and deletes queued work. ON cannot revive old attempts. |
+| Heartbeat live/cancelled      | Refresh, or request kill and retain slot until exit and both streams complete.                                                                                   |
+| Normal exit                   | Process fenced outcome while slot is held; release in a separate transaction, including on outcome failure.                                                      |
+| Transport failure/owner crash | Without terminal evidence retain the slot; replacement owner does not adopt it.                                                                                  |
+| Stored deadline               | Admission reclaims expired slots globally; reconciliation reclaims closed targets and finishes their drains.                                                     |
+| Retry                         | Check stale input, retryability, liveness and admission in one immediate transaction; retain marker until replacement.                                           |
+
+Current behavior: bind checks slot identity, token and `starting`, but does not recheck generation or cancel epoch. A cancellation during spawn may bind; heartbeat and commit fencing still prevent publication. A normal exit after cancellation may return lifecycle `exited`; its outcome transaction must reject the write.
+
+- **I1 Admission/capacity:** every spawn follows reservation and every bound verdict follows exact-token bind. All retained slots count; limits are four per project and sixteen globally. Another coordinator cannot acquire an occupied slot.
+- **I2 Ownership:** an old token cannot bind, refresh, publish through, or release a replacement slot.
+- **I3 Publication:** at commit the attempt holds its owner/token, generation and cancel epoch, and the project is enabled. Rejection changes neither cache nor durable outcome events.
+- **I4 Release:** kill alone cannot release capacity; terminal evidence or admitted-deadline reclamation is required. Preflight failure has no child to await.
+- **I5 Recovery:** restart does not adopt or duplicate attempts. Blocked FIFO work remains queued and starts after release/reclaim plus pump. Releasing the last closed-target slot attempts drain completion atomically.
+- **I6 Reads/Retry:** only misses auto-admit; failed/corrupt markers persist until Retry, which checks stale input before retryability, then liveness and capacity.
+- **I7 Events:** one successful outcome write records one durable event atomically; live push starts after commit. Rejected writes add no event.
+
+The slice 1 proposal was `SolverSlotRepository` (`refreshSlot`, `releaseSlot`) and `OptimizationRepository` (generation allocation, pair/liveness reads, reservation, bind, queue enqueue/dequeue, Retry admission, outcome recording and drain reconciliation). Slices 2–5 now supply these contracts from the SQLite adapter; the transaction units below remain the review map.
+
+| Port operation                      | Current implementation                                 | Transaction boundary to preserve                                                          |
+| ----------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `allocateGeneration`                | `allocateEnabledGeneration`                            | One immediate transaction.                                                                |
+| `readPair` / `readLiveness`         | `readOptimizedPairAndSpawn` / `optimizedVariantIsLive` | Existing reads; no enclosing transaction; read before callback.                           |
+| `reserveSlot` / `bindSlot`          | `reserveSolverSlot` / `bindSolverSlot`                 | Reservation transaction with expiry reclaim / atomic bind update.                         |
+| `enqueueRequest` / `dequeueRequest` | `enqueueSolverRequest` / `dequeueSolverRequest`        | Separate enqueue transaction / validation, reserve and removal together.                  |
+| `admitRetry`                        | Coordinator Retry body                                 | Entire immediate transaction, including token creation.                                   |
+| `refreshSlot` / `releaseSlot`       | `heartbeatSolverSlot` / `releaseSolverSlot`            | Refresh and cancellation observation together / token delete and drain finishes together. |
+| `recordOutcome`                     | `storeOptimizedOutcomeAndRecord`                       | Fences, cache and durable event in one transaction; release stays separate.               |
+| `reconcileDrains`                   | `reconcileOptimizationDrains`                          | Scan and one transaction per target, not one enclosing pass.                              |

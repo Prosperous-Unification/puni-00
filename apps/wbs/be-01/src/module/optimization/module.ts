@@ -29,7 +29,7 @@ export const optimizationModule = DiBag.createBuilder()
   .withServices({
     optimizationOptions: DiBag.createProvider(
       ({
-        db,
+        repository,
         contractVersion,
         solverVersion,
         budgetMs,
@@ -42,14 +42,13 @@ export const optimizationModule = DiBag.createBuilder()
         spawn,
         runChild,
         onChildError,
-        eventLog,
         pushRecorded,
         editDebounceMs,
         sleep,
         setInterval,
         clearInterval,
       }: {
-        db: CoordinatorOption<'db'>;
+        repository: CoordinatorOption<'repository'>;
         contractVersion: CoordinatorOption<'contractVersion'>;
         solverVersion: CoordinatorOption<'solverVersion'>;
         budgetMs: CoordinatorOption<'budgetMs'>;
@@ -62,14 +61,14 @@ export const optimizationModule = DiBag.createBuilder()
         spawn: CoordinatorOption<'spawn'>;
         runChild: CoordinatorOption<'runChild'>;
         onChildError: CoordinatorOption<'onChildError'>;
-        eventLog: CoordinatorOption<'eventLog'>;
+
         pushRecorded: CoordinatorOption<'pushRecorded'>;
         editDebounceMs: CoordinatorOption<'editDebounceMs'>;
         sleep: CoordinatorOption<'sleep'>;
         setInterval: CoordinatorOption<'setInterval'>;
         clearInterval: CoordinatorOption<'clearInterval'>;
       }): OptimizationCoordinatorOptions => ({
-        db,
+        repository,
         // Proof (2026-09-24): handing the coordinator `contractVersion: solverVersion` instead of
         // the supplied contract version left `reads an idle plan under the identity
         // installOptimization wires` failing (5 pass, 1 fail): the read carried
@@ -93,7 +92,6 @@ export const optimizationModule = DiBag.createBuilder()
         // the supplied sink left `reports a failed edit read to the error sink installOptimization
         // wires` failing (5 pass, 1 fail): it received `[]`.
         onChildError,
-        eventLog,
         pushRecorded,
         editDebounceMs,
         sleep,

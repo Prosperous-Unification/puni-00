@@ -165,7 +165,7 @@
       the two private bindings (`authOptions`, `throttleOptions`) exported independently, and the
       label dropped. Wiki registration (task 7.5) IS landed for this module; see 7.5's own note
       below.
-- [ ] 3.6 Optimization, with its repository ports and event projections. Sealed 2026-09-24 as
+- [x] 3.6 Optimization, with its repository ports and event projections. Sealed 2026-09-24 as
       `apps/wbs/be-01/src/module/optimization/` (`module.backend.optimization`): the moved
       `optimization.feature.ts`, its private `solver-child-lifecycle.ts` and
       `optimized-schedule-reader.ts`, a module exporting only `optimizer`, and `buildServices`
@@ -177,12 +177,10 @@
       returned coordinator, the private `optimizationOptions` binding exported, the label dropped, and
       the supplied contract version, error sink and cache-key port each replaced;
       `apps/wbs/be-01/src/service/clock.test.ts` now scans every backend module directory, watched
-      failing. **Not ticked: the repository ports are not landed.** The feature still takes the
-      SQLite `db` and calls `@wbs/store-sqlite`'s queue, admission, drain, generation, cache and
-      outcome functions directly, and its lifecycle does the same for heartbeat and release — K3
-      debt recorded in the module's `contract.ts` and tracked under 7.4. Those calls sit inside the
-      spawn, cancel and restart interleavings the coordinator owns, so replacing them needs an
-      interleaving model-based test with sabotage proofs, in a change of its own.
+      failing. Repository ports and the SQLite adapter landed 2026-09-27 with a
+      production-backed interleaving model and observed generation, acquisition,
+      cancellation, release, queued-recovery and restart negatives. The remaining K3
+      debt is the feature's repository-port dependency, tracked under 7.4.
 
 ## 4. Plan document and the adapter-side modules
 

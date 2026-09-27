@@ -6,10 +6,12 @@ The optimized-schedule feature as a sealed DI Bag module under `apps/wbs/be-01`:
 the graph, `check.ts` is the only place that builds a bag, and `contract.ts` states what a host must
 supply and the neutral port types Optimization shares with its launchers — the reserved spawn
 request, the solver child and the spawner — the cache-key port it hashes an input through, and the
-three outcome events it publishes, projected from the neutral `ProjectEvent`.
+three outcome events it publishes, projected from the neutral `ProjectEvent`. It also owns
+`OptimizationRepository` and `SolverSlotRepository`, the neutral persistence contracts supplied by
+the backend composition root.
 
 `optimization.feature.ts` (the moved `service/optimization-coordinator.ts`) admits, queues, launches,
-heartbeats and records solver attempts for the plan read and for Retry. `solver-child-lifecycle.ts`
+records solver attempts for the plan read and for Retry through those ports. `solver-child-lifecycle.ts`
 and `optimized-schedule-reader.ts` are its private support: the one drains, heartbeats and releases
 a bound child, the other names the plan read's question of the optimized cache. Private bindings are
 named under the `backend.optimization` label, so a DI failure says which module asked.
@@ -18,8 +20,8 @@ named under the `backend.optimization` label, so a DI failure says which module 
 
 The applicable check is the `wbs-be-01:test` target declared in `apps/wbs/be-01/project.json`,
 recorded above as `check.be-01.test` and declared in `docs/wiki-policy/relationships.json`. Its
-`apps/wbs/be-01/src/module-boundaries.test.ts` refuses the repository-schema and repository-hash
-routes back into this module and any adapter route into `contract.ts`.
+`apps/wbs/be-01/src/module-boundaries.test.ts` refuses all repository and SQLite adapter imports
+from production Optimization module files, including forwarded shim types.
 
 ## Consumers
 
