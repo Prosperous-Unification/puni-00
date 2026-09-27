@@ -126,26 +126,26 @@ Task 7.4, per module: the obligations sealing leaves open, each stated in that m
 K3 follow-up needing a resource-service over the store named; task 6.1 moves the application-ring
 support a resource still imports.
 
-| Module               | K2 left open                                                                     | K3 left open                                 | Closed by                          |
-| -------------------- | -------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------- |
-| Plan history         | none stated                                                                      | none (closed by 040.10)                      | Plan event and Project resources   |
-| Bounded replay sweep | none stated                                                                      | none (closed by 040.10)                      | Event log and Plan event resources |
-| Realtime             | none stated                                                                      | none (closed by 040.10)                      | Event log resource                 |
-| Saved plans          | rename and delete publish in `http/saved-plan.routes.ts` (task 3.3)              | none (closed by 040.10)                      | Saved plan persistence resource    |
-| Plan import          | none stated                                                                      | the direct store writes inside its `uow` run | resource-services                  |
-| Authentication       | throttle orchestration stays in delivery                                         | none (closed by 040.10)                      | Account resource                   |
-| Optimization         | none stated                                                                      | feature depends on a repository port         | resource-services follow-up (7.4)  |
-| Plan commands        | be-01 constructs `PlanCommandRunner`; routes take `WorkItemService`              | none                                         | feature owners                     |
-| Plan document        | `http/project.routes.ts` installs it (a composition export changes `AppOptions`) | none                                         | Plan document composition export   |
-| Calendar marker      | routes take `CalendarMarkerService`                                              | none                                         | feature owners                     |
-| Capacity             | Plan commands and delivery name `CapacityService`                                | none                                         | feature owners                     |
-| Directory            | routes, Plan import and Plan commands name `DirectoryService`                    | none (K4 support: task 6.1)                  | feature owners; task 6.1           |
-| Priority band        | Plan commands and delivery name `PriorityBandService`                            | none                                         | feature owners                     |
-| Project              | routes and Saved plans name `ProjectService`                                     | none                                         | feature owners                     |
-| Step                 | `http/step.routes.ts` takes `StepService`                                        | none (K4 support: task 6.1)                  | feature owners; task 6.1           |
-| Work item            | routes, Plan commands, Plan import and Saved plans name it                       | none (K4 support: task 6.1)                  | feature owners; task 6.1           |
-| Solver launcher      | none                                                                             | none                                         | —                                  |
-| Solver supervisor    | none                                                                             | none (K5 by the map's carve-out)             | —                                  |
+| Module               | K2 left open                                                                     | K3 left open                                                                 | Closed by                                         |
+| -------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------- |
+| Plan history         | none stated                                                                      | none (closed by 040.10)                                                      | Plan event and Project resources                  |
+| Bounded replay sweep | none stated                                                                      | none (closed by 040.10)                                                      | Event log and Plan event resources                |
+| Realtime             | none stated                                                                      | none (closed by 040.10)                                                      | Event log resource                                |
+| Saved plans          | rename and delete publish in `http/saved-plan.routes.ts` (task 3.3)              | none (closed by 040.10)                                                      | Saved plan persistence resource                   |
+| Plan import          | none stated                                                                      | the direct store writes inside its `uow` run                                 | resource-services                                 |
+| Authentication       | throttle orchestration stays in delivery                                         | none (closed by 040.10)                                                      | Account resource                                  |
+| Optimization         | none stated                                                                      | feature depends on a repository port                                         | resource-services follow-up (7.4)                 |
+| Plan commands        | be-01 constructs `PlanCommandRunner`; routes take `WorkItemService`              | `Service`/`Tag`/`WorkItemType` from `work-item-store`; store-bearing `Scope` | feature owners; resource-services (040.10 ledger) |
+| Plan document        | `http/project.routes.ts` installs it (a composition export changes `AppOptions`) | none                                                                         | Plan document composition export                  |
+| Calendar marker      | routes take `CalendarMarkerService`                                              | none                                                                         | feature owners                                    |
+| Capacity             | Plan commands and delivery name `CapacityService`                                | none                                                                         | feature owners                                    |
+| Directory            | routes, Plan import and Plan commands name `DirectoryService`                    | none (K4 support: task 6.1)                                                  | feature owners; task 6.1                          |
+| Priority band        | Plan commands and delivery name `PriorityBandService`                            | none                                                                         | feature owners                                    |
+| Project              | routes and Saved plans name `ProjectService`                                     | none                                                                         | feature owners                                    |
+| Step                 | `http/step.routes.ts` takes `StepService`                                        | none (K4 support: task 6.1)                                                  | feature owners; task 6.1                          |
+| Work item            | routes, Plan commands, Plan import and Saved plans name it                       | none (K4 support: task 6.1)                                                  | feature owners; task 6.1                          |
+| Solver launcher      | none                                                                             | none                                                                         | —                                                 |
+| Solver supervisor    | none                                                                             | none (K5 by the map's carve-out)                                             | —                                                 |
 
 ## Optimization attempts and repository ports
 

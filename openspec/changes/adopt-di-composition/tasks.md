@@ -446,7 +446,9 @@
 - [x] 7.7 Close K3 resource-service debt for Plan history, Realtime, Bounded replay sweep,
       Authentication, and Saved plans (WBS 040.10). Their features now depend on resource
       services that own repository access. The resolved-symbol boundary test rejects direct
-      repository-port references and keeps Plan import in a live debt ledger. Plan import is
+      repository-port references and keeps Plan import in a live debt ledger, beside Plan commands,
+      whose feature still imports work-item value types from `ports/work-item-store.ts` and
+      handles the store-bearing `Scope` (recorded in its contract and the design ledger). Plan import is
       deferred because its admitted initialization surface and both memory and SQLite source
       contracts need a separate slice. The production-path negatives and commands are recorded
       in `verify.md`.
