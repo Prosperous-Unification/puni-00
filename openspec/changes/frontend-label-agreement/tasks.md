@@ -1,0 +1,4 @@
+- [x] 1. Add the frontend root and watch the sealing test fail on the unsealed compositions.
+- [x] 2. Declare the six unsealed compositions and check that they carry no `module.ts` and import no `di-bag`.
+- [x] 3. Observe each frontend negative fail and record `Proof:` comments.
+- [x] 4. Verify the focused suite, lint, typecheck, Prettier and OpenSpec.

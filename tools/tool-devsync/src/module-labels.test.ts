@@ -240,6 +240,8 @@ test('discovers the modules of every root', async () => {
 
   expect(identifiers).toContain('module.application.plan-history');
   expect(identifiers).toContain('module.backend.optimization');
+  // Proof (2026-09-27): dropping the frontend root failed this test at this line and the sealing
+  // test with `module.frontend.calendar-markers: declared unsealed, yet no such module directory`.
   expect(identifiers).toContain('module.frontend.preferences');
 });
 
@@ -249,12 +251,18 @@ test('seals every module under the label its location implies', async () => {
   for (const { directory, label, moduleId } of modules) {
     const sealed = await Bun.file(join(WORKSPACE, directory, 'module.ts')).exists();
     if (UNSEALED.includes(moduleId)) {
+      // Proof (2026-09-27): adding a `module.ts` to Project failed this test with
+      // `…/modules/project: declared unsealed, yet has module.ts` (4 pass, 1 fail).
       if (sealed) mismatches.push(`${directory}: declared unsealed, yet has module.ts`);
+      // Proof (2026-09-27): importing `DiBag` into Project's composition.ts failed this test with
+      // `…/project/composition.ts: imports di-bag in a module declared unsealed` (4 pass, 1 fail).
       for (const importer of await diBagImporters(directory)) {
         mismatches.push(`${importer}: imports di-bag in a module declared unsealed`);
       }
       continue;
     }
+    // Proof (2026-09-27): renaming Preferences' module.ts failed this test with
+    // `…/modules/preferences: has no module.ts and is not declared unsealed` (4 pass, 1 fail).
     if (!sealed) {
       mismatches.push(`${directory}: has no module.ts and is not declared unsealed`);
       continue;
@@ -263,11 +271,15 @@ test('seals every module under the label its location implies', async () => {
     // Proof (2026-09-26): a forged Capacity private key and a labelled inner module under an
     // unlabelled Capacity wrapper each failed this test with `moduleLabel undefined, expected
     // application.capacity`; disabling this comparison made each planted module pass.
+    // Proof (2026-09-27): Preferences' label respelled `frontend.preference` failed this test with
+    // `…/modules/preferences: moduleLabel frontend.preference, expected frontend.preferences`.
     if (actual !== label) {
       mismatches.push(`${directory}: moduleLabel ${String(actual)}, expected ${label}`);
     }
   }
   for (const moduleId of UNSEALED) {
+    // Proof (2026-09-27): declaring a `module.frontend.gone` unsealed failed this test with
+    // `module.frontend.gone: declared unsealed, yet no such module directory` (4 pass, 1 fail).
     if (!modules.some((module) => module.moduleId === moduleId)) {
       mismatches.push(`${moduleId}: declared unsealed, yet no such module directory`);
     }
@@ -282,6 +294,9 @@ test('indexes every module under the identifier its location implies', async () 
     const indexed = await indexedModuleId(directory);
     // Proof (2026-09-24): Capacity's README naming `module.application.capacities` failed this
     // test with `…/capacity: README names module.application.capacities` (4 pass, 1 fail).
+    // Proof (2026-09-27): Plan feed's README naming `module.frontend.plan-feeds` failed it with
+    // `…/modules/plan-feed: README names module.frontend.plan-feeds`, and deleting its index
+    // line with `…/plan-feed/README.md holds 0 HTML comments, expected 1` (4 pass, 1 fail each).
     if (indexed !== moduleId) mismatches.push(`${directory}: README names ${indexed}`);
   }
 
@@ -324,6 +339,8 @@ test('registers every module in the pilot under that identifier', async () => {
   for (const row of rows) {
     const directory = moduleDirectoryOf(textOf(row, 'indexPath') ?? '');
     const owner = modules.find((candidate) => candidate.directory === directory);
+    // Proof (2026-09-27): Plan feed's row indexing Project's README failed the same test with
+    // `modules.json: module.frontend.plan-feed indexes apps/wbs/fe-01/src/modules/project`.
     // Proof (2026-09-24): the Memory source row's index path moved to Plan document's README
     // failed the same test with `modules.json: module.adapter.store-memory indexes
     // …/plan-document` alone (4 pass, 1 fail).
