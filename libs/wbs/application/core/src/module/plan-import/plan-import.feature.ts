@@ -505,6 +505,10 @@ export class ImportService {
         // with no refresh, so its post-import directory read never saw `Billing`.
         // Only the organization's own projects under scoped access: another
         // organization's plans draw nothing this import created.
+        // Proof: telling every project made `tells only the organization's
+        // projects that its directory changed` in
+        // `import-export-organization.controller.db.test.ts` find B's project
+        // told; watched 2026-09-27.
         const told =
           access.kind === 'scoped'
             ? await scope.stores.projects.listForInOrganization(

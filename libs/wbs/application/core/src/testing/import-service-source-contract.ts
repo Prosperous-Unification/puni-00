@@ -356,6 +356,8 @@ function heldSolutionUnitOfWork(
           listForInOrganization: (userId, organizationId) =>
             stored.listForInOrganization(userId, organizationId),
           findBySolutionSlug: (slug) => stored.findBySolutionSlug(slug),
+          findBySolutionSlugInOrganization: (slug, organizationId) =>
+            stored.findBySolutionSlugInOrganization(slug, organizationId),
           list: () => stored.list(),
           listFor: (userId) => stored.listFor(userId),
           recordOpen: (projectId, stamp) => stored.recordOpen(projectId, stamp),

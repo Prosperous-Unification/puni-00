@@ -333,15 +333,14 @@ export class ProjectService {
     slug: string,
     access: ResourceAccess,
   ): Promise<ProjectWithSteps | null> {
-    const project = await this.opts.projects.findBySolutionSlug(slug);
+    const project =
+      access.kind === 'scoped'
+        ? await this.opts.projects.findBySolutionSlugInOrganization(
+            slug,
+            access.scope.organizationId,
+          )
+        : await this.opts.projects.findBySolutionSlug(slug);
     if (project === null) return null;
-    if (
-      access.kind === 'scoped' &&
-      (await this.opts.projects.findInOrganization(project.id, access.scope.organizationId)) ===
-        null
-    ) {
-      return null;
-    }
     return { project, steps: await this.opts.projects.stepsOf(project.id) };
   }
 

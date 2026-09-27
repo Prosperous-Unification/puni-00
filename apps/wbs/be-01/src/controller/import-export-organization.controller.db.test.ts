@@ -167,6 +167,22 @@ describe('the import', () => {
     expect(answers).toEqual(['left-off', 'left-off']);
   });
 
+  it("tells only the organization's projects that its directory changed", async () => {
+    const mine = await create('ada', 'A plan');
+    const theirs = await create('grace', 'B plan');
+    expect(
+      (await h.call('ada', 'POST', '/api/projects/import', planDocumentFixture())).status,
+    ).toBe(201);
+    const told = h.sqlite
+      .query<{ subscription: string }, []>(
+        "SELECT subscription FROM event_log WHERE message LIKE '%directory_changed%'",
+      )
+      .all()
+      .map((row) => row.subscription);
+    expect(told.some((subscription) => subscription.includes(mine))).toBe(true);
+    expect(told.some((subscription) => subscription.includes(theirs))).toBe(false);
+  });
+
   it("refuses a viewer's import", async () => {
     expect(await h.call('vic', 'POST', '/api/projects/import', planDocumentFixture())).toEqual({
       status: 403,
@@ -191,6 +207,19 @@ describe('the import', () => {
 });
 
 describe('the solution lookup', () => {
+  it('answers a foreign solution slug as an absent one, even when its row is unreadable', async () => {
+    const held = await create('grace', 'B plan');
+    h.sqlite.run(
+      "UPDATE project SET solution_slug = 'broken', solution_url = 'https://x.example/broken', estimate_method = 'broken' WHERE id = ?",
+      [held],
+    );
+    expect(await h.call('ada', 'GET', '/plans/by-solution/broken')).toEqual({
+      status: 404,
+      body: { error: 'not_found' },
+    });
+    expect((await h.call('grace', 'GET', '/plans/by-solution/broken')).status).toBe(500);
+  });
+
   it('answers a foreign solution slug as an absent one', async () => {
     const held = await create('grace', 'B plan');
     h.sqlite.run(

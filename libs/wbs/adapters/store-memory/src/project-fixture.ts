@@ -135,6 +135,10 @@ export function inMemoryProjects(
       const found = projects.get(id);
       return Promise.resolve(found === undefined ? null : structuredClone(found));
     },
+    async findBySolutionSlugInOrganization(slug, organizationId) {
+      const found = await store.findBySolutionSlug(slug);
+      return found !== null && owning.get(found.id) === organizationId ? found : null;
+    },
     findBySolutionSlug(slug) {
       for (const project of projects.values()) {
         if (project.solutionRef?.slug === slug) return Promise.resolve(project);
