@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
+import { organizationRefusal } from './organization-refusal';
 import { planDocumentResponse } from './plan-document-shapes';
 import { project, projectWithSteps } from './project-response';
 import { engineUnavailableRefusal } from './scheduler-shapes';
@@ -42,15 +43,6 @@ const bodyRefusals = [
   { status: 422, schema: responseSchema(type({ error: "'invalid_body'" })) },
 ] as const;
 const notFound = { status: 404, schema: responseSchema(type({ error: "'not_found'" })) } as const;
-/**
- * An authenticated caller with no organization authority: no bound active
- * organization, or no current membership in it. Answered before any lookup, so
- * it reveals nothing about the addressed project.
- */
-const organizationRefusal = {
-  status: 403,
-  schema: responseSchema(type({ error: "'no_active_organization' | 'not_a_member'" })),
-} as const;
 const forbidden = { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) } as const;
 
 /** Creates a project with its ordered starting steps; empty names remain legal. */

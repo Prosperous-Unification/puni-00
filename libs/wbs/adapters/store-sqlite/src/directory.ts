@@ -1,5 +1,7 @@
 import type {
   AssignmentWritten,
+  DirectoryCatalog,
+  DirectoryCatalogRows,
   DirectoryRemoved,
   DirectoryStore,
   DirectoryUsageRows,
@@ -32,14 +34,19 @@ import { bumpWorkItems } from './revision';
 import {
   assignment,
   externalSystem,
+  externalSystemOrganization,
   person,
+  personOrganization,
   personTeam,
   project,
   projectTeamCapacity,
   service,
+  serviceOrganization,
   serviceTeam,
+  serviceTeamOrganization,
   step,
   tag,
+  tagOrganization,
   teamService,
   workItem,
   workItemExternalRef,
@@ -47,6 +54,7 @@ import {
   workItemTag,
   workItemTeam,
   workItemType,
+  workItemTypeOrganization,
   workItemWorkItemType,
 } from './schema';
 import { writingStep } from './step-reference';
@@ -288,6 +296,148 @@ export class DirectoryRepository implements DirectoryStore {
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
   ) {}
+
+  /**
+   * One organization's catalog, read from its ownership side table: the side
+   * row is both the ownership and the organization-local display name, so the
+   * legacy root name is never read here.
+   *
+   * Proof: reading `tags` from the root table instead made `lists only the
+   * organization's own entries under their local names` in
+   * `directory-organization.controller.db.test.ts` list organization B's tag; watched
+   * 2026-09-27.
+   */
+  listInOrganization<C extends DirectoryCatalog>(
+    catalog: C,
+    organizationId: string,
+  ): Promise<DirectoryCatalogRows[C]> {
+    const readers: { [K in DirectoryCatalog]: () => Promise<DirectoryCatalogRows[K]> } = {
+      people: () => this.listPeopleIn(organizationId),
+      teams: () => this.listTeamsIn(organizationId),
+      services: () => this.listNamedIn('services', organizationId),
+      tags: () => this.listNamedIn('tags', organizationId),
+      workItemTypes: () => this.listNamedIn('workItemTypes', organizationId),
+      externalSystems: () => this.listNamedIn('externalSystems', organizationId),
+    };
+    return readers[catalog]();
+  }
+
+  // One query per side table rather than one generic over them: the six side
+  // tables share a shape drizzle cannot express as one parameter type.
+  private listNamedIn(
+    catalog: 'services' | 'tags' | 'workItemTypes' | 'externalSystems' | 'teams',
+    organizationId: string,
+  ): Promise<{ id: string; name: string }[]> {
+    switch (catalog) {
+      case 'services':
+        return this.db
+          .select({ id: serviceOrganization.resourceId, name: serviceOrganization.name })
+          .from(serviceOrganization)
+          .where(eq(serviceOrganization.organizationId, organizationId))
+          .orderBy(asc(serviceOrganization.name));
+      case 'tags':
+        return this.db
+          .select({ id: tagOrganization.resourceId, name: tagOrganization.name })
+          .from(tagOrganization)
+          .where(eq(tagOrganization.organizationId, organizationId))
+          .orderBy(asc(tagOrganization.name));
+      case 'workItemTypes':
+        return this.db
+          .select({ id: workItemTypeOrganization.resourceId, name: workItemTypeOrganization.name })
+          .from(workItemTypeOrganization)
+          .where(eq(workItemTypeOrganization.organizationId, organizationId))
+          .orderBy(asc(workItemTypeOrganization.name));
+      case 'externalSystems':
+        return this.db
+          .select({
+            id: externalSystemOrganization.resourceId,
+            name: externalSystemOrganization.name,
+          })
+          .from(externalSystemOrganization)
+          .where(eq(externalSystemOrganization.organizationId, organizationId))
+          .orderBy(asc(externalSystemOrganization.name));
+      case 'teams':
+        return this.db
+          .select({ id: serviceTeamOrganization.resourceId, name: serviceTeamOrganization.name })
+          .from(serviceTeamOrganization)
+          .where(eq(serviceTeamOrganization.organizationId, organizationId))
+          .orderBy(asc(serviceTeamOrganization.name));
+    }
+  }
+
+  /**
+   * @throws when a team owns a service of another organization.
+   *
+   * Proof: skipping the owner comparison made `refuses a team-service link
+   * that crosses organizations` in `directory-organization.controller.db.test.ts` answer 200
+   * instead of 500; watched 2026-09-27.
+   */
+  private async listTeamsIn(organizationId: string): Promise<TeamWithServices[]> {
+    const teams = await this.listNamedIn('teams', organizationId);
+    const links = await this.db
+      .select({
+        teamId: teamService.teamId,
+        serviceId: teamService.serviceId,
+        serviceOwner: serviceOrganization.organizationId,
+      })
+      .from(teamService)
+      .innerJoin(
+        serviceTeamOrganization,
+        eq(serviceTeamOrganization.resourceId, teamService.teamId),
+      )
+      .leftJoin(serviceOrganization, eq(serviceOrganization.resourceId, teamService.serviceId))
+      .where(eq(serviceTeamOrganization.organizationId, organizationId))
+      .orderBy(asc(teamService.serviceId));
+    const servicesOf = new Map<string, string[]>();
+    for (const link of links) {
+      if (link.serviceOwner !== organizationId) {
+        throw new Error(`a team of organization "${organizationId}" owns a foreign service`);
+      }
+      servicesOf.set(link.teamId, [...(servicesOf.get(link.teamId) ?? []), link.serviceId]);
+    }
+    return teams.map((each) => ({ ...each, serviceIds: servicesOf.get(each.id) ?? [] }));
+  }
+
+  /**
+   * @throws when a person belongs to a team of another organization.
+   *
+   * Proof: skipping the owner comparison made `refuses a membership that
+   * crosses organizations` in `directory-organization.controller.db.test.ts` answer 200
+   * instead of 500; watched 2026-09-27.
+   */
+  private async listPeopleIn(organizationId: string): Promise<PersonWithTeams[]> {
+    const people = await this.db
+      .select({
+        id: personOrganization.resourceId,
+        name: personOrganization.name,
+        kind: person.kind,
+      })
+      .from(personOrganization)
+      .innerJoin(person, eq(person.id, personOrganization.resourceId))
+      .where(eq(personOrganization.organizationId, organizationId))
+      .orderBy(asc(personOrganization.name));
+    const memberships = await this.db
+      .select({
+        personId: personTeam.personId,
+        serviceTeamId: personTeam.serviceTeamId,
+        teamOwner: serviceTeamOrganization.organizationId,
+      })
+      .from(personTeam)
+      .innerJoin(personOrganization, eq(personOrganization.resourceId, personTeam.personId))
+      .leftJoin(
+        serviceTeamOrganization,
+        eq(serviceTeamOrganization.resourceId, personTeam.serviceTeamId),
+      )
+      .where(eq(personOrganization.organizationId, organizationId));
+    const teamsOf = new Map<string, string[]>();
+    for (const row of memberships) {
+      if (row.teamOwner !== organizationId) {
+        throw new Error(`a person of organization "${organizationId}" belongs to a foreign team`);
+      }
+      teamsOf.set(row.personId, [...(teamsOf.get(row.personId) ?? []), row.serviceTeamId]);
+    }
+    return people.map((each) => ({ ...each, teamIds: teamsOf.get(each.id) ?? [] }));
+  }
 
   /**
    * Every team, by name.

@@ -16,22 +16,6 @@ function directoryReadCode(refusal: RefusalOf<'getApiPeople'>): string {
     case 'invalid_params':
     case 'invalid_body':
     case 'unauthenticated':
-      return refusal.error;
-    default:
-      return unreachable(refusal);
-  }
-}
-
-/**
- * The project list's refusals: a directory read's, plus the organization
- * refusals an activated deployment answers before any lookup (task 3.1).
- */
-function projectListCode(refusal: RefusalOf<'getApiProjects'>): string {
-  switch (refusal.error) {
-    case 'invalid_query':
-    case 'invalid_params':
-    case 'invalid_body':
-    case 'unauthenticated':
     case 'no_active_organization':
     case 'not_a_member':
       return refusal.error;
@@ -410,9 +394,8 @@ function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string 
     case 'getApiServices':
     case 'getApiWork-item-types':
     case 'getApiExternal-systems':
-      return directoryReadCode(problem.refusal);
     case 'getApiProjects':
-      return projectListCode(problem.refusal);
+      return directoryReadCode(problem.refusal);
     case 'postApiProjects':
       return projectCreateCode(problem.refusal);
     case 'postApiProjectsByIdOpened':

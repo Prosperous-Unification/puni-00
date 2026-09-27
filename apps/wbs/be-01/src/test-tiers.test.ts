@@ -31,8 +31,10 @@ const SRC = new URL('.', import.meta.url).pathname;
  * this check immediately caught `deployed-commit.test.ts`, which makes a temp
  * directory to write a `HEAD` file into and never touches SQLite — it had been
  * renamed into the store tier on that evidence and is back out of it.
+ * `OrganizationHarness.open` is the fourth: it migrates and opens a SQLite file
+ * for the organization boundary suites.
  */
-const OPENS_A_DATABASE = /\b(openDrizzle|openDatabase|runMigrations)\b/;
+const OPENS_A_DATABASE = /\b(openDrizzle|openDatabase|runMigrations|OrganizationHarness\.open)\b/;
 
 /** Every `*.test.ts` under `src`, as a path relative to it. */
 function suites(dir = SRC, prefix = ''): string[] {

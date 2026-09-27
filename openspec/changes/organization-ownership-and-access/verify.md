@@ -204,6 +204,31 @@ Commands, all under `env -u CLAUDECODE`:
 - mcp-01: 212 pass.
 - fe-01 vitest, 6 refusal and project files: 129 pass.
 
+## Slice 8 — directory lists (task 3.2)
+
+Branch `batch-9/010-5-2-orgs-7`, stacked on slice 7. Design call: Astra, saved in the lane records as `010-5-2-orgs-task-3.2-design.md`.
+
+- The six directory list routes resolve `OrganizationAccess` before any read, using `DirectoryService.listWithin`.
+- Under scoped access, `DirectoryStore.listInOrganization` reads only the organization's side-table rows, under their organization-local display names, ordered by them. Two organizations can each show `urgent` over distinct opaque root names.
+- A person's `teamIds` and a team's `serviceIds` must be the organization's own. A crossing link is corrupt trusted state: the read throws and answers 500 rather than reveal a foreign id.
+- No directory read takes an id. Directory commands, including activated create and rename and foreign-id 404, are 3.4.
+- The mounted organization suites now share `apps/wbs/be-01/src/testing/organization-harness.ts`.
+
+| Check                           | Injected fault                                           | Observed failure (`directory-organization.controller.db.test.ts`, 2026-09-27)                       |
+| ------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Side-table names and ownership  | scoped `tags` read from the root table                   | `lists only the organization's own entries under their local names`: both roots' token names listed |
+| Scoped service path             | `listWithin` answers the legacy list under scoped access | same case: both organizations' people listed                                                        |
+| Team-service owner              | owner comparison skipped                                 | `refuses a team-service link that crosses organizations`: 200 instead of 500                        |
+| Membership owner                | owner comparison skipped                                 | `refuses a membership that crosses organizations`: 200 instead of 500                               |
+| Access resolved before the read | the tags route uses legacy access without resolving      | `refuses an unbound session and a removed member on every list`: 200 with both tags                 |
+
+Commands, all under `env -u CLAUDECODE`:
+
+- be-01 `bun test src`: 1163 pass and 1 fail before the tier check learned about `OrganizationHarness.open`. After that, the three organization and boot files pass 48 of 48, and `test-tiers.test.ts` passes.
+- wbs-core `bun test src`: 629. store-sqlite: 929. store-memory: 113. contracts: 397. conformance: 35. mcp-01: 212.
+- fe-01 vitest, 6 files: 149.
+- tsc passes for core, be-01, store-sqlite, store-memory, contracts, conformance, fe-01 and mcp-01.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

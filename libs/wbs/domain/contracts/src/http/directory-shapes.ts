@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
+import { organizationRefusal } from './organization-refusal';
 import { responseSchema } from './schema-shape';
 
 const namedRow = type({ id: 'string', name: 'string' });
@@ -13,6 +14,7 @@ const refusals = [
     schema: responseSchema(type({ error: "'invalid_query' | 'invalid_params' | 'invalid_body'" })),
   },
   { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
+  organizationRefusal,
 ] as const;
 
 /**
