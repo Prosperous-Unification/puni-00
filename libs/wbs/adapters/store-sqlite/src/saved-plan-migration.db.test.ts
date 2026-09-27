@@ -75,7 +75,7 @@ const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
  * The newest: the legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
  */
-const ORGANIZATION_BRIDGE = '20260927150000_add_organization_bridge';
+const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
 
 let dir: string;
 let path: string;
