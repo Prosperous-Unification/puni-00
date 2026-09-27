@@ -97,18 +97,77 @@ describe(TYPED, () => {
     });
   });
 
-  it('refuses invalid scope, step pairing and unknown type', () => {
+  /**
+   * Proof: each of the five CHECKs removed from `migration.sql` in turn made
+   * this case fail on `Received function did not throw`, at the line named for
+   * it: `predecessor scope`, `successor scope`, `predecessor whole with a
+   * step`, `successor whole with a step` and `type`; watched 2026-09-27.
+   */
+  it('refuses an unknown scope, a mismatched step on either end and an unknown type', () => {
+    withDatabase((sqlite) => {
+      seed(sqlite);
+      const refusals: [string, () => void][] = [
+        [
+          'predecessor scope',
+          () => {
+            insert(sqlite, 'r1', 'sideways', 's');
+          },
+        ],
+        [
+          'successor scope',
+          () => {
+            insert(sqlite, 'r2', 'whole', null, 'sideways', 's');
+          },
+        ],
+        [
+          'predecessor whole with a step',
+          () => {
+            insert(sqlite, 'r3', 'whole', 's');
+          },
+        ],
+        [
+          'predecessor node without a step',
+          () => {
+            insert(sqlite, 'r4', 'node');
+          },
+        ],
+        [
+          'successor whole with a step',
+          () => {
+            insert(sqlite, 'r5', 'whole', null, 'whole', 's');
+          },
+        ],
+        [
+          'successor node without a step',
+          () => {
+            insert(sqlite, 'r6', 'whole', null, 'node');
+          },
+        ],
+        [
+          'type',
+          () => {
+            insert(sqlite, 'r7', 'whole', null, 'whole', null, 'XX');
+          },
+        ],
+      ];
+      for (const [name, write] of refusals) {
+        expect(write, name).toThrow('CHECK constraint failed');
+      }
+    });
+  });
+
+  /**
+   * Proof: `NOT NULL` removed from `id` in `migration.sql` made this case fail
+   * on `Received function did not throw`; watched 2026-09-27.
+   */
+  it('refuses a relationship without an id', () => {
     withDatabase((sqlite) => {
       seed(sqlite);
       expect(() => {
-        insert(sqlite, 'bad-whole', 'whole', 's');
-      }).toThrow();
-      expect(() => {
-        insert(sqlite, 'bad-node', 'node');
-      }).toThrow();
-      expect(() => {
-        insert(sqlite, 'bad-type', 'whole', null, 'whole', null, 'XX');
-      }).toThrow();
+        sqlite.run(
+          "INSERT INTO typed_dependency (id, project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES (NULL,'p','a','whole','b','whole','FS')",
+        );
+      }).toThrow('NOT NULL constraint failed: typed_dependency.id');
     });
   });
 
@@ -166,9 +225,8 @@ describe(TYPED, () => {
 
   /**
    * Proof: the three guard statements removed from `down.sql` made this case
-   * and `refuses rollback when the typed table is missing` fail on `Received
-   * function did not throw` — the rollback dropped the typed row; watched
-   * 2026-09-27.
+   * fail on `Received function did not throw` — the rollback dropped the typed
+   * row and its ledger entry; watched 2026-09-27.
    */
   it('refuses rollback with typed rows and retains the row and migration record', () => {
     withDatabase((sqlite) => {
@@ -199,6 +257,12 @@ describe(TYPED, () => {
     });
   });
 
+  /**
+   * The guard's own read is what refuses here. With the guard removed this
+   * case still fails, on `no such index: typed_dependency_by_successor_step`
+   * rather than the table, because the index drops that follow are not
+   * `IF EXISTS` either; watched 2026-09-27.
+   */
   it('refuses rollback when the typed table is missing', () => {
     withDatabase((sqlite) => {
       sqlite.run('DROP TABLE typed_dependency');

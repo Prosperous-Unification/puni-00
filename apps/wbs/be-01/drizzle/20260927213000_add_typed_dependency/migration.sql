@@ -4,9 +4,11 @@
 -- Work-item deletes cascade so an outgoing writer can still delete a row;
 -- step references deliberately restrict deletion until the application removes
 -- the link. SS and FF are reserved in storage for the follow-on release, while
--- this release's domain accepts FS alone.
+-- this release's domain accepts FS alone. `id` is NOT NULL explicitly: SQLite
+-- lets a text PRIMARY KEY hold NULL, and a relationship without an identity
+-- cannot be edited, undone or removed.
 CREATE TABLE `typed_dependency` (
-  `id` text PRIMARY KEY,
+  `id` text PRIMARY KEY NOT NULL,
   `project_id` text NOT NULL REFERENCES `project`(`id`),
   `predecessor_work_item_id` text NOT NULL REFERENCES `work_item`(`id`) ON DELETE CASCADE,
   `predecessor_scope` text NOT NULL CHECK (`predecessor_scope` IN ('whole','node','descendant-step')),

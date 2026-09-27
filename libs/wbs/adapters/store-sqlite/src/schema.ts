@@ -1900,7 +1900,7 @@ export type DependencyRow = typeof dependency.$inferSelect;
 export const typedDependency = sqliteTable(
   'typed_dependency',
   {
-    id: text('id').primaryKey(),
+    id: text('id').primaryKey().notNull(),
     projectId: text('project_id')
       .notNull()
       .references(() => project.id),

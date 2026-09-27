@@ -10,6 +10,16 @@ import { workItemRow } from '../../testing/work-item-fixture';
 import { PlanCommandRunner } from './plan-commands.feature';
 import { createWorkingPlan } from './working-plan.resource';
 
+/** Whether a call refused, synchronously or by rejecting; `.rejects` cannot be awaited under Bun's types. */
+async function refusesCall(call: () => unknown): Promise<boolean> {
+  try {
+    await call();
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 const OWNER = 'working-plan-owner';
 const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 } as const;
 
@@ -55,8 +65,12 @@ describe('the admitted working batch baseline', () => {
         },
         stamp,
       );
-      expect(plan.stores.typedDependencies.remove('foreign', stamp)).rejects.toThrow();
-      expect(plan.stores.typedDependencies.removeAllFor(['foreign'], stamp)).rejects.toThrow();
+      expect(await refusesCall(() => plan.stores.typedDependencies.remove('foreign', stamp))).toBe(
+        true,
+      );
+      expect(
+        await refusesCall(() => plan.stores.typedDependencies.removeAllFor(['foreign'], stamp)),
+      ).toBe(true);
       plan.close();
       expect(() => plan.stores.typedDependencies.listByProject('project-a')).toThrow();
     } finally {

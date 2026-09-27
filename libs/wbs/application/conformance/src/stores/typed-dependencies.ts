@@ -4,6 +4,16 @@ import { expect } from 'bun:test';
 import type { CaseRegistration } from '../case-manifest';
 import { type OpenCase, storeCase } from './store-case';
 
+/** Whether a call refused, synchronously or by rejecting; `.rejects` cannot be awaited under Bun's types. */
+async function refusesCall(call: () => unknown): Promise<boolean> {
+  try {
+    await call();
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 /** One shared contract for typed relationship identity and bulk deletion. */
 export function typedDependencyRegistrations(
   open: OpenCase<'typedDependencies'>,
@@ -29,8 +39,10 @@ export function typedDependencyRegistrations(
         };
         expect(await port.listByProject(projectId)).toEqual([]);
         await port.add(row, seed.stamps[0]);
-        expect(port.add(row, seed.stamps[0])).rejects.toThrow();
-        expect(port.add({ ...row, id: 'typed-two' }, seed.stamps[0])).rejects.toThrow();
+        expect(await refusesCall(() => port.add(row, seed.stamps[0]))).toBe(true);
+        expect(await refusesCall(() => port.add({ ...row, id: 'typed-two' }, seed.stamps[0]))).toBe(
+          true,
+        );
         await port.update(changed, seed.stamps[1]);
         expect(await port.listByProject(projectId)).toEqual([changed]);
         expect(await port.removeAllFor([firstId], seed.stamps[1])).toEqual([changed]);

@@ -4,6 +4,16 @@ import { expect, it } from 'bun:test';
 import { inMemoryTypedDependencies } from './typed-dependency-fixture';
 
 const stamp: WriteStamp = { at: 1, by: 'owner' };
+
+/** Whether a write refused; `.rejects` cannot be awaited under Bun's types. */
+async function refuses(write: () => Promise<unknown>): Promise<boolean> {
+  try {
+    await write();
+    return false;
+  } catch {
+    return true;
+  }
+}
 const link = (id: string, predecessorId: string, successorId: string): StoredTypedDependency => ({
   id,
   projectId: 'project',
@@ -16,16 +26,16 @@ const link = (id: string, predecessorId: string, successorId: string): StoredTyp
 it('refuses duplicate ids and endpoint keys', async () => {
   const store = inMemoryTypedDependencies();
   await store.add(link('one', 'a', 'b'), stamp);
-  expect(store.add(link('one', 'a', 'c'), stamp)).rejects.toThrow();
-  expect(store.add(link('two', 'a', 'b'), stamp)).rejects.toThrow();
+  expect(await refuses(() => store.add(link('one', 'a', 'c'), stamp))).toBe(true);
+  expect(await refuses(() => store.add(link('two', 'a', 'b'), stamp))).toBe(true);
   expect(await store.listByProject('project')).toEqual([link('one', 'a', 'b')]);
 });
 
 /** Proof: without the unknown-id checks, both writes resolved; watched 2026-09-27. */
 it('refuses updates and removals of unknown ids', async () => {
   const store = inMemoryTypedDependencies();
-  expect(store.update(link('missing', 'a', 'b'), stamp)).rejects.toThrow();
-  expect(store.remove('missing', stamp)).rejects.toThrow();
+  expect(await refuses(() => store.update(link('missing', 'a', 'b'), stamp))).toBe(true);
+  expect(await refuses(() => store.remove('missing', stamp))).toBe(true);
   expect(await store.listByProject('project')).toEqual([]);
 });
 

@@ -10,15 +10,16 @@ import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
-import { typedDependency, type TypedDependencyRow } from './schema';
+import { step, typedDependency, type TypedDependencyRow, workItem } from './schema';
 
 /**
  * Refuses stored endpoint discriminants that this release cannot interpret.
  *
- * Proof: bypassing the scope check made the corrupt-row case report the wrong
- * error (`other predecessor without a step`); bypassing the whole/step check
- * or the missing-step check made it resolve instead of throw. Each watched in
- * `typed-dependency.db.test.ts` on 2026-09-27.
+ * Proof: bypassing the scope check made `refuses unknown scopes and
+ * scope/step mismatches on read` fail on the wrong message (`a other
+ * predecessor without a step`); bypassing the whole/step check or the
+ * missing-step check made it fail on `Received: (resolved without throwing)`; watched
+ * 2026-09-27.
  */
 function readEndpoint(
   rowId: string,
@@ -79,6 +80,67 @@ function storedColumns(row: StoredTypedDependency) {
   };
 }
 
+type Transaction = Parameters<Parameters<Drizzle['transaction']>[0]>[0];
+
+/**
+ * Throws unless both endpoints name this project's rows in the shape their
+ * scope requires: the work item and any step belong to `row.projectId`, a node
+ * endpoint's work item has no children and a descendant-step endpoint's has
+ * some.
+ *
+ * The service refuses each of these first with a typed 4xx; this is the
+ * persistence boundary saying the same thing inside the write's transaction,
+ * where a concurrent tree edit cannot slip between the check and the insert.
+ * Foreign keys alone prove only that the rows exist somewhere.
+ *
+ * Proof: the project comparison, the step-owner comparison and each of the two
+ * leafhood comparisons disabled in turn made its own line of `refuses an
+ * endpoint outside the project or in the wrong shape` fail on `Received:
+ * (resolved without throwing)` (`foreign work item`, `foreign step`, `node on a
+ * parent`, `descendant-step on a leaf`); watched 2026-09-27.
+ */
+function assertEndpointsHeld(tx: Transaction, row: StoredTypedDependency): void {
+  for (const endpoint of [row.predecessor, row.successor]) {
+    const owner = tx
+      .select({ projectId: workItem.projectId })
+      .from(workItem)
+      .where(eq(workItem.id, endpoint.workItemId))
+      .get();
+    if (owner?.projectId !== row.projectId) {
+      throw new Error(
+        `typed dependency ${row.id} names work item ${endpoint.workItemId} outside project ${row.projectId}`,
+      );
+    }
+    if (endpoint.scope === 'whole') continue;
+    const stepOwner = tx
+      .select({ projectId: step.projectId })
+      .from(step)
+      .where(eq(step.id, endpoint.stepId))
+      .get();
+    if (stepOwner?.projectId !== row.projectId) {
+      throw new Error(
+        `typed dependency ${row.id} names step ${endpoint.stepId} outside project ${row.projectId}`,
+      );
+    }
+    const child = tx
+      .select({ id: workItem.id })
+      .from(workItem)
+      .where(eq(workItem.parentId, endpoint.workItemId))
+      .limit(1)
+      .get();
+    if (endpoint.scope === 'node' && child !== undefined) {
+      throw new Error(
+        `typed dependency ${row.id} names a node of ${endpoint.workItemId}, a parent`,
+      );
+    }
+    if (endpoint.scope === 'descendant-step' && child === undefined) {
+      throw new Error(
+        `typed dependency ${row.id} names descendants of ${endpoint.workItemId}, a leaf`,
+      );
+    }
+  }
+}
+
 /** Typed links move both endpoint revisions in the same transaction as each write. */
 export class TypedDependencyRepository implements TypedDependencyStore {
   constructor(
@@ -98,6 +160,7 @@ export class TypedDependencyRepository implements TypedDependencyStore {
     await this.gate.enter(async () => {
       await Promise.resolve();
       this.db.transaction((tx) => {
+        assertEndpointsHeld(tx, row);
         tx.insert(typedDependency)
           .values({ id: row.id, ...storedColumns(row), ...auditOnCreate(stamp) })
           .run();
@@ -113,6 +176,10 @@ export class TypedDependencyRepository implements TypedDependencyStore {
         const prior = tx.select().from(typedDependency).where(eq(typedDependency.id, row.id)).get();
         if (prior === undefined) throw new Error(`typed dependency ${row.id} does not exist`);
         readTypedDependency(prior);
+        if (prior.projectId !== row.projectId) {
+          throw new Error(`typed dependency ${row.id} cannot move to project ${row.projectId}`);
+        }
+        assertEndpointsHeld(tx, row);
         tx.update(typedDependency)
           .set({ ...storedColumns(row), ...auditOnUpdate(stamp) })
           .where(eq(typedDependency.id, row.id))
