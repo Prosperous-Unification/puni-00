@@ -650,6 +650,77 @@ describe('every Bun test command states its own time budget', () => {
   }, 30_000);
 });
 
+/**
+ * Vitest ends a test at 5 seconds unless told otherwise, and the gate reached that on fe-01: a
+ * keyboard test that takes 1.8 s on a workstation took 5.7 s in CI on pull request 87, and another
+ * fe-01 test timed out at 5 s on pull request 89 (2026-09-27). So every `vitest` a target runs
+ * names both budgets, `--testTimeout=<ms>` and `--hookTimeout=<ms>`, measured as in
+ * `docs/test-budgets.md`. As with Bun, the command line is the one place a budget lives: a flag
+ * beats the config, and `apps/wbs/fe-01/vitest-budget.test.ts` proves the flag still ends a hang
+ * under the real config and setup file.
+ *
+ * Proof: with `--testTimeout=30000` removed from the zoned half of `wbs-fe-01:test`, this failed
+ * naming `wbs-fe-01:test` (2026-09-27). With `--hookTimeout=30000` removed from `wbs-fe-01:test:unit`
+ * it failed naming `wbs-fe-01:test:unit`. With the Vitest-command pattern misspelled so the sweep
+ * matched nothing, it failed on `Expected: >= 3 · Received: 0` (2026-09-27). With
+ * `--testTimeout=0` in the UTC half of `wbs-fe-01:test`, and with `--hookTimeout 0` appended to
+ * `wbs-fe-01:test:unit` after its budget, each failed naming that target (2026-09-27).
+ */
+describe('every Vitest command states its own time budgets', () => {
+  it('passes --testTimeout=<ms> and --hookTimeout=<ms> to each vitest it runs', async () => {
+    const inheritedDaemon = process.env['NX_DAEMON'];
+    process.env['NX_DAEMON'] = 'false';
+    let projectGraph: ProjectGraph;
+    try {
+      projectGraph = await createProjectGraphAsync({ exitOnError: true });
+    } finally {
+      if (inheritedDaemon === undefined) delete process.env['NX_DAEMON'];
+      else process.env['NX_DAEMON'] = inheritedDaemon;
+    }
+    const unbudgeted: string[] = [];
+    let seen = 0;
+    for (const [project, node] of Object.entries(projectGraph.nodes)) {
+      for (const [target, config] of Object.entries(node.data.targets ?? {})) {
+        // A configuration replaces the base command when it is selected, so each is read too.
+        const configurations: Record<string, unknown> = config.configurations ?? {};
+        const variants = [config.options as unknown, ...Object.values(configurations)].map(
+          (options) =>
+            (options ?? {}) as {
+              command?: string;
+              commands?: readonly (string | { command: string })[];
+            },
+        );
+        const runs = variants
+          .flatMap((options) => [
+            options.command ?? '',
+            ...(options.commands ?? []).map((each) =>
+              typeof each === 'string' ? each : each.command,
+            ),
+          ])
+          .flatMap((command) => command.split(/&&|\|\||[;|&\n]/))
+          // `vitest` as a word of its own: `apps/wbs/fe-01/vitest.config.ts` in a lint command is
+          // a path, not a run.
+          .filter((segment) => /(?:^|\s)vitest(?:\s|$)/.test(segment));
+        seen += runs.length;
+        // Vitest reads 0 as no limit at all, and a repeated flag's last value wins, so every
+        // spelling of the flag must carry a positive number.
+        const states = (segment: string, flag: string): boolean => {
+          const values = [
+            ...segment.matchAll(new RegExp(`(?:^|\\s)--${flag}(?:=|\\s+)(\\S*)`, 'g')),
+          ];
+          return values.length > 0 && values.every(([, value]) => /^[1-9]\d*$/.test(value));
+        };
+        if (runs.some((run) => !states(run, 'testTimeout') || !states(run, 'hookTimeout'))) {
+          unbudgeted.push(`${project}:${target}`);
+        }
+      }
+    }
+    // fe-01 runs Vitest three times: the UTC and zoned halves of `test`, and `test:unit`.
+    expect(seen).toBeGreaterThanOrEqual(3);
+    expect(unbudgeted.sort()).toEqual([]);
+  }, 30_000);
+});
+
 describe('every cached target declares what it reads', () => {
   it('names every file a suite reads from outside its own project', async () => {
     const nxJson = JSON.parse(
