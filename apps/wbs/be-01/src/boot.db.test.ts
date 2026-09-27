@@ -285,7 +285,7 @@ describe('bootBe01', () => {
     expect(created.project.ownerId).toBe('local-dev');
   });
 
-  it('refuses the project list after activation until a session binds an organization', async () => {
+  it('refuses the project and directory lists after activation until a session binds an organization', async () => {
     const dir = tempDir('wbs-organization-boot-');
     const dbPath = join(dir, 'test.db');
     running = await bootBe01({
@@ -317,12 +317,15 @@ describe('bootBe01', () => {
       marker.close();
     }
 
-    const refused = await fetch(projects);
+    for (const path of ['/api/projects', '/api/tags', '/api/people']) {
+      const refused = await fetch(`http://localhost:${String(running.port)}${path}`);
 
-    expect({ status: refused.status, body: (await refused.json()) as unknown }).toEqual({
-      status: 403,
-      body: { error: 'no_active_organization' },
-    });
+      expect({ path, status: refused.status, body: (await refused.json()) as unknown }).toEqual({
+        path,
+        status: 403,
+        body: { error: 'no_active_organization' },
+      });
+    }
   });
 
   it('codes the steps an older writer left uncoded once it has migrated', async () => {

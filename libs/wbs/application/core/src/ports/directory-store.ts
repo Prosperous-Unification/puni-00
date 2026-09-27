@@ -266,7 +266,32 @@ export type DirectoryRemoved =
   | { ok: false; reason: 'not_found' }
   | { ok: false; reason: 'in_use'; usage: DirectoryUsageRows };
 
+/** The six directory catalogs a client lists, each under its list route's name. */
+export interface DirectoryCatalogRows {
+  people: PersonWithTeams[];
+  teams: TeamWithServices[];
+  services: Service[];
+  tags: Tag[];
+  workItemTypes: WorkItemType[];
+  externalSystems: ExternalSystem[];
+}
+
+export type DirectoryCatalog = keyof DirectoryCatalogRows;
+
 export interface DirectoryStore {
+  /**
+   * One catalog as one organization sees it: only the entries it owns, under
+   * their organization-local display names, ordered by that name. A person's
+   * teams and a team's services are the organization's own.
+   *
+   * @throws when a stored membership or team-service link crosses into another
+   * organization. That is corrupt trusted state, and answering it would reveal
+   * a foreign id.
+   */
+  listInOrganization<C extends DirectoryCatalog>(
+    catalog: C,
+    organizationId: string,
+  ): Promise<DirectoryCatalogRows[C]>;
   /** Every tag in the global directory, by name. */
   listTags(): Promise<Tag[]>;
   /**
