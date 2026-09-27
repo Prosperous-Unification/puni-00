@@ -3,6 +3,15 @@ import { describe, expect, it } from 'vitest';
 
 import { FoldedStepCard } from './folded-step-card';
 
+/** A card with no step node: these cases are about the estimate lines alone. */
+const UNADDRESSED = {
+  projectId: 'project',
+  stepNode: null,
+  onExitActions: () => undefined,
+  onPointerArrives: () => undefined,
+  pushToast: () => undefined,
+};
+
 describe('folded step estimate detail', () => {
   it('keeps the existing final line for zero allowance', () => {
     render(
@@ -21,6 +30,7 @@ describe('folded step estimate detail', () => {
         }}
         doing={null}
         problem={null}
+        {...UNADDRESSED}
       />,
     );
     expect(screen.getByText('Final 2 days')).toBeInTheDocument();
@@ -43,6 +53,7 @@ describe('folded step estimate detail', () => {
         }}
         doing={null}
         problem={null}
+        {...UNADDRESSED}
       />,
     );
     expect(screen.getByText('No estimate yet')).toBeInTheDocument();
@@ -69,6 +80,7 @@ describe('folded step estimate detail', () => {
         }}
         doing={null}
         problem={null}
+        {...UNADDRESSED}
       />,
     );
     expect(screen.getByText('Base estimate 2 days')).toBeInTheDocument();
@@ -98,6 +110,7 @@ describe('folded step estimate detail', () => {
         }}
         doing={null}
         problem={null}
+        {...UNADDRESSED}
       />,
     );
     expect(screen.getByText('Before rounding 2.0002 days')).toBeInTheDocument();
