@@ -4,6 +4,9 @@ import {
   formatStepNodeId,
   formatStepReference,
   orderSteps,
+  parseStepReference,
+  resolveStepReference,
+  type StepReferenceRefusal,
 } from '@wbs/domain';
 
 import type { Digest } from '../../ports/runtime';
@@ -29,6 +32,15 @@ export function buildAddressSpace(
     workItems: workItems.map(({ id, number }) => ({ id, number, isLeaf: !parentIds.has(id) })),
     steps,
   };
+}
+
+/** Hashes the canonical address description for both reads and resolution. */
+export async function digestAddressSpace(
+  projectId: string,
+  space: AddressSpace,
+  digest: Digest,
+): Promise<string> {
+  return `ar1:${await digest.sha256(describeAddressSpace(projectId, space))}`;
 }
 
 /**
@@ -61,7 +73,43 @@ export async function readStepAddresses(
     }));
   });
   return {
-    addressRevision: `ar1:${await digest.sha256(describeAddressSpace(projectId, space))}`,
+    addressRevision: await digestAddressSpace(projectId, space, digest),
     stepNodes,
+  };
+}
+
+/** Resolves one input against the same digest and effective addresses as the tree read. */
+export async function resolveAddressedStep(
+  projectId: string,
+  input: { reference: string; revision: string },
+  addresses: {
+    workItems: readonly { id: string; parentId: string | null; number: string }[];
+    steps: readonly { id: string; code: string | null; position: number }[];
+  },
+  digest: Digest,
+): Promise<
+  | { kind: 'resolved'; stepNodeId: string; workItemId: string; stepId: string; reference: string }
+  | { kind: 'stale'; addressRevision: string }
+  | { kind: 'unresolvable'; reason: StepReferenceRefusal }
+> {
+  // Malformed text is a request defect whatever revision it came with, so it is
+  // judged before staleness. Proof: with this early check removed, `refuses an
+  // old revision after a renumbering move…` failed on `Expected: 422, Received:
+  // 409` for a malformed reference sent with a stale revision; watched 2026-09-27.
+  if (parseStepReference(input.reference) === null)
+    return { kind: 'unresolvable', reason: 'malformed' };
+  const space = buildAddressSpace(addresses.workItems, addresses.steps);
+  const addressRevision = await digestAddressSpace(projectId, space, digest);
+  // Proof: skipping this comparison made the mounted stale-reference test fail
+  // on `Expected: 409 / Received: 200`; watched 2026-09-27.
+  if (input.revision !== addressRevision) return { kind: 'stale', addressRevision };
+  const resolved = resolveStepReference(input.reference, space);
+  if (!resolved.ok) return { kind: 'unresolvable', reason: resolved.reason };
+  return {
+    kind: 'resolved',
+    stepNodeId: formatStepNodeId(resolved.ref),
+    workItemId: resolved.ref.workItemId,
+    stepId: resolved.ref.stepId,
+    reference: resolved.reference,
   };
 }

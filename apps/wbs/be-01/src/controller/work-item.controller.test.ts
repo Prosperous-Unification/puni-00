@@ -19,14 +19,16 @@ import { inMemoryServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
+import { inMemoryProjects, memoryProjectTables } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 function buildHarness(optimized?: OptimizedScheduleReader) {
-  const plan = inMemoryServices();
   const users = inMemoryUsers();
+  const projectTables = memoryProjectTables();
+  const plan = inMemoryServices({ projects: inMemoryProjects(users, projectTables) });
   const { projects: projectStore, directory: directoryStore, measures: measureStore } = plan.stores;
   const directory = testDirectoryService(directoryStore);
   const capacity = testCapacityService();
@@ -129,6 +131,7 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
     users,
     workItems,
     projects: projectStore,
+    projectTables,
     writes,
   };
 }
@@ -140,7 +143,8 @@ type Send = (
 ) => Promise<Response>;
 
 async function setup(optimized?: OptimizedScheduleReader) {
-  const { register, send, measures, users, workItems, projects, writes } = buildHarness(optimized);
+  const { register, send, measures, users, workItems, projects, projectTables, writes } =
+    buildHarness(optimized);
   const token = await register('owner');
   const actor = await users.findByUsername('owner');
   if (actor === null) throw new Error('registered owner is missing');
@@ -164,6 +168,7 @@ async function setup(optimized?: OptimizedScheduleReader) {
     measures,
     workItems,
     projects,
+    projectTables,
     writes,
     actorId: actor.id,
     projectId: body.project.id,
@@ -256,6 +261,135 @@ async function firstRow(
 }
 
 describe('work item routes', () => {
+  it('resolves canonical and alias references to the nodes in the work-item read', async () => {
+    const { token, send, projectId, projectTables } = await setup();
+    const seeded = projectTables.steps.get(projectId);
+    if (seeded === undefined) throw new Error('seeded project steps absent');
+    seeded.push({
+      id: crypto.randomUUID(),
+      projectId,
+      name: 'Review',
+      code: 'review',
+      position: 3000,
+    });
+    const uncodedId = crypto.randomUUID();
+    seeded.push({ id: uncodedId, projectId, name: 'Legacy', code: null, position: 4000 });
+    const firstId = await addWorkItem(send, token, projectId, { parentId: null, name: 'First' });
+    const parentId = await addWorkItem(send, token, projectId, {
+      parentId: null,
+      afterId: firstId,
+      name: 'Parent',
+    });
+    const childId = await addWorkItem(send, token, projectId, { parentId, name: 'Child one' });
+    const nestedId = await addWorkItem(send, token, projectId, {
+      parentId,
+      afterId: childId,
+      name: 'Child two',
+    });
+    const tree = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+      addressRevision: string;
+      stepNodes: { id: string; workItemId: string; stepId: string; reference: string | null }[];
+    };
+    const resolve = async (reference: string) => {
+      const query = new URLSearchParams({ reference, revision: tree.addressRevision });
+      const response = await send(`/api/projects/${projectId}/step-references?${query}`, token);
+      return { status: response.status, body: (await response.json()) as unknown };
+    };
+    const dev = tree.stepNodes.find(
+      (node) => node.workItemId === firstId && node.reference === '010.dev',
+    );
+    const review = tree.stepNodes.find(
+      (node) => node.workItemId === nestedId && node.reference === '020.2.review',
+    );
+    if (dev === undefined || review === undefined)
+      throw new Error(`expected coded nodes absent: ${JSON.stringify(tree.stepNodes)}`);
+    expect(tree.stepNodes).toContainEqual({
+      id: `sn1.${firstId}.${uncodedId}`,
+      workItemId: firstId,
+      stepId: uncodedId,
+      reference: null,
+    });
+    expect(await resolve('010.dev')).toEqual({
+      status: 200,
+      body: { stepNodeId: dev.id, workItemId: firstId, stepId: dev.stepId, reference: '010.dev' },
+    });
+    expect(await resolve('020.2.review')).toEqual({
+      status: 200,
+      body: {
+        stepNodeId: review.id,
+        workItemId: nestedId,
+        stepId: review.stepId,
+        reference: '020.2.review',
+      },
+    });
+    expect(await resolve('010.s1-dev')).toEqual({
+      status: 200,
+      body: { stepNodeId: dev.id, workItemId: firstId, stepId: dev.stepId, reference: '010.dev' },
+    });
+    for (const [reference, reason] of [
+      ['010.s2-dev', 'alias_mismatch'],
+      ['010.missing', 'unknown_code'],
+      ['020.dev', 'parent'],
+      ['999.dev', 'unknown_work_item'],
+      ['010.legacy', 'unknown_code'],
+      ['nonsense', 'malformed'],
+    ]) {
+      expect(await resolve(reference)).toEqual({
+        status: 422,
+        body: { error: 'unresolvable_reference', reason },
+      });
+    }
+  });
+
+  it('refuses an old revision after a renumbering move and reports the current revision', async () => {
+    const { token, send, projectId } = await setup();
+    const firstId = await addWorkItem(send, token, projectId, { parentId: null, name: 'First' });
+    const secondId = await addWorkItem(send, token, projectId, {
+      parentId: null,
+      afterId: firstId,
+      name: 'Second',
+    });
+    const before = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+      addressRevision: string;
+    };
+    const moved = await command(send, token, projectId, {
+      kind: 'moveWorkItem',
+      workItemId: firstId,
+      parentId: null,
+      afterId: secondId,
+    });
+    expect(moved.status).toBe(200);
+    const after = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+      addressRevision: string;
+    };
+    expect(after.addressRevision).not.toBe(before.addressRevision);
+    const query = new URLSearchParams({ reference: '010.dev', revision: before.addressRevision });
+    const response = await send(`/api/projects/${projectId}/step-references?${query}`, token);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: 'stale_address_revision',
+      addressRevision: after.addressRevision,
+    });
+    const malformed = new URLSearchParams({
+      reference: 'nonsense',
+      revision: before.addressRevision,
+    });
+    const defective = await send(`/api/projects/${projectId}/step-references?${malformed}`, token);
+    expect(defective.status).toBe(422);
+    expect(await defective.json()).toEqual({
+      error: 'unresolvable_reference',
+      reason: 'malformed',
+    });
+  });
+
+  it('answers the same not-found refusal as the work-item read for an unknown project', async () => {
+    const { token, send } = await setup();
+    const query = new URLSearchParams({ reference: '010.dev', revision: 'ar1:missing' });
+    const response = await send(`/api/projects/missing/step-references?${query}`, token);
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: 'not_found' });
+  });
+
   it('reads leaf step nodes and address revision without nodes on parents', async () => {
     const { token, send, projectId } = await setup();
     const parentId = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
@@ -309,11 +443,23 @@ describe('work item routes', () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
       workItems: { id: string; number: string }[];
+      addressRevision?: string;
       stepNodes?: { workItemId: string; reference: string | null }[];
     };
     const numberOf = (id: string) => body.workItems.find((row) => row.id === id)?.number;
     expect(numberOf(frozen)).toBe(numberOf(sibling));
     expect(body.stepNodes?.some((node) => node.workItemId === sibling)).toBe(true);
+
+    const shared = body.stepNodes?.find((node) => node.workItemId === sibling)?.reference;
+    if (shared === undefined || shared === null)
+      throw new Error('the new sibling has no reference');
+    const query = new URLSearchParams({ reference: shared, revision: body.addressRevision ?? '' });
+    const resolved = await send(`/api/projects/${projectId}/step-references?${query}`, token);
+    expect(resolved.status).toBe(422);
+    expect(await resolved.json()).toEqual({
+      error: 'unresolvable_reference',
+      reason: 'ambiguous_work_item',
+    });
   });
 
   it('refuses a directly stored optimized project when this runtime has no adapter', async () => {

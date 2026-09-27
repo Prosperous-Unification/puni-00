@@ -1340,6 +1340,37 @@ export class WorkItemService {
     this.clock = opts.clock;
   }
 
+  /**
+   * Reads only effective numbers and project steps for revision-bound
+   * references — the numbers the tree read shows, without scheduling.
+   *
+   * @returns `null` for an unknown project.
+   * @throws when the numbering misses a row.
+   */
+  async readAddresses(projectId: string): Promise<{
+    workItems: { id: string; parentId: string | null; number: string }[];
+    steps: Step[];
+  } | null> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return null;
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const numbers = deriveNumbers(rows);
+    return {
+      workItems: rows.map((row) => {
+        const number = numbers.get(row.id);
+        // `deriveNumbers` numbers every reachable row and throws on the rest, so a
+        // miss is a broken numbering, never a row to leave out of the addresses.
+        // Proof: with the first row dropped from the numbering, the mounted
+        // resolve cases failed `Expected: 409, Received: 500` naming `no effective
+        // number for work item …` instead of resolving against a partial space;
+        // watched 2026-09-27.
+        if (number === undefined) throw new Error(`no effective number for work item ${row.id}`);
+        return { id: row.id, parentId: row.parentId, number };
+      }),
+      steps: await this.opts.projects.stepsOf(projectId),
+    };
+  }
+
   /** Rebuild the canonical input a durable solver queue entry names. */
   async scheduleInput(projectId: string): Promise<ScheduleInput | null> {
     const project = await this.opts.projects.findById(projectId);
