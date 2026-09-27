@@ -256,6 +256,66 @@ async function firstRow(
 }
 
 describe('work item routes', () => {
+  it('reads leaf step nodes and address revision without nodes on parents', async () => {
+    const { token, send, projectId } = await setup();
+    const parentId = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
+    const leafId = await addWorkItem(send, token, projectId, { parentId, name: 'Leaf' });
+
+    const response = await send(`/api/projects/${projectId}/work-items`, token);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      addressRevision?: string;
+      stepNodes?: { id: string; workItemId: string; stepId: string; reference: string | null }[];
+      workItems: { id: string; number: string }[];
+      steps: { id: string; code: string | null }[];
+    };
+    expect(body.addressRevision).toMatch(/^ar1:[0-9a-f]{64}$/);
+    expect(body.stepNodes?.filter((node) => node.workItemId === parentId)).toEqual([]);
+    const number = body.workItems.find((row) => row.id === leafId)?.number;
+    if (number === undefined) throw new Error('leaf absent from the tree');
+    expect(body.stepNodes).toEqual(
+      body.steps.map((step) => ({
+        id: `sn1.${leafId}.${step.id}`,
+        workItemId: leafId,
+        stepId: step.id,
+        reference: step.code === null ? null : `${number}.${step.code}`,
+      })),
+    );
+  });
+
+  // Proof: with `describeAddressSpace` throwing on a shared number again, this
+  // read failed on `Expected: 200, Received: 500` (`Error: dup` from
+  // `readStepAddresses`); watched 2026-09-27 (Astra review of the read slice).
+  it('still reads a project where a moved frozen number is shown twice', async () => {
+    const { token, send, projectId } = await setup();
+    const first = await addWorkItem(send, token, projectId, { parentId: null, name: 'First' });
+    const second = await addWorkItem(send, token, projectId, {
+      parentId: null,
+      afterId: first,
+      name: 'Second',
+    });
+    const frozen = await addWorkItem(send, token, projectId, { parentId: first, name: 'Frozen' });
+    expect((await command(send, token, projectId, { kind: 'freezeProject' })).status).toBe(200);
+    const moved = await command(send, token, projectId, {
+      kind: 'moveWorkItem',
+      workItemId: frozen,
+      parentId: second,
+      afterId: null,
+    });
+    expect(moved.status).toBe(200);
+    const sibling = await addWorkItem(send, token, projectId, { parentId: first, name: 'New' });
+
+    const response = await send(`/api/projects/${projectId}/work-items`, token);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      workItems: { id: string; number: string }[];
+      stepNodes?: { workItemId: string; reference: string | null }[];
+    };
+    const numberOf = (id: string) => body.workItems.find((row) => row.id === id)?.number;
+    expect(numberOf(frozen)).toBe(numberOf(sibling));
+    expect(body.stepNodes?.some((node) => node.workItemId === sibling)).toBe(true);
+  });
+
   it('refuses a directly stored optimized project when this runtime has no adapter', async () => {
     const { projects, projectId, send, token } = await setup();
     await projects.update(

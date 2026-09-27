@@ -1,6 +1,7 @@
 import { expect, spyOn, test } from 'bun:test';
 
 import { workItemRoutes } from '../../controller/work-item.routes';
+import { nodeDigest } from '../../runtime/bun-runtime';
 import { PlanCommandRunner } from '../../service/plan-commands';
 import { inMemoryServices } from '../../testing/harness';
 import { projectRow } from '../../testing/project-fixture';
@@ -16,7 +17,7 @@ function fixture(readOnly = false) {
     uow: writes.uow,
     announcements: writes.announcements,
   });
-  const endpoints = workItemRoutes(plan.service, runner);
+  const endpoints = workItemRoutes(plan.service, runner, nodeDigest);
   const app = mountEndpoints(endpoints, {
     appOrigin: 'http://localhost',
     reportUnexpectedFailure: () => undefined,
