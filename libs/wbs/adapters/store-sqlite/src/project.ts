@@ -541,7 +541,87 @@ export class ProjectRepository implements ProjectStore {
     });
   }
 
+  /**
+   * {@link recordOpen} only while `organizationId` still owns the project,
+   * checked in the write's own transaction: false, and nothing recorded,
+   * otherwise.
+   *
+   * Proof: skipping the ownership check made `records an open and a write only
+   * while the organization owns the project` in `project.db.test.ts` answer
+   * true for the foreign open; watched 2026-09-27.
+   */
+  async recordOpenInOrganization(
+    projectId: string,
+    stamp: WriteStamp,
+    organizationId: string,
+  ): Promise<boolean> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction((tx) => {
+        const owned = tx
+          .select({ id: projectOrganization.resourceId })
+          .from(projectOrganization)
+          .where(
+            and(
+              eq(projectOrganization.resourceId, projectId),
+              eq(projectOrganization.organizationId, organizationId),
+            ),
+          )
+          .get();
+        if (owned === undefined) return false;
+        tx.insert(projectAccess)
+          .values({ userId: stamp.by, projectId, lastOpenedAt: stamp.at, ...auditOnCreate(stamp) })
+          .onConflictDoUpdate({
+            target: [projectAccess.userId, projectAccess.projectId],
+            set: { lastOpenedAt: sql`excluded.last_opened_at`, ...auditOnUpdate(stamp) },
+          })
+          .run();
+        return true;
+      });
+    });
+  }
+
   async update(id: string, patch: ProjectPatch, stamp: WriteStamp): Promise<Project | null> {
+    return await this.write(id, patch, stamp, null);
+  }
+
+  /**
+   * {@link update} confined to one organization: the ownership predicate is in
+   * the UPDATE itself, so a project that is not, or is no longer, the
+   * organization's answers null and is left unchanged.
+   *
+   * Proof: dropping the predicate made `records an open and a write only while
+   * the organization owns the project` in `project.db.test.ts` answer the
+   * renamed foreign project instead of null; watched 2026-09-27.
+   */
+  async updateInOrganization(
+    id: string,
+    patch: ProjectPatch,
+    stamp: WriteStamp,
+    organizationId: string,
+  ): Promise<Project | null> {
+    return await this.write(id, patch, stamp, organizationId);
+  }
+
+  private async write(
+    id: string,
+    patch: ProjectPatch,
+    stamp: WriteStamp,
+    organizationId: string | null,
+  ): Promise<Project | null> {
+    const addressed =
+      organizationId === null
+        ? eq(project.id, id)
+        : and(
+            eq(project.id, id),
+            inArray(
+              project.id,
+              this.db
+                .select({ id: projectOrganization.resourceId })
+                .from(projectOrganization)
+                .where(eq(projectOrganization.organizationId, organizationId)),
+            ),
+          );
     return await this.gate.enter(async () => {
       // An empty patch would make drizzle emit `SET` with no assignments, which
       // SQLite rejects — so a request that changes nothing reads instead.
@@ -550,7 +630,9 @@ export class ProjectRepository implements ProjectStore {
       // patch that silently reads instead of writing. `Object.values` cannot
       // forget a field (tasks.md 3b.2, which added three at once).
       if (Object.values(patch).every((value) => value === undefined)) {
-        return this.findById(id);
+        return organizationId === null
+          ? this.findById(id)
+          : this.findInOrganization(id, organizationId);
       }
       const { solutionRef, pertWeights, ...fields } = patch;
       // The bump rides in the same `SET` as the change it describes, so a patch
@@ -581,7 +663,7 @@ export class ProjectRepository implements ProjectStore {
             ? tx
                 .update(project)
                 .set({ ...updates, ...auditOnUpdate(stamp) })
-                .where(and(eq(project.id, id), eq(project.optimizationEnabled, true)))
+                .where(and(addressed, eq(project.optimizationEnabled, true)))
                 .returning()
                 .all()
                 .at(0)
@@ -590,7 +672,7 @@ export class ProjectRepository implements ProjectStore {
         updated ??= tx
           .update(project)
           .set({ ...updates, ...auditOnUpdate(stamp) })
-          .where(eq(project.id, id))
+          .where(addressed)
           .returning()
           .all()
           .at(0);

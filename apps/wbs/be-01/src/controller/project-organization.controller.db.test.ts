@@ -361,6 +361,33 @@ describe('after activation', () => {
     }
   });
 
+  it("refuses a solution link that could reveal another organization's project", async () => {
+    activate();
+    const own = await create('ada', 'A plan');
+    const foreign = await create('grace', 'B plan');
+    sqlite.run("UPDATE project SET solution_slug = 'shared', solution_url = 'u' WHERE id = ?", [
+      foreign,
+    ]);
+    for (const slug of ['shared', 'free']) {
+      expect(
+        await call('ada', 'PATCH', `/api/projects/${own}`, { solutionRef: { slug, url: 'u' } }),
+      ).toEqual({ status: 403, body: { error: 'forbidden' } });
+    }
+    expect((await call('ada', 'PATCH', `/api/projects/${own}`, { solutionRef: null })).status).toBe(
+      200,
+    );
+  });
+
+  it('fails as a server error on a malformed membership role', async () => {
+    activate();
+    sqlite.run('PRAGMA ignore_check_constraints = ON');
+    sqlite.run("UPDATE organization_membership SET role = 'owner' WHERE user_id = ?", [
+      userId('vic'),
+    ]);
+    sqlite.run('PRAGMA ignore_check_constraints = OFF');
+    expect((await call('vic', 'POST', '/api/projects', { name: 'Owner plan' })).status).toBe(500);
+  });
+
   it('answers 401 for a missing credential, before organization access', async () => {
     activate();
     expect((await call('nobody', 'GET', '/api/projects')).status).toBe(401);
@@ -371,7 +398,7 @@ describe('a broken activation marker', () => {
   it.each([
     ['absent', 'DROP TABLE organization_activation'],
     ['malformed', 'DROP TRIGGER IF EXISTS organization_activation_no_delete'],
-  ])('fails every project route as a server error when %s', async (state, damage) => {
+  ])('fails the project list and read as a server error when %s', async (state, damage) => {
     sqlite.run(damage);
     if (state === 'malformed') sqlite.run('DELETE FROM organization_activation');
     expect((await call('ada', 'GET', '/api/projects')).status).toBe(500);

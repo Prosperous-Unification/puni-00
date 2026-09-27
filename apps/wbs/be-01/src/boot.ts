@@ -181,10 +181,10 @@ export async function bootBe01(
               loginThrottle: services.loginThrottle,
               oidc: opts.oidc,
               projects: services.projects,
-              // Proof: wiring legacy access here instead made `refuses every
-              // project route after activation until a session binds an
-              // organization` in `boot.db.test.ts`
-              // receive 200 instead of 403; watched 2026-09-27.
+              // Proof: wiring legacy access here instead made `refuses the
+              // project list after activation until a session binds an
+              // organization` in `boot.db.test.ts` receive 200 instead of 403;
+              // watched 2026-09-27.
               organizations: new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION),
               steps: services.steps,
               calendarMarkers: services.calendarMarkers,

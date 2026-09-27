@@ -1,4 +1,5 @@
 import type { OrganizationAccess, OrganizationAccessResolution } from '@wbs/core';
+import { ORGANIZATION_ROLES, type OrganizationRole } from '@wbs/domain';
 import { and, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -45,6 +46,10 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
       return { ok: true, access: { kind: 'legacy' } };
     }
     const organizationId = await this.activeOrganizationOf(userId);
+    // Proof: answering `legacy` here instead made `refuses a session bound to no
+    // organization before any lookup` in
+    // `project-organization.controller.db.test.ts` answer 200 for the list;
+    // watched 2026-09-27.
     if (organizationId === null) return { ok: false, refusal: 'no_active_organization' };
     // Proof: skipping this membership lookup (scoping to the bound organization
     // as a member) made `refuses a removed member on the next request` in
@@ -63,7 +68,30 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
     if (membership === undefined) return { ok: false, refusal: 'not_a_member' };
     return {
       ok: true,
-      access: { kind: 'scoped', scope: { organizationId, userId, role: membership.role } },
+      access: {
+        kind: 'scoped',
+        scope: { organizationId, userId, role: storedRole(membership.role, organizationId) },
+      },
     };
   }
+}
+
+/**
+ * The stored role, checked rather than trusted: the column's type is only what
+ * the schema declares, and an unknown role reaching the policy would be read as
+ * a writing one.
+ *
+ * Proof: returning the stored value unchecked made `fails as a server error on
+ * a malformed membership role` in `project-organization.controller.db.test.ts`
+ * answer 200 instead of 500; watched 2026-09-27.
+ *
+ * @throws when the stored role is not one of {@link ORGANIZATION_ROLES}.
+ */
+function storedRole(role: string, organizationId: string): OrganizationRole {
+  const known: readonly string[] = ORGANIZATION_ROLES;
+  if (!known.includes(role)) {
+    throw new Error(`membership in organization "${organizationId}" has a malformed role`);
+  }
+  // Narrowed by the membership test above, which is the boundary this is.
+  return role as OrganizationRole;
 }

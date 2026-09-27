@@ -253,7 +253,14 @@ export class ProjectService {
 
   /** {@link open} through the caller's access; a foreign project is not there. */
   async openWithin(id: string, actorId: string, access: ResourceAccess): Promise<boolean> {
-    const project = await this.find(id, access);
+    if (access.kind === 'scoped') {
+      return this.opts.projects.recordOpenInOrganization(
+        id,
+        this.clock.stampFor(actorId),
+        access.scope.organizationId,
+      );
+    }
+    const project = await this.opts.projects.findById(id);
     // A project that is not there is not opened. Recording it anyway would
     // leave a row pointing at nothing, and the foreign key would refuse it in
     // production while the fixture happily accepted it.
@@ -354,12 +361,32 @@ export class ProjectService {
     const authorization = await this.authorizeEdit(id, actorId, access);
     if (!authorization.ok) return authorization;
     const { project } = authorization;
+    // Solution slugs are still unique across the deployment, so after
+    // activation a link collision would reveal another organization's project.
+    // Linking is refused until task 3.5 scopes solution references; clearing a
+    // link stays allowed.
+    // Proof: removing this refusal made `refuses a solution link that could
+    // reveal another organization's project` in
+    // `project-organization.controller.db.test.ts` answer 500 instead of 403
+    // for the foreign project's slug; watched 2026-09-27.
+    if (access.kind === 'scoped' && patch.solutionRef != null) {
+      return { ok: false, reason: 'forbidden' };
+    }
     // After the authorization check, so a reader of a restricted project still
     // learns `forbidden` rather than a fact about how this box is wired.
     if (turnsTheOptimizerOn(project, patch) && !this.optimizerAvailable()) {
       return { ok: false, reason: 'optimizer_unavailable' };
     }
-    const updated = await this.opts.projects.update(id, patch, this.clock.stampFor(actorId));
+    const stamp = this.clock.stampFor(actorId);
+    const updated =
+      access.kind === 'scoped'
+        ? await this.opts.projects.updateInOrganization(
+            id,
+            patch,
+            stamp,
+            access.scope.organizationId,
+          )
+        : await this.opts.projects.update(id, patch, stamp);
     // Gone between the read and the write. Reporting success would tell the
     // caller their rename landed on a project that no longer exists.
     if (updated === null) return { ok: false, reason: 'not_found' };

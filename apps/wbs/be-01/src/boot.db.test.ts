@@ -285,7 +285,7 @@ describe('bootBe01', () => {
     expect(created.project.ownerId).toBe('local-dev');
   });
 
-  it('refuses every project route after activation until a session binds an organization', async () => {
+  it('refuses the project list after activation until a session binds an organization', async () => {
     const dir = tempDir('wbs-organization-boot-');
     const dbPath = join(dir, 'test.db');
     running = await bootBe01({

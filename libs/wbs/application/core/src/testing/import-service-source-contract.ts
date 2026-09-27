@@ -356,6 +356,10 @@ function heldSolutionUnitOfWork(
           list: () => stored.list(),
           listFor: (userId) => stored.listFor(userId),
           recordOpen: (projectId, stamp) => stored.recordOpen(projectId, stamp),
+          recordOpenInOrganization: (projectId, stamp, organizationId) =>
+            stored.recordOpenInOrganization(projectId, stamp, organizationId),
+          updateInOrganization: (id, changes, stamp, organizationId) =>
+            stored.updateInOrganization(id, changes, stamp, organizationId),
           update: (id, changes, stamp) => stored.update(id, changes, stamp),
           stepsOf: (projectId) => stored.stepsOf(projectId),
         };

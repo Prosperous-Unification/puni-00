@@ -178,7 +178,23 @@ export interface ProjectStore {
    * the act. Two names for one fact is how the two drift apart.
    */
   recordOpen(projectId: string, stamp: WriteStamp): Promise<void>;
+  /**
+   * {@link recordOpen} only while `organizationId` owns the project, checked in
+   * the write's own transaction; false, and nothing recorded, otherwise.
+   */
+  recordOpenInOrganization(
+    projectId: string,
+    stamp: WriteStamp,
+    organizationId: string,
+  ): Promise<boolean>;
   /** Returns null when the project is gone. */
   update(id: string, patch: ProjectPatch, stamp: WriteStamp): Promise<Project | null>;
+  /** {@link update} with the ownership predicate in the write; null when not the organization's. */
+  updateInOrganization(
+    id: string,
+    patch: ProjectPatch,
+    stamp: WriteStamp,
+    organizationId: string,
+  ): Promise<Project | null>;
   stepsOf(projectId: string): Promise<Step[]>;
 }

@@ -88,6 +88,16 @@ export function inMemoryProjects(
     findInOrganization(id, organizationId) {
       return owning.get(id) === organizationId ? store.findById(id) : Promise.resolve(null);
     },
+    async recordOpenInOrganization(projectId, stamp, organizationId) {
+      if (owning.get(projectId) !== organizationId) return false;
+      await store.recordOpen(projectId, stamp);
+      return true;
+    },
+    updateInOrganization(id, patch, stamp, organizationId) {
+      return owning.get(id) === organizationId
+        ? store.update(id, patch, stamp)
+        : Promise.resolve(null);
+    },
     async listForInOrganization(userId, organizationId) {
       return (await store.listFor(userId)).filter(
         (project) => owning.get(project.id) === organizationId,
