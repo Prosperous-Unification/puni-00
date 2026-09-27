@@ -1358,7 +1358,27 @@ export class WorkItemService {
   /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */
   async treeWithin(projectId: string, access: ResourceAccess): ReturnType<WorkItemService['tree']> {
     if (!(await this.admits(projectId, access))) return null;
-    return this.tree(projectId);
+    const tree = await this.tree(projectId);
+    if (access.kind === 'legacy' || tree === null || 'kind' in tree) return tree;
+    // Assignees under their organization-local names, as the scoped people
+    // list shows them; the tree read itself knows only the legacy name.
+    // Proof: returning the tree's legacy names made `shows assignees under the
+    // organization's own names` in `schedule-organization.controller.db.test.ts`
+    // answer `root-pe-a` instead of `pe-a`; watched 2026-09-27.
+    const local = new Map(
+      (await this.opts.directory.listInOrganization('people', access.scope.organizationId)).map(
+        (person) => [person.id, person.name] as const,
+      ),
+    );
+    return {
+      ...tree,
+      assignedPeople: tree.assignedPeople.map((person) => {
+        const name = local.get(person.id);
+        // `admits` has already refused an assignee the organization does not own.
+        if (name === undefined) throw new Error(`assignee "${person.id}" has no local name`);
+        return { ...person, name };
+      }),
+    };
   }
 
   /**
@@ -1373,7 +1393,9 @@ export class WorkItemService {
    * closed over a crossing estimate_step` in
    * `schedule-organization.controller.db.test.ts` answer 200 instead of 500,
    * and finding the project unscoped made `answers 404 alike for a foreign and
-   * an absent project` read the foreign tree; watched 2026-09-27.
+   * an absent project` read the foreign tree, and running the check under
+   * legacy access too failed `reads any project deployment-wide, crossing rows
+   * and all`; watched 2026-09-27.
    */
   private async admits(projectId: string, access: ResourceAccess): Promise<boolean> {
     const project = await findProjectWithin(this.opts.projects, projectId, access);

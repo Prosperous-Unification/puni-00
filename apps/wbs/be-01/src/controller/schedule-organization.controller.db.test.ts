@@ -134,6 +134,17 @@ describe('before activation', () => {
     h = OrganizationHarness.open();
     for (const username of ['ada', 'grace']) await h.register(username);
     const theirs = await create('ada', 'Legacy plan');
+    const other = await create('grace', 'Other plan');
+    const otherStep = await firstStep('grace', other);
+    h.sqlite.run(
+      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-l', ?, NULL, 0, 'Root')",
+      [theirs],
+    );
+    // A crossing row: this project's work item estimated on the other project's step.
+    h.sqlite.run(
+      'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 2, 3)',
+      ['w-l', otherStep],
+    );
     expect((await h.call('grace', 'GET', `/api/projects/${theirs}/work-items`)).status).toBe(200);
   });
 });
@@ -146,6 +157,13 @@ describe('after activation', () => {
     expect((await h.call('ada', 'GET', `/api/projects/${own}/export?format=markdown`)).status).toBe(
       200,
     );
+  });
+
+  it("shows assignees under the organization's own names", async () => {
+    const answer = await h.call('ada', 'GET', `/api/projects/${own}/work-items`);
+    expect((answer.body as { assignedPeople: unknown }).assignedPeople).toEqual([
+      { id: 'pe-a', name: 'pe-a' },
+    ]);
   });
 
   it('answers 404 alike for a foreign and an absent project', async () => {

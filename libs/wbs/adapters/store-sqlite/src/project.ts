@@ -413,9 +413,10 @@ export class ProjectRepository implements ProjectStore {
    * Proof: each arm but `work_item_parent` removed alone failed its own
    * `fails the schedule read closed over a crossing <kind>` case in
    * `schedule-organization.controller.db.test.ts`; watched 2026-09-27. The
-   * parent arm's removal is not observable there: the tree read already
-   * throws on a parent outside the project, so that case answers 500 either
-   * way. The arm stays so the refusal does not depend on that read.
+   * tree read already throws on a parent outside the project, so that mounted
+   * case answers 500 either way; removing the parent arm instead failed
+   * `reports a work item whose parent lies in another project` in
+   * `project.db.test.ts`.
    */
   async findCrossReferences(
     projectId: string,
