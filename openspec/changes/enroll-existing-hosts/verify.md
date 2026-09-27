@@ -6,7 +6,10 @@ was contacted. Real-host steps (task 8) are unrun.
 ## Unit and contract tests
 
 `env -u CLAUDECODE bun test` in `tools/tool-fleet`: `placement.test.ts` (10), `observability-budget.test.ts` (2),
-`ansible.test.ts`, `contracts.test.ts`, `plan.test.ts`, `lab-provider.test.ts` pass.
+`ansible.test.ts`, `contracts.test.ts`, `plan.test.ts`, `lab-provider.test.ts` pass. Under load
+(QEMU and a review running) `discover.test.ts`'s replaced-identity case and `lab.test.ts`'s token
+case exceed their 10 s and 5 s timeouts; both pass alone, and the discover case also times out on
+unmodified `main`.
 
 | Check                                     | Injected fault                                       | Observed                                                                    |
 | ----------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------- |
@@ -38,8 +41,8 @@ was contacted. Real-host steps (task 8) are unrun.
 Docker 29.1.3 and a `victoria-sentinel` busybox httpd on `127.0.0.1:8428` and
 `10.55.0.12:9428` were started on the enrolled agent (served locally and from the server).
 
-- `rollback-host.yml`: without `puni_rollback_host`, and with the server named, it stopped at
-  its first assert. Confirmed: k3s-agent inactive, no `inet puni_k3s`, 0 KUBE/CNI/FLANNEL
+- `rollback-host.yml` (first version, inline iptables shell): without `puni_rollback_host`, and
+  with the server named, it stopped at its first assert. Confirmed: k3s-agent inactive, no `inet puni_k3s`, 0 KUBE/CNI/FLANNEL
   rules, swap off, `cni0`/`flannel.1` gone, MTU 1500; the sentinel still served locally and
   over the private address and a container reached the internet. A second run `changed=0`
   (after making the swap, MTU, iptables and journald steps conditional).
@@ -55,6 +58,25 @@ Docker 29.1.3 and a `victoria-sentinel` busybox httpd on `127.0.0.1:8428` and
   (`changed=3`, probe Jobs). `after-enrollment` preflight passed; after a reboot the node was
   Ready, swap, firewall, k3s-agent and Docker active, sentinel serving, preflight passed. With
   the sentinel stopped it failed naming both listeners; restarted, it passed.
+
+## Second QEMU run after the review fixes
+
+`lab up` exit 0 in 14m12s with the fixed roles (cloud-init sudo policy, swap guard).
+
+- Swap 1024 → 0: `changed=3`, no swap device, file and fstab line gone; 0 again `changed=0`;
+  back to 1024 `changed=5`, then `changed=0`. With the new size condition removed, 1024 → 0
+  failed at "Deactivate the stale fleet swap file" (`swapoff failed: Invalid argument`).
+- Rollback with the runbook's JSON `--extra-vars` on the Docker agent: `changed=10`, the
+  `puni-remove-k3s-rules.sh` script reported `changed` for iptables and ip6tables; a rerun
+  `changed=0`. The `key=value` form (`puni_rollback_remove_operator=false`) stopped at the first
+  assert. Afterwards: no `inet puni_k3s`, 0 KUBE/CNI/FLANNEL rules, 21 DOCKER rules kept,
+  sentinel served locally and from the server, container egress worked.
+- Preflight sudo policy with `/etc/sudoers.d/90-cloud-init-users` granting `puni`: connecting as
+  the operator passed; operator `other-op` with removal on failed naming the grant; with
+  `puni_remove_cloud_init_sudoers=false` it passed.
+- Re-enrollment: join `changed=24` then `changed=0`, bootstrap `changed=0`, validation passed
+  (`changed=3`), after-enrollment preflight passed before and after an agent reboot, and the
+  sentinel answered from the server.
 
 ## Not run
 

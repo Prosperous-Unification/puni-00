@@ -1,11 +1,4 @@
 ---
-# Return one existing host to its pre-enrollment state after a failed or abandoned first
-# enrollment. It removes only what bootstrap.yml and join.yml install and leaves Docker, its
-# containers, networks and firewall rules running. It deletes k3s state, including a server's
-# etcd, so it is for a host whose cluster holds nothing worth keeping; an enrolled member with
-# workloads leaves through `tool-fleet` retirement instead. Runbook:
-# docs/infra/enroll-h4claw-h3mon.md. The pre-enrollment backup restores what base deleted
-# (the cloud-init sudo grant and commented swap lines).
 - name: Remove fleet enrollment from one host
   hosts: all
   become: true
@@ -31,17 +24,21 @@
 
     - name: Inspect k3s units
       ansible.builtin.stat:
-        path: '/etc/systemd/system/{{ item }}.service'
+        path: '/etc/systemd/system/{{ puni_unit }}.service'
       loop: [k3s, k3s-agent, puni-k3s-firewall, puni-private-mtu]
+      loop_control:
+        loop_var: puni_unit
       register: puni_rollback_units
 
     - name: Stop and disable k3s and fleet host services
       ansible.builtin.systemd_service:
-        name: '{{ item.item }}'
+        name: '{{ puni_unit_state.puni_unit }}'
         state: stopped
         enabled: false
       loop: '{{ puni_rollback_units.results }}'
-      when: item.stat.exists
+      loop_control:
+        loop_var: puni_unit_state
+      when: puni_unit_state.stat.exists
 
     - name: Stop k3s container shims, never Docker's
       # k3s runs its shims from its own data directory; Docker's live under /usr/bin.
@@ -62,20 +59,21 @@
 
     - name: Delete k3s network links
       ansible.builtin.shell: >-
-        if ip link show {{ item }} > /dev/null 2>&1; then ip link delete {{ item }}; echo deleted; fi
+        if ip link show {{ puni_link }} > /dev/null 2>&1; then
+        ip link delete {{ puni_link }}; echo deleted; fi
       loop: [cni0, flannel.1, flannel-v6.1, flannel-wg, kube-ipvs0]
+      loop_control:
+        loop_var: puni_link
       register: puni_rollback_links
       changed_when: "'deleted' in puni_rollback_links.stdout"
 
     - name: Remove k3s iptables chains and keep every other rule, including Docker's
-      ansible.builtin.shell: >-
-        set -o pipefail;
-        if {{ item }}-save | grep --quiet --extended-regexp 'KUBE-|CNI-|FLANNEL|flannel'; then
-        {{ item }}-save | grep --invert-match --extended-regexp 'KUBE-|CNI-|FLANNEL|flannel'
-        | {{ item }}-restore; echo changed; fi
-      args:
-        executable: /bin/bash
+      # Proof: ansible.test.ts runs this script with a failing save and a failing restore; both exit
+      # nonzero, so the task fails instead of reporting no rules.
+      ansible.builtin.script: 'files/puni-remove-k3s-rules.sh {{ puni_rule_family }}'
       loop: [iptables, ip6tables]
+      loop_control:
+        loop_var: puni_rule_family
       register: puni_rollback_iptables
       changed_when: "'changed' in puni_rollback_iptables.stdout"
 
@@ -109,8 +107,10 @@
 
     - name: Delete fleet files and k3s state
       ansible.builtin.file:
-        path: '{{ item }}'
+        path: '{{ puni_fleet_path }}'
         state: absent
+      loop_control:
+        loop_var: puni_fleet_path
       loop:
         - /swap.puni
         - /etc/systemd/system/k3s.service

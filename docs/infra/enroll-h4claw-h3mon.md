@@ -7,15 +7,33 @@ rehearsal and its limits are in
 [the enroll-existing-hosts verification](../../openspec/changes/enroll-existing-hosts/verify.md).
 
 Placement is `infra/fleet/desired.yaml`; host variables are
-`infra/ansible/inventory/production-existing-hosts.yml`. h2puni stays outside k3s and h1claw
-gets nothing (reasons in `desired.yaml`).
+`infra/ansible/inventory/production-existing-hosts.yml`.
+
+## Placement
+
+From the read-only probe of 2026-09-27:
+
+- **h4claw** (8 cores, 15 GiB, private 10.1.0.4) is the single platform server with `product` and
+  `ingress`.
+- **h3mon** (4 cores, 7.6 GiB, private 10.1.0.2) is an agent with `observability` only. Its
+  Docker-run Victoria, Grafana and MLflow stay outside k3s and keep running.
+- **h2puni** (private 10.1.0.3) stays outside k3s. It is live production, the build box, the
+  registry and the host-wide gate; a join would share its memory and firewall with k3s before
+  the lock-aware cordon that WBS 070.3 requires exists. It is the Ansible controller below.
+- **h1claw** is in no cluster: it holds the operator credentials and the backup puller and must
+  not build or run workloads.
+- The workers cluster has no host yet; it stays `bootstrap: required` with no nodes.
+
+A machine ID written `operator-input:<host> /etc/machine-id` in `desired.yaml` (and `unread` in
+the inventory) has not been read yet; every `tool-fleet` operation on that node refuses, and the
+base role refuses `unread`.
 
 ## What changes on each host
 
-| Host   | Changes                                                                                                                                                                                                                                    | Kept                                                                             |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| h4claw | apt prerequisites, account `puni-fleet` with sudo, `/etc/sudoers.d/90-cloud-init-users` **deleted**, bounded journald, k3s sysctls and modules, fleet nftables table, MTU unit, k3s server with embedded etcd; later Flux (`platform.yml`) | Docker and OpenHands (`127.0.0.1:3000`), SSH                                     |
-| h3mon  | the same base and network changes, a 4 GiB `/swap.puni`, k3s agent capped by 1024Mi system + 384Mi kube reservations; later Elasticsearch, Kibana, Prometheus and collectors pinned to it                                                  | Docker, Victoria (8428, 9428, 10428), Grafana (3000), MLflow (5000), OTel (4318) |
+| Host   | Changes                                                                                                                                                                                                                      | Kept                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| h4claw | apt prerequisites, account `puni-fleet` with sudo (the cloud-init sudo grant is kept), bounded journald, k3s sysctls and modules, fleet nftables table, MTU unit, k3s server with embedded etcd; later Flux (`platform.yml`) | Docker and OpenHands (`127.0.0.1:3000`), SSH                                     |
+| h3mon  | the same base and network changes, a 4 GiB `/swap.puni`, k3s agent capped by 1024Mi system + 384Mi kube reservations; later Elasticsearch, Kibana, Prometheus and collectors pinned to it                                    | Docker, Victoria (8428, 9428, 10428), Grafana (3000), MLflow (5000), OTel (4318) |
 
 Pods never swap; host services may. The budget test
 `tools/tool-fleet/src/observability-budget.test.ts` fits every pinned workload and DaemonSet in
@@ -30,6 +48,7 @@ h3mon's allocatable memory.
 | machine IDs                                                         | step 2's preflight fact, committed into `desired.yaml`                |
 | `puni-fleet` authorized keys                                        | Dany                                                                  |
 | k3s bootstrap credentials                                           | step 4, generated on h2puni with `openssl rand -hex 32` twice         |
+| platform Secrets and the hcloud token                               | step 7                                                                |
 | Hetzner server names, `HCLOUD_TOKEN`                                | Dany, for the snapshots in step 3                                     |
 | Flux deploy key, its `known_hosts`, SOPS age key, platform revision | `docs/infra/platform.md`; step 7                                      |
 | container names to preserve                                         | step 2's preflight fact (`containers`)                                |
@@ -74,9 +93,9 @@ fleet_ansible --extra-vars puni_preflight_stage=before-enrollment playbooks/pref
 
 It prints one `PUNI_PREFLIGHT_FACT=` line per host and fails on: another OS, too little memory,
 the private address not on `enp7s0`, k3s already present, a k3s port in use, a cluster or
-service CIDR overlapping a route or Docker network, an admin user whose sudo comes only from
-the cloud-init file the base role deletes, an existing `puni-fleet` with other keys, or a
-preserved listener that is not listening.
+service CIDR overlapping a route or Docker network, an existing `puni-fleet` with other keys, or
+a preserved listener that is not listening. The inventory keeps the cloud-init sudo grant
+(`puni_remove_cloud_init_sudoers: false`), so the admin user keeps sudo.
 
 Record from each fact: `machineId`, `privateMtu` (the rollback MTU), `containers`, `swap`. In one
 reviewed PR, replace each `operator-input:` machine ID in `infra/fleet/desired.yaml` and each
@@ -93,7 +112,7 @@ hcloud server create-image --type snapshot --description "pre-k3s h3mon" <h3 ser
 ssh h3mon 'curl --fail --silent http://127.0.0.1:8428/snapshot/create'   # consistent VictoriaMetrics snapshot
 for host in h4claw h3mon; do
   ssh "$host" 'sudo tar --create --gzip --preserve-permissions --file /root/pre-k3s-etc.tgz \
-    /etc/fstab /etc/sudoers.d /etc/sysctl.d /etc/modules-load.d /etc/systemd /etc/nftables.conf'
+    /etc/fstab /etc/sudoers.d /etc/sysctl.d /etc/modules-load.d /etc/systemd'
   ssh "$host" 'sudo docker ps --format "{{.Names}} {{.Mounts}}"' > "$OPS/$host-docker-mounts.txt"
 done
 ```
@@ -118,8 +137,8 @@ Read the CA-bound join tokens (`/var/lib/rancher/k3s/server/token` and `agent-to
 into `$OPS/vars.json` as `puni_k3s_server_token` and `puni_k3s_agent_token`. The node keeps its
 `puni.io/enrollment` taint until step 5's validation, which needs both nodes.
 
-The API stays reachable only from enrolled addresses and loopback; use a tunnel for `kubectl`:
-`ssh -N -L 16443:127.0.0.1:6443 h4claw`.
+The API admits only enrolled addresses and loopback, so run `kubectl` on h4claw itself:
+`ssh h4claw sudo k3s kubectl get nodes`.
 
 ## 5. Join h3mon
 
@@ -142,12 +161,33 @@ identity gate.
 
 ```sh
 ssh h3mon 'swapon --show; cat /sys/fs/cgroup/kubepods.slice/memory.max; free -m'
-kubectl --server https://127.0.0.1:16443 get node h3mon -o jsonpath='{.status.allocatable.memory}'
+ssh h4claw sudo k3s kubectl get node h3mon -o jsonpath='{.status.allocatable.memory}'
 ```
 
 `memory.max` must equal capacity minus 1408 MiB; `/swap.puni` 4 GiB active.
 
 ## 7. Flux and SOPS (070.5)
+
+**Blocked until two decisions exist.** The production graph installs the hcloud cloud
+controller and CSI driver (`infra/platform/storage/production`). They need a
+`kube-system/hcloud` Secret with an API token, kubelets started with an external cloud provider
+(the inventory still sets `puni_disable_cloud_controller: false`), and node names that match the
+Hetzner server names, which were not probed. Either change h3mon's and h4claw's node names and
+cloud-provider settings, or give this cluster a storage overlay without hcloud; that is the
+070.5/070.8 storage packet, not this procedure.
+
+Once decided, create each Secret that
+`infra/platform/secrets/platform-production/externally-provided.json` lists
+(`alertmanager-puni`, `elastic-s3-credentials`, `velero-credentials`, `velero-repo-credentials`,
+`registry-auth`, `registry-ca`) and `kube-system/hcloud`, from their SOPS files or by hand, and
+check each exists:
+
+```sh
+ssh h4claw sudo k3s kubectl get secret -n observability alertmanager-puni elastic-s3-credentials
+ssh h4claw sudo k3s kubectl get secret -n puni-backup velero-credentials velero-repo-credentials
+ssh h4claw sudo k3s kubectl get secret -n puni-registry registry-auth registry-ca
+ssh h4claw sudo k3s kubectl get secret -n kube-system hcloud
+```
 
 Place the read-only deploy key, its `known_hosts` and the SOPS age key on h4claw at mode `0600`
 ([platform](platform.md)), then:
@@ -159,8 +199,9 @@ fleet_ansible --limit h4claw --extra-vars puni_cluster_id=platform-production \
 ```
 
 `$OPS/flux.json` holds `puni_flux_url`, `puni_flux_sha256`, `puni_flux_version`,
-`puni_flux_install_sha256`, `puni_platform_repository_url` and the three key paths. Watch the
-`observability` stage reach Ready and rerun step 6.
+`puni_flux_install_sha256`, `puni_platform_repository_url` and the three key paths. Watch each
+stage (`ssh h4claw sudo k3s kubectl get kustomizations -n flux-system`) reach Ready in order,
+then rerun step 6.
 
 ## 8. Verify nothing was lost
 
@@ -173,14 +214,14 @@ snapshot.
 Before any workload you need exists on the cluster, per host, h3mon first:
 
 ```sh
-fleet_ansible --limit h3mon --extra-vars puni_rollback_host=h3mon \
-  --extra-vars puni_rollback_private_mtu=<privateMtu from step 2> \
-  --extra-vars puni_rollback_remove_operator=true playbooks/rollback-host.yml
-ssh h3mon 'sudo tar --extract --gzip --file /root/pre-k3s-etc.tgz -C / etc/sudoers.d/90-cloud-init-users etc/fstab'
-kubectl --server https://127.0.0.1:16443 delete node h3mon   # while h4claw still runs
+fleet_ansible --limit h3mon --extra-vars \
+  '{"puni_rollback_host":"h3mon","puni_rollback_private_mtu":<privateMtu from step 2>,"puni_rollback_remove_operator":true}' \
+  playbooks/rollback-host.yml
+ssh h4claw sudo k3s kubectl delete node h3mon   # while h4claw still runs
 ```
 
-`puni_rollback_remove_operator=true` deletes `puni-fleet`; never set it when that is the
+The variables go as JSON: `key=value` would make the boolean a string, which the play refuses.
+`puni_rollback_remove_operator: true` deletes `puni-fleet`; never set it when that is the
 connecting account. Then the same for h4claw. The play leaves Docker, its containers and its iptables rules running;
 rerun step 2's preflight to confirm. After workloads exist, h3mon leaves through
 `tool-fleet` retirement ([fleet](fleet.md#retirement-replacement-and-upgrade)), and a failed

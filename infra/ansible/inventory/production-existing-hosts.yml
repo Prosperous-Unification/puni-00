@@ -1,8 +1,3 @@
-# Static inventory for the two existing hosts of the platform cluster; placement lives in
-# infra/fleet/desired.yaml and the ordered commands in docs/infra/enroll-h4claw-h3mon.md.
-# Values come from the read-only probe of 2026-09-27. It holds no secret: the operator passes
-# authorized keys, k3s credentials and tokens, the pinned k3s artifact and the SSH user and
-# known-hosts policy in an owner-only variables file with `--extra-vars @<file>`.
 all:
   vars:
     puni_cluster_id: platform
@@ -18,6 +13,8 @@ all:
     puni_disable_cloud_controller: false
     # A new account, so the base role replaces no existing user's authorized keys.
     puni_operator_name: puni-fleet
+    # Adopted hosts keep their administrators' cloud-init sudo grant.
+    puni_remove_cloud_init_sudoers: false
   children:
     k3s_bootstrap_servers:
       hosts:

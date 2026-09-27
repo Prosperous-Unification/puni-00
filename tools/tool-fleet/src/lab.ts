@@ -878,6 +878,7 @@ async function writeLabState(
         puni_cluster_id: request.profile,
         puni_operator_name: 'puni',
         puni_operator_authorized_keys: [bootstrap.publicKey],
+        puni_remove_cloud_init_sudoers: true,
         puni_kubelet_system_reserved_memory: '256Mi',
         puni_kubelet_kube_reserved_memory: '256Mi',
         puni_kubelet_eviction_memory: '100Mi',

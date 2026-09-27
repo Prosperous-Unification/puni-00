@@ -15,7 +15,11 @@
       - puni_swap_file_mib | string is match('^[0-9]+$')
       - puni_machine_id is defined
       - puni_machine_id is match('^[0-9a-f]{32}$')
-    fail_msg: Host support, operator identity, keys, and the swap-file size are required
+      # False on an adopted host, whose existing administrators keep their cloud-init grant.
+      - puni_remove_cloud_init_sudoers in [true, false]
+    fail_msg: >-
+      Host support, operator identity, keys, the swap-file size and the cloud-init sudo policy
+      are required
 
 - name: Install host prerequisites
   ansible.builtin.apt:
@@ -72,6 +76,7 @@
   ansible.builtin.file:
     path: /etc/sudoers.d/90-cloud-init-users
     state: absent
+  when: puni_remove_cloud_init_sudoers
 
 - name: Create the journald configuration directory
   # Proof: a clean Ubuntu 24.04 VM omitted this directory and the production bootstrap exited 2
@@ -129,10 +134,12 @@
   changed_when: false
 
 - name: Disable every active swap device except the fleet swap file
-  ansible.builtin.command: 'swapoff {{ item }}'
+  ansible.builtin.command: 'swapoff {{ puni_swap_device }}'
   loop: >-
     {{ puni_active_swap.stdout_lines[1:] | map('split') | map('first') | list
        | difference(['/swap.puni'] if puni_swap_file_mib | int > 0 else []) }}
+  loop_control:
+    loop_var: puni_swap_device
   changed_when: true
 
 - name: Disable configured swap mounts other than the fleet swap file
@@ -148,14 +155,18 @@
 
 - name: Remove a fleet swap file of another size or one no longer wanted
   # Proof: without this, changing puni_swap_file_mib left the old-size file active; the lab
-  # resize drill recorded in openspec/changes/k3s-fleet/verify.md observed the exact new size.
+  # resize drill in openspec/changes/enroll-existing-hosts/verify.md observed the exact new size.
   when:
     - puni_swap_file.stat.exists
     - puni_swap_file_mib | int == 0 or puni_swap_file.stat.size != puni_swap_file_mib | int * 1048576
   block:
     - name: Deactivate the stale fleet swap file
+      # With a size of 0 the loop above has already deactivated it. Proof: without the size
+      # condition, 1024 to 0 on the lab agent failed here with "swapoff failed: Invalid argument".
       ansible.builtin.command: swapoff /swap.puni
-      when: "'/swap.puni' in puni_active_swap.stdout"
+      when:
+        - puni_swap_file_mib | int > 0
+        - "'/swap.puni' in puni_active_swap.stdout"
       changed_when: true
 
     - name: Delete the stale fleet swap file

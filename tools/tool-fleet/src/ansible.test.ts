@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -547,6 +547,55 @@ describe('the Ansible host and k3s contract', () => {
       );
       expect(tasks).toContain("puni_kubelet_system_reserved_memory is match('^[0-9]+Mi$')");
     }
+  });
+
+  it('removes k3s rules only through a checked save and restore', async () => {
+    const script = join(
+      import.meta.dir,
+      '../../../infra/ansible/playbooks/files/puni-remove-k3s-rules.sh',
+    );
+    const bin = await mkdtemp(join(tmpdir(), 'fleet-rules-'));
+    const restored = join(bin, 'restored');
+    const fake = async (saveExit: number, restoreExit: number, rules: string) => {
+      await writeFile(
+        join(bin, 'iptables-save'),
+        `#!/bin/sh\nprintf '%s\\n' '${rules}'\nexit ${String(saveExit)}\n`,
+        { mode: 0o755 },
+      );
+      await writeFile(
+        join(bin, 'iptables-restore'),
+        `#!/bin/sh\ncat > '${restored}'\nexit ${String(restoreExit)}\n`,
+        { mode: 0o755 },
+      );
+      await rm(restored, { force: true });
+      return Bun.spawnSync(['bash', script, 'iptables'], {
+        env: { PATH: `${bin}:/usr/bin:/bin` },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+    };
+    const docker = '-A FORWARD -j DOCKER-USER';
+    const kube = '-A FORWARD -j KUBE-FORWARD';
+
+    const removed = await fake(0, 0, `${docker}\n${kube}`);
+    expect(removed.exitCode).toBe(0);
+    expect(removed.stdout.toString()).toBe('changed\n');
+    expect(await readFile(restored, 'utf8')).toBe(`${docker}\n`);
+
+    const clean = await fake(0, 0, docker);
+    expect(clean.exitCode).toBe(0);
+    expect(clean.stdout.toString()).toBe('');
+    expect(await Bun.file(restored).exists()).toBe(false);
+
+    // Proof: the former inline `if save | grep -q` form exited 0 with no output for both faults.
+    const saveFailed = await fake(3, 0, kube);
+    expect(saveFailed.exitCode).not.toBe(0);
+    expect(await Bun.file(restored).exists()).toBe(false);
+    const restoreFailed = await fake(0, 4, `${docker}\n${kube}`);
+    expect(restoreFailed.exitCode).not.toBe(0);
+    expect(restoreFailed.stdout.toString()).toBe('');
+
+    expect(Bun.spawnSync(['bash', script, 'ebtables']).exitCode).toBe(64);
   });
 
   it('keeps the host preflight free of mutating modules', async () => {

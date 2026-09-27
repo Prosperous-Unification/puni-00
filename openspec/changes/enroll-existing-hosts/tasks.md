@@ -12,6 +12,8 @@
 - [x] 5. Read-only `preflight.yml` with negatives for interface, machine ID, k3s present, port,
       CIDR overlap and a stopped preserved service.
 - [x] 6. `rollback-host.yml` rehearsed on a Docker host in the lab: idempotent, Docker untouched,
-      host re-enrolls.
+      host re-enrolls; iptables cleanup in a script that fails on a failed save or restore.
+- [x] 6a. Adopted hosts keep the cloud-init sudo grant (`puni_remove_cloud_init_sudoers`);
+      preflight refuses removal while another account connects.
 - [x] 7. Runbook `docs/infra/enroll-h4claw-h3mon.md` with ordered commands, backups and rollback.
 - [ ] 8. Real hosts: run the runbook after Dany authorizes it; record results here.
