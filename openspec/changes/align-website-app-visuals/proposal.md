@@ -6,7 +6,7 @@ The continuation app still uses a green palette and different typography from th
 
 ## Outcome
 
-Give the manual brief, studio and operator views the site's neutral white and dark spectral palette, warm gold controls, Inter Tight headings, Geist body text and clean PUNI wordmark. Keep each view readable on desktop and mobile.
+Give the manual brief, studio and operator views the site's neutral white and dark spectral palette, warm gold controls, Inter Tight headings, Geist body text and PUNI wordmark with a small separated accent dot. Keep each view readable on desktop and mobile.
 
 ## Non-goals
 

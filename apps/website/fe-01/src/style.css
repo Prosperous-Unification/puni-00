@@ -36,8 +36,13 @@ a {
   color: inherit;
 }
 :is(a, button, input, textarea):focus-visible {
-  outline: 2px solid #f6ae4c;
+  outline: 2px solid #a96214;
   outline-offset: 3px;
+}
+.site-header a:focus-visible,
+.context-panel a:focus-visible,
+.site-footer a:focus-visible {
+  outline-color: #f6ae4c;
 }
 .page-shell {
   min-height: 100vh;
@@ -61,6 +66,12 @@ a {
     Arial,
     sans-serif;
   letter-spacing: -0.045em;
+}
+.brand-dot {
+  color: #f6ae4c;
+  font-size: 0.38em;
+  margin-left: 0.2em;
+  vertical-align: top;
 }
 .site-header nav {
   display: flex;

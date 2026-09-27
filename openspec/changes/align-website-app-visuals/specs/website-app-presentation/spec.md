@@ -2,7 +2,7 @@
 
 ### Requirement: Consistent PUNI presentation
 
-The website continuation app SHALL use PUNI's dark spectral and neutral white palette, warm gold controls, Inter Tight headings, Geist body text and clean PUNI wordmark across manual brief, studio and operator routes. It SHALL use redistributable self-hosted fonts with their license texts and SHALL not include licensed Novaform theme files or demo media.
+The website continuation app SHALL use PUNI's dark spectral and neutral white palette, warm gold controls, Inter Tight headings, Geist body text and PUNI wordmark with a small accent dot clear of the final letter across manual brief, studio and operator routes. It SHALL use redistributable self-hosted fonts with their license texts and SHALL not include licensed Novaform theme files or demo media.
 
 #### Scenario: Visitor continues a request
 
