@@ -76,6 +76,24 @@ describe('the Plan import module', () => {
     });
   });
 
+  it('refuses a row carrying two types before any write, announcing nothing', async () => {
+    const announcements = recordingBroadcaster();
+    const { imports } = installPlanImport({ ...requirements(), announcements });
+    const document = planDocumentFixture();
+    document.directory.types.push({ id: 'type-2', name: 'Spike' });
+    const row = document.workItems.at(0);
+    if (row === undefined) throw new Error('fixture lost its own first work item');
+    row.typeIds = ['type-1', 'type-2'];
+
+    expect(await imports.import(document, 'importer')).toEqual({
+      ok: false,
+      code: 'work_item_takes_one_type',
+      path: 'workItems[0].typeIds',
+      detail: 'row-1',
+    });
+    expect(announcements.published).toEqual([]);
+  });
+
   it('admits a small document over the graph installPlanImport wires', async () => {
     const announcements = recordingBroadcaster();
     const { imports } = installPlanImport({ ...requirements(), announcements });

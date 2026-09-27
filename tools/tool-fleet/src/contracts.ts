@@ -50,7 +50,7 @@ const ToolchainSchema = type({
   schemaVersion: '1',
   supportedHosts: type({
     distribution: "'ubuntu'",
-    version: "'24.04'",
+    version: "'24.04' | '26.04'",
     arch: "'amd64'",
     '+': 'reject',
   })
@@ -651,7 +651,7 @@ function identifyProvider(node: FleetNode): string {
  * Decode desired fleet state and enforce identities and placement rules that
  * cannot be expressed as independent object fields.
  *
- * Duplicate logical/provider identities, unknown cluster references, invalid
+ * Duplicate logical/provider identities, duplicate SSH addresses, unknown cluster references, invalid
  * server topology, and cross-cluster capability placement throw.
  */
 export function decodeFleet(input: unknown): Fleet {
@@ -685,6 +685,7 @@ export function decodeFleet(input: unknown): Fleet {
 
   const nodes = new Map<string, FleetNode>();
   const providers = new Map<string, string>();
+  const sshAddresses = new Map<string, string>();
   for (const node of decoded.nodes) {
     if (nodes.has(node.id)) {
       // Proof: accepting a repeated logical id made the duplicate-node production decoder
@@ -709,6 +710,17 @@ export function decodeFleet(input: unknown): Fleet {
       throw new Error(`Duplicate provider identity ${identity}: ${owner} and ${node.id}`);
     }
     providers.set(identity, node.id);
+    if (node.provider.kind === 'ssh') {
+      const addressOwner = sshAddresses.get(node.provider.address);
+      if (addressOwner !== undefined) {
+        // Proof: disabling this guard made `rejects two SSH nodes at one address` decode h3mon at
+        // h4claw's private address, so one host could be configured under two logical identities.
+        throw new Error(
+          `Duplicate SSH address ${node.provider.address}: ${addressOwner} and ${node.id}`,
+        );
+      }
+      sshAddresses.set(node.provider.address, node.id);
+    }
     if (node.capabilities.includes('execution') && cluster.purpose !== 'workers') {
       // Proof: allowing execution on the platform cluster made the placement negative fail.
       throw new Error(`Execution capability for ${node.id} must belong to workers`);

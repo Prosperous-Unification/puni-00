@@ -15,6 +15,7 @@ import { type Busy, createBusy } from '@/modules/plan-writer/busy-store';
 import type { PlanWriter } from '@/modules/plan-writer/contract';
 import { createPlanWriter } from '@/modules/plan-writer/plan-writer.feature';
 import type { PlanRefusal, ProjectRuntime, ProjectSource } from '@/modules/project/contract';
+import type { OpenedSavedPlans } from '@/modules/saved-plans/contract';
 import type { Store } from '@/modules/store';
 
 import { acquireTransactionally } from './application-runtime';
@@ -51,12 +52,13 @@ export interface ProjectRuntimeDependencies extends ProjectSource {
  * hold. The feed starts reading as soon as it is resolved, exactly as the
  * table's effect used to start it.
  *
- * **The feed is the graph's one owned disposable**, given back through
- * `DiBag.providerWithDisposal` when the runtime's close runs: its refresh owner is
- * disposed and its stream unsubscribed then, once. The stores and channels hold
- * nothing that needs giving back.
+ * **The feed and the saved plans are the graph's two owned disposables**, each
+ * given back through `DiBag.providerWithDisposal` when the runtime's close runs:
+ * the feed's refresh owner is disposed and its stream unsubscribed then, once,
+ * and so is the saved-plan shelf's watch. The stores and channels hold nothing
+ * that needs giving back.
  *
- * Four guards read the owner's `isCurrent`, and the first three are the
+ * Five guards read the owner's `isCurrent`, and the first three are the
  * table's old reader guards moved to where the reader now is:
  *
  * - the feed hands nothing on — no publication, no refusal, no connection —
@@ -69,7 +71,9 @@ export interface ProjectRuntimeDependencies extends ProjectSource {
  *   this identity would decide nothing it does not;
  * - a reread asked of it after that reads nothing;
  * - its stream tells its presence nothing more, so the roster of a project
- *   that has been left is never changed after it was left.
+ *   that has been left is never changed after it was left;
+ * - its saved-plan shelf never changes again, and a saved-plan request sends
+ *   nothing and rejects.
  *
  * @throws `PartialAcquisitionError` when a service cannot be resolved, carrying
  * the bounded close for whatever was acquired first — the feed above all,
@@ -237,6 +241,20 @@ export function installProjectRuntime({
       commands: DiBag.createProvider((): PlanCommands => services.planCommandsFor(projectId), {
         factoryReturnKind: 'sync-value',
       }),
+      savedPlans: DiBag.providerWithDisposal({
+        provider: DiBag.createProvider(
+          (): OpenedSavedPlans => services.savedPlansFor({ projectId, isCurrent }),
+          { factoryReturnKind: 'sync-value' },
+        ),
+        disposeService: (opened) => {
+          // Proof: on 2026-09-27, closing nothing here (r1) failed `stops the saved-plan shelf’s
+          // watch once, when the project is left` on `expected +0 to be 1`, and `shows a saved-plan
+          // shelf that will not stop as the fatal state` on `expected false to be true`; through the
+          // page, `draws no shelf while the last project lets go, and the next one’s own rows after`
+          // on `expected [] to deeply equal [ 'p1' ]`.
+          opened.close();
+        },
+      }),
     })
     .buildContainer();
   // Proof: on 2026-09-24, publishing the feed beside these keys (k1) failed `publishes the
@@ -256,6 +274,7 @@ export function installProjectRuntime({
     markers: bag.resolve('markers'),
     writer: bag.resolve('writer'),
     commands: bag.resolve('commands'),
+    savedPlans: bag.resolve('savedPlans').savedPlans,
   }));
 }
 

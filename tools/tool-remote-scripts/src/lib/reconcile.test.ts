@@ -103,6 +103,27 @@ describe('planSwap', () => {
     }
   });
 
+  it('backfills step codes for be once the old colour has stopped, before committing', () => {
+    const steps = planSwap('be', base).steps;
+    expect(steps.slice(-3)).toEqual(['stop-blue', 'backfill-step-codes', 'commit']);
+  });
+
+  it('backfills step codes for be on a first-ever deploy too — the file may predate it', () => {
+    const steps = planSwap('be', {
+      routedColor: null,
+      runningColors: [],
+      recordedColor: null,
+      phase: null,
+    }).steps;
+    expect(steps.slice(-2)).toEqual(['backfill-step-codes', 'commit']);
+  });
+
+  it('never backfills step codes for gw or fe', () => {
+    for (const tier of ['gw', 'fe'] as const) {
+      expect(planSwap(tier, base).steps).not.toContain('backfill-step-codes');
+    }
+  });
+
   it('always ends by committing', () => {
     expect(planSwap('fe', base).steps.at(-1)).toBe('commit');
   });

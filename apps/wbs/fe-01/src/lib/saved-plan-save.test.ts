@@ -1,9 +1,10 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { SavedPlans } from '../modules/saved-plans/contract';
 import type { SavedPlanListEntryView, SavedPlanSaveReply } from './saved-plan-api';
 import type { SaveDeps } from './saved-plan-save';
-import { useSavedPlanSave } from './saved-plan-save';
+import { saveOf, useSavedPlanSave } from './saved-plan-save';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -217,6 +218,34 @@ describe('the Save plan action', () => {
       replaced.result.current.save();
     });
     expect(fake.calls).toHaveLength(2);
+  });
+
+  /**
+   * The same lock, reached the way the panel reaches it: through the project
+   * runtime's saved plans, which every mount of the shelf is handed afresh.
+   */
+  itDom('joins a save started before the shelf moved, rather than sending a second', () => {
+    const fake = deferredSave();
+    const savedPlans: SavedPlans = {
+      shelf: { subscribe: () => () => undefined, snapshot: () => ({ kind: 'loading' }) },
+      refresh: () => undefined,
+      save: () => fake.deps.save('p1'),
+      rename: () => Promise.reject(new Error('not asked in this case')),
+      compare: () => Promise.reject(new Error('not asked in this case')),
+    };
+    const held = renderHook(() => useSavedPlanSave(saveOf(savedPlans), 'p1'));
+    act(() => {
+      held.result.current.save();
+    });
+
+    held.unmount();
+    const replaced = renderHook(() => useSavedPlanSave(saveOf(savedPlans), 'p1'));
+    act(() => {
+      replaced.result.current.save();
+    });
+
+    expect(fake.calls).toHaveLength(1);
+    expect(replaced.result.current.state).toEqual({ kind: 'saving' });
   });
 
   /**

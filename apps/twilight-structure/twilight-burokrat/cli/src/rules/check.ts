@@ -8,7 +8,8 @@ import {
   resolveCandidateRoot,
 } from '../inventory/read-candidate';
 import { extractRelationships } from '../relationships';
-import { resolveKinds } from './kinds';
+import { readKindInventory } from './kind-inventory';
+import { type KindGraph, resolveKinds } from './kinds';
 import { findRule, registeredIds, registeredRules } from './registry';
 import {
   type Finding,
@@ -110,6 +111,21 @@ function readRelationshipOutcome(
   }
 }
 
+function readKindOutcome(
+  repository: string,
+  candidate: CandidateSnapshot,
+  inventoryPath: string | undefined,
+): RuleOutcome<KindGraph> {
+  try {
+    const inventory =
+      inventoryPath === undefined ? [] : readKindInventory(repository, candidate, inventoryPath);
+    return { ok: true, report: resolveKinds(candidate.entries, inventory) };
+  } catch (cause) {
+    // Modeled recovery: an unusable inventory is a failure to evaluate every rule that reads kinds.
+    return { ok: false, reason: reasonOf(cause) };
+  }
+}
+
 /** Runs every selected rule over one candidate and returns one verdict. Never certifies. */
 export function checkCandidate(request: CheckRequest): Verdict {
   const candidateRoot = resolveCandidateRoot(request.repository);
@@ -145,7 +161,7 @@ export function checkCandidate(request: CheckRequest): Verdict {
       : { relationshipRequest: policy.relationshipRequest }),
     ...(policy.sizeCeilings === undefined ? {} : { sizeCeilings: policy.sizeCeilings }),
     indexes: readIndexOutcome(candidateRoot, candidate),
-    kinds: resolveKinds(candidate.entries),
+    kinds: readKindOutcome(candidateRoot, candidate, policy.kindInventory?.path),
     relationships,
   };
   const findings: Finding[] = [];

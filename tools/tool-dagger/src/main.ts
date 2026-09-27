@@ -20,6 +20,7 @@ const DOCKERFILE: Record<Tier, string> = {
   be: 'apps/wbs/be-01/Dockerfile',
   gw: 'apps/wbs/gw-01/Dockerfile',
   fe: 'apps/wbs/fe-01/Dockerfile',
+  mcp: 'apps/wbs/mcp-01/Dockerfile',
 };
 
 function localCopySources(source: string): string[] {
@@ -626,8 +627,10 @@ async function main(): Promise<void> {
   // Before any engine connection or push: the label must actually describe
   // what is about to be built.
   assertCleanTree(cleanTreeRepository());
-  const arg = process.argv[2] ?? 'be,gw,fe';
-  const tiers = arg.split(',').filter((t): t is Tier => t === 'be' || t === 'gw' || t === 'fe');
+  const arg = process.argv[2] ?? 'be,gw,fe,mcp';
+  const tiers = arg
+    .split(',')
+    .filter((t): t is Tier => t === 'be' || t === 'gw' || t === 'fe' || t === 'mcp');
   const capacity = readBuildCapacity();
   console.error(
     `[tool-dagger] capacity: available-memory=${String(capacity.availableMemoryBytes)} ` +

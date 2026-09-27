@@ -676,6 +676,13 @@ export function PlanToolbar({
     chartRead.optimization.engine === 'optimized' &&
     chartRead.optimization.displayed === 'fast';
 
+  /**
+   * Whether any branch exists for the two expansion ends to open or close.
+   * Without one they do nothing and say nothing (Dany, 2026-09-27): no hint
+   * that there is nothing nested, and above all no saved record — an empty
+   * one reads every parent created later as closed.
+   */
+  const hasNestedItems = flat.some((row) => row.parentId !== null);
   const exportMenu = useClosedByPointerOutside();
   const [query, setQuery] = useState(criteria.query);
   const deferredQuery = useDeferredValue(query);
@@ -798,7 +805,11 @@ export function PlanToolbar({
           ? { 'data-fact': 'Clear the filter first — a filter opens whatever it has to.' }
           : { 'data-hint': 'Close every branch' })}
         onClick={() => {
-          setExpanded({});
+          // Proof: this guard removed, `keeps a flat plan out of collapsed-all,
+          // so its first child arrives open` failed on `expected '{}' to be
+          // 'true'` and `shows the first child of a flat plan after Collapse
+          // all and a remount` on `expected [ '010' ]`. Watched 2026-09-27.
+          if (hasNestedItems) setExpanded({});
         }}
       >
         <CollapseIcon />
@@ -813,7 +824,7 @@ export function PlanToolbar({
           ? { 'data-fact': 'Clear the filter first — a filter opens whatever it has to.' }
           : { 'data-hint': 'Open every branch' })}
         onClick={() => {
-          setExpanded(true);
+          if (hasNestedItems) setExpanded(true);
         }}
       >
         <ExpandIcon />

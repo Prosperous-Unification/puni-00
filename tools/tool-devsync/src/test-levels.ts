@@ -203,10 +203,11 @@ export async function testFilesInProject(root: string): Promise<string[]> {
  * An allow-list and not a shape check: `--test-name-pattern`, `--preload`,
  * `--config`, `--bail` and `--todo` all change which tests run, so a target
  * carrying one would satisfy the file-level isolation check while running a
- * different set — a check that cannot fail.
+ * different set — a check that cannot fail. `--timeout=<ms>` changes only how long each test may
+ * run, and every Bun test command must state one (`docs/test-budgets.md`).
  */
 export const ALLOWED_LEVEL_FLAG =
-  /^--(?:coverage|coverage-reporter=lcov|reporter=junit|reporter-outfile=\S+)$/;
+  /^--(?:coverage|coverage-reporter=lcov|reporter=junit|reporter-outfile=\S+|timeout=\d+)$/;
 
 /** The parts of a declared level target's command. */
 export interface LevelCommand {
@@ -241,7 +242,7 @@ export function parseLevelCommand(command: string): LevelCommand {
   const refused = flags.filter((flag) => !ALLOWED_LEVEL_FLAG.test(flag));
   if (refused.length > 0) {
     throw new Error(
-      `a declared level target may not pass ${refused.join(', ')}; only coverage and JUnit reporting flags are allowed`,
+      `a declared level target may not pass ${refused.join(', ')}; only coverage, JUnit reporting and timeout flags are allowed`,
     );
   }
   return { reportDirectory, selector, flags };

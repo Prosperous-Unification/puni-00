@@ -51,15 +51,15 @@ export const NODE_SUITES: readonly string[] = [
   'src/lib/local-write.test.ts',
   'src/lib/plan-refresh.test.ts',
   'src/lib/refusal.test.ts',
-  // Of saved-plans' four `src/lib` suites this is the only one the tier rule
-  // reads as DOM-free, and the other three are excluded by that rule rather
-  // than by taste: `saved-plan-save.test.ts` and `saved-plan-shelf.test.ts`
-  // import `@testing-library` and run under jsdom for real, and
-  // `saved-plan-api.test.ts` is caught by `DOM_EVIDENCE`'s deliberately
-  // generous `\bdocument\b` — fourteen prose mentions of the *OpenAPI*
-  // document, no browser global at all. That is the safe direction to be
-  // wrong in, as the rule's own comment says, so it is left where the rule
-  // puts it rather than special-cased.
+  // Of saved-plans' three `src/lib` suites this is the only one the tier rule
+  // reads as DOM-free, and the other two are excluded by that rule rather
+  // than by taste: `saved-plan-save.test.ts` imports `@testing-library` and
+  // runs under jsdom for real, and `saved-plan-api.test.ts` is caught by
+  // `DOM_EVIDENCE`'s deliberately generous `\bdocument\b` — fourteen prose
+  // mentions of the *OpenAPI* document, no browser global at all. That is the
+  // safe direction to be wrong in, as the rule's own comment says, so it is
+  // left where the rule puts it rather than special-cased. The shelf's own
+  // suite moved to `src/modules/saved-plans/` and is judged there the same way.
   'src/lib/saved-plan-compare.test.ts',
   'src/modules/calendar-markers/calendar-markers.feature.test.ts',
   'src/modules/calendar-markers/calendar-markers.resource.test.ts',
@@ -89,6 +89,7 @@ export const NODE_SUITES: readonly string[] = [
   'src/runtime/lifetime-slot.test.ts',
   'src/runtime/project-runtime.model.test.ts',
   'src/runtime/project-runtime.test.ts',
+  'src/runtime/retirement-join.test.ts',
   'src/runtime/session-exit.model.test.ts',
   'src/runtime/session-runtime.model.test.ts',
   'src/runtime/session-runtime.test.ts',
@@ -100,4 +101,5 @@ export const NODE_SUITES: readonly string[] = [
   // and `refusing-api.test.ts` out failed test-tiers.test.ts with
   // `+ src/lib/wbs-api.test.ts` and `- src/testing/refusing-api.test.ts`.
   'src/testing/refusing-api.test.ts',
+  'vitest-budget.test.ts',
 ];

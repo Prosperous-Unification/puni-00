@@ -359,6 +359,12 @@ function carriesAnyChosen(chosen: readonly string[], carried: readonly string[])
 export function narrowTree(
   rows: readonly NarrowableRow[],
   criteria: FilterCriteria,
+  /**
+   * Rows this reader created while the filter was on, kept on screen with the
+   * ancestors that place them although they match nothing: a row made under
+   * a filter and hidden at once would take the caret sent to it with it.
+   */
+  revealedIds: ReadonlySet<string> = new Set(),
 ): TreeNarrowing {
   const wanted = criteria.query.trim().toLowerCase();
   if (!isFiltering(criteria)) {
@@ -412,13 +418,15 @@ export function narrowTree(
 
   const matchIds = new Set(rows.filter(matches).map((row) => row.id));
   const visibleIds = new Set<string>(matchIds);
+  const placed = [...matchIds, ...[...revealedIds].filter((id) => byId.has(id))];
+  for (const id of placed) visibleIds.add(id);
 
   // Proof: this walk removed, `keeps the rows that place a match deep in the
   // tree`, `opens every kept row…` and `hides a row that neither matches nor
   // sits on a match’s line` failed here, and seven table tests failed with
   // `Back boxes` shown as a root of a plan it is three levels inside. Watched,
   // 2026-08-06.
-  for (const matched of matchIds) {
+  for (const matched of placed) {
     const steppedOn = new Set<string>([matched]);
     let above = byId.get(matched)?.parentId ?? null;
     while (above !== null && !steppedOn.has(above)) {

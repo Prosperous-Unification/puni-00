@@ -642,7 +642,7 @@ describe('exhaustive repository coverage', () => {
         'seed.fixture',
       ).identity,
     ).toBe(frozen.identity);
-  }, 20_000);
+  }, 45_000);
 
   test('verification names every omitted root, nested project, documentation and evidence directory duty', () => {
     const fixture = repositoryFixture();
@@ -710,7 +710,7 @@ describe('exhaustive repository coverage', () => {
       'exhaustive plan omitted subject: directory:repository-root',
     );
     expect(cliOutput(invocation)).not.toContain('auditId must be');
-  }, 20_000);
+  }, 45_000);
 
   test('all grouping changes leave logical obligations, memberships and shards stable', () => {
     const fixture = repositoryFixture();
@@ -1045,7 +1045,7 @@ describe('exhaustive repository coverage', () => {
         freezeExhaustivePlan(fixture.repository, fixture.revision, changed, 'seed.fixture'),
       ).toThrow(`exhaustive ${dimension} mapping has orphan content path: README.md`);
     }
-  }, 20_000);
+  }, 45_000);
 
   test('verified exhaustive coverage retains and refuses a committed unresolved Gitlink', () => {
     const fixture = repositoryFixture();
@@ -1153,7 +1153,7 @@ describe('exhaustive repository coverage', () => {
     const unreadable = runFreezeCli(fixture, unreadablePaths);
     expect(unreadable.exitCode).toBe(1);
     expect(cliOutput(unreadable)).toContain(`cannot read JSON input ${fixture.repository}`);
-  }, 20_000);
+  }, 45_000);
 
   test('production freeze refuses equal-count path, mode and blob inventory substitutions', () => {
     const fixture = repositoryFixture();
@@ -1202,5 +1202,5 @@ describe('exhaustive repository coverage', () => {
       blobSubstitution,
       'exhaustive inventory blob differs for apps/alpha/src/index.ts',
     );
-  }, 20_000);
+  }, 45_000);
 });

@@ -86,8 +86,16 @@ export function bumpWorkItems(
     .run();
 }
 
-/** The same, for one project — its own fields and its steps. */
-export function bumpProject(writer: RevisionWriter, id: string, stamp: WriteStamp): void {
+/**
+ * The same, for one project — its own fields and its steps. Takes only the
+ * instant, like {@link auditOnUpdate}, because the project row records when it
+ * changed, not who changed it.
+ */
+export function bumpProject(
+  writer: RevisionWriter,
+  id: string,
+  stamp: Pick<WriteStamp, 'at'>,
+): void {
   writer
     .update(project)
     .set({ revision: bumpedProject, ...auditOnUpdate(stamp) })

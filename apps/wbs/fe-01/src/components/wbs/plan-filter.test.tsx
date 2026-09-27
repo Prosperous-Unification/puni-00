@@ -348,6 +348,55 @@ describe('finding a work item in the tree', () => {
     });
   });
 
+  itDom('keeps a flat plan out of collapsed-all, so its first child arrives open', async () => {
+    // Dany, 2026-09-27: on a plan with no nested items the two controls do
+    // nothing, silently. The fault they guard is the one a reader met: an
+    // empty record saved here reads every later parent as closed.
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    await api.createWorkItem('p1', { parentId: null, afterId: 'w1', name: 'Paint' });
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    const saved = localStorage.getItem('wbs.expanded.p1');
+
+    for (const name of ['Collapse all', 'Expand all']) {
+      click(name);
+      expect(localStorage.getItem('wbs.expanded.p1')).toBe(saved);
+      expect(screen.getByRole('button', { name }).getAttribute('data-fact')).toBeNull();
+    }
+    expect(toastTexts()).toEqual([]);
+
+    click('Collapse all');
+    takeRowAction('010', 'Add child');
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+
+    cleanup();
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1', '020']);
+    });
+  });
+
+  itDom('shows the first child of a flat plan after Collapse all and a remount', async () => {
+    // The same fault without Add child's own opening: a child arriving from a
+    // peer or an import is judged by the saved expansion alone.
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 010');
+
+    click('Collapse all');
+    await api.createWorkItem('p1', { parentId: 'w1', afterId: null, name: 'Sockets' });
+    cleanup();
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+
+    await waitFor(() => {
+      expect(numbersOnScreen()).toEqual(['010', '010.1']);
+    });
+  });
+
   itDom('drops a remembered expansion that is not one, rather than obeying it', async () => {
     // localStorage is user-editable, so what comes back is a claim. A table
     // that cannot be opened until somebody clears storage by hand is a worse

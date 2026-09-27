@@ -117,10 +117,83 @@ describe('per-process test scratch', () => {
 });
 
 describe('the shared test preload', () => {
-  // No limit is given here on purpose: this case passes only while the preload raises Bun's
-  // 5-second default. See the Proof beside `setDefaultTimeout` in preload.ts.
+  // No limit is given here on purpose: this case passes only while this project's `test` target
+  // passes a `--timeout` above Bun's 5-second default, which is how every target states its budget
+  // (docs/test-budgets.md).
+  // Proof: with `--timeout=30000` removed from tool-test-scratch's `test` target,
+  // `bunx nx run tool-test-scratch:test` failed this case at 5000ms (2026-09-27).
   it("a test may outlast Bun's five-second default", async () => {
     await Bun.sleep(5_300);
     expect(true).toBe(true);
   });
+
+  // A budget is only worth stating if it ends a hang in every file a target runs. Bun 1.4.2 applies
+  // a preload's `setDefaultTimeout` to the first test file only, and later files fall back to 5
+  // seconds, while `--timeout` reaches them all (observed 2026-09-27; that is how the dev poller's
+  // overlap test kept failing at 5000ms under this preload). So this runs two suites, each hung on a
+  // subprocess, through the real preload with a short budget: both must end at that budget, and Bun
+  // must kill each subprocess rather than leave it holding the gate.
+  // Proof: with `setDefaultTimeout(30_000)` put back into preload.ts, this failed on its own
+  // 10-second limit (2026-09-27). With the flag dropped and the preload setting 500ms instead, it
+  // failed on the second file's `timed out after 5000ms` (2026-09-27).
+  it('ends every suite hung on a subprocess at the budget its command line states', async () => {
+    const directory = scratchSync('scratch-hang-');
+    const suites = ['first', 'second'].map((name) => {
+      const pidFile = join(directory, `${name}.pid`);
+      const suite = join(directory, `${name}.test.ts`);
+      writeFileSync(
+        suite,
+        `
+          import { test } from 'bun:test';
+          test('${name} waits on a subprocess that never exits', async () => {
+            const sleeper = Bun.spawn(['sleep', '1000']);
+            await Bun.write(${JSON.stringify(pidFile)}, String(sleeper.pid));
+            await sleeper.exited;
+          });
+        `,
+      );
+      return { pidFile, suite };
+    });
+    const started = performance.now();
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        'test',
+        '--preload',
+        PRELOAD,
+        '--timeout=500',
+        ...suites.map(({ suite }) => suite),
+      ],
+      { stdout: 'pipe', stderr: 'pipe', env: { ...process.env, CLAUDECODE: '0', AGENT: '0' } },
+    );
+    const [stdout, stderr] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    expect(await child.exited).toBe(1);
+    expect(performance.now() - started).toBeLessThan(9_000);
+    // Bun may repeat a failure in its closing summary, so the verdicts are keyed by suite.
+    const verdicts = Object.fromEntries(
+      [
+        ...`${stdout}${stderr}`.matchAll(
+          /(first|second) waits[^\n]*\n[^\n]*timed out after (\d+)ms/g,
+        ),
+      ].map(([, suite, budget]) => [suite, budget]),
+    );
+    expect(verdicts).toEqual({ first: '500', second: '500' });
+    for (const { pidFile } of suites) {
+      expect(isAlive(Number(await Bun.file(pidFile).text()))).toBe(false);
+    }
+  }, 10_000);
 });
+
+/** Whether a process with this id still exists; signal 0 probes without delivering anything. */
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code === 'ESRCH') return false;
+    throw cause;
+  }
+}
