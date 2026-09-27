@@ -857,15 +857,11 @@ function StudioPage() {
 function Header() {
   return (
     <header className="site-header">
-      <a className="brand" href={`${siteOrigin}/`} aria-label="Prosperous Unification home">
-        <span className="brand-mark">
-          P<span>U</span>
+      <a className="brand" href={`${siteOrigin}/`} aria-label="PUNI home">
+        <span className="brand-mark" aria-hidden="true">
+          P
         </span>
-        <span>
-          PROSPEROUS
-          <br />
-          UNIFICATION
-        </span>
+        <span>PUNI</span>
       </a>
       <nav aria-label="Primary">
         <a href={`${siteOrigin}/services/`}>Services</a>
@@ -878,7 +874,7 @@ function Header() {
 function Footer() {
   return (
     <footer className="site-footer">
-      <span>© Prosperous Unification</span>
+      <span>© PUNI</span>
       <span>Software shaped around real work.</span>
     </footer>
   );
