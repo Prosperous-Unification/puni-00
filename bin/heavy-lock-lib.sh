@@ -4,12 +4,18 @@ set -euo pipefail
 # The host-wide mutex that keeps two heavy runs (the gate, a release build, an
 # agent's `nx run-many -t test`) off the same machine at once.
 #
-# Mechanism is `mkdir`, not `flock`, on EVERY platform deliberately. `flock` is
-# absent from macOS, so a `command -v flock` fallback would silently hand two
-# concurrent runs two DIFFERENT mutexes on a host where one run found it and the
-# other did not — mutual exclusion that cannot fail because it never engaged.
-# `mkdir` is atomic on every POSIX filesystem and has no dependency to be
-# missing, so one mechanism holds everywhere.
+# **The mutex is `flock(2)` on the lock path, taken through `perl`, on EVERY
+# platform.** It used to be `mkdir "$lock_path.d"`, on the reading that `mkdir`
+# is atomic everywhere. The syscall is; the command is not. h2puni's
+# /usr/bin/mkdir is uutils coreutils 0.8.0, and two concurrent `mkdir d` there
+# both exit 0 — 10 of 300 races on 2026-09-27, 47 of 300 the day before, against
+# 0 of 300 for GNU `gnumkdir` — so two gates could both hold the lock and run in
+# the shared gate tree at once. {@link acquire_heavy_flock} records the choice.
+#
+# The directory stays, as a RECORD rather than the mutex: `lock.d/holder` and
+# `lock.d/label` are what `status` reports and what a run still on the code
+# before this change reads to see that the host is taken. See
+# {@link claim_heavy_lock} for that transition.
 #
 # See {@link resolveHeavyLockPath} for why the path is not $TMPDIR on macOS.
 
@@ -516,22 +522,98 @@ report_heavy_lock_status() {
   done
 }
 
+# Take `flock(2)` on the file `$1` through file descriptor 9 of THIS shell,
+# returning 0 held, 75 held by someone else, or 70 when it cannot be tried.
+#
+# **Why `perl`, and why one mechanism.** macOS ships no `flock` command, which is
+# why this file once replaced util-linux `flock` with `mkdir`: `bin/h2puni-gate.sh`
+# exited 127 on every Mac. A `command -v flock` fallback would hand two runs on
+# one host two different mutexes. `perl` is /usr/bin/perl on macOS and is
+# `perl-base` (Essential) on Ubuntu, and its `flock` is the `flock(2)` syscall
+# wherever `d_flock` is set — which is checked, because without it perl emulates
+# `flock` with `fcntl` locks, which belong to the process and would die with
+# `perl` itself. It locks the open file description that fd 9 names; perl
+# adopts fd 9 with `>&=` rather than duplicating it, so the lock outlives `perl`
+# and lasts until this shell closes fd 9 or dies. The kernel releases it on any
+# death, SIGKILL included, which is what makes reclaiming a dead holder's record
+# safe (see {@link claim_heavy_lock}).
+#
+# The file is opened for append and never truncated, replaced or removed: a run
+# that unlinked it would leave the next claimant locking a different inode from
+# the holder. h2puni already has a zero-byte `wbs-heavy-work.lock` from before the
+# `mkdir` era, and it serves.
+#
+# Fd 9 belongs to this library in the shell that sources it. The wrapped command
+# runs with it closed (see {@link with_heavy_lock}), so a daemon it leaves
+# behind cannot keep the host locked after the run has gone.
+#
+# Proof (observed 2026-09-27): replacing this function's body with `return 0` —
+# the claim back to trusting whatever the directory record says, under a
+# `mkdir` that always exits 0 — was watched letting both claimants hold:
+# `28a: 2 of two claimants hold the lock under an always-succeeding mkdir
+# (claim statuses: 0 0 )` and the same for 28b, the reclaim of a dead holder,
+# three runs of three; 28e also ran its command on a host without perl
+# (bin/heavy-lock.test.sh, case 28).
+acquire_heavy_flock() {
+  local lock_file=$1
+  if ! exec 9>>"$lock_file"; then
+    printf 'heavy lock: cannot open %s for locking; refusing to run unlocked\n' "$lock_file" >&2
+    return 70
+  fi
+  local flock_status=0
+  # shellcheck disable=SC2016 # Single quotes are the point: this is perl source.
+  perl -MConfig -MFcntl=:flock -e '
+    $Config{d_flock} or exit 71;
+    open(my $held, ">&=", 9) or exit 72;
+    flock($held, LOCK_EX | LOCK_NB) and exit 0;
+    exit($!{EWOULDBLOCK} ? 75 : 73);
+  ' || flock_status=$?
+  case $flock_status in
+    0) return 0 ;;
+    75) ;;
+    71) printf 'heavy lock: this perl has no native flock(2); refusing a lock that would die with perl\n' >&2 ;;
+    127) printf 'heavy lock: perl is not installed; it is required for flock(2) on %s\n' "$lock_file" >&2 ;;
+    *) printf 'heavy lock: flock(2) on %s failed (perl exit %s); refusing to run unlocked\n' "$lock_file" "$flock_status" >&2 ;;
+  esac
+  exec 9>&-
+  [[ $flock_status -eq 75 ]] && return 75
+  return 70
+}
+
 # Take the lock at $lock_dir, or return 75 if someone else holds it.
 #
-# Reclaims a lock whose recorded holder is dead — a run killed with SIGKILL
-# leaves the directory behind, and refusing every subsequent run until a human
-# removes it by hand converts one crash into a wedged host.
+# The mutex is {@link acquire_heavy_flock} on the file `$lock_dir` names without
+# its `.d`; `$lock_dir` itself is the holder record, written only while the
+# flock is held. Every decision about the record below is therefore made by one
+# claimant at a time, and none of it asks `mkdir` whether it won.
+#
+# **Transition: a record without a flock behind it.** Runs still on the code
+# before this change (a gate launched from an older checkout) take the lock by
+# `mkdir` alone and hold no flock. Under the flock this treats the record exactly
+# as that code did: a live holder, or a record whose holder is not written yet,
+# is someone else's lock and is left untouched (75); a holder that is not a pid
+# or cannot be read is unknown state (70); only a DEAD holder is reclaimed. Old
+# code in turn sees this code's record and refuses. What no change here can
+# close is old code racing old code, an old claimer's `mkdir` racing this one's
+# record at the instant the directory is created — the uutils window — or an
+# old RECLAIMER that read a dead pid, paused, and then removes this code's live
+# record. Those end only when every launcher on the host runs this code; the
+# rollout is in openspec/changes/exclusive-heavy-lock/proposal.md.
+#
+# Reclaims a record whose holder is dead — a run killed with SIGKILL leaves the
+# directory behind, and refusing every subsequent run until a human removes it
+# by hand converts one crash into a wedged host. The flock makes that safe
+# between claimants on this code: the dead holder's flock went with it, and a
+# second reclaimer waits outside the flock until the first has written its own
+# live record.
 claim_heavy_lock() {
   local lock_dir=$1
   local holder_file="$lock_dir/holder"
 
-  if mkdir "$lock_dir" 2>/dev/null; then
-    record_lock_holder "$lock_dir"
-    return 0
-  fi
+  acquire_heavy_flock "${lock_dir%.d}" || return $?
 
-  # R5: the lock exists but is unreadable — that is an unknown state, not a free
-  # lock and not a held one. Throw rather than guess in either direction.
+  # R5: the record exists but is unreadable — that is an unknown state, not a
+  # free lock and not a held one. Throw rather than guess in either direction.
   #
   # **Read first, classify after**, the same way {@link read_ticket_label} does
   # and for the same reason: `-r` cannot tell a holder file that is GONE from one
@@ -547,46 +629,71 @@ claim_heavy_lock() {
   # `3a: a queueing run gets its turn: want exit 0, got 70`. Case 24 makes the
   # same window certain with a `cat` shim that removes the holder file before
   # reading it.
-  local holder
-  if ! holder=$(cat "$holder_file" 2>/dev/null); then
-    if [[ -e $holder_file ]]; then
-      printf 'heavy lock: %s exists but is unreadable; refusing to guess\n' "$holder_file" >&2
+  if [[ -e $lock_dir ]]; then
+    local holder
+    if ! holder=$(cat "$holder_file" 2>/dev/null); then
+      if [[ -e $holder_file ]]; then
+        printf 'heavy lock: %s exists but is unreadable; refusing to guess\n' "$holder_file" >&2
+        exec 9>&-
+        return 70
+      fi
+      # Gone, or never written. A record with no holder under our flock is
+      # either a release that just happened or a run on the older code between
+      # its `mkdir` and its write — which holds no flock, so the flock says
+      # nothing about it. Both are answered by trying again.
+      exec 9>&-
+      return 75
+    fi
+    if [[ -z $holder ]]; then
+      # Created but not yet written — the same instant as the branch above, seen
+      # from the other side of `record_lock_holder`'s redirect.
+      exec 9>&-
+      return 75
+    fi
+    # Proof: replacing this condition with `false` was watched reclaiming a lock
+    # whose holder file read `not-a-pid` — "reclaiming … from dead pid not-a-pid",
+    # then `RAN ON CORRUPT LOCK`, exit 0 where the guard gives 70
+    # (bin/heavy-lock.test.sh, case 6).
+    if [[ ! $holder =~ ^[0-9]+$ ]]; then
+      printf 'heavy lock: %s holds %q, not a pid; refusing to guess\n' "$holder_file" "$holder" >&2
+      exec 9>&-
       return 70
     fi
-    # Gone, or never written: either the winner is between its `mkdir` and its
-    # write, or the holder released while this was reading. Both mean nobody is
-    # recorded here now, and both are answered by trying again.
-    return 75
+    # Proof: replacing this function's body with `false` was watched letting a
+    # second run start while the first still held the lock — `RAN CONCURRENTLY`,
+    # exit 0 where the guard gives 75 (bin/heavy-lock.test.sh, case 2). Under the
+    # flock this is also what keeps a live holder on the older code, which holds
+    # no flock, from being overrun (case 28c-28d).
+    if is_process_alive "$holder"; then
+      exec 9>&-
+      return 75
+    fi
+    printf 'heavy lock: reclaiming %s from dead pid %s\n' "$lock_dir" "$holder" >&2
+    rm -rf "$lock_dir"
   fi
-  if [[ -z $holder ]]; then
-    # Created but not yet written — the same instant as the branch above, seen
-    # from the other side of `record_lock_holder`'s redirect.
-    return 75
-  fi
-  # Proof: replacing this condition with `false` was watched reclaiming a lock
-  # whose holder file read `not-a-pid` — "reclaiming … from dead pid not-a-pid",
-  # then `RAN ON CORRUPT LOCK`, exit 0 where the guard gives 70
-  # (bin/heavy-lock.test.sh, case 6).
-  if [[ ! $holder =~ ^[0-9]+$ ]]; then
-    printf 'heavy lock: %s holds %q, not a pid; refusing to guess\n' "$holder_file" "$holder" >&2
+
+  # `-p` and the `-d` check rather than `mkdir`'s answer: ownership was decided
+  # by the flock, and `mkdir`'s exit status is the thing that could not be
+  # trusted.
+  if ! mkdir -p "$lock_dir" 2>/dev/null || [[ ! -d $lock_dir ]]; then
+    printf 'heavy lock: cannot create the holder record %s; refusing to run unrecorded\n' "$lock_dir" >&2
+    exec 9>&-
     return 70
   fi
-
-  # Proof: replacing this function's body with `false` was watched letting a
-  # second run start while the first still held the lock — `RAN CONCURRENTLY`,
-  # exit 0 where the guard gives 75 (bin/heavy-lock.test.sh, case 2).
-  if is_process_alive "$holder"; then
-    return 75
+  # A half-written record is removed and the flock let go HERE, because nothing
+  # else will: the trap armed while queueing has no lock directory to release,
+  # so it would leave the host locked for as long as this shell lives.
+  #
+  # Proof (observed 2026-09-27): with this unwinding removed, a record directory
+  # created without write permission left fd 9 holding the flock after the
+  # refusal — `28h: the flock was still held after a refused recording`
+  # (bin/heavy-lock.test.sh, case 28g-28h).
+  if ! record_lock_holder "$lock_dir" 2>/dev/null; then
+    printf 'heavy lock: cannot write the holder record in %s; refusing to run unrecorded\n' "$lock_dir" >&2
+    rm -rf "$lock_dir"
+    exec 9>&-
+    return 70
   fi
-
-  printf 'heavy lock: reclaiming %s from dead pid %s\n' "$lock_dir" "$holder" >&2
-  rm -rf "$lock_dir"
-  if mkdir "$lock_dir" 2>/dev/null; then
-    record_lock_holder "$lock_dir"
-    return 0
-  fi
-  # Another run reclaimed it first. It holds the lock; we do not.
-  return 75
 }
 
 # Release what a run took, then run the caller's own EXIT trap `$4`, reporting
@@ -623,8 +730,14 @@ claim_heavy_lock() {
 # (bin/heavy-lock.test.sh, case 22).
 release_heavy_lock() {
   local lock_dir=$1 ticket_path=$2 ticket_draft=$3 caller_exit_command=${4:-}
-  if [[ -n $lock_dir ]] && ! rm -rf "$lock_dir"; then
-    printf 'heavy lock: could not remove %s; the next run reclaims it from this pid\n' "$lock_dir" >&2
+  # The record goes while the flock is still held, and the flock goes after it:
+  # the other order lets the next claimant take the flock, find this run's
+  # record with this run's live pid in it, and refuse.
+  if [[ -n $lock_dir ]]; then
+    if ! rm -rf "$lock_dir"; then
+      printf 'heavy lock: could not remove %s; the next run reclaims it from this pid\n' "$lock_dir" >&2
+    fi
+    exec 9>&-
   fi
   if ! rm -f "$ticket_path" "$ticket_draft"; then
     printf 'heavy lock: could not remove ticket %s; it expires on its own budget\n' "$ticket_path" >&2
@@ -805,16 +918,16 @@ with_heavy_lock() {
     printf 'heavy lock: %s does not exist\n' "$lock_parent" >&2
     return 70
   fi
-  # Not what stops an unlocked run — `mkdir` already fails on an unwritable
-  # parent and the claim returns 75. What this stops is the DIAGNOSIS being a
-  # lie: without it a queueing run reads its own failed `mkdir` as "someone else
-  # holds the lock", sleeps out its whole budget, and reports `held by pid ?`
-  # about a lock nobody has and nobody can ever take.
+  # Not what stops an unlocked run — the flock file cannot be opened in an
+  # unwritable parent, and {@link acquire_heavy_flock} refuses 70. What this
+  # adds is a refusal that names the parent before a ticket is written. It was
+  # load-bearing under the `mkdir` claim, whose failed `mkdir` read as "someone
+  # else holds the lock", slept out the whole budget, and reported `held by pid ?`.
   #
-  # Proof: replacing this condition with `false` was watched turning a
-  # `HEAVY_LOCK_WAIT_SECONDS=15` run against a chmod-500 directory from a 0s
-  # exit-70 into a 16s spin ending in `held by pid ?` — a 30-minute budget would
-  # have spun 30 minutes (bin/heavy-lock.test.sh, case 5).
+  # Proof (observed 2026-09-16, against the `mkdir` claim): replacing this
+  # condition with `false` was watched turning a `HEAVY_LOCK_WAIT_SECONDS=15` run
+  # against a chmod-500 directory from a 0s exit-70 into a 16s spin ending in
+  # `held by pid ?` (bin/heavy-lock.test.sh, case 5, which still pins 70 at once).
   if [[ ! -w $lock_parent ]]; then
     printf 'heavy lock: %s is not writable; refusing to run unlocked\n' "$lock_parent" >&2
     return 70
@@ -883,8 +996,8 @@ with_heavy_lock() {
     if [[ $tickets_ahead -eq 0 ]]; then
       claim_heavy_lock "$lock_dir" || claim_status=$?
     else
-      # Someone arrived first and is still alive. Their turn, even if `mkdir`
-      # would succeed for us right now — that instant is exactly the lottery.
+      # Someone arrived first and is still alive. Their turn, even if the lock
+      # is free for us right now — that instant is exactly the lottery.
       #
       # Proof (observed 2026-09-16): this branch is the whole change, and the
       # code without it is what shipped. Against a holder released while the
@@ -954,7 +1067,24 @@ with_heavy_lock() {
   # {@link install_release_trap} rather than replaced.
   install_release_trap "$lock_dir" "$ticket_path" "$ticket_draft" "$caller_exit_trap"
 
+  # Fd 9 closed for the command: it holds this run's flock, and a daemon the
+  # command leaves behind (an Nx daemon, a watcher) would otherwise keep the
+  # host locked after this run has released its record and gone.
+  #
+  # In a subshell rather than as `"$@" 9>&-`, because bash applies that
+  # redirection to a FUNCTION by saving fd 9 on another descriptor in this very
+  # shell: a function command that calls `exit` then runs the release trap with
+  # fd 9 already closed and the saved copy still holding the flock, all through
+  # the caller's own cleanup.
+  #
+  # Proof (observed 2026-09-27): with `"$@" 9>&-` restored, a function command
+  # that exits was watched leaving the flock held while the caller's EXIT trap
+  # ran — `28j: the flock was held during the caller's cleanup`
+  # (bin/heavy-lock.test.sh, case 28i-28j).
   local run_status=0
-  "$@" || run_status=$?
+  (
+    exec 9>&-
+    "$@"
+  ) || run_status=$?
   return "$run_status"
 }

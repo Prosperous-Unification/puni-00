@@ -110,15 +110,11 @@ export interface StepNodeGraphEdge {
  * Both arms fall through to the last slice, which is why an unestimated
  * predecessor is reached at its own finish under either reach.
  *
- * That finish used to be the leaf's own start, so such an edge imposed exactly
- * what the leaf's own predecessors imposed and nothing more.
- * `assumed-duration-schedules` (2026-08-29) ended that: an unestimated slice is
- * `ASSUMED_SLICE_WORKDAYS` long, so a leaf nobody has estimated finishes
- * its steps' assumed durations end to end — three unestimated steps run 0→6 —
- * and a dependency on it now imposes a real wait. "Has a duration" and "is
- * estimated" are different questions, and only the `anchor-slice` arm asks the
- * second: its `days !== null` walk still steps over a slice that has a duration
- * nobody stated.
+ * An unestimated slice takes zero schedule time, so that finish is the leaf's
+ * own start, and such an edge imposes exactly what the leaf's own predecessors
+ * imposed and nothing more. An explicit zero finishes there too, so "has a
+ * duration" cannot tell the two apart; only the `anchor-slice` arm asks "is
+ * estimated", and its `days !== null` walk steps over the unknown slice.
  *
  * `slices` is never empty: `groupByWorkItem` only makes a group because a slice
  * went into it, and the leaf it made none for is what `slicesOf` refuses. So

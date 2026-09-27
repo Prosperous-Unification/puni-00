@@ -79,7 +79,7 @@ const safeCapacity: BuildCapacity = {
 describe('candidate image inputs', () => {
   it('resolves every Dockerfile and repository-local COPY source before Dagger starts', () => {
     expect(() => {
-      assertImageBuildInputs(['be', 'gw', 'fe'], WORKSPACE);
+      assertImageBuildInputs(['be', 'gw', 'fe', 'mcp'], WORKSPACE);
     }).not.toThrow();
   });
 
@@ -103,6 +103,7 @@ describe('candidate image inputs', () => {
         '{workspaceRoot}/apps/wbs/be-01/**/*',
         '{workspaceRoot}/apps/wbs/gw-01/**/*',
         '{workspaceRoot}/apps/wbs/fe-01/**/*',
+        '{workspaceRoot}/apps/wbs/mcp-01/**/*',
         '{workspaceRoot}/libs/**/*',
         '{workspaceRoot}/nx.json',
       ]),

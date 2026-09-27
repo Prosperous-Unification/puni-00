@@ -39,7 +39,7 @@ import { schedule, ScheduleInvalidOptimizedStartError } from './schedule';
  * the bump was made *because* of the change.
  *
  * **What this guard is, and it is narrower than the paragraph above sounds.**
- * It is a value guard over the eight named plans in `FAST_GOLDEN_CASES` **as
+ * It is a value guard over the ten named plans in `FAST_GOLDEN_CASES` **as
  * `schedule()` renders them** — the comparison is `toEqual` over parsed JSON,
  * so what is enforced is every stored value; whitespace and object-key order
  * are deliberately outside this corpus's invariant. File layout is enforced
@@ -48,11 +48,11 @@ import { schedule, ScheduleInvalidOptimizedStartError } from './schedule';
  * genuinely is a string comparison says so in its own name and comment — it
  * stringifies both sides in `FAST_GOLDEN_CASES` order, which is a different
  * check from this one and stays what it was. It reddens a semantic change
- * if and only if that change moves one of those eight schedules. It is not a net
+ * if and only if that change moves one of those ten schedules. It is not a net
  * under Fast's semantics, and two consequences follow that a reader must not
  * have to derive:
  *
- * - A change that moves an input class the eight plans do not contain is
+ * - A change that moves an input class the ten plans do not contain is
  *   invisible here. Eight fixed points cannot cover an input space, and adding
  *   a ninth does not change the kind of thing this file is.
  * - **A constant on `contract-version.ts`'s bump list can sit on a code path
@@ -123,32 +123,26 @@ describe('the stored bytes are the schedule, not an empty object', () => {
   });
 
   /**
-   * The case that can see `ASSUMED_SLICE_WORKDAYS` at all. `b` carries
-   * `days: null`, so it reports `duration: 0` and `estimated: false` — nobody
-   * has looked — while the pass still spends the assumption on it: it runs
-   * 2 → 4, and `c` starts at 4 rather than at 2.
+   * The case that can see `ASSUMED_SLICE_WORKDAYS` re-enter scheduling. `b`
+   * carries `days: null`, so it reports `duration: 0` and `estimated: false`
+   * and takes zero schedule time: it stands at 2 → 2, and `c` starts at 2.
    *
-   * WATCHED RED, both halves MEASURED at `112aa297` on h2puni. Move
-   * `ASSUMED_SLICE_WORKDAYS` 2 → 3 and leave `SCHEDULER_CONTRACT_VERSION` at 7:
-   * domain **360 pass / 20 fail**, where 19 are the pre-existing hand-written
-   * date assertions and the twentieth is `reproduces every stored schedule byte
-   * for byte` — the only failure in the suite that is about the *key*. Bump the
-   * version to 8 without regenerating the fixture: **379 pass / 1 fail**, and
-   * that one is `was produced under the version this tree declares`.
+   * These three numbers read `STORED`, so they guard the fixture rather than
+   * the engine: a regenerated corpus of empty objects cannot satisfy them. The
+   * engine half is `reproduces every stored schedule value for value`.
    *
-   * The three numbers below do NOT fail in either red, and the first draft of
-   * this comment claimed they did. They read `STORED`, which neither edit
-   * touches. They are a guard on the fixture rather than on the engine: they
-   * are what stops a regenerated corpus of four empty objects from satisfying
-   * the byte comparison.
+   * Proof: `durationOf` returning `ASSUMED_SLICE_WORKDAYS` for `days === null`
+   * again made `reproduces every stored schedule value for value` fail on
+   * `unestimated-middle` (`b` 2 → 4, `c` from 4) and on both unknown cases;
+   * watched 2026-09-27.
    */
-  it('spends the assumed duration on the slice nobody estimated', () => {
+  it('gives the slice nobody estimated zero schedule time', () => {
     const [, b] = unestimated.slices[1];
     const [, c] = unestimated.slices[2];
     expect(b.estimated).toBe(false);
     expect(b.earliestStart).toBe(2);
-    expect(b.earliestFinish).toBe(4);
-    expect(c.earliestStart).toBe(4);
+    expect(b.earliestFinish).toBe(2);
+    expect(c.earliestStart).toBe(2);
   });
 });
 

@@ -1,13 +1,7 @@
-import type { Drizzle } from '../../repository/db';
-import {
-  heartbeatSolverSlot,
-  type SolverSlotHeartbeatOutcome,
-} from '../../repository/optimization-admission';
-import { releaseSolverSlot, type SolverSlotRelease } from '../../repository/optimization-drain';
-import type { SolverChildProcess } from './contract';
+import type { SolverChildProcess, SolverSlotIdentity, SolverSlotRepository } from './contract';
 export const SOLVER_HEARTBEAT_INTERVAL_MS = 5_000;
 
-export interface SolverChildSlot extends SolverSlotRelease {
+export interface SolverChildSlot extends SolverSlotIdentity {
   readonly admittedCancelEpoch: number;
 }
 
@@ -26,7 +20,7 @@ export type SolverChildLifecycleResult =
     };
 
 export interface SolverChildLifecycleOptions {
-  readonly db: Drizzle;
+  readonly slots: SolverSlotRepository;
   readonly slot: SolverChildSlot;
   readonly child: SolverChildProcess;
   readonly now: () => number;
@@ -76,12 +70,12 @@ export async function runSolverChildLifecycle(
       try {
         await options.onExit(turn.exit);
       } finally {
-        releaseSolverSlot(options.db, options.slot);
+        options.slots.releaseSlot(options.slot);
       }
       return { kind: 'exited', code: turn.exit.code };
     }
 
-    const heartbeat: SolverSlotHeartbeatOutcome = heartbeatSolverSlot(options.db, {
+    const heartbeat = options.slots.refreshSlot({
       ...options.slot,
       now: options.now(),
     });
@@ -89,7 +83,7 @@ export async function runSolverChildLifecycle(
 
     await options.child.kill();
     const exit = await completed;
-    releaseSolverSlot(options.db, options.slot);
+    options.slots.releaseSlot(options.slot);
     return {
       kind: 'cancelled',
       reason: heartbeat.kind === 'lost' ? 'lost' : heartbeat.reason,

@@ -21,9 +21,9 @@
     ]
   },
   "image": {
-    "release": "20260911",
-    "url": "https://cloud-images.ubuntu.com/releases/noble/release-20260911/ubuntu-24.04-server-cloudimg-amd64.img",
-    "sha256": "612b2c0cc1bc413a6cb8c38fd611794caf0f2b436c50013d8b3794db12ad7354",
-    "file": "ubuntu-24.04-server-cloudimg-amd64-20260911.img"
+    "release": "20260918",
+    "url": "https://cloud-images.ubuntu.com/releases/resolute/release-20260918/ubuntu-26.04-server-cloudimg-amd64.img",
+    "sha256": "4908fb59ccd4e87ae4e8e973b7ef56f535448eacb24a87fd787270c0048987bc",
+    "file": "ubuntu-26.04-server-cloudimg-amd64-20260918.img"
   }
 }

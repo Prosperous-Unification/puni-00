@@ -315,6 +315,11 @@ const parserArms = {
     at: 'number',
     kind: commandKindsType,
   }),
+  work_item_takes_one_type: type({
+    error: "'work_item_takes_one_type'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
   tagIds_must_be_at_most_50: type({
     error: "'tagIds_must_be_at_most_50'",
     at: 'number',
@@ -479,6 +484,7 @@ const batchRefusals = [
         type({ ...context, error: "'strategy_required'" }),
         type({ ...context, error: "'has_children'" }),
         type({ ...context, error: "'not_before_reason_needs_a_date'" }),
+        type({ ...context, error: "'work_item_takes_one_type'" }),
         type({ ...context, error: "'invalid_kind'" }),
         type({ ...context, error: "'nothing_to_change'" }),
       ),

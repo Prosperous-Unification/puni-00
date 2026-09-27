@@ -367,6 +367,32 @@ describe('toolsFromDocument, on the generated document', () => {
     }
   });
 
+  it('tells a model a work item takes one type, and declares the refusal it gets otherwise', () => {
+    // WBS 010.4.10: the list shapes stay, so the schema alone would still
+    // invite several types; the description and the declared 400 are what say
+    // otherwise to a model calling this tool.
+    const commands = byName(tools, 'postApiProjectsByIdCommands');
+    const list = commands.inputSchema.properties['commands'] as {
+      items: { anyOf: { description: string; properties: { kind: { const: string } } }[] };
+    };
+    const patch = list.items.anyOf.find(
+      (variant) => variant.properties.kind.const === 'patchWorkItem',
+    );
+    if (patch === undefined) throw new Error('patchWorkItem tool input missing');
+    // Proof: the production patchWorkItem description put back to its one-line
+    // form failed here without `work_item_takes_one_type`. Watched 2026-09-27.
+    expect(patch.description).toContain('at most one type');
+    expect(patch.description).toContain('work_item_takes_one_type');
+    // The derived operation type omits responses; the generated document has them.
+    const pathItem = document.paths?.['/api/projects/{id}/commands'] as
+      { post?: { responses?: Record<string, unknown> } } | undefined;
+    const responses = pathItem?.post?.responses;
+    // Proof: with only the runtime 400 arm removed this still passed, the parser
+    // arm declaring the same code; with both arms removed from work-item-shapes.ts
+    // it failed here on the missing code. Watched 2026-09-27.
+    expect(JSON.stringify(responses?.['400'])).toContain('work_item_takes_one_type');
+  });
+
   it('derives a path-parameter-only read the way the document declares it', () => {
     const workItems = byName(tools, 'getApiProjectsByIdWork-items');
     expect(workItems.method).toBe('get');

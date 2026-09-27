@@ -849,6 +849,10 @@ async function writeLabState(
       puni_node_ip: primaryAddress(machine),
       puni_machine_id: machineId,
       puni_private_interface: privateInterface,
+      // The platform agent stands in for h3mon: a fleet swap file beside k3s; every other lab
+      // machine keeps swap disabled.
+      puni_swap_file_mib:
+        request.profile === 'platform' && machine.name.includes('-agent-') ? 1024 : 0,
       puni_node_capabilities: machine.name.includes('-server-')
         ? request.profile !== 'platform'
           ? ['control-plane']
@@ -874,7 +878,10 @@ async function writeLabState(
         puni_cluster_id: request.profile,
         puni_operator_name: 'puni',
         puni_operator_authorized_keys: [bootstrap.publicKey],
-        puni_swap_enabled: false,
+        puni_remove_cloud_init_sudoers: true,
+        puni_kubelet_system_reserved_memory: '256Mi',
+        puni_kubelet_kube_reserved_memory: '256Mi',
+        puni_kubelet_eviction_memory: '100Mi',
         puni_private_mtu: 1400,
         puni_cluster_cidr: '10.42.0.0/16',
         puni_service_cidr: '10.43.0.0/16',

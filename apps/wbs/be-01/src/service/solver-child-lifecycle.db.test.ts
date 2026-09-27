@@ -5,7 +5,10 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from '../repository/db';
+import { DrizzleEventLogStore } from '../repository/event-log';
+import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
+import { createOptimizationRepository } from '../repository/optimization';
 import { bindSolverSlot, reserveSolverSlot } from '../repository/optimization-admission';
 import { allocateGeneration } from '../repository/optimization-generation';
 import { solverSlot } from '../repository/schema';
@@ -125,7 +128,7 @@ describe('runSolverChildLifecycle', () => {
     process.exit(0);
 
     const result = await runSolverChildLifecycle({
-      db,
+      slots: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
       slot,
       child: process.child,
       now: () => 20,
@@ -153,7 +156,7 @@ describe('runSolverChildLifecycle', () => {
     let handled = 0;
 
     const running = runSolverChildLifecycle({
-      db,
+      slots: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
       slot,
       child: process.child,
       now: () => 20,
@@ -191,7 +194,7 @@ describe('runSolverChildLifecycle', () => {
     const process = deferredChild();
 
     const running = runSolverChildLifecycle({
-      db,
+      slots: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
       slot,
       child: process.child,
       now: () => first.admittedDeadlineAt + 2,

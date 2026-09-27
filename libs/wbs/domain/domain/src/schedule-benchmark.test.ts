@@ -101,7 +101,7 @@ describe('the leveled pass, at the size of a real plan', () => {
     // Leveling binds here: without that this measures the pass that already
     // existed rather than the one this change added.
     // The exact figure, so a fixture that quietly stops queueing is visible:
-    // 177 of the 200 work items wait for the person on them, on the default
+    // 159 of the 200 work items wait for the person on them, on the default
     // `whole-item` reach. The `anchor-slice` figure is asserted beside it
     // rather than described, because two rules have moved this number and one
     // figure could no longer say which:
@@ -114,15 +114,17 @@ describe('the leveled pass, at the size of a real plan', () => {
     //   occupies its assignee where a slice of no length did not
     // - 177 — `dep-reach-whole-item`'s default, which takes the waits back to
     //   the whole work item while keeping the assumed widths
+    // - 159 — `unestimated-steps-take-no-schedule-time`: unestimated slices are
+    //   of no length again and occupy nobody
     //
-    // 188 is `main`'s own figure for this fixture, and the `anchor-slice` arm
-    // reproducing it exactly is the cross-check that this change moved the
-    // **reach** and nothing else.
-    expect(found.waitingForPerson).toBe(177);
+    // Both arms landing exactly on their pre-assumption figures, 159 and 175,
+    // is the cross-check that the change removed the assumed width and
+    // nothing else.
+    expect(found.waitingForPerson).toBe(159);
     expect(
       schedule(plan.rows, plan.edges, plan.slices, undefined, undefined, 'anchor-slice')
         .waitingForPerson,
-    ).toBe(188);
+    ).toBe(175);
   });
 
   it('schedules 600 slices in under 20ms', () => {
