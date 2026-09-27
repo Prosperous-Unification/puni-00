@@ -453,6 +453,8 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     );
     const trust = createExternalTrust(candidate);
     const invocation = lint(candidate, trust);
+    // Proof: leaving the promoted initial SQL outside `migrations` made this production CLI
+    // refuse `libs/website/adapters/store-sqlite/src/down.sql matched 0 classification rules`.
     // Proof: omitting the five namespaced Dagger target inputs from the live relationship
     // declaration made this production CLI report the exact authority-selector mismatch (0/1).
     expect(invocation.exitCode, output(invocation)).toBe(0);

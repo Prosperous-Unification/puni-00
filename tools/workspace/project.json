@@ -1,0 +1,29 @@
+{
+  "name": "workspace-portability",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/workspace",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun", "ring:adapter"],
+  "targets": {
+    "test": {
+      "command": "bun test tools/workspace/portability.test.ts --timeout=30000"
+    },
+    "lint": {
+      "command": "bunx eslint --config tools/workspace/eslint.portable.mjs tools/workspace && bunx prettier --config tools/workspace/prettier.portable.json --check tools/workspace",
+      "inputs": [
+        "default",
+        "{workspaceRoot}/tools/workspace/eslint.portable.mjs",
+        "{workspaceRoot}/tools/workspace/prettier.portable.json"
+      ]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force tools/workspace/tsconfig.json"
+      }
+    },
+    "build": {
+      "command": "bun build tools/workspace/portability.ts --target=bun --outdir=dist/tools/workspace"
+    }
+  }
+}

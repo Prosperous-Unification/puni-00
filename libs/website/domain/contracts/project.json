@@ -1,0 +1,47 @@
+{
+  "name": "website-contracts",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/website/domain/contracts/src",
+  "projectType": "library",
+  "tags": [
+    "scope:shared",
+    "type:contracts",
+    "runtime:isomorphic",
+    "ring:domain",
+    "product:website"
+  ],
+  "metadata": {
+    "portability": {
+      "visibility": "public",
+      "dependencies": [],
+      "aliases": ["@website/contracts"]
+    }
+  },
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc -p libs/website/domain/contracts/tsconfig.json --noEmit"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint libs/website/domain/contracts/src"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/website/domain/contracts/tsconfig.json"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun build libs/website/domain/contracts/src/index.ts --target=browser --outdir=dist/libs/website/domain/contracts"
+      },
+      "outputs": ["{workspaceRoot}/dist/libs/website/domain/contracts"]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@puni/website-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host localhost --port 4201",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "bun test",
+    "lint": "eslint src vite.config.ts"
+  }
+}
