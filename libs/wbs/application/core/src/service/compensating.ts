@@ -179,7 +179,8 @@ export interface RestoreSubtree {
    * New journals carry the whole team set; old journals omit it and restore
    * the singleton projected in `serviceTeamId`.
    */
-  rows: (WorkItem & { teamIds?: readonly string[] })[];
+  /** Rows as {@link SubtreeCopy} inserts them, their team and type links included. */
+  rows: (WorkItem & { teamIds?: readonly string[]; typeIds?: readonly string[] })[];
   /** Where the root sat among its siblings, which is how the restore finds its slot again. */
   rootPosition: number;
   /** Rows to put back under the restored branch, at the positions they had before. */
@@ -543,6 +544,11 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
         if (row.serviceTeamId !== null) found.teams.push(row.serviceTeamId);
         if (row.serviceId !== null) found.services.push(row.serviceId);
         found.teams.push(...(row.teamIds ?? []));
+        // Proof: dropping this line made `… a restored row carrying a foreign
+        // type, cleared again in the same replay` in
+        // `command-organization.controller.db.test.ts` answer 200 instead of
+        // 404; watched 2026-09-27.
+        found.types.push(...(row.typeIds ?? []));
       }
       command.reparented.forEach(placed);
       [

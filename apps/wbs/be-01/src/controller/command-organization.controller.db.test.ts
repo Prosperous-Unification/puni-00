@@ -376,6 +376,46 @@ describe('after activation', () => {
     expect(snapshot()).toEqual(before);
   });
 
+  it('refuses a foreign directory id exactly as an absent one, before anything is written', async () => {
+    const row = rowOf(own).id;
+    const pairs: [unknown, unknown][] = [
+      [
+        {
+          kind: 'patchWorkItem',
+          workItemId: row,
+          patch: { teamIds: ['tm-b'], tagIds: ['no-tag'] },
+        },
+        {
+          kind: 'patchWorkItem',
+          workItemId: row,
+          patch: { teamIds: ['no-team'], tagIds: ['no-tag'] },
+        },
+      ],
+      [
+        { kind: 'patchWorkItem', workItemId: row, patch: { serviceTeamId: 'tm-b', teamRefs: [] } },
+        {
+          kind: 'patchWorkItem',
+          workItemId: row,
+          patch: { serviceTeamId: 'no-team', teamRefs: [] },
+        },
+      ],
+      [
+        { kind: 'setAssignee', workItemId: row, stepId: ownStep, personId: 'pe-b' },
+        { kind: 'setAssignee', workItemId: row, stepId: ownStep, personId: 'no-person' },
+      ],
+    ];
+    for (const [foreignCommand, absentCommand] of pairs) {
+      const before = snapshot();
+      const foreignAnswer = await batch('ada', own, [foreignCommand]);
+      expect({ foreignCommand, status: foreignAnswer.status }).toEqual({
+        foreignCommand,
+        status: 404,
+      });
+      expect(await batch('ada', own, [absentCommand])).toEqual(foreignAnswer);
+      expect(snapshot()).toEqual(before);
+    }
+  });
+
   it('fails closed on a project another project reaches into, changing neither', async () => {
     const mine = rowOf(own).id;
     const theirs = rowOf(foreign).id;
@@ -491,6 +531,53 @@ describe('a replayed entry that names anything outside the organization', () => 
         removedActuals: [],
         removedProgress: [],
         removedMeasures: [],
+      }),
+    ],
+    [
+      'a restored row carrying a foreign type, cleared again in the same replay',
+      () => ({
+        do: 'batch',
+        steps: [
+          {
+            do: 'restore_subtree',
+            rows: [
+              {
+                id: 'w-typed',
+                projectId: own,
+                parentId: null,
+                position: 5,
+                name: 'Typed',
+                notes: '',
+                frozenNumber: null,
+                startNoEarlierThan: null,
+                startNoEarlierThanReason: null,
+                deadline: null,
+                factStart: null,
+                factEnd: null,
+                priority: null,
+                serviceTeamId: null,
+                serviceId: null,
+                maxParallel: 1,
+                revision: 1,
+                typeIds: ['ty-b'],
+              },
+            ],
+            rootPosition: 5,
+            reparented: [],
+            estimates: [],
+            actuals: [],
+            progress: [],
+            measures: [],
+            assignments: [],
+            internalDependencies: [],
+            externalDependencies: [],
+            removedEstimates: [],
+            removedActuals: [],
+            removedProgress: [],
+            removedMeasures: [],
+          },
+          { do: 'patch', workItemId: 'w-typed', patch: { typeIds: [] } },
+        ],
       }),
     ],
     [

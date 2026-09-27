@@ -3,6 +3,7 @@ import { canWriteInOrganization, type OrganizationScope } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type {
+  DirectoryCatalog,
   Person,
   PersonWithTeams,
   ServiceTeam,
@@ -660,6 +661,20 @@ async function refuseForeignReferences(
   // capacity as it refuses an absent team's` in
   // `command-organization.controller.db.test.ts` answer 200 instead of 404;
   // watched 2026-09-27.
+  // Proof: skipping this check made `refuses a foreign directory id exactly as
+  // an absent one, before anything is written` in
+  // `command-organization.controller.db.test.ts` answer `unknown_tag` for a
+  // foreign team beside an absent tag and `unknown_team` for an absent team
+  // beside it, telling the two apart; watched 2026-09-27.
+  for (const [catalog, ids, reason] of directoryReferencesOf(command, context)) {
+    if (ids.length === 0) continue;
+    const owned = new Set(
+      (await graph.directory.listWithin(catalog, { kind: 'scoped', scope })).map(
+        (entry) => entry.id,
+      ),
+    );
+    if (ids.some((id) => !owned.has(id))) context.refuse({ reason });
+  }
   if (command.kind === 'setCapacity') {
     const teamId = context.required(command.teamId, command.teamRef);
     const owned = await graph.directory.listWithin('teams', {
@@ -679,6 +694,36 @@ async function refuseForeignReferences(
   ) {
     context.refuse({ reason: 'unknown_step' });
   }
+}
+
+/**
+ * The directory entries a project command names, refs resolved, each with the
+ * refusal an entry nobody holds already earns. Checked before the command runs:
+ * the services validate these globally, so a foreign id would otherwise be
+ * told apart from an absent one, and a label a patch sets and then drops (a
+ * `serviceTeamId` beside `teamRefs: []`) would leave nothing for the closure.
+ */
+function directoryReferencesOf(
+  command: PlanCommand,
+  context: CommandContext,
+): [DirectoryCatalog, readonly string[], PlainReason][] {
+  if (command.kind === 'setAssignee') {
+    const person = context.id(command.personId, command.personRef);
+    return [['people', person === null ? [] : [person], 'unknown_person']];
+  }
+  if (command.kind !== 'patchWorkItem') return [];
+  const { patch } = command;
+  const teams = context.ids(patch.teamIds, patch.teamRefs);
+  if (patch.serviceTeamId !== undefined && patch.serviceTeamId !== null) {
+    teams.push(patch.serviceTeamId);
+  }
+  return [
+    ['teams', teams, 'unknown_team'],
+    ['tags', context.ids(patch.tagIds, patch.tagRefs), 'unknown_tag'],
+    ['services', context.ids(patch.serviceIds, patch.serviceRefs), 'unknown_service'],
+    ['workItemTypes', context.ids(patch.typeIds, patch.typeRefs), 'unknown_type'],
+    ['externalSystems', (patch.externalRefs ?? []).map((each) => each.systemId), 'unknown_system'],
+  ];
 }
 
 /** The refusal a command earns for leaving the project referencing `kind` outside it. */
