@@ -217,8 +217,12 @@ Before any workload you need exists on the cluster, per host, h3mon first:
 fleet_ansible --limit h3mon --extra-vars \
   '{"puni_rollback_host":"h3mon","puni_rollback_private_mtu":<privateMtu from step 2>,"puni_rollback_remove_operator":true}' \
   playbooks/rollback-host.yml
+ssh h3mon 'sudo tar --extract --gzip --file /root/pre-k3s-etc.tgz -C / etc/fstab && sudo swapon --all'
 ssh h4claw sudo k3s kubectl delete node h3mon   # while h4claw still runs
 ```
+
+The `fstab` restore brings back any swap line the base role commented out (the probe saw no swap
+on either host).
 
 The variables go as JSON: `key=value` would make the boolean a string, which the play refuses.
 `puni_rollback_remove_operator: true` deletes `puni-fleet`; never set it when that is the

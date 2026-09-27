@@ -58,7 +58,10 @@
       changed_when: puni_rollback_mounts.stderr | length > 0
 
     - name: Delete k3s network links
+      # Proof: with a fake `ip` whose delete exits 23, this command without `set -e` exited 0 and
+      # printed `deleted`; with it, it exits 23 and the task fails.
       ansible.builtin.shell: >-
+        set -e;
         if ip link show {{ puni_link }} > /dev/null 2>&1; then
         ip link delete {{ puni_link }}; echo deleted; fi
       loop: [cni0, flannel.1, flannel-v6.1, flannel-wg, kube-ipvs0]
