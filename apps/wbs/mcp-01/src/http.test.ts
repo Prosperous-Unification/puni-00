@@ -65,6 +65,7 @@ describe('oauthMetadataResponse', () => {
       token_endpoint_auth_methods_supported: ['none'],
       code_challenge_methods_supported: ['S256'],
       scopes_supported: ['wbs:read', 'wbs:write', 'wbs:editor'],
+      authorization_response_iss_parameter_supported: true,
     });
   });
 

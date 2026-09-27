@@ -531,6 +531,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     });
     const target = new URL(pending.authorization.redirectUri);
     target.searchParams.set('code', code);
+    target.searchParams.set('iss', this.issuer);
     if (pending.authorization.state !== undefined) {
       target.searchParams.set('state', pending.authorization.state);
     }
@@ -545,6 +546,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     await this.revokeRefreshToken(refreshToken);
     const target = new URL(authorization.redirectUri);
     target.searchParams.set('error', error);
+    target.searchParams.set('iss', this.issuer);
     if ('state' in authorization && authorization.state !== undefined) {
       target.searchParams.set('state', authorization.state);
     }
@@ -609,6 +611,8 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       grant.expiresAt <= this.now() ||
       form.get('grant_type') !== 'authorization_code' ||
       stringField(form, 'client_id') !== grant.clientId ||
+      // Proof: on 2026-09-27, removing this comparison failed `refuses a token exchange that
+      // substitutes another registered redirect, and burns the code` with 200 (oauth.test.ts).
       stringField(form, 'redirect_uri') !== grant.redirectUri ||
       verifier === undefined ||
       !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier) ||
@@ -1096,24 +1100,57 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Reviewed hosted callbacks, admitted only as these exact strings: a parsed comparison would let
+ * `https://VSCODE.dev:443/a/../redirect` normalize into an entry. Every other hosted callback,
+ * including Cursor or Copilot Studio installations, needs its own reviewed entry here.
+ * ChatGPT is not admitted yet: authorization responses now carry the RFC 9207 issuer it
+ * requires, but its stable `https://chatgpt.com/connector_platform_oauth_redirect` (or a
+ * `https://chatgpt.com/connector/oauth/{callback_id}`) enters only once a connection is observed
+ * displaying that exact URI (design.md, "Redirect policy").
+ */
+const HOSTED_REDIRECTS: ReadonlySet<string> = new Set([
+  'https://claude.ai/api/mcp/auth_callback',
+  'https://claude.com/api/mcp/auth_callback',
+  'https://vscode.dev/redirect',
+  'https://www.perplexity.ai/rest/connections/oauth_callback',
+  'https://enterprise.perplexity.ai/rest/connections/oauth_callback',
+]);
+
+/**
+ * A native-client loopback callback (RFC 8252 §7.3) spelled literally: `127.1`, `LOCALHOST`,
+ * port `0` or a zero-padded port do not match, and nothing may precede the host.
+ */
+const LOOPBACK_REDIRECT =
+  /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::[1-9][0-9]{0,4})?(?:\/[^#]*)?$/;
+
+/** Authorization-response fields a loopback callback's own query must not pre-set. */
+const RESPONSE_FIELDS = ['code', 'state', 'iss', 'error', 'error_description', 'error_uri'];
+
 function isRedirect(value: unknown): value is string {
   if (typeof value !== 'string') return false;
+  // Proof: on 2026-09-27, a parsed `hostname.endsWith` match here failed `refuses the near-miss
+  // callback` for evilvscode.dev, VSCODE.dev, :443 and the dot-segment path (oauth.test.ts).
+  if (HOSTED_REDIRECTS.has(value)) return true;
+  // Proof: on 2026-09-27, skipping this pattern failed `refuses the near-miss callback` for
+  // 127.1, LOCALHOST, ports 0 and 080, and javascript://localhost (oauth.test.ts).
+  if (!LOOPBACK_REDIRECT.test(value)) return false;
+  let url: URL;
   try {
-    const url = new URL(value);
-    if (url.username !== '' || url.password !== '' || url.hash !== '') return false;
-    const isClaudeConnector =
-      url.protocol === 'https:' &&
-      url.port === '' &&
-      (url.hostname === 'claude.ai' || url.hostname === 'claude.com') &&
-      url.pathname === '/api/mcp/auth_callback' &&
-      url.search === '';
-    const isLoopback =
-      (url.protocol === 'http:' || url.protocol === 'https:') &&
-      (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]');
-    return isClaudeConnector || isLoopback;
+    url = new URL(value);
   } catch {
     return false;
   }
+  return (
+    (url.protocol === 'http:' || url.protocol === 'https:') &&
+    url.username === '' &&
+    url.password === '' &&
+    url.hash === '' &&
+    ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) &&
+    // Proof: on 2026-09-27, dropping this failed `refuses the near-miss callback` for the
+    // `code`, `state`, `iss` and `error` query cases (oauth.test.ts).
+    RESPONSE_FIELDS.every((field) => !url.searchParams.has(field))
+  );
 }
 
 function bytes(value: string): number {
