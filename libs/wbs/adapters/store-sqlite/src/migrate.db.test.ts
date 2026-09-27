@@ -285,27 +285,26 @@ const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
  */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /**
- * The durable activation marker, stamped after
- * {@link ORGANIZATION_OWNERSHIP} and reversed before it.
+ * The durable activation marker, stamped after main's step code column and
+ * reversed before it.
  */
-const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
+const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 /**
  * The nullable step code column and its partial unique index
  * `address-step-nodes` adds. One `ADD COLUMN` and one `CREATE UNIQUE INDEX`
- * forward, the index and the column back, so it heads every descending reversal
- * list and tails every ascending one.
+ * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
 /**
  * The legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
  */
-const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
+const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
 /**
  * The newest: the triggers that freeze organization ownership, stamped after
  * {@link ORGANIZATION_BRIDGE} and reversed before it.
  */
-const ORGANIZATION_FROZEN = '20260927170000_freeze_organization_ownership';
+const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 // `step` since 20260831120000_rename_role_to_step. Every raw statement in this
@@ -412,8 +411,8 @@ describe('the WBS domain migration', () => {
       expect(reversed).toEqual([
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -756,8 +755,8 @@ describe('the capacity migrations', () => {
       expect(reversed).toEqual([
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -1238,8 +1237,8 @@ describe('the work item team migration', () => {
       expect(reversed).toEqual([
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -1487,8 +1486,8 @@ describe('the priority band migration', () => {
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -1788,8 +1787,8 @@ describe('the plan event migration', () => {
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -2027,8 +2026,8 @@ describe('the actual migration', () => {
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -2310,8 +2309,8 @@ describe('the step progress migration', () => {
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -2577,8 +2576,8 @@ describe('the not-before reason migration', () => {
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -2835,8 +2834,8 @@ describe('the tag migration', () => {
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -3198,8 +3197,8 @@ describe('the service migration', () => {
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -3353,8 +3352,8 @@ describe('the work-item-service migration', () => {
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
-      STEP_CODE,
       ORGANIZATION_ACTIVATION,
+      STEP_CODE,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
       WORK_ITEM_FACTS,
@@ -3519,8 +3518,8 @@ describe('the work-item-service migration', () => {
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -3818,8 +3817,8 @@ describe('the step measure migration', () => {
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,
@@ -3916,8 +3915,8 @@ describe('the person kind migration', () => {
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
-      STEP_CODE,
       ORGANIZATION_ACTIVATION,
+      STEP_CODE,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
       WORK_ITEM_FACTS,
@@ -4154,8 +4153,8 @@ describe('the person kind migration', () => {
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
-        STEP_CODE,
         ORGANIZATION_ACTIVATION,
+        STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
         WORK_ITEM_FACTS,

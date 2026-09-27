@@ -19,7 +19,7 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
  * which the freeze now refuses; reconciliation still guards a database that
  * reached such a state before the freeze applied, so the fixture builds one.
  */
-const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
+const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
 
 let dir: string;
 let path: string;

@@ -261,6 +261,9 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'invalid_progress':
     case 'invalid_status':
     case 'invalid_estimate':
+    case 'conflicting_step_address':
+    case 'invalid_step_node_id':
+    case 'unknown_step_node_encoding':
     case 'cannot_send_both_teamIds_and_serviceTeamId':
     case 'unknown_kind':
     case 'unknown_strategy':

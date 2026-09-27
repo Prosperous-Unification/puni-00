@@ -1,4 +1,4 @@
--- Reverses `20260927170000_freeze_organization_ownership`. Dropping the
+-- Reverses `20260927200000_freeze_organization_ownership`. Dropping the
 -- triggers touches no row.
 DROP TRIGGER `project_organization_frozen_insert`;
 --> statement-breakpoint

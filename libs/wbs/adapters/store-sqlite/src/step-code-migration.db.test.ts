@@ -12,14 +12,13 @@ import { rollbackTo } from './migrate-down';
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const STEP_CODE = '20260927150000_add_step_code';
 /** The one below it, which is where every rollback here stops. */
-const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
-/** The organization bridge, stamped after this one and so reversed first. */
-const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
-/**
- * The newest: the triggers that freeze organization ownership, stamped after
- * {@link ORGANIZATION_BRIDGE} and reversed before it.
- */
-const ORGANIZATION_FROZEN = '20260927170000_freeze_organization_ownership';
+const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
+/** The organization activation marker, stamped after this one and so reversed first. */
+const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
+/** The legacy bridge, stamped after the marker and so reversed before it. */
+const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
+/** The ownership freeze, stamped after the bridge and so reversed first. */
+const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
 
 let dir: string;
 let path: string;
@@ -129,9 +128,10 @@ describe(STEP_CODE, () => {
     });
     const before = readStepColumns().map((column) => column.name);
 
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toEqual([
+    expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
+      ORGANIZATION_ACTIVATION,
       STEP_CODE,
     ]);
 
@@ -167,6 +167,6 @@ describe(STEP_CODE, () => {
   it('refuses to roll back a schema whose code index is already gone', () => {
     withDatabase((sqlite) => sqlite.run('DROP INDEX step_project_code'));
 
-    expect(() => rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toThrow('step_project_code');
+    expect(() => rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toThrow('step_project_code');
   });
 });

@@ -1,4 +1,4 @@
--- Reverses `20260927160000_add_organization_bridge`. Dropping the triggers
+-- Reverses `20260927190000_add_organization_bridge`. Dropping the triggers
 -- touches no row; mappings they wrote stay and remain valid.
 DROP TRIGGER `project_organization_bridge`;
 --> statement-breakpoint

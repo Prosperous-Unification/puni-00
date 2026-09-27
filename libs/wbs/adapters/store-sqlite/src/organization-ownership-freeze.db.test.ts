@@ -10,8 +10,8 @@ import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
-const ORGANIZATION_FROZEN = '20260927170000_freeze_organization_ownership';
+const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
+const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
 
 /** Each side table with its root table and the root row seeded for it. */
 const SIDES = [

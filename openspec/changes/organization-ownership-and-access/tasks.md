@@ -22,7 +22,7 @@
 - [x] 3.2 Scope directory people, teams, services, tags, types and external systems, including organization-local names. Red: same names across organizations and foreign ID 404. Fault: remove directory predicate; observe mounted foreign entry test fail, restore and add `Proof:`. Done for the six directory lists (Astra, 2026-09-27). Scoped lists read the side tables' organization-local names. A person's teams and a team's services must be the organization's own, or the read throws. No directory read takes an id. Activated create and rename, with their organization-local uniqueness through opaque root names, and foreign-id 404 on directory commands move to 3.4.
 - [ ] 3.3 Scope project steps, estimates, allowances and schedules. Red: a foreign step or allowance ID cannot influence an A schedule. Fault: remove step reference check; observe mounted schedule test fail, restore and add `Proof:`. Astra, 2026-09-27: allowances are not applicable, because no persisted allowance resource exists. Done so far, slice 9:
   - the step routes and calendar-marker routes are scoped;
-  - migration `20260927170000_freeze_organization_ownership` makes ownership immutable, so a scoped check followed by an id-addressed write stays sound.
+  - migration `20260927200000_freeze_organization_ownership` makes ownership immutable, so a scoped check followed by an id-addressed write stays sound.
 
   Remaining for slice 10, the schedule read (`GET /api/projects/:id/work-items`): an estimate whose step belongs to another project, and capacity or assignment rows naming another organization's team or person, must fail closed. `estimate.ts::listByProject` does not constrain the joined step's project.
 

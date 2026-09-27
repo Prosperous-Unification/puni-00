@@ -1,29 +1,38 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { EstimatedSlice, LeafEdge, SlicePositionEdge } from './slice-edges';
-import { reachedSliceOf, sliceGraphEdges } from './slice-edges';
+import type { GraphSlice, LeafEdge, StepNodeGraphEdge } from './slice-edges';
+import { reachedSliceOf, resolveStepNodeGraph } from './slice-edges';
 
 /**
  * Three leaves. `A` has three steps and nobody estimated its first two, `B` has
  * two, `C` has one — enough for the chain, both reach arms and the join's
  * asymmetry to be told apart.
  */
-const groups: Record<string, readonly EstimatedSlice[] | undefined> = {
-  A: [{ days: null }, { days: null }, { days: 3 }],
-  B: [{ days: 2 }, { days: 1 }],
-  C: [{ days: 5 }],
+const groups: Record<string, readonly GraphSlice[] | undefined> = {
+  A: [
+    { days: null, stepId: 'design' },
+    { days: null, stepId: 'dev' },
+    { days: 3, stepId: 'qa' },
+  ],
+  B: [
+    { days: 2, stepId: 'dev' },
+    { days: 1, stepId: 'qa' },
+  ],
+  C: [{ days: 5, stepId: 'dev' }],
+  D: [{ days: null, stepId: null }],
 };
 const leafIds = ['A', 'B', 'C'];
-const slicesOf = (leafId: string): readonly EstimatedSlice[] => {
+const slicesOf = (leafId: string): readonly GraphSlice[] => {
   const found = groups[leafId];
   if (found === undefined) throw new Error(`no slice for work item ${leafId}`);
   return found;
 };
 
 /** `A0→A1`, as the assertions below spell an edge. */
-const wire = (edges: readonly SlicePositionEdge[]): string[] =>
+const wire = (edges: readonly StepNodeGraphEdge[]): string[] =>
   edges.map(
-    (edge) => `${edge.from.leafId}${String(edge.from.at)}→${edge.to.leafId}${String(edge.to.at)}`,
+    (edge) =>
+      `${edge.predecessor.leafId}${String(edge.predecessor.at)}→${edge.successor.leafId}${String(edge.successor.at)}`,
   );
 
 describe('reachedSliceOf', () => {
@@ -50,9 +59,47 @@ describe('reachedSliceOf', () => {
   });
 });
 
-describe('sliceGraphEdges', () => {
+describe('resolveStepNodeGraph', () => {
+  it('lists every node, isolated and unestimated ones included, and a stepless boundary', () => {
+    expect(resolveStepNodeGraph(['C', 'A', 'D'], slicesOf, [], 'whole-item').nodes).toEqual([
+      { kind: 'step', ref: { workItemId: 'C', stepId: 'dev' }, at: 0 },
+      { kind: 'step', ref: { workItemId: 'A', stepId: 'design' }, at: 0 },
+      { kind: 'step', ref: { workItemId: 'A', stepId: 'dev' }, at: 1 },
+      { kind: 'step', ref: { workItemId: 'A', stepId: 'qa' }, at: 2 },
+      { kind: 'boundary', workItemId: 'D', at: 0 },
+    ]);
+  });
+
+  it('marks a Dev to QA chain as FS workflow edges', () => {
+    expect(resolveStepNodeGraph(['B'], slicesOf, [], 'whole-item').edges).toEqual([
+      {
+        predecessor: { leafId: 'B', at: 0 },
+        successor: { leafId: 'B', at: 1 },
+        type: 'FS',
+        provenance: 'workflow',
+      },
+    ]);
+  });
+
+  it('marks reach-decided joins as FS legacy edges after the workflow chains', () => {
+    const edges = resolveStepNodeGraph(
+      ['A', 'B'],
+      slicesOf,
+      [{ predecessorId: 'A', successorId: 'B' }],
+      'whole-item',
+    ).edges;
+    expect(edges.map(({ type, provenance }) => ({ type, provenance }))).toEqual([
+      { type: 'FS', provenance: 'workflow' },
+      { type: 'FS', provenance: 'workflow' },
+      { type: 'FS', provenance: 'workflow' },
+      { type: 'FS', provenance: 'legacy' },
+    ]);
+    expect(edges[3]?.predecessor).toEqual({ leafId: 'A', at: 2 });
+    expect(edges[3]?.successor).toEqual({ leafId: 'B', at: 0 });
+  });
+
   it('chains each leaf’s own steps in the order the group was given', () => {
-    expect(wire(sliceGraphEdges(leafIds, slicesOf, [], 'whole-item'))).toEqual([
+    expect(wire(resolveStepNodeGraph(leafIds, slicesOf, [], 'whole-item').edges)).toEqual([
       'A0→A1',
       'A1→A2',
       'B0→B1',
@@ -60,19 +107,23 @@ describe('sliceGraphEdges', () => {
   });
 
   it('leaves a leaf of one slice out of the chain entirely', () => {
-    expect(wire(sliceGraphEdges(['C'], slicesOf, [], 'whole-item'))).toEqual([]);
+    expect(wire(resolveStepNodeGraph(['C'], slicesOf, [], 'whole-item').edges)).toEqual([]);
   });
 
   it('joins the predecessor’s REACHED slice to the successor’s FIRST, plain', () => {
     const edges: readonly LeafEdge[] = [{ predecessorId: 'A', successorId: 'B' }];
     // whole-item reaches A's last; the successor side is 0 under either arm.
-    expect(wire(sliceGraphEdges(leafIds, slicesOf, edges, 'whole-item'))).toContain('A2→B0');
+    expect(wire(resolveStepNodeGraph(leafIds, slicesOf, edges, 'whole-item').edges)).toContain(
+      'A2→B0',
+    );
     // anchor-slice reaches B's first estimated step — which is B0 — and still
     // arrives at the successor's first. The reach never touches that side: with
     // it applied to both ends this case would read `B0→A2`, and A's own two
     // blank steps would escape the wait entirely.
     const back: readonly LeafEdge[] = [{ predecessorId: 'B', successorId: 'A' }];
-    expect(wire(sliceGraphEdges(leafIds, slicesOf, back, 'anchor-slice'))).toContain('B0→A0');
+    expect(wire(resolveStepNodeGraph(leafIds, slicesOf, back, 'anchor-slice').edges)).toContain(
+      'B0→A0',
+    );
   });
 
   it('emits every chain before any external edge — the order the adjacency is walked in', () => {
@@ -86,7 +137,7 @@ describe('sliceGraphEdges', () => {
       { predecessorId: 'C', successorId: 'A' },
       { predecessorId: 'A', successorId: 'B' },
     ];
-    expect(wire(sliceGraphEdges(leafIds, slicesOf, edges, 'whole-item'))).toEqual([
+    expect(wire(resolveStepNodeGraph(leafIds, slicesOf, edges, 'whole-item').edges)).toEqual([
       'A0→A1',
       'A1→A2',
       'B0→B1',
@@ -100,10 +151,20 @@ describe('sliceGraphEdges', () => {
     // holds — so an implementation that only reads the predecessor would draw
     // an edge onto a node that does not exist and lose the dependency silently.
     expect(() =>
-      sliceGraphEdges(['A'], slicesOf, [{ predecessorId: 'A', successorId: 'gone' }], 'whole-item'),
+      resolveStepNodeGraph(
+        ['A'],
+        slicesOf,
+        [{ predecessorId: 'A', successorId: 'gone' }],
+        'whole-item',
+      ),
     ).toThrow('no slice for work item gone');
     expect(() =>
-      sliceGraphEdges(['A'], slicesOf, [{ predecessorId: 'gone', successorId: 'A' }], 'whole-item'),
+      resolveStepNodeGraph(
+        ['A'],
+        slicesOf,
+        [{ predecessorId: 'gone', successorId: 'A' }],
+        'whole-item',
+      ),
     ).toThrow('no slice for work item gone');
   });
 });

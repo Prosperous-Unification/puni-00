@@ -467,6 +467,15 @@ export class LiveField {
         this.shown = text;
         this.sync();
         this.afterSync(this.node);
+        // Spent: the box has moved on from it, and kept, it would take the
+        // same text typed again over a peer's revert for this edit once more.
+        // Proof: this line removed, `a peer's revert heard after a slow
+        // landing is what the box shows` failed on its second visit with
+        // `expected [ 'Beta' ] to deeply equal [ 'Beta', 'Beta' ]`. Watched,
+        // 2026-09-27.
+        const { landing } = this.sent;
+        this.sent = null;
+        return landing;
       }
       return this.sent.landing;
     }

@@ -66,27 +66,26 @@ const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
  */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /**
- * The durable activation marker, stamped after
- * {@link ORGANIZATION_OWNERSHIP} and reversed before it.
+ * The durable activation marker, stamped after main's step code column and
+ * reversed before it.
  */
-const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
+const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 /**
  * The nullable step code column and its partial unique index
  * `address-step-nodes` adds. One `ADD COLUMN` and one `CREATE UNIQUE INDEX`
- * forward, the index and the column back, so it heads every descending reversal
- * list and tails every ascending one.
+ * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
 /**
  * The legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
  */
-const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
+const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
 /**
  * The newest: the triggers that freeze organization ownership, stamped after
  * {@link ORGANIZATION_BRIDGE} and reversed before it.
  */
-const ORGANIZATION_FROZEN = '20260927170000_freeze_organization_ownership';
+const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
 
 let dir: string;
 let path: string;
@@ -169,8 +168,8 @@ describe('the saved-plan migration', () => {
     expect(rollbackTo(path, FOLDER, LOOKUP_INDEXES)).toEqual([
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
-      STEP_CODE,
       ORGANIZATION_ACTIVATION,
+      STEP_CODE,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
       WORK_ITEM_FACTS,

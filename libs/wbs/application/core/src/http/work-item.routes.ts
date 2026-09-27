@@ -2,6 +2,7 @@ import {
   applyDirectoryCommands,
   applyProjectCommands,
   commandParserRefusal,
+  getStepReference,
   getWorkItems,
   PLAN_COMMAND_KINDS,
   type PlanCommandKind,
@@ -13,6 +14,8 @@ import {
 } from '@wbs/contracts';
 import { type, ValidationError } from '@wbs/validation';
 
+import { readStepAddresses, resolveAddressedStep } from '../module/work-item/step-addresses';
+import type { Digest } from '../ports/runtime';
 import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
 import type { PlanCommand } from '../service/plan-command';
 import type { AppliedCommand, BatchRefusal, PlanCommandRunner } from '../service/plan-commands';
@@ -352,8 +355,12 @@ async function appliedWire(applied: AppliedCommand) {
   return { ...wire, ...(ref === undefined ? {} : { ref }) };
 }
 
-/** Five typed work-item endpoints; services retain transactions, access, sequencing and announcements. */
-export function workItemRoutes(workItems: WorkItemService, commands: PlanCommandRunner) {
+/** Typed work-item endpoints; services retain transactions, access, sequencing and announcements. */
+export function workItemRoutes(
+  workItems: WorkItemService,
+  commands: PlanCommandRunner,
+  digest: Digest,
+) {
   return [
     bind(getWorkItems, async ({ params, principal }): Promise<HttpReply<typeof getWorkItems>> => {
       const tree = await workItems.tree(params.id);
@@ -369,7 +376,11 @@ export function workItemRoutes(workItems: WorkItemService, commands: PlanCommand
       return {
         ok: true,
         status: 200,
-        body: { ...tree, ...(await workItems.undoState(params.id, principal.id)) },
+        body: {
+          ...tree,
+          ...(await workItems.undoState(params.id, principal.id)),
+          ...(await readStepAddresses(params.id, tree, digest)),
+        },
       };
     }),
     bind(
@@ -425,6 +436,38 @@ export function workItemRoutes(workItems: WorkItemService, commands: PlanCommand
     ),
     bind(redoProject, async ({ params, principal }) =>
       answerUndo(await commands.redo(params.id, principal.id)),
+    ),
+    bind(
+      getStepReference,
+      async ({ params, query }): Promise<HttpReply<typeof getStepReference>> => {
+        const addresses = await workItems.readAddresses(params.id);
+        if (addresses === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        const outcome = await resolveAddressedStep(params.id, query, addresses, digest);
+        if (outcome.kind === 'stale') {
+          return {
+            ok: false,
+            status: 409,
+            body: { error: 'stale_address_revision', addressRevision: outcome.addressRevision },
+          };
+        }
+        if (outcome.kind === 'unresolvable') {
+          return {
+            ok: false,
+            status: 422,
+            body: { error: 'unresolvable_reference', reason: outcome.reason },
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          body: {
+            stepNodeId: outcome.stepNodeId,
+            workItemId: outcome.workItemId,
+            stepId: outcome.stepId,
+            reference: outcome.reference,
+          },
+        };
+      },
     ),
   ] as const;
 }
