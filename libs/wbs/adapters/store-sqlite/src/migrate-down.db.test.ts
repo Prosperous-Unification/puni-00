@@ -300,6 +300,8 @@ const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
  * list and tails every ascending one.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+/** The newest migration since `add-project-step-estimate-allowances`: it heads every descending ledger. */
+const STEP_ALLOWANCE = '20260927160000_add_step_allowance';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -633,6 +635,7 @@ describe('readMigrationFolders', () => {
       ORGANIZATION_RECORDS,
       ORGANIZATION_OWNERSHIP,
       STEP_CODE,
+      STEP_ALLOWANCE,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -753,11 +756,13 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_RECORDS,
         ORGANIZATION_OWNERSHIP,
         STEP_CODE,
+        STEP_ALLOWANCE,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -874,6 +879,7 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_RECORDS,
         ORGANIZATION_OWNERSHIP,
         STEP_CODE,
+        STEP_ALLOWANCE,
       ]);
     } finally {
       db.cleanup();
@@ -944,6 +950,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1036,6 +1043,7 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1113,6 +1121,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,

@@ -505,6 +505,7 @@ export interface WorkItemView {
 export interface StepView {
   id: string;
   name: string;
+  allowancePercent: number;
 }
 
 /**
@@ -1498,6 +1499,7 @@ export interface ProjectApi {
   /** Adds a step to the project. Throws `taken` when the name is already one. */
   addStep(projectId: string, name: string): Promise<StepView>;
   renameStep(projectId: string, stepId: string, name: string): Promise<StepView>;
+  setStepAllowance(projectId: string, stepId: string, allowancePercent: number): Promise<StepView>;
   /**
    * Removes a step, or answers what it would take.
    *
@@ -1899,6 +1901,7 @@ export const STEP_REFUSALS: RefusalWords = {
   sentences: {
     taken: 'That name is already a step on this plan.',
     name_required: 'A step needs a name.',
+    invalid_allowance: 'Invalid allowance. Enter 0–1000 with at most two decimal places.',
     in_use: 'That step still holds estimates or assignments on this plan.',
     unknown_step: 'That step is no longer on this plan — somebody else removed it.',
     not_found: 'That step is no longer on this plan.',
@@ -2625,7 +2628,7 @@ export function httpProjectApi(token: string): ProjectApi {
       return jsonBody(
         readProjectShape,
         await client.getApiProjectsById({ params: { id: projectId }, headers: auth(token) }),
-      ).steps.map(({ id, name }) => ({ id, name }));
+      ).steps.map(({ id, name, allowancePercent }) => ({ id, name, allowancePercent }));
     },
     async addStep(projectId, name) {
       const { step } = jsonBody(
@@ -2636,7 +2639,7 @@ export function httpProjectApi(token: string): ProjectApi {
           headers: auth(token),
         }),
       );
-      return { id: step.id, name: step.name };
+      return { id: step.id, name: step.name, allowancePercent: step.allowancePercent };
     },
     async renameStep(projectId, stepId, name) {
       const { step } = jsonBody(
@@ -2647,7 +2650,18 @@ export function httpProjectApi(token: string): ProjectApi {
           headers: auth(token),
         }),
       );
-      return { id: step.id, name: step.name };
+      return { id: step.id, name: step.name, allowancePercent: step.allowancePercent };
+    },
+    async setStepAllowance(projectId, stepId, allowancePercent) {
+      const { step } = jsonBody(
+        renameStepShape,
+        await client.patchApiProjectsByIdStepsByStepId({
+          params: { id: projectId, stepId },
+          body: { allowancePercent },
+          headers: auth(token),
+        }),
+      );
+      return { id: step.id, name: step.name, allowancePercent: step.allowancePercent };
     },
     async removeStep(projectId, stepId, cascade) {
       const reply = await client.deleteApiProjectsByIdStepsByStepId({

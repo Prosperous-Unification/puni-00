@@ -1,5 +1,5 @@
 import { canEditProject, DEFAULT_ESTIMATE_RULE, isIsoDate, PertWeights } from '@wbs/domain';
-import { STEP_POSITION_STEP, suggestStepCodes } from '@wbs/domain';
+import { NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCodes } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
 import type { Clock } from '../../ports/clock';
@@ -152,6 +152,7 @@ export class ProjectService {
       name: stepName,
       position: (place + 1) * STEP_POSITION_STEP,
       code: codes[place],
+      allowancePercent: NO_ALLOWANCE,
     }));
     // The store's answer rather than the seed: `create` fills the three
     // settings from the column defaults, so the seed is a `NewProject` and only

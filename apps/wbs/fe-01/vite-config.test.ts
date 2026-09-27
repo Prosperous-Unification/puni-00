@@ -260,6 +260,7 @@ describe('the app and the run resolve the same modules', () => {
     const expected = {
       '@': resolve(APP_ROOT, 'src'),
       '@wbs/domain/workday': resolve(APP_ROOT, domain, 'workday.ts'),
+      '@wbs/domain/estimate': resolve(APP_ROOT, domain, 'estimate.ts'),
       '@wbs/domain/progress': resolve(APP_ROOT, domain, 'progress.ts'),
       '@wbs/domain/deadline-offsets': resolve(APP_ROOT, domain, 'deadline-offsets.ts'),
       '@wbs/domain/assumed-duration': resolve(APP_ROOT, domain, 'assumed-duration.ts'),

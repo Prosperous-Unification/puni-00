@@ -30,6 +30,8 @@ export interface CapturedStep {
   readonly id: string;
   readonly name: string;
   readonly position: number;
+  /** The step's allowance at capture: a saved plan's charged figures use it, never the live one. */
+  readonly allowancePercent: number;
 }
 
 export interface CapturedWorkItem {

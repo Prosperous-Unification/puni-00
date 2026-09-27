@@ -528,6 +528,23 @@ test('enabled unavailable optimizer refuses while a disabled preference is retai
   if (prepared.ok) expect(prepared.value.settings.scheduleEngine).toBe('optimized');
 });
 
+/** Proof: see the allowance guard in `prepareImport`. */
+test('refuses a step allowance over 1000%, and carries a valid one to the prepared step', () => {
+  const prepared = prepareImport(planDocumentFixture(), supportsAll);
+  if (!prepared.ok) throw new Error('fixture refused');
+  expect(prepared.value.stepByFileId.get('step-2')?.allowancePercent).toBe(30);
+
+  for (const allowancePercent of [1000.01, -1, 0.001]) {
+    const refused = planDocumentFixture();
+    at(refused.steps, 1).allowancePercent = allowancePercent;
+    expect(prepareImport(refused, supportsAll)).toMatchObject({
+      ok: false,
+      code: 'invalid_body',
+      path: 'steps[1].allowancePercent',
+    });
+  }
+});
+
 /** The fixture with a second type and a second root row, both rows carrying both types. */
 function twoConflictedRows(): PlanFixture {
   const body = planDocumentFixture();

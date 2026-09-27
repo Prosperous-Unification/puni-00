@@ -86,6 +86,8 @@ const ORGANIZATION_TABLES = [
  * list and tails every ascending one.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+/** The newest migration since `add-project-step-estimate-allowances`: it heads every descending ledger. */
+const STEP_ALLOWANCE = '20260927160000_add_step_allowance';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -216,6 +218,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      STEP_ALLOWANCE,
       STEP_CODE,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,

@@ -42,7 +42,10 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
     projectId: string,
     stamp: WriteStamp,
   ): Promise<void> => {
-    await stores.steps.add({ id: crypto.randomUUID(), projectId, name: 'Wiring' }, stamp);
+    await stores.steps.add(
+      { id: crypto.randomUUID(), projectId, name: 'Wiring', allowancePercent: 0 },
+      stamp,
+    );
     await stores.directory.addTag({ id: crypto.randomUUID(), name: 'urgent' }, stamp);
     await stores.projects.update(projectId, { name: 'Rewired' }, stamp);
   };
@@ -109,7 +112,10 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
     // reader to infer from a hang. Watched 2026-09-08.
     const { uow, projectId, stamp } = open();
     const answer = await uow.run(async (scope) => {
-      await scope.stores.steps.add({ id: crypto.randomUUID(), projectId, name: 'Wiring' }, stamp);
+      await scope.stores.steps.add(
+        { id: crypto.randomUUID(), projectId, name: 'Wiring', allowancePercent: 0 },
+        stamp,
+      );
       return { commit: true, value: 'reached the end' as const };
     });
     expect(answer).toBe('reached the end');
@@ -122,12 +128,18 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
     const { uow, reader, projectId, stamp } = open();
     const survivor = crypto.randomUUID();
     await uow.run<'refused'>(async (scope) => {
-      await scope.stores.steps.add({ id: crypto.randomUUID(), projectId, name: 'Wiring' }, stamp);
+      await scope.stores.steps.add(
+        { id: crypto.randomUUID(), projectId, name: 'Wiring', allowancePercent: 0 },
+        stamp,
+      );
       return {
         commit: false,
         value: 'refused',
         afterRollback: async (repair) => {
-          await repair.stores.steps.add({ id: survivor, projectId, name: 'Repaired' }, stamp);
+          await repair.stores.steps.add(
+            { id: survivor, projectId, name: 'Repaired', allowancePercent: 0 },
+            stamp,
+          );
         },
       };
     });
@@ -139,7 +151,10 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
   it('(k) lets a failing repair surface as itself, with no second rollback', async () => {
     const { uow, reader, projectId, stamp } = open();
     const failing = uow.run<'refused'>(async (scope) => {
-      await scope.stores.steps.add({ id: crypto.randomUUID(), projectId, name: 'Wiring' }, stamp);
+      await scope.stores.steps.add(
+        { id: crypto.randomUUID(), projectId, name: 'Wiring', allowancePercent: 0 },
+        stamp,
+      );
       return {
         commit: false,
         value: 'refused',
@@ -152,7 +167,10 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
     // rollback" comes to: a `ROLLBACK` issued on a closed transaction throws
     // out of the next batch instead of this one.
     const answer = await uow.run(async (scope) => {
-      await scope.stores.steps.add({ id: crypto.randomUUID(), projectId, name: 'After' }, stamp);
+      await scope.stores.steps.add(
+        { id: crypto.randomUUID(), projectId, name: 'After', allowancePercent: 0 },
+        stamp,
+      );
       return { commit: true, value: 'applied' as const };
     });
     expect(answer).toBe('applied');

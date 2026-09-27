@@ -11,6 +11,8 @@ import { rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const STEP_CODE = '20260927150000_add_step_code';
+/** The newest migration since `add-project-step-estimate-allowances`: it heads every descending ledger. */
+const STEP_ALLOWANCE = '20260927160000_add_step_allowance';
 /** The one below it, which is where every rollback here stops. */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 
@@ -122,10 +124,12 @@ describe(STEP_CODE, () => {
     });
     const before = readStepColumns().map((column) => column.name);
 
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([STEP_CODE]);
+    expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([STEP_ALLOWANCE, STEP_CODE]);
 
     expect(readStepColumns().map((column) => column.name)).toEqual(
-      before.filter((name) => name !== 'code'),
+      before.filter(
+        (name) => name !== 'code' && name !== 'allowance_bps' && name !== 'allowance_revision',
+      ),
     );
     expect(readStepIndexSql().some((sql) => sql?.includes('step_project_code') === true)).toBe(
       false,

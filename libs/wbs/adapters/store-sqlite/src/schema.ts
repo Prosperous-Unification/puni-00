@@ -1,4 +1,6 @@
 import {
+  allowanceHundredthsOf,
+  type AllowancePercent,
   DOMAIN_CLAIM_STATUSES,
   INVITABLE_ROLES,
   JOIN_REQUEST_STATUSES,
@@ -12,6 +14,7 @@ import { sql } from 'drizzle-orm';
 import {
   type AnySQLiteColumn,
   check,
+  customType,
   foreignKey,
   index,
   integer,
@@ -679,6 +682,25 @@ export const workItem = sqliteTable(
 export type WorkItemRow = typeof workItem.$inferSelect;
 
 /**
+ * An allowance percentage stored as whole hundredths of a percent.
+ *
+ * The one conversion between the planner's `12.34` and SQLite's `1234`, so no
+ * reader or writer spells it. Writing a percentage that is not a whole number
+ * of hundredths throws: every value reaching a store was validated by
+ * `allowancePercentOf` at its boundary, and rounding one here would store a
+ * policy nobody typed.
+ */
+const allowanceHundredths = customType<{ data: AllowancePercent; driverData: number }>({
+  dataType: () => 'integer',
+  toDriver: (percent) => {
+    const hundredths = allowanceHundredthsOf(percent);
+    if (hundredths === null) throw new Error(`not a storable step allowance: ${String(percent)}`);
+    return hundredths;
+  },
+  fromDriver: (hundredths) => hundredths / 100,
+});
+
+/**
  * A kind of work a project estimates separately. Every project starts with `Dev`
  * and `QA`, which is a seed rather than the set it may hold: they can be
  * renamed, removed, and joined by others through `StepRepository`.
@@ -733,6 +755,24 @@ export const step = sqliteTable(
      * renaming or reordering a step keeps it.
      */
     code: text('code'),
+    /**
+     * This step's estimate allowance, stored as hundredths of a percent
+     * (0–100000, `+0%` to `+1000%`) and read as the percentage — see
+     * {@link allowanceHundredths} and `chargedDays` in `@wbs/domain`.
+     *
+     * Integer, so the two decimal places a planner types are stored exactly.
+     * `DEFAULT 0` is what makes the column additive: an outgoing release's
+     * `INSERT` does not name it, and zero is the charge every step had before
+     * the column existed. The range `CHECK` lives in the migration
+     * (`20260927160000_add_step_allowance`), beside the column it guards.
+     */
+    allowancePercent: allowanceHundredths('allowance_bps').notNull().default(0),
+    /**
+     * How many times this step's allowance has been written — the precondition
+     * an allowance undo is conditioned on, because the value alone can come
+     * back to what it was. Not part of `Step`: nothing but the journal reads it.
+     */
+    allowanceRevision: integer('allowance_revision').notNull().default(0),
     ...auditColumns(),
   },
   (t) => [

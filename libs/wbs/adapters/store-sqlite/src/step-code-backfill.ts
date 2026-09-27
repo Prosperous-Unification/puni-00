@@ -58,7 +58,13 @@ export function backfillStepCodes(
     db.transaction(
       (tx) => {
         const steps = tx
-          .select({ id: step.id, name: step.name, code: step.code, position: step.position })
+          .select({
+            id: step.id,
+            name: step.name,
+            code: step.code,
+            position: step.position,
+            allowancePercent: step.allowancePercent,
+          })
           .from(step)
           .where(eq(step.projectId, projectId))
           .orderBy(step.position, step.id)
@@ -85,7 +91,14 @@ export function backfillStepCodes(
             .run();
           const announced: ProjectEvent = {
             type: 'step_renamed',
-            step: { id: each.id, projectId, name: each.name, position: each.position, code },
+            step: {
+              id: each.id,
+              projectId,
+              name: each.name,
+              position: each.position,
+              code,
+              allowancePercent: each.allowancePercent,
+            },
           };
           eventLog.recordEventIn(tx, subscription, announced, at);
         });

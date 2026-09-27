@@ -1,4 +1,5 @@
 import type {
+  AllowancePercent,
   DependencyReach,
   EstimateMethod,
   EstimateRounding,
@@ -8,7 +9,7 @@ import type {
   SolverObjectiveName,
 } from '@wbs/domain';
 
-import type { Step } from './step-store';
+import type { Step, StepAllowanceWritten } from './step-store';
 import type { WriteStamp } from './write-stamp';
 
 export interface Project {
@@ -167,4 +168,28 @@ export interface ProjectStore {
   /** Returns null when the project is gone. */
   update(id: string, patch: ProjectPatch, stamp: WriteStamp): Promise<Project | null>;
   stepsOf(projectId: string): Promise<Step[]>;
+  /**
+   * Sets one step's allowance, moves that step's allowance revision by one and
+   * moves the project's revision, in one transaction, answering the allowance
+   * it replaced. A step of another project is `not_found`.
+   *
+   * Here rather than on `StepStore` because the journalled edit is applied by
+   * `WorkItemService`, which reads steps through this store already — see
+   * `holdsStep`.
+   */
+  setStepAllowance(
+    projectId: string,
+    stepId: string,
+    allowancePercent: AllowancePercent,
+    stamp: WriteStamp,
+  ): Promise<StepAllowanceWritten>;
+  /**
+   * Each of the project's steps' allowance revision, by step id.
+   *
+   * What an allowance undo is conditioned on. A revision rather than the value,
+   * because a value can come back: 30% edited to 50% and back to 30% by
+   * somebody else is still somebody else's work, and an undo compared on the
+   * value would overwrite it.
+   */
+  stepAllowanceRevisions(projectId: string): Promise<ReadonlyMap<string, number>>;
 }
