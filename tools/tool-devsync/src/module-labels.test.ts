@@ -32,6 +32,9 @@ const UNSEALED: readonly string[] = [
   'module.frontend.plan-feed',
   'module.frontend.plan-writer',
   'module.frontend.project',
+  // Proof (2026-09-27, integration round 5): without this entry the merged tree failed the sealing
+  // test with `apps/wbs/fe-01/src/modules/saved-plans: has no module.ts and is not declared unsealed`.
+  'module.frontend.saved-plans',
 ];
 
 /** The project a `kinds.json` shim row lives in, and the segment of the modules it may name. */
