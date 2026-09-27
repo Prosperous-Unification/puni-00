@@ -60,10 +60,10 @@ export interface MemoryProjectTables {
   readonly projects: Map<string, Project>;
   readonly steps: Map<string, Step[]>;
   readonly opened: Map<string, number>;
-  /** Which organization owns each project, as `project_organization` holds it. */
-  readonly owning: Map<string, string>;
   /** Each step's allowance revision; a step never written is at 0, as the column default. */
   readonly allowanceRevisions: Map<string, number>;
+  /** Which organization owns each project, as `project_organization` holds it. */
+  readonly owning: Map<string, string>;
 }
 
 export function memoryProjectTables(): MemoryProjectTables {
@@ -71,8 +71,8 @@ export function memoryProjectTables(): MemoryProjectTables {
     projects: new Map(),
     steps: new Map(),
     opened: new Map(),
-    owning: new Map(),
     allowanceRevisions: new Map(),
+    owning: new Map(),
   };
 }
 
@@ -80,7 +80,7 @@ export function inMemoryProjects(
   owners: UserStore = inMemoryUsers(),
   tables: MemoryProjectTables = memoryProjectTables(),
 ): ProjectStore {
-  const { projects, steps, opened, owning, allowanceRevisions } = tables;
+  const { projects, steps, opened, allowanceRevisions, owning } = tables;
   /** One moment per `userId::projectId`, exactly as the primary key holds it. */
   /**
    * Every stamp this store was handed, in call order, so a service test can

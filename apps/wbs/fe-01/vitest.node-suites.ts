@@ -26,6 +26,7 @@ export const NODE_SUITES: readonly string[] = [
   'src/components/wbs/drag-drop.test.ts',
   'src/components/wbs/estimate-draft.test.ts',
   'src/components/wbs/gantt-geometry.test.ts',
+  'src/components/wbs/import-with-ai-guide.test.ts',
   'src/components/wbs/initials.test.ts',
   'src/components/wbs/logical-grid.test.ts',
   'src/components/wbs/marker-rule-density.test.ts',
