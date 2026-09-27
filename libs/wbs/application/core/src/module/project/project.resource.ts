@@ -126,6 +126,11 @@ export class ProjectService {
     this.optimizerAvailable = opts.optimizerAvailable ?? (() => false);
   }
 
+  /** Read only the project header; History must not introduce a steps query. */
+  readProject(projectId: string): Promise<Project | null> {
+    return this.opts.projects.findById(projectId);
+  }
+
   /**
    * Creates a project in the caller's organization, or deployment-wide under
    * legacy access. The scoped path writes the ownership row in the project's

@@ -6,6 +6,7 @@ import type {
   TeamView,
   WorkItemTypeView,
 } from '@/lib/wbs-api';
+import type { PlanRead } from '@/lib/wbs-api';
 
 import { type PickableEntry, type PickerOption } from './creatable-picker';
 import { type PickerEntry } from './dep-picker';
@@ -53,6 +54,7 @@ export interface PlanRowReadings {
   externalSystems: ExternalSystemView[];
   assigneeEntries: PickableEntry[];
   estimateReadings: ReadonlyMap<string, EstimateReadings>;
+  stepNodes: ReadonlyMap<string, NonNullable<PlanRead['stepNodes']>[number]> | null;
   hasSchedule: boolean;
   finish: PrintedDay;
   nonOwnerNote: string | null;

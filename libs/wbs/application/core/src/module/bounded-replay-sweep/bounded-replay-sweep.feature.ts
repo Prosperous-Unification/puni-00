@@ -1,10 +1,12 @@
 import type { AuthenticatedUser, InternalIdentity } from '@wbs/contracts';
 
+import type { EventLogService } from '../event-log/event-log.resource';
+import type { PlanEventService } from '../plan-event/plan-event.resource';
 import { runPlanEventRetention, runRetention } from './retention-job';
 
 export interface RetentionSweepGraph {
-  readonly eventLog: { pruneBeyond(maxPerSubscription: number): Promise<number> };
-  readonly planEvents: { pruneOlderThan(cutoff: number): Promise<number> };
+  readonly eventLog: EventLogService;
+  readonly planEvents: PlanEventService;
   readonly maxPerSubscription: number;
   readonly retainDays: number;
   readonly now: () => number;
@@ -33,6 +35,9 @@ export async function retentionSweep(
   const eventLogRemoved = await runRetention(graph.eventLog, {
     maxPerSubscription: graph.maxPerSubscription,
   });
+  // Proof (2026-09-27): returning zero here without pruning history failed
+  // `prunes the history by age on every tick` and `keeps sweeping after a
+  // history sweep fails` (6 pass, 2 fail).
   const planEventsRemoved = await runPlanEventRetention(graph.planEvents, {
     now: graph.now(),
     retainDays: graph.retainDays,

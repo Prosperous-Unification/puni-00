@@ -14,9 +14,14 @@ import type { PlanCommandRunner, PlanCommandRunnerOptions } from './plan-command
  * **No K6 debt; K2 and composition debt disclosed.**
  * The feature imports no other feature. It names the Work item, Directory,
  * Capacity and Priority band resource classes through their `service/`
- * compatibility paths rather than through their modules' contracts, and reads
+ * compatibility paths rather than through their modules' contracts, and calls
  * no repository port itself: the admitted scope's stores reach it only through
- * its private Working plan. Delivery is not closed: be-01's `mountedEndpoints`
+ * its private Working plan. **K3 debt remains in its types:**
+ * `plan-commands.feature.ts` imports `Service`, `Tag` and `WorkItemType` from
+ * `ports/work-item-store.ts` and handles the store-bearing `Scope`, so
+ * `module-boundaries.test.ts` keeps this module in its shrink-only debt ledger
+ * beside Plan import (WBS 040.10 found it; closing it is a resource-services
+ * follow-up). Delivery is not closed: be-01's `mountedEndpoints`
  * still constructs `PlanCommandRunner` with `new` — the backend module map's
  * "Move construction to composition" hazard — and `http/work-item.routes.ts`
  * takes `WorkItemService` beside the runner; tracked under task 7.4 of

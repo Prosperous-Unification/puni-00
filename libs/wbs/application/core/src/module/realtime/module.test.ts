@@ -5,6 +5,7 @@ import { DiBag } from 'di-bag';
 import { clockOf } from '../../ports/clock';
 import { type ProjectEvent, subscriptionFor } from '../../ports/project-event';
 import type { PushTransport } from '../../ports/push-transport';
+import { EventLogService } from '../event-log/event-log.resource';
 import { installRealtime } from './check';
 import { REALTIME_LABEL } from './contract';
 import { realtimeModule } from './module';
@@ -24,7 +25,7 @@ function fakePush() {
 }
 
 const requirements = () => ({
-  eventLog: inMemoryEventLog(),
+  eventLog: new EventLogService(inMemoryEventLog()),
   clock: clockOf({ now: () => 1_000, newId: () => crypto.randomUUID() }),
   push: fakePush().client,
   maxPerSubscription: 100,
@@ -44,7 +45,9 @@ const completeHost = () =>
   DiBag.createBuilder()
     .withInstalledModules([realtimeModule])
     .withServices({
-      eventLog: DiBag.createProvider(() => inMemoryEventLog(), { factoryReturnKind: 'sync-value' }),
+      eventLog: DiBag.createProvider(() => new EventLogService(inMemoryEventLog()), {
+        factoryReturnKind: 'sync-value',
+      }),
       clock: DiBag.createProvider(() => clockOf({ now: () => 1_000, newId: () => 'id' }), {
         factoryReturnKind: 'sync-value',
       }),
@@ -137,7 +140,7 @@ describe('the Realtime module', () => {
     const partial = DiBag.createBuilder()
       .withInstalledModules([realtimeModule])
       .withServices({
-        eventLog: DiBag.createProvider(() => inMemoryEventLog(), {
+        eventLog: DiBag.createProvider(() => new EventLogService(inMemoryEventLog()), {
           factoryReturnKind: 'sync-value',
         }),
         clock: DiBag.createProvider(() => clockOf({ now: () => 1_000, newId: () => 'id' }), {

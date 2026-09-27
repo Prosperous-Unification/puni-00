@@ -1,6 +1,7 @@
 import { inMemoryEventLog } from '@wbs/store-memory/replay-fixture';
 import { describe, expect, it } from 'bun:test';
 
+import { EventLogService } from '../module/event-log/event-log.resource';
 import { clockOf } from '../ports/clock';
 import { type ProjectEvent, subscriptionFor } from '../ports/project-event';
 import type { PushTransport } from '../ports/push-transport';
@@ -33,7 +34,7 @@ function bootstrap(mode: 'accepts' | 'refuses' = 'accepts') {
   const { pushed, client } = fakePush(mode);
   const failures: string[] = [];
   const broadcaster = new GatewayBroadcaster({
-    eventLog: log,
+    eventLog: new EventLogService(log),
     clock: clockOf({ now: () => 1_000, newId: () => crypto.randomUUID() }),
     buffer,
     push: client,
@@ -97,10 +98,10 @@ describe('GatewayBroadcaster', () => {
     expect(buffer.oldestSeq('project:p-1')).toBe(0);
 
     const bufferOnly = new ReplayOrchestrator({
-      log: {
+      log: new EventLogService({
         ...log,
         rangeSince: () => Promise.reject(new Error('the log must not be consulted here')),
-      },
+      }),
       buffer,
     });
     expect(await bufferOnly.replay({ 'project:p-1': 0 })).toEqual({

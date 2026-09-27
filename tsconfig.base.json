@@ -32,6 +32,7 @@
       "@wbs/conformance": ["./libs/wbs/application/conformance/src/index.ts"],
       "@wbs/conformance/*": ["./libs/wbs/application/conformance/src/*"],
       "@wbs/domain": ["./libs/wbs/domain/domain/src/index.ts"],
+      "@wbs/domain/step-node": ["./libs/wbs/domain/domain/src/step-node.ts"],
       "@wbs/domain/stored-vocabularies": ["./libs/wbs/domain/domain/src/stored-vocabularies.ts"],
       "@wbs/domain/workday": ["./libs/wbs/domain/domain/src/workday.ts"],
       "@wbs/domain/tree-order": ["./libs/wbs/domain/domain/src/tree-order.ts"],

@@ -1,15 +1,12 @@
-import type { EventLogStore } from '../../ports/event-log-store';
-import type { PlanEventStore } from '../../ports/plan-event-store';
+import type { EventLogService } from '../event-log/event-log.resource';
+import type { PlanEventService } from '../plan-event/plan-event.resource';
 
 export function runRetention(
-  repo: Pick<EventLogStore, 'pruneBeyond'>,
+  events: EventLogService,
   opts: { maxPerSubscription: number },
 ): Promise<number> {
-  return repo.pruneBeyond(opts.maxPerSubscription);
+  return events.pruneEvents(opts.maxPerSubscription);
 }
-
-/** A day in milliseconds, so the retention window is stated in the unit it is argued in. */
-const DAY_MS = 24 * 60 * 60_000;
 
 /**
  * Takes the old end off the plan's history, and answers how many events went.
@@ -26,8 +23,8 @@ const DAY_MS = 24 * 60 * 60_000;
  * taking a mode would have to be read twice to see which rule ran.
  */
 export function runPlanEventRetention(
-  repo: Pick<PlanEventStore, 'pruneOlderThan'>,
+  events: PlanEventService,
   opts: { now: number; retainDays: number },
 ): Promise<number> {
-  return repo.pruneOlderThan(opts.now - opts.retainDays * DAY_MS);
+  return events.pruneHistory(opts.now, opts.retainDays);
 }

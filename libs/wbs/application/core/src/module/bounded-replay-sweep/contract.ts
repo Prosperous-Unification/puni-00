@@ -1,17 +1,13 @@
-import type { EventLogStore } from '../../ports/event-log-store';
-import type { PlanEventStore } from '../../ports/plan-event-store';
 import type { Intervals } from '../../ports/timers';
+import type { EventLogService } from '../event-log/event-log.resource';
+import type { PlanEventService } from '../plan-event/plan-event.resource';
 import type { RetentionTimer, Swept } from './retention-timer';
 
 /**
  * What a host must supply to install {@link boundedReplaySweepModule}.
  *
- * Both stores are repository ports, and that is existing K3 debt this
- * extraction preserves rather than fixes — the same preserved debt
- * `libs/wbs/application/core/src/module/plan-history/contract.ts` records for
- * `HistoryService`. Closing it needs resource-services over these two stores
- * that no accepted change supplies, so `adopt-di-composition` records it as
- * open and this module claims no K3 compliance either.
+ * Retention uses the Event log and Plan event resources, preserving their
+ * separate count and age rules.
  *
  * `onSweep` is optional because a process that does not care to log a sweep's
  * counts still needs the sweep to run; `onError` is required for the reason
@@ -19,8 +15,8 @@ import type { RetentionTimer, Swept } from './retention-timer';
  * to a healthy one from outside.
  */
 export interface BoundedReplaySweepRequirements {
-  readonly eventLog: EventLogStore;
-  readonly planEvents: PlanEventStore;
+  readonly eventLog: EventLogService;
+  readonly planEvents: PlanEventService;
   readonly intervals: Intervals;
   readonly now: () => number;
   readonly maxPerSubscription: number;

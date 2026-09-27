@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { subscriptionFor } from '@wbs/core';
+import { EventLogService, subscriptionFor } from '@wbs/core';
 import { systemTimers } from '@wbs/runtime-portable';
 import { DeadlineClock } from '@wbs/runtime-portable/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -74,7 +74,7 @@ describe('the durable record of a project event', () => {
       buffer,
       broadcaster: new GatewayBroadcaster({
         clock: testClock,
-        eventLog,
+        eventLog: new EventLogService(eventLog),
         buffer,
         // A push that answers immediately, so what these two cases measure is
         // what survived in the log and never a delivery that timed out. The
@@ -187,7 +187,7 @@ describe('the durable record of a project event', () => {
     const eventLog = new DrizzleEventLogStore(db, lock);
     const broadcaster = new GatewayBroadcaster({
       clock: testClock,
-      eventLog,
+      eventLog: new EventLogService(eventLog),
       buffer: new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000, now: Date.now }),
       push: {
         push: () => inFlight.then(() => ({ delivered: 1 })),
@@ -244,7 +244,7 @@ describe('the durable record of a project event', () => {
     });
     const broadcaster = new GatewayBroadcaster({
       clock: testClock,
-      eventLog,
+      eventLog: new EventLogService(eventLog),
       buffer,
       push,
       onPushFailed: (error) => {
