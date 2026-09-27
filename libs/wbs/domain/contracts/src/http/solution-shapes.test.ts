@@ -23,7 +23,16 @@ const response = {
     scheduleEngine: 'optimized' as const,
     scheduleObjective: 'time' as const,
   },
-  steps: [{ id: 'step', projectId: 'project', name: 'Build', position: 10, code: 'build' }],
+  steps: [
+    {
+      id: 'step',
+      projectId: 'project',
+      name: 'Build',
+      position: 10,
+      code: 'build',
+      allowancePercent: 0,
+    },
+  ],
 };
 
 test('emits the existing solution operation and required slug plus complete project response', () => {

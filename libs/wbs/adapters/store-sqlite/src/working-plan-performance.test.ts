@@ -203,7 +203,16 @@ async function performanceFixture(name: string): Promise<PerformanceFixture> {
   );
   await source.stores.projects.create(
     projectRow({ id: PROJECT, ownerId: OWNER, name }),
-    [{ id: STEP, projectId: PROJECT, name: 'Step', position: 10, code: 'step' }],
+    [
+      {
+        id: STEP,
+        projectId: PROJECT,
+        name: 'Step',
+        position: 10,
+        code: 'step',
+        allowancePercent: 0,
+      },
+    ],
     STAMP,
   );
   const firstPerson = await source.stores.directory.addPerson(

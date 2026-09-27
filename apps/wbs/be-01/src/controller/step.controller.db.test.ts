@@ -505,7 +505,14 @@ describe('PATCH /api/projects/:id/steps/:stepId', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      step: { id: project.qaId, projectId: project.id, name: 'Review', position: 20, code: 'qa' },
+      step: {
+        id: project.qaId,
+        projectId: project.id,
+        name: 'Review',
+        position: 20,
+        code: 'qa',
+        allowancePercent: 0,
+      },
     });
   });
 
@@ -952,4 +959,143 @@ it('refuses a multipart file as a step name without changing steps', async () =>
     expect(await reply.json()).toEqual({ error: 'invalid_body' });
     expect(await stepStore.listByProject(project.id)).toEqual(before);
   }
+});
+
+describe('a project step allowance over HTTP', () => {
+  async function tree(
+    projectId: string,
+    token: string,
+  ): Promise<{
+    steps: { id: string; allowancePercent: number }[];
+    workItems: { id: string; finalDays: Record<string, number> }[];
+  }> {
+    const res = await send(`/api/projects/${projectId}/work-items`, token);
+    expect(res.status).toBe(200);
+    return (await res.json()) as {
+      steps: { id: string; allowancePercent: number }[];
+      workItems: { id: string; finalDays: Record<string, number> }[];
+    };
+  }
+
+  async function qaAllowance(projectId: string, qaId: string, token: string): Promise<number> {
+    const held = (await tree(projectId, token)).steps.find((step) => step.id === qaId);
+    if (held === undefined) throw new Error('QA is gone');
+    return held.allowancePercent;
+  }
+
+  const patchAllowance = (
+    projectId: string,
+    stepId: string,
+    token: string,
+    allowancePercent: unknown,
+  ): Promise<Response> =>
+    send(`/api/projects/${projectId}/steps/${stepId}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ allowancePercent }),
+    });
+
+  it('sets the allowance, charges the estimate and undoes in one step', async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+    const leaf = await newWorkItem(project.id, token, 'Strip the roof');
+    await planCommand(project.id, token, {
+      kind: 'setEstimate',
+      workItemId: leaf,
+      stepId: project.qaId,
+      days: { optimistic: 1.1, realistic: 1.1, pessimistic: 1.1 },
+    });
+
+    const res = await patchAllowance(project.id, project.qaId, token, 30);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      step: { id: project.qaId, name: 'QA', allowancePercent: 30 },
+    });
+    const charged = (await tree(project.id, token)).workItems.find((row) => row.id === leaf);
+    expect(charged?.finalDays[project.qaId]).toBe(2);
+
+    const undone = await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' });
+    expect(undone.status).toBe(200);
+    expect(await qaAllowance(project.id, project.qaId, token)).toBe(0);
+  });
+
+  it('adds a step with an allowance, and a plan read carries every step’s', async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+
+    const res = await send(`/api/projects/${project.id}/steps`, token, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Review', allowancePercent: 12.5 }),
+    });
+
+    expect(res.status).toBe(200);
+    const read = await send(`/api/projects/${project.id}`, token);
+    const body = (await read.json()) as { steps: { name: string; allowancePercent: number }[] };
+    expect(body.steps.map(({ name, allowancePercent }) => [name, allowancePercent])).toEqual([
+      ['Dev', 0],
+      ['QA', 0],
+      ['Review', 12.5],
+    ]);
+  });
+
+  it('refuses an allowance over 1000% and leaves the step as it was', async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+
+    const patched = await patchAllowance(project.id, project.qaId, token, 1000.01);
+    expect(patched.status).toBe(422);
+    expect(await patched.json()).toEqual({ error: 'invalid_allowance' });
+
+    const batched = await planCommand(project.id, token, {
+      kind: 'setStepAllowance',
+      stepId: project.qaId,
+      allowancePercent: 1000.01,
+    });
+    expect(batched.status).toBe(400);
+    expect(await batched.json()).toEqual({
+      error: 'allowancePercent_must_be_0_to_1000_with_two_decimals',
+      at: 0,
+      kind: 'setStepAllowance',
+    });
+    expect(await qaAllowance(project.id, project.qaId, token)).toBe(0);
+  });
+
+  it('charges a later command in the same batch at the edited allowance', async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+    const leaf = await newWorkItem(project.id, token, 'Sand the beams');
+
+    const committed = await send(`/api/projects/${project.id}/commands`, token, {
+      method: 'POST',
+      body: JSON.stringify({
+        commands: [
+          { kind: 'setStepAllowance', stepId: project.qaId, allowancePercent: 30 },
+          {
+            kind: 'setEstimate',
+            workItemId: leaf,
+            stepId: project.qaId,
+            days: { optimistic: 2, realistic: 2, pessimistic: 2 },
+          },
+        ],
+      }),
+    });
+    expect(committed.status).toBe(200);
+    const charged = (await tree(project.id, token)).workItems.find((row) => row.id === leaf);
+    expect(charged?.finalDays[project.qaId]).toBe(3);
+  });
+
+  it('refuses an allowance undo after the step was removed', async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+    expect((await patchAllowance(project.id, project.qaId, token, 30)).status).toBe(200);
+    const removed = await send(`/api/projects/${project.id}/steps/${project.qaId}`, token, {
+      method: 'DELETE',
+    });
+    expect(removed.status).toBe(204);
+
+    const undone = await send(`/api/projects/${project.id}/undo`, token, { method: 'POST' });
+
+    expect(undone.status).toBe(409);
+    expect(await undone.json()).toMatchObject({ error: 'stale_undo' });
+  });
 });

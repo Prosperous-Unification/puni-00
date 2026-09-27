@@ -83,6 +83,51 @@ describe('the fake answers markers the way be-01 does', () => {
 });
 
 describe('the fake uses the shared tree response shape', () => {
+  it('charges an estimated leaf with its step allowance', async () => {
+    const api = fakeProjectApi();
+    const made = await api.createWorkItem('p1', { parentId: null, afterId: null });
+    await api.setEstimate(made.id, 'step-qa', { optimistic: 2, realistic: 2, pessimistic: 2 });
+    await api.setStepAllowance('p1', 'step-qa', 30);
+    const tree = await api.tree('p1');
+    expect(tree.workItems[0]?.finalDays['step-qa']).toBe(3);
+  });
+
+  it('sums charged leaves without charging their parent again', async () => {
+    const api = fakeProjectApi();
+    const parent = await api.createWorkItem('p1', { parentId: null, afterId: null });
+    const first = await api.createWorkItem('p1', { parentId: parent.id, afterId: null });
+    const second = await api.createWorkItem('p1', { parentId: parent.id, afterId: first.id });
+    await api.setEstimate(first.id, 'step-qa', {
+      optimistic: 1.1,
+      realistic: 1.1,
+      pessimistic: 1.1,
+    });
+    await api.setEstimate(second.id, 'step-qa', {
+      optimistic: 1.1,
+      realistic: 1.1,
+      pessimistic: 1.1,
+    });
+    await api.setStepAllowance('p1', 'step-qa', 30);
+    const tree = await api.tree('p1');
+    expect(tree.workItems.find((row) => row.id === parent.id)?.finalDays['step-qa']).toBe(4);
+  });
+
+  it('refuses invalid allowance without changing the step', async () => {
+    const api = fakeProjectApi();
+    await expect(api.setStepAllowance('p1', 'step-qa', 30.001)).rejects.toThrow(
+      'invalid_allowance',
+    );
+    expect((await api.steps('p1')).find((step) => step.id === 'step-qa')?.allowancePercent).toBe(0);
+  });
+
+  it('refuses a broken estimate that names a step absent from the policy', async () => {
+    const api = fakeProjectApi();
+    const made = await api.createWorkItem('p1', { parentId: null, afterId: null });
+    const row = api.rows.find((candidate) => candidate.id === made.id);
+    if (row === undefined) throw new Error('fixture row missing');
+    row.estimates['missing-step'] = { optimistic: 2, realistic: 2, pessimistic: 2 };
+    await expect(api.tree('p1')).rejects.toThrow('Unknown step missing-step');
+  });
   it('validates the read before handing it to a screen', async () => {
     const api = fakeProjectApi();
     const made = await api.createWorkItem('p1', {
@@ -108,8 +153,8 @@ describe('the fake uses the shared tree response shape', () => {
     await expect(api.addStep('p1', 7 as never)).rejects.toThrow('fake_invalid_request');
 
     expect(await api.steps('p1')).toEqual([
-      { id: 'step-dev', name: 'Dev' },
-      { id: 'step-qa', name: 'QA' },
+      { id: 'step-dev', name: 'Dev', allowancePercent: 0 },
+      { id: 'step-qa', name: 'QA', allowancePercent: 0 },
     ]);
   });
 

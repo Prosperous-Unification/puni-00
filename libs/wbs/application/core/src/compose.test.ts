@@ -492,7 +492,7 @@ describe('servicesOver', () => {
   test("installs Step per supplied scope, over that scope's own stores", async () => {
     const { first, second } = await twoScopes();
 
-    const added = await first.steps.add(PROJECT, OWNER, 'Review');
+    const added = await first.steps.add(PROJECT, OWNER, 'Review', 0);
     if (!added.ok) throw new Error(`the first scope refused the step: ${added.reason}`);
     // Proof (2026-09-24): memoizing one `installStep(...)` result in a module-level `let` and
     // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone

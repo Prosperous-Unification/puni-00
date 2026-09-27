@@ -70,12 +70,30 @@ describe("listing a project's saved plans", () => {
     );
     await new ProjectRepository(db, OPEN).create(
       projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+      ],
       wrote,
     );
     await new ProjectRepository(db, OPEN).create(
       projectRow({ id: 'p2', name: 'Somebody else', ownerId: 'owner' }),
-      [{ id: 'st-2', projectId: 'p2', name: 'Dev', position: 10, code: 'dev' }],
+      [
+        {
+          id: 'st-2',
+          projectId: 'p2',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+      ],
       wrote,
     );
     await new WorkItemRepository(db, OPEN).insert(item('wi-1', 10), [], wrote);

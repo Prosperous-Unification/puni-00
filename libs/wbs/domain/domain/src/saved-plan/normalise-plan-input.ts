@@ -49,13 +49,35 @@ export type PlanInputUpgrade = (body: Record<string, unknown>) => Record<string,
 /**
  * The upgrade table, keyed by the version each step reads.
  *
- * **Empty today, and that is a statement rather than an omission:** version 1 is
- * the only version that has ever existed, so there is no *n* to *n+1* step to
- * write. When `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` moves to 2, a step keyed `1`
- * lands with it — and until it does, a version-1 body against a version-2 reader
- * fails `no-upgrade-path` loudly instead of arriving half-converted.
+ * `1` → `2` is the explicit legacy conversion for step allowances: a body
+ * saved before allowances existed charged every step at 0%, so each captured
+ * step is read with `allowancePercent: 0`. It refuses a version-1 body whose
+ * steps are not a list of objects rather than guessing a shape.
  */
-export const PLAN_INPUT_UPGRADES: ReadonlyMap<number, PlanInputUpgrade> = new Map();
+export const PLAN_INPUT_UPGRADES: ReadonlyMap<number, PlanInputUpgrade> = new Map([
+  [1, withZeroStepAllowances],
+]);
+
+/**
+ * Version 1 to 2: every captured step gains the 0% allowance it was charged at.
+ *
+ * Proof: with the upgrade returning the body unchanged, `reads a version-1
+ * body's steps at 0% allowance` failed on `Expected: 0, Received: undefined`
+ * (2026-09-27).
+ */
+function withZeroStepAllowances(body: Record<string, unknown>): Record<string, unknown> {
+  const steps = body['steps'];
+  if (!Array.isArray(steps)) throw new Error('a version-1 plan input body holds no steps list');
+  return {
+    ...body,
+    steps: steps.map((step: unknown) => {
+      if (typeof step !== 'object' || step === null) {
+        throw new Error('a version-1 plan input body holds a step that is not an object');
+      }
+      return { ...step, allowancePercent: 0 };
+    }),
+  };
+}
 
 /**
  * Bring a stored plan-input body forward to the version this build reads.

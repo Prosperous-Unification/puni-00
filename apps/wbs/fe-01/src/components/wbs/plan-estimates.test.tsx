@@ -160,6 +160,14 @@ describe('step columns fold away', () => {
     expect(headerTexts()).toContain('Dev ▸');
   });
 
+  itDom('shows a nonzero allowance in the step heading', async () => {
+    const api = fakeApi();
+    await api.setStepAllowance('p1', 'step-qa', 30);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByRole('button', { name: 'Unfold QA estimates' });
+    expect(headerTexts()).toContain('QA +30% ▸');
+  });
+
   itDom('unfolds to the trio and the assignee, and folds back', async () => {
     await oneRow();
 
@@ -536,6 +544,21 @@ describe('assigning from a folded step’s cell with @', () => {
     return found as HTMLElement;
   };
 
+  itDom('audits the charged QA figure from the project rule and stored trio', async () => {
+    const api = fakeApi();
+    const made = await api.createWorkItem('p1', { parentId: null, afterId: null });
+    await api.setEstimate(made.id, 'step-qa', { optimistic: 2, realistic: 2, pessimistic: 2 });
+    await api.setStepAllowance('p1', 'step-qa', 30);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 010');
+    fireEvent.mouseEnter(foldedWrapper('step-qa'));
+    const card = screen.getByRole('tooltip');
+    expect(card.textContent).toContain('Base estimate 2 days');
+    expect(card.textContent).toContain('Allowance +30%');
+    expect(card.textContent).toContain('Before rounding 2.6 days');
+    expect(card.textContent).toContain('Charged 3 days');
+  });
+
   itDom('opens the folded figure into its parts, without asking the server', async () => {
     // The whole of what 96px hides: the step, the trio behind the computed
     // figure, the figure, and who is doing it — read off the row the client
@@ -579,9 +602,9 @@ describe('assigning from a folded step’s cell with @', () => {
     expect(card.textContent).toContain('optimistic 2');
     expect(card.textContent).toContain('realistic 3');
     expect(card.textContent).toContain('pessimistic 8');
-    // The final figure the cell shows — `(2 + 4×3 + 8) / 6` — and the assignee
+    // The final figure the cell shows — ceil of `(2 + 4×3 + 8) / 6` — and the assignee
     // it can only show four letters of.
-    expect(card.textContent).toContain('Final 3.7 days');
+    expect(card.textContent).toContain('Final 4 days');
     expect(card.textContent).toContain('Kateryna');
     expect(asked, 'the hover asked be-01 for something').toEqual([]);
   });
@@ -737,7 +760,7 @@ describe('assigning from a folded step’s cell with @', () => {
 
     fireEvent.mouseEnter(foldedWrapper());
 
-    expect(screen.getByRole('tooltip').textContent).toContain('Final 3.7 days');
+    expect(screen.getByRole('tooltip').textContent).toContain('Final 4 days');
   });
 
   itDom('says on the card that an assignee is assumed', async () => {
@@ -1090,10 +1113,10 @@ describe('one cell for the whole trio', () => {
     fireEvent.blur(cell);
 
     await waitFor(() => {
-      // `2/3/8` is PERT 3.7, which is none of the three numbers typed — the
+      // `2/3/8` combines to PERT 3.7 and charges 4 after ceiling — the
       // figure appearing beside the cell is what says the trio landed, since
       // the cell itself holds the same characters either way.
-      expect(foldedFinal('010')?.textContent).toBe('3.7');
+      expect(foldedFinal('010')?.textContent).toBe('4');
     });
     expect(written).toHaveLength(1);
   });
@@ -1303,7 +1326,7 @@ describe('one cell for the whole trio', () => {
     await oneRow();
     typeCombined('010', '2/3/8');
     await waitFor(() => {
-      expect(foldedFinal('010')?.textContent).toBe('3.7');
+      expect(foldedFinal('010')?.textContent).toBe('4');
     });
 
     const cell = combinedCell('010');
@@ -1316,7 +1339,7 @@ describe('one cell for the whole trio', () => {
     await oneRow();
     typeCombined('010', '2/3/8');
     await waitFor(() => {
-      expect(foldedFinal('010')?.textContent).toBe('3.7');
+      expect(foldedFinal('010')?.textContent).toBe('4');
     });
 
     fireEvent.focus(combinedCell('010'));
@@ -1337,7 +1360,7 @@ describe('one cell for the whole trio', () => {
     await oneRow();
     typeCombined('010', '2/3/8');
     await waitFor(() => {
-      expect(foldedFinal('010')?.textContent).toBe('3.7');
+      expect(foldedFinal('010')?.textContent).toBe('4');
     });
 
     expect(combinedCell('010').style.textOverflow).toBe('ellipsis');
@@ -1409,7 +1432,7 @@ describe('one cell for the whole trio', () => {
     await oneRow();
     typeCombined('010', '2/3/8');
     await waitFor(() => {
-      expect(foldedFinal('010')?.textContent).toBe('3.7');
+      expect(foldedFinal('010')?.textContent).toBe('4');
     });
 
     // The positive — that this is *the row's* size and ink — is a computed
@@ -1448,13 +1471,13 @@ describe('one cell for the whole trio', () => {
     await oneRow();
     typeCombined('010', '2/3/8');
     await waitFor(() => {
-      expect(foldedFinal('010')?.textContent).toBe('3.7');
+      expect(foldedFinal('010')?.textContent).toBe('4');
     });
 
     unfoldStep('Dev');
 
     expect(foldedFinal('010')).toBeNull();
-    expect(rowFor('010').querySelector('[data-final="step-dev"]')?.textContent).toBe('3.7');
+    expect(rowFor('010').querySelector('[data-final="step-dev"]')?.textContent).toBe('4');
   });
 
   itDom('is a cell of the keyboard grid, so a column can be typed down', async () => {
