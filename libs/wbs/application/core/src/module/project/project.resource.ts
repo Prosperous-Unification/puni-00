@@ -325,6 +325,26 @@ export class ProjectService {
     return { project, steps: await this.opts.projects.stepsOf(project.id) };
   }
 
+  /**
+   * {@link readBySolutionSlug} through the caller's access: a slug held by a
+   * project the organization does not own is null, exactly as an absent one.
+   */
+  async readBySolutionSlugWithin(
+    slug: string,
+    access: ResourceAccess,
+  ): Promise<ProjectWithSteps | null> {
+    const project = await this.opts.projects.findBySolutionSlug(slug);
+    if (project === null) return null;
+    if (
+      access.kind === 'scoped' &&
+      (await this.opts.projects.findInOrganization(project.id, access.scope.organizationId)) ===
+        null
+    ) {
+      return null;
+    }
+    return { project, steps: await this.opts.projects.stepsOf(project.id) };
+  }
+
   update(id: string, actorId: string, patch: ProjectPatch): Promise<UpdateOutcome> {
     return this.updateWithin(id, actorId, patch, LEGACY);
   }

@@ -188,7 +188,7 @@ export function projectRoutes(
         return {
           ok: true,
           status: 200,
-          body: await planDocuments.export(found.project, tree),
+          body: await planDocuments.export(found.project, tree, resolved.access),
           headers: [['content-type', 'application/json; charset=utf-8']],
         };
       },

@@ -2,6 +2,7 @@ import { planDocumentResponse, validateSchema, type WorkItemTree } from '@wbs/co
 import { expect, test } from 'bun:test';
 
 import type { CalendarMarker, DirectoryStore, Project } from '../../index';
+import { LEGACY_ACCESS } from '../../ports/organization-access';
 import { classifyPlanDocument, PlanDocumentService } from './plan-document.resource';
 
 const PROJECT: Project = {
@@ -162,6 +163,7 @@ const MARKERS: CalendarMarker[] = [
 
 function directory(): Pick<
   DirectoryStore,
+  | 'listInOrganization'
   | 'listTeams'
   | 'listPeople'
   | 'listTags'
@@ -203,6 +205,8 @@ function directory(): Pick<
         { id: 'system-used', name: 'Tracker' },
         { id: 'system-unused', name: 'Unrelated tracker' },
       ]),
+    listInOrganization: () =>
+      Promise.reject(new Error('a legacy export read an organization catalog')),
   };
 }
 
@@ -215,7 +219,7 @@ function service(directorySource = directory()) {
 }
 
 test('preserves the existing JSON export fields', async () => {
-  const exported = await service().export(PROJECT, TREE);
+  const exported = await service().export(PROJECT, TREE, LEGACY_ACCESS);
   const { document, settings, capacity, calendarMarkers, directory: names, ...existing } = exported;
   expect(existing).toEqual({ project: PROJECT, ...TREE });
   expect(existing.workItems[0]?.deadline).toBe('2026-09-18');
@@ -224,7 +228,7 @@ test('preserves the existing JSON export fields', async () => {
 });
 
 test('JSON export is a versioned plan document and settings says what project says', async () => {
-  const exported = await service().export(PROJECT, TREE);
+  const exported = await service().export(PROJECT, TREE, LEGACY_ACCESS);
   expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
   expect(exported.document).toEqual({
     format: 'wbs-plan',
@@ -251,7 +255,7 @@ test('JSON export is a versioned plan document and settings says what project sa
 });
 
 test('capacity-only team is named and assigned agent keeps memberships and owned services', async () => {
-  const exported = await service().export(PROJECT, TREE);
+  const exported = await service().export(PROJECT, TREE, LEGACY_ACCESS);
   expect(exported.directory.teams).toEqual([
     { id: 'team-capacity', name: 'Capacity only', serviceIds: [] },
     { id: 'team-direct', name: 'Direct label', serviceIds: [] },
@@ -267,7 +271,7 @@ test('capacity-only team is named and assigned agent keeps memberships and owned
 });
 
 test('unreferenced tag is excluded', async () => {
-  const exported = await service().export(PROJECT, TREE);
+  const exported = await service().export(PROJECT, TREE, LEGACY_ACCESS);
   expect(exported.directory.tags).toEqual([{ id: 'tag-used', name: 'Release' }]);
   expect(exported.directory.types).toEqual([{ id: 'type-used', name: 'Milestone' }]);
   expect(exported.directory.externalSystems).toEqual([{ id: 'system-used', name: 'Tracker' }]);
@@ -277,14 +281,14 @@ test('missing referenced entry throws', async () => {
   const missingTag = directory();
   missingTag.listTags = () => Promise.resolve([]);
   const cause = await service(missingTag)
-    .export(PROJECT, TREE)
+    .export(PROJECT, TREE, LEGACY_ACCESS)
     .catch((caught: unknown) => caught);
   expect(cause).toBeInstanceOf(Error);
   expect((cause as Error).message).toContain('tag "tag-used"');
 });
 
 test('malformed priority names workItems[3].priority', async () => {
-  const malformed = structuredClone(await service().export(PROJECT, TREE));
+  const malformed = structuredClone(await service().export(PROJECT, TREE, LEGACY_ACCESS));
   const row = malformed.workItems[0];
   malformed.workItems = Array.from({ length: 4 }, () => structuredClone(row));
   Reflect.set(malformed.workItems[3] ?? {}, 'priority', 'high');
@@ -296,7 +300,7 @@ test('malformed priority names workItems[3].priority', async () => {
 });
 
 test('unknown version precedes version-specific validation', async () => {
-  const future = structuredClone(await service().export(PROJECT, TREE));
+  const future = structuredClone(await service().export(PROJECT, TREE, LEGACY_ACCESS));
   Reflect.set(future.document, 'version', 3);
   const row = future.workItems[0];
   future.workItems = Array.from({ length: 4 }, () => structuredClone(row));
@@ -309,7 +313,7 @@ test('unknown version precedes version-specific validation', async () => {
 });
 
 test('archival validation projects derived fields away', async () => {
-  const exported = await service().export(PROJECT, TREE);
+  const exported = await service().export(PROJECT, TREE, LEGACY_ACCESS);
   const classified = await classifyPlanDocument({ ...exported, audit: { importedBy: 'future' } });
   if (!classified.ok) throw new Error(`fixture document refused at ${classified.path}`);
   expect(classified.value).not.toHaveProperty('audit');
@@ -322,7 +326,7 @@ test('archival validation projects derived fields away', async () => {
 });
 
 test('exports each step’s allowance and reads it back from a current-format file', async () => {
-  const exported = await service().export(PROJECT, TREE);
+  const exported = await service().export(PROJECT, TREE, LEGACY_ACCESS);
   expect(exported.steps[0]?.allowancePercent).toBe(30);
 
   const classified = await classifyPlanDocument(exported);
@@ -333,7 +337,7 @@ test('exports each step’s allowance and reads it back from a current-format fi
 
 /** Proof: see `classifyPlanDocument`. */
 test('refuses a current-format file whose step has no allowance', async () => {
-  const exported = structuredClone(await service().export(PROJECT, TREE));
+  const exported = structuredClone(await service().export(PROJECT, TREE, LEGACY_ACCESS));
   Reflect.deleteProperty(exported.steps[0] ?? {}, 'allowancePercent');
 
   expect(await classifyPlanDocument(exported)).toEqual({
@@ -344,7 +348,7 @@ test('refuses a current-format file whose step has no allowance', async () => {
 });
 
 test('reads a version-1 file through the legacy conversion, every step at 0%', async () => {
-  const legacy = structuredClone(await service().export(PROJECT, TREE));
+  const legacy = structuredClone(await service().export(PROJECT, TREE, LEGACY_ACCESS));
   Reflect.set(legacy.document, 'version', 1);
   Reflect.deleteProperty(legacy.steps[0] ?? {}, 'allowancePercent');
 
@@ -356,7 +360,7 @@ test('reads a version-1 file through the legacy conversion, every step at 0%', a
 
 /** Proof: see `classifyPlanDocument`. */
 test('refuses a version-1 file that names a step allowance', async () => {
-  const legacy = structuredClone(await service().export(PROJECT, TREE));
+  const legacy = structuredClone(await service().export(PROJECT, TREE, LEGACY_ACCESS));
   Reflect.set(legacy.document, 'version', 1);
 
   expect(await classifyPlanDocument(legacy)).toEqual({

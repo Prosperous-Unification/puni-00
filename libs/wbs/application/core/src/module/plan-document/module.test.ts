@@ -6,6 +6,7 @@ import { servicesOver } from '../../compose';
 import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { CalendarMarker } from '../../ports/calendar-marker-store';
 import { clockOf } from '../../ports/clock';
+import { LEGACY_ACCESS } from '../../ports/organization-access';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { installPlanDocument } from './check';
@@ -90,7 +91,7 @@ describe('the Plan document module', () => {
     const { project, tree, requirements } = await seeded();
     const { planDocuments } = installPlanDocument(requirements);
 
-    const exported = await planDocuments.export(project, tree);
+    const exported = await planDocuments.export(project, tree, LEGACY_ACCESS);
 
     expect(exported.document).toEqual({
       format: 'wbs-plan',

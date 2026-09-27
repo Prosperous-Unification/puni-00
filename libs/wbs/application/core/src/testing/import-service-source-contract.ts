@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../compose';
 import { clockOf } from '../ports/clock';
+import { LEGACY_ACCESS } from '../ports/organization-access';
 import type { Broadcaster, ProjectEvent } from '../ports/project-event';
 import type { ProjectStore } from '../ports/project-store';
 import type { NewProject } from '../ports/project-store';
@@ -223,7 +224,7 @@ async function exportProject(
     directory: source.stores.directory,
     markers: graph.calendarMarkers,
     clock,
-  }).export(project, tree);
+  }).export(project, tree, LEGACY_ACCESS);
   const classified = await classifyPlanDocument(exported);
   if (!classified.ok) throw new Error(`exported project refused at ${classified.path}`);
   return classified.value;
@@ -396,7 +397,7 @@ export function importServiceSourceContract(
         await source.stores.directory.addTag({ id: 'held-tag', name: 'Release' }, STAMP);
         const document = planDocumentFixture();
 
-        const imported = await importService(source).import(document, ACTOR);
+        const imported = await importService(source).import(document, ACTOR, LEGACY_ACCESS);
 
         expect(imported).toMatchObject({
           ok: true,
@@ -443,7 +444,7 @@ export function importServiceSourceContract(
         const beforeBytes = JSON.stringify(before);
         const document = planDocumentFixture();
 
-        await importService(source).import(document, ACTOR);
+        await importService(source).import(document, ACTOR, LEGACY_ACCESS);
 
         const after = (await source.stores.directory.listPeople()).find(
           ({ id }) => id === added.person.id,
@@ -459,7 +460,7 @@ export function importServiceSourceContract(
       try {
         const document = planDocumentFixture();
 
-        await importService(source).import(document, ACTOR);
+        await importService(source).import(document, ACTOR, LEGACY_ACCESS);
 
         const team = (await source.stores.directory.listTeams()).find(
           ({ name }) => name === 'Billing',
@@ -507,7 +508,7 @@ export function importServiceSourceContract(
           url: 'https://example.test/imported',
         };
 
-        const imported = await importService(source).import(document, ACTOR);
+        const imported = await importService(source).import(document, ACTOR, LEGACY_ACCESS);
 
         expect(imported).toMatchObject({ ok: true, solutionRef: 'left-off' });
       } finally {
@@ -550,7 +551,7 @@ export function importServiceSourceContract(
           },
         ];
 
-        const imported = await importService(source).import(document, ACTOR);
+        const imported = await importService(source).import(document, ACTOR, LEGACY_ACCESS);
         if (!imported.ok) throw new Error(`valid import refused at ${imported.path}`);
         const project = await source.stores.projects.findById(imported.projectId);
         const steps = await source.stores.projects.stepsOf(imported.projectId);
@@ -756,7 +757,7 @@ export function importServiceSourceContract(
         );
         const originals = await source.stores.workItems.listByProject('source-project');
 
-        const imported = await importService(source).import(document, ACTOR);
+        const imported = await importService(source).import(document, ACTOR, LEGACY_ACCESS);
         if (!imported.ok) throw new Error(`valid import refused at ${imported.path}`);
         const [rows, steps, estimates, actuals, progress, measures, dependencies, assigned] =
           await Promise.all([
@@ -943,7 +944,7 @@ export function importServiceSourceContract(
             announcements,
             uow: faultedUnitOfWork(source, fault, admitted, release.promise),
           });
-          const settled = service.import(planDocumentFixture(), ACTOR).then(
+          const settled = service.import(planDocumentFixture(), ACTOR, LEGACY_ACCESS).then(
             (outcome) => ({ kind: 'returned' as const, outcome }),
             (cause: unknown) => ({ kind: 'threw' as const, cause }),
           );
@@ -1000,9 +1001,9 @@ export function importServiceSourceContract(
           url: 'https://example.test/solutions/second',
         };
 
-        const first = service.import(firstDocument, ACTOR);
+        const first = service.import(firstDocument, ACTOR, LEGACY_ACCESS);
         await creationHeld.promise;
-        const second = service.import(secondDocument, ACTOR);
+        const second = service.import(secondDocument, ACTOR, LEGACY_ACCESS);
         await secondStarted.promise;
         release.resolve(undefined);
         const [firstOutcome, secondOutcome] = await Promise.all([first, second]);
@@ -1054,6 +1055,7 @@ export function importServiceSourceContract(
         const imported = await importService(source, { announcements }).import(
           planDocumentFixture(),
           ACTOR,
+          LEGACY_ACCESS,
         );
         if (!imported.ok) throw new Error(`valid import refused at ${imported.path}`);
 
@@ -1100,6 +1102,7 @@ export function importServiceSourceContract(
         const importing = importService(source, { announcements }).import(
           planDocumentFixture(),
           ACTOR,
+          LEGACY_ACCESS,
         );
         await publishing.promise;
 
@@ -1126,7 +1129,7 @@ export function importServiceSourceContract(
       const source = await ownedSource();
       try {
         const service = importService(source);
-        const seeded = await service.import(roundTripFixture(), ACTOR);
+        const seeded = await service.import(roundTripFixture(), ACTOR, LEGACY_ACCESS);
         if (!seeded.ok) throw new Error(`round-trip seed refused at ${seeded.path}`);
         const exported = await exportProject(source, seeded.projectId);
         const directoryBefore = {
@@ -1138,7 +1141,7 @@ export function importServiceSourceContract(
           systems: await source.stores.directory.listExternalSystems(),
         };
 
-        const restored = await service.import(exported, ACTOR);
+        const restored = await service.import(exported, ACTOR, LEGACY_ACCESS);
         if (!restored.ok) throw new Error(`round-trip restore refused at ${restored.path}`);
         expect(restored.solutionRef).toBe('left-off');
         const reexported = await exportProject(source, restored.projectId);
