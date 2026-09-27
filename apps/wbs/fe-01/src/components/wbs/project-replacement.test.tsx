@@ -13,6 +13,7 @@ import {
 } from '@/runtime/project-runtime';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { pageWiring } from '@/testing/project-page-over-owner';
 
 import { ProjectPage } from './project-page';
 import type { SavedPlansPanelDeps } from './saved-plans-panel';
@@ -190,7 +191,7 @@ describe('replacing the selected project', () => {
     async () => {
       const { api, undos } = twoProjects();
       const { owner } = recordingOwner();
-      render(<ProjectPage token="t" api={api} projectOwner={owner} savedPlansDeps={NO_SHELF} />);
+      render(<ProjectPage {...pageWiring(owner, api)} savedPlansDeps={NO_SHELF} />);
       await leaveMidUndo(owner, undos);
 
       firstOf(undos, 'undo').answer({ ok: true, done: 'rename “Strip”', detail: null });
@@ -206,7 +207,7 @@ describe('replacing the selected project', () => {
     async () => {
       const { api, undos } = twoProjects();
       const { owner } = recordingOwner();
-      render(<ProjectPage token="t" api={api} projectOwner={owner} savedPlansDeps={NO_SHELF} />);
+      render(<ProjectPage {...pageWiring(owner, api)} savedPlansDeps={NO_SHELF} />);
       await leaveMidUndo(owner, undos);
 
       firstOf(undos, 'undo').refuse(new Error('forbidden'));
@@ -233,7 +234,7 @@ describe('replacing the selected project', () => {
             })
           : Promise.reject(new Error('cycle'));
       const { owner } = recordingOwner();
-      render(<ProjectPage token="t" api={api} projectOwner={owner} savedPlansDeps={NO_SHELF} />);
+      render(<ProjectPage {...pageWiring(owner, api)} savedPlansDeps={NO_SHELF} />);
       await selectProject('p1');
       await tableDrawn();
       const list = await screen.findByLabelText('Add a dependency to 030');
@@ -269,11 +270,8 @@ describe('replacing the selected project', () => {
     const asked: Roster[] = [];
     render(
       <ProjectPage
-        token="t"
-        api={api}
-        projectOwner={owner}
+        {...pageWiring(owner, api, sockets.streamDeps)}
         savedPlansDeps={NO_SHELF}
-        streamDeps={sockets.streamDeps}
         presence={(roster) => {
           asked.push(roster);
           return null;
@@ -328,7 +326,7 @@ describe('replacing the selected project', () => {
   itDom('draws the next project in a table of its own', async () => {
     const { api } = twoProjects();
     const { owner } = recordingOwner();
-    render(<ProjectPage token="t" api={api} projectOwner={owner} savedPlansDeps={NO_SHELF} />);
+    render(<ProjectPage {...pageWiring(owner, api)} savedPlansDeps={NO_SHELF} />);
     await selectProject('p1');
     const first = await tableDrawn();
 
@@ -354,13 +352,7 @@ describe('replacing the selected project', () => {
     const sockets = recordedSockets();
     const view = render(
       <StrictMode>
-        <ProjectPage
-          token="t"
-          api={api}
-          projectOwner={owner}
-          savedPlansDeps={NO_SHELF}
-          streamDeps={sockets.streamDeps}
-        />
+        <ProjectPage {...pageWiring(owner, api, sockets.streamDeps)} savedPlansDeps={NO_SHELF} />
       </StrictMode>,
     );
     await selectProject('p1');
