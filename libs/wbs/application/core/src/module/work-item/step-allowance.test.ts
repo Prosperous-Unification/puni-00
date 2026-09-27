@@ -188,6 +188,30 @@ describe('undoing a step allowance edit', () => {
     expect(await qaAllowance()).toBe(50);
   });
 
+  /** Proof: see the step branch of `WorkItemService.staleness`. */
+  it('refuses an allowance undo after somebody else changed it and changed it back', async () => {
+    await allowance(30);
+    await allowance(50, PEER);
+    await allowance(30, PEER);
+
+    const undone = await service.undo(projectId, OWNER);
+
+    expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
+    expect(await qaAllowance()).toBe(30);
+  });
+
+  it('walks back two of one editor’s allowance edits in turn', async () => {
+    await allowance(30);
+    await allowance(50);
+
+    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
+    expect(await qaAllowance()).toBe(30);
+    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
+    expect(await qaAllowance()).toBe(0);
+    expect((await service.redo(projectId, OWNER)).ok).toBe(true);
+    expect(await qaAllowance()).toBe(30);
+  });
+
   it('journals nothing for an edit that leaves the allowance where it was', async () => {
     await allowance(0);
 

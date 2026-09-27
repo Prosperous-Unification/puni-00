@@ -253,10 +253,11 @@ export const MAX_ALLOWANCE_PERCENT: AllowancePercent = 1000;
  * step may carry.
  *
  * Accepted: finite, 0 to 1000 inclusive, at most two decimal places. `12.345`,
- * `-1` and `1000.01` are refused. The decimal check tolerates the double's own
- * representation error (`12.34 * 100` is `1233.9999999999998`) and nothing
- * wider; the answer is the canonical double for its hundredths, so `-0` comes
- * back as `0`.
+ * `-1` and `1000.01` are refused. The range is checked on the value as given,
+ * and the decimals by requiring it to BE the double its whole hundredths
+ * divide back to (`1234 / 100` is exactly the double `12.34` parses to), so
+ * `12.340000001` and `-1e-9` are refused rather than rounded into shape. `-0`
+ * comes back as `0`.
  *
  * Proof: with the decimal-places test removed, `refuses more than two decimal
  * places` failed on `Expected: null, Received: 12.35` (2026-09-27).
@@ -272,10 +273,9 @@ export function allowancePercentOf(percent: number): AllowancePercent | null {
  */
 export function allowanceHundredthsOf(percent: number): number | null {
   if (!Number.isFinite(percent)) return null;
-  const hundredths = percent * 100;
-  const whole = Math.round(hundredths);
-  if (Math.abs(hundredths - whole) > 1e-6) return null;
-  if (whole < 0 || whole > MAX_ALLOWANCE_PERCENT * 100) return null;
+  if (percent < 0 || percent > MAX_ALLOWANCE_PERCENT) return null;
+  const whole = Math.round(percent * 100);
+  if (whole / 100 !== percent) return null;
   return whole === 0 ? 0 : whole;
 }
 

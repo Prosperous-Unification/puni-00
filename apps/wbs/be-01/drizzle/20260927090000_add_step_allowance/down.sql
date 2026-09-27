@@ -21,4 +21,6 @@ INSERT INTO `step_allowance_rollback_guard` (`nonzero`)
 --> statement-breakpoint
 DROP TABLE `step_allowance_rollback_guard`;
 --> statement-breakpoint
+ALTER TABLE `step` DROP COLUMN `allowance_revision`;
+--> statement-breakpoint
 ALTER TABLE `step` DROP COLUMN `allowance_bps`;

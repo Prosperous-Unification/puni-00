@@ -804,19 +804,20 @@ describe('ProjectRepository.setStepAllowance', () => {
   it('writes the allowance, answers the one it replaced and moves the project', async () => {
     const before = await revisionOf(projectId);
 
-    const written = await projects.setStepAllowance(projectId, qaId, 12.34, null, wrote());
+    const written = await projects.setStepAllowance(projectId, qaId, 12.34, wrote());
 
     expect(written).toEqual({
       ok: true,
       step: { id: qaId, projectId, name: 'QA', position: 20, allowancePercent: 12.34 },
       previousPercent: 0,
+      revision: 1,
     });
     expect((await steps.findById(qaId))?.allowancePercent).toBe(12.34);
     expect(await revisionOf(projectId)).toBe(before + 1);
   });
 
   it('stores whole hundredths of a percent', async () => {
-    await projects.setStepAllowance(projectId, qaId, 12.34, null, wrote());
+    await projects.setStepAllowance(projectId, qaId, 12.34, wrote());
     const sqlite = openDatabase(join(dir, 'test.db'));
     try {
       const stored = sqlite
@@ -829,23 +830,23 @@ describe('ProjectRepository.setStepAllowance', () => {
   });
 
   /** Proof: see `ProjectRepository.setStepAllowance`. */
-  it('refuses a conditional write the step no longer matches', async () => {
-    await projects.setStepAllowance(projectId, qaId, 50, null, wrote());
-    const before = await revisionOf(projectId);
+  it('moves the step’s allowance revision on every write, even back to a value it held', async () => {
+    expect((await projects.stepAllowanceRevisions(projectId)).get(qaId)).toBe(0);
 
-    const written = await projects.setStepAllowance(projectId, qaId, 0, 30, wrote());
+    await projects.setStepAllowance(projectId, qaId, 50, wrote());
+    const back = await projects.setStepAllowance(projectId, qaId, 0, wrote());
 
-    expect(written).toEqual({ ok: false, reason: 'stale' });
-    expect((await steps.findById(qaId))?.allowancePercent).toBe(50);
-    expect(await revisionOf(projectId)).toBe(before);
+    expect(back).toMatchObject({ ok: true, previousPercent: 50, revision: 2 });
+    expect((await projects.stepAllowanceRevisions(projectId)).get(qaId)).toBe(2);
+    expect((await projects.stepAllowanceRevisions(projectId)).get(devId)).toBe(0);
   });
 
   it('refuses a step of another project, and a step that is gone', async () => {
-    expect(await projects.setStepAllowance(otherProjectId, qaId, 30, null, wrote())).toEqual({
+    expect(await projects.setStepAllowance(otherProjectId, qaId, 30, wrote())).toEqual({
       ok: false,
       reason: 'not_found',
     });
-    expect(await projects.setStepAllowance(projectId, 'gone', 30, null, wrote())).toEqual({
+    expect(await projects.setStepAllowance(projectId, 'gone', 30, wrote())).toEqual({
       ok: false,
       reason: 'not_found',
     });
@@ -854,7 +855,7 @@ describe('ProjectRepository.setStepAllowance', () => {
   it('refuses to store an allowance no boundary would have admitted', async () => {
     let refused: unknown = null;
     try {
-      await projects.setStepAllowance(projectId, qaId, 12.345, null, wrote());
+      await projects.setStepAllowance(projectId, qaId, 12.345, wrote());
     } catch (cause) {
       refused = cause;
     }

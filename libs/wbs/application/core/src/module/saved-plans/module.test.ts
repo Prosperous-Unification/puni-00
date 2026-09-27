@@ -196,7 +196,7 @@ describe('a saved plan and step allowances', () => {
     const qa = created.steps.find((step) => step.name === 'QA');
     if (qa === undefined) throw new Error('no QA step');
     const stamp = { at: STAMP_AT, by: owner.id };
-    await source.stores.projects.setStepAllowance(created.project.id, qa.id, 30, null, stamp);
+    await source.stores.projects.setStepAllowance(created.project.id, qa.id, 30, stamp);
     const { savedPlans } = installSavedPlans({
       digest: lengthDigest,
       capture: source.history.savedPlanCapture,
@@ -213,7 +213,7 @@ describe('a saved plan and step allowances', () => {
     });
     if (saved.outcome !== 'saved') throw new Error(`save answered ${saved.outcome}`);
 
-    await source.stores.projects.setStepAllowance(created.project.id, qa.id, 50, 30, stamp);
+    await source.stores.projects.setStepAllowance(created.project.id, qa.id, 50, stamp);
 
     const read = await savedPlans.read(saved.record.id);
     if (read.outcome !== 'read') throw new Error(`read answered ${read.outcome}`);

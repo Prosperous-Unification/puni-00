@@ -35,15 +35,12 @@ type StepWriteRefusal = 'taken' | 'not_found';
 export type StepWritten = { ok: true; step: Step } | { ok: false; reason: StepWriteRefusal };
 
 /**
- * An allowance write's outcome: the step as written and the allowance it held
- * just before, or why nothing was written.
- *
- * `stale` answers only a conditional write — the step no longer holds the
- * allowance the caller expected, so somebody else has changed it since.
+ * An allowance write's outcome: the step as written, the allowance it held just
+ * before, and the step's allowance revision after the write — or `not_found`.
  */
 export type StepAllowanceWritten =
-  | { ok: true; step: Step; previousPercent: AllowancePercent }
-  | { ok: false; reason: 'not_found' | 'stale' };
+  | { ok: true; step: Step; previousPercent: AllowancePercent; revision: number }
+  | { ok: false; reason: 'not_found' };
 
 /**
  * What points at one step, read for the refusal that names it.

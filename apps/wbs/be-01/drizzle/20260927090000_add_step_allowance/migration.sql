@@ -18,3 +18,9 @@
 -- can charge.
 ALTER TABLE `step` ADD `allowance_bps` integer DEFAULT 0 NOT NULL
   CHECK (`allowance_bps` BETWEEN 0 AND 100000 AND `allowance_bps` = CAST(`allowance_bps` AS INTEGER));
+--> statement-breakpoint
+-- How many times the allowance has been written: what an allowance undo is
+-- conditioned on, because the value alone can return to what it was after
+-- somebody else's edits. Additive for the same reason: the outgoing release
+-- never writes an allowance, so its rows sit at 0 and nothing reads them.
+ALTER TABLE `step` ADD `allowance_revision` integer DEFAULT 0 NOT NULL;

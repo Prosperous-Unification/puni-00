@@ -169,21 +169,27 @@ export interface ProjectStore {
   update(id: string, patch: ProjectPatch, stamp: WriteStamp): Promise<Project | null>;
   stepsOf(projectId: string): Promise<Step[]>;
   /**
-   * Sets one step's allowance and moves the project's revision, in one
-   * transaction, answering the allowance it replaced.
+   * Sets one step's allowance, moves that step's allowance revision by one and
+   * moves the project's revision, in one transaction, answering the allowance
+   * it replaced. A step of another project is `not_found`.
    *
    * Here rather than on `StepStore` because the journalled edit is applied by
    * `WorkItemService`, which reads steps through this store already — see
-   * `holdsStep`. `expectedPercent` makes the write conditional: `null` writes
-   * whatever the step held (a planner's edit), a number writes only while the
-   * step still holds it (an undo or redo, which must not overwrite a newer
-   * edit). A step of another project is `not_found`.
+   * `holdsStep`.
    */
   setStepAllowance(
     projectId: string,
     stepId: string,
     allowancePercent: AllowancePercent,
-    expectedPercent: AllowancePercent | null,
     stamp: WriteStamp,
   ): Promise<StepAllowanceWritten>;
+  /**
+   * Each of the project's steps' allowance revision, by step id.
+   *
+   * What an allowance undo is conditioned on. A revision rather than the value,
+   * because a value can come back: 30% edited to 50% and back to 30% by
+   * somebody else is still somebody else's work, and an undo compared on the
+   * value would overwrite it.
+   */
+  stepAllowanceRevisions(projectId: string): Promise<ReadonlyMap<string, number>>;
 }

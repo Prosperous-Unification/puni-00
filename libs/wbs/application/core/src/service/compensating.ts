@@ -88,20 +88,14 @@ export type CompensatingCommand =
   | { do: 'set_positions'; placements: Reparented[]; moved: string[] }
   | { do: 'set_frozen'; updates: FrozenNumber[] }
   /**
-   * A project step's allowance, from the one it held to the one it is set to.
+   * A project step's allowance, set to `allowancePercent`.
    *
-   * `expectedPercent` is this command's precondition, because a step has no
-   * revision the journal's work-item {@link Preconditions} could hold: applying
-   * refuses unless the step still holds exactly that allowance, so an undo
-   * after somebody else's edit — or after the step was removed — is refused as
-   * stale rather than overwriting newer work. It touches no work item.
+   * Its precondition is the step's **allowance revision**, held in
+   * {@link Preconditions} under {@link stepRevisionKey}: an undo after
+   * somebody else's edit — even one that put the value back — or after the
+   * step's removal is refused as stale rather than overwriting newer work.
    */
-  | {
-      do: 'set_step_allowance';
-      stepId: string;
-      allowancePercent: AllowancePercent;
-      expectedPercent: AllowancePercent;
-    }
+  | { do: 'set_step_allowance'; stepId: string; allowancePercent: AllowancePercent }
   | DeleteSubtree
   | RestoreSubtree
   | Batch;
@@ -274,8 +268,26 @@ export interface JournalPayload {
   forward: CompensatingCommand;
 }
 
-/** `{workItemId: revision}`, for one moment in one entity's life. */
+/**
+ * `{workItemId: revision}`, for one moment in one entity's life — and, under
+ * {@link stepRevisionKey}, a step's allowance revision.
+ */
 export type Revisions = Record<string, number>;
+
+const STEP_REVISION_PREFIX = 'step:';
+
+/**
+ * The {@link Revisions} key a step's allowance revision is held under.
+ * Work item ids are UUIDs, so the prefix cannot collide with one.
+ */
+export function stepRevisionKey(stepId: string): string {
+  return `${STEP_REVISION_PREFIX}${stepId}`;
+}
+
+/** The step a {@link Revisions} key names, or `null` for a work item's key. */
+export function stepOfRevisionKey(key: string): string | null {
+  return key.startsWith(STEP_REVISION_PREFIX) ? key.slice(STEP_REVISION_PREFIX.length) : null;
+}
 
 /**
  * What an entry checks before it applies, and what lets the entry below it
@@ -416,8 +428,7 @@ export function touchedBy(command: CompensatingCommand): string[] {
     case 'set_frozen':
       return command.updates.map((each) => each.id);
     case 'set_step_allowance':
-      // No work item: the command carries its own precondition, see its type.
-      return [];
+      return [stepRevisionKey(command.stepId)];
     case 'set_positions':
       // The rows whose place changed, never every placement: the respaced ones
       // kept their place, took no revision, and must not have a peer's undo

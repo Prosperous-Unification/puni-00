@@ -92,6 +92,8 @@ import {
   readPayload,
   readPreconditions,
   type Revisions,
+  stepOfRevisionKey,
+  stepRevisionKey,
   subjectOf,
   touchedBy,
 } from '../../service/compensating';
@@ -1335,6 +1337,13 @@ export interface Recording {
    * see `Preconditions` in `compensating.ts`.
    */
   before: readonly WorkItem[];
+  /**
+   * The allowance revision each step this command wrote held **before** it
+   * wrote, under {@link stepRevisionKey} — the step half of `before`, which
+   * `rebase` needs to carry the entry below past this one's undo. Absent for
+   * a command that writes no step.
+   */
+  stepsBefore?: Revisions;
 }
 
 export class WorkItemService {
@@ -2879,10 +2888,8 @@ export class WorkItemService {
       projectId,
       stepId,
       allowancePercent,
-      null,
       stamp,
     );
-    // `stale` answers only a conditional write, and this one is not.
     if (!written.ok) return { ok: false, reason: 'not_found' };
     await this.opts.broadcast.publish(projectId, { type: 'step_updated', step: written.step });
     await this.announceTree(projectId);
@@ -2894,20 +2901,12 @@ export class WorkItemService {
         'set_step_allowance',
         `set the ${written.step.name} allowance to +${String(allowancePercent)}%`,
         {
-          forward: {
-            do: 'set_step_allowance',
-            stepId,
-            allowancePercent,
-            expectedPercent: written.previousPercent,
-          },
-          inverse: {
-            do: 'set_step_allowance',
-            stepId,
-            allowancePercent: written.previousPercent,
-            expectedPercent: allowancePercent,
-          },
-          touched: [],
+          forward: { do: 'set_step_allowance', stepId, allowancePercent },
+          inverse: { do: 'set_step_allowance', stepId, allowancePercent: written.previousPercent },
+          touched: [stepRevisionKey(stepId)],
           before: rows,
+          // Every allowance write moves the revision by exactly one.
+          stepsBefore: { [stepRevisionKey(stepId)]: written.revision - 1 },
         },
       );
     }
@@ -3878,7 +3877,18 @@ export class WorkItemService {
   private async staleness(projectId: string, expected: Revisions): Promise<string | null> {
     const rows = await this.opts.workItems.listByProject(projectId);
     const byId = new Map(rows.map((row) => [row.id, row]));
+    const stepRevisions = await this.opts.projects.stepAllowanceRevisions(projectId);
     for (const [id, revision] of Object.entries(expected)) {
+      const stepId = stepOfRevisionKey(id);
+      if (stepId !== null) {
+        const held = stepRevisions.get(stepId);
+        if (held === undefined) return 'a step this change touched has been removed since then.';
+        // Proof: with this comparison removed, `refuses an allowance undo
+        // after somebody else changed it and changed it back` failed: the undo
+        // answered ok and overwrote the peer's 30% (2026-09-27).
+        if (held !== revision) return 'that step’s allowance has changed since then.';
+        continue;
+      }
       const row = byId.get(id);
       // "since then" rather than a bare "since": these are read out at the end
       // of the caller's own sentence — `That could not be undone: “Roof it” has
@@ -3902,7 +3912,15 @@ export class WorkItemService {
    */
   private async revisionsOf(projectId: string, ids: readonly string[]): Promise<Revisions> {
     const rows = await this.opts.workItems.listByProject(projectId);
-    return revisionsIn(rows, ids);
+    const out = revisionsIn(rows, ids);
+    const stepIds = ids.flatMap((id) => stepOfRevisionKey(id) ?? []);
+    if (stepIds.length === 0) return out;
+    const stepRevisions = await this.opts.projects.stepAllowanceRevisions(projectId);
+    for (const stepId of stepIds) {
+      const revision = stepRevisions.get(stepId);
+      if (revision !== undefined) out[stepRevisionKey(stepId)] = revision;
+    }
+    return out;
   }
 
   /**
@@ -4143,28 +4161,15 @@ export class WorkItemService {
         return { ok: true, detail: null };
       }
       case 'set_step_allowance': {
-        // Conditional on the allowance the other direction left: a newer edit,
-        // or the step's removal, refuses the entry instead of being overwritten.
-        //
-        // Proof: with `command.expectedPercent` replaced by `null`, `refuses an
-        // allowance undo after somebody else changed it` failed: the undo
-        // answered ok and overwrote the newer 50% (2026-09-27).
+        // Unconditional here: `staleness` has already compared the step's
+        // allowance revision, inside this same unit of work.
         const written = await this.opts.projects.setStepAllowance(
           projectId,
           command.stepId,
           command.allowancePercent,
-          command.expectedPercent,
           stamp,
         );
-        if (!written.ok) {
-          return {
-            ok: false,
-            detail:
-              written.reason === 'stale'
-                ? 'that step’s allowance has changed since then.'
-                : 'that step is no longer in this project.',
-          };
-        }
+        if (!written.ok) return { ok: false, detail: 'that step is no longer in this project.' };
         await this.opts.broadcast.publish(projectId, { type: 'step_updated', step: written.step });
         return { ok: true, detail: null };
       }
@@ -4471,6 +4476,12 @@ export class WorkItemService {
       },
       touched: [...new Set(recordings.flatMap((each) => each.recording.touched))],
       before: only.recording.before,
+      // The first step to write each step is the one whose before-state the
+      // batch started from, so later steps never overwrite it.
+      stepsBefore: recordings.reduceRight<Revisions>(
+        (later, each) => ({ ...later, ...each.recording.stepsBefore }),
+        {},
+      ),
     });
   }
 
@@ -4519,7 +4530,7 @@ export class WorkItemService {
           // list the mutation's own guard produced. Nothing is checked against
           // it — it is what tells a later undo whether the entry beneath this
           // one is still describing an unbroken chain. See `Preconditions`.
-          from: revisionsIn(recording.before, recording.touched),
+          from: { ...revisionsIn(recording.before, recording.touched), ...recording.stepsBefore },
         },
         createdAt: stamp.at,
       },

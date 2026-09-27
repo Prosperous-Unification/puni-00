@@ -531,17 +531,16 @@ export class ProjectRepository implements ProjectStore {
   /**
    * Reads the held allowance and writes the new one inside one transaction, so
    * the `previousPercent` a journal entry carries is the value this write
-   * replaced and a conditional write compares against the row it updates.
+   * replaced, and the revision it answers is the one the write left.
    *
-   * Proof: with the `expectedPercent` comparison removed, `refuses a
-   * conditional write the step no longer matches` failed: the write answered
-   * `ok` instead of `stale` (2026-09-27).
+   * Proof: with the revision increment removed, `moves the step’s allowance
+   * revision on every write, even back to a value it held` failed: the
+   * revision stayed at 0 (2026-09-27).
    */
   async setStepAllowance(
     projectId: string,
     stepId: string,
     allowancePercent: AllowancePercent,
-    expectedPercent: AllowancePercent | null,
     stamp: WriteStamp,
   ): Promise<StepAllowanceWritten> {
     return await this.gate.enter(async () => {
@@ -553,14 +552,15 @@ export class ProjectRepository implements ProjectStore {
           .where(and(eq(step.id, stepId), eq(step.projectId, projectId)))
           .get();
         if (held === undefined) return { ok: false, reason: 'not_found' };
-        if (expectedPercent !== null && held.allowancePercent !== expectedPercent) {
-          return { ok: false, reason: 'stale' };
-        }
         const written = tx
           .update(step)
-          .set({ allowancePercent, ...auditOnUpdate(stamp) })
+          .set({
+            allowancePercent,
+            allowanceRevision: sql`${step.allowanceRevision} + 1`,
+            ...auditOnUpdate(stamp),
+          })
           .where(eq(step.id, stepId))
-          .returning(STEP_COLUMNS)
+          .returning({ ...STEP_COLUMNS, revision: step.allowanceRevision })
           .all()
           .at(0);
         // Read in this same transaction a line above: an update that found
@@ -568,9 +568,18 @@ export class ProjectRepository implements ProjectStore {
         if (written === undefined)
           throw new Error(`step ${stepId} vanished inside its transaction`);
         bumpProject(tx, projectId, stamp);
-        return { ok: true, step: written, previousPercent: held.allowancePercent };
+        const { revision, ...writtenStep } = written;
+        return { ok: true, step: writtenStep, previousPercent: held.allowancePercent, revision };
       });
     });
+  }
+
+  async stepAllowanceRevisions(projectId: string): Promise<ReadonlyMap<string, number>> {
+    const rows = await this.db
+      .select({ id: step.id, revision: step.allowanceRevision })
+      .from(step)
+      .where(eq(step.projectId, projectId));
+    return new Map(rows.map((row) => [row.id, row.revision]));
   }
 
   /**

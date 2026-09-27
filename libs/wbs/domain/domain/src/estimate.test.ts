@@ -292,6 +292,12 @@ describe('allowancePercentOf', () => {
   it('refuses more than two decimal places', () => {
     expect(allowancePercentOf(12.345)).toBeNull();
     expect(allowancePercentOf(0.001)).toBeNull();
+    expect(allowancePercentOf(12.340000001)).toBeNull();
+  });
+
+  it('checks the range on the value as given, not after rounding it', () => {
+    expect(allowancePercentOf(-1e-9)).toBeNull();
+    expect(allowancePercentOf(1000.000000001)).toBeNull();
   });
 
   it('refuses negative, over-1000 and non-finite percentages', () => {

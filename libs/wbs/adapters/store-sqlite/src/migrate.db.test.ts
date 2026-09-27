@@ -4280,6 +4280,7 @@ describe('the step allowance migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_FACTS)).toEqual([STEP_ALLOWANCE]);
       expect(stepColumns(db.path)).not.toContain('allowance_bps');
+      expect(stepColumns(db.path)).not.toContain('allowance_revision');
       expect(tables(db.path)).not.toContain('step_allowance_rollback_guard');
 
       runMigrations(db.path, FOLDER);

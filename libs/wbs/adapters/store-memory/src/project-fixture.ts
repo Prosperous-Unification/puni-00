@@ -71,6 +71,8 @@ export function inMemoryProjects(
   tables: MemoryProjectTables = memoryProjectTables(),
 ): ProjectStore {
   const { projects, steps, opened } = tables;
+  /** Each step's allowance revision; a step never written is at 0, as the column default. */
+  const allowanceRevisions = new Map<string, number>();
   /** One moment per `userId::projectId`, exactly as the primary key holds it. */
   /**
    * Every stamp this store was handed, in call order, so a service test can
@@ -167,15 +169,24 @@ export function inMemoryProjects(
       projects.set(id, updated);
       return Promise.resolve(updated);
     },
-    setStepAllowance(projectId, stepId, allowancePercent, expectedPercent, _stamp) {
+    setStepAllowance(projectId, stepId, allowancePercent, _stamp) {
       const found = (steps.get(projectId) ?? []).find((each) => each.id === stepId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
-      if (expectedPercent !== null && found.allowancePercent !== expectedPercent) {
-        return Promise.resolve({ ok: false, reason: 'stale' });
-      }
       const previousPercent = found.allowancePercent;
       found.allowancePercent = allowancePercent;
-      return Promise.resolve({ ok: true, step: structuredClone(found), previousPercent });
+      const revision = (allowanceRevisions.get(stepId) ?? 0) + 1;
+      allowanceRevisions.set(stepId, revision);
+      return Promise.resolve({ ok: true, step: structuredClone(found), previousPercent, revision });
+    },
+    stepAllowanceRevisions(projectId) {
+      return Promise.resolve(
+        new Map(
+          (steps.get(projectId) ?? []).map((each) => [
+            each.id,
+            allowanceRevisions.get(each.id) ?? 0,
+          ]),
+        ),
+      );
     },
     stepsOf(projectId) {
       // In step order, as production reads them — see `inMemorySteps` for what

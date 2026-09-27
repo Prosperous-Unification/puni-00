@@ -747,6 +747,12 @@ export const step = sqliteTable(
      * (`20260927090000_add_step_allowance`), beside the column it guards.
      */
     allowancePercent: allowanceHundredths('allowance_bps').notNull().default(0),
+    /**
+     * How many times this step's allowance has been written — the precondition
+     * an allowance undo is conditioned on, because the value alone can come
+     * back to what it was. Not part of `Step`: nothing but the journal reads it.
+     */
+    allowanceRevision: integer('allowance_revision').notNull().default(0),
     ...auditColumns(),
   },
   (t) => [uniqueIndex('step_project_name').on(t.projectId, t.name)],

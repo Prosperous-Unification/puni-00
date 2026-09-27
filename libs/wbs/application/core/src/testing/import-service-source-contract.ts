@@ -352,8 +352,9 @@ function heldSolutionUnitOfWork(
           recordOpen: (projectId, stamp) => stored.recordOpen(projectId, stamp),
           update: (id, changes, stamp) => stored.update(id, changes, stamp),
           stepsOf: (projectId) => stored.stepsOf(projectId),
-          setStepAllowance: (projectId, stepId, percent, expected, stamp) =>
-            stored.setStepAllowance(projectId, stepId, percent, expected, stamp),
+          setStepAllowance: (projectId, stepId, percent, stamp) =>
+            stored.setStepAllowance(projectId, stepId, percent, stamp),
+          stepAllowanceRevisions: (projectId) => stored.stepAllowanceRevisions(projectId),
         };
         return act({ stores: { ...scope.stores, projects } });
       });
