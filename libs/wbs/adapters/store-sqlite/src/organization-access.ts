@@ -70,7 +70,11 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
       ok: true,
       access: {
         kind: 'scoped',
-        scope: { organizationId, userId, role: storedRole(membership.role, organizationId) },
+        scope: {
+          organizationId,
+          userId,
+          role: validateStoredRole(membership.role, organizationId),
+        },
       },
     };
   }
@@ -87,7 +91,7 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
  *
  * @throws when the stored role is not one of {@link ORGANIZATION_ROLES}.
  */
-function storedRole(role: string, organizationId: string): OrganizationRole {
+function validateStoredRole(role: string, organizationId: string): OrganizationRole {
   const known: readonly string[] = ORGANIZATION_ROLES;
   if (!known.includes(role)) {
     throw new Error(`membership in organization "${organizationId}" has a malformed role`);
