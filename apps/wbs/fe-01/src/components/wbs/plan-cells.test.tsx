@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { Component, type ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectApi } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi, QA } from '@/testing/fake-project-api';
@@ -82,6 +82,12 @@ const pressTab = (number: string, shiftKey = false) => {
 // test's collapsing would arrive as the next test's starting shape.
 beforeEach(() => {
   localStorage.clear();
+  window.history.replaceState(null, '', '/');
+});
+
+// Step-link cases change the shared jsdom URL. Leave it clean even when an
+// assertion fails, so later files in a reused worker cannot consume that link.
+afterEach(() => {
   window.history.replaceState(null, '', '/');
 });
 

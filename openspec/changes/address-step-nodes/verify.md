@@ -1,5 +1,11 @@
 # verify — address-step-nodes
 
+## CI fe-01 follow-up (2026-09-27)
+
+- The estimate regression came from `holdHovered` keeping QA's hover card for 180 ms after leave while Dev remained focused. The store now restores a different focused card immediately; the unfocused card still has its pointer-travel reach. The new store test failed before the fix (`expected 'a:qa' to be 'a:dev'`) and passed after it, alongside the existing pointer-travel and focused-cell component tests.
+- The two dependency cases in the CI excerpt timed out at 5 seconds, with no assertion mismatch. In the requested four-file single-worker reproduction before the fix, both passed: 376 passed, 1 failed (the estimate regression). The five requested files plus `cell-card-store.test.ts` then passed together: 6 files, 440 passed, 0 failed. Cross-file leakage was not reproduced; the CI log's 149 spawned isolated workers and these results point to full-run load as the likely cause of those timeouts. The new step-link tests now reset their changed URL in `afterEach`, including after a failed assertion.
+- `wbs-fe-01:lint:fast` and `wbs-fe-01:typecheck` passed with Nx cache skipped; `prettier --check` passed on the changed code. The zoned config includes only `*.zoned.test.{ts,tsx}`, so none of these touched test files were in that run. Full fe-01 and h2puni gates were not run under the loaded-host focused-check instruction.
+
 ## Section 9 review repairs — step cells (2026-09-27)
 
 - **Project-aware copied links:** the folded card copies `project` with `stepNode`; `ProjectPage` selects that listed project before mounting its table, and an absent project is visibly refused. A mounted `ProjectPage` test starts with p2 remembered and a p1 link, then observes p1 selected and its step focused. The copy test first failed `expected null to be 'p1'`. With the selection branch removed, the page stayed on p2. Bypassing the absent-project refusal changed its alert to `Step link is invalid.` as p1 consumed the link. Bypassing the table's project guard removed a pending p2 URL in a p1 table (`expected '?project=p2&stepNode=sn1.bad', received ''`). All guards were restored; adjacent `Proof:` comments name the faults.
