@@ -165,7 +165,10 @@ export function projectRoutes(
         // foreign project's Markdown; watched 2026-09-27.
         const found = await projects.readWithin(params.id, resolved.access);
         if (found === null) return { ok: false, status: 404, body: { error: 'not_found' } };
-        const tree = await workItems.tree(params.id);
+        // Proof: reading the tree unscoped made `fails the export and the
+        // optimizer retry closed over a crossing row` in
+        // `schedule-organization.controller.db.test.ts` export with 200.
+        const tree = await workItems.treeWithin(params.id, resolved.access);
         if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         // Proof: removing this branch made both mounted unavailable export cases
         // receive 500 instead of 409, before either could inspect media or body.
@@ -243,7 +246,9 @@ export function projectRoutes(
             ? { ok: false, status: 404, body: { error: 'not_found' } }
             : { ok: false, status: 403, body: { error: 'forbidden' } };
         }
-        const input = await workItems.scheduleInput(params.id);
+        // Proof: building the input unscoped made that case answer 409 instead
+        // of 500, retrying over the crossing row.
+        const input = await workItems.scheduleInputWithin(params.id, resolved.access);
         if (input === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         if (optimizer === undefined) {
           return {

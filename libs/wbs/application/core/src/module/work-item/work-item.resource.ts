@@ -65,6 +65,7 @@ import type { DependencyStore, StoredDependency } from '../../ports/dependency-s
 import type { Assignment, DirectoryStore } from '../../ports/directory-store';
 import type { EstimateStore, StoredEstimate } from '../../ports/estimate-store';
 import type { MeasureStore, StoredMeasure } from '../../ports/measure-store';
+import { findProjectWithin, type ResourceAccess } from '../../ports/organization-access';
 import type { PriorityBandStore } from '../../ports/priority-band-store';
 import type { StepProgressStore, StoredProgress } from '../../ports/progress-store';
 import type { Broadcaster } from '../../ports/project-event';
@@ -1367,6 +1368,79 @@ export class WorkItemService {
     this.clock = opts.clock;
   }
 
+  /**
+   * {@link scheduleInput} through the caller's access: null for a foreign
+   * project, and under scoped access a project whose rows cross the project or
+   * the organization fails closed rather than scheduling on them.
+   */
+  async scheduleInputWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<ScheduleInput | null> {
+    if (!(await this.admits(projectId, access))) return null;
+    return this.scheduleInput(projectId);
+  }
+
+  /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */
+  async treeWithin(projectId: string, access: ResourceAccess): ReturnType<WorkItemService['tree']> {
+    if (!(await this.admits(projectId, access))) return null;
+    const tree = await this.tree(projectId);
+    if (access.kind === 'legacy' || tree === null || 'kind' in tree) return tree;
+    // Assignees under their organization-local names, as the scoped people
+    // list shows them; the tree read itself knows only the legacy name.
+    // Proof: returning the tree's legacy names made `shows assignees under the
+    // organization's own names` in `schedule-organization.controller.db.test.ts`
+    // answer `root-pe-a` instead of `pe-a`; watched 2026-09-27.
+    const local = new Map(
+      (await this.opts.directory.listInOrganization('people', access.scope.organizationId)).map(
+        (person) => [person.id, person.name] as const,
+      ),
+    );
+    return {
+      ...tree,
+      assignedPeople: tree.assignedPeople.map((person) => {
+        const name = local.get(person.id);
+        // `admits` has already refused an assignee the organization does not own.
+        if (name === undefined) throw new Error(`assignee "${person.id}" has no local name`);
+        return { ...person, name };
+      }),
+    };
+  }
+
+  /**
+   * Whether the caller's access reaches the project, and, under scoped access,
+   * that nothing the schedule read follows leaves the project or the
+   * organization.
+   *
+   * @throws when a stored reference crosses: corrupt trusted state, which the
+   * activation reconciliation should have refused, is never scheduled on.
+   *
+   * Proof: skipping the cross-reference check made `fails the schedule read
+   * closed over a crossing estimate_step` in
+   * `schedule-organization.controller.db.test.ts` answer 200 instead of 500,
+   * and finding the project unscoped made `answers 404 alike for a foreign and
+   * an absent project` read the foreign tree, and running the check under
+   * legacy access too failed `reads any project deployment-wide, crossing rows
+   * and all`; watched 2026-09-27.
+   */
+  private async admits(projectId: string, access: ResourceAccess): Promise<boolean> {
+    const project = await findProjectWithin(this.opts.projects, projectId, access);
+    if (project === null) return false;
+    if (access.kind === 'scoped') {
+      const crossing = await this.opts.projects.findCrossReferences(
+        projectId,
+        access.scope.organizationId,
+      );
+      if (crossing.length > 0) {
+        const kinds = [...new Set(crossing.map((reference) => reference.kind))].sort();
+        throw new Error(
+          `project "${projectId}" holds references outside its organization: ${kinds.join(', ')}`,
+        );
+      }
+    }
+    return true;
+  }
+
   /** Whether a batch target is currently a row of this project, including rows created earlier in the batch. */
   async hasWorkItemInProject(projectId: string, workItemId: string): Promise<boolean> {
     return (await this.opts.workItems.listByIds(projectId, [workItemId])).some(
@@ -1399,6 +1473,19 @@ export class WorkItemService {
    * @returns `null` for an unknown project.
    * @throws when the numbering misses a row.
    */
+  /**
+   * {@link readAddresses} through the caller's access: null for a foreign
+   * project exactly as for an absent one, and under scoped access a project
+   * whose rows cross the project or the organization fails closed.
+   */
+  async readAddressesWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): ReturnType<WorkItemService['readAddresses']> {
+    if (!(await this.admits(projectId, access))) return null;
+    return this.readAddresses(projectId);
+  }
+
   async readAddresses(projectId: string): Promise<{
     workItems: { id: string; parentId: string | null; number: string }[];
     steps: Step[];

@@ -15,6 +15,7 @@ import {
 import { type, ValidationError } from '@wbs/validation';
 
 import { readStepAddresses, resolveAddressedStep } from '../module/work-item/step-addresses';
+import type { OrganizationAccess } from '../ports/organization-access';
 import type { Digest } from '../ports/runtime';
 import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
 import type { PlanCommand } from '../service/plan-command';
@@ -23,6 +24,7 @@ import type { UndoOutcome, WorkItemService } from '../service/work-item.service'
 import { runCommandBatch } from '../use-cases/run-command-batch';
 import { BadCapacity } from './capacity-body';
 import { bind, type HttpReply, type RequestFailure } from './endpoint';
+import { organizationRefusal } from './organization-refusal';
 import { BadLadder } from './priority-ladder-body';
 import { isFieldBag } from './route';
 
@@ -360,10 +362,17 @@ export function workItemRoutes(
   workItems: WorkItemService,
   commands: PlanCommandRunner,
   digest: Digest,
+  organizations: OrganizationAccess,
 ) {
   return [
     bind(getWorkItems, async ({ params, principal }): Promise<HttpReply<typeof getWorkItems>> => {
-      const tree = await workItems.tree(params.id);
+      // Proof: reading the tree without resolving access made `refuses an
+      // unbound session and a removed member before any lookup` in
+      // `schedule-organization.controller.db.test.ts` answer 200; watched
+      // 2026-09-27.
+      const resolved = await organizations.resolve(principal.id);
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      const tree = await workItems.treeWithin(params.id, resolved.access);
       if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
       // Proof: removing this branch made the mounted unavailable work-item read
       // receive 500 instead of the required 409.
@@ -439,8 +448,14 @@ export function workItemRoutes(
     ),
     bind(
       getStepReference,
-      async ({ params, query }): Promise<HttpReply<typeof getStepReference>> => {
-        const addresses = await workItems.readAddresses(params.id);
+      async ({ params, query, principal }): Promise<HttpReply<typeof getStepReference>> => {
+        // Proof: reading the addresses without resolving access made `refuses
+        // an unbound session and a removed member before any lookup` in
+        // `schedule-organization.controller.db.test.ts` answer 409 instead of
+        // 403; watched 2026-09-27.
+        const resolved = await organizations.resolve(principal.id);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        const addresses = await workItems.readAddressesWithin(params.id, resolved.access);
         if (addresses === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         const outcome = await resolveAddressedStep(params.id, query, addresses, digest);
         if (outcome.kind === 'stale') {

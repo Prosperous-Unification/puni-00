@@ -103,6 +103,8 @@ function treeReadCode(refusal: RefusalOf<'getApiProjectsByIdWork-items'>): strin
     case 'invalid_body':
     case 'invalid_json':
     case 'unauthenticated':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'not_found':
     case 'engine_unavailable':
       return refusal.error;

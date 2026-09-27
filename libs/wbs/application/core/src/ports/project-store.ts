@@ -5,6 +5,14 @@ import type { Step, StepAllowanceWritten } from './step-store';
 import type { WriteStamp } from './write-stamp';
 export type { NewProject, Project, ProjectPatch, ProjectWithAccess } from './project-values';
 
+/** One reference that leaves the project or its organization; see {@link ProjectStore.findCrossReferences}. */
+export interface ProjectCrossReference {
+  /** Which relation it is, as the reconciliation names it (`estimate_step`, `assignment_person`, …). */
+  readonly kind: string;
+  /** The referring row, as the reconciliation identifies it. */
+  readonly id: string;
+}
+
 export interface ProjectStore {
   /**
    * Writes the project and its starting steps together. A project that existed
@@ -25,6 +33,18 @@ export interface ProjectStore {
   findById(id: string): Promise<Project | null>;
   /** {@link findById} confined to one organization; null alike for a foreign or absent id. */
   findInOrganization(id: string, organizationId: string): Promise<Project | null>;
+  /**
+   * Every reference the project's schedule read would follow out of
+   * `organizationId` or out of the project: a per-step row on another
+   * project's step, a work item's parent or dependency endpoint in another
+   * project, and a team, service, tag, type, external system, assignee or
+   * capacity team that the organization does not own (an unmapped one
+   * included). Empty for a coherent project.
+   */
+  findCrossReferences(
+    projectId: string,
+    organizationId: string,
+  ): Promise<readonly ProjectCrossReference[]>;
   findBySolutionSlug(slug: string): Promise<Project | null>;
   /** Every project, newest first. Readable by any account, so it is not filtered by owner. */
   list(): Promise<Project[]>;

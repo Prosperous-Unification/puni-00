@@ -1,6 +1,7 @@
 import type {
   NewProject,
   Project,
+  ProjectCrossReference,
   ProjectPatch,
   ProjectStore,
   ProjectWithAccess,
@@ -404,6 +405,116 @@ export class ProjectRepository implements ProjectStore {
       .limit(1);
     const found = rows.at(0);
     return found === undefined ? null : toProject(found.project);
+  }
+
+  /**
+   * One UNION over every relation the schedule read follows. Owners compare
+   * with `IS NOT`, so an unmapped catalog entry counts as crossing: after
+   * activation nothing may be read that the organization does not own.
+   *
+   * Proof: each arm but `work_item_parent` removed alone failed its own
+   * `fails the schedule read closed over a crossing <kind>` case in
+   * `schedule-organization.controller.db.test.ts`; watched 2026-09-27. The
+   * tree read already throws on a parent outside the project, so that mounted
+   * case answers 500 either way; removing the parent arm instead failed
+   * `reports a work item whose parent lies in another project` in
+   * `project.db.test.ts`.
+   */
+  async findCrossReferences(
+    projectId: string,
+    organizationId: string,
+  ): Promise<readonly ProjectCrossReference[]> {
+    await Promise.resolve();
+    const p = projectId;
+    const o = organizationId;
+    const ownerOf = (side: string, column: string) =>
+      sql.raw(`(SELECT organization_id FROM ${side} WHERE resource_id = ${column})`);
+    const stepRow = (table: string, kind: string, id: string) => sql`
+      SELECT ${kind} AS kind, ${sql.raw(id)} AS id FROM ${sql.raw(table)} AS l
+        JOIN work_item AS w ON w.id = l.work_item_id JOIN step AS st ON st.id = l.step_id
+        WHERE w.project_id = ${p} AND st.project_id IS NOT ${p}`;
+    const catalogLink = (
+      table: string,
+      column: string,
+      side: string,
+      kind: string,
+      id: string,
+    ) => sql`
+      SELECT ${kind} AS kind, ${sql.raw(id)} AS id FROM ${sql.raw(table)} AS l
+        JOIN work_item AS w ON w.id = l.work_item_id
+        WHERE w.project_id = ${p} AND ${ownerOf(side, `l.${column}`)} IS NOT ${o}`;
+    const arms = [
+      stepRow('estimate', 'estimate_step', "l.work_item_id || '/' || l.step_id"),
+      stepRow('actual', 'actual_step', "l.work_item_id || '/' || l.step_id"),
+      stepRow('step_progress', 'step_progress_step', "l.work_item_id || '/' || l.step_id"),
+      stepRow(
+        'step_measure',
+        'step_measure_step',
+        "l.work_item_id || '/' || l.step_id || '/' || l.metric",
+      ),
+      stepRow(
+        'assignment',
+        'assignment_step',
+        "l.work_item_id || '/' || l.step_id || '/' || l.person_id",
+      ),
+      catalogLink(
+        'assignment',
+        'person_id',
+        'person_organization',
+        'assignment_person',
+        "l.work_item_id || '/' || l.step_id || '/' || l.person_id",
+      ),
+      catalogLink(
+        'work_item_tag',
+        'tag_id',
+        'tag_organization',
+        'work_item_tag',
+        "l.work_item_id || '/' || l.tag_id",
+      ),
+      catalogLink(
+        'work_item_team',
+        'team_id',
+        'service_team_organization',
+        'work_item_team',
+        "l.work_item_id || '/' || l.team_id",
+      ),
+      catalogLink(
+        'work_item_work_item_type',
+        'type_id',
+        'work_item_type_organization',
+        'work_item_type',
+        "l.work_item_id || '/' || l.type_id",
+      ),
+      catalogLink(
+        'work_item_service',
+        'service_id',
+        'service_organization',
+        'work_item_service_link',
+        "l.work_item_id || '/' || l.service_id",
+      ),
+      catalogLink(
+        'work_item_external_ref',
+        'system_id',
+        'external_system_organization',
+        'work_item_external_ref',
+        'l.id',
+      ),
+      sql`SELECT 'work_item_service_team' AS kind, w.id AS id FROM work_item AS w
+        WHERE w.project_id = ${p} AND w.service_team_id IS NOT NULL
+          AND ${ownerOf('service_team_organization', 'w.service_team_id')} IS NOT ${o}`,
+      sql`SELECT 'work_item_service' AS kind, w.id AS id FROM work_item AS w
+        WHERE w.project_id = ${p} AND w.service_id IS NOT NULL
+          AND ${ownerOf('service_organization', 'w.service_id')} IS NOT ${o}`,
+      sql`SELECT 'work_item_parent' AS kind, w.id AS id FROM work_item AS w
+        JOIN work_item AS parent ON parent.id = w.parent_id
+        WHERE w.project_id = ${p} AND parent.project_id IS NOT ${p}`,
+      sql`SELECT 'dependency_endpoint' AS kind, d.id AS id FROM dependency AS d
+        JOIN work_item AS pre ON pre.id = d.predecessor_id JOIN work_item AS suc ON suc.id = d.successor_id
+        WHERE d.project_id = ${p} AND (pre.project_id IS NOT ${p} OR suc.project_id IS NOT ${p})`,
+      sql`SELECT 'project_team_capacity' AS kind, c.service_team_id AS id FROM project_team_capacity AS c
+        WHERE c.project_id = ${p} AND ${ownerOf('service_team_organization', 'c.service_team_id')} IS NOT ${o}`,
+    ];
+    return this.db.all<ProjectCrossReference>(sql.join(arms, sql` UNION ALL `));
   }
 
   async findBySolutionSlug(slug: string): Promise<Project | null> {

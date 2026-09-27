@@ -2,6 +2,7 @@ import { expect, spyOn, test } from 'bun:test';
 
 import { PlanCommandRunner } from '../service/plan-commands';
 import { inMemoryServices } from '../testing/harness';
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { batchServices, testWrites } from '../testing/writes-fixture';
 import { workItemRoutes } from './work-item.routes';
 
@@ -16,9 +17,12 @@ function fixture() {
   });
   return {
     runner,
-    endpoints: workItemRoutes(plan.service, runner, {
-      sha256: () => Promise.resolve('0'.repeat(64)),
-    }),
+    endpoints: workItemRoutes(
+      plan.service,
+      runner,
+      { sha256: () => Promise.resolve('0'.repeat(64)) },
+      legacyOrganizationAccess,
+    ),
   };
 }
 
