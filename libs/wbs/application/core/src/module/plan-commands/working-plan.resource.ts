@@ -292,23 +292,41 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
   const typedDependencies: TypedDependencyStore = {
     listByProject: (requestedProjectId) => {
       assertProject(requestedProjectId);
+      // Proof: returning the pre-edit empty set made `sees the first typed relationship
+      // when a later batch command closes a cycle` receive 200 instead of 409; watched 2026-09-27.
       return scope.stores.typedDependencies.listByProject(requestedProjectId);
     },
-    add: (row, stamp) => {
+    add: async (row, stamp) => {
       assertProject(row.projectId);
-      return scope.stores.typedDependencies.add(row, stamp);
+      await scope.stores.typedDependencies.add(row, stamp);
+      await refreshRows([row.predecessor.workItemId, row.successor.workItemId]);
     },
-    update: (row, stamp) => {
+    update: async (row, stamp) => {
       assertProject(row.projectId);
-      return scope.stores.typedDependencies.update(row, stamp);
+      const previous = (await scope.stores.typedDependencies.listByProject(projectId)).find(
+        (current) => current.id === row.id,
+      );
+      if (previous === undefined)
+        throw new Error(`typed dependency ${row.id} is outside project ${projectId}`);
+      await scope.stores.typedDependencies.update(row, stamp);
+      // Proof: skipping this refresh made `undoes and redoes a typed update with
+      // its exact ID and endpoints` receive 409 instead of 200; watched 2026-09-27.
+      await refreshRows([
+        previous.predecessor.workItemId,
+        previous.successor.workItemId,
+        row.predecessor.workItemId,
+        row.successor.workItemId,
+      ]);
     },
     remove: async (id, stamp) => {
       assertOpen();
       const rows = await scope.stores.typedDependencies.listByProject(projectId);
-      if (!rows.some((row) => row.id === id)) {
+      const previous = rows.find((row) => row.id === id);
+      if (previous === undefined) {
         throw new Error(`typed dependency ${id} is outside project ${projectId}`);
       }
       await scope.stores.typedDependencies.remove(id, stamp);
+      await refreshRows([previous.predecessor.workItemId, previous.successor.workItemId]);
     },
     removeAllFor: async (workItemIds, stamp) => {
       assertOpen();
@@ -316,7 +334,11 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       if (new Set(admitted.map(({ id }) => id)).size !== new Set(workItemIds).size) {
         throw new Error(`typed dependency removal has a work item outside project ${projectId}`);
       }
-      return scope.stores.typedDependencies.removeAllFor(workItemIds, stamp);
+      const removed = await scope.stores.typedDependencies.removeAllFor(workItemIds, stamp);
+      await refreshRows(
+        removed.flatMap((row) => [row.predecessor.workItemId, row.successor.workItemId]),
+      );
+      return removed;
     },
   };
   const retainedSubtrees = createWorkingPlanSubtrees(

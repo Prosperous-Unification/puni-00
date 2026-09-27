@@ -32,6 +32,9 @@ export type ParserRefusalCode =
   | 'conflicting_step_address'
   | 'invalid_step_node_id'
   | 'unknown_step_node_encoding'
+  | 'invalid_typed_endpoint'
+  | 'type_must_be_text'
+  | 'dependencyId_must_be_text'
   | 'cannot_send_both_teamIds_and_serviceTeamId'
   | 'unknown_kind'
   | 'unknown_strategy'
@@ -109,6 +112,12 @@ export type CommandRefusalCode =
   | 'ancestor'
   /** A typed dependency resolving a step node onto itself. */
   | 'self_node'
+  | 'not_a_parent'
+  | 'node_on_parent'
+  | 'descendant_step_on_leaf'
+  | 'unknown_dependency'
+  | 'duplicate_dependency'
+  | 'unsupported_relationship_type'
   | 'too_large'
   | 'unknown_step'
   | 'unknown_metric'
@@ -209,11 +218,13 @@ export type CommandRefusalDetail = {
     // Proof: making projectDayZero optional caused TS2578 in the deadline refusal type fixture.
     (C extends 'deadline_before_project_start'
       ? { workItemId: string; projectDayZero: string }
-      : C extends 'in_use'
-        ? { usage: DirectoryUsage }
-        : C extends 'taken'
-          ? { name?: string }
-          : Record<never, never>);
+      : C extends 'node_on_parent' | 'descendant_step_on_leaf'
+        ? { dependencyIds: string[] }
+        : C extends 'in_use'
+          ? { usage: DirectoryUsage }
+          : C extends 'taken'
+            ? { name?: string }
+            : Record<never, never>);
 };
 
 type BareRefusalCode =

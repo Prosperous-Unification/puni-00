@@ -1,4 +1,20 @@
-import type { AppliedFor, CommandBindings, CommandFor } from './command-bindings';
+import { expect, it } from 'bun:test';
+
+import {
+  type AppliedFor,
+  type CommandBindings,
+  CommandContext,
+  type CommandFor,
+} from './command-bindings';
+
+it('refuses an endpoint conflict missing its relationship ids at the command boundary', () => {
+  const context = new CommandContext('actor', 'project', 0, 'moveWorkItem', new Map());
+  for (const reason of ['node_on_parent', 'descendant_step_on_leaf'] as const) {
+    expect(() => {
+      context.accept({ ok: false, reason });
+    }).toThrow('Endpoint refusal requires relationship ids');
+  }
+});
 
 export function bindingTypeCases(
   bindings: CommandBindings,
