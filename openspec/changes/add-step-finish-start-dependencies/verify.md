@@ -61,6 +61,15 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
   - The update replay's stale comparison lacked its own proof. `refuses undo of an update when the stored relationship changed outside the journal` changes the row with SQL, keeping the revisions. Proof: the comparison disabled → `Expected: 409, Received: 200`.
   - Minor: the legacy `addDependency` JSDoc moved back onto `addDependency`.
 
+## Task 6a — subtree typed-dependency copy (2026-09-27–28)
+
+- Mounted SQLite test: subtree P{C1,C2} with internal node(C1.dev) → node(C2.qa) and external node(X.dev) → whole(C1). The copied tree carries one new internal relationship with new ID and remapped work-item IDs; the originals and external row remain unchanged. One undo removes copy and relationship; redo restores both under the same IDs. The focused Bun run passed: 1 test, 21 assertions.
+- TDD red: before implementation, the copy test failed because the copied relationship was absent. R5 faults, rewatched and restored on 2026-09-28: retaining original C1 as copied predecessor failed `toMatchObject` on the copied endpoint; including the external X relationship made the relationship count 4 instead of 3. Adjacent `Proof:` comments name the injected faults.
+- `env -u CLAUDECODE bun test apps/wbs/be-01/src/controller libs/wbs/application/core`: 1,199 passed, 1 failed, 1 collection error. Bun collected `portable-composition.spec.ts` under its runner; the mounted copy test passed. This selection is not green as a whole.
+- `cd apps/wbs/be-01 && env -u CLAUDECODE bun test src`: 1,178 passed, 1 skipped, 28 failed. Listener `EPERM` failures in the sandbox and the two-coordinator spawn handshake account for the failures; the mounted copy test passed. The spawn-handshake test also timed out on an isolated rerun, so it remains unverified. This selection is not green as a whole.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck lint:fast -p wbs-core wbs-be-01 wbs-contracts --output-style=static`: all 8 targets passed, 1 cache hit. An unmodified invocation exited 0 after Nx socket `EPERM` messages without task results, so it was not counted. After removal of typecheck's `dist/out-tsc`, `bunx prettier --check` passed on the four touched files, `git diff --check` passed, and focused Bun passed again: 1 test, 21 assertions.
+- No separate `copyProject`/`duplicateProject` feature exists in application code. Project transfer is export/import and remains a separate task. The batch runner's graph guard remains after `duplicateWorkItem`.
+
 ## Planned checks — pending later tasks
 
 - **Pending:** Expanded slice-graph cases: parent Cartesian product, self-slice/cycle refusal, apparent work-item cycle acceptance, referenced-step deletion refusal, reparenting, step insertion/deletion/reorder, legacy write, project `depReach` change, estimate-driven dynamic-anchor change and history replay.

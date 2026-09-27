@@ -42,9 +42,9 @@
 
 ## 6a. Remap copied relationships
 
-- [ ] 6a.1 Red: whole-project copy and subtree duplication remap internal IDs without dangling references.
-- [ ] 6a.2 Implement copy remapping under the existing external-link policy.
-- [ ] 6a.3 Negative proof: retain a source work-item ID; watch copy test fail, restore, add adjacent `Proof:`.
+- [x] 6a.1 Red: mounted subtree duplication fails when its internal typed relationship is absent. No separate project-copy command exists; project transfer is export/import in a later task.
+- [x] 6a.2 Remap both internal endpoints and relationship IDs; retain scopes, steps and type; omit external relationships and journal typed rows around subtree replay.
+- [x] 6a.3 Negative proofs: retaining a source work-item ID fails the endpoint assertion; copying an external relationship fails the relationship-count assertion. Both faults restored with adjacent `Proof:` comments.
 
 ## 6b. Capture saved-plan history
 

@@ -2636,9 +2636,10 @@ export class WorkItemService {
    *   frozen row. Two rows answering one ticket is the failure freezing
    *   exists to prevent. The original is untouched, so a frozen work item can
    *   still be duplicated: copying is not moving.
-   * - **Only internal dependencies.** An edge with one end outside the
-   *   subtree is left behind, so the copy schedules against its own work
-   *   rather than inheriting wiring nobody asked it to have.
+   * - **Only internal dependencies.** Legacy and typed relationships with one
+   *   end outside the subtree are left behind. Internal typed relationships
+   *   receive new IDs and address the copied work items; their scopes, steps
+   *   and type stay the same.
    *
    * Refuses `too_large` past {@link MAX_DUPLICATED_ROWS}, having written
    * nothing.
@@ -2710,6 +2711,7 @@ export class WorkItemService {
     const stored = await this.opts.estimates.listByProject(workItem.projectId);
     const assigned = await this.opts.directory.assignmentsOf(originals);
     const edges = await this.opts.dependencies.listByProject(workItem.projectId);
+    const typed = await this.opts.typedDependencies.listByProject(workItem.projectId);
 
     const copiedEstimates = stored
       .filter((each) => inside.has(each.workItemId))
@@ -2738,9 +2740,29 @@ export class WorkItemService {
         predecessorId: copyOf(edge.predecessorId),
         successorId: copyOf(edge.successorId),
       }));
+    const copiedTyped = typed
+      // Proof: 2026-09-27, accepting the X → C1 external row made the mounted copy test see 4 relationships instead of 3.
+      .filter(
+        (dependency) =>
+          inside.has(dependency.predecessor.workItemId) &&
+          inside.has(dependency.successor.workItemId),
+      )
+      .map((dependency) => ({
+        ...dependency,
+        id: this.clock.newId(),
+        // Proof: 2026-09-27, retaining C1's source id failed the mounted copy test's copied-predecessor assertion.
+        predecessor: {
+          ...dependency.predecessor,
+          workItemId: copyOf(dependency.predecessor.workItemId),
+        },
+        successor: {
+          ...dependency.successor,
+          workItemId: copyOf(dependency.successor.workItemId),
+        },
+      }));
 
-    // One stamp for six tables: the copy is one transaction and one act, so
-    // every row it writes — work items, estimates, measures, assignments, edges
+    // One stamp for the copy: it is one transaction and one act, so
+    // every row it writes — work items, estimates, measures, assignments, dependencies
     // and the respacing of the originals' siblings — carries one instant.
     const stamp = this.clock.stampFor(actorId);
     await this.opts.subtrees.insertSubtree(
@@ -2772,52 +2794,74 @@ export class WorkItemService {
       },
       stamp,
     );
+    for (const dependency of copiedTyped) {
+      await this.opts.typedDependencies.add(dependency, stamp);
+    }
     // Once, at the end. The copy renumbers rows it never touched — every later
     // sibling of the original, at every level — so it is the whole tree rather
     // than the rows that were written.
     await this.announceTree(workItem.projectId);
     const copyIds = copies.map((copy) => copy.id);
+    const restore: CompensatingCommand = {
+      do: 'restore_subtree',
+      rows: copies,
+      rootPosition: placed.position,
+      reparented: [],
+      estimates: copiedEstimates,
+      actuals: [],
+      progress: [],
+      measures: copiedMeasures,
+      assignments: copiedAssignments,
+      internalDependencies: copiedEdges,
+      externalDependencies: [],
+      removedEstimates: [],
+      removedActuals: [],
+      removedProgress: [],
+      removedMeasures: [],
+    };
+    const deleteCopy: CompensatingCommand = {
+      do: 'delete_subtree',
+      rootId: copyOf(id),
+      expectedSubtree: copyIds,
+      remove: copyIds,
+      reparented: [],
+      setEstimates: [],
+      setActuals: [],
+      setProgress: [],
+      setMeasures: [],
+    };
     await this.record(
       workItem.projectId,
       stamp,
       'duplicate',
       `duplicate ${quoteName(workItem.name)}`,
       {
-        forward: {
-          do: 'restore_subtree',
-          rows: copies,
-          rootPosition: placed.position,
-          reparented: [],
-          estimates: copiedEstimates,
-          // Empty for the write's reason above: a redo of a duplication puts
-          // back the copy that was made, and no days were ever recorded on it.
-          actuals: [],
-          // Empty for the write's reason above: a redo of a duplication puts
-          // back the copy that was made, and nobody ever said a word about it.
-          progress: [],
-          // The same half of the table the write above put down: a redo of a
-          // duplication puts back the copy that was made, token plan and all,
-          // and no tokens or hours were ever spent on it.
-          measures: copiedMeasures,
-          assignments: copiedAssignments,
-          internalDependencies: copiedEdges,
-          externalDependencies: [],
-          removedEstimates: [],
-          removedActuals: [],
-          removedProgress: [],
-          removedMeasures: [],
-        },
-        inverse: {
-          do: 'delete_subtree',
-          rootId: copyOf(id),
-          expectedSubtree: copyIds,
-          remove: copyIds,
-          reparented: [],
-          setEstimates: [],
-          setActuals: [],
-          setProgress: [],
-          setMeasures: [],
-        },
+        forward:
+          copiedTyped.length === 0
+            ? restore
+            : {
+                do: 'batch',
+                steps: [
+                  restore,
+                  ...copiedTyped.map((dependency) => ({
+                    do: 'add_typed_dependency' as const,
+                    dependency,
+                  })),
+                ],
+              },
+        inverse:
+          copiedTyped.length === 0
+            ? deleteCopy
+            : {
+                do: 'batch',
+                steps: [
+                  ...copiedTyped.map((dependency) => ({
+                    do: 'remove_typed_dependency' as const,
+                    dependency,
+                  })),
+                  deleteCopy,
+                ],
+              },
         // Every copied row, all of them at 0. Anything typed into the copy
         // moves one of these and the undo refuses rather than throwing away
         // work somebody did in it.
