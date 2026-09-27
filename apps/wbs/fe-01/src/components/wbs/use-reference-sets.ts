@@ -490,6 +490,9 @@ export function useReferenceSets({ run, commands }: { run: RunPlanWrite; command
    * Adds a type nobody had yet and labels the work item with it, in one go —
    * `createTagFor`'s shape.
    *
+   * The Type cell passes `current` as `[]`, so the new type is selected alone
+   * (WBS 010.4.10); the parameter keeps `createTagFor`'s shape.
+   *
    * This is the **only** way a type vocabulary ever gets a first member: unlike a
    * tag, which the directory page can create before any column shows it, a type's
    * column is hidden by default and its cell is where naming happens.

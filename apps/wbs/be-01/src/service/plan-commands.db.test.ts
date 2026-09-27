@@ -330,6 +330,33 @@ describe('a command batch', () => {
     expect(await journal()).toHaveLength(0);
   });
 
+  it('refuses a third command binding two types and rolls back the first two', async () => {
+    // The spec's atomic batch: an id and a ref join into two types only once
+    // refs are bound, so the parser cannot see it and the service refuses it.
+    const story = await directoryStore.addWorkItemType(
+      { id: crypto.randomUUID(), name: 'Story' },
+      { at: 1, by: ownerId },
+    );
+    const outcome = await run([
+      { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Strip' },
+      { kind: 'createWorkItemType', ref: 't', name: 'Spike' },
+      {
+        kind: 'patchWorkItem',
+        workItemRef: 'w',
+        patch: { typeIds: [story.id], typeRefs: ['t'] },
+      },
+    ]);
+    expect(outcome).toEqual({
+      ok: false,
+      at: 2,
+      kind: 'patchWorkItem',
+      reason: 'work_item_takes_one_type',
+    });
+    expect(await names()).toEqual([]);
+    expect((await directoryStore.listWorkItemTypes()).map((each) => each.name)).toEqual(['Story']);
+    expect(await journal()).toHaveLength(0);
+  });
+
   it('is one journal entry, one plan event, and one undo puts all of it back', async () => {
     // Proof: the collector bypassed so `record` wrote per step, this failed on
     // `expected 6 to be 1`. Watched, 2026-08-29.
