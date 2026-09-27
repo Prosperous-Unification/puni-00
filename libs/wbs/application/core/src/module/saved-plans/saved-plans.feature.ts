@@ -13,12 +13,12 @@ import {
 } from '@wbs/domain';
 
 import type { Digest } from '../../ports/runtime';
-import type { PlanInputReads } from '../../ports/saved-plan-capture-store';
+import type { PlanInputReads } from '../../ports/saved-plan-capture-values';
 import type {
   SavedPlanBodyWrite,
   SavedPlanScheduleWrite,
   SavedPlanWrite,
-} from '../../ports/saved-plan-store';
+} from '../../ports/saved-plan-values';
 import type { Scheduler } from '../../ports/scheduler';
 import { defaultSavedPlanName } from '../../service/saved-plan-default-name';
 import { planInputRowsOf } from '../../service/saved-plan-input';
@@ -583,21 +583,6 @@ export class SavedPlanService {
   }
 }
 
-/**
- * Verifies one stored saved plan and shapes it, or refuses it.
- *
- * A free function over {@link StoredSavedPlan} rather than a method, so the
- * whole verification is testable by handing it bytes — including the states a
- * database cannot easily be made to produce — while the service method above
- * stays the one line that fetches.
- *
- * The header decides which sides exist and the bodies are checked against it:
- * `schedule_sha256` is null exactly when no schedule was saved (the
- * `saved_plan_schedule_all_or_nothing` check makes that an invariant of the
- * table, not a hope), so an absent schedule is read off the header rather than
- * inferred from a missing body row. Inferring it the other way would turn a
- * body a cascade half-deleted into a legitimately schedule-less plan.
- */
 /**
  * A verified read, as a comparison side (task 7.3b).
  *

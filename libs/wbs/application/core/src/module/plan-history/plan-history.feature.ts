@@ -1,4 +1,4 @@
-import type { PlanEvent, PlanEventFilter } from '../../ports/plan-event-store';
+import type { PlanEvent, PlanEventFilter } from '../../ports/plan-event-values';
 import type { PlanEventService } from '../plan-event/plan-event.resource';
 import type { ProjectService } from '../project/project.resource';
 

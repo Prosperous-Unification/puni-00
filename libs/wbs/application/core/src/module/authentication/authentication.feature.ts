@@ -1,8 +1,8 @@
 import type { AuthenticatedUser, OidcIdentity } from '@wbs/contracts';
 
+import type { User } from '../../ports/account-values';
 import type { OidcVerifier } from '../../ports/oidc-verifier';
 import type { PasswordHasher, TokenCodec } from '../../ports/runtime';
-import type { User } from '../../ports/user-store';
 import type { AccountResource } from './account.resource';
 
 export const TOKEN_TTL_SECONDS = 12 * 60 * 60;

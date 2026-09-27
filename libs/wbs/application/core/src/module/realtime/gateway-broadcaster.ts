@@ -1,7 +1,7 @@
 import type { Clock } from '../../ports/clock';
-import type { RecordedEvent } from '../../ports/event-log-store';
 import { type Broadcaster, type ProjectEvent, subscriptionFor } from '../../ports/project-event';
 import type { PushTransport } from '../../ports/push-transport';
+import type { RecordedEvent } from '../../ports/recorded-event';
 import type { EventLogService } from '../event-log/event-log.resource';
 import type { ReplayBuffer } from './replay-buffer';
 
