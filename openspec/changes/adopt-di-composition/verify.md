@@ -2324,3 +2324,55 @@ BumpGeneration(1), BumpGeneration(2), Cancel` failed `Cancel: queue identities` 
   `blue-0`, `green-2` and `Restart(blue)` now read `east-0`, `west-2` and `Restart(east)`. After
   the rename, sabotages (a)-(f) fail 4/2, 3/3, 5/1, 4/2, 5/1, 5/1 again, and
   `env -u CLAUDECODE bunx nx run tool-devsync:test` succeeds.
+
+### Resource-service K3 closure (WBS 040.10) — 2026-09-27
+
+Five feature modules now call resource services over their stores: Plan history uses Plan event
+and Project; Realtime uses Event log; Bounded replay sweep uses Event log and Plan event;
+Authentication uses Account; Saved plans uses Saved plan persistence. Plan import remains in the
+boundary test's live debt ledger because its admitted initialization surface needs a separate
+slice covering both memory and SQLite source contracts. The new Plan event and Event log modules
+have README indexes and sealed module tests; wiki pilot registration is deferred because the
+frozen pilot revision has no predecessor for these new directories.
+
+Production-path negative proofs, each restored after the named test failed:
+
+| Fault injected                                              | Observed failing test                                       |
+| ----------------------------------------------------------- | ----------------------------------------------------------- |
+| Plan history resource existence guard bypassed              | `answers not_found` (5 pass, 1 fail)                        |
+| Plan event cutoff multiplier zeroed                         | cutoff resource test (failed)                               |
+| Realtime complete-record check bypassed                     | replay test (9 pass, 2 fail)                                |
+| Realtime durable record fabricated                          | broadcaster test (1 pass, 4 fail)                           |
+| Event log prune replaced with zero                          | prune test (4 pass, 1 fail)                                 |
+| Sweep history prune bypassed                                | history prune test (6 pass, 2 fail)                         |
+| Sweep overlap guard bypassed                                | overlap test (7 pass, 1 fail)                               |
+| Mounted OIDC account failure treated as invalid credentials | HTTP test answered 401 instead of 500 (0 pass, 1 fail)      |
+| Account identity-store guard bypassed                       | account resource test (0 pass, 1 fail)                      |
+| Saved plan digest check bypassed                            | read answered `read` instead of `corrupt` (0 pass, 1 fail)  |
+| Saved plan holding quota bypassed                           | save answered `saved` instead of `refused` (0 pass, 1 fail) |
+| Saved plan project scope bypassed                           | HTTP test answered 422 instead of 404 (0 pass, 1 fail)      |
+| Saved plan authorization bypassed                           | touch authorization test (0 pass, 1 fail)                   |
+| Saved plan missing read and touch guards bypassed           | corresponding resource tests (0 pass, 1 fail each)          |
+
+The resolved-symbol boundary test failed (0 pass, 1 fail) when a repository port type was injected
+into each of the five closed modules. Separate `ProjectStore` injections through an alias,
+namespace, barrel, and `import()` type also each failed (0 pass, 1 fail). Adding clean Plan
+history to the debt ledger failed as stale debt (0 pass, 1 fail). Adjacent `Proof:`
+comments on production guards and the boundary assertion identify the injected faults.
+
+Verification on this worktree with `env -u CLAUDECODE`: `cd libs/wbs/application/core && bun
+test src` passed 638 tests, 0 failed, across 72 files. `cd apps/wbs/be-01 && bun test src` passed
+1,095 tests, skipped 1, and failed 27 across 97 files: the failures are listener `EPERM` and
+subprocess-handshake cases in this sandbox. Focused changed-service and HTTP tests passed during
+the module slices (History/Realtime 16/16, retention 2/2, auth/identity 31/31, Saved plans
+124/124). `nx run-many -t typecheck lint:fast -p wbs-core wbs-be-01` passed all four targets,
+0 cache hits. `bunx @fission-ai/openspec@1.12.0 validate --all --json` passed 131/131 items.
+The broad `tool-devsync:test` rerun passed 372 and failed 10: eight deployment-probe tests
+could not listen (`EPERM`), and two poller tests could not hardlink Git objects across devices
+(`Invalid cross-device link`). The focused module-labels, service-kinds and workspace-targets
+tests passed 41/41 after classifying the former Auth and Saved plan constructors as compatibility
+adapters and adding Plan event and Event log to the pilot's explicit unregistered list.
+The wiki pilot-policy file passed 19 tests and failed 2 across 21 tests; both failing production
+CLI cases stopped at `trusted TypeScript runtime modules are not configured`. The four on-disk
+bootstrap policy, mapping, and relationship checks passed. Prettier checked every file touched
+since the five module commits; `tool-devsync:lint:fast` and `git diff --check` passed.

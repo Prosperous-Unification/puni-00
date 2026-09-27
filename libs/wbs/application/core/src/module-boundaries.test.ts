@@ -101,6 +101,11 @@ test('closed feature modules do not reference repository ports and debt stays li
   // Proof (2026-09-27): injecting an import() type reference to ProjectStore into
   // plan-history.feature.ts made this assertion report that resolved declaration
   // with 0 pass and 1 fail; removing the import restored 1 pass.
+  // Proof (2026-09-27): injecting aliased, namespace, and index-barrel
+  // ProjectStore type references into plan-history.feature.ts separately made
+  // this assertion fail (0 pass, 1 fail for each injected reference).
+  // Proof (2026-09-27): adding the clean plan-history module to the debt
+  // ledger made this assertion report stale debt (0 pass, 1 fail).
   // Proof (2026-09-27): injecting an import() type reference to EventLogStore
   // into gateway-broadcaster.ts made this assertion fail (0 pass, 1 fail).
   // Proof (2026-09-27): injecting the same import() type into retention-timer.ts

@@ -22,7 +22,12 @@ const MODULE_ROOTS = [
  * The sealed modules with no content-review pilot registration. Both predecessors postdate the
  * pilot's frozen `sourceRevision`, so no `sourceSelector` can bind them (task 7.5).
  */
-const UNREGISTERED = ['module.application.plan-document', 'module.application.plan-import'];
+const UNREGISTERED = [
+  'module.application.event-log',
+  'module.application.plan-document',
+  'module.application.plan-event',
+  'module.application.plan-import',
+];
 
 /** The project a `kinds.json` shim row lives in, and the segment of the modules it may name. */
 const PROJECTS = [
@@ -293,6 +298,8 @@ test('registers every module in the pilot under that identifier, or is known not
   }
 
   expect(mismatches).toEqual([]);
+  // Proof (2026-09-27): adding the two new resource modules without extending
+  // the unregistered ledger failed here with both module identifiers (4 pass, 1 fail).
   // Proof (2026-09-24): dropping Capacity's `modules.json` row and `policy.json` boundary failed
   // the same test here, the received list gaining `module.application.capacity` (4 pass, 1 fail).
   expect(unregistered).toEqual(UNREGISTERED);
