@@ -3,10 +3,12 @@ import type {
   Clock,
   HistoryService,
   ImportService,
+  MembershipAdministration,
   OrganizationAccess,
   ReplayOrchestrator,
   SavedPlanService,
 } from '@wbs/core';
+import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
 
@@ -72,6 +74,12 @@ export interface AppOptions {
    * activated deployment must never give by omission.
    */
   organizations: OrganizationAccess;
+  /**
+   * Changes and removes memberships under the role matrix (task 3.7).
+   * Required, like `organizations`: a process built without it would answer
+   * 404 on the membership routes, which reads as a release without them.
+   */
+  memberships: MembershipAdministration;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
   /** The manual Retry admission seam; absent only in optimizer-less deployments and tests. */
@@ -237,6 +245,7 @@ export function mountedEndpoints(
     // Proof: omitting this binding made “binds each shared HTTP shape once”
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
+    ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
     ...stepRoutes(opts.steps, commands, opts.organizations),
     ...directoryRoutes(opts.directory, opts.organizations),
     ...historyRoutes(opts.history, opts.projects, opts.organizations),

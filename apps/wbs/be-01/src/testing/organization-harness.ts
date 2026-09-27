@@ -3,7 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { createLogger } from '@wbs/observability';
-import { openSqliteSource, SqliteOrganizationAccess } from '@wbs/store-sqlite';
+import {
+  openSqliteSource,
+  OrganizationRepository,
+  SqliteOrganizationAccess,
+} from '@wbs/store-sqlite';
 
 import { buildApp } from '../app';
 import { ActualRepository } from '../repository/actual';
@@ -130,6 +134,7 @@ export class OrganizationHarness {
       organizations: new SqliteOrganizationAccess(db, (userId) =>
         Promise.resolve(bound.get(userId) ?? null),
       ),
+      memberships: new OrganizationRepository(db, OPEN),
       history: testHistoryService(),
       auth: new AuthService({
         clock: testClock,
@@ -176,6 +181,7 @@ export class OrganizationHarness {
       organizations: new SqliteOrganizationAccess(source.db, (userId) =>
         Promise.resolve(bound.get(userId) ?? null),
       ),
+      memberships: new OrganizationRepository(source.db, services.gate),
       steps: services.steps,
       calendarMarkers: services.calendarMarkers,
       workItems: services.workItems,
@@ -239,6 +245,11 @@ export class OrganizationHarness {
   /** Stands in for task 2.4: `username`'s session is bound to `organizationId`. */
   bind(username: string, organizationId: string): void {
     this.bound.set(this.userId(username), organizationId);
+  }
+
+  /** Stands in for task 2.4 again: `username`'s session is bound to no organization. */
+  unbind(username: string): void {
+    this.bound.delete(this.userId(username));
   }
 
   /** Commits the marker through a connection the app does not hold, as a swap would. */

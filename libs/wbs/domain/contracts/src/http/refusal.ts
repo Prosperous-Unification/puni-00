@@ -256,7 +256,10 @@ type BareRefusalCode =
   | 'unknown_work_item'
   | 'parent_work_item'
   | 'unknown_code'
-  | 'alias_mismatch';
+  | 'alias_mismatch'
+  // A membership change that would leave the organization without a
+  // super-admin (task 3.7).
+  | 'last_super_admin';
 
 type SharedCommandCode = 'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use';
 

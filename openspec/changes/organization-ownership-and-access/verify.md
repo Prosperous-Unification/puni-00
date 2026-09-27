@@ -413,6 +413,20 @@ Branch `batch-9/010-5-2-orgs-13`, stacked on slice 13.
 | Access resolved first              | save route skips resolution     | `refuses an unbound session and a removed member before any lookup`: 201                                 |
 | Saved plan mapped                  | mapping insert selects nothing  | `maps a plan saved after activation to its project's organization`: no mapping                           |
 
+## Slice 15 — membership administration (task 3.7, part 1)
+
+Branch `batch-9/010-5-2-orgs-14`, stacked on slice 14.
+
+| Check                                  | Injected fault                                          | Observed failure (`membership-organization.controller.db.test.ts` unless named, 2026-09-27)                       |
+| -------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Admin limited to viewer and member     | `mayAdministerMembership` lets an admin change any role | `refuses an admin promoting a member to admin, or changing or removing an admin`: 200 with the promoted admin     |
+| Members and viewers administer nothing | actor role only checked for viewers                     | `refuses a member and a viewer every membership change`: 200                                                      |
+| Final super-admin                      | guard result ignored                                    | `refuses demoting or removing the last super-admin`: 200                                                          |
+| Absent or foreign target               | an absent target answered as removed                    | `answers a foreign or absent member as not found, changing nothing`: 500 instead of 404                           |
+| Access resolved first                  | resolution failure ignored                              | `refuses an unbound session and a removed member`: `forbidden` instead of `no_active_organization`                |
+| No administration before activation    | legacy access administered                              | `has no organization to administer`: 200                                                                          |
+| Invitation authority                   | `mayInvite` lets an admin invite any role               | `organization-access.test.ts` `lets an admin invite viewers and members, a super-admin any role, and nobody else` |
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

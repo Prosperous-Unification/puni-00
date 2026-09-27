@@ -18,7 +18,10 @@ import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
-import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingMemberships,
+} from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects, memoryProjectTables } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -71,6 +74,7 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
   });
   const app = buildApp({
     organizations: legacyOrganizationAccess,
+    memberships: refusingMemberships,
     loginThrottle: testLoginThrottle(),
     clock: testClock,
     appOrigin: 'http://localhost',

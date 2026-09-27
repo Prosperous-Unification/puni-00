@@ -44,3 +44,46 @@ export function canEditProjectInOrganization(
 ): boolean {
   return canWriteInOrganization(scope.role) && canEditProject(project, scope.userId);
 }
+
+/** The roles an admin administers; every other role is a super-admin's alone. */
+const ORDINARY_ROLES: readonly OrganizationRole[] = ['member', 'viewer'];
+
+/**
+ * Whether `actor` may change a member's role from `current` to `requested`,
+ * or remove them when `requested` is null, per the role matrix in
+ * `organization-ownership-and-access/specs/organization-access`: an admin
+ * moves viewers and members between those two roles or removes them; only a
+ * super-admin grants, revokes or removes an admin or super-admin role. Never
+ * leaving the organization without a super-admin is the store's check, made
+ * in the same transaction as the write.
+ *
+ * Proof: letting an admin change any role made `refuses an admin promoting
+ * a member to admin, or changing or removing an admin` in
+ * `membership-organization.controller.db.test.ts` answer 200 with the
+ * promoted admin; watched 2026-09-27.
+ */
+export function mayAdministerMembership(
+  actor: OrganizationRole,
+  current: OrganizationRole,
+  requested: OrganizationRole | null,
+): boolean {
+  if (actor === 'super_admin') return true;
+  if (actor !== 'admin') return false;
+  return (
+    ORDINARY_ROLES.includes(current) && (requested === null || ORDINARY_ROLES.includes(requested))
+  );
+}
+
+/**
+ * Whether `actor` may invite someone into `role`: an admin invites viewers and
+ * members, a super-admin any role. Issuing, revoking and accepting an
+ * invitation are onboarding's (task 4.4); this is the authority they check.
+ *
+ * Proof: letting an admin invite any role made `lets an admin invite viewers
+ * and members, a super-admin any role, and nobody else` fail; watched
+ * 2026-09-27.
+ */
+export function mayInvite(actor: OrganizationRole, role: OrganizationRole): boolean {
+  if (actor === 'super_admin') return true;
+  return actor === 'admin' && ORDINARY_ROLES.includes(role);
+}

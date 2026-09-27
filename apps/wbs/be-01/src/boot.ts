@@ -3,6 +3,7 @@ import type { Logger } from '@wbs/observability';
 import {
   NO_BOUND_ORGANIZATION,
   openSqliteSource,
+  OrganizationRepository,
   SqliteOrganizationAccess,
 } from '@wbs/store-sqlite';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
@@ -186,6 +187,7 @@ export async function bootBe01(
               // binds an organization` in `boot.db.test.ts` receive 200 instead
               // of 403; watched 2026-09-27.
               organizations: new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION),
+              memberships: new OrganizationRepository(db, services.gate),
               steps: services.steps,
               calendarMarkers: services.calendarMarkers,
               workItems: services.workItems,

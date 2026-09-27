@@ -46,6 +46,14 @@
   - The journal (undo and redo) was scoped in 3.4. Generated events are published only to the acting project, and to the organization's projects for an import's `directory_changed`. Gateway subscribe and replay authorization is 6.1–6.2.
   - Not applicable here: history labels and saved snapshots written after activation carry directory names as the writer read them. Those can be opaque root names for entries created after activation, which is a display concern for the switch to local names, not an isolation one.
 - [ ] 3.7 Enforce role changes, invitations authority, recovery audit and last-super-admin protection at the service boundary. Red: admin promotion, viewer mutation, recovery and final-owner matrix. Fault: bypass role guard; observe mounted unauthorized mutation test fail, restore and add `Proof:`.
+  - Part 1, slice 15 (Astra design call, 2026-09-27):
+    - `PATCH` and `DELETE /api/organization/members/:userId` act in the active organization from the session alone. Before activation they answer `no_active_organization`.
+    - `mayAdministerMembership` implements the role matrix. `OrganizationRepository.administer` reads the actor's role, the target's role and the final-super-admin count in the write's own immediate transaction.
+    - `mayInvite` defines invitation authority: an admin invites viewers and members, a super-admin any role. Issuing and accepting invitations stays with 4.4.
+  - Part 2 (open): audited super-admin recovery of restricted projects.
+    - It needs an additive `organization_audit` migration, stamped after every queued one.
+    - It needs a transactional project-write boundary that appends one audit record per recovery write.
+    - It is enabled family by family: project PATCH, then steps and markers, batches and undo, and saved plans. Until then, recovery stays refused.
 
 ## 4. Onboarding state transitions
 
