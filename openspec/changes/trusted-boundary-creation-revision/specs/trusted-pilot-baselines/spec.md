@@ -6,10 +6,11 @@ A trusted pilot boundary SHALL bind its baseline either to a predecessor through
 at the pilot's `sourceRevision` or, when its files were first added after that revision, to a
 `creationRevision`. The two SHALL be mutually exclusive, and `creationRevision` SHALL require a
 pilot. The trusted loader SHALL refuse a creation-revision boundary unless the creation revision
-is a readable commit in the candidate repository, the boundary's selector selects at least one
-tuple there, selects nothing at `sourceRevision` or at any parent of the creation revision, and
-the boundary's `baselineEntries` equal exactly the tuples the selector selects at the creation
-revision. A creation-revision boundary that passes SHALL receive the same observe-mode admission
+is a readable commit in the candidate repository that descends from `sourceRevision`, the
+boundary's selector selects at least one tuple there and nothing at `sourceRevision`, the oldest
+commit after `sourceRevision` that touches the selector is the creation revision, and the
+boundary's `baselineEntries` equal exactly the tuples the selector selects at the creation
+revision. A shallow history that cannot show the descent is refused. A creation-revision boundary that passes SHALL receive the same observe-mode admission
 as a predecessor-bound boundary.
 
 #### Scenario: A new module registers through its creation commit
@@ -32,6 +33,11 @@ as a predecessor-bound boundary.
 
 - **WHEN** the creation revision is the commit before Plan import's directory was added
 - **THEN** the loader refuses with `trusted boundary creation revision selects nothing`
+
+#### Scenario: The creation revision does not descend from the freeze
+
+- **WHEN** the creation revision is a commit carrying Plan import's creation tree on the freeze's parent, with an honest baseline
+- **THEN** the loader refuses with `trusted boundary creation revision does not descend from the pilot source revision`
 
 #### Scenario: The creation revision is a later commit
 
