@@ -943,7 +943,7 @@ describe('the header bar', () => {
     async () => {
       let opened: SocketHandlers | null = null;
       const streamDeps: ProjectStreamDeps = {
-        openSocket: (_url, handlers) => {
+        openSocket: (handlers) => {
           opened = handlers;
           return { send: () => undefined, close: () => undefined };
         },
@@ -994,7 +994,7 @@ describe('the header bar', () => {
     async () => {
       const sockets: SocketHandlers[] = [];
       const streamDeps: ProjectStreamDeps = {
-        openSocket: (_url, handlers) => {
+        openSocket: (handlers) => {
           sockets.push(handlers);
           return { send: () => undefined, close: () => undefined };
         },
