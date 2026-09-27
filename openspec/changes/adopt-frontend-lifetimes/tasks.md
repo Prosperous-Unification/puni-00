@@ -178,7 +178,7 @@
       `plan-feed`, `plan-writer` and `project` have no `module.ts`, so no graph to verify
       but the runtime that installs them; `preferences` and `directory-management` verify
       theirs in `module.test.ts`.
-- [ ] 13. No infrastructure escapes a context: the architecture checks refuse a
+- [x] 13. No infrastructure escapes a context: the architecture checks refuse a
       bag, credential, broad client, repository or resource in delivery.
       Moved by 050-7-l, observed 2026-09-25: `apps/wbs/fe-01/src/delivery-boundaries.test.ts`
       resolves every identifier (and every export of a namespace object that escapes whole),
@@ -198,5 +198,16 @@
       remainder); the saved-plan shelf's client (task 10); and the application's
       `preferences` resource, task 12's accepted debt. A credential is a string, so the
       check follows it only where a factory that takes one is reached.
+      Closed by 050.08 (batch 9), observed 2026-09-27: the session runtime cuts one
+      project client from the identity's credential and publishes the `ProjectCatalog`
+      feature-service (`modules/project/project-catalog.feature.ts`, over its private
+      `ProjectCatalogRoutes` port), and its project owner opens a project by id over the
+      `ProjectSource` it composed once with `projectSourceOver`. `ProjectPage` and
+      `usePlanImport` take the catalog and the session's projects; `SignedInRegion` carries
+      no token and no client; the credential is the branded `Credential`
+      (`runtime/credential.ts`), which the check refuses as a credential. The ledger went
+      from twenty-one routes to five, none of them this task's: the saved-plan shelf's four
+      (task 10, WBS 050.09) and the application's `preferences` resource (task 12's
+      accepted debt).
 - [ ] 14. On page hide the application's retirement awaits the session's and fails when
       it fails (WBS 4334fc49-e143-4671-af58-28cfd5f35423); see 050-7-m section 12.

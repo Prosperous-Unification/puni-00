@@ -2678,3 +2678,32 @@ links, and the unfiltered suite), `tool-devsync:test` and the host gate. None ra
 After the `Proof:` comments and this entry, owned-file Prettier `--write` then `--check` printed
 `All matched files use Prettier code style!`; `s2-format-after` (`nx format:check --all`),
 `s2-lint-after` and `s2-typecheck-after` (both uncached) each `status=0`.
+
+## 050.08 (batch 9) — the project catalog facade and the project runtime's source move into the session
+
+Observed 2026-09-27 on branch `batch-9/050-08-delivery-routes`, from `origin/main` at
+`5252968a3`. Task 13's remainder: the catalog (list, create, mark opened, rename, import) is the
+session runtime's `ProjectCatalog`, and the session opens each project by id over the
+`ProjectSource` it composed once from its one project client. `ProjectPage`, `usePlanImport`, the
+router's `SignedInRegion` and `SignedInApp` hold no `ProjectApi`, no token and no source. The
+delivery ledger in `apps/wbs/fe-01/src/delivery-boundaries.test.ts` went from 21 routes to 5: the
+saved-plan shelf's four (task 10, WBS 050.09) and `ApplicationServices.preferences` (task 12's
+accepted debt).
+
+Faults, each injected by hand, its test run, the file restored and the test rerun green:
+
+| Fault | Injected                                                                         | Named test                                                                                | Observed                                                                                                   |
+| ----- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `w1`  | `createProjectCatalog` sends whatever the session says (`true ? send() : …`)     | `sends nothing once its session is withdrawn, and says so`                                | `expected [ 'list', 'create:Shed', …(3) ] to deeply equal []`                                              |
+| `n1`  | the session's source over a second client, `httpProjectApi(identity.credential)` | `lists the catalog and reads each project through the one client cut from the credential` | `expected [] to deeply equal [ 'p1' ]`; the same through `projectClientFor`: `expected [ 'tok', 'tok' ] …` |
+| `n2`  | the session's catalog given `isCurrent: () => true`                              | `sends nothing for a catalog gesture asked of a withdrawn session`                        | `promise resolved "[ { id: 'p1', …(6) } ]" instead of rejecting`                                           |
+| `p1`  | `SignedInRegion` given `token?: Credential`                                      | `refuses every route but the ones still owed`                                             | `+ "SignedInRegion.token is a credential"`, `+ "src/app-router.tsx: Credential is a credential"`           |
+| `p2`  | `export type Leak = ProjectCatalogRoutes` in `use-plan-import.ts`                | `refuses every route but the ones still owed`                                             | `+ "src/components/wbs/use-plan-import.ts: ProjectCatalogRoutes is a repository port"`                     |
+| `p3`  | `SessionRuntime` given `readonly projectClient?: ProjectApi`                     | `refuses every route but the ones still owed`                                             | `+ "SessionRuntime.projectClient is a broad HTTP client"`                                                  |
+
+The ledger's stale-entry negative is the existing `o1`; it was not re-run for these fifteen strikes.
+
+Checks: `vitest run` over the eleven affected files, 140 tests passing; `nx run wbs-fe-01:typecheck`
+(uncached, with `typecheck:module`) `status=0`; ESLint over every touched file clean; Prettier
+`--write` over every touched file; `openspec validate --all --json` `{"items":118,"passed":118,"failed":0}`.
+The full `wbs-fe-01:test`, the host gate and CI are recorded in the pull request.
