@@ -21,6 +21,7 @@ import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { AuthService } from '../service/auth.service';
+import { DirectoryService } from '../service/directory.service';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { ProjectService } from '../service/project.service';
 import { StepService } from '../service/step.service';
@@ -30,7 +31,6 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
@@ -77,7 +77,11 @@ beforeEach(() => {
   // services, and a second graph would put its journal in a store this file
   // never reads.
   const writing = {
-    directory: testDirectoryService(),
+    directory: new DirectoryService({
+      clock: testClock,
+      directory,
+      broadcast: recordingBroadcaster(),
+    }),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
     calendarMarkers: testCalendarMarkerService(),
@@ -308,6 +312,71 @@ describe('POST /api/projects/:id/redo', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ done: 'rename “Strip out”', detail: null });
+  });
+});
+
+describe('first-child assignment hand-down over SQLite', () => {
+  it('undoes onto the original node and clears the parent again on redo', async () => {
+    const { token } = await registerAccount('owner');
+    const projectId = await newProject(token);
+    const parentId = await addRoot(token, projectId, 'Parent');
+    const person = await send('/api/directory/commands', token, {
+      method: 'POST',
+      body: JSON.stringify({ commands: [{ kind: 'createPerson', name: 'Ann', teamIds: [] }] }),
+    });
+    expect(person.status).toBe(200);
+    const personId = ((await person.json()) as { results: { id: string }[] }).results.at(0)?.id;
+    if (personId === undefined) throw new Error('person create minted no id');
+    const before = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+      steps: { id: string; name: string }[];
+      stepNodes: { id: string; workItemId: string; stepId: string }[];
+    };
+    const devId = before.steps.find((step) => step.name === 'Dev')?.id;
+    if (devId === undefined) throw new Error('Dev step absent');
+    expect(
+      (
+        await command(projectId, token, {
+          kind: 'setAssignee',
+          workItemId: parentId,
+          stepId: devId,
+          personId,
+        })
+      ).status,
+    ).toBe(200);
+    const originalNodeId = before.stepNodes.find(
+      (node) => node.workItemId === parentId && node.stepId === devId,
+    )?.id;
+    const created = await command(projectId, token, {
+      kind: 'createWorkItem',
+      parentId,
+      afterId: null,
+      name: 'Child',
+    });
+    expect(created.status).toBe(200);
+    const childId = ((await created.json()) as { results: { id: string }[] }).results.at(0)?.id;
+    if (childId === undefined) throw new Error('child create minted no id');
+    const read = async () =>
+      (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+        stepNodes: { id: string; workItemId: string; stepId: string }[];
+        workItems: { id: string; assignees: Record<string, string> }[];
+      };
+    expect((await read()).workItems.find((row) => row.id === childId)?.assignees[devId]).toBe(
+      personId,
+    );
+    expect((await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' })).status).toBe(
+      200,
+    );
+    const undone = await read();
+    expect(
+      undone.stepNodes.find((node) => node.workItemId === parentId && node.stepId === devId)?.id,
+    ).toBe(originalNodeId);
+    expect(undone.workItems.find((row) => row.id === parentId)?.assignees[devId]).toBe(personId);
+    expect((await send(`/api/projects/${projectId}/redo`, token, { method: 'POST' })).status).toBe(
+      200,
+    );
+    const redone = await read();
+    expect(redone.workItems.find((row) => row.id === childId)?.assignees[devId]).toBe(personId);
+    expect(redone.workItems.find((row) => row.id === parentId)?.assignees[devId]).toBeUndefined();
   });
 });
 

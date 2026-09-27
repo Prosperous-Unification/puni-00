@@ -85,6 +85,12 @@ export function inMemorySubtrees(
       for (const taken of copy.removedMeasures) {
         await stores.measures.remove(taken.workItemId, taken.stepId, taken.metric, stamp);
       }
+      for (const taken of copy.removedAssignments ?? []) {
+        const cleared = await stores.directory.assign(taken.workItemId, taken.stepId, null, stamp);
+        // Proof: deleting this check made `refuses a subtree restore when clearing`
+        // resolve instead of reject (`Expected promise that rejects`); watched 2026-09-27.
+        if (!cleared.ok) throw new Error(`cannot clear parent assignment: ${cleared.reason}`);
+      }
       afterFinalSatellite(satelliteKeys);
     },
   };

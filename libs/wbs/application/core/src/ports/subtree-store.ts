@@ -111,6 +111,8 @@ export interface SubtreeCopy {
    * putting back, and taking the pair away wholesale would delete it.
    */
   removedMeasures: readonly MeasureKey[];
+  /** Assignments to remove from a surviving parent when its leaf work returns to a restored child. */
+  removedAssignments?: readonly { workItemId: string; stepId: string }[];
 }
 
 /** One estimate row's whole identity: the pair its primary key is. */

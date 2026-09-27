@@ -36,9 +36,9 @@
 
 ## 7. Journal node mappings on hand-down and hand-up
 
-- [ ] 7.1 Red: mounted first-child create moves every node fact including the assignment, and undo/redo restore the original step node IDs; a move keeps node IDs; last-child deletion keeps today's fold.
-- [ ] 7.2 Move and journal assignments on hand-down; return and journal the mapping from the create transaction.
-- [ ] 7.3 Negative proofs: omit the mapping from the journal; skip the assignment move. Watch the undo identity and assignment hand-down tests fail, restore, add adjacent `Proof:`.
+- [x] 7.1 Red: mounted first-child create moves every node fact including the assignment, and undo/redo restore the original step node IDs; a move keeps node IDs; last-child deletion keeps today's fold.
+- [x] 7.2 Move and journal assignments on hand-down; return and journal the mapping from the create transaction.
+- [x] 7.3 Negative proofs: omit the mapping from the journal; skip the assignment move. Watch the undo identity and assignment hand-down tests fail, restore, add adjacent `Proof:`.
 
 ## 8. Carry codes through plan documents
 

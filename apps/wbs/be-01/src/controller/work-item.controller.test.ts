@@ -128,6 +128,8 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
     register,
     send,
     measures: measureStore,
+    directoryStore,
+    journal: plan.stores.journal,
     users,
     workItems,
     projects: projectStore,
@@ -143,8 +145,18 @@ type Send = (
 ) => Promise<Response>;
 
 async function setup(optimized?: OptimizedScheduleReader) {
-  const { register, send, measures, users, workItems, projects, projectTables, writes } =
-    buildHarness(optimized);
+  const {
+    register,
+    send,
+    measures,
+    directoryStore,
+    journal,
+    users,
+    workItems,
+    projects,
+    projectTables,
+    writes,
+  } = buildHarness(optimized);
   const token = await register('owner');
   const actor = await users.findByUsername('owner');
   if (actor === null) throw new Error('registered owner is missing');
@@ -166,6 +178,8 @@ async function setup(optimized?: OptimizedScheduleReader) {
     token,
     send,
     measures,
+    directoryStore,
+    journal,
     workItems,
     projects,
     projectTables,
@@ -415,6 +429,224 @@ describe('work item routes', () => {
         reference: step.code === null ? null : `${number}.${step.code}`,
       })),
     );
+  });
+
+  it('hands a first child every Dev fact and Ann, then restores the original node on undo', async () => {
+    const { token, send, projectId, devId, qaId, measures, journal, actorId } = await setup();
+    const parentId = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
+    const personId = await addToDirectory(send, token, 'createPerson', 'Ann');
+    for (const step of [
+      {
+        kind: 'setEstimate',
+        workItemId: parentId,
+        stepId: devId,
+        days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+      },
+      { kind: 'setActual', workItemId: parentId, stepId: devId, days: 1 },
+      { kind: 'setProgress', workItemId: parentId, stepId: devId, state: 'in_progress' },
+      {
+        kind: 'setMeasure',
+        workItemId: parentId,
+        stepId: devId,
+        metric: 'token_actual',
+        value: 42,
+      },
+      { kind: 'setAssignee', workItemId: parentId, stepId: devId, personId },
+    ])
+      expect((await command(send, token, projectId, step)).status).toBe(200);
+
+    const read = async () =>
+      (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+        stepNodes: { id: string; workItemId: string; stepId: string }[];
+        workItems: {
+          id: string;
+          estimates: Record<string, unknown>;
+          actuals: Record<string, number>;
+          progress: Record<string, string>;
+          assignees: Record<string, string>;
+          doesEveryStep: string | null;
+        }[];
+      };
+    const originalNodeId = (await read()).stepNodes.find(
+      (node) => node.workItemId === parentId && node.stepId === devId,
+    )?.id;
+    expect(originalNodeId).toBe(`sn1.${parentId}.${devId}`);
+    if (originalNodeId === undefined) throw new Error('original Dev node absent');
+    const childId = await addWorkItem(send, token, projectId, { parentId, name: 'Child' });
+    const childNodeId = `sn1.${childId}.${devId}`;
+    const entry = (await journal.entriesFor(projectId, actorId)).at(-1);
+    expect(entry?.payload).toMatchObject({
+      forward: {
+        stepNodeMapping: [
+          { from: originalNodeId, to: childNodeId },
+          { from: `sn1.${parentId}.${qaId}`, to: `sn1.${childId}.${qaId}` },
+        ],
+        assignments: [{ workItemId: childId, stepId: devId, personId }],
+        removedAssignments: [{ workItemId: parentId, stepId: devId }],
+      },
+    });
+    expect(entry?.inverse).toMatchObject({
+      setAssignments: [{ workItemId: parentId, stepId: devId, personId }],
+    });
+    const expectFacts = async (ownerId: string, nodeId: string) => {
+      const tree = await read();
+      const owner = tree.workItems.find((row) => row.id === ownerId);
+      expect(
+        tree.stepNodes.find((node) => node.workItemId === ownerId && node.stepId === devId)?.id,
+      ).toBe(nodeId);
+      expect(owner?.estimates[devId]).toEqual({ optimistic: 1, realistic: 2, pessimistic: 3 });
+      expect(owner?.actuals[devId]).toBe(1);
+      expect(owner?.progress[devId]).toBe('in_progress');
+      expect(owner?.assignees[devId]).toBe(personId);
+      expect(owner?.doesEveryStep).toBe(personId);
+      expect(
+        (await measures.listByProject(projectId)).find(
+          (measure) =>
+            measure.workItemId === ownerId &&
+            measure.stepId === devId &&
+            measure.metric === 'token_actual',
+        )?.value,
+      ).toBe(42);
+    };
+    await expectFacts(childId, childNodeId);
+    expect((await read()).stepNodes.some((node) => node.workItemId === parentId)).toBe(false);
+    expect(
+      (await read()).workItems.find((row) => row.id === parentId)?.assignees[devId],
+    ).toBeUndefined();
+    expect(
+      (
+        await command(send, token, projectId, {
+          kind: 'moveWorkItem',
+          workItemId: childId,
+          parentId,
+          afterId: null,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await read()).stepNodes.find((node) => node.workItemId === childId && node.stepId === devId)
+        ?.id,
+    ).toBe(childNodeId);
+    expect((await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' })).status).toBe(
+      200,
+    );
+    expect((await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' })).status).toBe(
+      200,
+    );
+    expect((await read()).workItems.some((row) => row.id === childId)).toBe(false);
+    await expectFacts(parentId, originalNodeId);
+    expect((await send(`/api/projects/${projectId}/redo`, token, { method: 'POST' })).status).toBe(
+      200,
+    );
+    await expectFacts(childId, childNodeId);
+  });
+
+  it('keeps a moved leaf node ID and folds facts onto a parent after its last child is deleted', async () => {
+    const { token, send, projectId, devId } = await setup();
+    const first = await addWorkItem(send, token, projectId, { parentId: null, name: 'First' });
+    const second = await addWorkItem(send, token, projectId, { parentId: null, name: 'Second' });
+    const leaf = await addWorkItem(send, token, projectId, { parentId: first, name: 'Leaf' });
+    const nodes = async () =>
+      (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+        stepNodes: { id: string; workItemId: string; stepId: string }[];
+        workItems: { id: string; estimates: Record<string, unknown> }[];
+      };
+    const nodeId = (await nodes()).stepNodes.find(
+      (node) => node.workItemId === leaf && node.stepId === devId,
+    )?.id;
+    expect(
+      (
+        await command(send, token, projectId, {
+          kind: 'moveWorkItem',
+          workItemId: leaf,
+          parentId: second,
+          afterId: null,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await nodes()).stepNodes.find((node) => node.workItemId === leaf && node.stepId === devId)
+        ?.id,
+    ).toBe(nodeId);
+    expect(
+      (
+        await command(send, token, projectId, {
+          kind: 'setEstimate',
+          workItemId: leaf,
+          stepId: devId,
+          days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await command(send, token, projectId, { kind: 'deleteWorkItem', workItemId: leaf })).status,
+    ).toBe(200);
+    const folded = await nodes();
+    expect(
+      folded.stepNodes.find((node) => node.workItemId === second && node.stepId === devId)?.id,
+    ).toBe(`sn1.${second}.${devId}`);
+    expect(folded.workItems.find((row) => row.id === second)?.estimates[devId]).toEqual({
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 3,
+    });
+  });
+
+  it('replays an older create journal without assignment or mapping fields', async () => {
+    const { token, send, projectId, journal, actorId } = await setup();
+    const parent = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
+    const child = await addWorkItem(send, token, projectId, { parentId: parent, name: 'Child' });
+    const entry = (await journal.entriesFor(projectId, actorId)).at(-1);
+    if (entry === undefined) throw new Error('create journal absent');
+    const forward = (entry.payload as { forward: Record<string, unknown> }).forward;
+    const inverse = entry.inverse as Record<string, unknown>;
+    delete forward['stepNodeMapping'];
+    delete forward['removedAssignments'];
+    delete inverse['setAssignments'];
+    expect((await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' })).status).toBe(
+      200,
+    );
+    expect((await send(`/api/projects/${projectId}/redo`, token, { method: 'POST' })).status).toBe(
+      200,
+    );
+    const tree = (await (await send(`/api/projects/${projectId}/work-items`, token)).json()) as {
+      stepNodes: { workItemId: string }[];
+    };
+    expect(tree.stepNodes.some((node) => node.workItemId === child)).toBe(true);
+  });
+
+  it('reports a failed assignment hand-down instead of recording a successful create', async () => {
+    for (const failAt of ['child', 'parent'] as const) {
+      const { token, send, projectId, devId, directoryStore } = await setup();
+      const parentId = await addWorkItem(send, token, projectId, {
+        parentId: null,
+        name: 'Parent',
+      });
+      const personId = await addToDirectory(send, token, 'createPerson', 'Ann');
+      expect(
+        (
+          await command(send, token, projectId, {
+            kind: 'setAssignee',
+            workItemId: parentId,
+            stepId: devId,
+            personId,
+          })
+        ).status,
+      ).toBe(200);
+      const assign = directoryStore.assign.bind(directoryStore);
+      directoryStore.assign = async (workItemId, stepId, assignedPersonId, stamp) =>
+        (failAt === 'child' && workItemId !== parentId && assignedPersonId !== null) ||
+        (failAt === 'parent' && workItemId === parentId && assignedPersonId === null)
+          ? { ok: false, reason: 'unknown_person' }
+          : assign(workItemId, stepId, assignedPersonId, stamp);
+      const created = await command(send, token, projectId, {
+        kind: 'createWorkItem',
+        parentId,
+        afterId: null,
+        name: 'Child',
+      });
+      expect(created.status).toBe(500);
+    }
   });
 
   // Proof: with `describeAddressSpace` throwing on a shared number again, this

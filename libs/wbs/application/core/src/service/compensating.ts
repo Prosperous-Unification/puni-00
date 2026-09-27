@@ -160,6 +160,8 @@ export interface DeleteSubtree {
    * row is how "nobody has said" is spelled in every unit.
    */
   setMeasures: StoredMeasure[];
+  /** New journals carry assignments handed down on create; old journals omit them because older creates moved none. */
+  setAssignments?: Assignment[];
 }
 
 /**
@@ -217,6 +219,10 @@ export interface RestoreSubtree {
    */
   measures: StoredMeasure[];
   assignments: Assignment[];
+  /** New journals carry the parent-to-child node IDs; old journals omit them because older creates recorded no mapping. */
+  stepNodeMapping?: { from: string; to: string }[];
+  /** New journals clear assignments from the parent on redo; old journals omit them because older creates moved none. */
+  removedAssignments?: { workItemId: string; stepId: string }[];
   /** Edges with both ends inside the branch: restored with it, in the same write. */
   internalDependencies: StoredDependency[];
   /**

@@ -519,6 +519,34 @@ describe('the staged memory source', () => {
     ]);
   });
 
+  it('refuses a subtree restore when clearing its parent assignment fails', async () => {
+    const source = await seededSource();
+    const restore = source.uow.run(async ({ stores }) => {
+      stores.directory.assign = () => Promise.resolve({ ok: false, reason: 'unknown_person' });
+      await stores.subtrees.insertSubtree(
+        {
+          rows: [],
+          respaced: [],
+          reparented: [],
+          estimates: [],
+          actuals: [],
+          progress: [],
+          measures: [],
+          assignments: [],
+          dependencies: [],
+          removedEstimates: [],
+          removedActuals: [],
+          removedProgress: [],
+          removedMeasures: [],
+          removedAssignments: [{ workItemId: 'wi-1', stepId: 'st-1' }],
+        },
+        stamp,
+      );
+      return { commit: true, value: undefined };
+    });
+    expect(restore).rejects.toThrow('cannot clear parent assignment: unknown_person');
+  });
+
   it('refuses a missing independent-history route without deleting real history', async () => {
     const fixture = openMemorySourceFixture();
     const source = fixture.source;

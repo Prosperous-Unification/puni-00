@@ -11,6 +11,7 @@ import {
   type EstimateRule,
   finalDays,
   firstWorkdayOf,
+  formatStepNodeId,
   type IsoDate,
   isoDateOfInstant,
   isWithin,
@@ -1864,11 +1865,17 @@ export class WorkItemService {
     };
   }
 
+  /**
+   * Creates a work item. When a leaf gains its first child, moves its step facts
+   * and assignments to that child and returns the node mapping in project step order.
+   * The mapping is internal to the application; command responses still return
+   * the created work item ID alone.
+   */
   async create(
     projectId: string,
     actorId: string,
     input: CreateWorkItem,
-  ): Promise<WorkItemOutcome<WorkItem>> {
+  ): Promise<WorkItemOutcome<WorkItem> & { stepNodeMapping?: { from: string; to: string }[] }> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
@@ -1982,11 +1989,42 @@ export class WorkItemService {
         : (await this.opts.measures.listByProject(projectId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
+    const assignedHandedDown =
+      gainsFirstChild === null ? [] : await this.opts.directory.assignmentsFor(gainsFirstChild);
+    const stepNodeMapping =
+      gainsFirstChild === null
+        ? []
+        : (await this.opts.projects.stepsOf(projectId)).map((step) => ({
+            from: formatStepNodeId({ workItemId: gainsFirstChild, stepId: step.id }),
+            to: formatStepNodeId({ workItemId: workItem.id, stepId: step.id }),
+          }));
     if (gainsFirstChild !== null) {
       await this.opts.estimates.moveAll(gainsFirstChild, workItem.id, stamp);
       await this.opts.actuals.moveAll(gainsFirstChild, workItem.id, stamp);
       await this.opts.progress.moveAll(gainsFirstChild, workItem.id, stamp);
       await this.opts.measures.moveAll(gainsFirstChild, workItem.id, stamp);
+      // Proof: skipping these writes failed `hands a first child every Dev fact and Ann`
+      // at `Expected: <Ann id>, Received: undefined` for child.assignees[Dev]; watched 2026-09-27.
+      for (const assignment of assignedHandedDown) {
+        const moved = await this.opts.directory.assign(
+          workItem.id,
+          assignment.stepId,
+          assignment.personId,
+          stamp,
+        );
+        // Proof: deleting this refusal check let a failed child assignment answer 200;
+        // `reports a failed assignment hand-down` saw `Expected: 500, Received: 200`; watched 2026-09-27.
+        if (!moved.ok) throw new Error(`cannot move assignment to first child: ${moved.reason}`);
+        const cleared = await this.opts.directory.assign(
+          gainsFirstChild,
+          assignment.stepId,
+          null,
+          stamp,
+        );
+        // Proof: deleting this refusal check let a failed parent clear answer 200;
+        // `reports a failed assignment hand-down` saw `Expected: 500, Received: 200`; watched 2026-09-27.
+        if (!cleared.ok) throw new Error(`cannot clear parent assignment: ${cleared.reason}`);
+      }
     }
     await this.announceTree(projectId);
     await this.record(projectId, stamp, 'create', `add ${quoteName(workItem.name)}`, {
@@ -1999,7 +2037,17 @@ export class WorkItemService {
         actuals: recordedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
         progress: statedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
         measures: measuredHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
-        assignments: [],
+        assignments: assignedHandedDown.map((assignment) => ({
+          ...assignment,
+          workItemId: workItem.id,
+        })),
+        removedAssignments: assignedHandedDown.map(({ workItemId, stepId }) => ({
+          workItemId,
+          stepId,
+        })),
+        // Proof: removing this field failed `hands a first child every Dev fact and Ann`
+        // at `expect(received).toMatchObject(expected)`: forward.stepNodeMapping absent; watched 2026-09-27.
+        stepNodeMapping,
         internalDependencies: [],
         externalDependencies: [],
         removedEstimates: handedDown.map((each) => ({
@@ -2044,11 +2092,14 @@ export class WorkItemService {
         // Undoing this create makes the parent a leaf again, and a leaf reports
         // what it holds — in every unit, not the one the scheduler reads.
         setMeasures: measuredHandedDown,
+        // Proof: removing this inverse field failed `hands a first child every Dev fact and Ann`
+        // on undo at `Expected: <Ann id>, Received: undefined` for parent.assignees[Dev]; watched 2026-09-27.
+        setAssignments: assignedHandedDown,
       },
       touched: gainsFirstChild === null ? [workItem.id] : [workItem.id, gainsFirstChild],
       before: rows,
     });
-    return { ok: true, value: workItem };
+    return { ok: true, value: workItem, stepNodeMapping };
   }
 
   async patch(
@@ -4185,6 +4236,15 @@ export class WorkItemService {
     // re-applied delete that handed up the days and not the tokens would leave
     // the surviving parent reporting a fortnight of work that cost nothing.
     for (const each of command.setMeasures) await this.opts.measures.set(each, stamp);
+    for (const each of command.setAssignments ?? []) {
+      const assigned = await this.opts.directory.assign(
+        each.workItemId,
+        each.stepId,
+        each.personId,
+        stamp,
+      );
+      if (!assigned.ok) throw new Error(`cannot restore parent assignment: ${assigned.reason}`);
+    }
     return { ok: true, detail: null };
   }
 
@@ -4251,6 +4311,7 @@ export class WorkItemService {
         removedActuals: command.removedActuals,
         removedProgress: command.removedProgress,
         removedMeasures: command.removedMeasures,
+        removedAssignments: command.removedAssignments ?? [],
       },
       stamp,
     );
