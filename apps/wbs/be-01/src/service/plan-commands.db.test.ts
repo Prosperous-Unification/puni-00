@@ -38,6 +38,7 @@ import { WorkItemRepository } from '../repository/work-item';
 import { buildStores } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { CalendarMarkerService } from './calendar-marker.service';
 import { CapacityService } from './capacity.service';
 import { DirectoryService } from './directory.service';
@@ -169,11 +170,13 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
     projects: new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       broadcast: selectedBroadcast,
     }),
     steps: new StepService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       steps: new StepRepository(db, OPEN),
@@ -198,6 +201,7 @@ beforeEach(async () => {
   };
   runner = new PlanCommandRunner(runnerOptions);
   const created = await new ProjectService({
+    dependencyGraph: sqliteDependencyGraph(db, projectStore),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
@@ -848,6 +852,7 @@ describe('the priority a create writes', () => {
     // failed on `Expected: 50 / Received: 200`. Watched 2026-08-29.
     const recut = applied(await run([{ kind: 'setPriorityBands', bands: RECUT }, add('w')]));
     const other = await new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       broadcast: recordingBroadcaster(),

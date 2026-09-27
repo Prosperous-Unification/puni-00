@@ -82,6 +82,14 @@ export function stepRoutes(steps: StepService) {
           // Proof: omitting measures failed response validation,500 instead of
           //409 in the mounted usage-count case (step.controller.db.test.ts).
           return { ok: false, status: 409, body: { error: outcome.reason, inUse: outcome.inUse } };
+        case 'referenced_by_dependency':
+          return {
+            ok: false,
+            status: 409,
+            body: { error: outcome.reason, dependencyIds: outcome.dependencyIds },
+          };
+        case 'dependency_cycle':
+          return { ok: false, status: 409, body: { error: outcome.reason } };
         case 'not_found':
           return { ok: false, status: 404, body: { error: outcome.reason } };
         case 'forbidden':

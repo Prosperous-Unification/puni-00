@@ -56,7 +56,22 @@ test('declares the full step response and each usage count and assumed-assignee 
     },
   });
   const remove = document.paths['/api/projects/{id}/steps/{stepId}']?.['delete'];
-  expect(remove?.responses['409']?.content?.['application/json']?.schema).toMatchObject({
+  // Three 409 variants since typed dependencies: in use, referenced by a
+  // typed dependency, and a removal that would close a step-node cycle.
+  interface Variant {
+    anyOf?: Variant[];
+    properties?: Record<string, unknown>;
+  }
+  const flatten = (schema: Variant): Variant[] =>
+    schema.anyOf === undefined ? [schema] : schema.anyOf.flatMap(flatten);
+  const conflicts = remove?.responses['409']?.content?.['application/json']?.schema;
+  const variants = conflicts === undefined ? [] : flatten(conflicts as Variant);
+  expect(variants.map((variant) => Object.keys(variant.properties ?? {}).sort())).toEqual([
+    ['error', 'inUse'],
+    ['dependencyIds', 'error'],
+    ['error'],
+  ]);
+  expect(variants.at(0)).toMatchObject({
     properties: {
       inUse: {
         required: [

@@ -32,6 +32,7 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
@@ -87,8 +88,14 @@ beforeEach(() => {
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
     calendarMarkers: testCalendarMarkerService(),
-    projects: new ProjectService({ clock: testClock, projects, broadcast: recordingBroadcaster() }),
+    projects: new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(db, projects),
+      clock: testClock,
+      projects,
+      broadcast: recordingBroadcaster(),
+    }),
     steps: new StepService({
+      dependencyGraph: sqliteDependencyGraph(db, projects),
       clock: testClock,
       projects,
       steps: new StepRepository(db, OPEN),

@@ -523,6 +523,8 @@ const batchRefusals = [
         type({ ...context, error: "'engine_unavailable'" }),
         type({ ...context, error: "'rolled_up'" }),
         type({ ...context, error: "'ancestor'" }),
+        // A typed dependency whose endpoints resolve a step node onto itself.
+        type({ ...context, error: "'self_node'" }),
         type({ ...context, error: "'too_large'" }),
       ),
     ),

@@ -23,6 +23,7 @@ import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { fastScheduler } from './optimizer-wiring';
 import { ProjectService } from './project.service';
@@ -118,6 +119,7 @@ beforeEach(async () => {
   );
 
   projects = new ProjectService({
+    dependencyGraph: sqliteDependencyGraph(db, projectStore),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),

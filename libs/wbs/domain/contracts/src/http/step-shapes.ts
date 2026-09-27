@@ -132,6 +132,15 @@ export const removeStep = defineEndpointShape({
         }),
       ),
     },
+    {
+      status: 409,
+      // A typed dependency names the step; it must be removed or reassigned first.
+      schema: responseSchema(
+        type({ error: "'referenced_by_dependency'", dependencyIds: 'string[]' }),
+      ),
+    },
+    // Removing the step would move a legacy anchor into a step-node cycle.
+    { status: 409, schema: responseSchema(type({ error: "'dependency_cycle'" })) },
   ],
   document: { summary: 'Remove a project step, confirming cascade when it is used.' },
 });

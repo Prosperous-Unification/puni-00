@@ -79,6 +79,7 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
     case 'bad_start_date':
     case 'bad_pert_weights':
     case 'optimizer_unavailable':
+    case 'dependency_cycle':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -212,6 +213,8 @@ function stepRemoveCode(refusal: RefusalOf<'deleteApiProjectsByIdStepsByStepId'>
     case 'not_found':
     case 'invalid_body':
     case 'in_use':
+    case 'referenced_by_dependency':
+    case 'dependency_cycle':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -342,6 +345,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'engine_unavailable':
     case 'rolled_up':
     case 'ancestor':
+    case 'self_node':
     case 'too_large':
     case 'taken':
     case 'in_use':

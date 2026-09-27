@@ -36,7 +36,7 @@ import {
   SOLVER_OBJECTIVES,
   type SolverObjectiveName,
 } from '@wbs/domain';
-import { byTreeOrder, treeOrder } from '@wbs/domain';
+import { byTreeOrder, type StepNodeCycle, treeOrder } from '@wbs/domain';
 import {
   haveSameSliceOrder,
   type Schedule,
@@ -94,6 +94,7 @@ import {
   touchedBy,
 } from '../../service/compensating';
 import { canDepend, canReparent } from '../../service/dependency';
+import { DependencyGraphGuard } from '../../service/dependency-graph';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import {
   type Days,
@@ -615,6 +616,12 @@ export type WorkItemRefusal =
   | 'has_children'
   /** A dependency onto the work item's own ancestor, descendant, or itself. */
   | 'ancestor'
+  /**
+   * A typed dependency, alone or through a parent's expansion, joining a step
+   * node to itself. Its own reason rather than `cycle`: the relationship is
+   * wrong whatever else the plan holds.
+   */
+  | 'self_node'
   /** A subtree past {@link MAX_DUPLICATED_ROWS}. */
   | 'too_large'
   /**
@@ -1339,8 +1346,25 @@ export class WorkItemService {
   /** The {@link Command batch} collecting this service's recordings, or none. */
   private collector: BatchCollector | null = null;
 
+  /** The combined step-node graph every graph-changing write is checked against. */
+  private readonly graph: DependencyGraphGuard;
+
   constructor(private readonly opts: WorkItemServiceOptions) {
     this.clock = opts.clock;
+    this.graph = new DependencyGraphGuard(opts);
+  }
+
+  /**
+   * The self-node pair or directed cycle the project's combined dependency
+   * graph holds as the batch now stands, or `null`.
+   *
+   * The batch runner asks this after every command that can change the graph
+   * and refuses at that command, which rolls the whole batch back: the check
+   * sees the batch's own writes inside its transaction, so the state it judges
+   * is the state that would be committed. See {@link DependencyGraphGuard}.
+   */
+  findDependencyCycle(projectId: string): Promise<StepNodeCycle | null> {
+    return this.graph.findCycle(projectId);
   }
 
   /** Whether a batch target is currently a row of this project, including rows created earlier in the batch. */
@@ -3892,6 +3916,22 @@ export class WorkItemService {
     if (!applied.ok) {
       await this.opts.journal.discard(entry.id);
       return { ok: false, reason: 'stale_undo', detail: applied.detail, entryId: entry.id };
+    }
+    // The state the application left, asked before anything commits: the
+    // runner rolls this unit of work back on the refusal, so an undo or redo
+    // that would close a step-node cycle writes nothing.
+    // Proof: this check skipped made `refuses an undo that would close a
+    // step-node cycle` fail on `Expected: 409, Received: 200`; watched
+    // 2026-09-27.
+    const cycle = await this.graph.findCycle(projectId);
+    if (cycle !== null) {
+      await this.opts.journal.discard(entry.id);
+      return {
+        ok: false,
+        reason: 'stale_undo',
+        detail: 'that would now close a dependency cycle between steps.',
+        entryId: entry.id,
+      };
     }
 
     // The entry now describes the other direction, so it checks the revisions

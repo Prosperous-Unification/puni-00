@@ -151,6 +151,24 @@ const CALENDAR_AFFECTING_KINDS: ReadonlySet<PlanCommandKind> = new Set([
 ]);
 
 /**
+ * Commands that can change the combined step-node dependency graph: its
+ * edges, its tree, or which node a dynamic legacy anchor lands on. Each is
+ * followed by a graph check that refuses at its own index.
+ *
+ * `removeDependency`, directory and field commands are absent because
+ * removing an edge or renaming a row cannot close a cycle.
+ */
+const GRAPH_AFFECTING_KINDS: ReadonlySet<PlanCommandKind> = new Set([
+  'createWorkItem',
+  'moveWorkItem',
+  'duplicateWorkItem',
+  'deleteWorkItem',
+  'setEstimate',
+  'clearEstimate',
+  'addDependency',
+]);
+
+/**
  * Applies a {@link Command batch}: every step through the service it belongs
  * to, as one {@link Unit of work} — one {@link Turn} at the source's write
  * coordinator, and every write settled together — then
@@ -417,6 +435,19 @@ export class PlanCommandRunner {
         if (refusal !== null) context.refuse({ reason: refusal });
       }
       applied.push(await applyCommand(bindings, command, context));
+      // Asked of the state this command left, inside the batch's transaction:
+      // the refusal names this command and rolls every write back.
+      // Proof: this check skipped made the mounted `refuses a legacy link that
+      // closes a step-node cycle`, `refuses an estimate clearing that moves a
+      // legacy anchor into a cycle` and `refuses a move that brings a
+      // successor under its own whole predecessor` fail on `Expected: 409,
+      // Received: 200`; watched 2026-09-27.
+      if (projectId !== null && GRAPH_AFFECTING_KINDS.has(command.kind)) {
+        const cycle = await graph.workItems.findDependencyCycle(projectId);
+        if (cycle !== null) {
+          context.refuse({ reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' });
+        }
+      }
     }
     return applied;
   }

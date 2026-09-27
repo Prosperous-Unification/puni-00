@@ -34,6 +34,7 @@ import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { directoryWith, personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
@@ -111,6 +112,7 @@ beforeEach(async () => {
   directory = new DirectoryRepository(db, OPEN);
   broadcast = recordingBroadcaster();
   steps = new StepService({
+    dependencyGraph: sqliteDependencyGraph(db, projectStore),
     clock: testClock,
     projects: projectStore,
     steps: stepStore,
@@ -130,6 +132,7 @@ beforeEach(async () => {
   );
 
   const created = await new ProjectService({
+    dependencyGraph: sqliteDependencyGraph(db, projectStore),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
@@ -222,6 +225,7 @@ describe('StepService.rename', () => {
 
   it('refuses a step that belongs to another project', async () => {
     const other = await new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       broadcast: recordingBroadcaster(),
@@ -415,6 +419,7 @@ describe('StepService.remove', () => {
     // still refuse: it was never consent to take anything, and what it would
     // take is a trio nobody has been shown.
     const service = new StepService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       steps: storeWith({
@@ -443,6 +448,7 @@ describe('StepService.remove', () => {
     // move for a write nobody made.
     let winnerRevision: number | undefined;
     const service = new StepService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       steps: storeWith({
@@ -600,6 +606,7 @@ describe('step events', () => {
     // only moment that can tell the two orders apart.
     const watching = watchingBroadcaster();
     const service = new StepService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       steps: stepStore,
@@ -621,6 +628,7 @@ describe('step events', () => {
       now: Date.now,
     });
     const durable = new StepService({
+      dependencyGraph: sqliteDependencyGraph(db, projectStore),
       clock: testClock,
       projects: projectStore,
       steps: stepStore,

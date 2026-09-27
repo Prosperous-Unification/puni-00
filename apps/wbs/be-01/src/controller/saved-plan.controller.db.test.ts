@@ -23,6 +23,7 @@ import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broa
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
@@ -110,7 +111,12 @@ describe('the saved-plan routes', () => {
       // production hands every service one announcer. A private recorder here
       // would compile and would quietly put this app's project events somewhere
       // nothing in the file can read.
-      projects: new ProjectService({ clock: testClock, projects, broadcast }),
+      projects: new ProjectService({
+        dependencyGraph: sqliteDependencyGraph(connection.db, projects),
+        clock: testClock,
+        projects,
+        broadcast,
+      }),
       savedPlans: savedPlanServiceOn(path),
       steps: testStepService(),
       workItems: testWorkItemService(),

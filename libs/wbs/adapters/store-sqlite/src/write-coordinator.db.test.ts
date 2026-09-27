@@ -12,6 +12,7 @@ import { PriorityBandService } from '@wbs/core';
 import { ProjectService } from '@wbs/core';
 import { StepService } from '@wbs/core';
 import { WorkItemService } from '@wbs/core';
+import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
@@ -176,11 +177,19 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
     projects: new ProjectService({
+      dependencyGraph: new DependencyGraphGuard({
+        ...buildStores(db, OPEN),
+        projects: projectStore,
+      }),
       clock: testClock,
       projects: projectStore,
       broadcast: selectedBroadcast,
     }),
     steps: new StepService({
+      dependencyGraph: new DependencyGraphGuard({
+        ...buildStores(db, OPEN),
+        projects: projectStore,
+      }),
       clock: testClock,
       projects: projectStore,
       steps: stepStore,
@@ -202,6 +211,7 @@ beforeEach(async () => {
   // The route's own service, built exactly as `buildServices` builds it: the
   // step store on the process connection, and no knowledge of the batch at all.
   steps = new StepService({
+    dependencyGraph: new DependencyGraphGuard({ ...buildStores(db, OPEN), projects: projectStore }),
     clock: testClock,
     projects: projectStore,
     steps: stepStore,
@@ -209,6 +219,7 @@ beforeEach(async () => {
   });
 
   const created = await new ProjectService({
+    dependencyGraph: new DependencyGraphGuard({ ...buildStores(db, OPEN), projects: projectStore }),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),

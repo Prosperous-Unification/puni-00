@@ -192,6 +192,8 @@ export function projectRoutes(
           // Proof: mapping this to 422 made the mounted unavailable-optimizer test receive 500 instead of 409.
           case 'optimizer_unavailable':
             return { ok: false, status: 409, body: { error: outcome.reason } };
+          case 'dependency_cycle':
+            return { ok: false, status: 409, body: { error: outcome.reason } };
         }
       },
       { classifyRequestFailure: classifyBodyFailure },

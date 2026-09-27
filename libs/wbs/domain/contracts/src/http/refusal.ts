@@ -106,6 +106,8 @@ export type CommandRefusalCode =
   | 'rolled_up'
   | 'has_children'
   | 'ancestor'
+  /** A typed dependency resolving a step node onto itself. */
+  | 'self_node'
   | 'too_large'
   | 'unknown_step'
   | 'unknown_metric'
@@ -250,7 +252,10 @@ type BareRefusalCode =
   | 'unknown_work_item'
   | 'parent_work_item'
   | 'unknown_code'
-  | 'alias_mismatch';
+  | 'alias_mismatch'
+  // A project reach change or a step removal that would close a step-node
+  // dependency cycle. Outside a batch, so it carries no command position.
+  | 'dependency_cycle';
 
 type SharedCommandCode = 'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use';
 
@@ -276,6 +281,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     name_required: undefined | CommandContext;
     taken: undefined | { field?: 'markerId' } | CommandRefusalDetail['taken'];
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
+    /** The typed dependencies naming a step that a removal would take away. */
+    referenced_by_dependency: { dependencyIds: string[] };
     nothing_to_undo: { detail: string | null };
     stale_undo: { detail: string | null };
     stale_address_revision: { addressRevision: string };

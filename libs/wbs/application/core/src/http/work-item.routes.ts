@@ -272,6 +272,8 @@ function answerBatch(
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'ancestor':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    case 'self_node':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'too_large':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'too_many_commands':
