@@ -6,9 +6,9 @@
 
 ## 1a. Carry node endpoints through structural edits
 
-- [ ] 1a.1 Red: mounted hand-down remaps node endpoints with undo restoring them; deletion removes typed links in the deleted subtree in the same undo entry; move or deletion leaving a descendant-step endpoint on a leaf is refused naming the relationships.
-- [ ] 1a.2 Apply the journaled step node mapping to typed endpoints inside the structural transaction.
-- [ ] 1a.3 Negative proof: skip the endpoint remap, then separately skip the descendant-step leaf refusal; watch each mounted test fail, restore, add adjacent `Proof:`.
+- [x] 1a.1 Red: mounted hand-down remaps node endpoints with undo restoring them; deletion removes typed links in the deleted subtree in the same undo entry; move or deletion leaving a descendant-step endpoint on a leaf is refused naming the relationships.
+- [x] 1a.2 Apply the journaled step node mapping to typed endpoints inside the structural transaction.
+- [x] 1a.3 Negative proof: skip the endpoint remap, then separately skip the descendant-step leaf refusal; watch each mounted test fail, restore, add adjacent `Proof:`.
 
 ## 2. Guard every graph-changing write
 

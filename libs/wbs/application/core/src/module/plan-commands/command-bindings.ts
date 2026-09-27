@@ -119,6 +119,16 @@ export class CommandContext {
   }
 
   private refuseOutcome(outcome: ServiceRefusal): never {
+    if (outcome.reason === 'descendant_step_on_leaf' || outcome.reason === 'node_on_parent') {
+      // Proof: bypassing this guard made the command-boundary negative throw
+      // CommandRefused instead of naming absent relationship ids; watched 2026-09-27.
+      if (outcome.dependencyIds === undefined)
+        throw new Error('Endpoint refusal requires relationship ids');
+      return this.refuse({
+        reason: outcome.reason,
+        detail: { dependencyIds: outcome.dependencyIds },
+      });
+    }
     if (outcome.reason === 'taken') {
       return this.refuse({ reason: 'taken', detail: { name: outcome.name } });
     }

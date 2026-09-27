@@ -239,6 +239,13 @@ function answerBatch(
         status: 409,
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
+    case 'descendant_step_on_leaf':
+    case 'node_on_parent':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
     case 'forbidden':
       return { ok: false, status: 403, body: { ...context, error: outcome.reason } };
     case 'not_found':

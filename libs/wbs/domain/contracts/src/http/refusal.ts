@@ -113,6 +113,8 @@ export type CommandRefusalCode =
   /** A typed dependency resolving a step node onto itself. */
   | 'self_node'
   | 'not_a_parent'
+  | 'node_on_parent'
+  | 'descendant_step_on_leaf'
   | 'unknown_dependency'
   | 'duplicate_dependency'
   | 'unsupported_relationship_type'
@@ -216,11 +218,13 @@ export type CommandRefusalDetail = {
     // Proof: making projectDayZero optional caused TS2578 in the deadline refusal type fixture.
     (C extends 'deadline_before_project_start'
       ? { workItemId: string; projectDayZero: string }
-      : C extends 'in_use'
-        ? { usage: DirectoryUsage }
-        : C extends 'taken'
-          ? { name?: string }
-          : Record<never, never>);
+      : C extends 'node_on_parent' | 'descendant_step_on_leaf'
+        ? { dependencyIds: string[] }
+        : C extends 'in_use'
+          ? { usage: DirectoryUsage }
+          : C extends 'taken'
+            ? { name?: string }
+            : Record<never, never>);
 };
 
 type BareRefusalCode =

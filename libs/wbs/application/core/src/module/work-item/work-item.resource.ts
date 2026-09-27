@@ -650,6 +650,8 @@ export type WorkItemRefusal =
   | 'self_node'
   /** A descendant-step selector needs a parent with descendant leaves. */
   | 'not_a_parent'
+  | 'node_on_parent'
+  | 'descendant_step_on_leaf'
   /** The addressed typed relationship no longer exists in this project. */
   | 'unknown_dependency'
   /** Another relationship already names these endpoints and this type. */
@@ -786,7 +788,30 @@ export type WorkItemOutcome<T> =
        * one was wrong.
        */
       projectDayZero?: IsoDate;
+      /** Relationships that prevent a structural change from changing endpoint scope. */
+      dependencyIds?: string[];
     };
+
+/** Orders relationship removal before a structural delete and restoration after it. */
+function withRemovedTyped(
+  structural: CompensatingCommand,
+  removed: readonly StoredTypedDependency[],
+  restore: boolean,
+): CompensatingCommand {
+  if (removed.length === 0) return structural;
+  return {
+    do: 'batch',
+    steps: restore
+      ? [
+          structural,
+          ...removed.map((dependency) => ({ do: 'add_typed_dependency' as const, dependency })),
+        ]
+      : [
+          ...removed.map((dependency) => ({ do: 'remove_typed_dependency' as const, dependency })),
+          structural,
+        ],
+  };
+}
 
 /**
  * Whether this release keeps figures in the unit a caller named.
@@ -2137,6 +2162,36 @@ export class WorkItemService {
             from: formatStepNodeId({ workItemId: gainsFirstChild, stepId: step.id }),
             to: formatStepNodeId({ workItemId: workItem.id, stepId: step.id }),
           }));
+    const nodeRemaps =
+      gainsFirstChild === null
+        ? []
+        : (await this.opts.typedDependencies.listByProject(projectId))
+            .filter((dependency) =>
+              [dependency.predecessor, dependency.successor].some(
+                (endpoint) => endpoint.scope === 'node' && endpoint.workItemId === gainsFirstChild,
+              ),
+            )
+            .map((original) => ({
+              original,
+              remapped: {
+                ...original,
+                predecessor:
+                  original.predecessor.scope === 'node' &&
+                  original.predecessor.workItemId === gainsFirstChild
+                    ? { ...original.predecessor, workItemId: workItem.id }
+                    : original.predecessor,
+                successor:
+                  original.successor.scope === 'node' &&
+                  original.successor.workItemId === gainsFirstChild
+                    ? { ...original.successor, workItemId: workItem.id }
+                    : original.successor,
+              },
+            }));
+    // Proof: skipping the remap made mounted first-child create return 500 instead of
+    // preserving its node relationship; watched 2026-09-27.
+    for (const { remapped } of nodeRemaps) {
+      await this.opts.typedDependencies.update(remapped, stamp);
+    }
     // Proof: the estimates' `moveAll` skipped, be-01's `hands the estimates
     // back up when it undoes the first child that took them` failed — the
     // path the row menu's Add child takes. Watched 2026-09-27.
@@ -2232,37 +2287,43 @@ export class WorkItemService {
     };
     // The subtree commands remain readable by older binaries. Assignment changes
     // are ordinary journal steps, so their owners also enter undo/redo revisions.
+    const forwardSteps: CompensatingCommand[] = [
+      ...nodeRemaps.map(({ original }) => ({
+        do: 'remove_typed_dependency' as const,
+        dependency: original,
+      })),
+      forward,
+      ...assignedHandedDown.map(({ workItemId, stepId }) => ({
+        do: 'assign' as const,
+        workItemId,
+        stepId,
+        personId: null,
+      })),
+      ...nodeRemaps.map(({ remapped }) => ({
+        do: 'add_typed_dependency' as const,
+        dependency: remapped,
+      })),
+    ];
+    const inverseSteps: CompensatingCommand[] = [
+      ...nodeRemaps.map(({ remapped }) => ({
+        do: 'remove_typed_dependency' as const,
+        dependency: remapped,
+      })),
+      inverse,
+      ...assignedHandedDown.map(({ workItemId, stepId, personId }) => ({
+        do: 'assign' as const,
+        workItemId,
+        stepId,
+        personId,
+      })),
+      ...nodeRemaps.map(({ original }) => ({
+        do: 'add_typed_dependency' as const,
+        dependency: original,
+      })),
+    ];
     await this.record(projectId, stamp, 'create', `add ${quoteName(workItem.name)}`, {
-      forward:
-        assignedHandedDown.length === 0
-          ? forward
-          : {
-              do: 'batch',
-              steps: [
-                forward,
-                ...assignedHandedDown.map(({ workItemId, stepId }) => ({
-                  do: 'assign' as const,
-                  workItemId,
-                  stepId,
-                  personId: null,
-                })),
-              ],
-            },
-      inverse:
-        assignedHandedDown.length === 0
-          ? inverse
-          : {
-              do: 'batch',
-              steps: [
-                inverse,
-                ...assignedHandedDown.map(({ workItemId, stepId, personId }) => ({
-                  do: 'assign' as const,
-                  workItemId,
-                  stepId,
-                  personId,
-                })),
-              ],
-            },
+      forward: forwardSteps.length === 1 ? forward : { do: 'batch', steps: forwardSteps },
+      inverse: inverseSteps.length === 1 ? inverse : { do: 'batch', steps: inverseSteps },
       touched: gainsFirstChild === null ? [workItem.id] : [workItem.id, gainsFirstChild],
       before: rows,
     });
@@ -2461,6 +2522,42 @@ export class WorkItemService {
     // expanded graph loops…` both failed on `Received: 200` — the direct
     // command reparented. Watched 2026-09-27.
     if (broken !== null) return { ok: false, reason: broken };
+    if (input.parentId !== workItem.parentId) {
+      const authored = await this.opts.typedDependencies.listByProject(workItem.projectId);
+      const oldParent = workItem.parentId;
+      const stranded =
+        oldParent !== null && rows.filter((row) => row.parentId === oldParent).length === 1
+          ? authored.filter((dependency) =>
+              [dependency.predecessor, dependency.successor].some(
+                (endpoint) =>
+                  endpoint.scope === 'descendant-step' && endpoint.workItemId === oldParent,
+              ),
+            )
+          : [];
+      // Proof: skipping this refusal made mounted last-child move answer 500
+      // instead of 409 with the relationship id; watched 2026-09-27.
+      if (stranded.length > 0) {
+        return {
+          ok: false,
+          reason: 'descendant_step_on_leaf',
+          dependencyIds: stranded.map((row) => row.id),
+        };
+      }
+      const newParent = input.parentId;
+      const pinned =
+        newParent !== null && !rows.some((row) => row.parentId === newParent)
+          ? authored.filter((dependency) =>
+              [dependency.predecessor, dependency.successor].some(
+                (endpoint) => endpoint.scope === 'node' && endpoint.workItemId === newParent,
+              ),
+            )
+          : [];
+      // Proof: bypassing this check made mounted move onto a node-pinned leaf
+      // answer 500 instead of 409 with its relationship id; watched 2026-09-27.
+      if (pinned.length > 0) {
+        return { ok: false, reason: 'node_on_parent', dependencyIds: pinned.map((row) => row.id) };
+      }
+    }
 
     // Where it was, read before it leaves: the sibling it sat directly after,
     // or null when it was first. That is the shape `move` takes, so the
@@ -2736,6 +2833,28 @@ export class WorkItemService {
     // `listByProject` takes no metric for.
     const storedMeasures = await this.opts.measures.listByProject(workItem.projectId);
     const allEdges = await this.opts.dependencies.listByProject(workItem.projectId);
+    const authored = await this.opts.typedDependencies.listByProject(workItem.projectId);
+    const survivor = workItem.parentId;
+    if (
+      survivor !== null &&
+      (children.length === 0 || strategy === 'cascade') &&
+      rows.filter((row) => row.parentId === survivor).length === 1
+    ) {
+      const stranded = authored.filter((dependency) =>
+        [dependency.predecessor, dependency.successor].some(
+          (endpoint) => endpoint.scope === 'descendant-step' && endpoint.workItemId === survivor,
+        ),
+      );
+      // Proof: skipping this refusal made mounted last-child delete answer 500
+      // instead of 409 with the relationship id; watched 2026-09-27.
+      if (stranded.length > 0) {
+        return {
+          ok: false,
+          reason: 'descendant_step_on_leaf',
+          dependencyIds: stranded.map((row) => row.id),
+        };
+      }
+    }
 
     if (children.length === 0 || strategy === 'cascade') {
       // The mirror of the rule in `create`: a parent losing its last child takes
@@ -2847,66 +2966,78 @@ export class WorkItemService {
       // tidiness: without it, deleting a work item anything depends on fails
       // with a constraint error the caller cannot act on.
       await this.opts.dependencies.removeAllFor(doomed, stamp);
+      // Proof: skipping this removal let SQLite cascade the rows without a
+      // journal record; mounted node-and-whole delete restored 0 instead of 2
+      // relationships on undo, watched 2026-09-27.
+      const removedTyped = await this.opts.typedDependencies.removeAllFor(doomed, stamp);
       await this.opts.workItems.remove(doomed, [], stamp);
       await this.announceTree(workItem.projectId);
       await this.record(workItem.projectId, stamp, 'delete', label, {
-        forward: {
-          do: 'delete_subtree',
-          rootId: id,
-          expectedSubtree: doomed,
-          remove: doomed,
-          reparented: [],
-          setEstimates: handedUp,
-          setActuals: recordedHandedUp,
-          setProgress: statedHandedUp,
-          setMeasures: measuredHandedUp,
-        },
-        inverse: {
-          do: 'restore_subtree',
-          rows: doomed.map((each) => rowOf(rows, each)),
-          rootPosition: workItem.position,
-          reparented: [],
-          estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
-          // Every day recorded anywhere in the branch, put back where it was
-          // recorded. Without this an undo of a delete answers `ok` and returns
-          // the branch with its estimates and none of its actuals — the plan
-          // looks whole and a week of somebody's record is gone.
-          actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
-          // Every statement made anywhere in the branch, put back where it was
-          // made. Without this an undo of a delete answers `ok` and returns the
-          // branch reading as work nobody has started — the plan looks whole and
-          // a fortnight of finished work is unfinished again.
-          progress: storedProgress.filter((each) => inside.has(each.workItemId)),
-          // Every token and hour recorded anywhere in the branch, put back where
-          // it was recorded. Without this an undo of a delete answers `ok` and
-          // returns the branch with its days and none of its tokens — the plan
-          // looks whole and the record of what the work cost to run is gone.
-          measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
-          assignments: doomedAssignments,
-          internalDependencies: cut.filter(
-            (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
-          ),
-          externalDependencies: cut.filter(
-            (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
-          ),
-          removedEstimates: handedUp.map((each) => ({
-            workItemId: each.workItemId,
-            stepId: each.stepId,
-          })),
-          removedActuals: recordedHandedUp.map((each) => ({
-            workItemId: each.workItemId,
-            stepId: each.stepId,
-          })),
-          removedProgress: statedHandedUp.map((each) => ({
-            workItemId: each.workItemId,
-            stepId: each.stepId,
-          })),
-          removedMeasures: measuredHandedUp.map((each) => ({
-            workItemId: each.workItemId,
-            stepId: each.stepId,
-            metric: each.metric,
-          })),
-        },
+        forward: withRemovedTyped(
+          {
+            do: 'delete_subtree',
+            rootId: id,
+            expectedSubtree: doomed,
+            remove: doomed,
+            reparented: [],
+            setEstimates: handedUp,
+            setActuals: recordedHandedUp,
+            setProgress: statedHandedUp,
+            setMeasures: measuredHandedUp,
+          },
+          removedTyped,
+          false,
+        ),
+        inverse: withRemovedTyped(
+          {
+            do: 'restore_subtree',
+            rows: doomed.map((each) => rowOf(rows, each)),
+            rootPosition: workItem.position,
+            reparented: [],
+            estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
+            // Every day recorded anywhere in the branch, put back where it was
+            // recorded. Without this an undo of a delete answers `ok` and returns
+            // the branch with its estimates and none of its actuals — the plan
+            // looks whole and a week of somebody's record is gone.
+            actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
+            // Every statement made anywhere in the branch, put back where it was
+            // made. Without this an undo of a delete answers `ok` and returns the
+            // branch reading as work nobody has started — the plan looks whole and
+            // a fortnight of finished work is unfinished again.
+            progress: storedProgress.filter((each) => inside.has(each.workItemId)),
+            // Every token and hour recorded anywhere in the branch, put back where
+            // it was recorded. Without this an undo of a delete answers `ok` and
+            // returns the branch with its days and none of its tokens — the plan
+            // looks whole and the record of what the work cost to run is gone.
+            measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
+            assignments: doomedAssignments,
+            internalDependencies: cut.filter(
+              (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
+            ),
+            externalDependencies: cut.filter(
+              (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
+            ),
+            removedEstimates: handedUp.map((each) => ({
+              workItemId: each.workItemId,
+              stepId: each.stepId,
+            })),
+            removedActuals: recordedHandedUp.map((each) => ({
+              workItemId: each.workItemId,
+              stepId: each.stepId,
+            })),
+            removedProgress: statedHandedUp.map((each) => ({
+              workItemId: each.workItemId,
+              stepId: each.stepId,
+            })),
+            removedMeasures: measuredHandedUp.map((each) => ({
+              workItemId: each.workItemId,
+              stepId: each.stepId,
+              metric: each.metric,
+            })),
+          },
+          removedTyped,
+          true,
+        ),
         // Two deliberate absences. The deleted rows are not here — nothing can
         // hold a revision of a row that is gone, and the restore's refusal to
         // write over an id that exists is what guards them. Neither are the
@@ -2937,59 +3068,68 @@ export class WorkItemService {
     // going has nothing to point at, and the foreign keys say so. Only this row
     // leaves here — its children are promoted, and their edges stay valid.
     await this.opts.dependencies.removeAllFor([id], stamp);
+    const removedTyped = await this.opts.typedDependencies.removeAllFor([id], stamp);
     await this.opts.workItems.remove([id], promoted, stamp);
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'delete', label, {
-      forward: {
-        do: 'delete_subtree',
-        rootId: id,
-        expectedSubtree: subtreeOf(rows, id),
-        remove: [id],
-        reparented: promoted,
-        setEstimates: [],
-        // A promotion deletes one row and keeps its children, so the parent
-        // below is not becoming a leaf and nothing is handed anywhere.
-        setActuals: [],
-        setProgress: [],
-        setMeasures: [],
-      },
-      inverse: {
-        do: 'restore_subtree',
-        rows: [workItem],
-        rootPosition: workItem.position,
-        // Everyone the promotion rewrote, back where they were: the children
-        // under the row coming back, and the former siblings at the positions
-        // the promotion took from them. Restoring only the children would
-        // leave the group respaced around a gap that is no longer there.
-        reparented: promoted.map((each) => {
-          const was = rowOf(rows, each.id);
-          return { id: was.id, parentId: was.parentId, position: was.position };
-        }),
-        estimates: storedEstimates.filter((each) => each.workItemId === id),
-        // The promoted row's own recorded days — it had children, so it holds
-        // none, and this is the empty list every time until a promotion of a
-        // leaf becomes representable. Written from the same source as the
-        // estimates beside it rather than hard-coded, so it stays true if that
-        // ever changes.
-        actuals: storedActuals.filter((each) => each.workItemId === id),
-        // The promoted row's own statements — it had children, so it holds none,
-        // and this is the empty list every time until a promotion of a leaf
-        // becomes representable. Written from the same source as the two figures
-        // beside it rather than hard-coded, so it stays true if that ever changes.
-        progress: storedProgress.filter((each) => each.workItemId === id),
-        // The promoted row's own tokens and hours — it had children, so it holds
-        // none, and this is the empty list every time until a promotion of a
-        // leaf becomes representable. Written from the same source as the three
-        // beside it rather than hard-coded, so it stays true if that changes.
-        measures: storedMeasures.filter((each) => each.workItemId === id),
-        assignments: deletedAssignments,
-        internalDependencies: [],
-        externalDependencies: cut,
-        removedEstimates: [],
-        removedActuals: [],
-        removedProgress: [],
-        removedMeasures: [],
-      },
+      forward: withRemovedTyped(
+        {
+          do: 'delete_subtree',
+          rootId: id,
+          expectedSubtree: subtreeOf(rows, id),
+          remove: [id],
+          reparented: promoted,
+          setEstimates: [],
+          // A promotion deletes one row and keeps its children, so the parent
+          // below is not becoming a leaf and nothing is handed anywhere.
+          setActuals: [],
+          setProgress: [],
+          setMeasures: [],
+        },
+        removedTyped,
+        false,
+      ),
+      inverse: withRemovedTyped(
+        {
+          do: 'restore_subtree',
+          rows: [workItem],
+          rootPosition: workItem.position,
+          // Everyone the promotion rewrote, back where they were: the children
+          // under the row coming back, and the former siblings at the positions
+          // the promotion took from them. Restoring only the children would
+          // leave the group respaced around a gap that is no longer there.
+          reparented: promoted.map((each) => {
+            const was = rowOf(rows, each.id);
+            return { id: was.id, parentId: was.parentId, position: was.position };
+          }),
+          estimates: storedEstimates.filter((each) => each.workItemId === id),
+          // The promoted row's own recorded days — it had children, so it holds
+          // none, and this is the empty list every time until a promotion of a
+          // leaf becomes representable. Written from the same source as the
+          // estimates beside it rather than hard-coded, so it stays true if that
+          // ever changes.
+          actuals: storedActuals.filter((each) => each.workItemId === id),
+          // The promoted row's own statements — it had children, so it holds none,
+          // and this is the empty list every time until a promotion of a leaf
+          // becomes representable. Written from the same source as the two figures
+          // beside it rather than hard-coded, so it stays true if that ever changes.
+          progress: storedProgress.filter((each) => each.workItemId === id),
+          // The promoted row's own tokens and hours — it had children, so it holds
+          // none, and this is the empty list every time until a promotion of a
+          // leaf becomes representable. Written from the same source as the three
+          // beside it rather than hard-coded, so it stays true if that changes.
+          measures: storedMeasures.filter((each) => each.workItemId === id),
+          assignments: deletedAssignments,
+          internalDependencies: [],
+          externalDependencies: cut,
+          removedEstimates: [],
+          removedActuals: [],
+          removedProgress: [],
+          removedMeasures: [],
+        },
+        removedTyped,
+        true,
+      ),
       // The promoted rows are preconditions because putting them back under the
       // restored parent is part of the undo. The ends of the edges that left
       // are not, for the reason given in the cascade branch above.
@@ -4680,6 +4820,36 @@ export class WorkItemService {
     if (afterId !== null && !group.some((sibling) => sibling.id === afterId)) {
       return { ok: false, detail: 'the work item it sat after has been deleted since then.' };
     }
+    if (moving.parentId !== parentId) {
+      const authored = await this.opts.typedDependencies.listByProject(projectId);
+      const oldParent = moving.parentId;
+      // Proof: bypassing this replay guard made mounted undo of a move with a
+      // newer descendant-step relationship return 500 instead of 409; watched 2026-09-27.
+      if (
+        oldParent !== null &&
+        rows.filter((row) => row.parentId === oldParent).length === 1 &&
+        authored.some((dependency) =>
+          [dependency.predecessor, dependency.successor].some(
+            (endpoint) => endpoint.scope === 'descendant-step' && endpoint.workItemId === oldParent,
+          ),
+        )
+      ) {
+        return { ok: false, detail: 'a descendant-step relationship now names the former parent.' };
+      }
+      // Proof: bypassing this replay guard made mounted undo into a newly
+      // node-pinned leaf return 500 instead of 409; watched 2026-09-27.
+      if (
+        parentId !== null &&
+        !rows.some((row) => row.parentId === parentId) &&
+        authored.some((dependency) =>
+          [dependency.predecessor, dependency.successor].some(
+            (endpoint) => endpoint.scope === 'node' && endpoint.workItemId === parentId,
+          ),
+        )
+      ) {
+        return { ok: false, detail: 'a node relationship now names the new parent.' };
+      }
+    }
     const placed = placeAfter(group, afterId);
     await this.opts.workItems.move(id, parentId, placed.position, placed.renumbered, stamp);
     return { ok: true, detail: null };
@@ -4736,7 +4906,34 @@ export class WorkItemService {
     if (now.size !== then.size || [...then].some((id) => !now.has(id))) {
       return { ok: false, detail: 'work has been added or removed under that row since then.' };
     }
+    const root = rows.find((row) => row.id === command.rootId);
+    if (root === undefined) throw new Error('delete root disappeared after its existence check');
+    const survivor = root.parentId;
+    // Proof: bypassing this replay guard made mounted redo of a deletion with
+    // a newer descendant-step relationship return 500 instead of 409; watched 2026-09-27.
+    if (
+      survivor !== null &&
+      !command.reparented.some(
+        (row) => row.parentId === survivor && !command.remove.includes(row.id),
+      ) &&
+      rows.filter((row) => row.parentId === survivor).length === 1
+    ) {
+      const authored = await this.opts.typedDependencies.listByProject(projectId);
+      if (
+        authored.some((dependency) =>
+          [dependency.predecessor, dependency.successor].some(
+            (endpoint) => endpoint.scope === 'descendant-step' && endpoint.workItemId === survivor,
+          ),
+        )
+      ) {
+        return {
+          ok: false,
+          detail: 'a descendant-step relationship now names the surviving parent.',
+        };
+      }
+    }
     await this.opts.dependencies.removeAllFor(command.remove, stamp);
+    await this.opts.typedDependencies.removeAllFor(command.remove, stamp);
     await this.opts.workItems.remove(command.remove, command.reparented, stamp);
     for (const each of command.setEstimates) await this.opts.estimates.set(each, stamp);
     // The hand-up again, actuals with estimates. A re-applied delete that put

@@ -84,7 +84,10 @@ export type AppliedCommand =
     }[EntityKind];
 
 type PlainReason =
-  | Exclude<WorkItemRefusal, 'deadline_before_project_start'>
+  | Exclude<
+      WorkItemRefusal,
+      'deadline_before_project_start' | 'descendant_step_on_leaf' | 'node_on_parent'
+    >
   | DirectoryRefusal
   | 'calendar_range'
   | 'too_many_commands'
@@ -98,6 +101,7 @@ export type Refusal =
       reason: 'deadline_before_project_start';
       detail: { workItemId: string; projectDayZero: string };
     }
+  | { reason: 'descendant_step_on_leaf' | 'node_on_parent'; detail: { dependencyIds: string[] } }
   | { reason: 'taken'; detail: { name: string } }
   | { reason: 'in_use'; detail: { usage: DirectoryUsage } };
 /** A runtime refusal always carries its command index and recognized kind. */

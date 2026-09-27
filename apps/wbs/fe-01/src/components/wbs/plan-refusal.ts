@@ -352,6 +352,8 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'ancestor':
     case 'self_node':
     case 'not_a_parent':
+    case 'node_on_parent':
+    case 'descendant_step_on_leaf':
     case 'duplicate_dependency':
     case 'unsupported_relationship_type':
     case 'too_large':

@@ -551,6 +551,15 @@ const batchRefusals = [
   { status: 409, schema: responseSchema(type({ ...context, error: "'taken'", name: 'string' })) },
   { status: 409, schema: responseSchema(type({ ...context, error: "'in_use'", usage })) },
   {
+    status: 409,
+    schema: responseSchema(
+      type.or(
+        type({ ...context, error: "'node_on_parent'", dependencyIds: 'string[]' }),
+        type({ ...context, error: "'descendant_step_on_leaf'", dependencyIds: 'string[]' }),
+      ),
+    ),
+  },
+  {
     status: 422,
     schema: responseSchema(
       type.or(
