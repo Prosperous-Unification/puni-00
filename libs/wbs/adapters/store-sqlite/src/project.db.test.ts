@@ -120,6 +120,7 @@ describe('ProjectRepository', () => {
     await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
+      '20260927200000_freeze_organization_ownership',
       '20260927190000_add_organization_bridge',
       '20260927180000_add_organization_activation',
       '20260927170000_add_step_allowance',
@@ -871,6 +872,36 @@ describe('organization-scoped writes', () => {
       expect(await repo.recordOpenInOrganization(owned.id, wrote(), 'org-a')).toBe(true);
       expect(raw.query('SELECT project_id FROM project_access').all()).toEqual([
         { project_id: owned.id },
+      ]);
+    } finally {
+      raw.close();
+    }
+  });
+});
+
+describe('findCrossReferences', () => {
+  it('reports a work item whose parent lies in another project', async () => {
+    const raw = openDatabase(join(dir, 'test.db'));
+    try {
+      raw.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+      raw.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+      const mine = project('Mine', 1);
+      const theirs = project('Theirs', 2);
+      await repo.createInOrganization(mine, steps(mine.id, 'Dev'), wrote(), 'org-a');
+      await repo.createInOrganization(theirs, steps(theirs.id, 'Dev'), wrote(), 'org-a');
+      raw.run(
+        "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-t', ?, NULL, 0, 'Root')",
+        [theirs.id],
+      );
+      raw.run(
+        "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-m', ?, 'w-t', 0, 'Child')",
+        [mine.id],
+      );
+
+      expect(await repo.findCrossReferences(mine.id, 'org-a')).toEqual([
+        { kind: 'work_item_parent', id: 'w-m' },
       ]);
     } finally {
       raw.close();

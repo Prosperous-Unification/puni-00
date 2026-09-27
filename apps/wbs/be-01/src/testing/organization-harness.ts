@@ -2,10 +2,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { SqliteOrganizationAccess } from '@wbs/store-sqlite';
+import { createLogger } from '@wbs/observability';
+import { openSqliteSource, SqliteOrganizationAccess } from '@wbs/store-sqlite';
 
 import { buildApp } from '../app';
 import { ActualRepository } from '../repository/actual';
+import { CalendarMarkerRepository } from '../repository/calendar-marker';
 import { CommandJournalRepository } from '../repository/command-journal';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
@@ -21,14 +23,15 @@ import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { AuthService } from '../service/auth.service';
+import { CalendarMarkerService } from '../service/calendar-marker.service';
 import { DirectoryService } from '../service/directory.service';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { ProjectService } from '../service/project.service';
 import { StepService } from '../service/step.service';
 import { WorkItemService } from '../service/work-item.service';
+import { buildServices } from '../services';
 import { TEST_JWT_KEY } from './auth-fixture';
 import { recordingBroadcaster } from './broadcast-fixture';
-import { testCalendarMarkerService } from './calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from './capacity-fixture';
 import { testClock } from './clock-fixture';
 import { testHistoryService } from './history-fixture';
@@ -84,7 +87,11 @@ export class OrganizationHarness {
       }),
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
-      calendarMarkers: testCalendarMarkerService(),
+      calendarMarkers: new CalendarMarkerService({
+        projects,
+        markers: new CalendarMarkerRepository(db, OPEN),
+        clock: testClock,
+      }),
       projects: new ProjectService({
         clock: testClock,
         projects,
@@ -135,6 +142,58 @@ export class OrganizationHarness {
       internalAuthSecret: 'x'.repeat(32),
       writes: testWrites(undefined, writing),
       migrationsApplied: true,
+    });
+    return new OrganizationHarness(dir, app, openDatabase(path), bound);
+  }
+
+  /**
+   * The same boundary over be-01's production service composition: real
+   * SQLite units of work under the command runner, so a refused batch is
+   * rolled back exactly as in production. The command suites need this; the
+   * fixtures {@link open} wires cannot roll a batch back.
+   */
+  static openComposed(): OrganizationHarness {
+    const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
+    const path = join(dir, 'test.db');
+    runMigrations(path, FOLDER);
+    const source = openSqliteSource({ dbPath: path });
+    const bound = new Map<string, string>();
+    const services = buildServices({
+      source,
+      logger: createLogger({ service: 'be-01' }),
+      jwtKey: TEST_JWT_KEY,
+      gwUrl: 'http://gw.invalid',
+      internalAuthSecret: 's'.repeat(32),
+      pushFetch: () => Promise.resolve(Response.json({ delivered_to_sockets: 0 })),
+    });
+    const app = buildApp({
+      appOrigin: 'http://localhost',
+      clock: services.clock,
+      migrationsApplied: true,
+      auth: services.auth,
+      loginThrottle: services.loginThrottle,
+      projects: services.projects,
+      organizations: new SqliteOrganizationAccess(source.db, (userId) =>
+        Promise.resolve(bound.get(userId) ?? null),
+      ),
+      steps: services.steps,
+      calendarMarkers: services.calendarMarkers,
+      workItems: services.workItems,
+      optimizer: services.optimizer,
+      savedPlans: services.savedPlans,
+      directory: services.directory,
+      capacity: services.capacity,
+      priorityBands: services.priorityBands,
+      history: services.history,
+      replay: services.replay,
+      probeDatabase: () => 'ok',
+      writes: {
+        imports: services.imports,
+        uow: services.uow,
+        batch: services.batch,
+        announcements: services.announcements,
+      },
+      internalAuthSecret: 'x'.repeat(32),
     });
     return new OrganizationHarness(dir, app, openDatabase(path), bound);
   }

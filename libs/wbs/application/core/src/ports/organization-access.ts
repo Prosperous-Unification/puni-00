@@ -1,4 +1,11 @@
-import type { OrganizationScope } from '@wbs/domain';
+import {
+  canEditProject,
+  canEditProjectInOrganization,
+  type OrganizationScope,
+  type ProjectOwnership,
+} from '@wbs/domain';
+
+import type { Project, ProjectStore } from './project-store';
 
 /**
  * How a protected request may reach organization-owned resources.
@@ -37,4 +44,40 @@ export type OrganizationAccessResolution =
  */
 export interface OrganizationAccess {
   resolve(userId: string): Promise<OrganizationAccessResolution>;
+}
+
+/** The access every unscoped method uses: deployment-wide, as before organizations. */
+export const LEGACY_ACCESS: ResourceAccess = { kind: 'legacy' };
+
+/**
+ * Finds a project through the caller's access: under scoped access a foreign
+ * project is null exactly like an absent one, so every caller answers one 404.
+ */
+export function findProjectWithin(
+  projects: Pick<ProjectStore, 'findById' | 'findInOrganization'>,
+  id: string,
+  access: ResourceAccess,
+): Promise<Project | null> {
+  return access.kind === 'scoped'
+    ? projects.findInOrganization(id, access.scope.organizationId)
+    : projects.findById(id);
+}
+
+/**
+ * Whether the caller may write `project`: the organization role and the
+ * restricted-creator rule under scoped access, the creator rule alone under
+ * legacy access.
+ *
+ * Proof: answering the legacy rule under scoped access failed `refuses a
+ * viewer every step and marker write and lets the viewer list markers` in
+ * `step-marker-organization.controller.db.test.ts`; watched 2026-09-27.
+ */
+export function mayEditProjectWithin(
+  project: ProjectOwnership,
+  actorId: string,
+  access: ResourceAccess,
+): boolean {
+  return access.kind === 'scoped'
+    ? canEditProjectInOrganization(project, access.scope)
+    : canEditProject(project, actorId);
 }

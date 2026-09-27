@@ -38,9 +38,10 @@ exactly one row`; relabeling Zed `WBS import tested` failed `labels no client te
   failed `offers plan transfer controls in one Export / Import menu`. Each restored to green.
 - **Deviations from the design table, from vendor docs and source checked 2026-09-27:** a fourth
   status, `Unsupported`, marks clients whose callback WBS refuses today (ChatGPT, Mistral,
-  Copilot Studio). Cursor, VS Code and Continue move to bridge fallback: their DCR registrations
-  carry a callback WBS refuses (`cursor://`, `https://insiders.vscode.dev/redirect`, a loopback
-  URI with its own `state` query), and one refused URI refuses the registration. Raycast moves to
+  Copilot Studio). Cursor and Continue move to bridge fallback: Cursor registers only a
+  `cursor://` callback, and Continue a loopback URI with its own `state` query that it does not
+  sign in with. VS Code stays documented since mcp-registration-callbacks listed
+  `https://insiders.vscode.dev/redirect` and made registration keep the listed subset. Raycast moves to
   unverified (MCP callback unpublished). Roo Code is discontinued; Amazon Q CLI is now Kiro CLI.
 - **Astra review (gpt-6-astra, high), 2026-09-27:** no Critical. Important fixed: the Export
   menu closed under a pointer in its own portaled dialog, hiding the focus-return trigger

@@ -103,6 +103,8 @@ function treeReadCode(refusal: RefusalOf<'getApiProjectsByIdWork-items'>): strin
     case 'invalid_body':
     case 'invalid_json':
     case 'unauthenticated':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'not_found':
     case 'engine_unavailable':
       return refusal.error;
@@ -124,6 +126,8 @@ function historyCode(refusal: RefusalOf<'postApiProjectsByIdUndo'>): string {
     case 'not_found':
     case 'nothing_to_undo':
     case 'stale_undo':
+    case 'no_active_organization':
+    case 'not_a_member':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -139,6 +143,8 @@ function markerListCode(refusal: RefusalOf<'getApiProjectsByIdCalendar-markers'>
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'forbidden':
     case 'not_found':
     case 'taken':
@@ -157,6 +163,8 @@ function markerWriteCode(refusal: RefusalOf<'postApiProjectsByIdCalendar-markers
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'forbidden':
     case 'not_found':
     case 'taken':
@@ -179,6 +187,8 @@ function markerRemoveCode(
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'forbidden':
     case 'not_found':
     case 'taken':
@@ -196,6 +206,8 @@ function stepWriteCode(refusal: RefusalOf<'postApiProjectsByIdSteps'>): string {
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'forbidden':
     case 'not_found':
     case 'invalid_json':
@@ -220,6 +232,8 @@ function stepRemoveCode(refusal: RefusalOf<'deleteApiProjectsByIdStepsByStepId'>
     case 'unauthenticated':
     case 'invalid_origin':
     case 'insufficient_scope':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'forbidden':
     case 'not_found':
     case 'invalid_body':
@@ -359,6 +373,8 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'in_use':
     case 'calendar_range':
     case 'deadline_before_project_start':
+    case 'no_active_organization':
+    case 'not_a_member':
     case 'allowancePercent_must_be_0_to_1000_with_two_decimals':
       return refusal.error;
     default:

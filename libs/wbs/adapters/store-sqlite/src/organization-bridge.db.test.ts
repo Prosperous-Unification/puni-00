@@ -19,6 +19,11 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
 /** The activation marker, the folder stamped just below the bridge. */
 const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
+/**
+ * The newest: the triggers that freeze organization ownership, stamped after
+ * {@link ORGANIZATION_BRIDGE} and reversed before it.
+ */
+const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
 
 let dir: string;
 let path: string;
@@ -218,9 +223,12 @@ describe('the legacy bridge before activation', () => {
       "UPDATE tag SET name = 'moved' WHERE id = 't1'",
     ]);
     // The legacy side row still says `urgent 1`, so a new tag of that name cannot be mapped.
+    // The ownership freeze refuses the name before the unique index would.
     expect(() => {
       run(["INSERT INTO tag (id, name) VALUES ('t9', 'urgent 1')"]);
-    }).toThrow('UNIQUE constraint failed: tag_organization.organization_id, tag_organization.name');
+    }).toThrow(
+      'organization ownership is immutable: tag_organization already maps this root or name',
+    );
     expect(rows("SELECT id FROM tag WHERE id = 't9'")).toEqual([]);
   });
 
@@ -320,7 +328,10 @@ describe('the legacy bridge after activation', () => {
 describe('20260927190000_add_organization_bridge', () => {
   it('rolls back to no triggers, keeping mappings and legacy writes working', async () => {
     run([LEGACY, ...writeRoots('1')]);
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toEqual([ORGANIZATION_BRIDGE]);
+    expect(rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toEqual([
+      ORGANIZATION_FROZEN,
+      ORGANIZATION_BRIDGE,
+    ]);
     expect(
       rows("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE '%_bridge'"),
     ).toEqual([]);
