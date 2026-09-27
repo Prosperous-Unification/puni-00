@@ -48,9 +48,9 @@
 
 ## 6b. Capture saved-plan history
 
-- [ ] 6b.1 Red: a later step reorder or relationship edit does not change a saved-plan read.
-- [ ] 6b.2 Capture typed IDs, scopes, steps and type for immutable read/display.
-- [ ] 6b.3 Negative proof: resolve history against live steps; watch saved-plan test fail, restore, add adjacent `Proof:`.
+- [x] 6b.1 Red: a later step reorder or relationship edit does not change a saved-plan read.
+- [x] 6b.2 Capture typed IDs, scopes, steps and type for immutable read/display.
+- [x] 6b.3 Negative proof: resolve history against live typed rows, omit captured rows, and drop them from scheduling; watch saved-plan and schedule tests fail, restore, add adjacent `Proof:`.
 
 ## 6c. Expose working-plan mutations
 
