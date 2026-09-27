@@ -534,7 +534,9 @@ const batchRefusals = [
  * Proof: with both address fields required, `tree boundary refuses missing core
  * producer fields while allowing additive metadata` failed on `must have
  * required property 'addressRevision'` and `must have required property
- * 'stepNodes'`; watched 2026-09-27.
+ * 'stepNodes'`; watched 2026-09-27. With `addressRevision` and `reference`
+ * widened to `unknown`, the same test's malformed-present cases failed on
+ * `Expected issues, Received: undefined`; watched 2026-09-27.
  */
 export const getWorkItems = defineEndpointShape({
   method: 'GET',
@@ -601,7 +603,7 @@ export const getStepReference = defineEndpointShape({
         type({
           error: "'unresolvable_reference'",
           reason:
-            "'malformed' | 'unknown_work_item' | 'parent' | 'unknown_code' | 'alias_mismatch'",
+            "'malformed' | 'unknown_work_item' | 'ambiguous_work_item' | 'parent' | 'unknown_code' | 'alias_mismatch'",
         }),
       ),
     },

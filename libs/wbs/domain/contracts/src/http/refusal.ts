@@ -269,7 +269,13 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     stale_undo: { detail: string | null };
     stale_address_revision: { addressRevision: string };
     unresolvable_reference: {
-      reason: 'malformed' | 'unknown_work_item' | 'parent' | 'unknown_code' | 'alias_mismatch';
+      reason:
+        | 'malformed'
+        | 'unknown_work_item'
+        | 'ambiguous_work_item'
+        | 'parent'
+        | 'unknown_code'
+        | 'alias_mismatch';
     };
     malformed: { field: 'body' | 'markerId' | 'date' | 'name' | 'color' };
     contrast: { field: 'color' };

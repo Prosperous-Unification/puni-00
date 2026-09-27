@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { expect, test } from 'bun:test';
 
 import type { Digest } from '../../ports/runtime';
-import { addressSpaceOf, readStepAddresses } from './step-addresses';
+import { buildAddressSpace, readStepAddresses } from './step-addresses';
 
 const digest: Digest = {
   sha256: (bytes) => Promise.resolve(createHash('sha256').update(bytes).digest('hex')),
@@ -28,7 +28,7 @@ test('reads only leaf nodes in step order, with effective numbers and null for u
     { id: `sn1.${leafId}.${qaId}`, workItemId: leafId, stepId: qaId, reference: null },
   ]);
   expect(addresses.addressRevision).toMatch(/^ar1:[0-9a-f]{64}$/);
-  expect(addressSpaceOf(workItems, steps).workItems).toEqual([
+  expect(buildAddressSpace(workItems, steps).workItems).toEqual([
     { id: parentId, number: '010', isLeaf: false },
     { id: leafId, number: '010.1', isLeaf: true },
   ]);
