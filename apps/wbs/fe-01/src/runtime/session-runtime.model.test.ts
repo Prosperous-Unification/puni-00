@@ -1,12 +1,12 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import type { ProjectStreamDeps } from '@/lib/project-stream';
 import type { DirectoryApi, PersonView } from '@/lib/wbs-api';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
 import type { DirectorySnapshot } from '@/modules/directory-management/contract';
 import type { ProjectRuntime } from '@/modules/project/contract';
 import { fakeProjectApi } from '@/testing/fake-project-api';
+import { SILENT_STREAM } from '@/testing/silent-stream';
 
 import { credentialOf } from './credential';
 import { PartialAcquisitionError } from './lifetime-slot';
@@ -105,22 +105,6 @@ interface SessionWorld {
   next: number;
   projectsBuilt: number;
 }
-
-/**
- * Every project's socket: never opens, never closes, sends nowhere.
- *
- * The model is about lifetimes, not the stream, so a socket that stays
- * connecting is all it needs. Left out, the browser's own opener ran: a real
- * socket to the dev server under the DOM tier, and under `node` an unhandled
- * `ReferenceError` for the page's address from every project it opened. (This
- * file names no browser global, so `test-tiers.test.ts` keeps it in the node tier.)
- */
-const silentStream: ProjectStreamDeps = {
-  openSocket: () => ({ send: () => undefined, close: () => undefined }),
-  schedule: () => 0,
-  cancel: () => undefined,
-  random: () => 0,
-};
 
 /** The credential the model hands a sign-in whose installation it makes fail. */
 const BROKEN = 'broken';
@@ -567,7 +551,7 @@ describe('the session owner, against a reference model', () => {
             projectClientFor: () => fakeProjectApi(),
             // Proof: without this line (2026-09-27) `nx run wbs-fe-01:test:unit` exited 1
             // with 29 unhandled `ReferenceError`s for the page's address from this file.
-            streamDeps: silentStream,
+            streamDeps: SILENT_STREAM,
             install: (dependencies) => {
               const record = world.byClient.get(dependencies.directoryApi);
               if (record === undefined) throw new Error('a session was installed from no client');
