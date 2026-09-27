@@ -67,6 +67,33 @@ consistent URLs` (http.test.ts) checks status, JSON content type and resource/is
 - Not proven: which callback a ChatGPT connection displays, and that Claude, VS Code and
   Perplexity accept the added `iss` parameter. Both need the live client acceptance run.
 
+### 2b. Registration keeps the listed subset (mcp-registration-callbacks, 2026-09-27)
+
+- Found by the import-guide lane: one unlisted URI refused a whole registration, so VS Code
+  (lists `https://insiders.vscode.dev/redirect` first) could not sign in natively. Decided with
+  Astra (gpt-6-astra, high): list Insiders exactly; register only the listed subset and return it
+  (RFC 7591 §3.2.1), refusing when nothing is left; refuse malformed entries atomically; keep
+  `cursor://` out (RFC 8252 §7.1 dotless private-use scheme, MCP requires HTTPS or loopback); keep
+  a pre-set loopback `state` refused (Continue signs in with a URI other than the one it
+  registers, so admitting it would not help).
+- `isMalformedRedirect` refuses the list; `isListedRedirect` filters it. Authorization and token
+  exchange still compare exact strings.
+- New tests in `OAuth client redirects`: VS Code's four callbacks, a mixed list registering only
+  `https://vscode.dev/redirect` with authorization refused (400, no `Location`) for the dropped
+  `cursor://` and `https://evil.example/callback`, an all-unlisted list, 17 malformed entries
+  (null, a number, relative, not a URI, 513 bytes, credentials, fragment, empty fragment, planted
+  `code`/`%63ode`/`state`/doubled `state`/`iss`/`error`/`error_description`/`error_uri`, planted
+  `code` on an unlisted host), and ten near-misses for Insiders and Cursor.
+  `env -u CLAUDECODE bun test` in apps/wbs/mcp-01: 316 pass, 0 fail.
+- R5 proofs, each observed failing then restored: no malformed check failed all 17 malformed
+  cases (`Received: 201`); registering the list unfiltered failed the mixed-list test and 36
+  near-misses; no fragment test failed both fragment cases; no response-field test failed 13
+  planted-field cases; no empty-subset check failed the all-unlisted test and the near-misses;
+  no Insiders entry failed the hosted and VS Code tests.
+- Not proven: a live VS Code or VS Code Insiders sign-in. VS Code signs in on
+  `http://127.0.0.1:33418/` or a hosted callback; on another loopback port exact matching
+  refuses it.
+
 ### 3. Write scope
 
 - mcp-01 forwards the caller's upstream IdP token, whose groups are the account's full grant, so

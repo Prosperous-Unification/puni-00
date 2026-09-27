@@ -114,7 +114,7 @@ async function register(oauth: InMemoryMcpOAuth): Promise<string> {
 
 async function registrationResponse(
   oauth: InMemoryMcpOAuth,
-  redirectUris: readonly string[],
+  redirectUris: readonly unknown[],
   source = '203.0.113.1',
 ): Promise<Response> {
   const response = await oauth.response(
@@ -1680,6 +1680,7 @@ describe('OAuth client redirects', () => {
     'https://claude.ai/api/mcp/auth_callback',
     'https://claude.com/api/mcp/auth_callback',
     'https://vscode.dev/redirect',
+    'https://insiders.vscode.dev/redirect',
     'https://www.perplexity.ai/rest/connections/oauth_callback',
     'https://enterprise.perplexity.ai/rest/connections/oauth_callback',
   ];
@@ -1720,6 +1721,16 @@ describe('OAuth client redirects', () => {
     'https://vscode.dev/redirect#fragment',
     'https://user:secret@vscode.dev/redirect',
     'https://vscode.dev/a/../redirect',
+    'https://insiders.vscode.dev.evil.example/redirect',
+    'https://evilinsiders.vscode.dev/redirect',
+    'https://INSIDERS.vscode.dev/redirect',
+    'https://insiders.vscode.dev:443/redirect',
+    'http://insiders.vscode.dev/redirect',
+    'https://insiders.vscode.dev/redirect/',
+    'https://insiders.vscode.dev/redirect?next=1',
+    'https://insiders.vscode.dev/a/../redirect',
+    'https://exploration.vscode.dev/redirect',
+    'cursor://anysphere.cursor-mcp/oauth/callback',
     'https://perplexity.ai/rest/connections/oauth_callback',
     'https://www.perplexity.ai.evil.example/rest/connections/oauth_callback',
     'https://chatgpt.com/connector_platform_oauth_redirect',
@@ -1745,6 +1756,84 @@ describe('OAuth client redirects', () => {
   ])('refuses the near-miss callback %s', async (uri) => {
     const { oauth } = fixture();
     const response = await registrationResponse(oauth, [uri]);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'invalid_redirect_uri' });
+  });
+
+  it('registers every callback VS Code sends, Insiders included', async () => {
+    const { oauth } = fixture();
+    const vscode = [
+      'https://insiders.vscode.dev/redirect',
+      'https://vscode.dev/redirect',
+      'http://127.0.0.1/',
+      'http://127.0.0.1:33418/',
+    ];
+    const response = await registrationResponse(oauth, vscode);
+
+    expect(response.status).toBe(201);
+    expect(((await response.json()) as { redirect_uris: string[] }).redirect_uris).toEqual(vscode);
+  });
+
+  // RFC 7591 §3.2.1 lets the server replace requested metadata; the response is the registration.
+  it('registers only the listed callbacks of a mixed list and refuses the dropped one', async () => {
+    const { oauth } = fixture();
+    const cursor = 'cursor://anysphere.cursor-mcp/oauth/callback';
+    const response = await registrationResponse(oauth, [
+      cursor,
+      'https://evil.example/callback',
+      'https://vscode.dev/redirect',
+      'http://127.1:8080/callback',
+    ]);
+    expect(response.status).toBe(201);
+    const registration = (await response.json()) as { client_id: string; redirect_uris: string[] };
+    expect(registration.redirect_uris).toEqual(['https://vscode.dev/redirect']);
+
+    for (const dropped of [cursor, 'https://evil.example/callback']) {
+      const refused = await oauth.response(
+        new Request(authorizeUrl(registration.client_id, dropped)),
+      );
+      expect(refused?.status).toBe(400);
+      expect(refused?.headers.get('location')).toBeNull();
+      expect(await refused?.json()).toEqual({ error: 'invalid_request' });
+    }
+  });
+
+  it('refuses a list whose every callback is unlisted', async () => {
+    const { oauth } = fixture();
+    const response = await registrationResponse(oauth, [
+      'cursor://anysphere.cursor-mcp/oauth/callback',
+      'https://evil.example/callback',
+    ]);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'invalid_redirect_uri' });
+  });
+
+  // A malformed entry refuses the whole list rather than being dropped: it signals a broken or
+  // hostile client, and a planted response field would reach a listed loopback's own parser.
+  it.each([
+    ['null', null],
+    ['a number', 42],
+    ['a relative reference', '/oauth/callback'],
+    ['no URI at all', 'not a uri'],
+    [
+      'a 513-byte URI',
+      `http://127.0.0.1:8080/${'x'.repeat(513 - 'http://127.0.0.1:8080/'.length)}`,
+    ],
+    ['credentials', 'https://user:secret@evil.example/callback'],
+    ['a fragment', 'https://evil.example/callback#fragment'],
+    ['an empty fragment', 'http://127.0.0.1:8080/callback#'],
+    ['a planted code', 'http://127.0.0.1:8080/callback?code=planted'],
+    ['a percent-encoded planted code', 'http://127.0.0.1:8080/callback?%63ode=planted'],
+    ['a planted state', 'http://localhost:3000/?state=continue-uuid'],
+    ['a doubled state', 'http://localhost:3000/?state=a&%73tate=b'],
+    ['a planted iss', 'http://127.0.0.1:8080/callback?iss=https://idp.example'],
+    ['a planted error', 'http://127.0.0.1:8080/callback?error=access_denied'],
+    ['a planted error_description', 'http://127.0.0.1:8080/callback?error_description=x'],
+    ['a planted error_uri', 'http://127.0.0.1:8080/callback?error_uri=x'],
+    ['an unlisted planted code', 'https://evil.example/callback?code=planted'],
+  ])('refuses the whole list when one callback carries %s', async (_label, malformed) => {
+    const { oauth } = fixture();
+    const response = await registrationResponse(oauth, ['https://vscode.dev/redirect', malformed]);
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: 'invalid_redirect_uri' });
   });
