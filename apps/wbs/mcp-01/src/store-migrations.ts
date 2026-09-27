@@ -103,19 +103,40 @@ function userSchema(db: Database): SchemaObject[] {
 }
 
 /**
- * True only when `db` holds exactly the objects the baseline migration creates: every table,
- * column, constraint and index, and nothing else. The pre-ledger constructor created that schema
- * with `IF NOT EXISTS`, which SQLite keeps in `sqlite_master`, so it is stripped before comparing.
+ * True only when `db` holds exactly the objects `migrations` create, plus the ledger when
+ * `withLedger`: every table, column, constraint, index and trigger, and nothing else. The
+ * pre-ledger constructor created the baseline with `IF NOT EXISTS`, which SQLite keeps in
+ * `sqlite_master`, so it is stripped before comparing.
  */
-function isExactBaseline(db: Database, baseline: McpStoreMigration): boolean {
+function matchesMigrations(
+  db: Database,
+  migrations: readonly McpStoreMigration[],
+  withLedger: boolean,
+): boolean {
   const reference = new Database(':memory:');
   try {
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- multi-statement migration text
-    reference.exec(baseline.up);
+    if (withLedger) reference.exec(LEDGER);
+    for (const migration of migrations) {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- multi-statement migration text
+      reference.exec(migration.up);
+    }
     return JSON.stringify(userSchema(db)) === JSON.stringify(userSchema(reference));
   } finally {
     reference.close();
   }
+}
+
+/** Refuses a ledgered store whose objects differ from what its recorded migrations create. */
+function assertSchemaMatchesHistory(
+  db: Database,
+  migrations: readonly McpStoreMigration[],
+  applied: number,
+): void {
+  // Proof: 2026-09-27, with this check removed `refuses a ledgered store whose schema drifted`
+  // opened a store without mcp_refresh and one with an unconstrained epoch table.
+  if (!matchesMigrations(db, migrations.slice(0, applied), true))
+    throw new McpStoreRefused('MCP store schema differs from the migrations its ledger records');
 }
 
 interface LedgerRow {
@@ -192,8 +213,8 @@ export function migrateMcpStore(
           'MCP store exists but is empty; it was not created by this start',
         );
       // Proof: 2026-09-27, with the comparison removed `refuses a partial pre-ledger store` failed:
-      // a store without mcp_refresh was adopted and opened.
-      if (!empty && !isExactBaseline(db, baseline))
+      // the partial store was adopted and only the later history check refused it, as drift.
+      if (!empty && !matchesMigrations(db, [baseline], false))
         throw new McpStoreRefused(
           'MCP store has no migration ledger and is not exactly the baseline schema',
         );
@@ -206,6 +227,7 @@ export function migrateMcpStore(
       record(db, baseline);
     }
     const applied = verifiedHistory(db, migrations).length;
+    assertSchemaMatchesHistory(db, migrations, applied);
     for (const migration of migrations.slice(applied)) {
       // eslint-disable-next-line @typescript-eslint/no-deprecated -- multi-statement DDL
       db.exec(migration.up);
@@ -231,6 +253,7 @@ export function rollbackMcpStore(
     .transaction(() => {
       if (!hasLedger(db)) throw new McpStoreRefused('MCP store has no migration ledger');
       const applied = verifiedHistory(db, migrations);
+      assertSchemaMatchesHistory(db, migrations, applied.length);
       const keep = applied.findIndex((row) => row.name === to);
       if (keep === -1) throw new McpStoreRefused(`MCP store has not applied ${to}`);
       const reversed: string[] = [];
@@ -261,8 +284,8 @@ export function readCredentialEpoch(db: Database): number {
       )
       .all();
   } catch (cause) {
-    // Proof: 2026-09-27, returning 0 here made `refuses startup on a missing table without
-    // reseeding` open the store.
+    // Proof: 2026-09-27, returning 0 here made `refuses an unreadable epoch table instead of
+    // defaulting it` read epoch 0 from a database without the table.
     throw new McpStoreRefused('MCP credential epoch is unreadable', { cause });
   }
   const row = rows.at(0);

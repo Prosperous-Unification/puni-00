@@ -98,40 +98,60 @@ describe('MCP store migrations', () => {
     expect(withDb(path, readCredentialEpoch)).toBe(0);
   });
 
-  it('adopts an exact legacy store and keeps its credentials usable', () => {
+  it('adopts an exact legacy store and keeps its sessions and refresh tokens usable', () => {
     const scratch = storePath();
     const writer = new McpSessionStore(scratch, [KEY]);
     writer.createFamily(familyInput('legacy'), 'legacy-session', NOW + 60_000, 'legacy-refresh');
     writer.close();
-    const ciphertext = withDb(scratch, (db) =>
-      db.query<{ ct: Uint8Array }, []>('SELECT upstream_access_ct AS ct FROM mcp_family').get(),
-    )?.ct;
     const path = legacyStore();
-    withDb(path, (db) =>
-      db
-        .query(
-          `INSERT INTO mcp_family (family_id, client_id, subject, scope, upstream_access_ct,
-            upstream_expires_at, idle_expires_at, absolute_expires_at, version)
-            VALUES ('legacy', 'client-1', 'subject-1', 'wbs:read', ?, 1, ?, ?, 0)`,
-        )
-        .run(ciphertext ?? null, NOW + 120_000, NOW + 240_000),
-    );
+    withDb(path, (db) => {
+      db.run(`ATTACH DATABASE '${scratch}' AS scratch`);
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- fixture copy of legacy rows
+      db.exec(`
+        INSERT INTO mcp_family SELECT family_id, client_id, subject, scope, upstream_access_ct,
+          upstream_refresh_ct, upstream_expires_at, upstream_refreshed_at, idle_expires_at,
+          absolute_expires_at, revoked_at, lease_owner, lease_until, version
+          FROM scratch.mcp_family;
+        INSERT INTO mcp_session SELECT jti, family_id, expires_at FROM scratch.mcp_session;
+        INSERT INTO mcp_refresh SELECT * FROM scratch.mcp_refresh;`);
+      db.run('DETACH DATABASE scratch');
+    });
     const store = new McpSessionStore(path, [KEY]);
     expect(ledger(path)).toEqual([BASELINE, BINDING]);
-    expect(store.family('legacy')?.upstreamAccessToken).toBe('legacy-access');
-    store.createFamily(familyInput('family-2'), 'session-2', NOW + 60_000, 'refresh-2');
+    const legacy = store.familyForSession('legacy-session', NOW);
+    expect(legacy?.upstreamAccessToken).toBe('legacy-access');
+    expect(legacy?.upstreamRefreshToken).toBe('legacy-refresh');
     expect(
       store.consumeRefresh(
-        'refresh-2',
+        'legacy-refresh',
         'client-1',
-        'refresh-3',
-        'session-3',
+        'legacy-successor',
+        'legacy-session-2',
         NOW + 60_000,
         NOW + 120_000,
         NOW,
       ).outcome,
     ).toBe('ok');
+    expect(store.familyForSession('legacy-session-2', NOW)?.credentialEpoch).toBe(0);
     store.close();
+  });
+
+  it.each([
+    ['a missing table', 'DROP TABLE mcp_refresh'],
+    [
+      'an unconstrained epoch table',
+      `DROP TABLE mcp_credential_epoch;
+       CREATE TABLE mcp_credential_epoch (singleton INTEGER PRIMARY KEY, epoch INTEGER);
+       INSERT INTO mcp_credential_epoch VALUES (1, 0);`,
+    ],
+  ])('refuses a ledgered store whose schema drifted: %s', (_label, drift) => {
+    const path = storePath();
+    new McpSessionStore(path, [KEY]).close();
+    withDb(path, (db) => {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- fault injection
+      db.exec(drift);
+    });
+    expect(() => new McpSessionStore(path, [KEY])).toThrow(/schema differs from the migrations/);
   });
 
   it('refuses a partial pre-ledger store', () => {
@@ -335,6 +355,11 @@ describe('MCP credential bindings', () => {
       'UPDATE mcp_credential_epoch SET epoch = 1; UPDATE mcp_credential_epoch SET epoch = 0',
       /cannot decrease/,
     ],
+    [
+      'replaced epoch',
+      'UPDATE mcp_credential_epoch SET epoch = 1; INSERT OR REPLACE INTO mcp_credential_epoch VALUES (1, 0)',
+      /seeded once/,
+    ],
   ])('rejects a %s', (_label, statement, message) => {
     const { path, store } = freshStore();
     store.createFamily(familyInput('family-1', BOUND), 'session-1', NOW + 60_000, 'refresh-1');
@@ -382,23 +407,36 @@ describe('MCP credential epoch at startup', () => {
   }
 
   it.each([
-    ['missing table', 'DROP TABLE mcp_credential_epoch', /unreadable/],
+    ['missing table', 'DROP TABLE mcp_credential_epoch', /schema differs from the migrations/],
     [
       'missing row',
       'DROP TRIGGER mcp_credential_epoch_no_delete; DELETE FROM mcp_credential_epoch',
-      /missing or malformed/,
+      /credential epoch is missing or malformed/,
     ],
     [
       'malformed value',
       "PRAGMA ignore_check_constraints = ON; UPDATE mcp_credential_epoch SET epoch = 'zero'",
-      /missing or malformed/,
+      /credential epoch is missing or malformed/,
     ],
-    ['unsupported epoch', 'UPDATE mcp_credential_epoch SET epoch = 1', /epoch 1/],
+    ['unsupported epoch', 'UPDATE mcp_credential_epoch SET epoch = 1', /epoch 1 needs/],
   ])('refuses startup on a %s without reseeding', (_label, fault, message) => {
     const path = migrated();
     withDb(path, (db) => {
+      const triggers = db
+        .query<{ sql: string }, []>(
+          "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'mcp_credential_epoch'",
+        )
+        .all();
       // eslint-disable-next-line @typescript-eslint/no-deprecated -- fault injection
       db.exec(fault);
+      // Restore any guard the fault had to lift, so only the injected state differs.
+      for (const { sql } of triggers) {
+        const name = /TRIGGER (\w+)/.exec(sql)?.[1] ?? '';
+        const present = db
+          .query<{ n: number }, [string]>('SELECT COUNT(*) AS n FROM sqlite_master WHERE name = ?')
+          .get(name)?.n;
+        if (present === 0 && fault !== 'DROP TABLE mcp_credential_epoch') db.run(sql);
+      }
     });
     const before = withDb(path, (db) =>
       db.query("SELECT sql FROM sqlite_master WHERE name = 'mcp_credential_epoch'").all(),
@@ -409,6 +447,14 @@ describe('MCP credential epoch at startup', () => {
         db.query("SELECT sql FROM sqlite_master WHERE name = 'mcp_credential_epoch'").all(),
       ),
     ).toEqual(before);
+  });
+});
+
+describe('readCredentialEpoch', () => {
+  it('refuses an unreadable epoch table instead of defaulting it', () => {
+    const db = new Database(':memory:');
+    expect(() => readCredentialEpoch(db)).toThrow(/credential epoch is unreadable/);
+    db.close();
   });
 });
 
@@ -453,6 +499,10 @@ describe('MCP store rollback', () => {
       expect(rollbackMcpStore(db, BASELINE, at)).toEqual([BINDING]);
       expect(db.query('SELECT family_id FROM mcp_family').all()).toEqual([{ family_id: 'legacy' }]);
       expect(db.query('SELECT jti FROM mcp_session').all()).toEqual([{ jti: 'legacy-session' }]);
+      expect(db.query('SELECT family_id FROM mcp_refresh').all()).toEqual([
+        { family_id: 'legacy' },
+      ]);
+      expect(db.query('PRAGMA foreign_key_check').all()).toEqual([]);
     });
     expect(ledger(path)).toEqual([BASELINE]);
     const reopened = new McpSessionStore(path, [KEY]);

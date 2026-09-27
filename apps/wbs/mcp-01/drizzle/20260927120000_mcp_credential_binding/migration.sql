@@ -34,12 +34,17 @@ CREATE TABLE mcp_credential_epoch (
 );
 INSERT INTO mcp_credential_epoch (singleton, epoch) VALUES (1, 0);
 -- Proof: 2026-09-27, disabling each trigger below in turn made its store-migrations.test.ts case
--- pass the fault: deleted epoch, decreased epoch, family at a future epoch, changed family
+-- pass the fault: deleted epoch, replaced epoch, decreased epoch, family at a future epoch, changed family
 -- binding, session unlike its family, unbound session of a bound family, refresh of a family
 -- issued before the epoch advanced, and changed session binding.
 CREATE TRIGGER mcp_credential_epoch_no_delete BEFORE DELETE ON mcp_credential_epoch
 BEGIN
   SELECT RAISE(ABORT, 'mcp_credential_epoch cannot be deleted');
+END;
+CREATE TRIGGER mcp_credential_epoch_no_replace BEFORE INSERT ON mcp_credential_epoch
+WHEN EXISTS (SELECT 1 FROM mcp_credential_epoch)
+BEGIN
+  SELECT RAISE(ABORT, 'mcp_credential_epoch is seeded once');
 END;
 CREATE TRIGGER mcp_credential_epoch_no_decrease BEFORE UPDATE ON mcp_credential_epoch
 WHEN NEW.singleton IS NOT OLD.singleton OR NEW.epoch < OLD.epoch
