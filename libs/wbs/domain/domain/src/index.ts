@@ -123,4 +123,5 @@ export * from './step-reference';
 // of those are drawn on the same screen.
 export * from './stored-vocabularies';
 export * from './tree-order';
+export * from './typed-dependency';
 export * from './workday';
