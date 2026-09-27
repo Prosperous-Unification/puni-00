@@ -1330,6 +1330,13 @@ export class WorkItemService {
     this.clock = opts.clock;
   }
 
+  /** Whether a batch target is currently a row of this project, including rows created earlier in the batch. */
+  async hasWorkItemInProject(projectId: string, workItemId: string): Promise<boolean> {
+    return (await this.opts.workItems.listByIds(projectId, [workItemId])).some(
+      (row) => row.id === workItemId && row.projectId === projectId,
+    );
+  }
+
   /** Reads only effective numbers and project steps for revision-bound references. */
   async addresses(projectId: string): Promise<{
     workItems: { id: string; parentId: string | null; number: string }[];

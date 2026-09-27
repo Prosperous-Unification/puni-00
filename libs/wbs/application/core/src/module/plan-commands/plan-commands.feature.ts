@@ -386,6 +386,16 @@ export class PlanCommandRunner {
     const applied: AppliedCommand[] = [];
     for (const [index, command] of commands.entries()) {
       const context = new CommandContext(actorId, projectId, index, command.kind, refs);
+      // Proof: removing this check made the mounted cross-project estimate test fail:
+      // Expected: 404 / Received: 200 (2026-09-27).
+      if (
+        projectId !== null &&
+        'workItemId' in command &&
+        typeof command.workItemId === 'string' &&
+        !(await graph.workItems.hasWorkItemInProject(projectId, command.workItemId))
+      ) {
+        context.refuse({ reason: 'not_found' });
+      }
       applied.push(await applyCommand(bindings, command, context));
     }
     return applied;

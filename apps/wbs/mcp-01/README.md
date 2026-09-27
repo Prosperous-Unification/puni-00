@@ -20,8 +20,9 @@ of them — and the four calendar-marker routes that list, add, edit and delete 
 dated annotation on a project's axis. The marker writes are not batched with the
 rest: a marker is not a plan edit, so no `commands` command creates one. One call
 also retries a failed or corrupt optimized variant; Retry is a project lifecycle
-action with no plan-command equivalent. One call
-drafts a plan:
+action with no plan-command equivalent. Step edits may address a node with
+`stepNodeId` from a work-item read instead of the `workItemId`/`workItemRef`
+and `stepId` pair. One call drafts a plan:
 
 ```json
 {
