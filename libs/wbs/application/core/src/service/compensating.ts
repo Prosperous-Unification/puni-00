@@ -160,8 +160,6 @@ export interface DeleteSubtree {
    * row is how "nobody has said" is spelled in every unit.
    */
   setMeasures: StoredMeasure[];
-  /** New journals carry assignments handed down on create; old journals omit them because older creates moved none. */
-  setAssignments?: Assignment[];
 }
 
 /**
@@ -221,8 +219,6 @@ export interface RestoreSubtree {
   assignments: Assignment[];
   /** New journals carry the parent-to-child node IDs; old journals omit them because older creates recorded no mapping. */
   stepNodeMapping?: { from: string; to: string }[];
-  /** New journals clear assignments from the parent on redo; old journals omit them because older creates moved none. */
-  removedAssignments?: { workItemId: string; stepId: string }[];
   /** Edges with both ends inside the branch: restored with it, in the same write. */
   internalDependencies: StoredDependency[];
   /**
@@ -397,6 +393,8 @@ export function touchedBy(command: CompensatingCommand): string[] {
     case 'set_progress':
     case 'clear_progress':
     case 'assign':
+      // Proof: omitting assignment owners made the SQLite assignment-only redo
+      // conflict test fail at `Expected: 409, Received: 200`; watched 2026-09-27.
       return [command.workItemId];
     case 'add_dependency':
     case 'remove_dependency':

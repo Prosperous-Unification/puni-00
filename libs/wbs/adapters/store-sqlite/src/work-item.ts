@@ -1131,13 +1131,6 @@ export class SubtreeRepository implements SubtreeStore {
             )
             .run();
         }
-        for (const taken of copy.removedAssignments ?? []) {
-          tx.delete(assignment)
-            .where(
-              and(eq(assignment.workItemId, taken.workItemId), eq(assignment.stepId, taken.stepId)),
-            )
-            .run();
-        }
         bumpWorkItems(
           tx,
           [

@@ -477,16 +477,26 @@ describe('work item routes', () => {
     const entry = (await journal.entriesFor(projectId, actorId)).at(-1);
     expect(entry?.payload).toMatchObject({
       forward: {
-        stepNodeMapping: [
-          { from: originalNodeId, to: childNodeId },
-          { from: `sn1.${parentId}.${qaId}`, to: `sn1.${childId}.${qaId}` },
+        do: 'batch',
+        steps: [
+          {
+            do: 'restore_subtree',
+            stepNodeMapping: [
+              { from: originalNodeId, to: childNodeId },
+              { from: `sn1.${parentId}.${qaId}`, to: `sn1.${childId}.${qaId}` },
+            ],
+            assignments: [{ workItemId: childId, stepId: devId, personId }],
+          },
+          { do: 'assign', workItemId: parentId, stepId: devId, personId: null },
         ],
-        assignments: [{ workItemId: childId, stepId: devId, personId }],
-        removedAssignments: [{ workItemId: parentId, stepId: devId }],
       },
     });
     expect(entry?.inverse).toMatchObject({
-      setAssignments: [{ workItemId: parentId, stepId: devId, personId }],
+      do: 'batch',
+      steps: [
+        { do: 'delete_subtree', rootId: childId },
+        { do: 'assign', workItemId: parentId, stepId: devId, personId },
+      ],
     });
     const expectFacts = async (ownerId: string, nodeId: string) => {
       const tree = await read();
@@ -599,10 +609,7 @@ describe('work item routes', () => {
     const entry = (await journal.entriesFor(projectId, actorId)).at(-1);
     if (entry === undefined) throw new Error('create journal absent');
     const forward = (entry.payload as { forward: Record<string, unknown> }).forward;
-    const inverse = entry.inverse as Record<string, unknown>;
     delete forward['stepNodeMapping'];
-    delete forward['removedAssignments'];
-    delete inverse['setAssignments'];
     expect((await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' })).status).toBe(
       200,
     );

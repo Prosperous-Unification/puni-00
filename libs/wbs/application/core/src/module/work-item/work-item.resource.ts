@@ -2027,75 +2027,100 @@ export class WorkItemService {
       }
     }
     await this.announceTree(projectId);
+    const forward: CompensatingCommand = {
+      do: 'restore_subtree',
+      rows: [workItem],
+      rootPosition: workItem.position,
+      reparented: [],
+      estimates: handedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+      actuals: recordedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+      progress: statedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+      measures: measuredHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+      assignments: assignedHandedDown.map((assignment) => ({
+        ...assignment,
+        workItemId: workItem.id,
+      })),
+      // Proof: removing this field failed `hands a first child every Dev fact and Ann`
+      // at `expect(received).toMatchObject(expected)`: forward.stepNodeMapping absent; watched 2026-09-27.
+      stepNodeMapping,
+      internalDependencies: [],
+      externalDependencies: [],
+      removedEstimates: handedDown.map((each) => ({
+        workItemId: each.workItemId,
+        stepId: each.stepId,
+      })),
+      removedActuals: recordedHandedDown.map((each) => ({
+        workItemId: each.workItemId,
+        stepId: each.stepId,
+      })),
+      removedProgress: statedHandedDown.map((each) => ({
+        workItemId: each.workItemId,
+        stepId: each.stepId,
+      })),
+      // The metric rides along, unlike the three above: these keys are
+      // triples, and a pair here would take every figure off the parent
+      // rather than the ones this create handed down.
+      removedMeasures: measuredHandedDown.map((each) => ({
+        workItemId: each.workItemId,
+        stepId: each.stepId,
+        metric: each.metric,
+      })),
+    };
+    const inverse: CompensatingCommand = {
+      do: 'delete_subtree',
+      rootId: workItem.id,
+      // Exactly this row and nothing else. A work item somebody has since
+      // built under is not one this undo may take away, and its own revision
+      // would not say so — a child is a row of its own.
+      expectedSubtree: [workItem.id],
+      remove: [workItem.id],
+      reparented: [],
+      setEstimates: handedDown,
+      // Back to the row they came from, exactly as they were. Re-applying
+      // this create's own undo is what runs it.
+      setActuals: recordedHandedDown,
+      // And the statements, back on the row they came from. Undoing this
+      // create makes the parent a leaf again, and a leaf reports what it
+      // holds — including whether its work is finished.
+      setProgress: statedHandedDown,
+      // And the figures that are not days, back on the row they came from.
+      // Undoing this create makes the parent a leaf again, and a leaf reports
+      // what it holds — in every unit, not the one the scheduler reads.
+      setMeasures: measuredHandedDown,
+    };
+    // The subtree commands remain readable by older binaries. Assignment changes
+    // are ordinary journal steps, so their owners also enter undo/redo revisions.
     await this.record(projectId, stamp, 'create', `add ${quoteName(workItem.name)}`, {
-      forward: {
-        do: 'restore_subtree',
-        rows: [workItem],
-        rootPosition: workItem.position,
-        reparented: [],
-        estimates: handedDown.map((each) => ({ ...each, workItemId: workItem.id })),
-        actuals: recordedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
-        progress: statedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
-        measures: measuredHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
-        assignments: assignedHandedDown.map((assignment) => ({
-          ...assignment,
-          workItemId: workItem.id,
-        })),
-        removedAssignments: assignedHandedDown.map(({ workItemId, stepId }) => ({
-          workItemId,
-          stepId,
-        })),
-        // Proof: removing this field failed `hands a first child every Dev fact and Ann`
-        // at `expect(received).toMatchObject(expected)`: forward.stepNodeMapping absent; watched 2026-09-27.
-        stepNodeMapping,
-        internalDependencies: [],
-        externalDependencies: [],
-        removedEstimates: handedDown.map((each) => ({
-          workItemId: each.workItemId,
-          stepId: each.stepId,
-        })),
-        removedActuals: recordedHandedDown.map((each) => ({
-          workItemId: each.workItemId,
-          stepId: each.stepId,
-        })),
-        removedProgress: statedHandedDown.map((each) => ({
-          workItemId: each.workItemId,
-          stepId: each.stepId,
-        })),
-        // The metric rides along, unlike the three above: these keys are
-        // triples, and a pair here would take every figure off the parent
-        // rather than the ones this create handed down.
-        removedMeasures: measuredHandedDown.map((each) => ({
-          workItemId: each.workItemId,
-          stepId: each.stepId,
-          metric: each.metric,
-        })),
-      },
-      inverse: {
-        do: 'delete_subtree',
-        rootId: workItem.id,
-        // Exactly this row and nothing else. A work item somebody has since
-        // built under is not one this undo may take away, and its own revision
-        // would not say so — a child is a row of its own.
-        expectedSubtree: [workItem.id],
-        remove: [workItem.id],
-        reparented: [],
-        setEstimates: handedDown,
-        // Back to the row they came from, exactly as they were. Re-applying
-        // this create's own undo is what runs it.
-        setActuals: recordedHandedDown,
-        // And the statements, back on the row they came from. Undoing this
-        // create makes the parent a leaf again, and a leaf reports what it
-        // holds — including whether its work is finished.
-        setProgress: statedHandedDown,
-        // And the figures that are not days, back on the row they came from.
-        // Undoing this create makes the parent a leaf again, and a leaf reports
-        // what it holds — in every unit, not the one the scheduler reads.
-        setMeasures: measuredHandedDown,
-        // Proof: removing this inverse field failed `hands a first child every Dev fact and Ann`
-        // on undo at `Expected: <Ann id>, Received: undefined` for parent.assignees[Dev]; watched 2026-09-27.
-        setAssignments: assignedHandedDown,
-      },
+      forward:
+        assignedHandedDown.length === 0
+          ? forward
+          : {
+              do: 'batch',
+              steps: [
+                forward,
+                ...assignedHandedDown.map(({ workItemId, stepId }) => ({
+                  do: 'assign' as const,
+                  workItemId,
+                  stepId,
+                  personId: null,
+                })),
+              ],
+            },
+      inverse:
+        assignedHandedDown.length === 0
+          ? inverse
+          : {
+              do: 'batch',
+              steps: [
+                inverse,
+                ...assignedHandedDown.map(({ workItemId, stepId, personId }) => ({
+                  do: 'assign' as const,
+                  workItemId,
+                  stepId,
+                  personId,
+                })),
+              ],
+            },
       touched: gainsFirstChild === null ? [workItem.id] : [workItem.id, gainsFirstChild],
       before: rows,
     });
@@ -4236,15 +4261,6 @@ export class WorkItemService {
     // re-applied delete that handed up the days and not the tokens would leave
     // the surviving parent reporting a fortnight of work that cost nothing.
     for (const each of command.setMeasures) await this.opts.measures.set(each, stamp);
-    for (const each of command.setAssignments ?? []) {
-      const assigned = await this.opts.directory.assign(
-        each.workItemId,
-        each.stepId,
-        each.personId,
-        stamp,
-      );
-      if (!assigned.ok) throw new Error(`cannot restore parent assignment: ${assigned.reason}`);
-    }
     return { ok: true, detail: null };
   }
 
@@ -4311,7 +4327,6 @@ export class WorkItemService {
         removedActuals: command.removedActuals,
         removedProgress: command.removedProgress,
         removedMeasures: command.removedMeasures,
-        removedAssignments: command.removedAssignments ?? [],
       },
       stamp,
     );
