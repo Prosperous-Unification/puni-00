@@ -44,7 +44,7 @@ beforeEach(async () => {
   devStepId = crypto.randomUUID();
   await new ProjectRepository(db, OPEN).create(
     projectRow({ id: projectId, ownerId }),
-    [{ id: devStepId, projectId, name: 'Dev', position: 10, code: 'dev' }],
+    [{ id: devStepId, projectId, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 }],
     wrote(),
   );
 });
@@ -107,7 +107,16 @@ describe('TypedDependencyRepository', () => {
     const otherStep = crypto.randomUUID();
     await new ProjectRepository(db, OPEN).create(
       projectRow({ id: otherProject, ownerId }),
-      [{ id: otherStep, projectId: otherProject, name: 'Dev', position: 10, code: 'dev' }],
+      [
+        {
+          id: otherStep,
+          projectId: otherProject,
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+      ],
       wrote(),
     );
     const leaf = await addWorkItem('Leaf');
