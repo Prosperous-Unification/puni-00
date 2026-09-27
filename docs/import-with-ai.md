@@ -44,7 +44,8 @@ that breaks one fails at sign-in, not later.
   Dropped: a custom scheme such as `cursor://…`, ChatGPT's callbacks, and every
   installation-specific hosted callback (Copilot Studio, Mistral, hosted IDEs) until a reviewed
   entry is added for it. The whole registration is refused when any URI is malformed: not an
-  absolute URI of at most 512 bytes, or carrying a user or password, a fragment, or any of
+  RFC 3986 absolute URI of at most 512 bytes (no spaces, control or non-ASCII characters, or
+  bad `%` escapes), or carrying a user or password, a fragment, or any of
   `code`, `state`, `iss`, `error`, `error_description` or `error_uri` in its own query.
   Sign-in must then name one registered URI exactly, port and query included.
 

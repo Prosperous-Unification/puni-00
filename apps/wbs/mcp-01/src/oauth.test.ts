@@ -1831,6 +1831,12 @@ describe('OAuth client redirects', () => {
     ['a planted error_description', 'http://127.0.0.1:8080/callback?error_description=x'],
     ['a planted error_uri', 'http://127.0.0.1:8080/callback?error_uri=x'],
     ['an unlisted planted code', 'https://evil.example/callback?code=planted'],
+    ['an invalid percent escape', 'https://evil.example/%ZZ'],
+    ['a space', 'https://evil.example/a b'],
+    ['a loopback space', 'http://127.0.0.1:8080/a b'],
+    ['a newline', 'https://evil.example/\ncallback'],
+    ['a tab', 'http://127.0.0.1:8080/\tcallback'],
+    ['a non-ASCII character', 'http://127.0.0.1:8080/caf\u00e9'],
   ])('refuses the whole list when one callback carries %s', async (_label, malformed) => {
     const { oauth } = fixture();
     const response = await registrationResponse(oauth, ['https://vscode.dev/redirect', malformed]);

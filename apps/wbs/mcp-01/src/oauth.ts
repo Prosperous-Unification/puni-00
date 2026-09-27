@@ -348,8 +348,8 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       !Array.isArray(requestedRedirects) ||
       requestedRedirects.length === 0 ||
       requestedRedirects.length > MAX_REDIRECT_URIS ||
-      // Proof: on 2026-09-27, dropping this check failed all 17 `refuses the whole list when one
-      // callback carries …` cases, null to planted error_uri (`Received: 201`) (oauth.test.ts).
+      // Proof: on 2026-09-27, dropping this check failed the 17 `refuses the whole list when one
+      // callback carries …` cases then present, null to planted error_uri (`Received: 201`) (oauth.test.ts).
       requestedRedirects.some(isMalformedRedirect)
     ) {
       return oauthError('invalid_redirect_uri');
@@ -1174,12 +1174,18 @@ const HOSTED_REDIRECTS: ReadonlySet<string> = new Set([
 const LOOPBACK_REDIRECT =
   /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::[1-9][0-9]{0,4})?(?:\/[^#]*)?$/;
 
+/**
+ * RFC 3986 URI characters, `#` aside, with percent escapes well formed. `new URL` repairs
+ * spaces, control characters and `%ZZ`, so it cannot be the syntax check.
+ */
+const URI_CHARACTERS = /^(?:[A-Za-z0-9\-._~:/?[\]@!$&'()*+,;=]|%[0-9A-Fa-f]{2})*$/;
+
 /** Authorization-response fields a callback's own query must not pre-set. */
 const RESPONSE_FIELDS = ['code', 'state', 'iss', 'error', 'error_description', 'error_uri'];
 
 /**
  * A requested callback that refuses the whole registration instead of being dropped: not a
- * bounded absolute URI, or carrying credentials, a fragment or a pre-set response field. A
+ * bounded RFC 3986 absolute URI, or carrying credentials, a fragment or a pre-set response field. A
  * pre-set `state` is refused too, so Continue's `http://localhost:3000/?state=…` stays out; it
  * would not help, because Continue then authorizes with the bare `http://localhost:3000`.
  */
@@ -1188,6 +1194,9 @@ function isMalformedRedirect(value: unknown): boolean {
   // Proof: on 2026-09-27, dropping this fragment test failed `refuses the whole list when one
   // callback carries an empty fragment`, which `URL.hash` reports as '' (oauth.test.ts).
   if (value.includes('#')) return true;
+  // Proof: on 2026-09-27, dropping this test failed `refuses the whole list when one callback
+  // carries …` for `%ZZ`, a space, a loopback space, a newline, a tab and `é` (oauth.test.ts).
+  if (!URI_CHARACTERS.test(value)) return true;
   let url: URL;
   try {
     url = new URL(value);

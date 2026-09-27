@@ -90,6 +90,11 @@ consistent URLs` (http.test.ts) checks status, JSON content type and resource/is
   near-misses; no fragment test failed both fragment cases; no response-field test failed 13
   planted-field cases; no empty-subset check failed the all-unlisted test and the near-misses;
   no Insiders entry failed the hosted and VS Code tests.
+- Astra review (gpt-6-astra, high): no Critical. Important fixed: `new URL` repairs `%ZZ`,
+  spaces and control characters, so such entries were dropped (or, on loopback, registered)
+  instead of refusing the list; `URI_CHARACTERS` now checks RFC 3986 syntax first, with six new
+  negatives. Dropping it failed all six. Minor fixed: the mixed-list scenario no longer cites
+  VS Code's fully listed callbacks. 322 mcp-01 tests pass.
 - Not proven: a live VS Code or VS Code Insiders sign-in. VS Code signs in on
   `http://127.0.0.1:33418/` or a hosted callback; on another loopback port exact matching
   refuses it.
