@@ -167,13 +167,6 @@ export default [
     },
   },
 
-  // mcp-01 imports its paired migrations as text; each needs a declaration beside the SQL, inside
-  // a folder named by the `<stamp>_<name>` migration convention that migration lint reads.
-  {
-    files: ['apps/wbs/mcp-01/drizzle/**/*.sql.d.ts'],
-    rules: { 'unicorn/filename-case': 'off' },
-  },
-
   // TypeBox was the handwritten wire-schema authority. The endpoint contract
   // now derives validators and JSON Schema from one ArkType declaration, so a
   // new TypeBox import would recreate the two-authority drift D16 removed.
