@@ -276,9 +276,19 @@ describe('toolsFromDocument, on the generated document', () => {
     const commands = byName(tools, 'postApiProjectsByIdCommands');
     const list = commands.inputSchema.properties['commands'] as {
       items: {
-        anyOf: { description: string; properties: { kind: { const: string } } }[];
+        anyOf: {
+          description: string;
+          properties: { kind: { const: string }; stepNodeId?: { type: string } };
+          required?: string[];
+        }[];
       };
     };
+    const estimate = list.items.anyOf.find(
+      ({ properties }) => properties.kind.const === 'setEstimate',
+    );
+    expect(estimate?.properties.stepNodeId?.type).toBe('string');
+    expect(estimate?.required).not.toContain('stepId');
+    expect(estimate?.description).toContain('stepNodeId');
     // **33 to 36 with `work-item-types`**: `createWorkItemType`,
     // `patchWorkItemType` and `deleteWorkItemType`, the same trio every other
     // directory vocabulary carries. The count is pinned rather than derived so a

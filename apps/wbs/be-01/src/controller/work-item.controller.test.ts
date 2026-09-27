@@ -671,6 +671,214 @@ describe('work item routes', () => {
     });
   });
 
+  it('refuses target work items from another project for estimate and patch commands', async () => {
+    const { token, send, projectId } = await setup();
+    const created = await send('/api/projects', token, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Other plan' }),
+    });
+    const other = (await created.json()) as {
+      project: { id: string };
+      steps: { id: string; name: string }[];
+    };
+    const otherStepId = other.steps.find(({ name }) => name === 'Dev')?.id;
+    if (otherStepId === undefined) throw new Error('other project has no Dev step');
+    const otherWorkItemId = await addWorkItem(send, token, other.project.id, {
+      parentId: null,
+      name: 'Other row',
+    });
+    const localWorkItemId = await addWorkItem(send, token, projectId, {
+      parentId: null,
+      name: 'Local row',
+    });
+    const foreignStep = await command(send, token, projectId, {
+      kind: 'setEstimate',
+      workItemId: localWorkItemId,
+      stepId: otherStepId,
+      days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+    });
+    expect(foreignStep.status).toBe(404);
+    expect(await foreignStep.json()).toEqual({ error: 'unknown_step', at: 0, kind: 'setEstimate' });
+    for (const commandBody of [
+      {
+        kind: 'setEstimate',
+        workItemId: otherWorkItemId,
+        stepId: otherStepId,
+        days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+      },
+      { kind: 'patchWorkItem', workItemId: otherWorkItemId, patch: { name: 'Wrong plan' } },
+      {
+        kind: 'setEstimate',
+        stepNodeId: `sn1.${otherWorkItemId}.${otherStepId}`,
+        days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+      },
+    ]) {
+      const refusal = await command(send, token, projectId, commandBody);
+      expect(refusal.status).toBe(404);
+      expect(await refusal.json()).toEqual({ error: 'not_found', at: 0, kind: commandBody.kind });
+    }
+    const otherRead = await send(`/api/projects/${other.project.id}/work-items`, token);
+    const otherTree = (await otherRead.json()) as {
+      workItems: { id: string; name: string; estimates: Record<string, unknown> }[];
+    };
+    expect(otherTree.workItems.find(({ id }) => id === otherWorkItemId)?.name).toBe('Other row');
+    expect(otherTree.workItems.find(({ id }) => id === otherWorkItemId)?.estimates).toEqual({});
+    const firstRead = await send(`/api/projects/${projectId}/work-items`, token);
+    const firstTree = (await firstRead.json()) as {
+      workItems: { estimates: Record<string, unknown> }[];
+    };
+    expect(firstTree.workItems.every(({ estimates }) => Object.keys(estimates).length === 0)).toBe(
+      true,
+    );
+  });
+
+  it('writes step commands by the node ID returned in the work-item read and undoes one edit', async () => {
+    const { token, send, projectId, devId, measures } = await setup();
+    const workItemId = await addWorkItem(send, token, projectId, {
+      parentId: null,
+      name: 'Node row',
+    });
+    const pairWorkItemId = await addWorkItem(send, token, projectId, {
+      parentId: null,
+      name: 'Pair row',
+    });
+    const personId = await addToDirectory(send, token, 'createPerson', 'Ann');
+    const read = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = (await read.json()) as {
+      stepNodes: { id: string; workItemId: string; stepId: string }[];
+      workItems: {
+        id: string;
+        estimates: Record<string, unknown>;
+        actuals: Record<string, unknown>;
+        progress: Record<string, unknown>;
+        assignees: Record<string, string>;
+      }[];
+    };
+    const stepNodeId = tree.stepNodes.find(
+      (node) => node.workItemId === workItemId && node.stepId === devId,
+    )?.id;
+    if (stepNodeId === undefined) throw new Error('read omitted the requested node');
+    const cases = [
+      { kind: 'setEstimate', days: { optimistic: 1, realistic: 2, pessimistic: 3 } },
+      { kind: 'clearEstimate' },
+      { kind: 'setActual', days: 3 },
+      { kind: 'setMeasure', metric: 'token_actual', value: 5 },
+      { kind: 'setProgress', state: 'done' },
+      { kind: 'setAssignee', personId },
+    ];
+    for (const fields of cases) {
+      const reply = await command(send, token, projectId, { ...fields, stepNodeId });
+      expect(reply.status).toBe(200);
+      expect(((await reply.json()) as { results: unknown[] }).results).toEqual([{ index: 0 }]);
+      const paired = await command(send, token, projectId, {
+        ...fields,
+        workItemId: pairWorkItemId,
+        stepId: devId,
+      });
+      expect(paired.status).toBe(200);
+    }
+    const after = await send(`/api/projects/${projectId}/work-items`, token);
+    const afterTree = (await after.json()) as typeof tree;
+    const row = afterTree.workItems.find(({ id }) => id === workItemId);
+    expect(row?.estimates).toEqual({});
+    expect(row?.actuals[devId]).toBe(3);
+    expect(row?.progress[devId]).toBe('done');
+    const pairRow = afterTree.workItems.find(({ id }) => id === pairWorkItemId);
+    expect({
+      estimates: row?.estimates,
+      actuals: row?.actuals,
+      progress: row?.progress,
+      assignees: row?.assignees,
+    }).toEqual({
+      estimates: pairRow?.estimates,
+      actuals: pairRow?.actuals,
+      progress: pairRow?.progress,
+      assignees: pairRow?.assignees,
+    });
+    const recorded = await measures.listByProject(projectId);
+    const nodeMeasure = recorded.find(({ workItemId: id }) => id === workItemId);
+    const pairMeasure = recorded.find(({ workItemId: id }) => id === pairWorkItemId);
+    expect(nodeMeasure).toMatchObject({ stepId: devId, metric: 'token_actual', value: 5 });
+    expect({
+      stepId: nodeMeasure?.stepId,
+      metric: nodeMeasure?.metric,
+      value: nodeMeasure?.value,
+    }).toEqual({
+      stepId: pairMeasure?.stepId,
+      metric: pairMeasure?.metric,
+      value: pairMeasure?.value,
+    });
+
+    const set = await command(send, token, projectId, {
+      kind: 'setEstimate',
+      stepNodeId,
+      days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+    });
+    expect(set.status).toBe(200);
+    const undone = await send(`/api/projects/${projectId}/undo`, token, { method: 'POST' });
+    expect(undone.status).toBe(200);
+    const reverted = await send(`/api/projects/${projectId}/work-items`, token);
+    const revertedTree = (await reverted.json()) as typeof tree;
+    expect(revertedTree.workItems.find(({ id }) => id === workItemId)?.estimates).toEqual({});
+  });
+
+  it('refuses conflicting and invalid node addresses with command context', async () => {
+    const { token, send, projectId, devId } = await setup();
+    const workItemId = await addWorkItem(send, token, projectId, {
+      parentId: null,
+      name: 'Node row',
+    });
+    const stepNodeId = `sn1.${workItemId}.${devId}`;
+    for (const [address, error] of [
+      [{ stepNodeId, workItemId, stepId: devId }, 'conflicting_step_address'],
+      [{ stepNodeId, workItemRef: 'earlier' }, 'conflicting_step_address'],
+      [{ stepNodeId, stepId: devId }, 'conflicting_step_address'],
+      [{}, 'stepId_must_be_text'],
+      [{ stepNodeId: 'broken' }, 'invalid_step_node_id'],
+      [{ stepNodeId: 7 }, 'invalid_step_node_id'],
+      [{ stepNodeId: stepNodeId.replace('sn1.', 'sn2.') }, 'unknown_step_node_encoding'],
+    ] as const) {
+      const reply = await command(send, token, projectId, {
+        kind: 'setEstimate',
+        ...address,
+        days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+      });
+      expect(reply.status).toBe(400);
+      expect(await reply.json()).toEqual({ error, at: 0, kind: 'setEstimate' });
+    }
+    const read = await send(`/api/projects/${projectId}/work-items`, token);
+    const tree = (await read.json()) as {
+      workItems: { id: string; estimates: Record<string, unknown> }[];
+    };
+    expect(tree.workItems.find(({ id }) => id === workItemId)?.estimates).toEqual({});
+  });
+
+  it('keeps node service refusals and old-shape assignment', async () => {
+    const { token, send, projectId, devId } = await setup();
+    const parentId = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
+    const childId = await addWorkItem(send, token, projectId, { parentId, name: 'Child' });
+    for (const [stepNodeId, status, error] of [
+      [`sn1.${parentId}.${devId}`, 409, 'rolled_up'],
+      [`sn1.${childId}.${crypto.randomUUID()}`, 404, 'unknown_step'],
+    ] as const) {
+      const refusal = await command(send, token, projectId, {
+        kind: 'setEstimate',
+        stepNodeId,
+        days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+      });
+      expect(refusal.status).toBe(status);
+      expect(await refusal.json()).toEqual({ error, at: 0, kind: 'setEstimate' });
+    }
+    const oldShape = await command(send, token, projectId, {
+      kind: 'setAssignee',
+      workItemId: childId,
+      stepId: devId,
+      personId: null,
+    });
+    expect(oldShape.status).toBe(200);
+    expect(((await oldShape.json()) as { results: unknown[] }).results).toEqual([{ index: 0 }]);
+  });
+
   it('applies a command batch, answering the id each ref became and the undo state', async () => {
     const { token, send, projectId, devId } = await setup();
     const res = await send(`/api/projects/${projectId}/commands`, token, {

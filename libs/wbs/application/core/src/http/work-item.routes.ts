@@ -438,7 +438,7 @@ export function workItemRoutes(
     bind(
       getStepReference,
       async ({ params, query }): Promise<HttpReply<typeof getStepReference>> => {
-        const addresses = await workItems.addresses(params.id);
+        const addresses = await workItems.readAddresses(params.id);
         if (addresses === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         const outcome = await resolveAddressedStep(params.id, query, addresses, digest);
         if (outcome.kind === 'stale') {

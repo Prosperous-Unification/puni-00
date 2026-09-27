@@ -6,6 +6,7 @@ import {
   isStepState,
   LONGEST_NOT_BEFORE_REASON,
   MOST_PEOPLE_AT_ONCE,
+  parseStepNodeId,
   ThreePointEstimate,
 } from '@wbs/domain';
 import { parseOrThrow } from '@wbs/validation';
@@ -489,8 +490,34 @@ function target(raw: InputWith<'workItemId' | 'workItemRef'>) {
   return normalizedTarget(raw.workItemId, raw.workItemRef);
 }
 
-function step(raw: InputWith<'stepId'>) {
-  return { stepId: asText(raw.stepId, 'stepId') };
+/** Resolves either wire spelling before a command reaches services or the journal. */
+function stepAddress(raw: InputWith<'stepId' | 'stepNodeId'>): {
+  workItemId?: string;
+  workItemRef?: string;
+  stepId: string;
+} {
+  if (raw.stepNodeId !== undefined) {
+    // Proof: dropping this check made the mounted conflicting-address refusal fail:
+    // Expected: 400 / Received: 200 (2026-09-27).
+    if (raw.workItemId !== undefined || raw.workItemRef !== undefined || raw.stepId !== undefined) {
+      throw new CommandNormalizationError('conflicting_step_address');
+    }
+    // Proof: omitting this type check made the mounted numeric node ID return 500
+    // (Expected: 400 / Received: 500, 2026-09-27).
+    if (typeof raw.stepNodeId !== 'string') {
+      throw new CommandNormalizationError('invalid_step_node_id');
+    }
+    const parsed = parseStepNodeId(raw.stepNodeId);
+    if (!parsed.ok) {
+      throw new CommandNormalizationError(
+        parsed.reason === 'unknown_encoding'
+          ? 'unknown_step_node_encoding'
+          : 'invalid_step_node_id',
+      );
+    }
+    return parsed.ref;
+  }
+  return { ...target(raw), stepId: asText(raw.stepId, 'stepId') };
 }
 
 function normalizedRef(value: unknown) {
@@ -579,36 +606,30 @@ export const commandNormalizers = {
   },
   setEstimate: (raw: CommandInput<'setEstimate'>) => ({
     kind: 'setEstimate' as const,
-    ...target(raw),
-    ...step(raw),
+    ...stepAddress(raw),
     days: parseOrThrow(ThreePointEstimate, raw.days),
   }),
   clearEstimate: (raw: CommandInput<'clearEstimate'>) => ({
     kind: 'clearEstimate' as const,
-    ...target(raw),
-    ...step(raw),
+    ...stepAddress(raw),
   }),
   setActual: (raw: CommandInput<'setActual'>) => ({
     kind: 'setActual' as const,
-    ...target(raw),
-    ...step(raw),
+    ...stepAddress(raw),
     days: parseActual(raw),
   }),
   clearActual: (raw: CommandInput<'clearActual'>) => ({
     kind: 'clearActual' as const,
-    ...target(raw),
-    ...step(raw),
+    ...stepAddress(raw),
   }),
   setProgress: (raw: CommandInput<'setProgress'>) => ({
     kind: 'setProgress' as const,
-    ...target(raw),
-    ...step(raw),
+    ...stepAddress(raw),
     state: parseProgress(raw),
   }),
   clearProgress: (raw: CommandInput<'clearProgress'>) => ({
     kind: 'clearProgress' as const,
-    ...target(raw),
-    ...step(raw),
+    ...stepAddress(raw),
   }),
   setStatus: (raw: CommandInput<'setStatus'>) =>
     present({
@@ -620,22 +641,19 @@ export const commandNormalizers = {
     }),
   setMeasure: (raw: CommandInput<'setMeasure'>) => ({
     kind: 'setMeasure' as const,
-    ...target(raw),
-    ...step(raw),
+    ...stepAddress(raw),
     metric: asText(raw.metric, 'metric'),
     value: parseMeasure(raw),
   }),
   clearMeasure: (raw: CommandInput<'clearMeasure'>) => ({
     kind: 'clearMeasure' as const,
-    ...target(raw),
-    ...step(raw),
+    ...stepAddress(raw),
     metric: asText(raw.metric, 'metric'),
   }),
   setAssignee: (raw: CommandInput<'setAssignee'>) =>
     present({
       kind: 'setAssignee' as const,
-      ...target(raw),
-      ...step(raw),
+      ...stepAddress(raw),
       personId: asIdOrNull(raw.personId, 'personId'),
       personRef: asOptionalId(raw.personRef, 'personRef'),
     }),
