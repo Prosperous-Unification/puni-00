@@ -150,6 +150,8 @@ describe('a save that meets a held write lock is refused, not queued behind it',
   // 5000ms default, and 5x either, rounded up to the next second, is 9000ms. A
   // real second process must commit before this one is allowed to proceed.
   // Re-derive with notes/t415-sweep.sh rather than trusting either number.
+  // Raised to 30000ms on 2026-09-27: it ran 4.0s idle and timed out at 9000ms on the loaded run
+  // recorded in docs/test-budgets.md.
   it('writes normally once the other process has committed, on a fresh attempt', async () => {
     const { finished } = await otherProcessHoldsTheLock('sp-other');
     expect(await finished).toBe(0);
@@ -161,5 +163,5 @@ describe('a save that meets a held write lock is refused, not queued behind it',
       outcome: 'written',
     });
     expect(await headerIds()).toEqual(['sp-mine', 'sp-other']);
-  }, 9000);
+  }, 30_000);
 });
