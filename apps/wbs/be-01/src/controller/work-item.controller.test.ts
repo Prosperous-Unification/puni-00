@@ -672,7 +672,7 @@ describe('work item routes', () => {
   });
 
   it('refuses target work items from another project for estimate and patch commands', async () => {
-    const { token, send, projectId } = await setup();
+    const { token, send, projectId, writes } = await setup();
     const created = await send('/api/projects', token, {
       method: 'POST',
       body: JSON.stringify({ name: 'Other plan' }),
@@ -717,6 +717,24 @@ describe('work item routes', () => {
       expect(refusal.status).toBe(404);
       expect(await refusal.json()).toEqual({ error: 'not_found', at: 0, kind: commandBody.kind });
     }
+    const rolledBack = await send(`/api/projects/${projectId}/commands`, token, {
+      method: 'POST',
+      body: JSON.stringify({
+        commands: [
+          {
+            kind: 'createWorkItem',
+            ref: 'aborted',
+            parentId: null,
+            afterId: null,
+            name: 'Aborted',
+          },
+          { kind: 'patchWorkItem', workItemId: otherWorkItemId, patch: { name: 'Wrong plan' } },
+        ],
+      }),
+    });
+    expect(rolledBack.status).toBe(404);
+    expect(await rolledBack.json()).toEqual({ error: 'not_found', at: 1, kind: 'patchWorkItem' });
+    expect(writes.uow.calls.slice(-2)).toEqual(['begin', 'rollback']);
     const otherRead = await send(`/api/projects/${other.project.id}/work-items`, token);
     const otherTree = (await otherRead.json()) as {
       workItems: { id: string; name: string; estimates: Record<string, unknown> }[];
@@ -877,6 +895,54 @@ describe('work item routes', () => {
     });
     expect(oldShape.status).toBe(200);
     expect(((await oldShape.json()) as { results: unknown[] }).results).toEqual([{ index: 0 }]);
+  });
+
+  it('refuses parent and unknown-step node addresses for clears and assignment', async () => {
+    const { token, send, projectId, devId } = await setup();
+    const parentId = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
+    const childId = await addWorkItem(send, token, projectId, { parentId, name: 'Child' });
+    for (const [stepNodeId, status, error] of [
+      [`sn1.${childId}.${crypto.randomUUID()}`, 404, 'unknown_step'],
+      [`sn1.${parentId}.${devId}`, 409, 'rolled_up'],
+    ] as const) {
+      for (const fields of [
+        { kind: 'clearEstimate' },
+        { kind: 'clearActual' },
+        { kind: 'clearProgress' },
+        { kind: 'clearMeasure', metric: 'hours' },
+        { kind: 'setAssignee', personId: null },
+      ]) {
+        const refusal = await command(send, token, projectId, { ...fields, stepNodeId });
+        expect(refusal.status).toBe(status);
+        expect(await refusal.json()).toEqual({ error, at: 0, kind: fields.kind });
+      }
+    }
+    const legacy = await command(send, token, projectId, {
+      kind: 'clearEstimate',
+      workItemId: parentId,
+      stepId: devId,
+    });
+    expect(legacy.status).toBe(200);
+  });
+
+  it('checks membership of a batch ref before an ignored literal work-item ID', async () => {
+    const { token, send, projectId, devId } = await setup();
+    const reply = await send(`/api/projects/${projectId}/commands`, token, {
+      method: 'POST',
+      body: JSON.stringify({
+        commands: [
+          { kind: 'createWorkItem', ref: 'new', parentId: null, afterId: null, name: 'New' },
+          {
+            kind: 'setEstimate',
+            workItemRef: 'new',
+            workItemId: crypto.randomUUID(),
+            stepId: devId,
+            days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+          },
+        ],
+      }),
+    });
+    expect(reply.status).toBe(200);
   });
 
   it('applies a command batch, answering the id each ref became and the undo state', async () => {

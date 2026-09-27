@@ -490,11 +490,12 @@ function target(raw: InputWith<'workItemId' | 'workItemRef'>) {
   return normalizedTarget(raw.workItemId, raw.workItemRef);
 }
 
-/** Resolves either wire spelling before a command reaches services or the journal. */
-function stepAddress(raw: InputWith<'stepId' | 'stepNodeId'>): {
+/** Normalizes either wire spelling; refuses conflicting, malformed, or unknown-encoding nodes. */
+function normalizeStepAddress(raw: InputWith<'stepId' | 'stepNodeId'>): {
   workItemId?: string;
   workItemRef?: string;
   stepId: string;
+  addressedBy?: 'node';
 } {
   if (raw.stepNodeId !== undefined) {
     // Proof: dropping this check made the mounted conflicting-address refusal fail:
@@ -508,6 +509,10 @@ function stepAddress(raw: InputWith<'stepId' | 'stepNodeId'>): {
       throw new CommandNormalizationError('invalid_step_node_id');
     }
     const parsed = parseStepNodeId(raw.stepNodeId);
+    // Proof: rewriting sn2 to sn1 before parsing made the mounted unknown-encoding
+    // refusal fail (Expected: 400 / Received: 200); replacing malformed "broken"
+    // with a valid foreign node made the mounted malformed refusal return 404
+    // instead of 400 (2026-09-27). Both parser faults were restored.
     if (!parsed.ok) {
       throw new CommandNormalizationError(
         parsed.reason === 'unknown_encoding'
@@ -515,7 +520,7 @@ function stepAddress(raw: InputWith<'stepId' | 'stepNodeId'>): {
           : 'invalid_step_node_id',
       );
     }
-    return parsed.ref;
+    return { ...parsed.ref, addressedBy: 'node' };
   }
   return { ...target(raw), stepId: asText(raw.stepId, 'stepId') };
 }
@@ -606,30 +611,30 @@ export const commandNormalizers = {
   },
   setEstimate: (raw: CommandInput<'setEstimate'>) => ({
     kind: 'setEstimate' as const,
-    ...stepAddress(raw),
+    ...normalizeStepAddress(raw),
     days: parseOrThrow(ThreePointEstimate, raw.days),
   }),
   clearEstimate: (raw: CommandInput<'clearEstimate'>) => ({
     kind: 'clearEstimate' as const,
-    ...stepAddress(raw),
+    ...normalizeStepAddress(raw),
   }),
   setActual: (raw: CommandInput<'setActual'>) => ({
     kind: 'setActual' as const,
-    ...stepAddress(raw),
+    ...normalizeStepAddress(raw),
     days: parseActual(raw),
   }),
   clearActual: (raw: CommandInput<'clearActual'>) => ({
     kind: 'clearActual' as const,
-    ...stepAddress(raw),
+    ...normalizeStepAddress(raw),
   }),
   setProgress: (raw: CommandInput<'setProgress'>) => ({
     kind: 'setProgress' as const,
-    ...stepAddress(raw),
+    ...normalizeStepAddress(raw),
     state: parseProgress(raw),
   }),
   clearProgress: (raw: CommandInput<'clearProgress'>) => ({
     kind: 'clearProgress' as const,
-    ...stepAddress(raw),
+    ...normalizeStepAddress(raw),
   }),
   setStatus: (raw: CommandInput<'setStatus'>) =>
     present({
@@ -641,19 +646,19 @@ export const commandNormalizers = {
     }),
   setMeasure: (raw: CommandInput<'setMeasure'>) => ({
     kind: 'setMeasure' as const,
-    ...stepAddress(raw),
+    ...normalizeStepAddress(raw),
     metric: asText(raw.metric, 'metric'),
     value: parseMeasure(raw),
   }),
   clearMeasure: (raw: CommandInput<'clearMeasure'>) => ({
     kind: 'clearMeasure' as const,
-    ...stepAddress(raw),
+    ...normalizeStepAddress(raw),
     metric: asText(raw.metric, 'metric'),
   }),
   setAssignee: (raw: CommandInput<'setAssignee'>) =>
     present({
       kind: 'setAssignee' as const,
-      ...stepAddress(raw),
+      ...normalizeStepAddress(raw),
       personId: asIdOrNull(raw.personId, 'personId'),
       personRef: asOptionalId(raw.personRef, 'personRef'),
     }),
