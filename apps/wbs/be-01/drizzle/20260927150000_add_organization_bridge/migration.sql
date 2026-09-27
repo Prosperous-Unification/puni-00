@@ -12,8 +12,10 @@
 -- release writes …` and `maps late writes from a second connection without
 -- another backfill`; dropping the `pre_activation` predicate from the `project`
 -- or `tag` insert failed `leaves a second organization's roots and names to
--- explicit mappings`; replacing every marker RAISE with `SELECT 1` failed both
--- `refuses a root write over …` cases.
+-- explicit mappings`; replacing the marker RAISE in any one of the fourteen
+-- triggers alone with `SELECT 1` failed that trigger's own `refuses a <kind>
+-- insert|rename over a missing marker row` and `… over a malformed marker`.
+-- An absent marker table fails every trigger in SQLite itself (`no such table`).
 CREATE TRIGGER `project_organization_bridge`
 AFTER INSERT ON `project`
 BEGIN

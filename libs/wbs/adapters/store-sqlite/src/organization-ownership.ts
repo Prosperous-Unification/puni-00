@@ -154,7 +154,8 @@ export class OrganizationOwnershipRepository {
    * outgoing release still writes: an existing mapping is never overwritten, and a conflicting
    * name fails the whole pass instead of being skipped. Run explicitly, never at boot.
    *
-   * @throws {LegacyBackfillRefused} after activation or when no legacy organization exists.
+   * @throws {LegacyBackfillRefused} after activation, when no legacy organization exists, or when
+   * any root is already owned by another organization, which cannot happen before activation.
    * @throws {OrganizationActivationRefused} when the marker is absent, unreadable or malformed.
    */
   async backfillLegacyOwnership(): Promise<ReadonlyMap<OwnedRootKind, number>> {
@@ -176,6 +177,19 @@ export class OrganizationOwnershipRepository {
         // while no legacy organization exists` resolve instead of refusing.
         if (legacy === undefined)
           throw new LegacyBackfillRefused('legacy backfill refused: no legacy organization exists');
+        const foreign = OWNED_ROOT_KINDS.filter(
+          (kind) =>
+            tx.all(
+              sql`SELECT 1 FROM ${sql.identifier(`${kind}_organization`)}
+                WHERE organization_id != ${legacy.id} LIMIT 1`,
+            ).length > 0,
+        );
+        // Proof: 2026-09-27, with this check removed `refuses to backfill over a root another
+        // organization owns` mapped the other roots and kept the foreign owner.
+        if (foreign.length > 0)
+          throw new LegacyBackfillRefused(
+            `legacy backfill refused: ${foreign.join(', ')} roots are owned by another organization before activation`,
+          );
         const counts = new Map<OwnedRootKind, number>();
         for (const kind of OWNED_ROOT_KINDS) {
           const side = sql.identifier(`${kind}_organization`);

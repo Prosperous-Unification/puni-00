@@ -151,6 +151,28 @@ describe('the legacy bridge before activation', () => {
     expect(owners('2')['tag']).toEqual([{ organization_id: 'legacy', name: 'urgent 2' }]);
   });
 
+  it('refuses to backfill over a root another organization owns', async () => {
+    run(writeRoots('1'));
+    run([
+      LEGACY,
+      "INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)",
+      "INSERT INTO project_organization VALUES ('p1', 'org-b')",
+    ]);
+    expect(await readRefusal(repository().backfillLegacyOwnership())).toBeInstanceOf(
+      LegacyBackfillRefused,
+    );
+    expect(owners('1')).toEqual({
+      project: [{ organization_id: 'org-b' }],
+      person: [],
+      service_team: [],
+      service: [],
+      tag: [],
+      work_item_type: [],
+      external_system: [],
+      saved_plan: [],
+    });
+  });
+
   it('maps late writes from a second connection without another backfill', async () => {
     run(writeRoots('1'));
     run([LEGACY]);
@@ -201,23 +223,55 @@ describe('the legacy bridge before activation', () => {
     expect(rows("SELECT id FROM tag WHERE id = 't9'")).toEqual([]);
   });
 
-  it.each([
+  const BROKEN_MARKERS: readonly (readonly [string, string])[] = [
     ['a missing marker row', 'DELETE FROM organization_activation'],
     ['a malformed marker', 'UPDATE organization_activation SET activated_at = 5'],
-  ])('refuses a root write over %s', (_label, corruption) => {
-    run([LEGACY]);
+    ['an absent marker table', 'DROP TABLE organization_activation'],
+  ];
+
+  /** Breaks the marker past its CHECKs and triggers, as damaged storage would. */
+  function breakMarker(corruption: string): void {
+    run([
+      'DROP TRIGGER organization_activation_no_delete',
+      'DROP TRIGGER organization_activation_no_revert',
+    ]);
     const db = openDatabase(path);
     try {
       db.run('PRAGMA ignore_check_constraints = ON');
       db.run(corruption);
-      expect(() => db.run("INSERT INTO tag (id, name) VALUES ('t9', 'x')")).toThrow(
-        'organization activation marker is absent or malformed',
-      );
-      expect(() => db.run("UPDATE tag SET name = 'y' WHERE id = 'none'")).not.toThrow();
     } finally {
       db.close();
     }
-  });
+  }
+
+  for (const [label, corruption] of BROKEN_MARKERS) {
+    // Each new root; the saved plan hangs off project `p1`, written before the marker broke.
+    it.each(
+      writeRoots('9').map((insert, index) => [
+        OWNED_ROOT_KINDS[index],
+        insert.replace("'p9', 'Baseline'", "'p1', 'Baseline'"),
+      ]),
+    )(`refuses a %s insert over ${label}`, (kind, insert) => {
+      run([LEGACY, ...writeRoots('1')]);
+      breakMarker(corruption);
+      expect(() => {
+        run([insert]);
+      }).toThrow(/organization activation marker is absent or malformed|no such table/);
+    });
+
+    it.each(CATALOG_ROOT_KINDS.map((kind) => [kind]))(
+      `refuses a %s rename over ${label}`,
+      (kind) => {
+        run([LEGACY, ...writeRoots('1')]);
+        const before = owners('1')[kind];
+        breakMarker(corruption);
+        expect(() => {
+          run([`UPDATE ${kind} SET name = 'renamed' WHERE id LIKE '%1'`]);
+        }).toThrow(/organization activation marker is absent or malformed|no such table/);
+        expect(owners('1')[kind]).toEqual(before);
+      },
+    );
+  }
 
   it('refuses backfill over a broken marker', async () => {
     run([LEGACY, 'DELETE FROM organization_activation']);
