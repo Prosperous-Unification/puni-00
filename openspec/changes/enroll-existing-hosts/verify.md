@@ -78,6 +78,28 @@ Docker 29.1.3 and a `victoria-sentinel` busybox httpd on `127.0.0.1:8428` and
   (`changed=3`), after-enrollment preflight passed before and after an agent reboot, and the
   sentinel answered from the server.
 
+## Real hosts, 2026-09-27 (Dany authorized the apply)
+
+Controller: the locked image `fleet-controller:0.1.0@sha256:372f6f43…62de`, built with
+`tool-fleet:controller-image` (image ID equal to the pin) on the operator laptop, because h2puni
+was running a host gate. Ansible reached `10.1.0.4` and `10.1.0.2` as root through an SSH
+`ProxyCommand` via h2puni, with the hosts' ed25519 keys pinned; h2puni was not changed.
+
+- Before-enrollment preflight, both hosts: `ok=27 changed=0 failed=0`; after committing the IDs
+  (`h4claw f592d9aa…1012`, `h3mon bed07fdd…09f4`, MTU 1450, no swap, cloud-init grant present):
+  `ok=28 changed=0 failed=0`.
+- `bootstrap.yml --limit h4claw`: `ok=47 changed=29 failed=0` (1m42s); second pass
+  `ok=38 changed=0 failed=0`. Node `h4claw` Ready, `control-plane,etcd`, v1.36.4+k3s1,
+  InternalIP 10.1.0.4, taint `puni.io/enrollment=pending:NoSchedule`.
+- After-enrollment preflight on h4claw: `ok=26 changed=0 failed=0`.
+- OpenHands on `127.0.0.1:3000` answered 200 before and after; its container reached
+  `https://github.com` (200) after the firewall table was installed; 20 Docker iptables rules.
+- Not run: copying the CA-bound join tokens from h4claw into the controller variables was refused
+  by the operator session's permission policy, so `join.yml` on h3mon, `validate-enrollment.yml`
+  and the final both-host preflight did not run. h3mon is unchanged.
+- No Hetzner snapshots: no hcloud CLI or token on the controller. Backups taken: `/etc` tarballs of
+  both hosts, a VictoriaMetrics snapshot and the Docker container/volume lists.
+
 ## Not run
 
 Real hosts; `tool-fleet:discover` against production (SSH discovery cannot pass a user or
