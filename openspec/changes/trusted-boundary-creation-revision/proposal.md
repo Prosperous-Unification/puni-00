@@ -13,8 +13,9 @@ unregistered (WBS 080.21, triage 080.22), and any later module would hit the sam
 
 A trusted boundary may declare `creationRevision`, the commit that first added its files, instead
 of a `sourceSelector`. Its baseline is the selector's tuples at that commit. The trusted loader
-refuses a creation revision that is absent or not a commit, selects nothing, is not the first
-commit to add the files, or disagrees with the baseline. It also refuses a boundary whose files
+refuses a creation revision that is absent or not a commit, selects nothing, does not descend
+from the freeze, is not the first commit since the freeze to touch the files, or disagrees with
+the baseline. It also refuses a boundary whose files
 existed at the freeze, which must name a predecessor instead, a boundary that declares both, and
 a creation revision without a pilot. A valid new module receives the same observe-mode admission
 as every other pilot boundary. Plan import and Plan document register this way, and the
@@ -32,6 +33,6 @@ module-label check's unregistered list becomes empty.
 
 ## Constraints
 
-Admission reads Git history from the candidate repository, so the creation revision, its parents
-and `sourceRevision` must be present there. The pilot test's full clone and CI's checkout already
+Admission reads Git history from the candidate repository, so the creation revision, the history
+back to `sourceRevision` and that revision must be present there; a shallow clone is refused. The pilot test's full clone and CI's checkout already
 need `sourceRevision`.

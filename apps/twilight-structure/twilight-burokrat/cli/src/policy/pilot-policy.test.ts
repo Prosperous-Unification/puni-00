@@ -943,7 +943,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     const afterCreation = 'c55169512f5e1e3ee0cf3dc82094d87c329d6d71';
     const mutations: {
       boundaryId: string;
-      mutate: (boundary: CreationBoundary, sourceRevision: string) => void;
+      mutate: (boundary: CreationBoundary, repository: string, sourceRevision: string) => void;
       expected: string;
     }[] = [
       {
@@ -995,6 +995,23 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       },
       {
         boundaryId: 'boundary.application.plan-import',
+        // Plan import's creation tree committed onto the freeze's parent: an honest baseline and
+        // a parent without the module, but no descent from the freeze.
+        mutate(boundary, repository, sourceRevision) {
+          boundary.creationRevision = git(repository, [
+            'commit-tree',
+            `${created}^{tree}`,
+            '-p',
+            `${sourceRevision}^`,
+            '-m',
+            'forged creation before the freeze',
+          ]);
+        },
+        expected:
+          'trusted boundary creation revision does not descend from the pilot source revision: boundary.application.plan-import',
+      },
+      {
+        boundaryId: 'boundary.application.plan-import',
         mutate(boundary) {
           const readme = boundary.baselineEntries.find(({ path }) => path.endsWith('README.md'));
           if (readme === undefined) throw new Error('Plan import baseline has no README');
@@ -1008,7 +1025,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       },
       {
         boundaryId: 'boundary.docs.wbs-table-extraction',
-        mutate(boundary, sourceRevision) {
+        mutate(boundary, _repository, sourceRevision) {
           boundary.creationRevision = sourceRevision;
         },
         expected:
@@ -1026,7 +1043,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
         ({ boundaryId }) => boundaryId === mutation.boundaryId,
       );
       if (boundary === undefined) throw new Error(`pilot boundary absent: ${mutation.boundaryId}`);
-      mutation.mutate(boundary, policy.pilot.sourceRevision);
+      mutation.mutate(boundary, candidate.repository, policy.pilot.sourceRevision);
       write(trust.policyPath, `${JSON.stringify(policy)}\n`);
       const binding = JSON.parse(readFileSync(trust.bindingPath, 'utf8')) as {
         policy: { sha256: string };
