@@ -35,3 +35,17 @@ The transfer SHALL preserve existing API routes, frontend journeys, migration fi
 
 - **WHEN** the transferred API tests run
 - **THEN** the anonymous intake, proposal replay, auth, provider admission, concept, and migration refusal cases retain their prior outcomes
+
+### Requirement: Operator and concept security at the public boundary
+
+The operator password SHALL be checked with an adaptive password hash. Opaque random tokens and CSRF proofs MAY continue using SHA-256. A generated concept subject SHALL contain only a bounded prefix from an explicit plain-text character set, or a fixed fallback.
+
+#### Scenario: Wrong operator password
+
+- **WHEN** a visitor submits an incorrect operator password
+- **THEN** the mounted API returns 401 and grants no operator session
+
+#### Scenario: Markup or URL scheme in request description
+
+- **WHEN** a request description contains nested markup or begins with a URL scheme, including `vbscript:`
+- **THEN** the generated concept uses only an initial allowed plain-text prefix or the fixed fallback, and never carries markup or a URL scheme into the subject

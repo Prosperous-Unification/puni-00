@@ -5,3 +5,7 @@
 - [x] Update repository ownership documentation and define the private snapshot handoff; the private repository records its receipt after the public revision is published.
 - [x] Run focused API/frontend tests, lint, typecheck, build, OpenSpec validation, and relevant workspace policy checks; record evidence in `verify.md`.
 - [ ] Publish the reviewed public commit to the existing PR and record its revision for the private pinned snapshot.
+
+- [x] Replace operator password comparison with an adaptive verifier; prove wrong credentials cannot create an operator session.
+- [x] Select a bounded plain-text concept subject; prove nested markup and URL schemes do not reach `/concept`.
+- [ ] Re-run affected checks and CodeQL on the new public PR head, then update the private pinned snapshot.

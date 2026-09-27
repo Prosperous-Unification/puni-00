@@ -158,6 +158,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
   const prospectCookie = config.secureCookies ? '__Host-puni_session' : 'puni_session';
   const oidcCookie = config.secureCookies ? '__Host-puni_oidc' : 'puni_oidc';
   const admission = new Map<string, AdmissionWindow>();
+  let operatorPasswordHash: Promise<string> | undefined;
 
   function cookie(name: string, value: string, maxAge: number): string {
     return `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${String(maxAge)}${config.secureCookies ? '; Secure' : ''}`;
@@ -327,15 +328,13 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     return 'workflow';
   }
 
+  /** Uses an allowed plain-text prefix; markup and URL punctuation end the subject. */
   function subjectFrom(source: string): string {
-    const cleaned = source
-      .replace(/https?:\/\/\S+/gi, '')
-      .replace(/<[^>]*>/g, '')
-      .replace(/[{}<>]/g, '')
-      .replace(/javascript:|data:|url\(/gi, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    return cleaned.slice(0, 80) || 'software request';
+    const prefix = source.trimStart().slice(0, 80);
+    const matchedPrefix = /^[\p{L}\p{N}][\p{L}\p{N} ,.'-]*/u.exec(prefix)?.[0];
+    // Proof: raw text exposed nested markup; removing the colon boundary returned the scheme name `vbscript` instead of the fixed subject in the mounted /concept test.
+    if (!matchedPrefix || prefix[matchedPrefix.length] === ':') return 'software request';
+    return matchedPrefix.trim() || 'software request';
   }
 
   function buildConcept(template: ConceptTemplate, revision: 0 | 1, subject: string): ConceptView {
@@ -1036,13 +1035,16 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       );
     }
     if (path === '/operator/session' && request.method === 'POST') {
-      if (!config.operatorPassword)
-        return attachCors(failure('operator_unconfigured', 503), origin);
+      const operatorPassword = config.operatorPassword;
+      if (!operatorPassword) return attachCors(failure('operator_unconfigured', 503), origin);
       if (!allowSource('/operator/session', now))
         return attachCors(failure('rate_limited', 429), origin);
       const body = await readBody(request);
       const password = body && textField(body['password'], 256);
-      if (!password || !equal(password, config.operatorPassword))
+      if (!password) return attachCors(failure('invalid_credentials', 401), origin);
+      // Proof: bypassing this Argon2id verifier made the wrong-password route test issue a session.
+      operatorPasswordHash ??= Bun.password.hash(operatorPassword, 'argon2id');
+      if (!(await Bun.password.verify(password, await operatorPasswordHash)))
         return attachCors(failure('invalid_credentials', 401), origin);
       const token = secret();
       const csrfToken = digest(`operator-csrf:${token}`);

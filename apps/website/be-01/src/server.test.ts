@@ -322,6 +322,21 @@ test('foreign browser, missing CSRF and changed replay cannot expose or alter a 
   api.close();
 });
 
+test('wrong operator password creates no session and the configured password still works', async () => {
+  const { api, config } = fixture();
+  const wrong = await api.fetch(
+    request('/operator/session', 'POST', config.appOrigin, { password: 'incorrect-secret' }),
+  );
+  // Proof: bypassing the operator verifier made this mounted route issue a session for the wrong password.
+  expect(wrong.status).toBe(401);
+  expect(wrong.headers.get('set-cookie')).toBeNull();
+  const correct = await api.fetch(
+    request('/operator/session', 'POST', config.appOrigin, { password: config.operatorPassword }),
+  );
+  expect(correct.status).toBe(201);
+  api.close();
+});
+
 test('operator session reload and ordered status changes require operator CSRF', async () => {
   const { api, config } = fixture();
   const { cookie, csrf } = await beginDraft(api);
@@ -843,33 +858,42 @@ test('paid provider mode refuses demo concept generation', async () => {
 });
 
 test('demo concept carries a safe request subject into its fixed template', async () => {
-  const { config } = fixture();
-  const api = createWebsiteApi({ ...config, demoAuth: true });
-  const intake = await api.fetch(
-    request('/intakes', 'POST', config.publicOrigin, {
+  const cases = [
+    {
       description:
-        'Booking appointments for my pottery studio <script>alert(1)</script> https://bad.example',
-    }),
-  );
-  const draftCookie = intake.headers.get('set-cookie')?.split(';')[0];
-  const login = await api.fetch(
-    request(
-      '/session/demo',
-      'POST',
-      config.appOrigin,
-      { email: 'owner@example.test' },
-      draftCookie,
-    ),
-  );
-  const sessionCookie = login.headers.get('set-cookie')?.split(';')[0];
-  const csrf = ((await login.json()) as { csrfToken: string }).csrfToken;
-  const concept = await api.fetch(
-    request('/concept', 'POST', config.appOrigin, {}, sessionCookie, csrf),
-  );
-  const view = (await concept.json()) as { subject: string; summary: string };
-  expect(view.subject).toContain('pottery studio');
-  expect(JSON.stringify(view)).not.toMatch(/<script|https:\/\//i);
-  api.close();
+        'Booking appointments for my pottery studio <scr<script>ipt>alert(1)</scr<script>ipt> vbscript:msgbox(1) https://bad.example',
+      subject: 'Booking appointments for my pottery studio',
+    },
+    { description: 'vbscript:msgbox(1) Booking appointments', subject: 'software request' },
+    { description: 'https://bad.example/run Booking appointments', subject: 'software request' },
+  ];
+  for (const sample of cases) {
+    const { config } = fixture();
+    const api = createWebsiteApi({ ...config, demoAuth: true });
+    const intake = await api.fetch(
+      request('/intakes', 'POST', config.publicOrigin, { description: sample.description }),
+    );
+    const draftCookie = intake.headers.get('set-cookie')?.split(';')[0];
+    const login = await api.fetch(
+      request(
+        '/session/demo',
+        'POST',
+        config.appOrigin,
+        { email: 'owner@example.test' },
+        draftCookie,
+      ),
+    );
+    const sessionCookie = login.headers.get('set-cookie')?.split(';')[0];
+    const csrf = ((await login.json()) as { csrfToken: string }).csrfToken;
+    const concept = await api.fetch(
+      request('/concept', 'POST', config.appOrigin, {}, sessionCookie, csrf),
+    );
+    const view = (await concept.json()) as { subject: string; summary: string };
+    // Proof: returning the raw description from subjectFrom exposed nested markup and URL schemes in /concept.
+    expect(view.subject).toBe(sample.subject);
+    expect(JSON.stringify(view)).not.toMatch(/<|>|vbscript:|https:\/\//i);
+    api.close();
+  }
 });
 
 test('configured provider concept validates bounded JSON and shares paid reservation', async () => {
