@@ -25,10 +25,14 @@ export const SHORTHAND_HELP =
 
 export interface FoldedStepCardProps {
   stepName: string;
+  /** The project the copied node belongs to, so a reopened link can select it. */
+  projectId: string;
   /** Null means an older read omitted node metadata or a parent has no node: hide node details. A present node with `reference: null` is uncoded and still offers Copy link. */
   stepNode: NonNullable<PlanRead['stepNodes']>[number] | null;
   /** Returns keyboard focus from the card actions to their folded step cell. */
   onExitActions: () => void;
+  /** Keeps a hover-opened card while the pointer arrives from its cell. */
+  onPointerArrives: () => void;
   pushToast: (toast: Toast) => void;
   /** The work item's number, so a card over a busy table says whose it is. */
   number: string;
@@ -73,12 +77,15 @@ export interface FoldedStepCardProps {
  * A focused step cell offers F2 to enter its copy actions. Tab walks those
  * actions and returns to the cell after the last one; Escape returns at once.
  * Copy reference uses the canonical code when present. Copy link writes the
- * node ID in `stepNode` so opening it can reveal and focus this cell.
+ * project and node IDs in the URL so opening it can select the plan, reveal
+ * and focus this cell.
  */
 export function FoldedStepCard({
   stepName,
+  projectId,
   stepNode,
   onExitActions,
+  onPointerArrives,
   pushToast,
   number,
   id,
@@ -131,7 +138,7 @@ export function FoldedStepCard({
   return (
     // Placed diagonally — past this cell and past this row — like every other
     // card a plan cell opens. {@link sidewaysPlacement} picks the side.
-    <HoverCard id={id} takesPointer={stepNode !== null}>
+    <HoverCard id={id} takesPointer={stepNode !== null} onPointerArrives={onPointerArrives}>
       <div style={{ fontWeight: 600 }}>
         {stepName} for {number}
       </div>
@@ -158,6 +165,7 @@ export function FoldedStepCard({
             onKeyDown={onActionKeyDown}
             onClick={() => {
               const url = new URL(window.location.href);
+              url.searchParams.set('project', projectId);
               url.searchParams.set('stepNode', stepNode.id);
               copyText(url.href, 'Copied step link.', 'Could not copy step link.');
             }}

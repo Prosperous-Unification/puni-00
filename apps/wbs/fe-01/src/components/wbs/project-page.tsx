@@ -564,6 +564,7 @@ export function ProjectPage({
     };
   }, [projectOwner, selected]);
   const toastApi = useToasts();
+  const pushToast = toastApi.pushToast;
   /**
    * The rename in progress, or null while the picker is showing.
    *
@@ -629,8 +630,34 @@ export function ProjectPage({
 
   const installProjects = useCallback(
     (found: ProjectListEntry[]) => {
+      const url = new URL(window.location.href);
+      const linkedProject = url.searchParams.has('stepNode')
+        ? url.searchParams.get('project')
+        : null;
+      const hasLinkedProject =
+        linkedProject !== null && found.some((project) => project.id === linkedProject);
+      // Proof: bypassing this refusal changed the alert to "Step link is invalid."
+      // while the missing project's URL was consumed by p1 (2026-09-27).
+      if (linkedProject !== null && !hasLinkedProject) {
+        url.searchParams.delete('project');
+        url.searchParams.delete('stepNode');
+        window.history.replaceState(window.history.state, '', url.href);
+        pushToast({ kind: 'error', text: 'Step link names a project you cannot open.' });
+      }
+      // The link's selection is a real choice. Keep it across a later reload,
+      // just as choosing the project from the picker does.
+      // Proof: without this write the ProjectPage link test still focused p1,
+      // but storage stayed at p2 (2026-09-27).
+      if (hasLinkedProject) {
+        rememberLastProject(readServices(), linkedProject);
+      }
       setProjects(found);
       setSelected((current) => {
+        // Proof: without this branch, a link to p1 kept the remembered p2 and
+        // never focused the p1 step in the ProjectPage link test (2026-09-27).
+        if (hasLinkedProject) {
+          return linkedProject;
+        }
         // The current selection and the remembered id are both claims, honoured
         // only while the list still contains them — a project deleted elsewhere
         // must not stay "selected" into a table asking for its tree. Then,
@@ -653,7 +680,7 @@ export function ProjectPage({
         return found.length === 1 ? (found[0]?.id ?? null) : null;
       });
     },
-    [readServices],
+    [readServices, pushToast],
   );
 
   const fetchProjects = useCallback(() => catalog.list(), [catalog]);

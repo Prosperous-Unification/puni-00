@@ -1476,6 +1476,7 @@ export function WbsTable({
    * initialiser saw on the first one.
    */
   const liveNow: PlanLiveValues = {
+    projectId,
     pushToast,
     focusIntent,
     gridElement,
@@ -1895,9 +1896,14 @@ export function WbsTable({
     const url = new URL(window.location.href);
     const id = url.searchParams.get('stepNode');
     if (id === null || !hasSuccessfulTreeRead) return;
+    // Proof: without this guard, the wrong project's table consumed
+    // ?project=p2&stepNode=sn1.bad and announced it invalid (2026-09-27).
+    if (url.searchParams.get('project') !== null && url.searchParams.get('project') !== projectId)
+      return;
     const dismissLink = (message?: string) => {
       if (message !== undefined) pushToast({ kind: 'error', text: message });
       url.searchParams.delete('stepNode');
+      url.searchParams.delete('project');
       window.history.replaceState(window.history.state, '', url.href);
     };
     const parsed = parseStepNodeId(id);
@@ -1956,6 +1962,7 @@ export function WbsTable({
   }, [
     flat,
     hasSuccessfulTreeRead,
+    projectId,
     hiddenColumnIds,
     pushToast,
     setExpanded,

@@ -232,7 +232,7 @@ export function createEstimatesColumns({
                 // The same-cell guard the Name cell's marker gives its
                 // reason for: a leave lands after the enter of whatever the
                 // pointer moved on to.
-                live.current.cellCards.leave(finalCell);
+                live.current.cellCards.holdHovered(finalCell);
               }}
               // No native `title` here or on the input below: the card is
               // this cell's one hint (CONTEXT.md, "Hover preview"), and a
@@ -700,7 +700,11 @@ export function createEstimatesColumns({
               {carded && (
                 <FoldedStepCard
                   stepName={step.name}
+                  projectId={live.current.projectId}
                   stepNode={readStepNode(row.original, step.id)}
+                  onPointerArrives={() => {
+                    live.current.cellCards.arriveOnCard();
+                  }}
                   onExitActions={() => {
                     const grid = live.current.gridElement.current;
                     const cell =

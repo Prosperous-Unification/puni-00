@@ -1,5 +1,21 @@
 # verify — address-step-nodes
 
+## Section 9 review repairs — step cells (2026-09-27)
+
+- **Project-aware copied links:** the folded card copies `project` with `stepNode`; `ProjectPage` selects that listed project before mounting its table, and an absent project is visibly refused. A mounted `ProjectPage` test starts with p2 remembered and a p1 link, then observes p1 selected and its step focused. The copy test first failed `expected null to be 'p1'`. With the selection branch removed, the page stayed on p2. Bypassing the absent-project refusal changed its alert to `Step link is invalid.` as p1 consumed the link. Bypassing the table's project guard removed a pending p2 URL in a p1 table (`expected '?project=p2&stepNode=sn1.bad', received ''`). All guards were restored; adjacent `Proof:` comments name the faults.
+- **One step snapshot:** columns and the leaf/node invariant now read steps from the same tree response as rows and `stepNodes`. The array is retained when step IDs and names are unchanged so a normal tree refetch does not remount editors. Restoring the independent delivered steps made both order tests render `Plan could not be rendered.`: new steps before their tree, and a deleted tree before a failed neighboring steps read. Using each new tree array without stabilizing equal steps made eight existing editing tests lose focus or drafts; the stable array restored their focused reruns. The original present-but-missing-node test still reaches the Error Boundary.
+- **Pointer handoff:** the estimate trigger holds its hovered card on leave and the card calls `arriveOnCard` on entry, matching Name and References. A component test moves from the unfocused cell through leave and card entry, then activates Copy link. Before the hold, the button was absent at activation. The synthetic DOM test cannot measure physical pointer travel; a Chromium check was not run under the loaded-host focused-check instruction.
+- **Review checks:** see the final command record below. The first two-file run had 212 passes and 8 older editing failures caused by column remounts; the first typecheck found a test-only resolver type error, corrected before the next passing typecheck. The first two `lint:fast` runs failed while reporting no diagnostics from the nested ESLint command; direct scoped ESLint identified import, async, arrow-body, and hook-dependency diagnostics, which were corrected.
+
+**Final command record (from `apps/wbs/fe-01` for Vitest):**
+
+- `TZ=UTC bunx vitest run --no-file-parallelism --maxWorkers=1 src/components/wbs/plan-cells.test.tsx src/components/wbs/plan-read-and-write.test.tsx src/components/wbs/project-page.test.tsx`: 3 files, 310 passed, 0 failed. The step-node detail section's first run had 18 passed and one 80-row offscreen-link timeout at the default 5 seconds under host load; the final three-file run includes it passing.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SKIP_NX_CACHE=true bunx nx run wbs-fe-01:lint:fast --outputStyle=static`: passed. The same command for `wbs-fe-01:typecheck`: passed, including module typechecks.
+- `bunx prettier --write` and `bunx prettier --check` on all 11 touched code and OpenSpec files: check passed, `All matched files use Prettier code style!`.
+- `bunx @fission-ai/openspec@1.12.0 validate address-step-nodes --json`: 1 item passed, 0 failed.
+- `git diff --check`: no whitespace errors.
+- **Not run:** Chromium pointer travel, the full fe-01 suite, build, full Nx gates, migration checks and the h2puni gate. `curl -fsS --max-time 2 http://localhost:4200/health` returned exit 7 (no frontend server). The loaded-host instruction limited test execution to focused fe-01 files; no three-tier browser stack was started. The component pointer test proves event handoff and activation but does not prove Chromium hit testing across the diagonal gap.
+
 ## Spec-time commands
 
 Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` on 2026-09-27, after the Astra high review fixes on branch `batch-9/step-nodes-spec`, reported 129 items, 129 passed, 0 failed; this change was valid. File-scoped `bunx prettier --check` on every touched file reported all files use Prettier style. No application behavior is verified by this packet; the h2puni gate result is recorded in the PR.

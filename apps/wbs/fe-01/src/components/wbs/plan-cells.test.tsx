@@ -5,12 +5,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectApi } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi as fakeApi, QA } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { ProjectPageOverOwner } from '@/testing/project-page-over-owner';
 import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { isoToday } from './gantt-panel';
 import { refusedDraftFor } from './live-editing';
+import type { SavedPlansPanelDeps } from './saved-plans-panel';
 import { shortIsoDate } from './short-date';
 import type * as TableFrameModule from './table-frame';
 import { POPOVER_ROW_LAYER } from './table-frame';
@@ -96,6 +98,15 @@ class PlanFaultBoundary extends Component<{ children: ReactNode }, { failed: boo
     );
   }
 }
+
+const unavailableShelf: SavedPlansPanelDeps = {
+  available: () => Promise.resolve(false),
+  list: () => Promise.reject(new Error('Shelf unavailable')),
+  subscribe: () => ({ unsubscribe: () => undefined }),
+  save: () => Promise.reject(new Error('Shelf unavailable')),
+  compare: () => Promise.reject(new Error('Shelf unavailable')),
+  rename: () => Promise.reject(new Error('Shelf unavailable')),
+};
 
 describe('step node details', () => {
   async function showStepNode(reference?: string | null) {
@@ -191,6 +202,7 @@ describe('step node details', () => {
       expect(new URL(writeText.mock.calls[0]?.[0] ?? '').searchParams.get('stepNode')).toBe(
         'sn1.w1.step-dev',
       );
+      expect(new URL(writeText.mock.calls[0]?.[0] ?? '').searchParams.get('project')).toBe('p1');
       expect(toastTexts()).toContain('Copied step link.');
     } finally {
       Reflect.deleteProperty(navigator, 'clipboard');
@@ -250,6 +262,117 @@ describe('step node details', () => {
     }
   });
 
+  itDom(
+    'selects the linked project before resolving its step when another project was remembered',
+    async () => {
+      const api = fakeApi();
+      const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+      const workItemId = '11111111-1111-4111-8111-111111111111';
+      const stepId = '22222222-2222-4222-8222-222222222222';
+      const storedRow = api.rows.find((candidate) => candidate.id === row.id);
+      if (storedRow === undefined) throw new Error('Missing linked row');
+      storedRow.id = workItemId;
+      const readTree = api.tree.bind(api);
+      api.tree = async (projectId) => {
+        const plan = await readTree(projectId);
+        return {
+          ...plan,
+          stepNodes: [
+            { id: `sn1.${workItemId}.${stepId}`, workItemId, stepId, reference: '010.dev' },
+          ],
+          steps: plan.steps
+            .filter((step) => step.id === DEV.id)
+            .map((step) => ({ ...step, id: stepId })),
+        };
+      };
+      const readSteps = api.steps.bind(api);
+      api.steps = async (projectId) =>
+        (await readSteps(projectId))
+          .filter((step) => step.id === DEV.id)
+          .map((step) => ({ ...step, id: stepId }));
+      const listProjects = api.listProjects.bind(api);
+      api.listProjects = async () => [
+        ...(await listProjects()),
+        {
+          id: 'p2',
+          name: 'Other project',
+          restricted: false,
+          startDate: null,
+          lastOpenedAt: null,
+          ownerName: 'kat',
+          createdAt: 1_780_000_000_000,
+        },
+      ];
+      localStorage.setItem('wbs.project', 'p2');
+      window.history.replaceState(null, '', `/?project=p1&stepNode=sn1.${workItemId}.${stepId}`);
+      render(<ProjectPageOverOwner api={api} savedPlansDeps={unavailableShelf} />);
+      await waitFor(() => {
+        expect(screen.getByLabelText('Project')).toHaveValue('Rewire the shed');
+        expect(document.activeElement).toBe(screen.getByLabelText('Dev estimate for 010'));
+      });
+      expect(localStorage.getItem('wbs.project')).toBe('p1');
+      expect(window.location.search).toBe('');
+    },
+  );
+
+  itDom('refuses a step link whose project is absent from the project list', async () => {
+    const api = fakeApi();
+    localStorage.setItem('wbs.project', 'p1');
+    window.history.replaceState(null, '', '/?project=missing&stepNode=sn1.bad');
+    render(<ProjectPageOverOwner api={api} savedPlansDeps={unavailableShelf} />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('project you cannot open');
+    expect(window.location.search).toBe('');
+  });
+
+  itDom('leaves a different project’s pending step link for that project to open', async () => {
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    window.history.replaceState(null, '', '/?project=p2&stepNode=sn1.bad');
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Dev estimate for 010');
+    expect(window.location.search).toBe('?project=p2&stepNode=sn1.bad');
+    expect(screen.queryByText('Step link is invalid.')).toBeNull();
+  });
+
+  itDom(
+    'keeps a hover-opened step card available across the pointer trip to its copy action',
+    async () => {
+      const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      try {
+        const api = fakeApi();
+        const row = await api.createWorkItem('p1', {
+          parentId: null,
+          afterId: null,
+          name: 'Strip',
+        });
+        const readTree = api.tree.bind(api);
+        api.tree = async (projectId) => ({
+          ...(await readTree(projectId)),
+          stepNodes: [
+            { id: 'sn1.w1.step-dev', workItemId: row.id, stepId: DEV.id, reference: '010.dev' },
+            { id: 'sn1.w1.step-qa', workItemId: row.id, stepId: QA.id, reference: null },
+          ],
+        });
+        render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+        const estimate = await screen.findByLabelText('Dev estimate for 010');
+        const trigger = estimate.closest('[data-final]');
+        if (trigger === null) throw new Error('Missing step trigger');
+        fireEvent.mouseEnter(trigger);
+        const card = screen.getByRole('tooltip');
+        fireEvent.mouseLeave(trigger);
+        fireEvent.mouseEnter(card);
+        fireEvent.click(screen.getByRole('button', { name: 'Copy link' }));
+        await waitFor(() => {
+          expect(writeText).toHaveBeenCalledOnce();
+        });
+        expect(screen.getByRole('tooltip')).toBeInTheDocument();
+      } finally {
+        Reflect.deleteProperty(navigator, 'clipboard');
+      }
+    },
+  );
+
   itDom('names an uncoded node and offers only its link', async () => {
     await showStepNode(null);
     expect(screen.getByRole('tooltip')).toHaveTextContent('Uncoded step');
@@ -279,6 +402,117 @@ describe('step node details', () => {
     } finally {
       error.mockRestore();
     }
+  });
+
+  itDom('keeps old step columns while a new steps read arrives before its tree', async () => {
+    const api = fakeApi();
+    const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const readTree = api.tree.bind(api);
+    let releaseTree: (plan: Awaited<ReturnType<typeof api.tree>>) => void = () => {
+      throw new Error('Missing held tree resolver');
+    };
+    const heldTree = new Promise<Awaited<ReturnType<typeof api.tree>>>((resolve) => {
+      releaseTree = resolve;
+    });
+    let treeReads = 0;
+    api.tree = async (projectId) => {
+      treeReads += 1;
+      if (treeReads === 2) return heldTree;
+      const plan = await readTree(projectId);
+      return {
+        ...plan,
+        stepNodes: plan.steps.map((step) => ({
+          id: `sn1.${row.id}.${step.id}`,
+          workItemId: row.id,
+          stepId: step.id,
+          reference: null,
+        })),
+      };
+    };
+    let notify: (changed: string) => void = () => {
+      throw new Error('Missing subscription');
+    };
+    render(
+      <PlanFaultBoundary>
+        <WbsTableOverClient
+          projectId="p1"
+          projectServices={projectServicesOf(api)}
+          subscribe={(_projectId, handlers) => {
+            notify = handlers.onChange;
+            return { seen: () => undefined, unsubscribe: () => undefined };
+          }}
+        />
+      </PlanFaultBoundary>,
+    );
+    await screen.findByLabelText('Dev estimate for 010');
+    await api.addStep('p1', 'Build');
+    await act(async () => {
+      notify('step_added');
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(treeReads).toBe(2);
+    });
+    expect(screen.queryByRole('button', { name: 'Unfold Build estimates' })).toBeNull();
+    expect(screen.queryByText('Plan could not be rendered.')).toBeNull();
+    const updated = await readTree('p1');
+    releaseTree({
+      ...updated,
+      stepNodes: updated.steps.map((step) => ({
+        id: `sn1.${row.id}.${step.id}`,
+        workItemId: row.id,
+        stepId: step.id,
+        reference: null,
+      })),
+    });
+    expect(
+      await screen.findByRole('button', { name: 'Unfold Build estimates' }),
+    ).toBeInTheDocument();
+  });
+
+  itDom('uses deleted tree steps while the neighboring steps refresh fails', async () => {
+    const api = fakeApi();
+    const row = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const readTree = api.tree.bind(api);
+    api.tree = async (projectId) => {
+      const plan = await readTree(projectId);
+      return {
+        ...plan,
+        stepNodes: plan.steps.map((step) => ({
+          id: `sn1.${row.id}.${step.id}`,
+          workItemId: row.id,
+          stepId: step.id,
+          reference: null,
+        })),
+      };
+    };
+    let notify: (changed: string) => void = () => {
+      throw new Error('Missing subscription');
+    };
+    render(
+      <PlanFaultBoundary>
+        <WbsTableOverClient
+          projectId="p1"
+          projectServices={projectServicesOf(api)}
+          subscribe={(_projectId, handlers) => {
+            notify = handlers.onChange;
+            return { seen: () => undefined, unsubscribe: () => undefined };
+          }}
+        />
+      </PlanFaultBoundary>,
+    );
+    await screen.findByLabelText('QA estimate for 010');
+    await api.removeStep('p1', QA.id, true);
+    api.steps = () => Promise.reject(new Error('steps unavailable'));
+    await act(async () => {
+      notify('step_removed');
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(screen.queryByLabelText('QA estimate for 010')).toBeNull();
+    });
+    expect(screen.getByLabelText('Dev estimate for 010')).toBeInTheDocument();
+    expect(screen.queryByText('Plan could not be rendered.')).toBeNull();
   });
 
   itDom(

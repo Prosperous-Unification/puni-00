@@ -113,10 +113,28 @@ When a leaf gains its first child, each of its step nodes SHALL map one-to-one t
 
 ### Requirement: A step cell names its step node
 
-Opening a leaf's step cell SHALL show its step reference and step name, such as `010.dev · Dev`, and SHALL offer copying the step reference and copying a link that addresses the step node ID. An uncoded node SHALL say so instead of showing a reference. Step columns, their order and their resting cell contents SHALL remain unchanged.
+Opening a leaf's step cell SHALL show its step reference and step name, such as `010.dev · Dev`, and SHALL offer copying the step reference and copying a link that addresses the project and step node ID. Opening the link SHALL select its project, reveal its leaf and focus that step cell. A project absent from the viewer's catalog SHALL be visibly refused. An uncoded node SHALL say so instead of showing a reference. Step columns, their order and their resting cell contents SHALL remain unchanged. Columns and node metadata SHALL use the same tree response during independently delivered step and tree refreshes.
 
 #### Scenario: Copying a node reference
 
 - **GIVEN** leaf 010's Dev cell is open
 - **WHEN** Copy reference is chosen
 - **THEN** `010.dev` is copied and the action is announced to assistive technology
+
+#### Scenario: Opening a copied step link from another project
+
+- **GIVEN** project B is remembered in the browser and a link was copied from project A's leaf step
+- **WHEN** the link is opened
+- **THEN** project A is selected and remembered, its leaf is revealed, and its step cell receives focus
+
+#### Scenario: Reaching a hover card action
+
+- **GIVEN** a folded step card opened when an unfocused cell was hovered
+- **WHEN** the pointer leaves the cell and reaches the diagonally placed card
+- **THEN** the card remains open long enough to activate Copy link
+
+#### Scenario: Step responses arrive separately
+
+- **GIVEN** a tree response and an independently fetched step list
+- **WHEN** a step is added or deleted and those responses arrive in either order, or one refresh fails
+- **THEN** the rendered step columns agree with the installed tree's node metadata and the table remains usable
