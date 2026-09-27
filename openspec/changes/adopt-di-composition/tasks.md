@@ -298,7 +298,11 @@
       `directory-usage.ts`, `history.service.ts`, `optimizer-trigger-broadcaster.ts`,
       `retention-timer.ts`). Deleting a shim is a code change with its own `kinds.json` rows and
       checks, not a ledger entry; besides `service-boundaries.test.ts`, the be-01 `clock.test.ts`
-      list `AGE_THEIR_OWN_ENTRIES` names `retention-timer.ts`.
+      list `AGE_THEIR_OWN_ENTRIES` names `retention-timer.ts`. **2026-09-27:** those eight are
+      deleted with their `kinds.json` rows (59 shim rows remain, 33 of them naming a module).
+      `AGE_THEIR_OWN_ENTRIES` keeps `retention-timer.ts`: it matches by file name, and the owner
+      `module/bounded-replay-sweep/retention-timer.ts` keeps that name. The task stays open for
+      the shims that still have importers.
 - [x] 7.2 Update `docs/code-organization/kinds.json` for every moved and suffix-declared file: a
       suffix-declared path carries no entry, and a retained unsuffixed shim keeps one. Closed
       2026-09-24 by evidence: both halves hold on this tree under
