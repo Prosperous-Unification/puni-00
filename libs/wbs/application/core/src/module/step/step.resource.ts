@@ -204,7 +204,12 @@ export class StepService {
     const gate = await this.gate(projectId, stepId, actorId, access);
     if (!gate.ok) return gate;
 
-    const written = await this.opts.steps.rename(stepId, clean, this.clock.stampFor(actorId));
+    const written = await this.opts.steps.rename(
+      projectId,
+      stepId,
+      clean,
+      this.clock.stampFor(actorId),
+    );
     if (!written.ok) return { ok: false, reason: written.reason };
     await this.opts.broadcast.publish(projectId, { type: 'step_renamed', step: written.step });
     return { ok: true, value: written.step };

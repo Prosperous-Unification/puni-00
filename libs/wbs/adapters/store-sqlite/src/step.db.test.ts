@@ -362,7 +362,7 @@ describe('StepRepository', () => {
   it('renames a step and moves the project’s revision', async () => {
     const before = await revisionOf(projectId);
 
-    const written = await steps.rename(qaId, 'Review', wrote());
+    const written = await steps.rename(projectId, qaId, 'Review', wrote());
 
     expect(written).toEqual({
       ok: true,
@@ -376,7 +376,7 @@ describe('StepRepository', () => {
   it('refuses a rename onto a name already in use, leaving both alone', async () => {
     const before = await revisionOf(projectId);
 
-    const written = await steps.rename(qaId, 'Dev', wrote());
+    const written = await steps.rename(projectId, qaId, 'Dev', wrote());
 
     expect(written).toEqual({ ok: false, reason: 'taken' });
     const names = (await steps.listByProject(projectId)).map((each) => each.name).sort();
@@ -386,8 +386,19 @@ describe('StepRepository', () => {
     expect(await revisionOf(projectId)).toBe(before);
   });
 
+  it('renames nothing of another project, whatever it is called by', async () => {
+    const before = await revisionOf(projectId);
+
+    expect(await steps.rename(otherProjectId, qaId, 'Taken', wrote())).toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
+    expect((await steps.findById(qaId))?.name).toBe('QA');
+    expect(await revisionOf(projectId)).toBe(before);
+  });
+
   it('reports a step that is gone rather than pretending to rename it', async () => {
-    expect(await steps.rename('never-existed', 'Design', wrote())).toEqual({
+    expect(await steps.rename(projectId, 'never-existed', 'Design', wrote())).toEqual({
       ok: false,
       reason: 'not_found',
     });
@@ -839,7 +850,7 @@ describe('what a step read publishes', () => {
     const listed = (await steps.listByProject(projectId)).find((each) => each.id === 'design');
     const found = await steps.findById('design');
     const throughProject = (await projects.stepsOf(projectId)).find((each) => each.id === 'design');
-    const renamed = await steps.rename('design', 'Drafting', wrote());
+    const renamed = await steps.rename(projectId, 'design', 'Drafting', wrote());
     if (!renamed.ok) throw new Error(`rename refused: ${renamed.reason}`);
 
     const declared = Object.keys(written.step).sort();

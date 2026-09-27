@@ -180,6 +180,22 @@ describe('after activation', () => {
     ).toBe(200);
   });
 
+  it('answers a foreign marker id collision only with 409 and leaves that marker alone', async () => {
+    const before = await foreignState();
+    expect(
+      await h.call('ada', 'POST', `/api/projects/${own}/calendar-markers`, {
+        markerId: foreignMarker,
+        date: '2026-11-01',
+        name: 'Mine',
+      }),
+    ).toEqual({ status: 409, body: { error: 'taken', field: 'markerId' } });
+    expect(await foreignState()).toEqual(before);
+    expect(await h.call('ada', 'GET', `/api/projects/${own}/calendar-markers`)).toEqual({
+      status: 200,
+      body: { markers: [] },
+    });
+  });
+
   it('refuses an unbound session and a removed member before any lookup', async () => {
     h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('ada')]);
     for (const [method, path, body] of [

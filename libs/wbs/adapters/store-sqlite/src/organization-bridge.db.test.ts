@@ -223,9 +223,12 @@ describe('the legacy bridge before activation', () => {
       "UPDATE tag SET name = 'moved' WHERE id = 't1'",
     ]);
     // The legacy side row still says `urgent 1`, so a new tag of that name cannot be mapped.
+    // The ownership freeze refuses the name before the unique index would.
     expect(() => {
       run(["INSERT INTO tag (id, name) VALUES ('t9', 'urgent 1')"]);
-    }).toThrow('UNIQUE constraint failed: tag_organization.organization_id, tag_organization.name');
+    }).toThrow(
+      'organization ownership is immutable: tag_organization already maps this root or name',
+    );
     expect(rows("SELECT id FROM tag WHERE id = 't9'")).toEqual([]);
   });
 

@@ -22,7 +22,7 @@ export function stepRegistrations(open: OpenCase<'steps'>): readonly CaseRegistr
     }),
     storeCase('steps', 'steps.rename', open, async ({ port, seed }) => {
       const stepId = seed.stepIds[0][0];
-      const renamed = await port.rename(stepId, 'Renamed', seed.stamps[0]);
+      const renamed = await port.rename(seed.projectIds[0], stepId, 'Renamed', seed.stamps[0]);
       expect(renamed.ok).toBe(true);
       const found = (await port.listByProject(seed.projectIds[0])).find(
         (step: Step) => step.id === stepId,
@@ -33,7 +33,12 @@ export function stepRegistrations(open: OpenCase<'steps'>): readonly CaseRegistr
       expect(found?.name).toBe('Renamed');
     }),
     storeCase('steps', 'steps.rename:unknown', open, async ({ port, seed }) => {
-      const renamed = await port.rename('no-such-step', 'Renamed', seed.stamps[0]);
+      const renamed = await port.rename(
+        seed.projectIds[0],
+        'no-such-step',
+        'Renamed',
+        seed.stamps[0],
+      );
       expect(renamed.ok).toBe(false);
     }),
   ];

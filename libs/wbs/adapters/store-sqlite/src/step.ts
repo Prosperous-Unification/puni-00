@@ -170,7 +170,12 @@ export class StepRepository implements StepStore {
    * `reports a step that is gone rather than pretending to rename it` fails —
    * a rename of nothing answered `ok`; watched 2026-08-08.
    */
-  async rename(stepId: string, name: string, stamp: WriteStamp): Promise<StepWritten> {
+  async rename(
+    projectId: string,
+    stepId: string,
+    name: string,
+    stamp: WriteStamp,
+  ): Promise<StepWritten> {
     return await this.gate.enter(async () => {
       await Promise.resolve();
       try {
@@ -178,7 +183,10 @@ export class StepRepository implements StepStore {
           const rows = tx
             .update(step)
             .set({ name, ...auditOnUpdate(stamp) })
-            .where(eq(step.id, stepId))
+            // Proof: addressing the step by id alone made `renames nothing of
+            // another project, whatever it is called by` in `step.db.test.ts`
+            // rename the other project's step; watched 2026-09-27.
+            .where(and(eq(step.id, stepId), eq(step.projectId, projectId)))
             .returning(STEP_COLUMNS)
             .all();
           const renamed = rows.at(0);

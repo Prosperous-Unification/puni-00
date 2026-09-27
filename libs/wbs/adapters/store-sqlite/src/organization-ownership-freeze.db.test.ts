@@ -96,6 +96,28 @@ describe.each(SIDES)('%s', (side, root, id, catalog) => {
   });
 
   if (catalog) {
+    it("refuses replacing another root's display name", () => {
+      // Two more live roots, left unmapped by dropping the bridge that would
+      // map them; what is under test is only the freeze.
+      db.run(`DROP TRIGGER ${side}_bridge`);
+      db.run(
+        `INSERT INTO ${root} (id, name) VALUES ('second', 'second-root'), ('third', 'third-root')`,
+      );
+      db.run(
+        `INSERT INTO ${side} (resource_id, organization_id, name) VALUES ('third', 'org-a', 'third')`,
+      );
+      const held = db.query(`SELECT name FROM ${side} WHERE resource_id = ?`).get(id) as {
+        name: string;
+      };
+      for (const statement of [
+        `INSERT OR REPLACE INTO ${side} (resource_id, organization_id, name) VALUES ('second', 'org-a', ?)`,
+        `UPDATE OR REPLACE ${side} SET name = ? WHERE resource_id = 'third'`,
+      ]) {
+        expect(() => db.run(statement, [held.name])).toThrow('organization ownership is immutable');
+      }
+      expect(ownerOf(side, id)).toEqual({ organization_id: 'org-a' });
+    });
+
     it('still lets a display name change', () => {
       db.run(`UPDATE ${side} SET name = 'renamed' WHERE resource_id = ?`, [id]);
       expect(db.query(`SELECT name FROM ${side} WHERE resource_id = ?`).get(id)).toEqual({
