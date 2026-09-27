@@ -1474,6 +1474,7 @@ describe("4.1's conditional write, with all four conditions composed", () => {
         notBefore: new Map(),
         poolSizes: new Map(),
         reach: 'whole-item',
+        typed: [],
         deadlines: new Map(),
       };
     }
@@ -1507,9 +1508,11 @@ describe("4.1's conditional write, with all four conditions composed", () => {
         // chose `optimized` — the two `4.11b` cases below went red at
         // `e0f5bd84` and were found at `371f68c5`, having been red the whole
         // time in between. `libs/wbs/domain/domain/src/publication-guard.test.ts` holds the
-        // same fixture and was moved to eight arguments with the seam; this
+        // same fixture and was moved to eight arguments with the seam (nine since typed
+        // dependencies took the eighth); this
         // copy was not, and a positional seventh argument is silent about it.
         new Map(),
+        [],
         new Map([
           [sliceKey('a', null), 0 / SOLVER_QUANTUM],
           [sliceKey('b', null), 10 / SOLVER_QUANTUM],
@@ -2436,6 +2439,7 @@ function planInput(): ScheduleInput {
     notBefore: new Map(),
     poolSizes: new Map([['team-platform', 1]]),
     reach: 'whole-item',
+    typed: [],
     deadlines: new Map(),
   };
 }

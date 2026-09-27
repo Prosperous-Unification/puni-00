@@ -61,6 +61,7 @@ function inputAt(revision: number): ScheduleInput {
     notBefore: new Map([['w-1', revision]]),
     poolSizes: new Map(),
     reach: 'whole-item',
+    typed: [],
     deadlines: new Map(),
   };
 }

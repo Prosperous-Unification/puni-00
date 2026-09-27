@@ -5,6 +5,7 @@ import { WORK_ITEM_PROJECTION_START, workdaysLateBy } from './on-time';
 import { resolveStepNodeGraph } from './slice-edges';
 import { groupSlicesByLeaf } from './slice-groups';
 import { treeOrder } from './tree-order';
+import type { TypedDependency } from './typed-dependency';
 import { lastWorkdayOf, snapWorkdays, withinDrift } from './workday';
 
 /** A finish-to-start edge, as written: either end may be a parent. */
@@ -434,6 +435,21 @@ export function expandToLeaves(
     }
   }
   return expanded;
+}
+
+/**
+ * The leaves beneath a work item of this tree, a leaf answering itself.
+ *
+ * Throws for a work item the tree does not hold: a typed endpoint naming one
+ * is stored state from another plan, and resolving it to no leaves would drop
+ * the relationship silently.
+ */
+export function leavesUnderOf(index: TreeIndex): (workItemId: string) => readonly string[] {
+  return (workItemId) => {
+    const found = index.leavesUnder.get(workItemId);
+    if (found === undefined) throw new Error(`no work item ${workItemId} in this plan`);
+    return found;
+  };
 }
 
 /** Whether the leaf graph can be ordered at all — the same question the sort asks. */
@@ -2244,6 +2260,22 @@ export function schedule(
    */
   deadlines: ReadonlyMap<string, number> = new Map(),
   /**
+   * The typed dependencies — `openspec/changes/add-step-finish-start-dependencies`
+   * — each an FS relationship between a whole work item, one step node, or one
+   * step in every leaf under a parent. The eighth field of {@link ScheduleInput},
+   * in its order.
+   *
+   * Resolved at the one graph seam, {@link resolveStepNodeGraph}, beside the
+   * workflow chain and the legacy joins, so every resolved pair becomes an FS
+   * edge into whichever node it names — a later step of the successor included —
+   * and the solver request builder derives the same edges.
+   *
+   * Empty by default for {@link deadlines}' reason: no typed dependency and an
+   * absent list mean the same plan, and every plan that predates typed
+   * dependencies is scheduled byte for byte as before.
+   */
+  typed: readonly TypedDependency[] = [],
+  /**
    * Task 4.9's `materialiseOptimized`: a start per slice key, or Fast's own.
    *
    * **This argument is the whole of the optimized materialiser.** Everything
@@ -2375,11 +2407,15 @@ export function schedule(
   // Pushed onto the two nodes rather than rebuilt into a map: the adjacency is
   // written once per edge, and the order the edges arrive in is the order these
   // arrays are walked in later.
+  // Proof: the typed list replaced by `[]` at this call made four of the five
+  // `schedule-typed-dependency.test.ts` cases fail — `holds a later successor
+  // step` on `Expected: 3, Received: 1` among them; watched 2026-09-27.
   for (const { predecessor, successor } of resolveStepNodeGraph(
     leafIds,
     (id) => slicesOf(id).slices,
     leafEdges,
     reach,
+    { dependencies: typed, leavesUnder: leavesUnderOf(index) },
   ).edges) {
     const before = firstNodeOf(predecessor.leafId) + predecessor.at;
     const after = firstNodeOf(successor.leafId) + successor.at;

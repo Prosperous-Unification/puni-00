@@ -40,7 +40,7 @@ import {
   SOLVER_OBJECTIVES,
   type SolverObjectiveName,
 } from '@wbs/domain';
-import { byTreeOrder, type StepNodeCycle, treeOrder } from '@wbs/domain';
+import { byTreeOrder, type StepNodeCycle, treeOrder, type TypedDependency } from '@wbs/domain';
 import {
   haveSameSliceOrder,
   type Schedule,
@@ -440,6 +440,7 @@ function canonicalScheduleParts(
   rows: readonly LabelledWorkItem[],
   estimates: readonly StoredEstimate[],
   edges: readonly StoredDependency[],
+  typed: readonly TypedDependency[],
   assignments: readonly Assignment[],
   steps: readonly Step[],
   poolSizes: ReadonlyMap<string, number>,
@@ -494,6 +495,7 @@ function canonicalScheduleParts(
       poolSizes,
       reach: project.depReach,
       deadlines,
+      typed,
     },
     hasChildren,
     assigneesOf,
@@ -1456,11 +1458,20 @@ export class WorkItemService {
     const rows = await this.opts.workItems.listByProject(projectId);
     const estimates = await this.opts.estimates.listByProject(projectId);
     const edges = await this.opts.dependencies.listByProject(projectId);
+    const typed = await this.opts.typedDependencies.listByProject(projectId);
     const assignments = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
     const steps = await this.opts.projects.stepsOf(projectId);
     const poolSizes = await this.opts.capacity.slotsFor(projectId);
-    return canonicalScheduleParts(project, rows, estimates, edges, assignments, steps, poolSizes)
-      .input;
+    return canonicalScheduleParts(
+      project,
+      rows,
+      estimates,
+      edges,
+      typed,
+      assignments,
+      steps,
+      poolSizes,
+    ).input;
   }
 
   /**
@@ -1706,6 +1717,7 @@ export class WorkItemService {
       rows,
       stored,
       edges,
+      await this.opts.typedDependencies.listByProject(projectId),
       assigned,
       steps,
       slotsOf,
@@ -2998,6 +3010,7 @@ export class WorkItemService {
       rows,
       stored,
       edges,
+      await this.opts.typedDependencies.listByProject(projectId),
       assigned,
       steps,
       slotsOf,

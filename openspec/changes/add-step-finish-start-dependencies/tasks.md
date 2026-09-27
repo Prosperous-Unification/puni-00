@@ -60,21 +60,21 @@
 
 ## 7. Schedule expanded FS edges in Fast
 
-- [ ] 7.1 Red: later successor step, parent expansion, unknown predecessor and dynamic legacy reach Fast goldens.
-- [ ] 7.2 Feed resolved FS edges into Fast placement and date projection.
-- [ ] 7.3 Negative proof: omit a later-step edge; watch its golden fail, restore, add adjacent `Proof:`.
+- [x] 7.1 Red: later successor step, parent expansion, unknown predecessor and dynamic legacy reach Fast goldens.
+- [x] 7.2 Feed resolved FS edges into Fast placement and date projection.
+- [x] 7.3 Negative proof: omit a later-step edge; watch its golden fail, restore, add adjacent `Proof:`.
 
 ## 8. Carry FS edges through solver publication
 
-- [ ] 8.1 Red: solver wire/hash and independently rejected expanded-edge violation.
-- [ ] 8.2 Carry all edges through CP-SAT and independent materialized response validation.
-- [ ] 8.3 Negative proof: remove one response edge check; watch rejection test fail, restore, add adjacent `Proof:`.
+- [x] 8.1 Red: solver wire/hash and independently rejected expanded-edge violation.
+- [x] 8.2 Carry all edges through CP-SAT and independent materialized response validation.
+- [x] 8.3 Negative proof: remove one response edge check; watch rejection test fail, restore, add adjacent `Proof:`.
 
 ## 9. Retire stale scheduler results
 
-- [ ] 9.1 Red: cache built without typed edges cannot publish after a typed edit.
-- [ ] 9.2 Bump `SCHEDULER_CONTRACT_VERSION`, update hash and regenerate versioned corpora.
-- [ ] 9.3 Negative proof: reuse the old contract version; watch cache-retirement test fail, restore, add adjacent `Proof:`.
+- [x] 9.1 Red: cache built without typed edges cannot publish after a typed edit.
+- [x] 9.2 Bump `SCHEDULER_CONTRACT_VERSION`, update hash and regenerate versioned corpora.
+- [x] 9.3 Negative proof: reuse the old contract version; watch cache-retirement test fail, restore, add adjacent `Proof:`.
 
 ## 10. Expose editing and graph geometry
 

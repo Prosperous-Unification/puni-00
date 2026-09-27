@@ -51,6 +51,7 @@ const plan: SolverRequestPlan = {
   notBefore: new Map(),
   poolSizes: new Map(),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
 };
 
@@ -63,6 +64,7 @@ const requestOf = () => {
       plan.notBefore,
       plan.poolSizes,
       plan.reach,
+      [],
     ),
     solverVersion: '0.1.0',
     budgetMs: 30_000,
@@ -172,6 +174,7 @@ describe('the quantised baseline on a plan whose every constraint is live', () =
     notBefore: new Map([['P', 3]]),
     poolSizes: new Map([['team-x', 2]]),
     reach: 'whole-item',
+    typed: [],
     deadlines: new Map(),
   };
 
@@ -184,6 +187,7 @@ describe('the quantised baseline on a plan whose every constraint is live', () =
         richPlan.notBefore,
         richPlan.poolSizes,
         richPlan.reach,
+        [],
       ),
       solverVersion: '0.1.0',
       budgetMs: 30_000,

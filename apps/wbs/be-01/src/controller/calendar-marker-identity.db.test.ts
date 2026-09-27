@@ -343,6 +343,8 @@ describe('the schedule identity guarantee', () => {
       'ask.input.poolSizes',
       'ask.input.reach',
       'ask.input.deadlines',
+      // The eighth since typed dependencies (WBS 010.4.6).
+      'ask.input.typed',
     ]);
 
     // (b) The engine itself. Both halves matter: an import of the marker module

@@ -36,6 +36,21 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
   - Project PATCH and step DELETE checked outside a unit of work, which left a race. Fixed: `admitted-write.ts` runs both as one unit of work over the batch graph, announcing after commit. Proof: `updateProject` bypassing `uow.run` → `admits … inside one unit of work` failed with `begin`/`commit` missing.
   - Structural edits against typed endpoints (first-child hand-down, deleting the last child under a descendant-step endpoint, deleting a directly referenced work item) still throw rather than refuse. Deferred to task 1a, which lands with the typed commands. No typed row can be written before then.
 
+## Tasks 7–9 — both schedulers (WBS 010.4.6, 2026-09-27)
+
+- `schedule()` takes the typed dependencies as its eighth argument (after `deadlines`; `pinnedStarts` moved to ninth), and `ScheduleInput` carries them as `typed`. Both resolve at the shared seam, so Fast places an authored FS edge into whichever node it names. The solver request carries the same expanded edges (`buildSolverEdges` requires the authored set), `quantisedFastBaseline` and `materialiseOptimized` require them, the publication guard and the portable scheduler pass them through, and the live tree read and the solver queue read them from the store. Saved plans pass `typed: []` until task 6b captures them.
+- The canonical input hashes typed dependencies by id with both endpoints and the type. It includes them only when there is one, so every existing plan keeps its hash. `SCHEDULER_CONTRACT_VERSION` 12 → **13**, the golden corpora were regenerated (only `contractVersion` moved: no value in either corpus changed), and the solver request fixtures moved to `13+0.1.3`.
+- Tests:
+  - Fast goldens (`schedule-typed-dependency.test.ts`): a later successor step, the Dev handoff overlapping QA, parent expansion, an unestimated predecessor node, and dynamic legacy reach beside a typed edge.
+  - Solver (`typed-dependency-solver.test.ts`): a parent relationship's two wire edges, the baseline waiting for both leaves, and revalidation refusing a response that violates one expanded pair (`edge-violated`).
+  - Canonical input: the hash is unchanged without typed dependencies, differs by endpoint, scope and id, and is independent of arrival order.
+- Runs: `env -u CLAUDECODE bun test libs/wbs apps/wbs/mcp-01/src` gave 3341 pass, 1 fail (Bun collecting Playwright's `portable-composition.spec.ts`, as on main). `apps/wbs/be-01` gave 1178 pass, 0 fail. The solver-py unittest suite (`PYTHONPATH=src … -m unittest discover -s tests -t tests`) ran 214 tests, OK. Nx typecheck and `lint:fast` over the ten touched projects were green.
+- **R5 proofs (2026-09-27):**
+  - Typed list replaced by `[]` at `schedule()`'s seam → four Fast goldens failed (`holds a later successor step` on `Expected: 3, Received: 1`).
+  - The same at `buildSolverRequest` → the wire-edge case failed on `Expected to contain` P1.qa → B.dev, and revalidation reported the violation as `objective-mismatch` instead of `edge-violated`.
+  - The canonical `typed` entry removed → `hashes a typed dependency’s endpoints, scope and identity` failed on `Expected: 4, Received: 1`.
+  - Cache retirement: a typed edit changes the input hash (the canonical case above), and the version bump evicts every row cached under 12. The contract-version test (`startsWith('13+')`) and the corpus-version lint pin the number.
+
 ## Planned checks — pending later tasks
 
 - **Pending:** Expanded slice-graph cases: parent Cartesian product, self-slice/cycle refusal, apparent work-item cycle acceptance, referenced-step deletion refusal, reparenting, step insertion/deletion/reorder, legacy write, project `depReach` change, estimate-driven dynamic-anchor change and history replay.
