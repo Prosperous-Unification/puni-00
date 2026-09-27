@@ -154,6 +154,49 @@ A deleted project's retained stream is reported rather than guessed. Its retenti
 
 Command: `env -u CLAUDECODE bun test src/organization-reconciliation.db.test.ts`: 23 pass.
 
+## Slice 7 — project boundary (task 3.1)
+
+Branch `batch-9/010-5-2-orgs-6`, stacked on slice 6. Design call: Astra, saved in the lane records as `010-5-2-orgs-task-3.1-design.md`.
+
+- Every project route (`list`, `read`, `opened`, `create`, `PATCH`, `export`, and the optimization `retry`) resolves `OrganizationAccess` before any lookup.
+- `SqliteOrganizationAccess` re-reads the activation marker on every request:
+  - an explicit `pre_activation` answers `legacy`, which is the old deployment-wide behaviour;
+  - a broken marker throws, and the request answers 500;
+  - after activation, the session's bound organization must still list the user. No binding answers typed 403 `no_active_organization`, and no current membership answers 403 `not_a_member`.
+- Scoped reads and writes go through `project_organization`. A foreign project and an absent one both answer the same 404. Scoped creation writes the ownership row in the project's own transaction.
+- Viewers may read and open but not write. A restricted project stays creator-only.
+- Inert: production wires `NO_BOUND_ORGANIZATION` until task 2.4. After activation every project route would answer 403, so activation (7.1) must wait for 2.4.
+- Not in this slice:
+  - The super-admin recovery override: it must be audited, so 3.7 owns it. Until then it fails closed.
+  - `readBySolutionSlug`, and the saved-plan routes' project reads: 3.5 and 3.6.
+  - Export's tree and references beyond the project itself: 3.5.
+- No project delete endpoint exists.
+
+| Check                       | Injected fault                                                 | Observed failure (2026-09-27)                                                                                               |
+| --------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Viewer write policy         | `canWriteInOrganization` answers `true`                        | `refuses a viewer every project write and lets the viewer read and open`                                                    |
+| Restricted creator rule     | `canEditProjectInOrganization` drops `canEditProject`          | `lets only the creator edit a restricted project, super-admin included`: the super-admin PATCH answered the renamed project |
+| Scoped create refusal       | viewer check in `createWithin` disabled                        | the viewer case                                                                                                             |
+| Scoped edit policy          | `authorizeEdit` uses legacy `canEditProject` for scoped access | the viewer case                                                                                                             |
+| Scoped find                 | `findInOrganization` predicate made tautological               | `answers 404 alike for a foreign and an absent project, and changes nothing`: the foreign read answered 200                 |
+| Scoped list                 | `listForInOrganization` predicate removed                      | `lists only the active organization's projects`: `B plan` listed                                                            |
+| Scoped create mapping       | `project_organization` insert skipped                          | `creates a project only its own organization can see`: the creator's read answered 404                                      |
+| Marker read per request     | `resolve` answers `legacy` without the marker                  | `scopes the same running app once another connection activates isolation`                                                   |
+| Current membership          | membership lookup bypassed                                     | `refuses a removed member on the next request`: 200                                                                         |
+| Export reads through access | export reads with unscoped `projects.read`                     | the 404 case: the foreign Markdown answered 200                                                                             |
+| Production wiring           | `boot.ts` wires legacy access                                  | `boot.db.test.ts` `refuses every project route after activation until a session binds an organization`: 200                 |
+
+Commands, all under `env -u CLAUDECODE`:
+
+- `bun test` in `apps/wbs/be-01`: 1156 tests across 98 files. 2 failed before their spies were moved to the `…Within` methods, then `project.controller.test.ts` passed 55 of 55.
+- wbs-core: 629 pass.
+- store-sqlite: 928 pass. `audit.test.ts` exempts `projectOrganization`, which carries no audit columns.
+- store-memory: 113 pass.
+- domain: 692 pass.
+- contracts: 397 pass.
+- mcp-01: 212 pass.
+- fe-01 vitest, 6 refusal and project files: 129 pass.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.
