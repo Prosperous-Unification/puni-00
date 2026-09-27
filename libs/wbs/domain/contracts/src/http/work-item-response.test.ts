@@ -31,6 +31,17 @@ test('tree boundary refuses missing core producer fields while allowing additive
   expect(
     (await validateSchema(getWorkItems.responses[0].schema, olderReply)).issues,
   ).toBeUndefined();
+  const read = getWorkItems.responses[0].schema;
+  const node = { id: 'sn1.w.s', workItemId: 'w', stepId: 's', reference: '010.dev' };
+  const current = { ...olderReply, addressRevision: 'ar1:00', stepNodes: [node] };
+  expect((await validateSchema(read, current)).issues).toBeUndefined();
+  for (const malformed of [
+    { ...current, addressRevision: 7 },
+    { ...current, stepNodes: [{ ...node, reference: 5 }] },
+    { ...current, stepNodes: [{ ...node, id: undefined }] },
+  ]) {
+    expect((await validateSchema(read, malformed)).issues).toBeDefined();
+  }
   const { projectRevision, ...missing } = tree;
   expect((await validateSchema(schema, missing)).issues).toBeDefined();
 });
