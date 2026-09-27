@@ -9,6 +9,7 @@ import { projectServicesOver } from '@/modules/project/composition';
 import type { ProjectRuntime, ProjectServices, ProjectSource } from '@/modules/project/contract';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 
+import { credentialOf } from './credential';
 import { PartialAcquisitionError } from './lifetime-slot';
 import { installProjectRuntime } from './project-runtime';
 import {
@@ -130,6 +131,8 @@ interface ExitWorld {
   /** Every close that failed and every installation that was broken. */
   failures: number;
   next: number;
+  /** How the next project opened should close: set by the command that opens it. */
+  nextMode: CloseMode;
 }
 
 /** The credential the model hands a sign-in whose installation it makes fail. */
@@ -387,7 +390,10 @@ class SignIn implements ExitCommand {
     track(
       world,
       `open(${this.userId})`,
-      world.owner.open({ userId: this.userId, credential: this.broken ? BROKEN : '' }),
+      world.owner.open({
+        userId: this.userId,
+        credential: credentialOf(this.broken ? BROKEN : ''),
+      }),
     );
     model.wanted = this.userId;
     assertExit(world, this.toString());
@@ -483,14 +489,9 @@ class OpenProject implements ExitCommand {
     const session = pick(world, this.index);
     const runtime = session?.runtime ?? null;
     if (session === null || runtime === null) return;
-    track(
-      world,
-      `project(${session.name})`,
-      runtime.projects.open(
-        this.projectId,
-        projectSource(world, session, this.projectId, this.mode),
-      ),
-    );
+    // The session asks its source for this project synchronously inside `open`.
+    world.nextMode = this.mode;
+    track(world, `project(${session.name})`, runtime.projects.open(this.projectId));
     assertExit(world, this.toString());
     await Promise.resolve();
   }
@@ -636,12 +637,16 @@ describe('log out, against a reference model', () => {
             owner: createSessionOwner({
               budgetMs: BUDGET_MS,
               clientFor: (credential) => clientFor(world, credential),
+              projectClientFor: () => fakeProjectApi(),
               install: (dependencies) => {
                 const record = world.byClient.get(dependencies.directoryApi);
                 if (record === undefined) throw new Error('a session was installed from no client');
                 record.userId = dependencies.userId;
                 const installed = installSessionRuntime({
                   ...dependencies,
+                  // Every project gets a source of its own, so each is recorded apart.
+                  projectSourceFor: (projectId) =>
+                    projectSource(world, record, projectId, world.nextMode),
                   // The session's own wiring wraps this, so the project runtimes are
                   // the real ones, reached through the session's own guards.
                   installProject: (projectDependencies) => {
@@ -721,6 +726,7 @@ describe('log out, against a reference model', () => {
             faults: [],
             failures: 0,
             next: 0,
+            nextMode: 'settles',
           };
           let failure: Error | null = null;
           try {

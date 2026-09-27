@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import type { ProjectApi } from '@/lib/wbs-api';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
+import { projectSourceOver } from '@/modules/project/composition';
 import { installProjectRuntime } from '@/runtime/project-runtime';
 import { installSessionRuntime, type SessionRuntime } from '@/runtime/session-runtime';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
@@ -73,24 +74,26 @@ function emptyProjects(): ProjectApi {
  * A signed-in session's runtime over a fake directory, never withdrawn: these
  * cases are about routing, and the session owner has its own suites.
  */
-const signedIn = (): SessionRuntime =>
-  installSessionRuntime({
+const signedIn = (projects: ProjectApi = emptyProjects()): SessionRuntime => {
+  const source = projectSourceOver(projects);
+  return installSessionRuntime({
     userId: 'u1',
     directoryApi: fakeDirectoryApi(),
+    catalogRoutes: projects,
+    projectSourceFor: () => source,
     isCurrent: () => true,
     installProject: installProjectRuntime,
     budgetMs: 1_000,
   }).services;
+};
 
 /** The signed-in region entered at one address, the way a reload enters it. */
 const regionAt = (path: string) =>
   render(
     <AppRouter
       session={signedIn()}
-      token="t"
       presence={() => null}
       account={<span>account menu</span>}
-      projectApi={emptyProjects()}
       history={createMemoryHistory({ initialEntries: [path] })}
     />,
   );
@@ -214,7 +217,6 @@ describe('the signed-in region, routed', () => {
   itDom(
     'opens the selected project through the signed-in session’s own project owner',
     async () => {
-      const session = signedIn();
       const oneProject = emptyProjects();
       oneProject.listProjects = () =>
         Promise.resolve([
@@ -229,13 +231,12 @@ describe('the signed-in region, routed', () => {
           },
         ]);
       oneProject.openProject = () => Promise.resolve();
+      const session = signedIn(oneProject);
       render(
         <AppRouter
           session={session}
-          token="t"
           presence={() => null}
           account={<span>account menu</span>}
-          projectApi={oneProject}
           history={createMemoryHistory({ initialEntries: ['/'] })}
         />,
       );

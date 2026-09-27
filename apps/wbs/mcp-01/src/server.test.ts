@@ -12,7 +12,7 @@ import type {
   UnexpectedToolDisclosure,
   UnexpectedToolFailureReporter,
 } from './unexpected-tool-failure';
-import type { FetchLike } from './wbs-client';
+import { type FetchLike, SessionRefreshRefused } from './wbs-client';
 
 const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
@@ -93,7 +93,7 @@ async function connected(
   options: {
     readonly authInfo?: AuthInfo;
     readonly reportUnexpectedToolFailure?: UnexpectedToolFailureReporter;
-    readonly endSession?: (mcpSessionId: string) => void;
+    readonly endSession?: (mcpSessionId: string) => void | Promise<void>;
     readonly refreshSession?: (mcpSessionId: string) => Promise<string>;
   } = {},
 ): Promise<{ client: Client }> {
@@ -493,6 +493,75 @@ describe('an unexpected tool failure', () => {
     expect(reported[0]).toBe(failure);
     expect(toolResponse).toEqual(expected(READ.name));
     expect(ended).toBeFalse();
+  });
+
+  const rejectedSession: AuthInfo = {
+    token: 'stale-token',
+    clientId: 'person-1',
+    scopes: ['read'],
+    extra: { mcpSessionId: 'session-1' },
+  };
+  const upstreamRejects: FetchLike = () =>
+    Promise.resolve(new Response('{"error":"unauthorized"}', { status: 401 }));
+
+  it('reports a refresh whose session lookup throws, and keeps the session', async () => {
+    const failure = new Error('SQLITE_IOERR alice@example.com store-secret');
+    const reported: unknown[] = [];
+    const ended: string[] = [];
+    const { client } = await connected([READ], upstreamRejects, {
+      authInfo: rejectedSession,
+      reportUnexpectedToolFailure: recordingReporter(reported),
+      endSession: (sessionId) => void ended.push(sessionId),
+      refreshSession: () => Promise.reject(failure),
+    });
+
+    const toolResponse = await client.callTool({ name: READ.name, arguments: { id: 'p-1' } });
+
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).toBe(failure);
+    expect(toolResponse).toEqual(expected(READ.name));
+    expect(JSON.stringify(toolResponse)).not.toContain('store-secret');
+    expect(ended).toEqual([]);
+  });
+
+  it('keeps a refused refresh modeled: the session ends and nothing is reported', async () => {
+    const reported: unknown[] = [];
+    const ended: string[] = [];
+    const { client } = await connected([READ], upstreamRejects, {
+      authInfo: rejectedSession,
+      reportUnexpectedToolFailure: recordingReporter(reported),
+      endSession: (sessionId) => void ended.push(sessionId),
+      refreshSession: () =>
+        Promise.reject(
+          new SessionRefreshRefused('MCP OAuth session is missing, expired, or revoked'),
+        ),
+    });
+
+    const toolResponse = await client.callTool({ name: READ.name, arguments: { id: 'p-1' } });
+
+    expect(toolResponse.isError).toBe(true);
+    expect(JSON.stringify(toolResponse.content)).toContain('session ended. Reauthorize and retry');
+    expect(ended).toEqual(['session-1']);
+    expect(reported).toHaveLength(0);
+  });
+
+  it('reports a session end that rejects instead of failing the protocol call', async () => {
+    const failure = new Error('SQLITE_BUSY alice@example.com end-secret');
+    const reported: unknown[] = [];
+    const { client } = await connected([READ], upstreamRejects, {
+      authInfo: rejectedSession,
+      reportUnexpectedToolFailure: recordingReporter(reported),
+      endSession: () => Promise.reject(failure),
+      refreshSession: () =>
+        Promise.reject(new SessionRefreshRefused('upstream refresh was refused')),
+    });
+
+    const toolResponse = await client.callTool({ name: READ.name, arguments: { id: 'p-1' } });
+
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).toBe(failure);
+    expect(toolResponse).toEqual(expected(READ.name));
+    expect(JSON.stringify(toolResponse)).not.toContain('session ended');
   });
 
   it('reports a secret-bearing 500 instead of returning its body', async () => {

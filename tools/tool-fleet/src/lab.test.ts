@@ -12,6 +12,8 @@ import {
   readQemuLock,
   requireBaseImage,
   requireQemuInstallation,
+  type RunQemuCommand,
+  startQemuMachine,
 } from './lab-qemu';
 
 const repositoryRoot = join(import.meta.dir, '../../..');
@@ -509,4 +511,125 @@ describe('the rootless QEMU lab provider', () => {
       runLab(fixture, downArguments);
     }
   }, 60_000);
+});
+
+describe('starting a QEMU lab machine', () => {
+  async function machineFixture() {
+    const state = await mkdtemp(join(tmpdir(), 'fleet-qemu-start-'));
+    const machine = planQemuMachine(state, 'puni-vm-start-', 'puni-vm-start-server-1');
+    await mkdir(machine.directory, { recursive: true });
+    return { machine, pidPath: join(machine.directory, 'qemu.pid') };
+  }
+
+  function spawnMachineProcess(arguments_: readonly string[]) {
+    return Bun.spawn(['sh', '-c', 'while :; do sleep 1; done', 'fake-qemu', ...arguments_], {
+      stdio: ['ignore', 'ignore', 'ignore'],
+    });
+  }
+
+  const exited: RunQemuCommand = () => Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
+
+  async function refusal(start: Promise<void>): Promise<Error> {
+    try {
+      await start;
+    } catch (cause) {
+      if (cause instanceof Error) return cause;
+      throw cause;
+    }
+    throw new Error('the start was expected to refuse');
+  }
+
+  it('waits for a daemon that writes its owned pid after the start command returns', async () => {
+    const { machine } = await machineFixture();
+    let daemon: ReturnType<typeof spawnMachineProcess> | undefined;
+    let pidWritten: Promise<number> | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const run: RunQemuCommand = (_executable, arguments_) => {
+      timer = setTimeout(() => {
+        daemon = spawnMachineProcess(arguments_);
+        pidWritten = Bun.write(join(machine.directory, 'qemu.pid'), `${String(daemon.pid)}\n`);
+      }, 300);
+      return exited('', []);
+    };
+    try {
+      // Proof: with the owned-pid check made immediate again (no wait), this rejected with
+      // `QEMU did not leave puni-vm-start-server-1 running` (2026-09-27, WBS 080.14).
+      await startQemuMachine(machine, '/qemu', run, 5000);
+      expect(await ownedQemuPid(machine)).toBe(daemon?.pid);
+    } finally {
+      clearTimeout(timer);
+      await pidWritten;
+      daemon?.kill();
+      await daemon?.exited;
+    }
+  });
+
+  it('refuses a pid file whose daemon already exited, at the bound', async () => {
+    const { machine, pidPath } = await machineFixture();
+    const run: RunQemuCommand = async (_executable, arguments_) => {
+      const daemon = spawnMachineProcess(arguments_);
+      await writeFile(pidPath, `${String(daemon.pid)}\n`);
+      daemon.kill();
+      await daemon.exited;
+      return exited('', []);
+    };
+    // Proof: with ownedQemuPid accepting a pid whose /proc entry is gone, this start resolved
+    // instead of refusing (2026-09-27).
+    expect((await refusal(startQemuMachine(machine, '/qemu', run, 400))).message).toBe(
+      'QEMU machine puni-vm-start-server-1 start did not happen within 400ms',
+    );
+  });
+
+  it('refuses an unreadable pid file at once instead of waiting it out', async () => {
+    const { machine, pidPath } = await machineFixture();
+    const run: RunQemuCommand = async () => {
+      await mkdir(pidPath);
+      return exited('', []);
+    };
+    const started = performance.now();
+    // Proof: with readPid treating every read error as an absent file, this refused only at the
+    // 5000ms bound with the deadline message instead (2026-09-27).
+    expect((await refusal(startQemuMachine(machine, '/qemu', run, 5000))).message).toMatch(
+      /Cannot read QEMU lab pid file .*qemu\.pid/,
+    );
+    expect(performance.now() - started).toBeLessThan(5000);
+  });
+
+  it('refuses when no pid file appears within the bound', async () => {
+    const { machine } = await machineFixture();
+    const started = performance.now();
+    expect((await refusal(startQemuMachine(machine, '/qemu', exited, 400))).message).toBe(
+      'QEMU machine puni-vm-start-server-1 start did not happen within 400ms',
+    );
+    expect(performance.now() - started).toBeGreaterThanOrEqual(400);
+  });
+
+  it('refuses a pid file that names a process other than this machine', async () => {
+    const { machine, pidPath } = await machineFixture();
+    const bystander = spawnMachineProcess(['-name', 'someone-else']);
+    const run: RunQemuCommand = async () => {
+      await writeFile(pidPath, `${String(bystander.pid)}\n`);
+      return exited('', []);
+    };
+    try {
+      expect((await refusal(startQemuMachine(machine, '/qemu', run, 400))).message).toBe(
+        'QEMU machine puni-vm-start-server-1 start did not happen within 400ms',
+      );
+    } finally {
+      bystander.kill();
+    }
+  });
+
+  it('refuses a malformed pid file at once instead of waiting it out', async () => {
+    const { machine, pidPath } = await machineFixture();
+    const run: RunQemuCommand = async () => {
+      await writeFile(pidPath, 'not-a-pid\n');
+      return exited('', []);
+    };
+    const started = performance.now();
+    expect((await refusal(startQemuMachine(machine, '/qemu', run, 5000))).message).toMatch(
+      /QEMU lab pid file .* is malformed/,
+    );
+    expect(performance.now() - started).toBeLessThan(5000);
+  });
 });

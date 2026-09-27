@@ -964,10 +964,6 @@ describe('one cell for the whole trio', () => {
     // assertions below are satisfied before the round trip and say nothing
     // until it has happened.
     //
-    // The rule reversed on 2026-09-20: the result is drawn and the repeated
-    // trio is what goes quiet. Proof: dropping `trioRepeatsResult ?
-    // 'transparent' :` from the box's rest arm made this fail on `expected
-    // 'var(--muted-foreground)' to be 'transparent'`. Watched 2026-09-20.
     await oneRow();
 
     typeCombined('010', '5');
@@ -976,8 +972,8 @@ describe('one cell for the whole trio', () => {
       expect(rowFor('010').querySelector('[data-final-total]')?.textContent).toBe('5');
     });
     expect(combinedCell('010').value).toBe('5');
-    expect(foldedFinal('010')?.textContent).toBe('5');
-    expect(combinedCell('010').style.color).toBe('transparent');
+    expect(combinedCell('010').style.color).toBe('var(--muted-foreground)');
+    expect(foldedFinal('010')).toBeNull();
   });
 
   itDom('keeps the stored figure beside a cell holding a refused entry', async () => {
@@ -1006,6 +1002,24 @@ describe('one cell for the whole trio', () => {
     expect(cell.value).toBe('9/9/');
     expect(cell).toHaveAttribute('aria-invalid', 'true');
     expect(foldedFinal('010')?.textContent).toBe('4');
+  });
+
+  itDom('keeps a flat estimate’s figure beside a cell holding a refused entry', async () => {
+    // A flat `5` draws no figure while the box reads `5`, because the box
+    // already says it. Once the box holds a refused `9/9/` it no longer says
+    // `5`, and the saved figure is the only place the cell still reads it.
+    await oneRow();
+    typeCombined('010', '5');
+    await waitFor(() => {
+      expect(rowFor('010').querySelector('[data-final-total]')?.textContent).toBe('5');
+    });
+    expect(foldedFinal('010')).toBeNull();
+
+    const cell = typeCombined('010', '9/9/');
+
+    expect(cell.value).toBe('9/9/');
+    expect(cell).toHaveAttribute('aria-invalid', 'true');
+    expect(foldedFinal('010')?.textContent).toBe('5');
   });
 
   itDom('copies one row’s cell into another and lands the same estimate', async () => {
@@ -1393,7 +1407,7 @@ describe('one cell for the whole trio', () => {
     expect(rolledTrio('010')?.style.color).toBe('var(--muted-foreground)');
   });
 
-  itDom('hides a parent’s rolled-up trio when it repeats the result', async () => {
+  itDom('shows a parent’s rolled-up trio once when it equals the result', async () => {
     const api = await oneRow();
     pressNewItem('010');
     await waitFor(() => {
@@ -1407,14 +1421,11 @@ describe('one cell for the whole trio', () => {
       expect(api.rows.find((row) => row.id === 'w2')?.estimates['step-dev']).toBeDefined();
     });
     await waitFor(() => {
-      expect(foldedFinal('010')?.textContent).toBe('5');
+      expect(rolledTrio('010')?.textContent).toBe('5');
     });
-
-    // Proof: dropping `trioRepeatsResult ? 'transparent' :` from the
-    // rolled-up span made this fail on `expected 'var(--muted-foreground)'
-    // to be 'transparent'`. Watched 2026-09-20.
     expect(rolledTrio('010')?.textContent).toBe('5');
-    expect(rolledTrio('010')?.style.color).toBe('transparent');
+    expect(rolledTrio('010')?.style.color).toBe('var(--muted-foreground)');
+    expect(foldedFinal('010')).toBeNull();
   });
 
   itDom('draws the result in the row’s own type, with tabular numerals', async () => {
@@ -1443,9 +1454,16 @@ describe('one cell for the whole trio', () => {
   itDom('leaves an unestimated folded cell empty', async () => {
     await oneRow();
 
-    // Proof: dropping `final !== ''` from `showsResult` made this fail on
-    // `expected <span …(2)></span> to be null`. Watched 2026-09-20.
     expect(combinedCell('010').value).toBe('');
+    expect(foldedFinal('010')).toBeNull();
+
+    // A refused entry is the case where the box says something and the row
+    // still has no figure, so only `final !== ''` keeps an empty span off it:
+    // the empty box above already equals the empty figure.
+    // Proof: dropping `final !== ''` from `showsResult` made this fail on
+    // `expected <span …(2)></span> to be null`. Watched 2026-09-27.
+    const cell = typeCombined('010', '9/9/');
+    expect(cell).toHaveAttribute('aria-invalid', 'true');
     expect(foldedFinal('010')).toBeNull();
   });
 
