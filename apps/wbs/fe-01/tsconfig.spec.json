@@ -5,6 +5,7 @@
     "types": ["vitest/globals", "@testing-library/jest-dom", "node", "vite/client"],
     "paths": {
       "@/*": ["./src/*"],
+      "@wbs/domain/step-node": ["../../../libs/wbs/domain/domain/src/step-node.ts"],
       "@wbs/domain/workday": ["../../../libs/wbs/domain/domain/src/workday.ts"],
       "@wbs/domain/estimate": ["../../../libs/wbs/domain/domain/src/estimate.ts"],
       "@wbs/domain/deadline-offsets": ["../../../libs/wbs/domain/domain/src/deadline-offsets.ts"],

@@ -15,7 +15,7 @@ import {
 } from '@/lib/wbs-api';
 import type { Channel } from '@/modules/channel';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
-import type { DeliveredPlan } from '@/modules/plan-feed/delivered-plan-store';
+import { type DeliveredPlan, sameSteps } from '@/modules/plan-feed/delivered-plan-store';
 import type { BusyWrites } from '@/modules/plan-writer/busy-store';
 import type { PlanRefusal, ProjectRuntime } from '@/modules/project/contract';
 import type { Store } from '@/modules/store';
@@ -223,6 +223,7 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
   const tree = delivered.tree;
 
   const workItems = useMemo(() => (tree === null ? [] : rowsOf(tree)), [tree]);
+  const stepNodes = tree === null ? undefined : tree.value.stepNodes;
 
   /** The project whose whole tree most recently completed a successful read. */
   const treeReadProject = useRef<string | null>(null);
@@ -242,9 +243,10 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
    * four requests, four moments, and a peer deleting a step in between left a
    * chart that threw. Derived from one delivered tree, they cannot disagree.
    *
-   * The separate reads stay for what they are actually about: {@link steps}
-   * heads the estimate columns and the steps dialog edits it, and
-   * {@link people} is who the assignee picker can offer.
+   * The separate people read supplies who the assignee picker can offer.
+   * Step columns follow the tree's step snapshot: independent step delivery
+   * cannot put new columns beside old node metadata or remove old columns
+   * before the tree carrying that deletion arrives.
    */
   const chartRead = useMemo<ChartRead>(
     () =>
@@ -272,7 +274,17 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
     [tree],
   );
 
-  const steps = delivered.steps;
+  // Proof: restoring `delivered.steps` made both response-order tests reach
+  // "Plan could not be rendered": new steps before old tree, and a deleted
+  // tree before the neighboring steps read failed (2026-09-27).
+  const stepSnapshot = useRef<StepView[]>([]);
+  const treeSteps = tree === null ? [] : tree.value.steps;
+  // An equal tree refetch must preserve the column array: rebuilding its
+  // column definitions remounts focused editors and discards their caret.
+  // Proof: returning `tree.value.steps` directly made eight editing cases in
+  // plan-cells.test.tsx lose focus or an in-progress draft (2026-09-27).
+  if (!sameSteps(stepSnapshot.current, treeSteps)) stepSnapshot.current = [...treeSteps];
+  const steps = stepSnapshot.current;
 
   /**
    * Whether the last refetch failed, leaving the tree on screen possibly
@@ -381,6 +393,7 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
     markers,
     activeProject,
     workItems,
+    stepNodes,
     treeReadProject,
     chartRead,
     steps,

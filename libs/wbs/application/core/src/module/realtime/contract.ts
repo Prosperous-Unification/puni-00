@@ -1,6 +1,6 @@
 import type { Clock } from '../../ports/clock';
-import type { EventLogStore } from '../../ports/event-log-store';
 import type { PushTransport } from '../../ports/push-transport';
+import type { EventLogService } from '../event-log/event-log.resource';
 import type { GatewayBroadcaster } from './gateway-broadcaster';
 import type { ReplayBuffer } from './replay-buffer';
 import type { ReplayOrchestrator } from './replay-orchestrator';
@@ -8,12 +8,7 @@ import type { ReplayOrchestrator } from './replay-orchestrator';
 /**
  * What a host must supply to install {@link realtimeModule}.
  *
- * `eventLog` is a repository port, existing K3 debt this extraction preserves
- * rather than fixes — the same preserved debt
- * `libs/wbs/application/core/src/module/bounded-replay-sweep/contract.ts`
- * records for its own two stores. Closing it needs a resource-service over
- * this store that no accepted change supplies, so `adopt-di-composition`
- * records it as open and this module claims no K3 compliance either.
+ * `eventLog` is the durable history resource shared with bounded replay sweep.
  *
  * `onPushFailed` is optional for the reason `gateway-broadcaster.ts`'s own
  * JSDoc gives: a failed push is logged and swallowed because the mutation it
@@ -22,7 +17,7 @@ import type { ReplayOrchestrator } from './replay-orchestrator';
  * `ReplayOrchestrator` already defaults it.
  */
 export interface RealtimeRequirements {
-  readonly eventLog: EventLogStore;
+  readonly eventLog: EventLogService;
   readonly clock: Clock;
   readonly push: PushTransport;
   readonly maxPerSubscription: number;

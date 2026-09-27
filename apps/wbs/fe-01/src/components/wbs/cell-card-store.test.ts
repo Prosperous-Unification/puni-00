@@ -33,6 +33,18 @@ describe('the cell-card store’s reach', () => {
     expect(cards.openCard()).toBeNull();
   });
 
+  it('returns to a focused cell as soon as the pointer leaves another card', () => {
+    const cards = createCellCards();
+    cards.updateFocused(() => 'a:dev');
+    cards.arriveOn('a:qa');
+    expect(cards.openCard()).toBe('a:qa');
+
+    cards.holdHovered('a:qa');
+    expect(cards.openCard()).toBe('a:dev');
+    vi.advanceTimersByTime(REACH_FOR_THE_CARD_MS);
+    expect(cards.openCard()).toBe('a:dev');
+  });
+
   it('closes it however many cells the hand crosses on the way out', () => {
     // Dany, 2026-09-11: _"cursor away from notes icon & the preview pop-up
     // for N ms => remove the preview"_. A cell with no card of its own writes

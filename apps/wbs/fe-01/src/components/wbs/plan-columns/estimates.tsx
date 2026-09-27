@@ -7,7 +7,7 @@ import { useCardOpenOn } from '../cell-card-store';
 import { CellInput } from '../cell-input';
 import { STEP_FINAL_HINT } from '../column-hints';
 import { CreatablePicker, PickerList, pickerOptionId } from '../creatable-picker';
-import { cellKey } from '../editable-grid';
+import { cellIn, cellKey } from '../editable-grid';
 import { POINTS, showTrio } from '../estimate-draft';
 import { FoldedStepCard } from '../folded-step-card';
 import { initialsOf } from '../initials';
@@ -36,6 +36,15 @@ function foldedReading(reading: EstimateReadings, stepId: string): FoldedEstimat
     throw new Error(`Expected folded estimate reading for step ${stepId}`);
   }
   return reading;
+}
+
+/** Null means an older read omitted all node metadata or this row is a parent. */
+function readStepNode(row: PlanRenderRow, stepId: string) {
+  if (row.rolledUp || row.readings.stepNodes === null) return null;
+  const node = row.readings.stepNodes.get(stepId);
+  if (node === undefined)
+    throw new Error(`Missing step node for leaf ${row.id} and step ${stepId}`);
+  return node;
 }
 
 /** Builds the estimates column family against the stable live cell contract. */
@@ -228,7 +237,7 @@ export function createEstimatesColumns({
                 // The same-cell guard the Name cell's marker gives its
                 // reason for: a leave lands after the enter of whatever the
                 // pointer moved on to.
-                live.current.cellCards.leave(finalCell);
+                live.current.cellCards.holdHovered(finalCell);
               }}
               // No native `title` here or on the input below: the card is
               // this cell's one hint (CONTEXT.md, "Hover preview"), and a
@@ -242,8 +251,12 @@ export function createEstimatesColumns({
               // the `<td>`'s, which {@link opensAPopover} lifts.
               // The blur is the mention's: it bubbles from the box inside,
               // and leaving the cell has to take a half-typed `@ka` with
-              // it. Nothing else in here can hold the focus.
-              onBlur={() => {
+              // it. Moving focus to a copy action inside the card stays here.
+              onBlur={(event) => {
+                // Proof: removing this guard made `names a coded leaf step in
+                // its open detail` fail on `element could not be found in the
+                // document` when focus moved to Copy reference. Watched 2026-09-27.
+                if (event.currentTarget.contains(event.relatedTarget)) return;
                 // Proof: deleting only this reset left the box at full strength after blur;
                 // `gives the trio back its strength on focus and quiets it again on blur`
                 // failed on `expected 'inherit' to be '10px'`. Watched 2026-09-20.
@@ -293,6 +306,16 @@ export function createEstimatesColumns({
                     live.current.readFoldedCell(row.original.id, step.id, box);
                   }}
                   onKeyDown={(e) => {
+                    if (e.key === 'F2' && carded && readStepNode(row.original, step.id) !== null) {
+                      e.preventDefault();
+                      const card = document.getElementById(cardId);
+                      const action = card?.querySelector('button');
+                      if (!(action instanceof HTMLButtonElement)) {
+                        throw new Error(`Missing step card action for ${finalCell}`);
+                      }
+                      action.focus();
+                      return;
+                    }
                     // `mentioning`, not `options.length > 0`, and the two
                     // are not the same thing: a deployment with nobody in it
                     // answers a bare `@` with no entries at all, and this
@@ -682,6 +705,22 @@ export function createEstimatesColumns({
               {carded && (
                 <FoldedStepCard
                   stepName={step.name}
+                  projectId={live.current.projectId}
+                  stepNode={readStepNode(row.original, step.id)}
+                  onPointerArrives={() => {
+                    live.current.cellCards.arriveOnCard();
+                  }}
+                  onExitActions={() => {
+                    const grid = live.current.gridElement.current;
+                    const cell =
+                      grid &&
+                      cellIn(grid, { rowId: row.original.id, columnId: `${step.id}-final` });
+                    if (cell === null || cell === undefined) {
+                      throw new Error(`Missing focused step cell ${finalCell}`);
+                    }
+                    cell.focus();
+                  }}
+                  pushToast={live.current.pushToast}
                   number={row.original.number}
                   id={cardId}
                   points={POINTS.map((point) => ({

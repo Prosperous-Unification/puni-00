@@ -1,10 +1,12 @@
 import { beforeRoundingDays, combinedDays, type EstimateRule } from '@wbs/domain/estimate';
+import type { KeyboardEvent } from 'react';
 
-import type { Days } from '@/lib/wbs-api';
+import type { Days, PlanRead } from '@/lib/wbs-api';
 
 import type { Point } from './estimate-draft';
 import { HoverCard } from './hover-card';
 import type { CardAssignee } from './plan-cards';
+import type { Toast } from './toasts';
 
 /**
  * A figure the charge is audited by, to four decimals rather than the table's
@@ -31,6 +33,15 @@ export const SHORTHAND_HELP =
 
 export interface FoldedStepCardProps {
   stepName: string;
+  /** The project the copied node belongs to, so a reopened link can select it. */
+  projectId: string;
+  /** Null means an older read omitted node metadata or a parent has no node: hide node details. A present node with `reference: null` is uncoded and still offers Copy link. */
+  stepNode: NonNullable<PlanRead['stepNodes']>[number] | null;
+  /** Returns keyboard focus from the card actions to their folded step cell. */
+  onExitActions: () => void;
+  /** Keeps a hover-opened card while the pointer arrives from its cell. */
+  onPointerArrives: () => void;
+  pushToast: (toast: Toast) => void;
   /** The work item's number, so a card over a busy table says whose it is. */
   number: string;
   /**
@@ -73,9 +84,20 @@ export interface FoldedStepCardProps {
  * pointer is not simply told less. That is why the step and the number are the
  * first line of the card rather than an `aria-label` on it — a label would be
  * read out *instead of* everything under it.
+ *
+ * A focused step cell offers F2 to enter its copy actions. Tab walks those
+ * actions and returns to the cell after the last one; Escape returns at once.
+ * Copy reference uses the canonical code when present. Copy link writes the
+ * project and node IDs in the URL so opening it can select the plan, reveal
+ * and focus this cell.
  */
 export function FoldedStepCard({
   stepName,
+  projectId,
+  stepNode,
+  onExitActions,
+  onPointerArrives,
+  pushToast,
   number,
   id,
   points,
@@ -87,13 +109,85 @@ export function FoldedStepCard({
   problem,
 }: FoldedStepCardProps) {
   const estimated = points.some((each) => each.days.trim() !== '');
+  // Proof: rendering 010.s1-dev instead of the canonical reference made
+  // `names a coded leaf step in its open detail` fail: expected `010.dev · Dev`,
+  // received `Dev for 010010.s1-dev · DevCopy referenceCopy link...`.
+  // Watched 2026-09-27.
+  const reference = stepNode?.reference ?? null;
+  const copyText = (text: string, copied: string, failed: string) => {
+    // The DOM type requires clipboard, but browsers omit it on insecure origins.
+    const clipboard = navigator.clipboard as Clipboard | undefined;
+    // Proof: bypassing this guard made `renders and announces an unavailable
+    // clipboard` fail with `Cannot read properties of undefined (reading
+    // 'writeText')` instead of the rendered alert. Watched 2026-09-27.
+    if (clipboard === undefined) {
+      pushToast({ kind: 'error', text: failed });
+      return;
+    }
+    void clipboard.writeText(text).then(
+      () => {
+        pushToast({ kind: 'info', text: copied });
+      },
+      () => {
+        pushToast({ kind: 'error', text: failed });
+      },
+    );
+  };
+  const onActionKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onExitActions();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const parent = event.currentTarget.parentElement;
+    if (parent === null) throw new Error('Step card action has no action group');
+    const actions = [...parent.querySelectorAll('button')];
+    const current = actions.indexOf(event.currentTarget);
+    const next = current + (event.shiftKey ? -1 : 1);
+    event.preventDefault();
+    if (next < 0 || next >= actions.length) onExitActions();
+    else actions[next]?.focus();
+  };
   return (
     // Placed diagonally — past this cell and past this row — like every other
     // card a plan cell opens. {@link sidewaysPlacement} picks the side.
-    <HoverCard id={id}>
+    <HoverCard id={id} takesPointer={stepNode !== null} onPointerArrives={onPointerArrives}>
       <div style={{ fontWeight: 600 }}>
         {stepName} for {number}
       </div>
+      {stepNode !== null && (
+        <div>
+          <div>{reference === null ? 'Uncoded step' : `${reference} · ${stepName}`}</div>
+          {reference !== null && (
+            <button
+              type="button"
+              onKeyDown={onActionKeyDown}
+              onClick={() => {
+                copyText(
+                  reference,
+                  `Copied step reference ${reference}.`,
+                  'Could not copy step reference.',
+                );
+              }}
+            >
+              Copy reference
+            </button>
+          )}
+          <button
+            type="button"
+            onKeyDown={onActionKeyDown}
+            onClick={() => {
+              const url = new URL(window.location.href);
+              url.searchParams.set('project', projectId);
+              url.searchParams.set('stepNode', stepNode.id);
+              copyText(url.href, 'Copied step link.', 'Could not copy step link.');
+            }}
+          >
+            Copy link
+          </button>
+        </div>
+      )}
       {/*
         Said in words, not as `2/3/8`: the shorthand is what an estimator types
         into the cell, and a card is read by whoever is looking at the plan.

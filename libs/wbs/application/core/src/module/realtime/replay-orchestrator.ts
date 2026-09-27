@@ -1,4 +1,4 @@
-import type { EventLogStore } from '../../ports/event-log-store';
+import type { EventLogService } from '../event-log/event-log.resource';
 import type { ReplayBuffer } from './replay-buffer';
 
 export interface ReplayEvent {
@@ -10,7 +10,7 @@ export type ReplayOutcome =
   { status: 'replaying'; events: ReplayEvent[] } | { status: 'denied'; reason: 'out_of_range' };
 
 export interface ReplayOrchestratorOptions {
-  log: EventLogStore;
+  log: EventLogService;
   buffer: ReplayBuffer;
   /**
    * The largest replay served. Beyond it the answer is a refusal and the client
@@ -60,7 +60,7 @@ export class ReplayOrchestrator {
     // number. An event recorded while this runs is delivered live — the client
     // subscribes before it resumes — so clipping to this ceiling keeps the
     // answer complete instead of racing the writer for its own length.
-    const latestSeq = await this.opts.log.latestSeq(subscription);
+    const latestSeq = await this.opts.log.readLatestSequence(subscription);
     if (sinceSeq < -1 || sinceSeq > latestSeq) return denied;
     if (sinceSeq === latestSeq) return { status: 'replaying', events: [] };
 
@@ -79,10 +79,13 @@ export class ReplayOrchestrator {
     // be about — so an incomplete buffer answer falls through rather than
     // denying a range the log still holds.
     if (!isContiguousFrom(events, sinceSeq + 1, missing)) {
-      events = (await this.opts.log.rangeSince(subscription, sinceSeq)).map(toReplayEvent);
+      events = (await this.opts.log.readEvents(subscription, sinceSeq)).map(toReplayEvent);
     }
 
     const clipped = events.filter((event) => event.seq <= latestSeq);
+    // Proof (2026-09-27): replacing this guard with `false &&` failed `denies
+    // a range retention has already removed` and `answers each subscription
+    // independently` in the be-01 replay suite (9 pass, 2 fail).
     // Proof: this line deleted, and the two tests whose ranges retention had
     // eaten — "denies a range retention has already removed" and "answers each
     // subscription independently" — both reported a truncated replay as success.

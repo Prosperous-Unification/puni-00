@@ -1,16 +1,8 @@
 import type { OidcIdentity } from '@wbs/contracts';
 
+import type { User } from './account-values';
 import type { WriteStamp } from './write-stamp';
-
-export interface User {
-  id: string;
-  username: string;
-  passwordHash: string | null;
-  email?: string | null;
-  idpIssuer?: string | null;
-  idpSub?: string | null;
-  createdAt: number;
-}
+export type { User } from './account-values';
 
 export interface UserStore {
   /** Returns null when the username is already taken. */

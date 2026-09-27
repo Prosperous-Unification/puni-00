@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Broadcaster } from '@wbs/core';
+import { EventLogService } from '@wbs/core';
 import { systemTimers } from '@wbs/runtime-portable';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -629,7 +630,7 @@ describe('step events', () => {
       steps: stepStore,
       broadcast: new GatewayBroadcaster({
         clock: testClock,
-        eventLog,
+        eventLog: new EventLogService(eventLog),
         buffer,
         // Nowhere to push, deliberately: the replay must come from what was
         // recorded, not from a delivery that happened to succeed.
@@ -652,7 +653,10 @@ describe('step events', () => {
     const seenUpTo = await eventLog.latestSeq(subscription);
     await durable.remove(projectId, qaId, ownerId, true);
 
-    const replayed = await new ReplayOrchestrator({ log: eventLog, buffer }).replay({
+    const replayed = await new ReplayOrchestrator({
+      log: new EventLogService(eventLog),
+      buffer,
+    }).replay({
       [subscription]: seenUpTo,
     });
 

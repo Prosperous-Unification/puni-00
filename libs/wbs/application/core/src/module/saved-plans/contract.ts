@@ -1,21 +1,17 @@
+import type { SavedPlanCaptureStore } from '../../ports/saved-plan-capture-store';
+import type { SavedPlanStore } from '../../ports/saved-plan-store';
 import type { SavedPlanService, SavedPlanServiceOptions } from './saved-plans.feature';
 
 /**
  * What a host must supply to install {@link savedPlansModule}.
  *
- * Exactly {@link SavedPlanServiceOptions}, unchanged by the move: the digest,
- * scheduler, id and clock callbacks, the optional quota and the two stores.
- *
- * **Preserved K3 debt.** `plans` (`SavedPlanStore`, `ports/saved-plan-store.ts`)
- * and `capture` (`SavedPlanCaptureStore`, `ports/saved-plan-capture-store.ts`)
- * are repository ports, not resource-service contracts: `SavedPlanService`
- * reads and writes saved-plan rows and captures the live plan through them
- * directly. This extraction moves the file; it does not close that debt.
- * Tracked under task 7.4 of `openspec/changes/adopt-di-composition/tasks.md`,
- * the same disposition Plan import's and Authentication's own requirements
- * record for their preserved direct-store calls.
+ * The host supplies both stores to one private SavedPlanResource. The feature
+ * depends on that resource for capture, persistence, integrity and touch rights.
  */
-export type SavedPlansRequirements = SavedPlanServiceOptions;
+export type SavedPlansRequirements = Omit<SavedPlanServiceOptions, 'resource'> & {
+  readonly capture: SavedPlanCaptureStore;
+  readonly plans: SavedPlanStore;
+};
 
 /**
  * What installing {@link savedPlansModule} adds to a host graph.

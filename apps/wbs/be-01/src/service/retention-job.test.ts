@@ -1,3 +1,4 @@
+import { EventLogService } from '@wbs/core';
 import { makeTestDb } from '@wbs/validation/fixtures';
 import type { Database } from 'bun:sqlite';
 import { describe, expect, it } from 'bun:test';
@@ -33,7 +34,7 @@ describe('runRetention', () => {
       );
     }
     const repo = new DrizzleEventLogStore(db, OPEN);
-    const removed = await runRetention(repo, { maxPerSubscription: 10 });
+    const removed = await runRetention(new EventLogService(repo), { maxPerSubscription: 10 });
     expect(removed).toBe(5);
     const rows = client
       .query('SELECT seq FROM event_log WHERE subscription = ? ORDER BY seq')
@@ -55,7 +56,7 @@ describe('runRetention', () => {
       );
     }
     const repo = new DrizzleEventLogStore(db, OPEN);
-    const removed = await runRetention(repo, { maxPerSubscription: 3 });
+    const removed = await runRetention(new EventLogService(repo), { maxPerSubscription: 3 });
     expect(removed).toBe(4);
     const count = client.query('SELECT COUNT(*) as n FROM event_log').get() as { n: number };
     expect(count.n).toBe(6);
