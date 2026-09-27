@@ -3,7 +3,6 @@ import {
   canonicalisePlanInput,
   diffPlans,
   normalisePlanInputForward,
-  type PlanDiff,
   PlanInputVersionError,
   type PlanScheduleValue,
   type PlanSide,
@@ -14,36 +13,30 @@ import {
 } from '@wbs/domain';
 
 import type { Digest } from '../../ports/runtime';
-import type { PlanInputReads, SavedPlanCaptureStore } from '../../ports/saved-plan-capture-store';
+import type { PlanInputReads } from '../../ports/saved-plan-capture-store';
 import type {
   SavedPlanBodyWrite,
-  SavedPlanPrincipals,
   SavedPlanScheduleWrite,
-  SavedPlanStore,
-  SavedPlanTouchOutcome,
   SavedPlanWrite,
-  StoredSavedPlan,
 } from '../../ports/saved-plan-store';
 import type { Scheduler } from '../../ports/scheduler';
 import { defaultSavedPlanName } from '../../service/saved-plan-default-name';
 import { planInputRowsOf } from '../../service/saved-plan-input';
 import type { SavedPlanQuota, SavedPlanQuotaRefusal } from '../../service/saved-plan-quota';
-import {
-  bodyBytesRefusal,
-  DEFAULT_SAVED_PLAN_QUOTA,
-  holdingRefusal,
-} from '../../service/saved-plan-quota';
+import { bodyBytesRefusal, DEFAULT_SAVED_PLAN_QUOTA } from '../../service/saved-plan-quota';
 import { buildScheduleBody, serialiseScheduleBody } from '../../service/saved-plan-schedule-body';
-import type { SavedPlanIntegrityRefusal } from './saved-plan-integrity';
-import {
-  assertKnownBodyVersion,
-  bodyByteLength,
-  SUPPORTED_INPUT_BODY_VERSIONS,
-  SUPPORTED_SCHEDULE_BODY_VERSIONS,
-  verifyBody,
-  verifyScheduleLink,
-} from './saved-plan-integrity';
+import type { SavedPlanResource } from './saved-plan.resource';
+import { bodyByteLength } from './saved-plan-integrity';
 import { scheduleInputOfCaptured } from './saved-plan-schedule';
+import type {
+  SavedPlanCompareOutcome,
+  SavedPlanListEntry,
+  SavedPlanRead,
+  SavedPlanReadOutcome,
+  SavedPlanSideOutcome,
+  SavedPlanSideRef,
+  SavedPlanTouchResult,
+} from './saved-plan-values';
 
 const representableScheduleBody = (
   planned: Schedule,
@@ -121,187 +114,17 @@ export type SavedPlanSaveOutcome =
   /** Another connection held the write lock. Nothing was written; a retry may succeed. */
   | { readonly outcome: 'snapshot_busy' };
 
-/** One side of a saved plan, as it was read back and verified. */
-export interface SavedPlanReadBody {
-  /** The version those bytes were written under, off the header. */
-  readonly schemaVersion: number;
-  /** The stored bytes, unparsed and unmodified. */
-  readonly bytes: string;
-  /** The header's hash, which this read recomputed over {@link bytes} and matched. */
-  readonly sha256: string;
-}
-
-/**
- * The schedule side of a read — present with its bytes, or absent with a reason.
- *
- * A union for the same reason {@link SavedPlanScheduleWrite} is one: the two
- * states have disjoint fields, and a caller that has to test five nullable
- * columns to learn which it holds is a caller that will get it wrong once.
- */
-export type SavedPlanReadSchedule =
-  | {
-      readonly present: true;
-      readonly body: SavedPlanReadBody;
-      /** The `input_sha256` these dates were computed from, as stored. */
-      readonly inputSha256: string;
-      readonly algorithmId: string;
-    }
-  | { readonly present: false; readonly absentReason: string };
-
-/** One saved plan, handed back as it was stored. */
-export interface SavedPlanRead {
-  readonly id: string;
-  readonly projectId: string;
-  readonly name: string;
-  readonly createdBy: string;
-  readonly createdAt: number;
-  readonly input: SavedPlanReadBody;
-  readonly schedule: SavedPlanReadSchedule;
-}
-
-/**
- * Which side of a comparison a caller named (task 7.3b).
- *
- * A tagged union rather than `string | 'current'`, because the two are not the
- * same kind of thing and a plan whose id happened to be the literal `current`
- * would otherwise silently address the live plan.
- */
-export type SavedPlanSideRef =
-  { readonly kind: 'current' } | { readonly kind: 'saved'; readonly savedPlanId: string };
-
-/**
- * What a comparison answers.
- *
- * The refusals name the *side* that produced them, because the two sides fail
- * independently and a caller shown "not found" with no id cannot tell which of
- * its two pickers to correct.
- */
-export type SavedPlanCompareOutcome =
-  | { readonly outcome: 'compared'; readonly diff: PlanDiff }
-  | { readonly outcome: 'no_project' }
-  | { readonly outcome: 'not_found'; readonly savedPlanId: string }
-  | {
-      readonly outcome: 'corrupt';
-      readonly savedPlanId: string;
-      readonly refusal: SavedPlanIntegrityRefusal;
-    };
-
-/** One resolved side, or the refusal {@link SavedPlanCompareOutcome} carries out. */
-type SavedPlanSideOutcome =
-  | { readonly outcome: 'side'; readonly side: PlanSide }
-  | Exclude<SavedPlanCompareOutcome, { outcome: 'compared' }>;
-
-/**
- * The three answers a read has.
- *
- * `corrupt` is separate from `not_found` because they are different facts about
- * different things: one plan does not exist, the other exists and cannot be
- * trusted, and a surface that folded them would tell a user their saved plan
- * was never there.
- */
-export type SavedPlanReadOutcome =
-  | { readonly outcome: 'read'; readonly plan: SavedPlanRead }
-  | { readonly outcome: 'not_found' }
-  | { readonly outcome: 'corrupt'; readonly refusal: SavedPlanIntegrityRefusal };
-
-/**
- * One row of a project's saved-plan list.
- *
- * **No body and no integrity verdict**, and both absences are deliberate. The
- * list is the index of a project's permanent records: verifying a hundred plans
- * to render a hundred names would read every stored byte on a page nobody asked
- * to open a plan from, and a list is exactly where {@link SavedPlanService.read}
- * has not been called yet. A corrupt plan is therefore listed like any other and
- * says so when it is opened — which is the honest order, because a plan that
- * cannot be read still exists, still occupies its quota and still has to be
- * deletable.
- *
- * The hashes and lengths ride along because the header already carries them:
- * they cost nothing here and a surface that shows a plan's size has them.
- */
-export interface SavedPlanListEntry {
-  readonly id: string;
-  readonly name: string;
-  readonly createdBy: string;
-  readonly createdAt: number;
-  readonly inputBytes: number;
-  /** The schedule side's stored length, or `null` for a schedule-less save. */
-  readonly scheduleBytes: number | null;
-  /**
-   * Why there is no schedule, or `null` when there is one.
-   *
-   * `string` and not {@link SavedPlanScheduleAbsentReason}, matching the read
-   * path exactly: the column is `text`, and `readOfStored` deliberately passes
-   * an unrecognised reason through rather than refusing a plan over a label
-   * that says nothing about its bytes. A list that narrowed harder than the
-   * read would hide a plan the read is willing to hand over.
-   */
-  readonly scheduleAbsentReason: string | null;
-}
-
-/**
- * What a rename or a delete answered, once the permission rule has run.
- *
- * The repository's `SavedPlanTouchOutcome` is the storage layer's three
- * answers; this adds the fourth that only an authorised call can give. They are
- * two different types on purpose: `forbidden` is a fact about an actor and
- * `no_such_plan` is a fact about a row, and the repository is never told who is
- * asking.
- *
- * `not_found` rather than the repository's `no_such_plan`, because this is the
- * vocabulary `statusForRefusal` already maps for every other route.
- */
-export type SavedPlanTouchResult =
-  /**
-   * The `projectId` is carried out rather than left to the caller to look up
-   * (TASK-255). `/api/saved-plans/:id` deliberately does not repeat the project
-   * in its path — a URL that named a project the plan does not belong to and was
-   * still answered would lie about what it addressed — so the controller has no
-   * other honest source for the id it must announce on.
-   *
-   * It comes from the authorisation read, which already selects
-   * `savedPlan.projectId` to reach the project's owner. Reading it again after
-   * the touch would be a second query and, for a delete, a query for a row that
-   * is gone; reading it before, separately, would open a window in which the
-   * announced project is not the one that was written.
-   */
-  | { readonly outcome: 'touched'; readonly projectId: string }
-  | { readonly outcome: 'not_found' }
-  | { readonly outcome: 'forbidden' }
-  /** Another connection held the write lock. Nothing changed; a retry may succeed. */
-  | { readonly outcome: 'snapshot_busy' };
-
-/**
- * The repository's answer, in this layer's vocabulary.
- *
- * One function rather than a mapping written out at each of the two call sites,
- * because `no_such_plan` and `not_found` are the same fact under two names and a
- * second copy is how one of them ends up answering `snapshot_busy` as a 404.
- */
-function touchResultOf(outcome: SavedPlanTouchOutcome, projectId: string): SavedPlanTouchResult {
-  if (outcome === 'no_such_plan') return { outcome: 'not_found' };
-  return outcome === 'touched' ? { outcome, projectId } : { outcome };
-}
-
-/**
- * Whether `actorId` may rename or delete the plan those principals describe.
- *
- * **Creator or project owner** (task 6.1, design.md A-8), written as the plain
- * disjunction it is. The "falls back to the project owner" half of A-8 is not a
- * second branch and must not be written as one: `createdById` is `null` exactly
- * when no live account claims the plan, `null` matches no actor id, and the
- * owner arm is then the only one that can be true. A ternary that chose *which*
- * id to compare would say something different and worse — it would stop the
- * owner touching a plan somebody else saved on their project.
- *
- * Exported for its test and for 6.2's matrix. It reads `createdById` and never
- * `createdBy`: the latter is a display name, and an actor id compared against a
- * display name is not a permission check — it is two accounts called "Ada"
- * sharing a right.
- */
-export function mayTouchSavedPlan(principals: SavedPlanPrincipals, actorId: string): boolean {
-  return principals.createdById === actorId || principals.projectOwnerId === actorId;
-}
+export { mayTouchSavedPlan } from './saved-plan.resource';
+export type {
+  SavedPlanCompareOutcome,
+  SavedPlanListEntry,
+  SavedPlanRead,
+  SavedPlanReadBody,
+  SavedPlanReadOutcome,
+  SavedPlanReadSchedule,
+  SavedPlanSideRef,
+  SavedPlanTouchResult,
+} from './saved-plan-values';
 
 export interface SavedPlanServiceOptions {
   /**
@@ -312,8 +135,7 @@ export interface SavedPlanServiceOptions {
    * saying which runtime it is (D10).
    */
   readonly digest: Digest;
-  readonly capture: SavedPlanCaptureStore;
-  readonly plans: SavedPlanStore;
+  readonly resource: SavedPlanResource;
   /** The saved plan's id. Injected so a test can name the row it then reads. */
   readonly newId: () => string;
   /** Epoch seconds. Injected for the same reason `createdAt` exists at all. */
@@ -367,7 +189,7 @@ async function bodyWrite(
  * first, because they depend on nothing in the database. Then `BEGIN
  * IMMEDIATE`, and only inside it the count and total — read outside, two saves
  * at 99 of 100 both pass and both commit while "refused before any row is
- * written" stays technically true. {@link SavedPlanStore.write} takes that
+ * written" stays technically true. {@link SavedPlanResource.writePlan} takes that
  * second check as a parameter for exactly this reason, so this class hands it
  * over rather than running it first.
  */
@@ -398,11 +220,7 @@ export class SavedPlanService {
    * standing to guess what they should have been.
    */
   async read(savedPlanId: string): Promise<SavedPlanReadOutcome> {
-    const stored = await this.opts.plans.readOf(savedPlanId);
-    if (stored === null) return { outcome: 'not_found' };
-    // Proof: recomputing here through `captureAndAttempt` threw `stored history
-    // invoked the scheduler` before the saved bytes could be returned.
-    return await readOfStored(this.opts.digest, stored);
+    return this.opts.resource.readPlan(savedPlanId);
   }
 
   /**
@@ -479,21 +297,12 @@ export class SavedPlanService {
    * rather than becoming a row that occupies quota and cannot be reached.
    *
    * The absent reason is passed through as stored, not narrowed to the three
-   * this build knows. That is `readOfStored`'s rule and this stays consistent
+   * this build knows. That is {@link SavedPlanResource.readPlan}'s rule and this stays consistent
    * with it: refusing a list because one row's reason string is unfamiliar
    * would deny access to every other plan in the project over a label.
    */
   async list(projectId: string): Promise<SavedPlanListEntry[]> {
-    const rows = await this.opts.plans.listOf(projectId);
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      createdBy: row.createdBy,
-      createdAt: row.createdAt,
-      inputBytes: row.inputBytes,
-      scheduleBytes: row.scheduleBytes,
-      scheduleAbsentReason: row.scheduleAbsentReason,
-    }));
+    return this.opts.resource.listPlans(projectId);
   }
 
   /**
@@ -514,7 +323,7 @@ export class SavedPlanService {
    * the same rule {@link read}'s single-prefix URL enforces structurally.
    *
    * **The stored side is parsed here and normalised forward** (task 7.4), never
-   * rewritten. {@link readOfStored} has already refused a version outside
+   * rewritten. {@link SavedPlanResource.readPlan} has already refused a version outside
    * `SUPPORTED_INPUT_BODY_VERSIONS`, so today's normalisation is the identity
    * and its three refusals are unreachable from this path — stated rather than
    * claimed as coverage. It is called anyway because the day a second version
@@ -558,7 +367,7 @@ export class SavedPlanService {
 
       `principalsOf` is the right read for it and already exists for exactly
       this shape of question: one header row, no bodies parsed, no hashes
-      recomputed. It is what `refuseUnauthorisedTouch` authorises rename and
+      recomputed. It is what the resource's touch methods authorize rename and
       delete off, and for the reason stated there — a plan too damaged to open
       must still be answerable *about*.
 
@@ -567,14 +376,7 @@ export class SavedPlanService {
       rename touches `name` alone), so the two reads cannot disagree about
       which project owns a plan.
     */
-    const principals = await this.opts.plans.principalsOf(ref.savedPlanId);
-    // `?.` covers both refusals in one read, and they are the same refusal: a
-    // plan that is not there and a plan that is somebody else's are both
-    // `not_found` here, deliberately, so neither can be told from the other.
-    if (principals?.projectId !== projectId) {
-      return { outcome: 'not_found', savedPlanId: ref.savedPlanId };
-    }
-    const found = await this.read(ref.savedPlanId);
+    const found = await this.opts.resource.readPlanForProject(projectId, ref.savedPlanId);
     if (found.outcome === 'not_found')
       return { outcome: 'not_found', savedPlanId: ref.savedPlanId };
     if (found.outcome === 'corrupt') {
@@ -628,12 +430,7 @@ export class SavedPlanService {
    * somebody's record of it.
    */
   async rename(savedPlanId: string, actorId: string, name: string): Promise<SavedPlanTouchResult> {
-    const checked = await this.refuseUnauthorisedTouch(savedPlanId, actorId);
-    if ('refused' in checked) return checked.refused;
-    return touchResultOf(
-      await this.opts.plans.renameTo(savedPlanId, name),
-      checked.principals.projectId,
-    );
+    return this.opts.resource.renamePlan(savedPlanId, actorId, name);
   }
 
   /**
@@ -645,34 +442,7 @@ export class SavedPlanService {
    * also destroy it and nobody else may do either.
    */
   async delete(savedPlanId: string, actorId: string): Promise<SavedPlanTouchResult> {
-    const checked = await this.refuseUnauthorisedTouch(savedPlanId, actorId);
-    if ('refused' in checked) return checked.refused;
-    return touchResultOf(await this.opts.plans.deleteOf(savedPlanId), checked.principals.projectId);
-  }
-
-  /**
-   * The shared half of {@link rename} and {@link delete}: `null` when the touch
-   * may proceed, otherwise the answer to give instead.
-   *
-   * There is a race here and it is the harmless direction. The principals are
-   * read on one connection and the write is issued on another, so a plan deleted
-   * in between turns an authorised rename into `not_found` — which is the truth
-   * a moment later. What cannot happen is the other order: nothing in this
-   * repository ever changes `created_by_id` or a project's owner, so an actor
-   * authorised by this read cannot have lost the right by the time the write
-   * runs.
-   */
-  private async refuseUnauthorisedTouch(
-    savedPlanId: string,
-    actorId: string,
-  ): Promise<{ refused: SavedPlanTouchResult } | { principals: SavedPlanPrincipals }> {
-    const principals = await this.opts.plans.principalsOf(savedPlanId);
-    if (principals === null) return { refused: { outcome: 'not_found' } };
-    if (!mayTouchSavedPlan(principals, actorId)) return { refused: { outcome: 'forbidden' } };
-    // The principals are handed back rather than dropped: they already carry the
-    // `projectId` the touch must be announced on, and re-reading it after a
-    // delete would be a query for a row that is gone (TASK-255).
-    return { principals };
+    return this.opts.resource.deletePlan(savedPlanId, actorId);
   }
 
   async save(request: SavedPlanSaveRequest): Promise<SavedPlanSaveOutcome> {
@@ -721,10 +491,7 @@ export class SavedPlanService {
       input,
       schedule,
     };
-    const written = await this.opts.plans.write<SavedPlanQuotaRefusal>(
-      record,
-      (holding, incoming) => Promise.resolve(holdingRefusal(holding, incoming, this.quota)),
-    );
+    const written = await this.opts.resource.writePlan(record, this.quota);
     // Switched over rather than tested for `null`, so a fourth repository
     // outcome would stop compiling here instead of being read as a save.
     switch (written.outcome) {
@@ -740,7 +507,7 @@ export class SavedPlanService {
   /**
    * Captures one detached input and asks the shared scheduler for that exact input.
    *
-   * {@link SavedPlanCaptureStore.readPlanInput} closes its snapshot before it
+   * {@link SavedPlanResource.capturePlan} closes its snapshot before it
    * returns, so both Fast scheduling and optimized-cache selection happen with
    * no capture connection held. The scheduler receives `mode: 'capture'`: it
    * may read an already-computed optimized answer, but it cannot mutate live
@@ -753,7 +520,7 @@ export class SavedPlanService {
    * `infeasible`. A missing project remains distinct as `null`.
    */
   private async captureAndAttempt(projectId: string): Promise<ScheduleAttempt | null> {
-    const reads = await this.opts.capture.readPlanInput(projectId);
+    const reads = await this.opts.resource.capturePlan(projectId);
     if (reads === null) return null;
     const input = scheduleInputOfCaptured(reads);
     try {
@@ -850,113 +617,6 @@ function planSideOfRead(plan: SavedPlanRead): PlanSide {
           body: JSON.parse(plan.schedule.body.bytes) as PlanScheduleValue,
         }
       : { present: false, absentReason: plan.schedule.absentReason },
-  };
-}
-
-async function readOfStored(
-  digest: Digest,
-  stored: StoredSavedPlan,
-): Promise<SavedPlanReadOutcome> {
-  const header = stored.header;
-  // Task 5.5, and **before** the hash check on purpose: a body this reader
-  // cannot parse is unreadable whether or not its bytes are intact, and
-  // recomputing a digest first would answer a question nobody can act on.
-  assertKnownBodyVersion(
-    header.id,
-    'input',
-    header.inputSchemaVersion,
-    SUPPORTED_INPUT_BODY_VERSIONS,
-  );
-  const inputRefusal = await verifyBody(
-    digest,
-    header.id,
-    'input',
-    stored.bodies.input,
-    header.inputSha256,
-  );
-  if (inputRefusal !== null) return { outcome: 'corrupt', refusal: inputRefusal };
-  // Narrowed by the check above rather than asserted: `verifyBody` returns a
-  // `body_missing` refusal for null, so reaching here means the bytes are there.
-  const inputBytes = stored.bodies.input ?? '';
-
-  const schedule = await scheduleOfStored(digest, stored);
-  if (schedule.outcome === 'corrupt') return schedule;
-
-  return {
-    outcome: 'read',
-    plan: {
-      id: header.id,
-      projectId: header.projectId,
-      name: header.name,
-      createdBy: header.createdBy,
-      createdAt: header.createdAt,
-      input: {
-        schemaVersion: header.inputSchemaVersion,
-        bytes: inputBytes,
-        sha256: header.inputSha256,
-      },
-      schedule: schedule.schedule,
-    },
-  };
-}
-
-/** The schedule half of {@link readOfStored}, verified the same way. */
-async function scheduleOfStored(
-  digest: Digest,
-  stored: StoredSavedPlan,
-): Promise<
-  | { outcome: 'ok'; schedule: SavedPlanReadSchedule }
-  | { outcome: 'corrupt'; refusal: SavedPlanIntegrityRefusal }
-> {
-  const header = stored.header;
-  if (
-    header.scheduleSha256 === null ||
-    header.scheduleSchemaVersion === null ||
-    header.scheduleInputSha256 === null ||
-    header.schedulerAlgorithmId === null
-  ) {
-    return {
-      outcome: 'ok',
-      // The check constraint makes this non-null whenever the four above are
-      // null. `?? 'unavailable'` is the one default in this file and it is for
-      // a row that could not have been written by this code; a reader that
-      // threw here would refuse a plan over a reason string rather than over
-      // anything about the plan's own bytes.
-      schedule: { present: false, absentReason: header.scheduleAbsentReason ?? 'unavailable' },
-    };
-  }
-  assertKnownBodyVersion(
-    header.id,
-    'schedule',
-    header.scheduleSchemaVersion,
-    SUPPORTED_SCHEDULE_BODY_VERSIONS,
-  );
-  const refusal = await verifyBody(
-    digest,
-    header.id,
-    'schedule',
-    stored.bodies.schedule,
-    header.scheduleSha256,
-  );
-  if (refusal !== null) return { outcome: 'corrupt', refusal };
-  // Task 5.2, and it runs **after** the byte check rather than instead of it:
-  // the two answer different questions — whether the schedule body is the one
-  // that was written, and whether the dates in it belong to this plan's input —
-  // and a record can fail either with the other intact.
-  const link = verifyScheduleLink(header.id, header.scheduleInputSha256, header.inputSha256);
-  if (link !== null) return { outcome: 'corrupt', refusal: link };
-  return {
-    outcome: 'ok',
-    schedule: {
-      present: true,
-      body: {
-        schemaVersion: header.scheduleSchemaVersion,
-        bytes: stored.bodies.schedule ?? '',
-        sha256: header.scheduleSha256,
-      },
-      inputSha256: header.scheduleInputSha256,
-      algorithmId: header.schedulerAlgorithmId,
-    },
   };
 }
 

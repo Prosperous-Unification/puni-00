@@ -10,8 +10,9 @@ import {
 } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
-import type { PlanInputReads, SavedPlanCaptureStore } from '../../ports/saved-plan-capture-store';
+import type { PlanInputReads } from '../../ports/saved-plan-capture-store';
 import { NO_DEADLINES, slicesOf } from '../../service/work-item.service';
+import type { SavedPlanResource } from './saved-plan.resource';
 
 /**
  * The dates a captured plan has, computed from the captured values alone.
@@ -148,11 +149,11 @@ export interface CapturedPlan {
  * transaction, which is the one thing this row exists to forbid.
  */
 export async function captureAndSchedulePlan(
-  capture: SavedPlanCaptureStore,
+  capture: Pick<SavedPlanResource, 'capturePlan'>,
   projectId: string,
   schedulePlan: (reads: PlanInputReads) => Schedule = schedulePlanInput,
 ): Promise<CapturedPlan | null> {
-  const reads = await capture.readPlanInput(projectId);
+  const reads = await capture.capturePlan(projectId);
   if (reads === null) return null;
   return { reads, planned: schedulePlan(reads) };
 }
