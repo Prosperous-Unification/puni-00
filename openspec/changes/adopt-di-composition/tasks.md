@@ -304,11 +304,10 @@
       a module names the one whose files export what it re-exports. A moved file without a suffix
       inside a module directory carries no row, because `SERVICE_ROOTS` does not scan `src/module`;
       its module's README index names it instead, a known limit owned by the kind rules.
-- [ ] 7.3 Give every module a `tsconfig.json` and an Nx `typecheck:module` target, so the isolated
-      type check the design names actually runs. Proof: the target fails on a module that breaks its
-      own contract. **Open on 2026-09-24, owned by a follow-up for the isolated module type
-      check:** eighteen module directories in two projects each need a configuration and a
-      watched negative, which is build configuration rather than a ledger entry.
+- [x] 7.3 Give every module a `tsconfig.json` and an Nx `typecheck:module` target, so the isolated
+      type check the design names actually runs. Closed 2026-09-27: both normal `typecheck` targets
+      depend on discovered per-module checks; all eighteen injected contract errors and a missing
+      module config failed the production target. See `verify.md`.
 - [x] 7.4 Record, per module, which K2 and K3 obligations it does not close and where they are
       tracked. Full K2 closure stays outside this change. Recorded 2026-09-24 as `design.md`'s
       "Layering debt ledger": per module, the K2 and K3 obligations its `contract.ts` states and
