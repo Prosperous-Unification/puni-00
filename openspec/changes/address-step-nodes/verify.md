@@ -44,6 +44,8 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` on 2026
 
 ## Section 4 — revision-bound step-reference resolution (2026-09-27)
 
+- **Review fixes (Astra high):** removing the early malformed check made the malformed-with-stale-revision case fail `Expected: 422, Received: 409`; dropping a row from the numbering in `readAddresses` made the mounted resolve cases fail `Expected: 409, Received: 500` naming `no effective number for work item …` (the guard fires rather than resolving a partial space). Both restored with adjacent proofs. `addresses` renamed `readAddresses`; the endpoint summary (the MCP tool description) now names `addressRevision` and says what a 409 asks of the caller. A shared number resolves as `ambiguous_work_item` (mounted, after the freeze → move → create case).
+
 - Mounted be-01 tests exercise `010.dev`, `020.2.review`, the `s1` alias and `s2` mismatch, parent, unknown number/code, malformed input, an uncoded node, and a stale revision after a renumbering move. The canonical and nested replies are compared with the work-item read's step node IDs; a malformed input with a stale revision remains 422.
 - MCP generated-document test checks `getApiProjectsByIdStep-references` and its required project, reference, and revision inputs. The shared HTTP binding inventory and reachability tests include the endpoint.
 - **Red:** the mounted cases received 404 before the route existed. After implementation, `env -u CLAUDECODE bun test apps/wbs/be-01/src/controller/work-item.controller.test.ts apps/wbs/mcp-01/src/openapi-tools.test.ts libs/wbs/application/core/src/module/work-item/step-addresses.test.ts libs/wbs/application/core/src/http/work-item.routes.test.ts` reported 118 pass, 0 fail.
