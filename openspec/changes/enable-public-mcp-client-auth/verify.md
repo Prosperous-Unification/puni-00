@@ -88,3 +88,41 @@ caller without wbs:read`. Restored, `bun test` in apps/wbs/mcp-01: 275 pass, 0 f
 - Not changed: standalone mode still accepts a verified upstream IdP bearer token at `/mcp`,
   whose own groups then decide write access, and gateway mode trusts decoded claims. Both are
   existing authentication contracts outside the MCP OAuth grant.
+
+### 4. Refresh and revocation
+
+- mcp-01 already rotated single-use refresh tokens, revoked a family on replay and refreshed
+  the upstream token under a lease; WBS 080.19 reporting of failed tool-call refreshes and
+  session ends is unchanged. Three gaps are closed:
+  - A refresh judges the token before session capacity, so a replay at capacity still revokes
+    the family instead of answering 429.
+  - A refresh honours a requested `scope` subset (RFC 6749 §6) for that access token, keeps the
+    family's grant for later refreshes, and refuses expansion with `invalid_scope` without
+    consuming the refresh token.
+  - Revocation throws on a session-store failure instead of answering 200 as if revoked. An
+    unverifiable or unknown token still answers 200 (RFC 7009).
+- Mounted tests (oauth.test.ts `MCP write scope, refresh and revocation through the mounted
+endpoint`): a write after access expiry and refresh reaches be-01 with the refreshed upstream
+  token; replay ends the successor's access and refresh; replay at capacity does too; revocation
+  ends access and refresh; narrowing and expansion as above; the store failure rejects.
+- R5 proofs: the capacity-first order failed the capacity replay test with 429; ignoring the
+  requested scope failed narrowing (`wbs:read wbs:write`) and expansion (200); the catch-all
+  failed the store-failure test (resolved); skipping `revokeFamily` in the revocation endpoint
+  failed the revocation test (write 200, not 401). All restored: 281 pass, 0 fail.
+- The 3600-second `MCP_ACCESS_TOKEN_TTL` default is unchanged: no live refresh trace exists.
+
+### Pending behind organization activation (WBS 010.5.2)
+
+Same-organization member or admin success on another creator's unrestricted project, viewer
+refusal (403), cross-organization 404, restricted-project noncreator refusal (403) and the
+audited super-admin recovery override are be-01 project-authorization outcomes of a grant bound
+to an organization. Organizations are inert until activation, and mcp-01 grants carry no
+organization yet, so these stay unimplemented and untested here. mcp-01 forwards each caller's
+own upstream identity, so be-01's rules will apply unchanged once they exist; the grant-bound
+organization claim is the remaining mcp-01 piece.
+
+### Not run
+
+- Live public URL acceptance (task 4.1): DCR, sign-in, read, reversible write, expiry, refresh
+  and revocation against a deployed URL. Only the read-only discovery `curl` above was run.
+- The h2puni host gate; the orchestrator runs it on the integration branch.
