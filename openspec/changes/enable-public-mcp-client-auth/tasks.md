@@ -9,6 +9,9 @@
 - [x] 2.1 Add failing mounted registration, authorization and token tests for every exact hosted URI and loopback arbitrary ports; add negatives for lookalikes, path/query/port changes, credentials, fragments and redirect substitution.
 - [x] 2.2 Implement the reviewed allowlist, with ChatGPT stable URI gated on issuer proof and exact per-connection entries for callback-ID mode. Retain exact registration and grant binding.
 - [x] 2.3 Inject host-suffix acceptance and swapped token redirect; watch mounted negatives fail, restore and add Proof: comments.
+- [x] 2.4 Add failing tests for VS Code's four-callback registration, a mixed list registering only its listed subset, an all-unlisted list and malformed entries (non-string, relative, over-long, credentials, fragments, planted and percent-encoded response fields) refusing the whole list; near-miss negatives for the Insiders entry and Cursor's scheme.
+- [x] 2.5 List `https://insiders.vscode.dev/redirect`; register the listed subset and return it; refuse malformed entries atomically. Keep exact matching at authorization and token exchange.
+- [x] 2.6 Remove the malformed check, the fragment test, the response-field test, the empty-subset check, the filter and the Insiders entry in turn; watch the tests fail, restore and add Proof: comments.
 
 ## 3. Prove write and renewal
 

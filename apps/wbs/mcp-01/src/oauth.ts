@@ -343,16 +343,25 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     if (!isObject(body) || body['token_endpoint_auth_method'] !== 'none') {
       return oauthError('invalid_client_metadata');
     }
-    const redirectUris = body['redirect_uris'];
+    const requestedRedirects: unknown = body['redirect_uris'];
     if (
-      !Array.isArray(redirectUris) ||
-      redirectUris.length === 0 ||
-      redirectUris.length > MAX_REDIRECT_URIS ||
-      redirectUris.some(
-        (value) => typeof value !== 'string' || bytes(value) > MAX_REDIRECT_URI_BYTES,
-      ) ||
-      !redirectUris.every(isRedirect)
+      !Array.isArray(requestedRedirects) ||
+      requestedRedirects.length === 0 ||
+      requestedRedirects.length > MAX_REDIRECT_URIS ||
+      // Proof: on 2026-09-27, dropping this check failed the 17 `refuses the whole list when one
+      // callback carries …` cases then present, null to planted error_uri (`Received: 201`) (oauth.test.ts).
+      requestedRedirects.some(isMalformedRedirect)
     ) {
+      return oauthError('invalid_redirect_uri');
+    }
+    // RFC 7591 §3.2.1: a well-formed but unlisted callback is dropped, and the response names
+    // only what was registered; authorization still demands one of these exact strings.
+    // Proof: on 2026-09-27, registering `requestedRedirects` unfiltered failed `registers only the
+    // listed callbacks of a mixed list and refuses the dropped one` (oauth.test.ts).
+    const redirectUris = requestedRedirects.filter(isListedRedirect);
+    // Proof: on 2026-09-27, dropping this check failed `refuses a list whose every callback is
+    // unlisted` and every `refuses the near-miss callback` case (`Received: 201`) (oauth.test.ts).
+    if (redirectUris.length === 0) {
       return oauthError('invalid_redirect_uri');
     }
     this.cleanup();
@@ -1141,9 +1150,11 @@ function isObject(value: unknown): value is Record<string, unknown> {
 /**
  * Reviewed hosted callbacks, admitted only as these exact strings: a parsed comparison would let
  * `https://VSCODE.dev:443/a/../redirect` normalize into an entry. Every other hosted callback,
- * including Cursor or Copilot Studio installations, needs its own reviewed entry here.
- * ChatGPT is not admitted yet: authorization responses now carry the RFC 9207 issuer it
- * requires, but its stable `https://chatgpt.com/connector_platform_oauth_redirect` (or a
+ * including Copilot Studio installations, needs its own reviewed entry here. Cursor's
+ * `cursor://anysphere.cursor-mcp/oauth/callback` stays out: RFC 8252 §7.1 wants a reverse-domain
+ * private-use scheme, any local app may claim `cursor:`, and the MCP authorization spec requires
+ * HTTPS or loopback. ChatGPT is not admitted yet: authorization responses now carry the RFC 9207
+ * issuer it requires, but its stable `https://chatgpt.com/connector_platform_oauth_redirect` (or a
  * `https://chatgpt.com/connector/oauth/{callback_id}`) enters only once a connection is observed
  * displaying that exact URI (design.md, "Redirect policy").
  */
@@ -1151,6 +1162,7 @@ const HOSTED_REDIRECTS: ReadonlySet<string> = new Set([
   'https://claude.ai/api/mcp/auth_callback',
   'https://claude.com/api/mcp/auth_callback',
   'https://vscode.dev/redirect',
+  'https://insiders.vscode.dev/redirect',
   'https://www.perplexity.ai/rest/connections/oauth_callback',
   'https://enterprise.perplexity.ai/rest/connections/oauth_callback',
 ]);
@@ -1162,10 +1174,49 @@ const HOSTED_REDIRECTS: ReadonlySet<string> = new Set([
 const LOOPBACK_REDIRECT =
   /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::[1-9][0-9]{0,4})?(?:\/[^#]*)?$/;
 
-/** Authorization-response fields a loopback callback's own query must not pre-set. */
+/**
+ * RFC 3986 URI characters, `#` aside, with percent escapes well formed. `new URL` repairs
+ * spaces, control characters and `%ZZ`, so it cannot be the syntax check.
+ */
+const URI_CHARACTERS = /^(?:[A-Za-z0-9\-._~:/?[\]@!$&'()*+,;=]|%[0-9A-Fa-f]{2})*$/;
+
+/** Authorization-response fields a callback's own query must not pre-set. */
 const RESPONSE_FIELDS = ['code', 'state', 'iss', 'error', 'error_description', 'error_uri'];
 
-function isRedirect(value: unknown): value is string {
+/**
+ * A requested callback that refuses the whole registration instead of being dropped: not a
+ * bounded RFC 3986 absolute URI, or carrying credentials, a fragment or a pre-set response field. A
+ * pre-set `state` is refused too, so Continue's `http://localhost:3000/?state=…` stays out; it
+ * would not help, because Continue then authorizes with the bare `http://localhost:3000`.
+ */
+function isMalformedRedirect(value: unknown): boolean {
+  if (typeof value !== 'string' || bytes(value) > MAX_REDIRECT_URI_BYTES) return true;
+  // Proof: on 2026-09-27, dropping this fragment test failed `refuses the whole list when one
+  // callback carries an empty fragment`, which `URL.hash` reports as '' (oauth.test.ts).
+  if (value.includes('#')) return true;
+  // Proof: on 2026-09-27, dropping this test failed `refuses the whole list when one callback
+  // carries …` for `%ZZ`, a space, a loopback space, a newline, a tab and `é` (oauth.test.ts).
+  if (!URI_CHARACTERS.test(value)) return true;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return true;
+  }
+  return (
+    url.username !== '' ||
+    url.password !== '' ||
+    // Proof: on 2026-09-27, dropping this failed `refuses the whole list when one callback
+    // carries …` for every planted and percent-encoded response field (oauth.test.ts).
+    RESPONSE_FIELDS.some((field) => url.searchParams.has(field))
+  );
+}
+
+/**
+ * A callback on the reviewed list; exact authorization matching happens later. Runs only on
+ * values {@link isMalformedRedirect} passed, so a pattern-matching loopback always parses.
+ */
+function isListedRedirect(value: unknown): value is string {
   if (typeof value !== 'string') return false;
   // Proof: on 2026-09-27, a parsed `hostname.endsWith` match here failed `refuses the near-miss
   // callback` for evilvscode.dev, VSCODE.dev, :443 and the dot-segment path (oauth.test.ts).
@@ -1173,21 +1224,10 @@ function isRedirect(value: unknown): value is string {
   // Proof: on 2026-09-27, skipping this pattern failed `refuses the near-miss callback` for
   // 127.1, LOCALHOST, ports 0 and 080, and javascript://localhost (oauth.test.ts).
   if (!LOOPBACK_REDIRECT.test(value)) return false;
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return false;
-  }
+  const url = new URL(value);
   return (
     (url.protocol === 'http:' || url.protocol === 'https:') &&
-    url.username === '' &&
-    url.password === '' &&
-    url.hash === '' &&
-    ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) &&
-    // Proof: on 2026-09-27, dropping this failed `refuses the near-miss callback` for the
-    // `code`, `state`, `iss` and `error` query cases (oauth.test.ts).
-    RESPONSE_FIELDS.every((field) => !url.searchParams.has(field))
+    ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
   );
 }
 
