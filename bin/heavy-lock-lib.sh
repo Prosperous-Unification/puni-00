@@ -550,8 +550,10 @@ report_heavy_lock_status() {
 # Proof (observed 2026-09-27): replacing this function's body with `return 0` —
 # the claim back to trusting whatever the directory record says, under a
 # `mkdir` that always exits 0 — was watched letting both claimants hold:
-# `28a: 2 of two claimants hold the lock under an always-succeeding mkdir` and
-# the same for 28b, the reclaim of a dead holder (bin/heavy-lock.test.sh, case 28).
+# `28a: 2 of two claimants hold the lock under an always-succeeding mkdir
+# (claim statuses: 0 0 )` and the same for 28b, the reclaim of a dead holder,
+# three runs of three; 28e also ran its command on a host without perl
+# (bin/heavy-lock.test.sh, case 28).
 acquire_heavy_flock() {
   local lock_file=$1
   if ! exec 9>>"$lock_file"; then
@@ -592,9 +594,11 @@ acquire_heavy_flock() {
 # is someone else's lock and is left untouched (75); a holder that is not a pid
 # or cannot be read is unknown state (70); only a DEAD holder is reclaimed. Old
 # code in turn sees this code's record and refuses. What no change here can
-# close is old code racing old code, or an old claimer's `mkdir` racing this
-# one's record at the instant the directory is created — the uutils window —
-# until every launcher on the host runs this code.
+# close is old code racing old code, an old claimer's `mkdir` racing this one's
+# record at the instant the directory is created — the uutils window — or an
+# old RECLAIMER that read a dead pid, paused, and then removes this code's live
+# record. Those end only when every launcher on the host runs this code; the
+# rollout is in openspec/changes/exclusive-heavy-lock/proposal.md.
 #
 # Reclaims a record whose holder is dead — a run killed with SIGKILL leaves the
 # directory behind, and refusing every subsequent run until a human removes it
@@ -676,7 +680,20 @@ claim_heavy_lock() {
     exec 9>&-
     return 70
   fi
-  record_lock_holder "$lock_dir"
+  # A half-written record is removed and the flock let go HERE, because nothing
+  # else will: the trap armed while queueing has no lock directory to release,
+  # so it would leave the host locked for as long as this shell lives.
+  #
+  # Proof (observed 2026-09-27): with this unwinding removed, a record directory
+  # created without write permission left fd 9 holding the flock after the
+  # refusal — `28h: the flock was still held after a refused recording`
+  # (bin/heavy-lock.test.sh, case 28g-28h).
+  if ! record_lock_holder "$lock_dir" 2>/dev/null; then
+    printf 'heavy lock: cannot write the holder record in %s; refusing to run unrecorded\n' "$lock_dir" >&2
+    rm -rf "$lock_dir"
+    exec 9>&-
+    return 70
+  fi
 }
 
 # Release what a run took, then run the caller's own EXIT trap `$4`, reporting
@@ -1053,7 +1070,21 @@ with_heavy_lock() {
   # Fd 9 closed for the command: it holds this run's flock, and a daemon the
   # command leaves behind (an Nx daemon, a watcher) would otherwise keep the
   # host locked after this run has released its record and gone.
+  #
+  # In a subshell rather than as `"$@" 9>&-`, because bash applies that
+  # redirection to a FUNCTION by saving fd 9 on another descriptor in this very
+  # shell: a function command that calls `exit` then runs the release trap with
+  # fd 9 already closed and the saved copy still holding the flock, all through
+  # the caller's own cleanup.
+  #
+  # Proof (observed 2026-09-27): with `"$@" 9>&-` restored, a function command
+  # that exits was watched leaving the flock held while the caller's EXIT trap
+  # ran — `28j: the flock was held during the caller's cleanup`
+  # (bin/heavy-lock.test.sh, case 28i-28j).
   local run_status=0
-  "$@" 9>&- || run_status=$?
+  (
+    exec 9>&-
+    "$@"
+  ) || run_status=$?
   return "$run_status"
 }

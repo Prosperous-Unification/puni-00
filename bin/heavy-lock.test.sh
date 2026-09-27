@@ -1117,36 +1117,48 @@ run_suite() {
   mkdir -p "$mkdir_shim"
   printf '#!/bin/sh\nsleep 0.3\n%s -p "$@" 2>/dev/null\nexit 0\n' "$real_mkdir" >"$mkdir_shim/mkdir"
   chmod +x "$mkdir_shim/mkdir"
-  # One claimant: waits for the start file, claims, and on a win records its pid
-  # and keeps holding for 2s so that the other claimant meets a LIVE holder.
-  # shellcheck disable=SC2016 # Single quotes are the point: `$1`-`$4` belong to
+  # One claimant: waits for the start file, claims, and records its claim's
+  # status; a winner also records its pid and keeps holding until BOTH statuses
+  # are in, so the other claimant always meets a live holder rather than one
+  # that has already gone.
+  # shellcheck disable=SC2016 # Single quotes are the point: `$1`-`$5` belong to
   # the inner shell.
   local claimant='source "$1"
     while [[ ! -e $4 ]]; do sleep 0.01; done
-    if claim_heavy_lock "$2"; then printf "%s\n" "$$" >>"$3"; sleep 2; fi'
-  local winners="$lock.winners" start_file="$lock.start" claimant_a claimant_b winner_count
+    claim_status=0
+    claim_heavy_lock "$2" || claim_status=$?
+    printf "%s\n" "$claim_status" >>"$5"
+    if [[ $claim_status -eq 0 ]]; then
+      printf "%s\n" "$$" >>"$3"
+      polls=0
+      while [[ $(wc -l <"$5") -lt 2 && $polls -lt 1000 ]]; do sleep 0.01; polls=$((polls + 1)); done
+    fi'
+  local winners="$lock.winners" start_file="$lock.start" statuses="$lock.statuses"
+  local claimant_a claimant_b winner_count claim_statuses
   for race_case in 28a 28b; do
-    rm -rf "$lock.d" "$winners" "$start_file"
+    rm -rf "$lock.d" "$winners" "$start_file" "$statuses"
     if [[ $race_case == 28b ]]; then
       # The reclaim path: a holder that died without a trap. Both claimants see
       # it dead at once, and only one of them may take its place.
       mkdir -p "$lock.d"
       printf '%s\n' "$dead_pid" >"$lock.d/holder"
     fi
-    PATH="$mkdir_shim:$PATH" "$sh" -c "$claimant" heavy-lock-claimant "$lock_lib" "$lock.d" "$winners" "$start_file" 2>/dev/null &
+    PATH="$mkdir_shim:$PATH" "$sh" -c "$claimant" heavy-lock-claimant "$lock_lib" "$lock.d" "$winners" "$start_file" "$statuses" 2>/dev/null &
     claimant_a=$!
-    PATH="$mkdir_shim:$PATH" "$sh" -c "$claimant" heavy-lock-claimant "$lock_lib" "$lock.d" "$winners" "$start_file" 2>/dev/null &
+    PATH="$mkdir_shim:$PATH" "$sh" -c "$claimant" heavy-lock-claimant "$lock_lib" "$lock.d" "$winners" "$start_file" "$statuses" 2>/dev/null &
     claimant_b=$!
     : >"$start_file"
     wait "$claimant_a" "$claimant_b"
     winner_count=0
     [[ -e $winners ]] && winner_count=$(wc -l <"$winners" | tr -d ' ')
-    if [[ $winner_count -eq 1 ]]; then
-      pass "$race_case: exactly one of two claimants holds the lock under an always-succeeding mkdir"
+    claim_statuses=$(sort -n "$statuses" 2>/dev/null | tr '\n' ' ')
+    if [[ $winner_count -eq 1 && $claim_statuses == '0 75 ' ]]; then
+      pass "$race_case: exactly one of two claimants holds the lock under an always-succeeding mkdir, the other is refused 75"
     else
-      fail "$race_case: $winner_count of two claimants hold the lock under an always-succeeding mkdir"
+      fail "$race_case: $winner_count of two claimants hold the lock under an always-succeeding mkdir (claim statuses: $claim_statuses)"
     fi
   done
+  rm -f "$statuses"
 
   # 28c: a holder in the format the code before this case wrote — `lock.d` with
   # `holder` and `label` and nothing else — is live and is left alone. Gates
@@ -1182,6 +1194,65 @@ run_suite() {
     fail "28f: the refusal did not name perl: $(cat "$lock.perlless-err")"
   fi
   rm -rf "$perlless_bin" "$lock.perlless-err"
+
+  # 28g: a record that cannot be written is refused 70 AND lets the flock go
+  # before the refusing shell exits. The shim creates the record directory
+  # without write permission; the queue already exists, so only the record
+  # passes through it. The probe is a second open of the lock file, from
+  # another process, while the refusing shell is still alive.
+  local readonly_mkdir_shim="$lock.readonly-mkdir-shim"
+  mkdir -p "$readonly_mkdir_shim" "$lock.queue"
+  printf '#!/bin/sh\n%s -p -m 500 "$@"\n' "$real_mkdir" >"$readonly_mkdir_shim/mkdir"
+  chmod +x "$readonly_mkdir_shim/mkdir"
+  local flock_probe
+  # shellcheck disable=SC2016 # Single quotes are the point: this is perl source.
+  flock_probe='use Fcntl ":flock"; open(my $h, ">>", $ARGV[0]) or exit 2; print(flock($h, LOCK_EX | LOCK_NB) ? "free" : "held")'
+  local refused_recording
+  # shellcheck disable=SC2016 # Single quotes are the point: `$1`-`$3` belong to
+  # the inner shell.
+  refused_recording=$(PATH="$readonly_mkdir_shim:$PATH" "$sh" -c 'source "$1"
+    refused=0
+    with_heavy_lock "$2" -- true 2>/dev/null || refused=$?
+    printf "%s " "$refused"
+    perl -e "$3" "$2"' heavy-lock-recording "$lock_lib" "$lock" "$flock_probe")
+  if [[ ${refused_recording%% *} == 70 ]]; then
+    pass "28g: a record that cannot be written is refused 70"
+  else
+    fail "28g: a record that cannot be written: want exit 70, got ${refused_recording%% *}"
+  fi
+  if [[ ${refused_recording#* } == free ]]; then
+    pass "28h: the flock was let go when the recording was refused"
+  else
+    fail "28h: the flock was still held after a refused recording"
+  fi
+  chmod 700 "$lock.d" 2>/dev/null
+  rm -rf "$readonly_mkdir_shim" "$lock.d"
+
+  # 28i: a FUNCTION command that exits must not keep the flock through the
+  # caller's own cleanup. The caller's EXIT trap probes the lock from another
+  # process after the release has run.
+  local cleanup_probe="$lock.cleanup-probe"
+  rm -f "$cleanup_probe"
+  # The probe's inputs travel in the environment rather than as positional
+  # parameters: an EXIT trap reached through `exit` inside a function sees that
+  # function's parameters, not the script's.
+  # shellcheck disable=SC2016 # Single quotes are the point: every variable here
+  # belongs to the inner shell.
+  PROBE_SOURCE="$flock_probe" PROBE_LOCK="$lock" PROBE_OUT="$cleanup_probe" "$sh" -c 'source "$1"
+    trap '\''perl -e "$PROBE_SOURCE" "$PROBE_LOCK" >"$PROBE_OUT"'\'' EXIT
+    exiting_payload() { exit 3; }
+    with_heavy_lock "$2" -- exiting_payload' heavy-lock-function "$lock_lib" "$lock" 2>/dev/null
+  if [[ -s $cleanup_probe ]]; then
+    pass "28i: the caller's cleanup ran after a function command exited"
+  else
+    fail "28i: the caller's cleanup never ran after a function command exited"
+  fi
+  if [[ $(cat "$cleanup_probe" 2>/dev/null) == free ]]; then
+    pass "28j: the flock was free during the caller's cleanup"
+  else
+    fail "28j: the flock was held during the caller's cleanup"
+  fi
+  rm -f "$cleanup_probe"
   rm -rf "$mkdir_shim" "$winners" "$start_file" "$lock.d"
 
   rm -rf "$lock"*

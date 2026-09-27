@@ -30,7 +30,11 @@ Sequential `mkdir` on an existing directory still fails there (`File exists`, ex
 - Red on the `mkdir` claim (origin/main's library, new test): `28a: 2 of two claimants hold the
 lock under an always-succeeding mkdir`, the same for `28b`, `28c … want exit 75, got 0`,
   `28d: the old-format holder's record was replaced or removed`, `28e … want exit 70, got 0`.
-- `acquire_heavy_flock` short-circuited to `return 0`: `28a` and `28b` fail, 3 runs of 3.
+- `acquire_heavy_flock` short-circuited to `return 0`: `28a` and `28b` fail with `claim statuses:
+0 0`, 3 runs of 3 and again after the review fixes.
+- Unwind removed from the refused recording: `28h: the flock was still held after a refused
+recording`. `"$@" 9>&-` restored in place of the subshell: `28j: the flock was held during the
+caller's cleanup`.
 - 28e/28f are the absent-perl negative: a PATH without `perl` is refused 70 naming perl.
 
 ## Not run

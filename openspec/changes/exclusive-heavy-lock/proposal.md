@@ -19,7 +19,12 @@ dead-holder reclaim (`rm -rf` then `mkdir`) was also open to two reclaimers on a
   unlocked. The wrapped command runs with the lock's descriptor closed.
 
 **Transition** — runs on the older code hold no flock. Under the flock a live or half-written
-old-format record is refused 75 and left untouched; only a dead holder is reclaimed.
+old-format record is refused 75 and left untouched; only a dead holder is reclaimed. Exclusivity
+is complete only once no launcher on a host runs the older code: an old claimer can still race an
+old claimer, and an old reclaimer that read a dead pid can remove a new live record. On h2puni
+the gate launches from the gate tree's resting HEAD (each gate restores it on exit), so the
+rollout is: after this merges, while no gate runs, move `~/puni-00-gate-tbf` to a main commit
+that contains it, and run heavy work only through that tree or checkouts that contain it.
 
 ## Non-Goals
 
