@@ -107,7 +107,7 @@ function scenario(initialSeq = -1) {
           },
         },
         {
-          openSocket: (_url, handlers) => {
+          openSocket: (handlers) => {
             const socket = { sent: [] as string[], handlers };
             sockets.push(socket);
             return {

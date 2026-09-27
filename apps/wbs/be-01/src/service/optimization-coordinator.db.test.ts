@@ -10,6 +10,7 @@ import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
+import { createOptimizationRepository } from '../repository/optimization';
 import { reserveSolverSlot } from '../repository/optimization-admission';
 import {
   beginOptimizationDrain,
@@ -158,7 +159,7 @@ function coordinator(
 ): OptimizationCoordinator {
   let token = 0;
   return new OptimizationCoordinator({
-    db,
+    repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
     hashInput: scheduleInputHash,
     contractVersion: CONTRACT,
     solverVersion: '0.1.0',
@@ -173,7 +174,6 @@ function coordinator(
       return await childOf(request);
     },
     runChild,
-    eventLog: new DrizzleEventLogStore(db, OPEN),
     pushRecorded: () => Promise.resolve(),
     onChildError,
   });
@@ -204,7 +204,7 @@ describe('OptimizationCoordinator read', () => {
     const spawned: ReservedSpawnRequest[] = [];
     const errors: unknown[] = [];
     const instance = new OptimizationCoordinator({
-      db,
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -218,7 +218,6 @@ describe('OptimizationCoordinator read', () => {
         spawned.push(request);
         throw new Error('a drain reconciliation must not resume a solve');
       },
-      eventLog: new DrizzleEventLogStore(db, OPEN),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => errors.push(error),
       setInterval: (callback, milliseconds) => {
@@ -253,7 +252,7 @@ describe('OptimizationCoordinator read', () => {
     let inputReads = 0;
     let enabled = true;
     const instance = new OptimizationCoordinator({
-      db,
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -283,7 +282,6 @@ describe('OptimizationCoordinator read', () => {
         });
       },
       runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
-      eventLog: new DrizzleEventLogStore(db, OPEN),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
@@ -611,7 +609,7 @@ describe('OptimizationCoordinator read', () => {
     let enabledReads = 0;
     let inputReads = 0;
     const instance = new OptimizationCoordinator({
-      db,
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -631,7 +629,6 @@ describe('OptimizationCoordinator read', () => {
         calls.push(request);
         throw new Error('an OFF project reached the launcher');
       },
-      eventLog: new DrizzleEventLogStore(db, OPEN),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
@@ -679,7 +676,7 @@ describe('OptimizationCoordinator read', () => {
     const switcher = openDatabase(path);
     const calls: ReservedSpawnRequest[] = [];
     const instance = new OptimizationCoordinator({
-      db,
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -696,7 +693,6 @@ describe('OptimizationCoordinator read', () => {
         calls.push(request);
         throw new Error('an OFF project reached the launcher');
       },
-      eventLog: new DrizzleEventLogStore(db, OPEN),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
@@ -1545,7 +1541,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     const calls: ReservedSpawnRequest[] = [];
     let contention: unknown;
     const instance = new OptimizationCoordinator({
-      db,
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -1573,7 +1569,6 @@ describe('OptimizationCoordinator Retry admission', () => {
           kill: () => undefined,
         });
       },
-      eventLog: new DrizzleEventLogStore(db, OPEN),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => {
         throw error;
@@ -1646,7 +1641,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     const errors: unknown[] = [];
     let token = 0;
     const instance = new OptimizationCoordinator({
-      db,
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -1668,7 +1663,6 @@ describe('OptimizationCoordinator Retry admission', () => {
         });
       },
       runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
-      eventLog: new DrizzleEventLogStore(db, OPEN),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => errors.push(error),
       setInterval: () => 'drain-timer',

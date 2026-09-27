@@ -8,6 +8,7 @@ import type { DeliveredPlan } from '@/modules/plan-feed/delivered-plan-store';
 import { projectServicesOver } from '@/modules/project/composition';
 import type { ProjectRuntime, ProjectServices, ProjectSource } from '@/modules/project/contract';
 import { fakeProjectApi } from '@/testing/fake-project-api';
+import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 
 import { credentialOf } from './credential';
 import { PartialAcquisitionError } from './lifetime-slot';
@@ -235,7 +236,7 @@ function projectSource(
   // Only the plan's own read waits for the scheduler: it is the answer that
   // delivers a plan, and one late answer is what a withdrawn project must drop.
   const client: typeof base = { ...base, tree: (id) => gate('tree', () => base.tree(id)) };
-  const services = projectServicesOver(client);
+  const services = projectServicesOver(client, NO_SAVED_PLANS);
   world.bySource.set(services, record);
   return { services, subscribe: undefined };
 }

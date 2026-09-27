@@ -47,7 +47,9 @@ test('typed step bindings preserve the service value, actor and trimmed name', a
   if (!added.ok) throw new Error('add fixture refused');
   expect(added.status).toBe(200);
   expect(added.body.step.name).toBe('Build');
-  expect(await stored.findById(added.body.step.id)).toEqual(added.body.step);
+  const found = await stored.findById(added.body.step.id);
+  if (found === null) throw new Error('added step not stored');
+  expect(added.body.step).toEqual(found);
   expect(addWrite).toHaveBeenLastCalledWith(
     expect.objectContaining({ name: 'Build' }),
     expect.objectContaining({ by: 'owner' }),
@@ -62,7 +64,9 @@ test('typed step bindings preserve the service value, actor and trimmed name', a
   expect(renamed).toEqual({
     ok: true,
     status: 200,
-    body: { step: { id: 'step', projectId: 'project', name: 'Review', position: 10 } },
+    body: {
+      step: { id: 'step', projectId: 'project', name: 'Review', position: 10, code: 'design' },
+    },
   });
   expect(broadcast.published.map((entry) => entry.event.type)).toEqual([
     'step_added',

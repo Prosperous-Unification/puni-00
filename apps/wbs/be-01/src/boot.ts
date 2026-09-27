@@ -1,6 +1,8 @@
 import { buildOidcVerifier } from '@wbs/auth';
 import type { Logger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
+import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
+import { backfillStepCodes } from '@wbs/store-sqlite/step-code-backfill';
 import { DiBag } from 'di-bag';
 
 import { buildApp } from './app';
@@ -224,6 +226,10 @@ export async function bootBe01(
               } else {
                 opts.logger.info({ port: opts.port }, 'be-01 listening (migrating)');
                 runMigrations(opts.dbPath, opts.migrationsFolder ?? './drizzle');
+                // The swap's post-`stop-blue` step, here because a process that
+                // migrates itself has no older colour left to wait for.
+                const coded = backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), Date.now());
+                opts.logger.info({ coded: coded.length }, 'step codes backfilled');
               }
               if (opts.localIdentity !== undefined) {
                 // The one write in the tree whose author is the row it writes:

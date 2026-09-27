@@ -18,6 +18,7 @@ import {
   type OperationPlan,
   type OperationRequest,
   planOperation,
+  requireEnrollmentTarget,
   sealOperationPlan,
 } from './plan';
 import { prepareTerragruntDestroyPlan, prepareTerragruntPlan } from './production-apply';
@@ -550,6 +551,9 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
     request.kind === 'provision'
       ? await requireReplacementAuthorization(outputPath, fleet, request)
       : undefined;
+  if (request.kind === 'enroll') {
+    requireEnrollmentTarget(fleet, decodeFleetObservation(observationInput), request.nodeId);
+  }
   let plan = planOperation(fleet, observation, request);
   if (request.kind === 'provision' && replacementAuthorization !== undefined) {
     const { planSha256: _planSha256, ...body } = plan;

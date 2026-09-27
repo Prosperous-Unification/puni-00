@@ -26,8 +26,20 @@ export function projectRegistrations(open: OpenCase<'projects'>): readonly CaseR
         scheduleObjective: 'time',
       } satisfies Project;
       const steps: Step[] = [
-        { id: 'project-created-dev', projectId: project.id, name: 'Build', position: 10 },
-        { id: 'project-created-qa', projectId: project.id, name: 'Verify', position: 20 },
+        {
+          id: 'project-created-dev',
+          projectId: project.id,
+          name: 'Build',
+          position: 10,
+          code: 'build',
+        },
+        {
+          id: 'project-created-qa',
+          projectId: project.id,
+          name: 'Verify',
+          position: 20,
+          code: 'verify',
+        },
       ];
 
       expect(await port.create(project, steps, { at: 300, by: seed.ownerIds[0] })).toEqual(project);

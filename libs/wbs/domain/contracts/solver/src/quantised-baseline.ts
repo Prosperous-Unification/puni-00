@@ -142,12 +142,11 @@ export function quantisedFastBaseline(
  * where and how many, none of which the axis change touches — and `stepId` with
  * them, because the key the offset is returned under is built from it.
  *
- * `days` is synthesised, so a slice nobody estimated arrives here estimated,
- * carrying {@link durationUnits}' fold of `ASSUMED_SLICE_WORKDAYS`. That is the
- * intended reading and not a leak: the assumption is already the duration the
- * real placement used, `durationUnits` is the one function that folds it, and
- * the rescaled schedule's `estimated` flag is read by nobody — this function
- * returns starts.
+ * `days` is synthesised, so a slice nobody estimated arrives here as an
+ * explicit zero — {@link durationUnits} of an unknown length. That is the
+ * intended reading and not a leak: zero is already the schedule time the real
+ * placement used, and the rescaled schedule's `estimated` flag is read by
+ * nobody — this function returns starts.
  */
 function onTheUnitAxis(slice: Slice): Slice {
   const units = durationUnits(slice);

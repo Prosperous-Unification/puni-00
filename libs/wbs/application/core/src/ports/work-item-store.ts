@@ -141,7 +141,12 @@ export interface LabelledWorkItem extends WorkItem {
    */
   serviceIds: readonly string[];
   /**
-   * What kind of work the row **is**, 0..n — `Story`, `Bug`, `Spike`, `Epic`.
+   * What kind of work the row **is** — `Story`, `Bug`, `Spike`, `Epic`.
+   *
+   * Zero or one since WBS 010.4.10; the array stays so several can return
+   * without a migration. More than one is a **type conflict** (an older writer
+   * mid-swap, or data from before the rule), read whole and never trimmed here;
+   * `WorkItemService.patch` refuses to author one.
    *
    * The fourth dimension, and the one whose empty case does **not** mean what
    * the other three's does. Empty here means the row has no type, full stop: it
@@ -419,7 +424,9 @@ export interface WorkItemPatch {
    */
   tagIds?: readonly string[];
   /**
-   * What kind of work this row **is**, **whole**: the set as it will stand,
+   * What kind of work this row **is**, **whole**: the set as it will stand, at
+   * most one type on an authored write (`work_item_takes_one_type`, WBS
+   * 010.4.10) while undo/redo and copies write a stored conflict back exactly;
    * never a member to add or remove — {@link tagIds}'s rule and every one of its
    * reasons, including the undo journal needing a before-value that restores.
    *

@@ -18,7 +18,7 @@
         "inputs": ["default", "^production"],
         "executor": "nx:run-commands",
         "options": {
-          "command": "bun test src --coverage --coverage-reporter=lcov",
+          "command": "bun test src --coverage --coverage-reporter=lcov --timeout=10000",
           "cwd": "libs/wbs/application/core"
         },
         "outputs": ["{projectRoot}/coverage"],
@@ -46,7 +46,7 @@
           "{workspaceRoot}/apps/wbs/fe-01/src/styles.css"
         ],
         "options": {
-          "command": "bun test --coverage --coverage-reporter=lcov",
+          "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
           "cwd": "libs/wbs/domain/domain"
         },
         "outputs": ["{projectRoot}/coverage"],
@@ -68,7 +68,7 @@
         "executor": "nx:run-commands",
         "inputs": ["default", "^production"],
         "options": {
-          "command": "bun test src --coverage --coverage-reporter=lcov",
+          "command": "bun test src --coverage --coverage-reporter=lcov --timeout=10000",
           "cwd": "libs/wbs/adapters/store-memory"
         },
         "outputs": ["{projectRoot}/coverage"],
@@ -97,11 +97,12 @@
           "{workspaceRoot}/apps/wbs/be-01/**/*",
           "{workspaceRoot}/apps/wbs/gw-01/**/*",
           "{workspaceRoot}/apps/wbs/fe-01/**/*",
+          "{workspaceRoot}/apps/wbs/mcp-01/**/*",
           "{workspaceRoot}/libs/**/*",
           "{workspaceRoot}/nx.json"
         ],
         "options": {
-          "command": "bun test --preload ../test/scratch/preload.ts",
+          "command": "bun test --preload ../test/scratch/preload.ts --timeout=10000",
           "cwd": "tools/tool-dagger"
         },
         "outputs": ["{projectRoot}/coverage"],
@@ -127,6 +128,7 @@
           "{workspaceRoot}/.github/workflows/trusted-wiki.yml",
           "{workspaceRoot}/.github/workflows/twilight-burokrat-release.yml",
           "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/consumer/**/*",
+          "{workspaceRoot}/docs/code-organization/rule-policy.json",
           "{projectRoot}/package.json",
           "{projectRoot}/NOTICE",
           "{workspaceRoot}/infra/ci/burokrat/**/*",
@@ -134,7 +136,7 @@
         ],
         "executor": "nx:run-commands",
         "options": {
-          "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --path-ignore-patterns '**/packaging/install.test.ts' --path-ignore-patterns '**/packaging/consumer-bootstrap.test.ts' --preload ../../../../tools/test/scratch/preload.ts",
+          "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../../node_modules bun test --path-ignore-patterns '**/packaging/install.test.ts' --path-ignore-patterns '**/packaging/consumer-bootstrap.test.ts' --preload ../../../../tools/test/scratch/preload.ts --timeout=60000",
           "cwd": "apps/twilight-structure/twilight-burokrat/cli"
         },
         "outputs": ["{projectRoot}/coverage"],

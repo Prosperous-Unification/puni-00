@@ -54,6 +54,7 @@ import { readPhase, writePhase } from './lib/phase';
 import { type Observed, planSwap, type SwapPlan, type SwapStep } from './lib/reconcile';
 import { mcpExposureEnabled, routedColorFromAdminConfig, siteContext } from './lib/site';
 import { type Color, parseStateJson, renderStateJson, type Tier } from './lib/state';
+import { runStepCodeBackfill } from './lib/step-code-backfill';
 
 // No REGISTRY here, deliberately. The publish address arrives as part of
 // `--image`, which is `release.json`'s `image` field passed through verbatim
@@ -497,7 +498,7 @@ export async function startGreen(
 // Steps at or before `reload` are still reversible: nothing client-facing has
 // switched over yet (or, for `reload` itself, the switch is what's failing).
 // A failure anywhere in this window must delegate to `abortSwap`. Steps after
-// `reload` (`drain`, `revoke-alias`, `stop-blue`, `commit`) are NOT reversible
+// `reload` (`drain`, `revoke-alias`, `stop-blue`, `backfill-step-codes`, `commit`) are NOT reversible
 // by this mechanism: routing has already moved to `to`, which is now the
 // legitimately live colour, so rolling back to `from` would be exactly
 // backwards. See the boundary enforced in `execute`'s per-step try/catch.
@@ -510,7 +511,26 @@ const ABORTABLE_STEPS: ReadonlySet<SwapStep> = new Set<SwapStep>([
   'reload',
 ]);
 
-async function execute(plan: SwapPlan, image: string, sha: string): Promise<void> {
+/**
+ * The IO {@link execute} performs directly, as a seam so a test can drive the
+ * steps after routing without a Docker host. Helpers it calls, such as
+ * `startGreen` and `containerIp`, keep their own IO.
+ */
+export interface SwapExecutionIo {
+  sh: (args: string[]) => Promise<string>;
+  readPhase: typeof readPhase;
+  writePhase: typeof writePhase;
+  writeAtomic: typeof writeAtomic;
+}
+
+const PRODUCTION_SWAP_IO: SwapExecutionIo = { sh, readPhase, writePhase, writeAtomic };
+
+export async function execute(
+  plan: SwapPlan,
+  image: string,
+  sha: string,
+  io: SwapExecutionIo = PRODUCTION_SWAP_IO,
+): Promise<void> {
   const { tier, from, to } = plan;
   const phasePath = `${ROOT}/state/${tier}.phase`;
   const greenName = containerName(tier, to);
@@ -518,7 +538,7 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
   // Captured before this attempt writes anything, so an abort can put the
   // phase marker back to exactly what it said before — it must never
   // contradict be.json, which an aborted swap also leaves untouched.
-  const phaseBefore = await readPhase(phasePath);
+  const phaseBefore = await io.readPhase(phasePath);
 
   // Undo state for the abort paths below. Both start "nothing to undo" and
   // are set at the exact point the corresponding action becomes undoable.
@@ -576,7 +596,7 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
     //    staying forward while the message says the deploy was rolled back.
     if (migrationBaseline !== null) {
       try {
-        const out = await sh(migrateDownCommand(greenName, migrationBaseline));
+        const out = await io.sh(migrateDownCommand(greenName, migrationBaseline));
         console.error(`[swap-${tier}] schema rolled back: ${out.trim()}`);
       } catch (e: unknown) {
         console.error(
@@ -597,7 +617,7 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
     //    back out would leave a site.caddy with no servers in it at all.
     if (siteTextBefore !== null && shouldRestoreSiteCaddy(siteTextBefore)) {
       try {
-        await writeAtomic(SITE_CADDY_PATH, siteTextBefore);
+        await io.writeAtomic(SITE_CADDY_PATH, siteTextBefore);
         await reloadCaddy();
         console.error(`[swap-${tier}] restored the previous site.caddy and reloaded`);
       } catch (e: unknown) {
@@ -618,7 +638,7 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
     if (tier === 'be' && aliasMovedToGreen) {
       const cmds = from === null ? revokeAliasCommands(to) : grantAliasCommands(from);
       try {
-        for (const cmd of cmds) await sh(cmd);
+        for (const cmd of cmds) await io.sh(cmd);
         console.error(
           `[swap-${tier}] be-01.internal returned to ${from ?? 'no colour (first deploy)'}`,
         );
@@ -632,7 +652,7 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
     // 3. Green last: it is the thing every step above was protecting traffic
     //    from losing.
     try {
-      await sh(['stop', greenName]);
+      await io.sh(['stop', greenName]);
     } catch (e: unknown) {
       console.error(
         `[swap-${tier}] could not stop ${greenName}: ${e instanceof Error ? e.message : String(e)}`,
@@ -650,7 +670,7 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
           if (code !== 'ENOENT') throw e;
         });
       } else {
-        await writePhase(phasePath, phaseBefore);
+        await io.writePhase(phasePath, phaseBefore);
       }
       console.error(`[swap-${tier}] phase marker rewound to ${phaseBefore ?? '(none)'}`);
     } catch (e: unknown) {
@@ -684,14 +704,14 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
           // that is about to migrate, so an abort knows exactly how far back
           // to unwind. A tier that cannot answer fails the deploy here rather
           // than at abort time, when the answer would be needed and missing.
-          migrationBaseline = (await sh(migrateStatusCommand(greenName))).trim();
+          migrationBaseline = (await io.sh(migrateStatusCommand(greenName))).trim();
           if (migrationBaseline === '') {
             throw new Error(
               `${greenName} did not report which migrations are applied, so a failed ` +
                 'deploy could not roll the schema back',
             );
           }
-          await sh(migrateCommand(greenName));
+          await io.sh(migrateCommand(greenName));
           break;
 
         case 'health-gate': {
@@ -721,7 +741,7 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
           // routes to this colour yet, so briefly disconnecting/reconnecting
           // it here is safe) and why the outgoing colour's cleanup is a
           // separate step deferred until after reload ('revoke-alias', below).
-          for (const cmd of grantAliasCommands(to)) await sh(cmd);
+          for (const cmd of grantAliasCommands(to)) await io.sh(cmd);
           aliasMovedToGreen = true;
           break;
 
@@ -754,7 +774,7 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
           // Captured before the write, so abortSwap can put the file back
           // exactly as it found it.
           siteTextBefore = await readSiteCaddy();
-          await writeAtomic(SITE_CADDY_PATH, rendered);
+          await io.writeAtomic(SITE_CADDY_PATH, rendered);
           break;
         }
 
@@ -766,7 +786,7 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
           // Caddy's live admin config (the source of truth — see
           // liveRoutedColors), never from this marker; it only names which
           // window a kill happened in.
-          await writePhase(phasePath, 'routed');
+          await io.writePhase(phasePath, 'routed');
           // Decision 10: "caddy reload fails — green is up but unrouted. Stop
           // green, leave blue live, exit non-zero." Both failure shapes are
           // thrown bare here and delegated to abortSwap by the outer
@@ -841,18 +861,25 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
             // a pause rather than a real drain, and what window remains
             // even with it.
             await sleep(BE_REVOKE_ALIAS_SETTLE_MS);
-            for (const cmd of revokeAliasCommands(from)) await sh(cmd);
+            for (const cmd of revokeAliasCommands(from)) await io.sh(cmd);
           }
           break;
 
         case 'stop-blue':
-          await writePhase(phasePath, 'old-stopped');
-          if (from !== null) await sh(['stop', containerName(tier, from)]);
+          await io.writePhase(phasePath, 'old-stopped');
+          if (from !== null) await io.sh(['stop', containerName(tier, from)]);
+          break;
+
+        case 'backfill-step-codes':
+          // After `stop-blue`, so this is outside `ABORTABLE_STEPS`: a failure
+          // throws past `commit`, leaving the new colour serving and the deploy
+          // unrecorded, with the manual command in the message.
+          console.log(`[swap-${tier}] ${(await runStepCodeBackfill(greenName, io.sh)).trim()}`);
           break;
 
         case 'commit':
-          await writePhase(phasePath, 'committed');
-          await writeAtomic(
+          await io.writePhase(phasePath, 'committed');
+          await io.writeAtomic(
             `${ROOT}/state/${tier}.json`,
             renderStateJson({ tier, activeColor: to, lastDeployedSha: sha }),
           );
@@ -866,7 +893,7 @@ async function execute(plan: SwapPlan, image: string, sha: string): Promise<void
         await abortSwap(`${tier}-${to} failed during '${step}'`, e);
       }
       // Steps after `reload` (`drain`, `revoke-alias`, `stop-blue`,
-      // `commit`): routing has already moved onto `to`, which is now the
+      // `backfill-step-codes`, `commit`): routing has already moved onto `to`, which is now the
       // legitimately live colour — that is the explicit boundary
       // `ABORTABLE_STEPS` draws. Rolling back to `from` here would be
       // exactly backwards: Caddy and (for `be`) gw's forward alias already

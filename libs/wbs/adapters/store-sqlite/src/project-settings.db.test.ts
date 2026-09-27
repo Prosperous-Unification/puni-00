@@ -41,9 +41,8 @@ const EXTERNAL_REF_NAME = '20260909120000_add_external_ref_name';
  */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
 /**
- * The newest: the inert organization records `organization-ownership-and-access`
- * adds. Six `CREATE TABLE`s forward and six `DROP TABLE`s back, so it heads every
- * descending reversal list and tails every ascending one.
+ * The inert organization records `organization-ownership-and-access`
+ * adds. Six `CREATE TABLE`s forward and six `DROP TABLE`s back.
  */
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
 /**
@@ -52,10 +51,17 @@ const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
  */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /**
- * The newest: the durable activation marker, stamped after
+ * The durable activation marker, stamped after
  * {@link ORGANIZATION_OWNERSHIP} and reversed before it.
  */
 const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
+/**
+ * The newest: the nullable step code column and its partial unique index
+ * `address-step-nodes` adds. One `ADD COLUMN` and one `CREATE UNIQUE INDEX`
+ * forward, the index and the column back, so it heads every descending reversal
+ * list and tails every ascending one.
+ */
+const STEP_CODE = '20260927150000_add_step_code';
 
 /** The one below it, which is where every rollback here stops. */
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
@@ -184,6 +190,7 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -224,6 +231,7 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -307,6 +315,7 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,

@@ -9,6 +9,8 @@ metadata:
 spec:
   replicas: 1
   revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: wbs-mcp
@@ -23,6 +25,7 @@ spec:
       securityContext:
         runAsUser: 10001
         runAsGroup: 10001
+        fsGroup: 10001
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
@@ -35,6 +38,21 @@ spec:
           env:
             - { name: PORT, value: '3300' }
             - { name: HOME, value: /tmp }
+            - { name: MCP_STORE_PATH, value: /var/lib/wbs-mcp/sessions.sqlite }
+            # Proof: removing this Secret ref made mcp-manifest.test.ts fail on 2026-09-27.
+            - name: MCP_STORE_KEY_CURRENT
+              valueFrom:
+                secretKeyRef: { name: wbs-mcp-secrets, key: MCP_STORE_KEY_CURRENT }
+            - name: MCP_STORE_KEY_PREVIOUS
+              valueFrom:
+                secretKeyRef: { name: wbs-mcp-secrets, key: MCP_STORE_KEY_PREVIOUS, optional: true }
+            - name: MCP_SIGNING_KEY_CURRENT
+              valueFrom:
+                secretKeyRef: { name: wbs-mcp-secrets, key: MCP_SIGNING_KEY_CURRENT }
+            - name: MCP_SIGNING_KEY_PREVIOUS
+              valueFrom:
+                secretKeyRef:
+                  { name: wbs-mcp-secrets, key: MCP_SIGNING_KEY_PREVIOUS, optional: true }
           envFrom:
             - configMapRef:
                 name: wbs-mcp-config
@@ -59,8 +77,12 @@ spec:
             capabilities:
               drop: [ALL]
           volumeMounts:
+            - { name: mcp-store, mountPath: /var/lib/wbs-mcp }
             - { name: tmp, mountPath: /tmp }
       volumes:
+        - name: mcp-store
+          persistentVolumeClaim:
+            claimName: wbs-mcp
         - name: tmp
           emptyDir: { sizeLimit: 128Mi }
 ---

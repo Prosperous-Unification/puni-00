@@ -31,7 +31,7 @@ function harness() {
   let nextHandle = 0;
   let cancelled = 0;
 
-  const openSocket: OpenSocket = (_url, handlers) => {
+  const openSocket: OpenSocket = (handlers) => {
     const socket: FakeSocket = { sent: [], handlers, closed: false };
     sockets.push(socket);
     return {

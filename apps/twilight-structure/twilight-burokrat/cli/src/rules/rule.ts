@@ -89,8 +89,11 @@ export interface RuleContext {
   readonly sizeCeilings?: SizeCeilings;
   /** The index report, computed once per check and shared by the three module rules. */
   readonly indexes: RuleOutcome<IndexReport>;
-  /** Kinds and modules, derived from paths alone; total, so it needs no outcome wrapper. */
-  readonly kinds: KindGraph;
+  /**
+   * Kinds and modules, from paths and the policy's kind inventory. It fails only when the policy
+   * names an inventory the candidate cannot supply, and every rule reading it is then unevaluated.
+   */
+  readonly kinds: RuleOutcome<KindGraph>;
   /**
    * The extracted relationships, computed at most once per check and never before a rule asks.
    * Extraction typechecks the whole candidate, so an unconditional call would make every `check` pay

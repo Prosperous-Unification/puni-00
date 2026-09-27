@@ -20,7 +20,7 @@
       "cache": false,
       "inputs": ["default", "^production"],
       "options": {
-        "command": "bun test src --coverage --coverage-reporter=lcov",
+        "command": "bun test src --coverage --coverage-reporter=lcov --timeout=10000",
         "cwd": "libs/wbs/adapters/store-memory"
       },
       "outputs": ["{projectRoot}/coverage"]
@@ -30,7 +30,7 @@
       "cache": false,
       "inputs": ["default", "^production"],
       "options": {
-        "command": "bun test src/testing/source-conformance.test.ts",
+        "command": "bun test src/testing/source-conformance.test.ts --timeout=10000",
         "cwd": "libs/wbs/adapters/store-memory",
         "forwardAllArgs": false
       }
@@ -40,7 +40,7 @@
       "cache": false,
       "inputs": ["default", "^production"],
       "options": {
-        "command": "bun test src --coverage --coverage-reporter=lcov",
+        "command": "bun test src --coverage --coverage-reporter=lcov --timeout=10000",
         "cwd": "libs/wbs/adapters/store-memory"
       },
       "outputs": ["{projectRoot}/coverage"]

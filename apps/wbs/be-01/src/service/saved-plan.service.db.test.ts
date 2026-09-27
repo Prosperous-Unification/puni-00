@@ -78,7 +78,7 @@ describe('SavedPlanService.save', () => {
         estimateMethod: 'realistic',
         startDate: '2026-03-02',
       }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10 }],
+      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);
@@ -277,7 +277,7 @@ describe('SavedPlanService.save', () => {
         scheduleEngine: 'optimized',
         scheduleObjective: 'pri',
       }),
-      [{ id: 'st-empty', projectId: 'p-empty', name: 'Dev', position: 10 }],
+      [{ id: 'st-empty', projectId: 'p-empty', name: 'Dev', position: 10, code: 'dev' }],
       wrote,
     );
     const result = await save(schedulerWith({ state: 'idle' }), 'p-empty');

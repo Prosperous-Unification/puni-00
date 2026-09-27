@@ -733,6 +733,8 @@ b8d5a27d84b8b332d85455b55e1362a3c31236bc apps/be-01/drizzle/20260927130000_add_o
 18336625214adbaf84ec11254749336fb535f6bb apps/be-01/drizzle/20260927130000_add_organization_ownership/migration.sql
 a22fe04d10448576261b357a82926928269090af apps/be-01/drizzle/20260927140000_add_organization_activation/down.sql
 baf29b40b20a9b0e533fe63a825ed05982b01994 apps/be-01/drizzle/20260927140000_add_organization_activation/migration.sql
+4ddbe98184aff458b79a237d8b20cec6fc970091 apps/be-01/drizzle/20260927150000_add_step_code/down.sql
+68c6819acc0bd1e1d36ed8c506bc6b9bc756239d apps/be-01/drizzle/20260927150000_add_step_code/migration.sql
 ```
 
 ## Deployment identities

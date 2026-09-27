@@ -1,5 +1,4 @@
 import {
-  ASSUMED_SLICE_WORKDAYS,
   type DependencyEdge,
   type PlannedRow,
   SCHEDULER_CONTRACT_VERSION,
@@ -229,12 +228,14 @@ describe('buildSolverRequest', () => {
     ).toThrow('slice for P, which is not a leaf of this project');
   });
 
-  it('computes durations as Fast does — null days undivided, real days divided', () => {
-    // 2.6's first two cases, and they are one assertion on purpose: both land
-    // on 96 units by different rules, so each is the other's control. A null
-    // `days` takes ASSUMED_SLICE_WORKDAYS (2) **without** dividing by width —
-    // divided by 3 it would be 32 — and 6 days across 3 people is 2 workdays,
+  it('computes durations as Fast does — null days zero, real days divided', () => {
+    // A null `days` crosses as zero units, never as the Gantt's assumed
+    // two-workday span (96 units), and 6 days across 3 people is 2 workdays,
     // which undivided would be 288.
+    //
+    // Proof: `durationOf` answering `ASSUMED_SLICE_WORKDAYS` for null days
+    // again made this fail on `- 0 / + 96` for the `assumed` slice; watched
+    // 2026-09-27.
     const plan = planOf({
       rows: [rowOf('A', null, null)],
       edges: [],
@@ -244,7 +245,7 @@ describe('buildSolverRequest', () => {
       ],
     });
     expect(requestOf(plan).slices.map((slice) => slice.durationUnits)).toEqual([
-      ASSUMED_SLICE_WORKDAYS * SOLVER_QUANTUM,
+      0,
       2 * SOLVER_QUANTUM,
     ]);
   });

@@ -176,14 +176,16 @@ describe('the browser gate’s port shift', () => {
    * above the probe budget, the probe reports first and says which command ran
    * out: `spawnSync bun ETIMEDOUT`.
    *
-   * This does not reopen TASK-405's decision to keep the 5000ms default
-   * project-wide (recorded in the queue workspace's `notes/decisions.md`,
-   * 2026-09-08, not in this repo). That decision is about a global
-   * `testTimeout`; this is the per-case fallback the task's own criterion
-   * allows, taken here because splitting is not available.
+   * TASK-405 kept vitest's 5000ms default project-wide; WBS 080.16 replaced
+   * it with the measured 30 s on the target's command line after the gate
+   * timed out healthy cases at 5 s (docs/test-budgets.md). This case still
+   * states its own budget, because it has to stay above the probe's.
    */
-  const PROBE_TIMEOUT_MS = 10_000;
-  const PROBE_CASE_TIMEOUT_MS = 15_000;
+  // Budget measured 2026-09-27 (docs/test-budgets.md): the probe took 2.3 s
+  // idle and overran its 10 s bound twice under load, so it gets twice that
+  // bound, and the case stays above it for the reason just given.
+  const PROBE_TIMEOUT_MS = 20_000;
+  const PROBE_CASE_TIMEOUT_MS = 30_000;
 
   it(
     'lets a shifted browser login reach authentication through the configured backend origin',

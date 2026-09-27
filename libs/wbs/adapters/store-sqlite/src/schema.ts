@@ -719,9 +719,28 @@ export const step = sqliteTable(
      * step.position`; watched 2026-08-09.
      */
     position: integer('position').notNull().default(0),
+    /**
+     * The step's step code — `dev` in the step reference `010.dev` — or NULL
+     * while the step is uncoded.
+     *
+     * NULL is a modeled state, not a missing default: blue and green share one
+     * file mid-swap, and the outgoing release's `INSERT` does not name this
+     * column, so a step it adds lands uncoded until the post-swap backfill codes
+     * it. Codes are derived in TypeScript rather than SQL so that creation,
+     * import and the backfill share one derivation. Unique per project among
+     * coded steps through `step_project_code`, a partial index that leaves any
+     * number of uncoded steps beside each other. Immutable once written:
+     * renaming or reordering a step keeps it.
+     */
+    code: text('code'),
     ...auditColumns(),
   },
-  (t) => [uniqueIndex('step_project_name').on(t.projectId, t.name)],
+  (t) => [
+    uniqueIndex('step_project_name').on(t.projectId, t.name),
+    uniqueIndex('step_project_code')
+      .on(t.projectId, t.code)
+      .where(sql`${t.code} IS NOT NULL`),
+  ],
 );
 
 export type StepRow = typeof step.$inferSelect;

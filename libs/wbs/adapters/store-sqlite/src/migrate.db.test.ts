@@ -275,9 +275,8 @@ const EXTERNAL_REF_NAME = '20260909120000_add_external_ref_name';
  */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
 /**
- * The newest: the inert organization records `organization-ownership-and-access`
- * adds. Six `CREATE TABLE`s forward and six `DROP TABLE`s back, so it heads every
- * descending reversal list and tails every ascending one.
+ * The inert organization records `organization-ownership-and-access`
+ * adds. Six `CREATE TABLE`s forward and six `DROP TABLE`s back.
  */
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
 /**
@@ -286,10 +285,17 @@ const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
  */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /**
- * The newest: the durable activation marker, stamped after
+ * The durable activation marker, stamped after
  * {@link ORGANIZATION_OWNERSHIP} and reversed before it.
  */
 const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
+/**
+ * The newest: the nullable step code column and its partial unique index
+ * `address-step-nodes` adds. One `ADD COLUMN` and one `CREATE UNIQUE INDEX`
+ * forward, the index and the column back, so it heads every descending reversal
+ * list and tails every ascending one.
+ */
+const STEP_CODE = '20260927150000_add_step_code';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 // `step` since 20260831120000_rename_role_to_step. Every raw statement in this
@@ -394,6 +400,7 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -735,6 +742,7 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1214,6 +1222,7 @@ describe('the work item team migration', () => {
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1460,6 +1469,7 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1758,6 +1768,7 @@ describe('the plan event migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1994,6 +2005,7 @@ describe('the actual migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -2274,6 +2286,7 @@ describe('the step progress migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -2538,6 +2551,7 @@ describe('the not-before reason migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -2793,6 +2807,7 @@ describe('the tag migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -3153,6 +3168,7 @@ describe('the service migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -3305,6 +3321,7 @@ describe('the work-item-service migration', () => {
   function atTheColumnOnly(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
+      STEP_CODE,
       ORGANIZATION_ACTIVATION,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
@@ -3468,6 +3485,7 @@ describe('the work-item-service migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -3764,6 +3782,7 @@ describe('the step measure migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -3859,6 +3878,7 @@ describe('the person kind migration', () => {
   function beforeTheColumn(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
+      STEP_CODE,
       ORGANIZATION_ACTIVATION,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
@@ -4094,6 +4114,7 @@ describe('the person kind migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
+        STEP_CODE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
