@@ -85,6 +85,8 @@ export function inMemoryProjects(
       owning.set(written.id, organizationId);
       return written;
     },
+    // No dependent rows live in this store, so nothing it holds can cross.
+    findCrossReferences: () => Promise.resolve([]),
     findInOrganization(id, organizationId) {
       return owning.get(id) === organizationId ? store.findById(id) : Promise.resolve(null);
     },

@@ -2,6 +2,7 @@ import { type Type, type } from 'arktype';
 
 import { PLAN_COMMAND_KINDS } from '../commands/definitions';
 import { defineEndpointShape } from './endpoint-shape';
+import { organizationRefusal } from './organization-refusal';
 import { planCommandsBody } from './plan-command-shapes';
 import type { ParserRefusalCode } from './refusal';
 import { engineUnavailableRefusal } from './scheduler-shapes';
@@ -587,6 +588,7 @@ export const getWorkItems = defineEndpointShape({
   refusals: [
     ...genericRefusals,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+    organizationRefusal,
     engineUnavailableRefusal,
   ],
   document: { summary: 'Read the project work-item tree.' },
@@ -612,6 +614,7 @@ export const getStepReference = defineEndpointShape({
   refusals: [
     ...genericRefusals,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+    organizationRefusal,
     {
       status: 409,
       schema: responseSchema(

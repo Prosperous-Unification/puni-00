@@ -252,7 +252,7 @@ export function mountedEndpoints(
       opts.clock,
       opts.optimizer,
     ),
-    ...workItemRoutes(opts.workItems, commands, nodeDigest),
+    ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),
     ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations),
     ...savedPlanRoutes(opts.savedPlans, opts.projects, opts.writes.announcements),
     ...internalRoutes({

@@ -4,6 +4,7 @@ import { workItemRoutes } from '../../controller/work-item.routes';
 import { nodeDigest } from '../../runtime/bun-runtime';
 import { PlanCommandRunner } from '../../service/plan-commands';
 import { inMemoryServices } from '../../testing/harness';
+import { legacyOrganizationAccess } from '../../testing/organization-access-fixture';
 import { projectRow } from '../../testing/project-fixture';
 import { batchServices, testWrites } from '../../testing/writes-fixture';
 import { mountEndpoints } from './mount';
@@ -17,7 +18,7 @@ function fixture(readOnly = false) {
     uow: writes.uow,
     announcements: writes.announcements,
   });
-  const endpoints = workItemRoutes(plan.service, runner, nodeDigest);
+  const endpoints = workItemRoutes(plan.service, runner, nodeDigest, legacyOrganizationAccess);
   const app = mountEndpoints(endpoints, {
     appOrigin: 'http://localhost',
     reportUnexpectedFailure: () => undefined,

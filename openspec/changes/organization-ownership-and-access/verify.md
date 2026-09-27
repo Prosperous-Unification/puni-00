@@ -268,6 +268,24 @@ The migration is additive and its `down.sql` drops all 30 triggers. Reconciliati
 | Role rule                      | `mayEditProjectWithin` answers the legacy rule under scoped access           | `refuses a viewer every step and marker write and lets the viewer list markers`                                                                                                                                                                                                    |
 | Access resolved first          | resolution bypassed in each of the seven routes alone                        | `refuses an unbound session and a removed member before any lookup`, once per route                                                                                                                                                                                                |
 
+## Slice 10 — the schedule read (task 3.3, part 2)
+
+Branch `batch-9/010-5-2-orgs-9`, stacked on slice 9.
+
+- `GET /api/projects/:id/work-items` and `GET /api/projects/:id/step-references` resolve organization access first. Both then go through `WorkItemService.treeWithin` and `readAddressesWithin`.
+- The project export and optimizer retry now use `treeWithin` and `scheduleInputWithin`.
+- Under scoped access, `ProjectStore.findCrossReferences` runs one UNION over every relation the read follows. Owners compare with `IS NOT`, so an unowned catalog entry counts as crossing. Any hit throws, and the request answers 500 rather than scheduling on it.
+- Legacy access is unchanged. Before activation a project with crossing rows still reads, because inertness wins; activation reconciliation (2.2, 7.1) refuses such data first.
+
+| Check                               | Injected fault                                                                  | Observed failure (`schedule-organization.controller.db.test.ts`, 2026-09-27)                                                                                                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Each of the 16 cross-reference arms | that arm removed from the UNION alone                                           | its own `fails the schedule read closed over a crossing <kind>` case, for 15 of them. Removing `work_item_parent` is not observable, because the tree read already throws on a parent outside the project; the arm stays. |
+| Cross-reference check               | `admits` skips it under scoped access                                           | `… crossing estimate_step`: 200 instead of 500                                                                                                                                                                            |
+| Scoped project find                 | `admits` finds the project unscoped                                             | `answers 404 alike for a foreign and an absent project`                                                                                                                                                                   |
+| Access resolved first               | the work-items route, and separately the step-references route, skip resolution | `refuses an unbound session and a removed member before any lookup`                                                                                                                                                       |
+| Export tree scoped                  | export reads `tree` unscoped                                                    | `fails the export and the optimizer retry closed over a crossing row`: 200                                                                                                                                                |
+| Retry input scoped                  | retry reads `scheduleInput` unscoped                                            | same case: 409 instead of 500                                                                                                                                                                                             |
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.
