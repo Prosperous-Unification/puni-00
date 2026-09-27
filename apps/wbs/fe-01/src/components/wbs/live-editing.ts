@@ -77,6 +77,12 @@ interface Submission {
    * anything rule 2 held back may be written — see {@link LiveField.leave}.
    */
   landed: boolean;
+  /**
+   * {@link LiveField.serverValues} when it was sent. A value rule 2 was already
+   * holding back then predates the save, and releasing it over the saved text
+   * would put back what the save replaced; only one heard since may go in.
+   */
+  heardBefore: number;
 }
 
 /**
@@ -253,6 +259,8 @@ export class LiveField {
    * completion is the normal case rather than the edge.
    */
   private submissions = 0;
+  /** How many different values the server has said for this field, so a save can tell what it has heard since. */
+  private serverValues = 0;
 
   /**
    * Sends what this field holds. Reassigned by the face on **every render**,
@@ -331,6 +339,7 @@ export class LiveField {
    * Rules 1, 2 and 4 decide together whether it reaches the box.
    */
   serverSaid(value: string): void {
+    if (value !== this.latest) this.serverValues += 1;
     this.latest = value;
     this.sync();
     // After the sync, not before: the height has to follow the value the node
@@ -442,7 +451,13 @@ export class LiveField {
       // guard removed, `a peer name held back is not written over a save
       // still in the air` failed on `expected 'Peer' to be 'Beta'`. Watched,
       // 2026-09-27.
-      if (this.sent.landed) {
+      //
+      // And only a value heard since it was sent: one rule 2 was holding from
+      // before is older than the save, and a reread that failed leaves it as
+      // the newest thing the field knows. Proof: this condition removed, `a
+      // peer name held from before a save is not written over it` failed on
+      // `expected 'Peer' to be 'Beta'`. Watched, 2026-09-27.
+      if (this.sent.landed && this.serverValues !== this.sent.heardBefore) {
         this.sync();
         this.afterSync(this.node);
       }
@@ -539,7 +554,13 @@ export class LiveField {
     // Recorded synchronously, before any continuation above can run: the
     // record is what a flush arriving in the meantime is answered from, and
     // the `sent = null` a refusal performs is a microtask away at the earliest.
-    const submission: Submission = { typed: text, baseline, landing, landed: false };
+    const submission: Submission = {
+      typed: text,
+      baseline,
+      landing,
+      landed: false,
+      heardBefore: this.serverValues,
+    };
     this.sent = submission;
     return landing;
   }

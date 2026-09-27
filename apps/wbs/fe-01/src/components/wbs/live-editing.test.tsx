@@ -486,4 +486,39 @@ describe('an own edit that lands while the cell is being typed in again', () => 
     expect(box.value).toBe('Beta');
     expect(pending.map((patch) => patch.typed)).toEqual(['Beta']);
   });
+
+  /**
+   * A peer's name arrives while the reader is typing their edit and is held
+   * back; the edit is saved, its covering reread fails, and they come back,
+   * type, and type back to what they saved. The held name predates the save,
+   * so leaving must keep the saved name rather than put the older one back.
+   */
+  itDom('a peer name held from before a save is not written over it', async () => {
+    const { pending, commit } = queuedCommits();
+    const view = render(<TableFace value="Alpha" commit={commit} />);
+
+    const box = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'Beta' } });
+    view.rerender(<TableFace value="Peer" commit={commit} />);
+    act(() => {
+      box.blur();
+    });
+    expect(pending.map((patch) => patch.typed)).toEqual(['Beta']);
+
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'BetaX' } });
+    await answerPatch(pending[0], 'landed');
+    fireEvent.change(box, { target: { value: 'Beta' } });
+    act(() => {
+      box.blur();
+    });
+
+    expect(box.value).toBe('Beta');
+    expect(pending.map((patch) => patch.typed)).toEqual(['Beta']);
+  });
 });
