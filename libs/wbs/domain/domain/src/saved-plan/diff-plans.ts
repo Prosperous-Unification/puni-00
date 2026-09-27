@@ -165,7 +165,7 @@ const FIELD_CATEGORIES: Readonly<
     startNoEarlierThan: 'start-no-earlier-than',
     startNoEarlierThanReason: 'start-no-earlier-than',
   },
-  steps: { name: 'renamed', position: 'reordered' },
+  steps: { name: 'renamed', position: 'reordered', allowancePercent: 'estimates' },
   stepValues: {
     optimistic: 'uncertainty',
     realistic: 'uncertainty',

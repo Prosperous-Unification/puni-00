@@ -1,5 +1,5 @@
 import type { MeasureMetric } from '@wbs/domain';
-import { DEFAULT_ESTIMATE_RULE, type EstimateRule } from '@wbs/domain';
+import { DEFAULT_ESTIMATE_RULE, type EstimateRule, type StepAllowances } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { StoredActual } from '../ports/actual-store';
@@ -432,9 +432,18 @@ describe('rollUpProgress', () => {
 
 describe('rollUpFinals', () => {
   const ceiling: EstimateRule = { ...DEFAULT_ESTIMATE_RULE, rounding: 'ceil' };
+  const noAllowance: StepAllowances = new Map([
+    ['dev', 0],
+    ['qa', 0],
+  ]);
 
   it('charges a leaf the whole days its own estimate rounds to', () => {
-    const finals = rollUpFinals([item('a', null)], [held('a', 'dev', 0.5, 0.5, 0.5)], ceiling);
+    const finals = rollUpFinals(
+      [item('a', null)],
+      [held('a', 'dev', 0.5, 0.5, 0.5)],
+      ceiling,
+      noAllowance,
+    );
 
     expect(finals.get('a')?.get('dev')).toBe(1);
   });
@@ -453,7 +462,7 @@ describe('rollUpFinals', () => {
     const rows = [item('parent', null), item('one', 'parent'), item('two', 'parent')];
     const estimates = [held('one', 'dev', 0.5, 0.5, 0.5), held('two', 'dev', 0.5, 0.5, 0.5)];
 
-    const finals = rollUpFinals(rows, estimates, ceiling);
+    const finals = rollUpFinals(rows, estimates, ceiling, noAllowance);
 
     expect(finals.get('one')?.get('dev')).toBe(1);
     expect(finals.get('two')?.get('dev')).toBe(1);
@@ -470,17 +479,27 @@ describe('rollUpFinals', () => {
     const rows = [item('a', null)];
     const estimates = [held('a', 'dev', 2, 3, 10)];
 
-    expect(rollUpFinals(rows, estimates, ceiling).get('a')?.get('dev')).toBe(4);
+    expect(rollUpFinals(rows, estimates, ceiling, noAllowance).get('a')?.get('dev')).toBe(4);
     expect(
-      rollUpFinals(rows, estimates, {
-        ...ceiling,
-        pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
-      })
+      rollUpFinals(
+        rows,
+        estimates,
+        {
+          ...ceiling,
+          pertWeights: { optimistic: 1, realistic: 1, pessimistic: 1 },
+        },
+        noAllowance,
+      )
         .get('a')
         ?.get('dev'),
     ).toBe(5);
     expect(
-      rollUpFinals(rows, [held('a', 'dev', 1, 2, 4)], { ...ceiling, rounding: 'floor' })
+      rollUpFinals(
+        rows,
+        [held('a', 'dev', 1, 2, 4)],
+        { ...ceiling, rounding: 'floor' },
+        noAllowance,
+      )
         .get('a')
         ?.get('dev'),
     ).toBe(2);
@@ -489,7 +508,7 @@ describe('rollUpFinals', () => {
   it('reports a step no descendant estimated as absent, not as zero days', () => {
     const rows = [item('parent', null), item('one', 'parent')];
 
-    const finals = rollUpFinals(rows, [held('one', 'dev', 1, 2, 3)], ceiling);
+    const finals = rollUpFinals(rows, [held('one', 'dev', 1, 2, 3)], ceiling, noAllowance);
 
     expect(finals.get('parent')?.has('qa')).toBe(false);
   });
@@ -499,6 +518,56 @@ describe('rollUpFinals', () => {
     const estimates = [held('parent', 'dev', 99, 99, 99), held('one', 'dev', 1, 2, 3)];
 
     // `(1 + 4×2 + 3) / 6` is 2 days; the 99s are not counted at all.
-    expect(rollUpFinals(rows, estimates, ceiling).get('parent')?.get('dev')).toBe(2);
+    expect(rollUpFinals(rows, estimates, ceiling, noAllowance).get('parent')?.get('dev')).toBe(2);
+  });
+
+  describe('with a step allowance', () => {
+    const qaAt30: StepAllowances = new Map([
+      ['dev', 0],
+      ['qa', 30],
+    ]);
+
+    it('charges a leaf its uplifted base, rounded once: 1.1 days at +30% is 2', () => {
+      const finals = rollUpFinals(
+        [item('a', null)],
+        [held('a', 'qa', 1.1, 1.1, 1.1)],
+        ceiling,
+        qaAt30,
+      );
+
+      expect(finals.get('a')?.get('qa')).toBe(2);
+    });
+
+    /**
+     * Proof: with the parent's sum uplifted again by its step's allowance,
+     * this failed on `Expected: 6, Received: 8` (2026-09-27).
+     */
+    it('gives a parent the sum of its charged leaves, without a second allowance', () => {
+      const rows = [item('parent', null), item('one', 'parent'), item('two', 'parent')];
+      const estimates = [held('one', 'qa', 2, 2, 2), held('two', 'qa', 2, 2, 2)];
+
+      const finals = rollUpFinals(rows, estimates, ceiling, qaAt30);
+
+      expect(finals.get('one')?.get('qa')).toBe(3);
+      expect(finals.get('two')?.get('qa')).toBe(3);
+      expect(finals.get('parent')?.get('qa')).toBe(6);
+    });
+
+    it('leaves another step’s charge at its base', () => {
+      const finals = rollUpFinals(
+        [item('a', null)],
+        [held('a', 'dev', 1.1, 1.1, 1.1)],
+        ceiling,
+        qaAt30,
+      );
+
+      expect(finals.get('a')?.get('dev')).toBe(2);
+    });
+
+    it('throws for an estimate whose step is not in the plan read', () => {
+      expect(() =>
+        rollUpFinals([item('a', null)], [held('a', 'gone', 1, 1, 1)], ceiling, qaAt30),
+      ).toThrow('no allowance is known for step gone');
+    });
   });
 });

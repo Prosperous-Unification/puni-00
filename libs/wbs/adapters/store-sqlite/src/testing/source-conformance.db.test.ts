@@ -221,6 +221,7 @@ async function seedSqliteSource(
           name: stepIndex === 0 ? 'Dev' : 'QA',
           code: stepIndex === 0 ? 'dev' : 'qa',
           position: (stepIndex + 1) * 10,
+          allowancePercent: 0,
         })),
         stamp,
       );
@@ -653,6 +654,7 @@ async function seedProgressStep(source: SqliteSource): Promise<void> {
       id: PROGRESS_SENTINEL_STEP_ID,
       projectId: DETERMINISTIC_SEED.projectIds[0],
       name: 'Review',
+      allowancePercent: 0,
     },
     DETERMINISTIC_SEED.stamps[0],
   );
@@ -2220,7 +2222,7 @@ function createSeedFailureFault(observeReach: (reached: boolean) => void) {
           (create) => async (project, steps, stamp) => {
             await create(project, steps, stamp);
             await decorated.stores.steps.add(
-              { id: 'probe-step', projectId: project.id, name: 'Setup step' },
+              { id: 'probe-step', projectId: project.id, name: 'Setup step', allowancePercent: 0 },
               stamp,
             );
             observeReach(control.reached());

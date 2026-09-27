@@ -1,5 +1,8 @@
 import { addStep, removeStep, renameStep } from '@wbs/contracts';
+import { allowancePercentOf, NO_ALLOWANCE } from '@wbs/domain';
 
+import type { PlanCommandRunner } from '../module/plan-commands/plan-commands.feature';
+import { runCommandBatch } from '../module/plan-commands/run-command-batch';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Step } from '../ports/step-store';
 import type { StepOutcome, StepService } from '../service/step.service';
@@ -61,29 +64,107 @@ function renamedReply(outcome: StepOutcome): HttpReply<typeof renameStep> {
  * Proof: bypassing the resolution in any one of the three routes alone failed
  * `refuses an unbound session and a removed member before any lookup` in
  * `step-marker-organization.controller.db.test.ts`; watched 2026-09-27.
+ *
+ * An allowance edit is not StepService's: it runs as the `setStepAllowance`
+ * command through `commands`, so HTTP, a command batch and MCP share one
+ * journalled mutation and one undo.
  */
-export function stepRoutes(steps: StepService, organizations: OrganizationAccess) {
+export function stepRoutes(
+  steps: StepService,
+  commands: Pick<PlanCommandRunner, 'run' | 'runDirectory'>,
+  organizations: OrganizationAccess,
+) {
   return [
     bind(addStep, async ({ params, body, principal }): Promise<HttpReply<typeof addStep>> => {
+      const allowance =
+        body.allowancePercent === undefined
+          ? NO_ALLOWANCE
+          : allowancePercentOf(body.allowancePercent);
+      // Proof: with this refusal removed, `adds a step with the allowance it
+      // names, and refuses one with three decimals` stored the step.
+      if (allowance === null)
+        return { ok: false, status: 422, body: { error: 'invalid_allowance' } };
       const resolved = await organizations.resolve(principal.id);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       // Proof: catching the store failure as not_found returned a refusal object
       // instead of the original error in step.routes.test.ts's outage case.
       return addedReply(
-        await steps.addWithin(params.id, principal.id, body.name, body.code, resolved.access),
+        await steps.addWithin(
+          params.id,
+          principal.id,
+          body.name,
+          allowance,
+          body.code,
+          resolved.access,
+        ),
       );
     }),
     bind(renameStep, async ({ params, body, principal }): Promise<HttpReply<typeof renameStep>> => {
+      const allowance =
+        body.allowancePercent === undefined ? undefined : allowancePercentOf(body.allowancePercent);
+      // Proof: with this refusal bypassed, `a patched allowance runs as the one
+      // journalled setStepAllowance command` got a reply other than 422
+      // invalid_allowance for -1%.
+      if (allowance === null)
+        return { ok: false, status: 422, body: { error: 'invalid_allowance' } };
       const resolved = await organizations.resolve(principal.id);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
-      return renamedReply(
-        await steps.renameWithin(
+      if (allowance === undefined) {
+        if (body.name === undefined) {
+          return { ok: false, status: 422, body: { error: 'invalid_body' } };
+        }
+        return renamedReply(
+          await steps.renameWithin(
+            params.id,
+            params.stepId,
+            principal.id,
+            body.name,
+            resolved.access,
+          ),
+        );
+      }
+      // The allowance command runs through the organization-unaware runner, so
+      // the project, the step and the caller's role are checked here first,
+      // through the caller's access, before anything is written.
+      // Proof: skipping this check made `refuses an allowance edit of a foreign
+      // step or project, changing nothing` in
+      // `step-marker-organization.controller.db.test.ts` change B's step
+      // allowance from 0 to 25; watched 2026-09-27.
+      const admitted = await steps.findWithin(
+        params.id,
+        params.stepId,
+        principal.id,
+        resolved.access,
+      );
+      if (!admitted.ok) return renamedReply(admitted);
+      if (body.name !== undefined) {
+        const renamed = await steps.renameWithin(
           params.id,
           params.stepId,
           principal.id,
           body.name,
           resolved.access,
-        ),
+        );
+        if (!renamed.ok) return renamedReply(renamed);
+      }
+      const outcome = await runCommandBatch(commands, {
+        projectId: params.id,
+        actor: principal,
+        commands: [
+          { kind: 'setStepAllowance', stepId: params.stepId, allowancePercent: allowance },
+        ],
+      });
+      // The shape's write-scope policy refused this before the handler ran.
+      if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
+      if (!outcome.ok) {
+        if (outcome.reason === 'forbidden')
+          return { ok: false, status: 403, body: { error: 'forbidden' } };
+        if (outcome.reason === 'not_found')
+          return { ok: false, status: 404, body: { error: 'not_found' } };
+        throw new Error(`setStepAllowance refused with an unmodelled reason: ${outcome.reason}`);
+      }
+      return renamedReply(
+        await steps.findWithin(params.id, params.stepId, principal.id, resolved.access),
       );
     }),
     bind(

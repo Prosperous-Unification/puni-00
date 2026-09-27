@@ -296,6 +296,16 @@ export function createCellCards(): CellCards {
       dropTakeoverAimedAt(cell);
       if (hovered !== cell) return;
       stopHolding();
+      // A different focused cell already has a card to restore. The pointer's
+      // card has left its trigger, so keeping it through the reach would hide
+      // the focused cell's description until the timer expires.
+      // Proof: removing this branch failed `returns to a focused cell as soon
+      // as the pointer leaves another card` on `expected 'a:qa' to be 'a:dev'`.
+      if (focused !== null && focused !== cell) {
+        hovered = null;
+        settle();
+        return;
+      }
       holding = setTimeout(() => {
         holding = null;
         if (hovered !== cell) return;

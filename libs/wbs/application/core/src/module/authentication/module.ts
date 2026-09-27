@@ -1,5 +1,6 @@
 import { DiBag } from 'di-bag';
 
+import { AccountResource } from './account.resource';
 import { AuthService, type AuthServiceOptions } from './authentication.feature';
 import { AUTHENTICATION_LABEL, type AuthenticationRequirements } from './contract';
 import { LoginThrottle, type LoginThrottleOptions } from './login-throttle';
@@ -18,10 +19,9 @@ import { LoginThrottle, type LoginThrottleOptions } from './login-throttle';
  * it — resolving it answers `DI_BAG_UNKNOWN_SERVICE_KEY`, and a requirement
  * the host forgot is reported against `application.authentication/throttleOptions`
  * rather than against an anonymous binding. `authOptions` is also private:
- * it is the one place `account.users` is spread into both `users` and
- * `identities` for the legacy `AuthServiceOptions` shape, so no host of this
- * module can construct `AuthService` with a store that answers only
- * `UserStore`.
+ * it constructs the private resource over the host's combined account store,
+ * so no host of this module can construct `AuthService` with a store that
+ * cannot resolve OIDC identities.
  *
  * The module registers no disposer: `AuthService` holds only borrowed ports
  * and `LoginThrottle` holds an in-process bounded map with no timer, socket or
@@ -32,8 +32,18 @@ export const authenticationModule = DiBag.createBuilder()
   .withServices({
     authOptions: DiBag.createProvider(
       ({ account }: { account: AuthenticationRequirements['account'] }): AuthServiceOptions => ({
-        ...account,
-        identities: account.users,
+        tokens: account.tokens,
+        passwords: account.passwords,
+        ...(account.oidc === undefined ? {} : { oidc: account.oidc }),
+        ...(account.passwordSessions === undefined
+          ? {}
+          : { passwordSessions: account.passwordSessions }),
+        ...(account.localIdentity === undefined ? {} : { localIdentity: account.localIdentity }),
+        account: new AccountResource({
+          users: account.users,
+          identities: account.users,
+          clock: account.clock,
+        }),
       }),
       { factoryReturnKind: 'sync-value' },
     ),

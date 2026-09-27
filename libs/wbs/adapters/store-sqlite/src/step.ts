@@ -37,6 +37,7 @@ export const STEP_COLUMNS = {
   name: step.name,
   position: step.position,
   code: step.code,
+  allowancePercent: step.allowancePercent,
 };
 
 /**

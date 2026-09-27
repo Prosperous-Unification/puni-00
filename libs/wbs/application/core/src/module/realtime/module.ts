@@ -1,8 +1,8 @@
 import { DiBag } from 'di-bag';
 
 import type { Clock } from '../../ports/clock';
-import type { EventLogStore } from '../../ports/event-log-store';
 import type { PushTransport } from '../../ports/push-transport';
+import type { EventLogService } from '../event-log/event-log.resource';
 import { REALTIME_LABEL } from './contract';
 import { GatewayBroadcaster, type GatewayBroadcasterOptions } from './gateway-broadcaster';
 import { ReplayBuffer } from './replay-buffer';
@@ -50,7 +50,7 @@ export const realtimeModule = DiBag.createBuilder()
         replayBuffer,
         onPushFailed,
       }: {
-        eventLog: EventLogStore;
+        eventLog: EventLogService;
         clock: Clock;
         push: PushTransport;
         replayBuffer: ReplayBuffer;
@@ -70,7 +70,7 @@ export const realtimeModule = DiBag.createBuilder()
         replayBuffer,
         maxEvents,
       }: {
-        eventLog: EventLogStore;
+        eventLog: EventLogService;
         replayBuffer: ReplayBuffer;
         maxEvents: number | undefined;
       }): ReplayOrchestratorOptions => ({

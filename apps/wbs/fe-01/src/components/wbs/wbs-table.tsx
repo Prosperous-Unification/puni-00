@@ -1,5 +1,6 @@
 import { type Cell as TableCell, flexRender, type Header, useTable } from '@tanstack/react-table';
 import type { WorkItemStatus } from '@wbs/domain/progress';
+import { parseStepNodeId } from '@wbs/domain/step-node';
 import {
   type ChangeEventHandler,
   type ComponentProps,
@@ -634,6 +635,7 @@ export function WbsTable({
     activeProject,
     workItems,
     treeReadProject,
+    stepNodes,
     chartRead,
     steps,
     treeMayBeStale,
@@ -1375,7 +1377,29 @@ export function WbsTable({
               .join(', '),
     }));
     const spans = new Map<string, ReturnType<typeof spanOf>>();
+    const nodesByRow =
+      stepNodes === undefined
+        ? null
+        : new Map<string, Map<string, NonNullable<typeof stepNodes>[number]>>();
+    for (const node of stepNodes ?? []) {
+      const nodesByStep =
+        nodesByRow?.get(node.workItemId) ??
+        new Map<string, NonNullable<typeof stepNodes>[number]>();
+      nodesByStep.set(node.stepId, node);
+      nodesByRow?.set(node.workItemId, nodesByStep);
+    }
     const rows = attachRowReadings(workItems, (row) => {
+      if (nodesByRow !== null && !row.rolledUp) {
+        for (const step of steps) {
+          // Proof: removing this throw made `routes a present collection missing a
+          // leaf node to the Error Boundary` render the plan instead of its
+          // fault alert when the injected read had `stepNodes: []`: Vitest
+          // reported `Unable to find role="alert"` (2026-09-27).
+          if (!nodesByRow.get(row.id)?.has(step.id)) {
+            throw new Error(`Missing step node for leaf ${row.id} and step ${step.id}`);
+          }
+        }
+      }
       const dependencyPicker = depPicker?.rowId === row.id ? depPicker : null;
       const estimateReadings = new Map<string, EstimateReadings>();
       for (const step of steps) {
@@ -1422,6 +1446,10 @@ export function WbsTable({
         editingNotBefore: editingNotBefore === row.id,
         externalSystems,
         estimateReadings,
+        stepNodes:
+          nodesByRow === null
+            ? null
+            : (nodesByRow.get(row.id) ?? new Map<string, NonNullable<typeof stepNodes>[number]>()),
         hasSchedule: hasSchedule(),
         finish: span.finish,
         nonOwnerNote: nonOwnerNoteOf(row),
@@ -1474,6 +1502,7 @@ export function WbsTable({
     unfoldedSteps,
     workItems,
     workItemTypes,
+    stepNodes,
   ]);
 
   /**
@@ -1492,6 +1521,8 @@ export function WbsTable({
    * initialiser saw on the first one.
    */
   const liveNow: PlanLiveValues = {
+    projectId,
+    pushToast,
     focusIntent,
     gridElement,
     commands,
@@ -1556,13 +1587,25 @@ export function WbsTable({
   const live = useRef(liveNow);
   live.current = liveNow;
 
+  // Keyed on the rule's values, not on the read's object identities: every
+  // tree read hands over a fresh `pertWeights`, and a new rule each read would
+  // rebuild every cell — the focus fault the proof below describes.
+  const { optimistic, realistic, pessimistic } = chartRead.pertWeights;
+  const rule = useMemo(
+    () => ({
+      method: estimateMethod,
+      pertWeights: { optimistic, realistic, pessimistic },
+      rounding: chartRead.estimateRounding,
+    }),
+    [estimateMethod, optimistic, realistic, pessimistic, chartRead.estimateRounding],
+  );
   const columns = useMemo(
-    () => createPlanColumns(steps, unfoldedSteps, hiddenColumnIds, live),
+    () => createPlanColumns(steps, unfoldedSteps, hiddenColumnIds, live, rule),
     // PlanLiveValues declares the structural inputs allowed to replace cells.
     // Proof: adding workItems here failed plan-read-and-write.test.tsx’s
     // `does not take the focus or the half-typed value` at the focus assertion:
     // activeElement was body instead of the Name cell (2026-09-06).
-    [steps, unfoldedSteps, hiddenColumnIds],
+    [steps, unfoldedSteps, hiddenColumnIds, rule],
   );
 
   const table = useTable({
@@ -1902,6 +1945,93 @@ export function WbsTable({
   const clearRequestedFocus = useCallback(() => {
     setRequestedFocus(null);
   }, []);
+
+  /**
+   * Resolves a copied step link after its tree read, opens its ancestors, then
+   * asks the viewport to mount and focus the addressed cell. A consumed or
+   * refused link is removed from history so later refetches do not steal focus.
+   */
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const id = url.searchParams.get('stepNode');
+    if (id === null || !hasSuccessfulTreeRead) return;
+    // Proof: without this guard, the wrong project's table consumed
+    // ?project=p2&stepNode=sn1.bad and announced it invalid (2026-09-27).
+    if (url.searchParams.get('project') !== null && url.searchParams.get('project') !== projectId)
+      return;
+    const dismissLink = (message?: string) => {
+      if (message !== undefined) pushToast({ kind: 'error', text: message });
+      url.searchParams.delete('stepNode');
+      url.searchParams.delete('project');
+      window.history.replaceState(window.history.state, '', url.href);
+    };
+    const parsed = parseStepNodeId(id);
+    if (!parsed.ok) {
+      // Proof: omitting this notice made `announces an invalid or unknown
+      // step node URL` fail with `Unable to find ... role "alert"`
+      // (2026-09-27). An invalid URL is a visible refusal, not a render fault.
+      dismissLink('Step link is invalid.');
+      return;
+    }
+    const { workItemId, stepId } = parsed.ref;
+    const row = flat.find((candidate) => candidate.id === workItemId);
+    if (
+      row === undefined ||
+      row.rolledUp ||
+      !steps.some((step) => step.id === stepId) ||
+      !stepNodes?.some(
+        (node) => node.id === id && node.workItemId === workItemId && node.stepId === stepId,
+      )
+    ) {
+      // Proof: omitting this notice made `announces a well-formed node absent
+      // from this plan` fail with `Unable to find ... role "alert"`
+      // (2026-09-27). Parent and absent nodes share this visible refusal.
+      dismissLink('Step link does not name a leaf step in this plan.');
+      return;
+    }
+    if (hiddenColumnIds.includes(stepId)) {
+      toggleColumn(stepId);
+      return;
+    }
+    if (unfoldedSteps.includes(stepId)) {
+      toggleStep(stepId);
+      return;
+    }
+    if (!shownRowIds.includes(workItemId)) {
+      const ancestors: string[] = [];
+      let parentId = row.parentId;
+      while (parentId !== null) {
+        const parent = flat.find((candidate) => candidate.id === parentId);
+        if (parent === undefined) throw new Error(`Missing ancestor ${parentId} for step link`);
+        ancestors.push(parentId);
+        parentId = parent.parentId;
+      }
+      setExpanded((current) =>
+        current === true
+          ? current
+          : { ...current, ...Object.fromEntries(ancestors.map((ancestor) => [ancestor, true])) },
+      );
+      return;
+    }
+    setRequestedFocus({
+      cell: { rowId: workItemId, columnId: `${stepId}-final` },
+      landing: 'focus',
+    });
+    dismissLink();
+  }, [
+    flat,
+    hasSuccessfulTreeRead,
+    projectId,
+    hiddenColumnIds,
+    pushToast,
+    setExpanded,
+    shownRowIds,
+    stepNodes,
+    steps,
+    toggleColumn,
+    toggleStep,
+    unfoldedSteps,
+  ]);
 
   /**
    * What the headings' hints may bend for, in one object beside the layout's.

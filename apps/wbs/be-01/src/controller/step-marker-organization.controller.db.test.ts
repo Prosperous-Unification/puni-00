@@ -66,6 +66,7 @@ function routes(projectId: string, stepId: string, markerId: string): [string, s
   return [
     ['POST', `/api/projects/${projectId}/steps`, { name: 'Review' }],
     ['PATCH', `/api/projects/${projectId}/steps/${stepId}`, { name: 'Renamed' }],
+    ['PATCH', `/api/projects/${projectId}/steps/${stepId}`, { allowancePercent: 10 }],
     ['DELETE', `/api/projects/${projectId}/steps/${stepId}?cascade=true`],
     ['GET', `/api/projects/${projectId}/calendar-markers`],
     [
@@ -154,6 +155,21 @@ describe('after activation', () => {
     expect(await foreignState()).toEqual(before);
   });
 
+  it('refuses an allowance edit of a foreign step or project, changing nothing', async () => {
+    const before = await foreignState();
+    for (const [path, body] of [
+      [`/api/projects/${foreign}/steps/${foreignStep}`, { allowancePercent: 25 }],
+      [`/api/projects/${own}/steps/${foreignStep}`, { allowancePercent: 25 }],
+      [`/api/projects/${own}/steps/${foreignStep}`, { name: 'Taken', allowancePercent: 25 }],
+    ] as const) {
+      expect(await h.call('ada', 'PATCH', path, body)).toEqual({
+        status: 404,
+        body: { error: 'not_found' },
+      });
+    }
+    expect(await foreignState()).toEqual(before);
+  });
+
   it('refuses a viewer every step and marker write and lets the viewer list markers', async () => {
     const step = await firstStep('ada', own);
     const mine = await marker('ada', own, MARKER);
@@ -170,6 +186,10 @@ describe('after activation', () => {
     expect(
       (await h.call('ada', 'POST', `/api/projects/${own}/steps`, { name: 'Review' })).status,
     ).toBe(200);
+    const step = await firstStep('ada', own);
+    expect(
+      await h.call('ada', 'PATCH', `/api/projects/${own}/steps/${step}`, { allowancePercent: 15 }),
+    ).toMatchObject({ status: 200, body: { step: { id: step, allowancePercent: 15 } } });
     await marker('ada', own, MARKER);
     expect(
       (

@@ -48,9 +48,10 @@
 
 ## 9. Name the node in the step cell
 
-- [ ] 9.1 Red: fe-01 component tests for `010.dev · Dev`, copy reference, copy link and the uncoded state.
-- [ ] 9.2 Implement the detail line and actions.
-- [ ] 9.3 Negative proof: render the alias instead of the canonical reference; watch the component test fail, restore, add adjacent `Proof:`.
+- [x] 9.1 Red: fe-01 component tests for `010.dev · Dev`, copy reference, copy link and the uncoded state.
+- [x] 9.2 Implement the detail line and actions.
+- [x] 9.3 Negative proof: render the alias instead of the canonical reference; watch the component test fail, restore, add adjacent `Proof:`.
+- [x] 9.4 Review repair: select the copied link's project, keep columns and nodes on one tree snapshot, and let the pointer reach the folded card's copy actions; prove each with focused regressions.
 
 ## 10. Verify
 

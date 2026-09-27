@@ -12,6 +12,7 @@ import { type DropHint } from './drag-drop';
 import { type CellElement } from './editable-grid';
 import type { FocusIntent } from './live-editing';
 import { type CommitOutcome } from './live-editing';
+import type { Toast } from './toasts';
 import { type TreeRow } from './wbs-rows';
 
 /**
@@ -21,6 +22,8 @@ import { type TreeRow } from './wbs-rows';
  * would bypass the cell memo's explicit input contract.
  */
 export interface PlanLiveValues {
+  projectId: string;
+  pushToast: (toast: Toast) => void;
   focusIntent: React.RefObject<FocusIntent>;
   gridElement: React.RefObject<HTMLElement | null>;
   commands: PlanCommands;

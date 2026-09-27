@@ -80,7 +80,16 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
         estimateMethod: 'realistic',
         startDate: '2026-03-02',
       }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+      ],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);
@@ -174,6 +183,15 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
     // before the check would survive here.
     expect((await headers()).length).toBe(1);
     expect(await bodies()).toEqual(held);
+  });
+
+  it('admits only one of two concurrent saves for the last quota slot', async () => {
+    const quota = { ...ROOMY, mostPlansPerProject: 1 };
+    const outcomes = await Promise.all([save(quota), save(quota)]);
+
+    expect(outcomes.map((outcome) => outcome.outcome).sort()).toEqual(['saved', 'snapshot_busy']);
+    expect((await save(quota)).outcome).toBe('refused');
+    expect(await headers()).toHaveLength(1);
   });
 
   it('refuses the plan over the project byte total, naming it, leaving the held record alone', async () => {

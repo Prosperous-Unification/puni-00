@@ -16,7 +16,9 @@ import {
   CalendarMarkerService,
   CapacityService,
   DirectoryService,
+  EventLogService,
   HistoryService,
+  PlanEventService,
   PriorityBandService,
   ProjectService,
   ReplayBuffer,
@@ -83,7 +85,10 @@ export function testHistoryService(
   projects: ProjectStore = inMemoryProjects(),
   events: PlanEventStore = inMemoryPlanEvents(),
 ): HistoryService {
-  return new HistoryService({ projects, events });
+  return new HistoryService({
+    projects: testProjectService(projects),
+    events: new PlanEventService(events),
+  });
 }
 
 export function testWorkItemService(): WorkItemService {
@@ -97,7 +102,11 @@ export function testReplay(maxEvents?: number) {
     maxAgeMs: 5 * 60_000,
     now: () => 1_000,
   });
-  return { log, buffer, replay: new ReplayOrchestrator({ log, buffer, maxEvents }) };
+  return {
+    log,
+    buffer,
+    replay: new ReplayOrchestrator({ log: new EventLogService(log), buffer, maxEvents }),
+  };
 }
 
 export async function personAdded(added: Promise<PersonAdded>): Promise<Person> {

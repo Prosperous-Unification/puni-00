@@ -1,9 +1,11 @@
 import type { MeasureMetric } from '@wbs/domain';
 import {
   agree,
+  allowanceOf,
+  chargedDays,
   type EstimateRule,
-  finalDays,
   statusOf,
+  type StepAllowances,
   UNKNOWN,
   type WorkItemStatus,
 } from '@wbs/domain';
@@ -105,9 +107,9 @@ export function rollUp(
 }
 
 /**
- * Every work item's **charged** days by step: a leaf's own estimate combined and
- * rounded by `rule`, and a parent's the sum of its descendants' **rounded**
- * figures.
+ * Every work item's **charged** days by step: a leaf's own estimate combined,
+ * uplifted by its step's allowance and rounded by `rule`, and a parent's the
+ * sum of its descendants' **rounded** figures.
  *
  * The order is the product decision and the reason this is not derived from
  * {@link rollUp}: each step is rounded where it is estimated, and the sums are
@@ -129,11 +131,17 @@ export function rollUpFinals(
   rows: readonly WorkItem[],
   estimates: readonly StoredEstimate[],
   rule: EstimateRule,
+  /**
+   * Each project step's allowance, applied to a **leaf's** estimate only: a
+   * parent's figure is the sum of its descendants' charged days, so the
+   * allowance is never applied twice.
+   */
+  allowances: StepAllowances,
 ): Map<string, Map<string, number>> {
   const ownOf = new Map<string, Map<string, number>>();
   for (const held of estimates) {
     const byStep = ownOf.get(held.workItemId) ?? new Map<string, number>();
-    byStep.set(held.stepId, finalDays(held, rule));
+    byStep.set(held.stepId, chargedDays(held, rule, allowanceOf(allowances, held.stepId)));
     ownOf.set(held.workItemId, byStep);
   }
   return foldByStep(rows, ownOf, (a, b) => a + b);

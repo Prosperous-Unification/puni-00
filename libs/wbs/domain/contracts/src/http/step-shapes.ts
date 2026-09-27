@@ -6,16 +6,24 @@ import { requestSchema, responseSchema } from './schema-shape';
 
 const projectParams = requestSchema(type({ id: 'string' }));
 const stepParams = requestSchema(type({ id: 'string', stepId: 'string' }));
-/** Whitespace is a domain name refusal, not a structural request defect. */
+/**
+ * Whitespace is a domain name refusal, not a structural request defect. The
+ * allowance a step is added with is optional and omitted means 0%; it is
+ * structurally a number here, and its 0–1000, two-decimal range is the
+ * domain's `allowancePercentOf`, refused as `invalid_allowance`.
+ */
 // Proof: using responseSchema admitted the extra name body,200 instead of422
 // in step.controller.db.test.ts's undeclared-input case.
-const nameBody = requestSchema(type({ name: 'string' }));
+/** A rename, an allowance edit, or both; an empty body is `invalid_body`. */
+const patchBody = requestSchema(type({ 'name?': 'string', 'allowancePercent?': 'number' }));
 /**
  * A new step's name and, optionally, the step code its creator chose; absent,
  * the code is suggested from the name. Grammar and reservation are domain
  * refusals (422), not structural defects, so the code arrives as any string.
  */
-const newStepBody = requestSchema(type({ name: 'string', 'code?': 'string' }));
+const newStepBody = requestSchema(
+  type({ name: 'string', 'code?': 'string', 'allowancePercent?': 'number' }),
+);
 /**
  * One step as every read and write returns it.
  *
@@ -27,6 +35,10 @@ const newStepBody = requestSchema(type({ name: 'string', 'code?': 'string' }));
  * answer would turn every step read and write into `invalid_response`. Every
  * be-01 that knows codes sends the key, which its mounted tests assert.
  *
+ * `allowancePercent` is optional for the same reason: absent is an older
+ * be-01 that predates step allowances, which charged every step at 0%. Every
+ * be-01 that knows allowances sends it.
+ *
  * Proof: with `code` required, `still reads a step from a be-01 that predates
  * step codes` in `step-shapes.test.ts` failed on `must have required property
  * 'code'`; watched 2026-09-27.
@@ -37,6 +49,7 @@ export const stepShape = type({
   name: 'string',
   position: 'number',
   'code?': 'string | null',
+  'allowancePercent?': 'number',
 });
 const stepReply = responseSchema(type({ step: stepShape }));
 const policies = [
@@ -61,10 +74,13 @@ const nameRefusals = [
   ...sharedRefusals,
   { status: 400, schema: responseSchema(type({ error: "'invalid_json'" })) },
   { status: 409, schema: responseSchema(type({ error: "'taken'" })) },
-  { status: 422, schema: responseSchema(type({ error: "'invalid_body'" })) },
+  {
+    status: 422,
+    schema: responseSchema(type({ error: "'invalid_body' | 'invalid_allowance'" })),
+  },
 ] as const;
 
-/** Adds a named step to a project; creation retains the existing 200 response. */
+/** Adds a named step to a project, with an optional allowance; retains the 200 response. */
 export const addStep = defineEndpointShape({
   method: 'POST',
   path: '/api/projects/:id/steps',
@@ -82,18 +98,22 @@ export const addStep = defineEndpointShape({
   document: { summary: 'Add a project step.' },
 });
 
-/** Renames the addressed project step without changing its position. */
+/**
+ * Renames the addressed project step, sets its estimate allowance, or both.
+ * The allowance edit is the journalled `setStepAllowance` command — one undo —
+ * applied after the rename.
+ */
 export const renameStep = defineEndpointShape({
   method: 'PATCH',
   path: '/api/projects/:id/steps/:stepId',
   operationId: 'patchApiProjectsByIdStepsByStepId',
   policies,
   params: stepParams,
-  body: nameBody,
+  body: patchBody,
   bodyMedia: ['application/json', 'application/x-www-form-urlencoded', 'multipart/form-data'],
   responses: [{ kind: 'json', status: 200, schema: stepReply }],
   refusals: nameRefusals,
-  document: { summary: 'Rename a project step.' },
+  document: { summary: 'Rename a project step or set its estimate allowance.' },
 });
 
 /**

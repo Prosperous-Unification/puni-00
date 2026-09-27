@@ -75,12 +75,12 @@ const completeHost = () =>
 /**
  * Compile-negative: the map's own "verifier-without-identity-store is
  * unrepresentable" requirement, watched by the type checker rather than by a
- * runtime assertion. `account.users` is `AuthServiceOptions['users'] &
- * NonNullable<AuthServiceOptions['identities']>` unconditionally — supplying
+ * runtime assertion. `account.users` is `UserStore & OidcIdentityStore`
+ * unconditionally — supplying
  * only a `UserStore` (no `resolveOidcIdentity`) alongside an `oidc` verifier
  * cannot satisfy `AuthenticationRequirements['account']`.
  *
- * Proof (2026-09-23): removing `NonNullable<AuthServiceOptions['identities']>`
+ * Proof (2026-09-23): removing the `OidcIdentityStore` requirement
  * from `AuthenticationRequirements['account']`'s own `users` intersection
  * made this directive fail `wbs-core:typecheck` with "Unused '@ts-expect-error'
  * directive" at the fixture (TS2578) and, as expected collateral, with

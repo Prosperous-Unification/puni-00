@@ -30,7 +30,16 @@ beforeEach(async () => {
   // the project does not hold.
   await projects.create(
     project,
-    [{ id: 'step-dev', projectId: project.id, name: 'Dev', position: 10, code: 'dev' }],
+    [
+      {
+        id: 'step-dev',
+        projectId: project.id,
+        name: 'Dev',
+        position: 10,
+        code: 'dev',
+        allowancePercent: 0,
+      },
+    ],
     { at: 1, by: OWNER },
   );
   projectId = project.id;

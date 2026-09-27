@@ -95,17 +95,49 @@ dependency is preserved K3 debt rather than compliance, and the change SHALL tra
 - **WHEN** its contract is read
 - **THEN** it names the K3 obligation it leaves open and where that obligation is tracked
 
+### Requirement: Closed feature modules use resource services
+
+A feature module whose K3 debt is closed SHALL depend on resource services for persistence
+operations and SHALL NOT reference repository port declarations. A resolved-symbol boundary
+check SHALL enforce this for the closed modules and SHALL keep every remaining debt entry live.
+
+#### Scenario: A closed feature uses a resource
+
+- **GIVEN** a feature module whose K3 debt is closed
+- **WHEN** the feature reads or writes persisted state
+- **THEN** it calls a resource service that owns the repository access
+
+#### Scenario: A repository port reaches a closed feature
+
+- **GIVEN** a direct, aliased, barrel, namespace, or `import()` type reference to a repository port
+- **WHEN** the module boundary check runs
+- **THEN** it fails and names the feature reference
+
+#### Scenario: A debt entry becomes stale
+
+- **GIVEN** a module listed as still owing K3 debt
+- **WHEN** its feature no longer references a repository port
+- **THEN** the boundary check fails until the ledger is updated
+
 ### Requirement: Existing core exports keep working through the move
 
-Every symbol `@wbs/core` and its deep service paths export today SHALL keep its name and its single
-definition while a responsibility moves, with the former path retained as a compatibility
-re-export and no second class or type definition created.
+Every symbol `@wbs/core` and its deep service paths export today SHALL keep its name while a
+responsibility moves. The former path SHALL remain a compatibility re-export when its constructor
+contract is unchanged. Where direct callers still supply store-based constructor options, the
+former path MAY export a compatibility adapter that builds the resource dependency, while the
+sealed module installs the feature directly.
 
 #### Scenario: A moved service keeps its former deep path
 
-- **GIVEN** a service file moved into its module directory
+- **GIVEN** a service file moved into its module directory without changing its constructor contract
 - **WHEN** a caller imports the former `@wbs/core/service/<name>` path
 - **THEN** it receives the same declaration the module exports
+
+#### Scenario: A former constructor accepts repository stores
+
+- **GIVEN** a direct caller still constructing Authentication or Saved plans with repository stores
+- **WHEN** it imports the former service path
+- **THEN** a compatibility adapter constructs the resource and preserves that constructor behavior
 
 ### Requirement: Core modules own no process lifetime
 

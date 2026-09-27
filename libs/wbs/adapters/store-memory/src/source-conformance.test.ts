@@ -27,10 +27,10 @@ beforeEach(async () => {
   );
   await stores.projects.create(
     projectRow({ id: projectId, name: 'Rewire the shed', ownerId }),
-    [{ id: stepId, projectId, name: 'Dev', position: 10, code: 'dev' }],
+    [{ id: stepId, projectId, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 }],
     stamp,
   );
-  await stores.steps.add({ id: stepId, projectId, name: 'Dev' }, stamp);
+  await stores.steps.add({ id: stepId, projectId, name: 'Dev', allowancePercent: 0 }, stamp);
   latestFixture = { projectId, stamp };
   latestSource = source;
 });
