@@ -509,6 +509,26 @@ export interface StepView {
 }
 
 /**
+ * One step as be-01 sent it, read into a {@link StepView}.
+ *
+ * An absent `allowancePercent` is a modeled state, not a missing default: blue
+ * and green serve side by side during a swap, and an older be-01 that predates
+ * step allowances sends no field. That server charged every step at 0%, so 0%
+ * is what it means, and it is what the page shows until the reader reaches a
+ * be-01 that sends the field.
+ *
+ * Proof: with the absent case read as 30, `reads a step from an older be-01
+ * at 0%` failed (2026-09-27).
+ */
+export function stepViewOf(step: {
+  id: string;
+  name: string;
+  allowancePercent?: number;
+}): StepView {
+  return { id: step.id, name: step.name, allowancePercent: step.allowancePercent ?? 0 };
+}
+
+/**
  * Somebody an assignment on the tree names — their id and what they are called.
  *
  * A {@link PersonView} without the teams, because that is all the chart needs
@@ -2457,6 +2477,7 @@ export function httpProjectApi(token: string): ProjectApi {
       );
       const plan: PlanRead = {
         ...tree,
+        steps: tree.steps.map(stepViewOf),
         workItems: tree.workItems.map((row) => ({
           ...row,
           teamIds: [...row.teamIds],
@@ -2628,7 +2649,7 @@ export function httpProjectApi(token: string): ProjectApi {
       return jsonBody(
         readProjectShape,
         await client.getApiProjectsById({ params: { id: projectId }, headers: auth(token) }),
-      ).steps.map(({ id, name, allowancePercent }) => ({ id, name, allowancePercent }));
+      ).steps.map(stepViewOf);
     },
     async addStep(projectId, name) {
       const { step } = jsonBody(
@@ -2639,7 +2660,7 @@ export function httpProjectApi(token: string): ProjectApi {
           headers: auth(token),
         }),
       );
-      return { id: step.id, name: step.name, allowancePercent: step.allowancePercent };
+      return stepViewOf(step);
     },
     async renameStep(projectId, stepId, name) {
       const { step } = jsonBody(
@@ -2650,7 +2671,7 @@ export function httpProjectApi(token: string): ProjectApi {
           headers: auth(token),
         }),
       );
-      return { id: step.id, name: step.name, allowancePercent: step.allowancePercent };
+      return stepViewOf(step);
     },
     async setStepAllowance(projectId, stepId, allowancePercent) {
       const { step } = jsonBody(
@@ -2661,7 +2682,7 @@ export function httpProjectApi(token: string): ProjectApi {
           headers: auth(token),
         }),
       );
-      return { id: step.id, name: step.name, allowancePercent: step.allowancePercent };
+      return stepViewOf(step);
     },
     async removeStep(projectId, stepId, cascade) {
       const reply = await client.deleteApiProjectsByIdStepsByStepId({

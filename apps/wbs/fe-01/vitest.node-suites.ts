@@ -50,6 +50,7 @@ export const NODE_SUITES: readonly string[] = [
   // named as the exception, and the guard below asserts it stays one.
   'src/lib/local-write.test.ts',
   'src/lib/plan-refresh.test.ts',
+  'src/lib/step-view.test.ts',
   'src/lib/refusal.test.ts',
   // Of saved-plans' three `src/lib` suites this is the only one the tier rule
   // reads as DOM-free, and the other two are excluded by that rule rather

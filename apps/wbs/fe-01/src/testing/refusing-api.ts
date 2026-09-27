@@ -37,12 +37,13 @@ import {
   updateCalendarMarker,
 } from '@wbs/contracts';
 
-import type {
-  CalendarMarkerView,
-  DeleteOptions,
-  PlanRead,
-  ProjectApi,
-  WbsOperationId,
+import {
+  type CalendarMarkerView,
+  type DeleteOptions,
+  type PlanRead,
+  type ProjectApi,
+  stepViewOf,
+  type WbsOperationId,
 } from '@/lib/wbs-api';
 
 /**
@@ -691,11 +692,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       const reply = await client.getApiProjectsById({ params: { id: projectId } });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
-      return reply.body.steps.map((step) => ({
-        id: step.id,
-        name: step.name,
-        allowancePercent: step.allowancePercent,
-      }));
+      return reply.body.steps.map(stepViewOf);
     };
   }
 
@@ -800,11 +797,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       // name; refusing-api.test.ts observed the mutation spy called and no rejection.
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
-      return {
-        id: reply.body.step.id,
-        name: reply.body.step.name,
-        allowancePercent: reply.body.step.allowancePercent,
-      };
+      return stepViewOf(reply.body.step);
     };
   }
 
@@ -1066,11 +1059,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
-      return {
-        id: reply.body.step.id,
-        name: reply.body.step.name,
-        allowancePercent: reply.body.step.allowancePercent,
-      };
+      return stepViewOf(reply.body.step);
     };
   }
 
@@ -1104,11 +1093,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
-      return {
-        id: reply.body.step.id,
-        name: reply.body.step.name,
-        allowancePercent: reply.body.step.allowancePercent,
-      };
+      return stepViewOf(reply.body.step);
     };
   }
 

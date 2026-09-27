@@ -34,6 +34,10 @@ const newStepBody = requestSchema(
  * answer would turn every step read and write into `invalid_response`. Every
  * be-01 that knows codes sends the key, which its mounted tests assert.
  *
+ * `allowancePercent` is optional for the same reason: absent is an older
+ * be-01 that predates step allowances, which charged every step at 0%. Every
+ * be-01 that knows allowances sends it.
+ *
  * Proof: with `code` required, `still reads a step from a be-01 that predates
  * step codes` in `step-shapes.test.ts` failed on `must have required property
  * 'code'`; watched 2026-09-27.
@@ -44,7 +48,7 @@ export const stepShape = type({
   name: 'string',
   position: 'number',
   'code?': 'string | null',
-  allowancePercent: 'number',
+  'allowancePercent?': 'number',
 });
 const stepReply = responseSchema(type({ step: stepShape }));
 const policies = [
