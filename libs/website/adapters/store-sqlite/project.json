@@ -1,0 +1,54 @@
+{
+  "name": "website-store-sqlite",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/website/adapters/store-sqlite/src",
+  "projectType": "library",
+  "tags": ["scope:shared", "runtime:bun", "ring:adapter", "product:website"],
+  "metadata": {
+    "portability": {
+      "visibility": "public",
+      "dependencies": ["libs/website/domain/contracts"],
+      "aliases": ["@website/store-sqlite"]
+    }
+  },
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test libs/website/adapters/store-sqlite/src --timeout=30000"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint libs/website/adapters/store-sqlite/src libs/website/adapters/store-sqlite/build.ts libs/website/adapters/store-sqlite/build-smoke.ts"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/website/adapters/store-sqlite/tsconfig.json"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run libs/website/adapters/store-sqlite/build.ts"
+      },
+      "outputs": ["{workspaceRoot}/dist/libs/website/adapters/store-sqlite"]
+    },
+    "test:package": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "bun run libs/website/adapters/store-sqlite/build-smoke.ts"
+      }
+    },
+    "test:unit": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test libs/website/adapters/store-sqlite/src/store.test.ts --timeout=30000"
+      }
+    }
+  }
+}

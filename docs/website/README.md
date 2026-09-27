@@ -7,7 +7,7 @@ The website introduces Prosperous Unification's software services and turns a vi
 - [puni-00](https://github.com/Prosperous-Unification/puni-00): public projects and the current management tooling.
 - [puni-pr-00](https://github.com/Prosperous-Unification/puni-pr-00): private companion, created and verified private on 2026-09-27. A first shared baseline projection and explicit project-transfer command are implemented; see [portability and verified limits](../workspace/portability.md). The complete governance and release setup remains in the implementation roadmap.
 - `puni-pr-00/apps/website/site`: destination for the licensed Astro/Novaform website. The existing empty `puni-site` repository is left unchanged.
-- `apps/website/fe-01`, `apps/website/be-01` and `libs/website/`: proposed app, API and library paths, kept identical across public and private workspaces.
+- `puni-00/apps/website/{fe-01,be-01}` and `puni-00/libs/website/{domain/contracts,adapters/store-sqlite}`: canonical public app, API and shared libraries. The private companion keeps a pinned service snapshot for its local three-host demo; source edits begin here.
 
 [ADR 0032](../adr/0032-public-and-private-monorepos-share-a-portable-project-contract.md) records the private companion decision and the requirement to copy eligible projects, with their local dependencies, between the two monorepos.
 
@@ -31,3 +31,5 @@ Manual submission does not require a visitor account. Choosing AI requires sign-
 - [Interactive local walkthrough](prototypes/funnel.html) and [instructions](prototypes/README.md). Open the HTML file directly; it uses no accounts, network, model or real submission.
 
 The proposed budget values and turn limits live in the design. They are pilot assumptions; this planning work does not activate paid inference or deploy a public funnel.
+
+The ownership promotion is recorded in [OpenSpec](../../openspec/changes/promote-website-services-public/proposal.md). The reviewed import came from private revision `5e5386d`; the private snapshot receipt pins the resulting public revision. The project-transfer command still refuses private-classified source, including the Astro site.

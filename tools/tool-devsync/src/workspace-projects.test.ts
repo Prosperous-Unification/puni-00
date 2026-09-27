@@ -23,6 +23,8 @@ const EXPECTED_PRODUCT_PROJECTS = [
   ['apps/wbs/fe-01', 'wbs-fe-01'],
   ['apps/wbs/gw-01', 'wbs-gw-01'],
   ['apps/wbs/mcp-01', 'wbs-mcp-01'],
+  ['apps/website/be-01', 'website-be-01'],
+  ['apps/website/fe-01', 'website-fe-01'],
   ['libs/shared/domain/failures', 'shared-failures'],
   ['libs/shared/domain/portability-format', 'shared-portability-format'],
   ['libs/shared/domain/validation', 'shared-validation'],
@@ -41,6 +43,8 @@ const EXPECTED_PRODUCT_PROJECTS = [
   ['libs/wbs/domain/domain', 'wbs-domain'],
   ['libs/wbs/domain/validation', 'wbs-validation'],
   ['libs/website/adapters/portability-fixture', 'website-portability-fixture'],
+  ['libs/website/adapters/store-sqlite', 'website-store-sqlite'],
+  ['libs/website/domain/contracts', 'website-contracts'],
 ] as const;
 
 /**

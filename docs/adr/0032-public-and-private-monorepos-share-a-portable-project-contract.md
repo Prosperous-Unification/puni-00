@@ -19,3 +19,7 @@ Copying means transferring the selected project and its declared local dependenc
 The repositories have independent Git histories, CI credentials, protected release environments and source revision receipts. Public CI must work without private credentials. A repository-management entrypoint can delegate a private build using explicit authorization and pinned revisions; it must not silently include private sources in a public scan, cache, artifact or release. Novaform and any project depending on its restricted source remain private and are ineligible for public promotion.
 
 Creating the private repository establishes its ownership and visibility only. Bootstrap, shared-baseline extraction, bidirectional transfer tests and release integration must pass before claiming that projects are portable. Existing `puni-site` is left unchanged; no repository deletion or history rewrite is part of this decision.
+
+## 2026-09-27 service ownership amendment
+
+The unlicensed PUNI application, API, contracts, and SQLite adapter have no dependency on Novaform source. Their canonical source is therefore the public `puni-00` repository at `apps/website/{fe-01,be-01}` and `libs/website/{domain/contracts,adapters/store-sqlite}`. The private companion keeps a pinned copy for its local site/app/API demo and records the public revision. The licensed Astro site remains private at `puni-pr-00/apps/website/site`. This is an ownership selection within the portable-project contract; the original decision against independently maintained configurations still applies.

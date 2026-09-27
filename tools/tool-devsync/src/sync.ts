@@ -487,6 +487,8 @@ export const RESTART_PATHS: readonly string[] = [
   'apps/wbs/gw-01/project.json',
   'apps/wbs/fe-01/project.json',
   'apps/wbs/mcp-01/project.json',
+  'apps/website/be-01/project.json',
+  'apps/website/fe-01/project.json',
   // Twilight Burokrat's CLI has no serve target, but it is an app on disk and `sync.test.ts`
   // walks apps rather than trusting this list; a manifest the supervisor's project
   // graph reads at startup belongs here either way.
@@ -504,6 +506,8 @@ export const RESTART_PATHS: readonly string[] = [
   'apps/wbs/gw-01/tsconfig.json',
   'apps/wbs/fe-01/tsconfig.json',
   'apps/wbs/mcp-01/tsconfig.json',
+  'apps/website/be-01/tsconfig.json',
+  'apps/website/fe-01/tsconfig.json',
   // Proof: omitting this entry failed `names every app tsconfig, which is read once at process
   // start` on `Expected to contain:
   // "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json"` (2026-09-25).
@@ -545,6 +549,8 @@ export const RESTART_PATHS: readonly string[] = [
   'libs/shared/domain/portability-format/project.json',
   'libs/shared/domain/validation/project.json',
   'libs/website/adapters/portability-fixture/project.json',
+  'libs/website/adapters/store-sqlite/project.json',
+  'libs/website/domain/contracts/project.json',
 ];
 
 /**

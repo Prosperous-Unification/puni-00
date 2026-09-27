@@ -1,0 +1,50 @@
+{
+  "name": "website-be-01",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/website/be-01/src",
+  "projectType": "application",
+  "tags": ["scope:app", "type:app", "runtime:bun", "ring:adapter", "product:website"],
+  "metadata": {
+    "portability": {
+      "visibility": "public",
+      "dependencies": ["libs/website/domain/contracts", "libs/website/adapters/store-sqlite"],
+      "aliases": []
+    }
+  },
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test apps/website/be-01/src --timeout=30000"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint apps/website/be-01/src apps/website/be-01/build.ts"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force apps/website/be-01/tsconfig.json"
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "cache": false,
+      "options": {
+        "command": "bun --watch src/main.ts",
+        "cwd": "apps/website/be-01"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run apps/website/be-01/build.ts"
+      },
+      "outputs": ["{projectRoot}/dist"]
+    }
+  }
+}

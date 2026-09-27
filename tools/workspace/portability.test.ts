@@ -244,6 +244,23 @@ test('restricted dependencies and Novaform paths refuse public promotion before 
   expect(existsSync(join(destination, 'libs'))).toBe(false);
 });
 
+test('copies the website sample environment but rejects a configured environment file', () => {
+  const { source, destination } = pair();
+  project(source, 'apps/fixture/client');
+  const sourceProject = join(source, 'apps/fixture/client');
+  writeFileSync(join(sourceProject, '.env.example'), 'WEBSITE_API_PORT=3101\n');
+  writeFileSync(join(sourceProject, '.env.production'), 'OPERATOR_PASSWORD=secret\n');
+  // Proof: removing the non-example environment refusal copied the injected
+  // .env.production fixture; the test failed the expected-refusal assertion before any destination check.
+  expect(() => copyProject(source, destination, 'apps/fixture/client')).toThrow('private file');
+  expect(existsSync(join(destination, 'apps'))).toBe(false);
+  rmSync(join(sourceProject, '.env.production'));
+  expect(copyProject(source, destination, 'apps/fixture/client')).toEqual(['apps/fixture/client']);
+  expect(readFileSync(join(destination, 'apps/fixture/client/.env.example'), 'utf8')).toBe(
+    'WEBSITE_API_PORT=3101\n',
+  );
+});
+
 test('unknown classification, symlinks, private files and escaped project paths fail closed', () => {
   const { source, destination } = pair();
   project(source, 'apps/fixture/client', [], 'unknown');

@@ -215,7 +215,8 @@ function inspectTree(directory: string): void {
     if (entry.isSymbolicLink()) throw new Error(`Refusing symbolic entry: ${entry.name}`);
     // Proof: removing private-file refusal fails the .env case in the unknown-classification test.
     if (
-      /^(\.env(?:\..*)?|\.git|node_modules|dist|\.nx)$/.test(entry.name) ||
+      (entry.name !== '.env.example' &&
+        /^(\.env(?:\..*)?|\.git|node_modules|dist|\.nx)$/.test(entry.name)) ||
       /\.(?:sqlite(?:-wal|-shm)?|pem|key)$/.test(entry.name)
     )
       throw new Error(`Refusing private file or generated tree: ${entry.name}`);

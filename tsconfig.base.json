@@ -96,7 +96,9 @@
       "@shared/portability-format": ["./libs/shared/domain/portability-format/index.ts"],
       "@shared/validation": ["./libs/shared/domain/validation/src/index.ts"],
       "@wbs/validation": ["./libs/wbs/domain/validation/src/index.ts"],
-      "@wbs/validation/fixtures": ["./libs/wbs/domain/validation/src/fixtures/index.ts"]
+      "@wbs/validation/fixtures": ["./libs/wbs/domain/validation/src/fixtures/index.ts"],
+      "@website/contracts": ["./libs/website/domain/contracts/src/index.ts"],
+      "@website/store-sqlite": ["./libs/website/adapters/store-sqlite/src/store.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
