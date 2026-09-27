@@ -77,10 +77,10 @@ describe('mayAdministerMembership', () => {
 });
 
 describe('mayInvite', () => {
-  it('lets an admin invite viewers and members, a super-admin any role, and nobody else', () => {
+  it('lets an admin invite viewers and members, a super-admin also admins, and nobody super-admins', () => {
     const invitable = (actor: (typeof ORGANIZATION_ROLES)[number]) =>
       ORGANIZATION_ROLES.filter((role) => mayInvite(actor, role));
-    expect(invitable('super_admin')).toEqual(['super_admin', 'admin', 'member', 'viewer']);
+    expect(invitable('super_admin')).toEqual(['admin', 'member', 'viewer']);
     expect(invitable('admin')).toEqual(['member', 'viewer']);
     expect(invitable('member')).toEqual([]);
     expect(invitable('viewer')).toEqual([]);

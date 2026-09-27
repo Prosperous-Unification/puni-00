@@ -155,6 +155,16 @@ export class OrganizationRepository implements MembershipAdministration {
    * super-admin` answer 200 and leave no super-admin; answering an absent
    * target as removed made `answers a foreign or absent member as not found,
    * changing nothing` answer 500 instead of 404.
+   *
+   * Proof, each watched 2026-09-27 in `organization-records.db.test.ts`:
+   * - Skipping the super-admin recheck made `lets exactly one of two
+   *   super-admins leave when both try across two connections` remove both.
+   * - Trusting the actor as a super-admin instead of reading the role in the
+   *   transaction made `refuses an actor demoted on another connection after
+   *   the request's access resolved` answer ok.
+   * - Scoping the UPDATE, and separately the DELETE, by user alone made
+   *   `changes and removes only the membership in the given organization`
+   *   change or drop the org-b membership.
    */
   async administer(
     organizationId: string,

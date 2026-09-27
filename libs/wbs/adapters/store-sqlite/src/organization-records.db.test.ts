@@ -243,6 +243,88 @@ describe('OrganizationRepository', () => {
   });
 });
 
+describe('OrganizationRepository.administer', () => {
+  /** org-a with u-a and u-b as super-admins and u-c as a member; u-c is also a member of org-b. */
+  async function seeded(): Promise<OrganizationRepository> {
+    const organizations = new OrganizationRepository(connection.db, OPEN);
+    await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
+    await organizations.addMember('org-a', 'u-b', 'super_admin', stamp('u-a'));
+    await organizations.addMember('org-a', 'u-c', 'member', stamp('u-a'));
+    const db = openDatabase(path);
+    try {
+      db.run("INSERT INTO organization (id, name, legacy, created_at) VALUES ('org-b', 'B', 0, 1)");
+      db.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-b', 'u-c', 'member', 1)",
+      );
+    } finally {
+      db.close();
+    }
+    return organizations;
+  }
+
+  it('lets exactly one of two super-admins leave when both try across two connections', async () => {
+    // bun:sqlite runs each immediate transaction to completion, so these
+    // serialize: this watches the recheck inside the transaction, which is
+    // what refuses the second leaver.
+    const organizations = await seeded();
+    const other = openConnection(path);
+    try {
+      const outcomes = await Promise.all([
+        organizations.administer('org-a', 'u-a', 'u-a', null, stamp('u-a')),
+        new OrganizationRepository(other.db, OPEN).administer(
+          'org-a',
+          'u-b',
+          'u-b',
+          null,
+          stamp('u-b'),
+        ),
+      ]);
+      expect(outcomes.map((each) => (each.ok ? 'removed' : each.refusal)).sort()).toEqual([
+        'last_super_admin',
+        'removed',
+      ]);
+    } finally {
+      other.close();
+    }
+  });
+
+  it("refuses an actor demoted on another connection after the request's access resolved", async () => {
+    const organizations = await seeded();
+    const other = openConnection(path);
+    try {
+      await new OrganizationRepository(other.db, OPEN).administer(
+        'org-a',
+        'u-b',
+        'u-a',
+        'member',
+        stamp('u-b'),
+      );
+      expect(await organizations.administer('org-a', 'u-a', 'u-c', 'viewer', stamp('u-a'))).toEqual(
+        { ok: false, refusal: 'forbidden' },
+      );
+    } finally {
+      other.close();
+    }
+  });
+
+  it('changes and removes only the membership in the given organization', async () => {
+    const organizations = await seeded();
+    expect((await organizations.administer('org-a', 'u-a', 'u-c', 'viewer', stamp('u-a'))).ok).toBe(
+      true,
+    );
+    expect(await organizations.listMemberships('u-c')).toEqual([
+      { organizationId: 'org-a', role: 'viewer' },
+      { organizationId: 'org-b', role: 'member' },
+    ]);
+    expect((await organizations.administer('org-a', 'u-a', 'u-c', null, stamp('u-a'))).ok).toBe(
+      true,
+    );
+    expect(await organizations.listMemberships('u-c')).toEqual([
+      { organizationId: 'org-b', role: 'member' },
+    ]);
+  });
+});
+
 describe('DomainClaimRepository', () => {
   async function twoOrganizationsClaiming(domain: string): Promise<DomainClaimRepository> {
     const organizations = new OrganizationRepository(connection.db, OPEN);

@@ -49,7 +49,7 @@
   - Part 1, slice 15 (Astra design call, 2026-09-27):
     - `PATCH` and `DELETE /api/organization/members/:userId` act in the active organization from the session alone. Before activation they answer `no_active_organization`.
     - `mayAdministerMembership` implements the role matrix. `OrganizationRepository.administer` reads the actor's role, the target's role and the final-super-admin count in the write's own immediate transaction.
-    - `mayInvite` defines invitation authority: an admin invites viewers and members, a super-admin any role. Issuing and accepting invitations stays with 4.4.
+    - `mayInvite` defines invitation authority: an admin invites viewers and members, a super-admin also admins, and no invitation grants super-admin. Issuing and accepting invitations stays with 4.4.
   - Part 2 (open): audited super-admin recovery of restricted projects.
     - It needs an additive `organization_audit` migration, stamped after every queued one.
     - It needs a transactional project-write boundary that appends one audit record per recovery write.

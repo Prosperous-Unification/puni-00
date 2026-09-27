@@ -76,14 +76,18 @@ export function mayAdministerMembership(
 
 /**
  * Whether `actor` may invite someone into `role`: an admin invites viewers and
- * members, a super-admin any role. Issuing, revoking and accepting an
- * invitation are onboarding's (task 4.4); this is the authority they check.
+ * members, a super-admin also admins, and no invitation grants super-admin
+ * (`organization-onboarding` spec, "Invitations are bound and single use";
+ * `organization_invitation.role` refuses it too). Issuing, revoking and
+ * accepting an invitation are onboarding's (task 4.4); this is the authority
+ * they check.
  *
  * Proof: letting an admin invite any role made `lets an admin invite viewers
- * and members, a super-admin any role, and nobody else` fail; watched
- * 2026-09-27.
+ * and members, a super-admin also admins, and nobody super-admins` fail, and
+ * so did dropping the super-admin refusal; watched 2026-09-27.
  */
 export function mayInvite(actor: OrganizationRole, role: OrganizationRole): boolean {
+  if (role === 'super_admin') return false;
   if (actor === 'super_admin') return true;
   return actor === 'admin' && ORDINARY_ROLES.includes(role);
 }
