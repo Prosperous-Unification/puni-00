@@ -125,7 +125,7 @@ describe('the unique indexes a refusal names', () => {
     // Both sides could be empty for the same wrong reason — a pragma naming a
     // table SQLite does not have would throw, but a filter that dropped every
     // index would not, and an empty list contains nothing to disagree with.
-    expect(Object.keys(UNIQUE_INDEXES).length).toBe(8);
+    expect(Object.keys(UNIQUE_INDEXES).length).toBe(9);
     expect(uniqueIndexesOn('step').length).toBeGreaterThan(0);
     expect(UNIQUE_INDEXES.stepNameInProject.length).toBe(2);
   });
