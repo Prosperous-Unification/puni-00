@@ -1675,6 +1675,21 @@ describe('a tag set is undone whole, which a scalar habit would not do', () => {
     expect([...(await typesOn(copied.value.id))].sort()).toEqual([bug, spike].sort());
   });
 
+  it('restores a deleted row without a type the directory has since removed', async () => {
+    // The type's removal took it off every live row through the cascade; a row
+    // coming back from a delete lands as it would have had it stayed, carrying
+    // the types that still exist, rather than failing on the foreign key.
+    const id = await root('Strip the roof');
+    const bug = await typeNamed('Bug');
+    const spike = await typeNamed('Spike');
+    await workItemStore.patch(id, { typeIds: [bug, spike] }, wrote());
+    expect((await workItems.remove(id, ownerId, 'cascade')).ok).toBe(true);
+    await directoryStore.removeWorkItemType(bug, true, wrote());
+
+    expectDone(await undone());
+    expect(await typesOn(id)).toEqual([spike]);
+  });
+
   it('accepts an unrelated edit on a type conflict and leaves both types', async () => {
     const id = await root('Strip the roof');
     const bug = await typeNamed('Bug');

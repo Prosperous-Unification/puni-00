@@ -2086,6 +2086,11 @@ export class WorkItemService {
     // command` received 200; `refuses a third command binding two types and rolls
     // back the first two` (plan-commands.db) and `refuses an authored patch with
     // two types, writing and journalling nothing` (undo.db) received ok.
+    //
+    // Proof: an authored type patch routed through `apply` (the restoration
+    // path) instead and five tests failed, watched 2026-09-27: the three above,
+    // plus `puts a type conflict back, whole, after one type is kept` and `takes
+    // a first type set off again` on `stale_undo` (nothing was journalled).
     if (patch.typeIds !== undefined && new Set(patch.typeIds).size > 1) {
       return { ok: false, reason: 'work_item_takes_one_type' };
     }

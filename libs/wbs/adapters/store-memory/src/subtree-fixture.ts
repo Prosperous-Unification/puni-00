@@ -52,8 +52,11 @@ export function inMemorySubtrees(
         }
         if (row.typeIds !== undefined && row.typeIds.length > 0) {
           // The store's own patch, not the authored service path: a copy carries
-          // a type conflict unchanged.
-          const typed = await stores.workItems.patch(row.id, { typeIds: row.typeIds }, stamp);
+          // a type conflict unchanged, less a type the directory no longer holds
+          // (the SQLite store's rule, argued there).
+          const held = new Set((await stores.directory.listWorkItemTypes()).map((each) => each.id));
+          const typeIds = row.typeIds.filter((typeId) => held.has(typeId));
+          const typed = await stores.workItems.patch(row.id, { typeIds }, stamp);
           if (!typed.ok) throw new Error(`cannot restore type set for ${row.id}: ${typed.reason}`);
         }
       }

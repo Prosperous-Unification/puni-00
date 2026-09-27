@@ -1028,8 +1028,29 @@ export class SubtreeRepository implements SubtreeStore {
         //
         // Proof: this write deleted and `duplicates a type conflict unchanged
         // rather than resolving it` (be-01 undo.db) received []. Watched 2026-09-27.
+        //
+        // Less any type the directory no longer holds, read in this transaction:
+        // removing a type took it off every live row through the cascade, so a
+        // row restored after that lands as it would have had it stayed.
+        //
+        // Proof: this filter removed and `restores a deleted row without a type
+        // the directory has since removed` (be-01 undo.db) threw a FOREIGN KEY
+        // constraint failure. Watched 2026-09-27.
+        const wantedTypes = [...new Set(copy.rows.flatMap((row) => row.typeIds ?? []))];
+        const heldTypes = new Set(
+          wantedTypes.length === 0
+            ? []
+            : tx
+                .select({ id: workItemType.id })
+                .from(workItemType)
+                .where(inArray(workItemType.id, wantedTypes))
+                .all()
+                .map((each) => each.id),
+        );
         const typed = copy.rows.flatMap((row) =>
-          [...new Set(row.typeIds ?? [])].map((typeId) => ({ workItemId: row.id, typeId })),
+          [...new Set(row.typeIds ?? [])]
+            .filter((typeId) => heldTypes.has(typeId))
+            .map((typeId) => ({ workItemId: row.id, typeId })),
         );
         if (typed.length > 0)
           tx.insert(workItemWorkItemType)
