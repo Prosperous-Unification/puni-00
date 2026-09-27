@@ -346,7 +346,12 @@ function heldSolutionUnitOfWork(
             }
             return stored.create(project, steps, stamp);
           },
+          createInOrganization: (project, steps, stamp, organizationId) =>
+            stored.createInOrganization(project, steps, stamp, organizationId),
           findById: (id) => stored.findById(id),
+          findInOrganization: (id, organizationId) => stored.findInOrganization(id, organizationId),
+          listForInOrganization: (userId, organizationId) =>
+            stored.listForInOrganization(userId, organizationId),
           findBySolutionSlug: (slug) => stored.findBySolutionSlug(slug),
           list: () => stored.list(),
           listFor: (userId) => stored.listFor(userId),
