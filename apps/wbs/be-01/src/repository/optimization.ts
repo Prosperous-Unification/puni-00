@@ -28,8 +28,10 @@ import {
 } from '@wbs/store-sqlite/optimized-schedule-cache';
 
 import type {
+  OptimizationCachedPair,
   OptimizationRepository,
   OptimizationRetryDecision,
+  ReservedSolverAdmission,
 } from '../module/optimization/contract';
 import type { Drizzle } from './db';
 import type { EventLogTransactionalWrite } from './event-log';
@@ -48,6 +50,36 @@ function isRecordedEvent(value: unknown): value is RecordedEvent {
   );
 }
 
+function reservationOf(
+  admission: ReturnType<typeof reserveSolverSlot>,
+  budgetMs: number,
+): ReturnType<OptimizationRepository['reserveSlot']> {
+  return admission.kind === 'reserved'
+    ? { ...admission, startedAt: solverAdmissionStartedAt(admission, budgetMs) }
+    : admission;
+}
+
+function projectCachedPair(pair: ReturnType<typeof readOptimizedPair>): OptimizationCachedPair {
+  const project = (outcome: typeof pair.pri): OptimizationCachedPair['pri'] => {
+    const state = optimizationVariantState(outcome, false);
+    if (outcome.kind === 'ok') {
+      if (state.state !== 'ready') throw new Error('stored optimized outcome is not ready');
+      return { kind: 'ready', state, schedule: outcome.result.schedule };
+    }
+    if (state.state === 'ready') throw new Error('non-ready outcome projected as ready');
+    return { kind: 'non-ready', state, schedule: null };
+  };
+  return { pri: project(pair.pri), time: project(pair.time) };
+}
+
+function enrichAdmission(
+  admission: ReturnType<typeof reserveSolverSlot>,
+  budgetMs: number,
+): ReservedSolverAdmission | null {
+  const projected = reservationOf(admission, budgetMs);
+  return projected.kind === 'reserved' ? projected : null;
+}
+
 /** SQLite implementation of the Optimization persistence contract. */
 export function createOptimizationRepository(
   db: Drizzle,
@@ -56,17 +88,27 @@ export function createOptimizationRepository(
   return {
     allocateGeneration: (projectId, contractVersion, inputHash, now) =>
       allocateEnabledGeneration(db, projectId, contractVersion, inputHash, now),
-    readPairAndAdmit: (key, admit) => readOptimizedPairAndSpawn(db, key, admit),
+    readPairAndAdmit: (key, admit) => projectCachedPair(readOptimizedPairAndSpawn(db, key, admit)),
     isVariantLive: (key, generation, objective, now) =>
       optimizedVariantIsLive(db, key, generation, objective, now),
-    reserveSlot: (request) => reserveSolverSlot(db, request),
+    reserveSlot: (request) => reservationOf(reserveSolverSlot(db, request), request.budgetMs),
     bindSlot: (slot) => bindSolverSlot(db, slot),
     enqueueRequest: (request) => enqueueSolverRequest(db, request),
-    dequeueRequest: (request) => dequeueSolverRequest(db, request),
+    dequeueRequest: (request) => {
+      const dequeued = dequeueSolverRequest(db, request);
+      return dequeued.kind === 'reserved'
+        ? {
+            ...dequeued,
+            admission: {
+              ...dequeued.admission,
+              startedAt: solverAdmissionStartedAt(dequeued.admission, dequeued.entry.budgetMs),
+            },
+          }
+        : dequeued;
+    },
     refreshSlot: (slot) => heartbeatSolverSlot(db, slot),
     releaseSlot: (slot) => releaseSolverSlot(db, slot),
     reconcileDrains: (now) => reconcileOptimizationDrains(db, now),
-    slotStartedAt: solverAdmissionStartedAt,
     recordOutcome: (write) => {
       // Proof: splitting cache storage into its own transaction made the throwing
       // event-writer test observe one cache row instead of zero.
@@ -82,17 +124,31 @@ export function createOptimizationRepository(
             return recorded;
           },
         },
-        write,
+        {
+          ...write,
+          outcome:
+            write.outcome.kind === 'ok'
+              ? { kind: 'ok', result: write.outcome.optimized }
+              : write.outcome,
+        },
       );
-      if (
-        committed.result === 'stored' &&
-        (committed.subscription === undefined ||
-          committed.recorded === undefined ||
-          committed.event === undefined)
-      ) {
-        throw new Error('stored optimization outcome has no durable event envelope');
-      }
-      return committed;
+      if (committed.result !== 'stored') return { kind: committed.result };
+      // The store's legacy optional fields are safe here because recordEventIn
+      // validates the envelope inside the same transaction before commit.
+      const envelope = committed as {
+        readonly subscription: string;
+        readonly recorded: RecordedEvent;
+        readonly event: Extract<
+          ReturnType<OptimizationRepository['recordOutcome']>,
+          { kind: 'stored' }
+        >['event'];
+      };
+      return {
+        kind: 'stored',
+        subscription: envelope.subscription,
+        recorded: envelope.recorded,
+        event: envelope.event,
+      };
     },
     admitRetry: (ask): OptimizationRetryDecision =>
       db.transaction(
@@ -137,7 +193,11 @@ export function createOptimizationRepository(
             return { kind: 'not-retryable', state: outcome.kind } as const;
           }
           if (admission.kind === 'reserved') {
-            return { kind: 'accepted', generation: current.generation, admission } as const;
+            return {
+              kind: 'accepted',
+              generation: current.generation,
+              admission: enrichAdmission(admission, ask.key.budgetMs),
+            } as const;
           }
           const queued = enqueueSolverRequestIn(tx, {
             projectId: ask.key.projectId,

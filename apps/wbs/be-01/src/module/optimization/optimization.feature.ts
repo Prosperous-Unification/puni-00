@@ -21,8 +21,8 @@ import type {
   ScheduleInputHasher,
 } from './contract';
 import {
+  applyVariantLiveness,
   type OptimizationVariantState,
-  optimizationVariantState,
   type OptimizedScheduleReader,
 } from './optimized-schedule-reader';
 import {
@@ -194,21 +194,14 @@ export class OptimizationCoordinator {
 
   /** Never stamp a Retry replacement before the slot that authorized it. */
   private outcomeTimestamp(request: ReservedSpawnRequest): number {
-    return Math.max(
-      this.options.now(),
-      this.options.repository.slotStartedAt(request.admission, request.key.budgetMs),
-    );
+    return Math.max(this.options.now(), request.admission.startedAt);
   }
 
   private storeOutcome(
     write: OptimizationOutcomeWrite,
   ): 'stored' | 'superseded' | 'already-recorded' {
     const committed = this.options.repository.recordOutcome(write);
-    if (
-      committed.subscription !== undefined &&
-      committed.recorded !== undefined &&
-      committed.event !== undefined
-    ) {
+    if (committed.kind === 'stored') {
       const tracked = this.options
         .pushRecorded(committed.subscription, committed.recorded, committed.event)
         .catch((error: unknown) => {
@@ -217,7 +210,7 @@ export class OptimizationCoordinator {
         .finally(() => this.inFlight.delete(tracked));
       this.inFlight.add(tracked);
     }
-    return committed.result;
+    return committed.kind;
   }
 
   /**
@@ -381,10 +374,7 @@ export class OptimizationCoordinator {
             inputHash: next.inputHash,
             admittedCancelEpoch: next.admission.admittedCancelEpoch,
             outcome: { kind: 'failed', reason: dispositionOfPreflightFailure(built.failure) },
-            now: Math.max(
-              this.options.now(),
-              this.options.repository.slotStartedAt(next.admission, next.entry.budgetMs),
-            ),
+            now: Math.max(this.options.now(), next.admission.startedAt),
           });
         } finally {
           this.options.repository.releaseSlot(slot);
@@ -457,10 +447,7 @@ export class OptimizationCoordinator {
             inputHash: currentInputHash,
             admittedCancelEpoch: decision.admission.admittedCancelEpoch,
             outcome: { kind: 'failed', reason: dispositionOfPreflightFailure(built.failure) },
-            now: Math.max(
-              now,
-              this.options.repository.slotStartedAt(decision.admission, key.budgetMs),
-            ),
+            now: Math.max(now, decision.admission.startedAt),
           });
         } finally {
           this.options.repository.releaseSlot(slot);
@@ -598,18 +585,14 @@ export class OptimizationCoordinator {
     // read compares every ready variant with Fast (tasks.md 8b.3). `ask.objective`
     // is still what *selects* the schedule to display; it no longer decides
     // which one is handed over.
-    const scheduleOf = (objective: SolverObjectiveName): Schedule | null => {
-      const outcome = pair[objective];
-      return outcome.kind === 'ok' ? outcome.result.schedule : null;
-    };
     return {
       ...key,
       generation,
       variants: {
-        pri: optimizationVariantState(pair.pri, live('pri')),
-        time: optimizationVariantState(pair.time, live('time')),
+        pri: applyVariantLiveness(pair.pri.state, live('pri')),
+        time: applyVariantLiveness(pair.time.state, live('time')),
       },
-      schedules: { pri: scheduleOf('pri'), time: scheduleOf('time') },
+      schedules: { pri: pair.pri.schedule, time: pair.time.schedule },
     };
   };
 

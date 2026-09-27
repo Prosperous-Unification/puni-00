@@ -3,6 +3,7 @@ import type { OptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import type { PlanInfeasibleResult } from '@wbs/contracts/solver/plan-infeasible';
 import type { OptimizationVariantState, ProjectEvent, RecordedEvent } from '@wbs/core';
 import type { SolverFailureReason, SolverObjectiveName } from '@wbs/domain';
+import type { Schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type {
@@ -37,6 +38,7 @@ export interface OptimizationCacheKey {
  */
 export interface ReservedSolverAdmission {
   readonly kind: 'reserved';
+  readonly startedAt: number;
   readonly attemptToken: string;
   readonly admittedCancelEpoch: number;
   readonly childDeadlineAt: number;
@@ -139,39 +141,24 @@ export interface OptimizationExports {
  */
 export const OPTIMIZATION_LABEL = 'backend.optimization';
 
-/** Persisted cache state before live slot and queue projection. */
-export type OptimizationCachedOutcome =
-  | { readonly kind: 'miss' }
+export type OptimizationCachedVariant =
   | {
-      readonly kind: 'ok';
-      readonly result: OptimizedResult;
-      readonly generation: number;
-      readonly createdAt: number;
+      readonly kind: 'ready';
+      readonly state: Extract<OptimizationVariantState, { state: 'ready' }>;
+      readonly schedule: Schedule;
     }
   | {
-      readonly kind: 'failed';
-      readonly reason: SolverFailureReason;
-      readonly generation: number;
-      readonly createdAt: number;
-    }
-  | {
-      readonly kind: 'plan-infeasible';
-      readonly certificate: PlanInfeasibleResult;
-      readonly generation: number;
-      readonly createdAt: number;
-    }
-  | {
-      readonly kind: 'corrupt';
-      readonly reason: string;
-      readonly generation: number;
-      readonly createdAt: number;
+      readonly kind: 'non-ready';
+      readonly state: Exclude<OptimizationVariantState, { state: 'ready' }>;
+      readonly schedule: null;
     };
-
-export type OptimizationPair = Readonly<Record<SolverObjectiveName, OptimizationCachedOutcome>>;
+export type OptimizationCachedPair = Readonly<
+  Record<SolverObjectiveName, OptimizationCachedVariant>
+>;
 export type OptimizationOutcome =
   | {
       readonly kind: 'ok';
-      readonly result: OptimizedResult;
+      readonly optimized: OptimizedResult;
     }
   | { readonly kind: 'failed'; readonly reason: SolverFailureReason }
   | {
@@ -235,12 +222,14 @@ export interface OptimizationOutcomeWrite {
   readonly outcome: OptimizationOutcome;
   readonly now: number;
 }
-export interface RecordedOptimizationOutcome {
-  readonly result: 'stored' | 'superseded' | 'already-recorded';
-  readonly subscription?: string;
-  readonly recorded?: RecordedEvent;
-  readonly event?: OptimizationOutcomeEvent;
-}
+export type RecordedOptimizationOutcome =
+  | {
+      readonly kind: 'stored';
+      readonly subscription: string;
+      readonly recorded: RecordedEvent;
+      readonly event: OptimizationOutcomeEvent;
+    }
+  | { readonly kind: 'superseded' | 'already-recorded' };
 export type OptimizationRetryDecision =
   | {
       readonly kind: 'not-retryable';
@@ -253,7 +242,7 @@ export type OptimizationRetryDecision =
       readonly admission: ReservedSolverAdmission | null;
     };
 
-/** Durable optimization decisions. Each method keeps its existing SQLite transaction boundary. */
+/** Durable optimization decisions. Outcome recording and slot release are separate transactions. */
 export interface OptimizationRepository extends SolverSlotRepository {
   allocateGeneration(
     projectId: string,
@@ -261,29 +250,33 @@ export interface OptimizationRepository extends SolverSlotRepository {
     inputHash: string,
     now: number,
   ): number | null;
+  /** Snapshot both cached variants before invoking admission callbacks; return that snapshot even if callbacks write cache rows. */
   readPairAndAdmit(
     key: OptimizationCacheKey,
     admit: (request: {
       readonly key: OptimizationCacheKey;
       readonly objective: SolverObjectiveName;
     }) => void,
-  ): OptimizationPair;
+  ): OptimizationCachedPair;
   isVariantLive(
     key: OptimizationCacheKey,
     generation: number,
     objective: SolverObjectiveName,
     now: number,
   ): boolean;
+  /** Reserve a counted seat before launch; the returned start time belongs to this admission. */
   reserveSlot(request: SolverSlotRequest): SolverSlotAdmission;
   bindSlot(slot: SolverSlotIdentity & { readonly pid: number }): boolean;
   enqueueRequest(request: OptimizationQueueRequest): {
     readonly kind: 'queued' | 'already-present' | 'closed';
   };
+  /** Keep a head blocked by a matching retained slot so a later pump can retry it. */
   dequeueRequest(request: {
     readonly ownerId: string;
     readonly attemptToken: string;
     readonly now: number;
   }): OptimizationDequeued;
+  /** Decide eligibility and admission in one immediate transaction; mint the token only after writer ownership and the live check. */
   admitRetry(ask: {
     readonly key: OptimizationCacheKey;
     readonly objective: SolverObjectiveName;
@@ -291,11 +284,11 @@ export interface OptimizationRepository extends SolverSlotRepository {
     readonly now: number;
     readonly attemptToken: () => string;
   }): OptimizationRetryDecision;
+  /** Atomically write the outcome and durable event; a superseded attempt publishes neither. Slot release is separate. */
   recordOutcome(write: OptimizationOutcomeWrite): RecordedOptimizationOutcome;
   reconcileDrains(now: number): {
     readonly reclaimed: number;
     readonly finished: number;
     readonly waiting: number;
   };
-  slotStartedAt(admission: ReservedSolverAdmission, budgetMs: number): number;
 }

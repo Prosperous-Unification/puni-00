@@ -121,7 +121,7 @@ export function evaluateSolverOutcome(
     );
     return {
       kind: 'ok',
-      result: publishOptimizedResult(decision, response.objectiveValues),
+      optimized: publishOptimizedResult(decision, response.objectiveValues),
     };
   } catch {
     return { kind: 'failed', reason: 'invalid-output' };

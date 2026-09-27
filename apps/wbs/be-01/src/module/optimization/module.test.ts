@@ -116,6 +116,72 @@ const completeHost = () =>
     .buildContainer();
 
 describe('the Optimization module', () => {
+  it('routes enabled reads and Retry decisions through the supplied repository', () => {
+    const calls: string[] = [];
+    const repository: OptimizationRequirements['repository'] = {
+      allocateGeneration: () => {
+        calls.push('allocate');
+        return 3;
+      },
+      readPairAndAdmit: () => {
+        calls.push('pair');
+        const idle = { kind: 'non-ready', state: { state: 'idle' }, schedule: null } as const;
+        return { pri: idle, time: idle };
+      },
+      isVariantLive: () => {
+        calls.push('live');
+        return false;
+      },
+      admitRetry: () => {
+        calls.push('retry');
+        return { kind: 'not-retryable', state: 'idle' };
+      },
+      reserveSlot: () => {
+        throw new Error('unexpected reservation');
+      },
+      bindSlot: () => {
+        throw new Error('unexpected bind');
+      },
+      enqueueRequest: () => {
+        throw new Error('unexpected enqueue');
+      },
+      dequeueRequest: () => {
+        throw new Error('unexpected dequeue');
+      },
+      refreshSlot: () => {
+        throw new Error('unexpected heartbeat');
+      },
+      releaseSlot: () => {
+        throw new Error('unexpected release');
+      },
+      recordOutcome: () => {
+        throw new Error('unexpected outcome');
+      },
+      reconcileDrains: () => {
+        throw new Error('unexpected reconciliation');
+      },
+    };
+    const { optimizer } = installOptimization({ ...requirements(), repository });
+    const read = optimizer.readPlan({
+      projectId: PROJECT,
+      objective: 'pri',
+      input: INPUT,
+      enabled: true,
+    });
+    const retry = optimizer.retry({
+      projectId: PROJECT,
+      objective: 'pri',
+      inputHash: 'port-hash',
+      input: INPUT,
+    });
+    expect(read.generation).toBe(3);
+    expect(read.variants.pri).toEqual({ state: 'idle' });
+    expect(retry).toEqual({ kind: 'not-retryable', state: 'idle' });
+    // Proof: replacing the installed repository with an empty stand-in made
+    // this test throw on allocateGeneration before the enabled read returned.
+    expect(calls).toEqual(['allocate', 'pair', 'live', 'live', 'retry']);
+  });
+
   it('reads an idle plan under the identity installOptimization wires', () => {
     const { optimizer } = installOptimization(requirements());
 

@@ -62,6 +62,49 @@ function count(path: string, table: string): number {
 }
 
 describe('Optimization SQLite adapter', () => {
+  it('projects a cache miss as a non-ready variant before admission callbacks', () => {
+    const { db, log, key } = fixture();
+    const repository = createOptimizationRepository(db, log);
+    expect(repository.readPairAndAdmit(key, () => undefined)).toEqual({
+      pri: { kind: 'non-ready', state: { state: 'idle' }, schedule: null },
+      time: { kind: 'non-ready', state: { state: 'idle' }, schedule: null },
+    });
+  });
+
+  it('returns the pre-callback cache snapshot when admission commits a marker', () => {
+    const { db, log, key, generation } = fixture();
+    const repository = createOptimizationRepository(db, log);
+    const pair = repository.readPairAndAdmit(key, ({ objective }) => {
+      if (objective !== 'pri') return;
+      const slot = {
+        projectId: key.projectId,
+        contractVersion: key.contractVersion,
+        generation,
+        objective,
+        budgetMs: key.budgetMs,
+        ownerId: 'blue',
+        attemptToken: 'callback-attempt',
+      };
+      const admission = repository.reserveSlot({ ...slot, now: 10 });
+      if (admission.kind !== 'reserved') throw new Error('fixture admission refused');
+      expect(
+        repository.recordOutcome({
+          claim: slot,
+          inputHash: key.inputHash,
+          admittedCancelEpoch: admission.admittedCancelEpoch,
+          outcome: { kind: 'failed', reason: 'internal-error' },
+          now: 11,
+        }).kind,
+      ).toBe('stored');
+      repository.releaseSlot(slot);
+    });
+    expect(pair.pri.state).toEqual({ state: 'idle' });
+    expect(repository.readPairAndAdmit(key, () => undefined).pri.state).toEqual({
+      state: 'failed',
+      reason: 'internal-error',
+    });
+  });
+
   it('checks Retry eligibility before creating a token', () => {
     const { db, log, key } = fixture();
     let tokens = 0;
@@ -94,15 +137,18 @@ describe('Optimization SQLite adapter', () => {
     const admitted = repository.reserveSlot({ ...slot, now: 10 });
     expect(admitted.kind).toBe('reserved');
     if (admitted.kind !== 'reserved') throw new Error('fixture admission refused');
-    expect(
-      repository.recordOutcome({
-        claim: slot,
-        inputHash: key.inputHash,
-        admittedCancelEpoch: admitted.admittedCancelEpoch,
-        outcome: { kind: 'failed', reason: 'internal-error' },
-        now: 20,
-      }).result,
-    ).toBe('stored');
+    const write = {
+      claim: slot,
+      inputHash: key.inputHash,
+      admittedCancelEpoch: admitted.admittedCancelEpoch,
+      outcome: { kind: 'failed', reason: 'internal-error' } as const,
+      now: 20,
+    };
+    const committed = repository.recordOutcome(write);
+    expect(committed.kind).toBe('stored');
+    if (committed.kind !== 'stored') throw new Error('fixture outcome refused');
+    expect(committed.event.type).toBe('schedule_optimization_failed');
+    expect(repository.recordOutcome(write)).toEqual({ kind: 'already-recorded' });
     repository.releaseSlot(slot);
     let tokens = 0;
     const retry = () =>
@@ -114,7 +160,7 @@ describe('Optimization SQLite adapter', () => {
         attemptToken: () => `retry-${String(tokens++)}`,
       });
     expect(retry()).toMatchObject({ kind: 'accepted', generation });
-    expect(repository.readPairAndAdmit(key, () => undefined).pri.kind).toBe('failed');
+    expect(repository.readPairAndAdmit(key, () => undefined).pri.state.state).toBe('failed');
     expect(retry()).toEqual({ kind: 'already-running' });
     expect(tokens).toBe(1);
   });

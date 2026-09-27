@@ -2287,3 +2287,26 @@ directory`; 0 pass, 5 fail.
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-be-01 wbs-core tool-devsync`: 3 projects succeeded, 0 cache hits. `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast -p wbs-be-01`: succeeded after deleting a stale generated ESLint cache that retained a removed `import()` type annotation. `env -u CLAUDECODE bun test tools/tool-devsync/src/service-kinds.test.ts tools/tool-devsync/src/module-labels.test.ts`: 22 passed, 0 failed. `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 127 items passed, 0 failed. Prettier, final focused tests and final diff status are recorded by the closing verification below.
 - Closing verification after formatting: `env -u CLAUDECODE bun test` on model, adapter, lifecycle, coordinator, module and boundary files passed 51 tests, 0 failed across 6 files (13,135 assertions) before the fourth focused adapter test. The final count is recorded below. The requested three-project Nx typecheck passed all 3; `wbs-be-01:lint:fast` passed; Prettier `--check` reported all touched files matched; OpenSpec validation reported 127/127 passed; `git diff --check` passed and `git diff --exit-code -- libs/wbs/adapters/store-sqlite` was empty. The complete be-01 suite remains red only in the sandbox-denied server and child-process cases recorded above. No h2puni gate was run: this worktree is uncommitted, the gate checks out a SHA under its lock, and the user prohibited commits.
 - Final focused rerun after the fourth adapter test: 52 passed, 0 failed, 13,141 assertions across 6 files. The final three-project typecheck succeeded (`wbs-core` and `tool-devsync` outputs matched Nx cache; `wbs-be-01` ran), and `wbs-be-01:lint:fast` ran successfully.
+
+### Optimization review round — 2026-09-27
+
+Supersedes the observed messages and suite counts above where they differ. After the review round
+(discriminated commit result, adapter-side cache projection with a module `applyVariantLiveness`,
+model predictions made before production runs, scheduler-released spawn/verdict/heartbeat/EOF/exit
+evidence, owner incarnations, the matching-orphan queue trace), each fault below was applied, the
+model file run with `env -u CLAUDECODE bun test apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts`,
+and the file restored (`git diff --stat libs/wbs/adapters/store-sqlite` empty afterwards):
+
+| Injected fault                                                          | Observed failure                                                                                       |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| (a) drop generation equality in `admissionStillCurrent`                 | `ExitChild(0,failed): I3 unexpected publication` (fixed trace and generated histories); 4 pass, 2 fail |
+| (b) delete the occupied row and reserve afresh in `reserveSolverSlotIn` | `ReadPlan(green): I2 unexpected token green-2`, and the matching-orphan trace; 3 pass, 3 fail          |
+| (c) drop cancel-epoch equality in `admissionStillCurrent`               | `ExitChild(0,failed): I3 unexpected publication`; 5 pass, 1 fail                                       |
+| (d) remove the lifecycle's normal-exit `releaseSlot`                    | `ExitChild(0,failed): I4 exited child retains slot blue-0` and generated histories; 4 pass, 2 fail     |
+| (e) suppress the coordinator's `reconcileDrains` call                   | `Restart(blue): I5 expired slots`; 5 pass, 1 fail                                                      |
+| (f) consume the queue head when reservation returns `already-present`   | `keeps a matching queue head behind a crashed owner until its stored deadline` fails; 5 pass, 1 fail   |
+
+Restored: 6 pass, 0 fail, 18,137 assertions, about 9 s. Outside the sandbox,
+`cd apps/wbs/be-01 && env -u CLAUDECODE bun test src`: 1121 pass, 1 skip (pre-existing), 0 fail;
+the EPERM failures recorded above were the sandbox's. `nx run-many -t typecheck -p wbs-be-01 wbs-core tool-devsync`
+and `nx run wbs-be-01:lint:fast` exit 0.

@@ -4,33 +4,21 @@ import type {
   OptimizedScheduleRead,
 } from '@wbs/core';
 
-import type { OptimizationCachedOutcome } from './contract';
-
 export type {
   OptimizationVariantState,
   OptimizedScheduleAsk,
   OptimizedScheduleRead,
 } from '@wbs/core';
 
-/** Add the exact slot/queue liveness observation to a decoded cache outcome. */
-export function optimizationVariantState(
-  outcome: OptimizationCachedOutcome,
+/** Apply slot/queue liveness to the adapter's cached-state projection. */
+export function applyVariantLiveness(
+  state: OptimizationVariantState,
   live: boolean,
 ): OptimizationVariantState {
-  if (outcome.kind === 'ok') {
-    if (outcome.result.publication === 'quantisation-floor')
-      return { state: 'ready', proof: 'quantisation-floor' };
-    const proven = Object.values(outcome.result.objectiveValues).every(
-      ({ status }) => status === 'optimal',
-    );
-    return { state: 'ready', proof: proven ? 'proven' : 'incomplete' };
-  }
-  if (outcome.kind === 'miss') return { state: live ? 'pending' : 'idle' };
-  if (outcome.kind === 'failed')
-    return live ? { state: 'retrying' } : { state: 'failed', reason: outcome.reason };
-  if (outcome.kind === 'corrupt')
-    return live ? { state: 'retrying' } : { state: 'corrupt', message: outcome.reason };
-  return { state: 'plan-infeasible', items: outcome.certificate.items };
+  if (!live) return state;
+  if (state.state === 'idle') return { state: 'pending' };
+  if (state.state === 'failed' || state.state === 'corrupt') return { state: 'retrying' };
+  return state;
 }
 
 /**
