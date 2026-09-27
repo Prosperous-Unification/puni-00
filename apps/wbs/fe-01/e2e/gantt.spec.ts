@@ -1732,9 +1732,14 @@ test.describe('the chart on a phone', () => {
  *
  * `role="tooltip"` and not a `data-` hook: it is the same the `HoverCard` the
  * Name cell opens, and naming it by its step is what says the two are one
- * surface rather than two that happen to look alike.
+ * surface rather than two that happen to look alike. The right-edge placement
+ * check passes the accessible label so a folded estimate's tooltip cannot
+ * stand in for the chart's facts.
  */
-const surface = (page: Page): Locator => page.getByRole('tooltip');
+const surface = (page: Page, label?: string): Locator =>
+  label === undefined
+    ? page.getByRole('tooltip')
+    : page.getByRole('tooltip', { name: label, exact: true });
 
 /**
  * The bar for one row **and one step**, found by the accessible name it carries.
@@ -1792,6 +1797,15 @@ const panelScroll = (page: Page): Promise<{ left: number; top: number }> =>
  * that the numbers are ever measured at all is only true in here.
  */
 test.describe('the surface a bar opens, as a browser places it', () => {
+  test('does not mistake a folded estimate tooltip for bar facts', async ({ page }) => {
+    await seedPlan(page, nextAccount());
+    await page.locator('[data-final]').first().hover();
+    await expect(page.getByRole('tooltip')).toBeVisible();
+    // Proof: ignoring the label made this fail with `Expected: 0, Received: 1`
+    // for the full 30s timeout while the folded estimate tooltip was visible.
+    await expect(surface(page, 'Facts for 010.1')).toHaveCount(0);
+  });
+
   test('reads the hovered bar’s own dates, with the chart scrolled partway', async ({ page }) => {
     // Wide enough that the panel really scrolls: at `PAST_THE_WEEKEND` the
     // whole chart fits in 1400px, `scrollLeft` stays 0 whatever it is set to,
@@ -1916,10 +1930,10 @@ test.describe('the surface a bar opens, as a browser places it', () => {
 
     const bar = page.locator('[data-gantt-bar]').last();
     await bar.hover();
-    await expect(surface(page)).toBeVisible();
+    await expect(surface(page, 'Facts for 010.2')).toBeVisible();
 
     const mark = await rectOfLocator(bar, 'the right-most bar');
-    const shown = await rectOfLocator(surface(page), 'the surface');
+    const shown = await rectOfLocator(surface(page, 'Facts for 010.2'), 'the surface');
     const width = await page.evaluate(() => window.innerWidth);
     // The precondition, and the whole reason this is not a check about a
     // surface that was inside the window all along: placed from the bar's own
