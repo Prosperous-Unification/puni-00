@@ -630,6 +630,7 @@ export function WbsTable({
     activeProject,
     workItems,
     treeReadProject,
+    stepNodes,
     chartRead,
     steps,
     treeMayBeStale,
@@ -1330,6 +1331,17 @@ export function WbsTable({
               .join(', '),
     }));
     const spans = new Map<string, ReturnType<typeof spanOf>>();
+    const nodesByRow =
+      stepNodes === undefined
+        ? null
+        : new Map<string, Map<string, NonNullable<typeof stepNodes>[number]>>();
+    for (const node of stepNodes ?? []) {
+      const nodesByStep =
+        nodesByRow?.get(node.workItemId) ??
+        new Map<string, NonNullable<typeof stepNodes>[number]>();
+      nodesByStep.set(node.stepId, node);
+      nodesByRow?.set(node.workItemId, nodesByStep);
+    }
     const rows = attachRowReadings(workItems, (row) => {
       const dependencyPicker = depPicker?.rowId === row.id ? depPicker : null;
       const estimateReadings = new Map<string, EstimateReadings>();
@@ -1377,6 +1389,10 @@ export function WbsTable({
         editingNotBefore: editingNotBefore === row.id,
         externalSystems,
         estimateReadings,
+        stepNodes:
+          nodesByRow === null
+            ? null
+            : (nodesByRow.get(row.id) ?? new Map<string, NonNullable<typeof stepNodes>[number]>()),
         hasSchedule: hasSchedule(),
         finish: span.finish,
         nonOwnerNote: nonOwnerNoteOf(row),
@@ -1429,6 +1445,7 @@ export function WbsTable({
     unfoldedSteps,
     workItems,
     workItemTypes,
+    stepNodes,
   ]);
 
   /**
@@ -1447,6 +1464,7 @@ export function WbsTable({
    * initialiser saw on the first one.
    */
   const liveNow: PlanLiveValues = {
+    pushToast,
     focusIntent,
     gridElement,
     commands,

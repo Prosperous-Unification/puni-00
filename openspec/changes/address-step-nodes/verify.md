@@ -21,7 +21,7 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` on 2026
 | Duplicate code import      | Accept duplicate codes             | import refusal test               | Pending                                                                                                  |
 | Reserved code import       | Accept a reserved code             | import refusal test               | Pending                                                                                                  |
 | Uncoded export             | Export with an uncoded step        | export refusal test               | Pending                                                                                                  |
-| Canonical reference shown  | Render the ordinal alias           | fe-01 step cell component test    | Pending                                                                                                  |
+| Canonical reference shown  | Render the ordinal alias           | fe-01 step cell component test    | Alias failed the canonical-text assertion; restored (2026-09-27)                                         |
 
 ## Pending checks
 
@@ -55,3 +55,16 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` on 2026
 - `bunx prettier --write` then `bunx prettier --check` on all 12 touched files: all matched. `bunx @fission-ai/openspec@1.12.0 validate address-step-nodes --json`: 1 passed, 0 failed.
 - The requested other-user 403/404 case conflicts with the existing read policy: `getWorkItems` only requires a signed-in identity and `project-ownership.ts` explicitly permits all authenticated accounts to read restricted projects. This slice preserves that policy. A change to both read contracts requires a separate access decision; the unknown-project 404 case is covered.
 - Full Nx gates, build, migration checks, and the h2puni gate were not run for this focused slice.
+
+## Section 9 — step cell node detail (2026-09-27)
+
+- **Red:** the new `plan-cells.test.tsx` scenarios saw `Dev for 010No estimate yet…` instead of `010.dev · Dev`, with Copy reference and Copy link absent. Five of six new cases failed before implementation; the older-server omission case passed.
+- **Green:** `TZ=UTC bunx vitest run src/components/wbs/plan-cells.test.tsx src/components/wbs/plan-table.test.tsx --no-file-parallelism --maxWorkers=1` from `apps/wbs/fe-01`: 2 files, 180 passed, 0 failed. The seven new cases cover the canonical line, copy announcements and values, uncoded and older-server states, and refused and unavailable clipboards. The copied URL has `stepNode=sn1.w1.step-dev`.
+- **Proof:** rendering `010.s1-dev` in place of the canonical reference failed `names a coded leaf step in its open detail`: expected `010.dev · Dev`, received `Dev for 010010.s1-dev · DevCopy referenceCopy link…`. The production line was restored and carries the adjacent `// Proof:` comment.
+- **Proof (unavailable clipboard):** bypassing the absence guard failed `renders and announces an unavailable clipboard` with `Cannot read properties of undefined (reading 'writeText')`; restored.
+- **Proof (copy action focus):** removing the internal-focus guard failed `names a coded leaf step in its open detail` on `element could not be found in the document`; restored.
+- **Restored:** the seven `step node details` cases passed again after both guard faults were removed. The Nx `test` target chains an unfiltered Vitest run before forwarding file arguments, so the attempted target run was interrupted and the focused files were run directly through Vitest.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SKIP_NX_CACHE=true bunx nx run wbs-fe-01:lint:fast --outputStyle=static`: passed. The first lint run found local import, type, and arrow-expression errors; those were fixed before this pass.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SKIP_NX_CACHE=true bunx nx run wbs-fe-01:typecheck --outputStyle=static`: passed after the clipboard reference was narrowed. `bunx prettier --write` then `bunx prettier --check` on all nine touched files passed (`All matched files use Prettier code style!`).
+- **Not done:** opening `?stepNode=` into a focused cell. The table has `focusCellAt` for its own keyboard and virtualized-cell requests but no URL-driven focus route to reuse cheaply; this slice only copies the addressing URL.
+- **Not run:** pixel e2e, the full fe-01 suite, full Nx gates, build, migration checks, and the h2puni gate, as requested for this loaded host.

@@ -48,9 +48,9 @@
 
 ## 9. Name the node in the step cell
 
-- [ ] 9.1 Red: fe-01 component tests for `010.dev · Dev`, copy reference, copy link and the uncoded state.
-- [ ] 9.2 Implement the detail line and actions.
-- [ ] 9.3 Negative proof: render the alias instead of the canonical reference; watch the component test fail, restore, add adjacent `Proof:`.
+- [x] 9.1 Red: fe-01 component tests for `010.dev · Dev`, copy reference, copy link and the uncoded state.
+- [x] 9.2 Implement the detail line and actions.
+- [x] 9.3 Negative proof: render the alias instead of the canonical reference; watch the component test fail, restore, add adjacent `Proof:`.
 
 ## 10. Verify
 

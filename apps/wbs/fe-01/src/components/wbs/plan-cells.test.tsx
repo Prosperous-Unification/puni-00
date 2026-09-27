@@ -81,6 +81,104 @@ beforeEach(() => {
   localStorage.clear();
 });
 
+describe('step node details', () => {
+  async function showStepNode(reference?: string | null) {
+    const api = fakeApi();
+    const row = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip',
+    });
+    if (reference !== undefined) {
+      const readTree = api.tree.bind(api);
+      api.tree = async (projectId) => ({
+        ...(await readTree(projectId)),
+        stepNodes: [{ id: 'sn1.w1.step-dev', workItemId: row.id, stepId: DEV.id, reference }],
+      });
+    }
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    const estimate = await screen.findByLabelText('Dev estimate for 010');
+    fireEvent.focus(estimate);
+    return estimate;
+  }
+
+  itDom('names a coded leaf step in its open detail', async () => {
+    const estimate = await showStepNode('010.dev');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('010.dev · Dev');
+    const copy = screen.getByRole('button', { name: 'Copy reference' });
+    fireEvent.blur(estimate, { relatedTarget: copy });
+    fireEvent.focus(copy);
+    expect(copy).toBeInTheDocument();
+  });
+
+  itDom('copies the canonical reference and announces it', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    try {
+      await showStepNode('010.dev');
+      click('Copy reference');
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledWith('010.dev');
+      });
+      expect(toastTexts()).toContain('Copied step reference 010.dev.');
+    } finally {
+      Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
+  itDom('copies a plan URL addressing the step node id', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    try {
+      await showStepNode('010.dev');
+      click('Copy link');
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledOnce();
+      });
+      expect(new URL(writeText.mock.calls[0]?.[0] ?? '').searchParams.get('stepNode')).toBe(
+        'sn1.w1.step-dev',
+      );
+      expect(toastTexts()).toContain('Copied step link.');
+    } finally {
+      Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
+  itDom('names an uncoded node and offers only its link', async () => {
+    await showStepNode(null);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Uncoded step');
+    expect(screen.queryByRole('button', { name: 'Copy reference' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
+  });
+
+  itDom('omits the node line for an older server read', async () => {
+    await showStepNode();
+    expect(screen.getByRole('tooltip')).not.toHaveTextContent('Uncoded step');
+    expect(screen.queryByRole('button', { name: 'Copy link' })).toBeNull();
+  });
+
+  itDom('renders and announces a refused clipboard write', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    try {
+      await showStepNode('010.dev');
+      click('Copy reference');
+      await waitFor(() =>
+        expect(screen.getByRole('alert')).toHaveTextContent('Could not copy step reference.'),
+      );
+    } finally {
+      Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
+  itDom('renders and announces an unavailable clipboard', async () => {
+    Reflect.deleteProperty(navigator, 'clipboard');
+    await showStepNode('010.dev');
+    click('Copy reference');
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not copy step reference.');
+  });
+});
+
 /**
  * Every column on screen, for a describe whose tests read the Teams or
  * Services cells: both are hidden by default since `configurable-columns`, and

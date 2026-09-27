@@ -1,6 +1,9 @@
+import type { PlanRead } from '@/lib/wbs-api';
+
 import type { Point } from './estimate-draft';
 import { HoverCard } from './hover-card';
 import type { CardAssignee } from './plan-cards';
+import type { Toast } from './toasts';
 
 /** One of the three points, as the row holds it: `''` where nobody typed one. */
 export interface FoldedStepPoint {
@@ -20,6 +23,8 @@ export const SHORTHAND_HELP =
 
 export interface FoldedStepCardProps {
   stepName: string;
+  stepNode: NonNullable<PlanRead['stepNodes']>[number] | null;
+  pushToast: (toast: Toast) => void;
   /** The work item's number, so a card over a busy table says whose it is. */
   number: string;
   /**
@@ -62,6 +67,8 @@ export interface FoldedStepCardProps {
  */
 export function FoldedStepCard({
   stepName,
+  stepNode,
+  pushToast,
   number,
   id,
   points,
@@ -70,13 +77,66 @@ export function FoldedStepCard({
   problem,
 }: FoldedStepCardProps) {
   const estimated = points.some((each) => each.days.trim() !== '');
+  // Proof: rendering 010.s1-dev instead of the canonical reference made
+  // `names a coded leaf step in its open detail` fail: expected `010.dev · Dev`,
+  // received `Dev for 010010.s1-dev · DevCopy referenceCopy link...`.
+  // Watched 2026-09-27.
+  const reference = stepNode?.reference ?? null;
+  const copyText = (text: string, copied: string, failed: string) => {
+    // The DOM type requires clipboard, but browsers omit it on insecure origins.
+    const clipboard = navigator.clipboard as Clipboard | undefined;
+    // Proof: bypassing this guard made `renders and announces an unavailable
+    // clipboard` fail with `Cannot read properties of undefined (reading
+    // 'writeText')` instead of the rendered alert. Watched 2026-09-27.
+    if (clipboard === undefined) {
+      pushToast({ kind: 'error', text: failed });
+      return;
+    }
+    void clipboard.writeText(text).then(
+      () => {
+        pushToast({ kind: 'info', text: copied });
+      },
+      () => {
+        pushToast({ kind: 'error', text: failed });
+      },
+    );
+  };
   return (
     // Placed diagonally — past this cell and past this row — like every other
     // card a plan cell opens. {@link sidewaysPlacement} picks the side.
-    <HoverCard id={id}>
+    <HoverCard id={id} takesPointer={stepNode !== null}>
       <div style={{ fontWeight: 600 }}>
         {stepName} for {number}
       </div>
+      {stepNode !== null && (
+        <div>
+          <div>{reference === null ? 'Uncoded step' : `${reference} · ${stepName}`}</div>
+          {reference !== null && (
+            <button
+              type="button"
+              onClick={() => {
+                copyText(
+                  reference,
+                  `Copied step reference ${reference}.`,
+                  'Could not copy step reference.',
+                );
+              }}
+            >
+              Copy reference
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              const url = new URL(window.location.href);
+              url.searchParams.set('stepNode', stepNode.id);
+              copyText(url.href, 'Copied step link.', 'Could not copy step link.');
+            }}
+          >
+            Copy link
+          </button>
+        </div>
+      )}
       {/*
         Said in words, not as `2/3/8`: the shorthand is what an estimator types
         into the cell, and a card is read by whoever is looking at the plan.

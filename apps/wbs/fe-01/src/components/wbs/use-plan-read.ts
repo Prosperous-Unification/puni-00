@@ -223,6 +223,7 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
   const tree = delivered.tree;
 
   const workItems = useMemo(() => (tree === null ? [] : rowsOf(tree)), [tree]);
+  const stepNodes = tree === null ? undefined : tree.value.stepNodes;
 
   /** The project whose whole tree most recently completed a successful read. */
   const treeReadProject = useRef<string | null>(null);
@@ -381,6 +382,7 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
     markers,
     activeProject,
     workItems,
+    stepNodes,
     treeReadProject,
     chartRead,
     steps,

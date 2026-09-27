@@ -237,8 +237,12 @@ export function createEstimatesColumns({
               // the `<td>`'s, which {@link opensAPopover} lifts.
               // The blur is the mention's: it bubbles from the box inside,
               // and leaving the cell has to take a half-typed `@ka` with
-              // it. Nothing else in here can hold the focus.
-              onBlur={() => {
+              // it. Moving focus to a copy action inside the card stays here.
+              onBlur={(event) => {
+                // Proof: removing this guard made `names a coded leaf step in
+                // its open detail` fail on `element could not be found in the
+                // document` when focus moved to Copy reference. Watched 2026-09-27.
+                if (event.currentTarget.contains(event.relatedTarget)) return;
                 // Proof: deleting only this reset left the box at full strength after blur;
                 // `gives the trio back its strength on focus and quiets it again on blur`
                 // failed on `expected 'inherit' to be '10px'`. Watched 2026-09-20.
@@ -677,6 +681,12 @@ export function createEstimatesColumns({
               {carded && (
                 <FoldedStepCard
                   stepName={step.name}
+                  stepNode={
+                    row.original.rolledUp
+                      ? null
+                      : (row.original.readings.stepNodes?.get(step.id) ?? null)
+                  }
+                  pushToast={live.current.pushToast}
                   number={row.original.number}
                   id={cardId}
                   points={POINTS.map((point) => ({
