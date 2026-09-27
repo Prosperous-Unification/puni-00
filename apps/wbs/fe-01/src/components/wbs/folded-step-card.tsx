@@ -5,7 +5,13 @@ import type { Days } from '@/lib/wbs-api';
 import type { Point } from './estimate-draft';
 import { HoverCard } from './hover-card';
 import type { CardAssignee } from './plan-cards';
-import { showDay } from './plan-number-format';
+
+/**
+ * A figure the charge is audited by, to four decimals rather than the table's
+ * one: `2.0002` before rounding is why a +0.01% allowance charges 3 days, and
+ * `2` would hide it.
+ */
+const auditDays = (days: number): string => String(Math.round(days * 10_000) / 10_000);
 
 /** One of the three points, as the row holds it: `''` where nobody typed one. */
 export interface FoldedStepPoint {
@@ -99,10 +105,10 @@ export function FoldedStepCard({
       </div>
       {estimate !== undefined && allowancePercent !== 0 ? (
         <>
-          <div>Base estimate {showDay(combinedDays(estimate, rule))} days</div>
+          <div>Base estimate {auditDays(combinedDays(estimate, rule))} days</div>
           <div>Allowance +{String(allowancePercent)}%</div>
           <div>
-            Before rounding {showDay(beforeRoundingDays(estimate, rule, allowancePercent))} days
+            Before rounding {auditDays(beforeRoundingDays(estimate, rule, allowancePercent))} days
           </div>
           <div>Charged {final} days</div>
         </>

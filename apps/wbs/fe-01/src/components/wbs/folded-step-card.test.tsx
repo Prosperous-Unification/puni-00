@@ -76,4 +76,31 @@ describe('folded step estimate detail', () => {
     expect(screen.getByText('Before rounding 2.6 days')).toBeInTheDocument();
     expect(screen.getByText('Charged 3 days')).toBeInTheDocument();
   });
+
+  it('shows the fraction a tiny allowance leaves before rounding', () => {
+    render(
+      <FoldedStepCard
+        stepName="QA"
+        number="010"
+        id="qa-card"
+        points={[
+          { point: 'optimistic', days: '2' },
+          { point: 'realistic', days: '2' },
+          { point: 'pessimistic', days: '2' },
+        ]}
+        estimate={{ optimistic: 2, realistic: 2, pessimistic: 2 }}
+        final="3"
+        allowancePercent={0.01}
+        rule={{
+          method: 'pert',
+          pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+          rounding: 'ceil',
+        }}
+        doing={null}
+        problem={null}
+      />,
+    );
+    expect(screen.getByText('Before rounding 2.0002 days')).toBeInTheDocument();
+    expect(screen.getByText('Charged 3 days')).toBeInTheDocument();
+  });
 });

@@ -12,8 +12,8 @@
 
 ## 3. Make policy editable and undoable
 
-- [ ] 3.1 Add failing settings, concurrent-edit, broadcast, one-undo and stale-undo tests before wiring the project-step editor and journalled update.
-- [ ] 3.2 Show base, allowance, pre-rounding and charged figures in estimate detail; test totals and live refresh. Keep raw O/R/P and zero-time unknown scheduling intact.
+- [x] 3.1 Add failing settings, concurrent-edit, broadcast, one-undo and stale-undo tests before wiring the project-step editor and journalled update.
+- [x] 3.2 Show base, allowance, pre-rounding and charged figures in estimate detail; test totals and live refresh. Keep raw O/R/P and zero-time unknown scheduling intact.
 - [x] 3.3 Inject a stale undo and missing schedule invalidation; watch production-path negatives fail, restore and add Proof: comments.
 
 ## 4. Preserve policy across boundaries

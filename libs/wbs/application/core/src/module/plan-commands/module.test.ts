@@ -172,3 +172,33 @@ describe('the Plan commands module', () => {
     );
   });
 });
+
+describe('a step allowance edit over the memory source', () => {
+  /** Proof: see the allowance revisions line in the memory source's commit. */
+  it('undoes an allowance edit committed in an earlier unit of work', async () => {
+    const source = openMemorySource();
+    await source.stores.projects.create(
+      projectRow({ id: PROJECT, ownerId: OWNER }),
+      [{ id: 'qa', projectId: PROJECT, name: 'QA', position: 10, allowancePercent: 0 }],
+      { at: 1, by: OWNER },
+    );
+    const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
+    const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
+      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+    const { commands } = installPlanCommands({
+      batchServices: (scope: Scope, broadcast: Broadcaster) => graphOver(scope.stores, broadcast),
+      publicServices: graphOver(source.stores, recordingBroadcaster()),
+      uow: source.uow,
+      announcements: recordingBroadcaster(),
+    });
+
+    const edited = await commands.run(PROJECT, OWNER, [
+      { kind: 'setStepAllowance', stepId: 'qa', allowancePercent: 30 },
+    ]);
+    expect(edited.ok).toBe(true);
+
+    expect((await commands.undo(PROJECT, OWNER)).ok).toBe(true);
+    const steps = await source.stores.projects.stepsOf(PROJECT);
+    expect(steps.map((step) => step.allowancePercent)).toEqual([0]);
+  });
+});
