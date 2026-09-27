@@ -104,7 +104,7 @@ describe('buildSolverEdges', () => {
   });
 
   it('refuses a position its group has no slice for rather than keying undefined', () => {
-    // Unreachable through `sliceGraphEdges`, which only ever emits 0 and
+    // Unreachable through `resolveStepNodeGraph`, which only ever emits 0 and
     // `reachedSliceOf`'s answer. Guarded because the alternative is the string
     // `"undefined"` reaching the wire as a key, and the re-validator reporting
     // Bun's own malformed request as a missing slice from Python.

@@ -30,9 +30,9 @@
 
 ## 6. Resolve the graph through one seam
 
-- [ ] 6.1 Red: graph resolution tests for workflow and legacy provenance; run existing Fast and solver goldens and request-hash tests through the seam.
-- [ ] 6.2 Implement `resolveStepNodeGraph` and move Fast and the solver builder onto it.
-- [ ] 6.3 Negative proof: drop one workflow edge; watch a Fast golden fail, restore, add adjacent `Proof:`.
+- [x] 6.1 Red: graph resolution tests for workflow and legacy provenance; run existing Fast and solver goldens and request-hash tests through the seam.
+- [x] 6.2 Implement `resolveStepNodeGraph` and move Fast and the solver builder onto it.
+- [x] 6.3 Negative proof: drop one workflow edge; watch a Fast golden fail, restore, add adjacent `Proof:`.
 
 ## 7. Journal node mappings on hand-down and hand-up
 
