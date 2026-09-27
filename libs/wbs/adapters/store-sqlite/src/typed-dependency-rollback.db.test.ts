@@ -147,13 +147,76 @@ describe('typed dependency rollback', () => {
 
   it('refuses malformed saved input before removing rows', () => {
     const snapshot = saved();
-    for (const malformed of [
-      null,
-      { ...snapshot, version: 2 },
-      { ...snapshot, rows: [{ ...snapshot.rows[0], createdAt: 'ten' }, snapshot.rows[1]] },
-    ]) {
-      expect(() => withConnection((db) => removeSavedTypedDependencies(db, malformed))).toThrow();
-      expect(rowCount()).toBe(2);
+    expect(() =>
+      withConnection((db) => removeSavedTypedDependencies(db, { ...snapshot, version: 2 })),
+    ).toThrow('invalid typed dependency save format or version');
+    expect(rowCount()).toBe(2);
+  });
+
+  /**
+   * Through restore into an emptied table, so no later comparison can refuse
+   * in the parser's place: each case names the guard that must answer.
+   *
+   * Proof: each guard disabled in turn made its own case fail on the
+   * restore resolving or on a different message — the format/version check
+   * (`null`, `version 2`, `extra key`), the column count (`missing column`,
+   * `extra column`) and the column names (`renamed column`), `readString` (`numeric id`),
+   * `readNullableString` (`numeric step`) and `readNullableNumber` (`text
+   * timestamp`, `fractional timestamp`); watched 2026-09-27.
+   */
+  it('refuses a malformed save with the parser’s own reason and restores nothing', () => {
+    const snapshot = saved();
+    const first = snapshot.rows.at(0);
+    const second = snapshot.rows.at(1);
+    if (first === undefined || second === undefined) throw new Error('the seed holds two rows');
+    const { createdBy: _dropped, ...missing } = first;
+    const cases: [string, unknown, string][] = [
+      ['null', null, 'invalid typed dependency save format or version'],
+      ['version 2', { ...snapshot, version: 2 }, 'invalid typed dependency save format or version'],
+      ['extra key', { ...snapshot, note: 'x' }, 'invalid typed dependency save format or version'],
+      ['missing column', { ...snapshot, rows: [missing, second] }, 'saved row columns'],
+      [
+        'renamed column',
+        { ...snapshot, rows: [{ ...missing, creator: 'u' }, second] },
+        'saved row columns',
+      ],
+      [
+        'extra column',
+        { ...snapshot, rows: [{ ...first, extra: 1 }, second] },
+        'saved row columns',
+      ],
+      ['numeric id', { ...snapshot, rows: [{ ...first, id: 7 }] }, 'id must be a string'],
+      [
+        'numeric step',
+        { ...snapshot, rows: [{ ...first, predecessorStepId: 7 }] },
+        'predecessorStepId must be a string',
+      ],
+      [
+        'text timestamp',
+        { ...snapshot, rows: [{ ...first, createdAt: 'ten' }] },
+        'createdAt must be an integer or null',
+      ],
+      [
+        'fractional timestamp',
+        { ...snapshot, rows: [{ ...first, createdAt: 1.5 }] },
+        'createdAt must be an integer or null',
+      ],
+    ];
+    const sqlite = openDatabase(path);
+    try {
+      sqlite.run('DELETE FROM typed_dependency');
+    } finally {
+      sqlite.close();
+    }
+    for (const [name, malformed, reason] of cases) {
+      let refusal = '(restored without refusing)';
+      try {
+        withConnection((db) => restoreTypedDependencies(db, malformed));
+      } catch (error) {
+        refusal = error instanceof Error ? error.message : String(error);
+      }
+      expect(refusal, name).toContain(reason);
+      expect(rowCount(), name).toBe(0);
     }
   });
 

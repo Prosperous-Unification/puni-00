@@ -47,7 +47,17 @@ function readNullableNumber(value: unknown, field: string): number | null {
   return value;
 }
 
-/** Validates the versioned file at the CLI boundary before a transaction starts. */
+/**
+ * Validates the versioned file at the CLI boundary before a transaction starts.
+ *
+ * Proof: each check here and in the three `read*` helpers above disabled in
+ * turn made its own case of `refuses a malformed save with the parser’s own
+ * reason and restores nothing` fail — the format, version and key-count
+ * checks and the column count, `readString` and `readNullableNumber` on
+ * `(restored without refusing)`, the column names on `createdBy must be a
+ * string` and `readNullableString` on `names step 7 outside project p`, each
+ * a later check answering in the parser's place; watched 2026-09-27.
+ */
 function readSavedTypedDependencies(saved: unknown): SavedTypedDependencies {
   // Proof: accepting version 2 made `refuses malformed saved input` fail on
   // `Received function did not throw` (it removed 2 rows); watched 2026-09-27.
