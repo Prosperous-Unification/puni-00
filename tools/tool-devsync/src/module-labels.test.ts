@@ -8,15 +8,31 @@ import { DiBag } from 'di-bag';
 const WORKSPACE = fileURLToPath(new URL('../../..', import.meta.url));
 
 /**
- * The two directories whose subdirectories are the sealed DI Bag modules of `adopt-di-composition`,
- * and the identifier segment each location implies: a library module carries its ring, a module
- * under an app its runtime word. `apps/wbs/fe-01/src/modules` is outside this change and carries
- * no index block yet, so it is not read here.
+ * The directories whose subdirectories are modules, and the identifier segment each location
+ * implies: a library module carries its ring, a module under an app its runtime word. The
+ * frontend's runtimes under `apps/wbs/fe-01/src/runtime` own lifetimes rather than modules and
+ * carry no index block, so they are not a root.
  */
 const MODULE_ROOTS = [
   { root: 'libs/wbs/application/core/src/module', segment: 'application' },
   { root: 'apps/wbs/be-01/src/module', segment: 'backend' },
+  { root: 'apps/wbs/fe-01/src/modules', segment: 'frontend' },
 ] as const;
+
+/**
+ * The frontend modules composed by plain functions instead of sealed as a DI Bag module, so they
+ * carry no `module.ts` and no `moduleLabel`. Each must also import no `di-bag` outside its tests:
+ * a composition that starts building a bag has to seal and leave this list, rather than pass as
+ * a labelled module it is not.
+ */
+const UNSEALED: readonly string[] = [
+  'module.frontend.calendar-markers',
+  'module.frontend.directory',
+  'module.frontend.plan-commands',
+  'module.frontend.plan-feed',
+  'module.frontend.plan-writer',
+  'module.frontend.project',
+];
 
 /** The project a `kinds.json` shim row lives in, and the segment of the modules it may name. */
 const PROJECTS = [
@@ -44,8 +60,8 @@ const SHIM_FORWARD =
 /** Where a `@wbs/core/service/<file>` forwarding row's file lives. */
 const CORE_SERVICES = 'libs/wbs/application/core/src/service';
 
-/** One sealed module directory and the identity its location implies. */
-interface SealedModule {
+/** One module directory and the identity its location implies. */
+interface ModuleDirectory {
   readonly directory: string;
   readonly moduleId: string;
   readonly label: string;
@@ -58,8 +74,8 @@ interface SealedModule {
  * @throws When a root is unreadable or holds no directory: a moved root would otherwise read as
  *   "no module disagrees".
  */
-async function sealedModules(): Promise<readonly SealedModule[]> {
-  const modules: SealedModule[] = [];
+async function moduleDirectories(): Promise<readonly ModuleDirectory[]> {
+  const modules: ModuleDirectory[] = [];
   for (const { root, segment } of MODULE_ROOTS) {
     const names: string[] = [];
     // Proof (2026-09-24): pointing the backend root at a missing `src/modules` failed all five
@@ -121,6 +137,17 @@ async function sealedModuleLabel(directory: string): Promise<unknown> {
     throw new Error(`${directory}/module.ts has no moduleLabel getter`);
   }
   return module.moduleLabel;
+}
+
+/** The non-test TypeScript sources under a module directory that import `di-bag`. */
+async function diBagImporters(directory: string): Promise<readonly string[]> {
+  const importers: string[] = [];
+  for await (const path of new Bun.Glob('**/*.{ts,tsx}').scan(join(WORKSPACE, directory))) {
+    if (/\.test\.tsx?$/.test(path)) continue;
+    const source = await readFile(join(WORKSPACE, directory, path), 'utf8');
+    if (/['"]di-bag['"]/.test(source)) importers.push(`${directory}/${path}`);
+  }
+  return importers.sort();
 }
 
 /**
@@ -208,16 +235,30 @@ function moduleDirectoryOf(path: string): string | undefined {
   return undefined;
 }
 
-test('discovers the sealed modules of both roots', async () => {
-  const identifiers = (await sealedModules()).map(({ moduleId }) => moduleId);
+test('discovers the modules of every root', async () => {
+  const identifiers = (await moduleDirectories()).map(({ moduleId }) => moduleId);
 
   expect(identifiers).toContain('module.application.plan-history');
   expect(identifiers).toContain('module.backend.optimization');
+  expect(identifiers).toContain('module.frontend.preferences');
 });
 
 test('seals every module under the label its location implies', async () => {
+  const modules = await moduleDirectories();
   const mismatches: string[] = [];
-  for (const { directory, label } of await sealedModules()) {
+  for (const { directory, label, moduleId } of modules) {
+    const sealed = await Bun.file(join(WORKSPACE, directory, 'module.ts')).exists();
+    if (UNSEALED.includes(moduleId)) {
+      if (sealed) mismatches.push(`${directory}: declared unsealed, yet has module.ts`);
+      for (const importer of await diBagImporters(directory)) {
+        mismatches.push(`${importer}: imports di-bag in a module declared unsealed`);
+      }
+      continue;
+    }
+    if (!sealed) {
+      mismatches.push(`${directory}: has no module.ts and is not declared unsealed`);
+      continue;
+    }
     const actual = await sealedModuleLabel(directory);
     // Proof (2026-09-26): a forged Capacity private key and a labelled inner module under an
     // unlabelled Capacity wrapper each failed this test with `moduleLabel undefined, expected
@@ -226,13 +267,18 @@ test('seals every module under the label its location implies', async () => {
       mismatches.push(`${directory}: moduleLabel ${String(actual)}, expected ${label}`);
     }
   }
+  for (const moduleId of UNSEALED) {
+    if (!modules.some((module) => module.moduleId === moduleId)) {
+      mismatches.push(`${moduleId}: declared unsealed, yet no such module directory`);
+    }
+  }
 
   expect(mismatches).toEqual([]);
 });
 
 test('indexes every module under the identifier its location implies', async () => {
   const mismatches: string[] = [];
-  for (const { directory, moduleId } of await sealedModules()) {
+  for (const { directory, moduleId } of await moduleDirectories()) {
     const indexed = await indexedModuleId(directory);
     // Proof (2026-09-24): Capacity's README naming `module.application.capacities` failed this
     // test with `…/capacity: README names module.application.capacities` (4 pass, 1 fail).
@@ -243,7 +289,7 @@ test('indexes every module under the identifier its location implies', async () 
 });
 
 test('registers every module in the pilot under that identifier', async () => {
-  const modules = await sealedModules();
+  const modules = await moduleDirectories();
   const rows = await recordsOf('docs/wiki-policy/modules.json', 'modules');
   const boundaries = await recordsOf('docs/wiki-policy/policy.json', 'boundaries');
   const mismatches: string[] = [];
@@ -295,7 +341,7 @@ test('registers every module in the pilot under that identifier', async () => {
 });
 
 test('names in kinds.json only the module that owns every export of the shim', async () => {
-  const modules = await sealedModules();
+  const modules = await moduleDirectories();
   const entries = await recordsOf('docs/code-organization/kinds.json', 'entries');
   const mismatches: string[] = [];
   let named = 0;
