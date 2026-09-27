@@ -227,11 +227,19 @@ async function exportedDocument(tree: WorkItemTree = TREE): Promise<PlanDocument
 
 test('preserves the existing JSON export fields', async () => {
   const exported = await exportedDocument();
-  const { document, settings, capacity, calendarMarkers, directory: names, ...existing } = exported;
+  const {
+    document,
+    settings,
+    capacity,
+    calendarMarkers,
+    directory: names,
+    stepNodes,
+    ...existing
+  } = exported;
   expect(existing).toEqual<unknown>({ project: PROJECT, ...TREE });
   expect(existing.workItems[0]?.deadline).toBe('2026-09-18');
   expect(existing.optimization).toEqual(TREE.optimization);
-  expect({ document, settings, capacity, calendarMarkers, names }).toBeDefined();
+  expect({ document, settings, capacity, calendarMarkers, names, stepNodes }).toBeDefined();
 });
 
 test('JSON export is a versioned plan document and settings says what project says', async () => {
@@ -442,4 +450,26 @@ test('reads a version-2 file as before codes existed, leaving each code to sugge
     expect(classified.value.steps.map((step) => step.code)).toEqual(earlier.steps.map(() => null));
     expect(classified.value.steps[0]?.allowancePercent).toBe(30);
   }
+});
+
+/** Proof: see `spellStepNodes`. */
+test('spells each leaf’s step nodes beside their IDs', async () => {
+  const nested = structuredClone(TREE);
+  const parent = nested.workItems.at(0);
+  if (parent === undefined) throw new Error('fixture has no row');
+  nested.workItems.push({
+    ...structuredClone(parent),
+    id: 'row-2',
+    parentId: parent.id,
+    number: '1.1',
+  });
+
+  const exported = await exportedDocument(nested);
+
+  expect(exported.stepNodes).toEqual([
+    { id: 'sn1.row-2.step-1', workItemId: 'row-2', stepId: 'step-1', reference: '1.1.build' },
+  ]);
+  const classified = await classifyPlanDocument(exported);
+  if (!classified.ok) throw new Error(`current file refused at ${classified.path}`);
+  expect(classified.value).not.toHaveProperty('stepNodes');
 });

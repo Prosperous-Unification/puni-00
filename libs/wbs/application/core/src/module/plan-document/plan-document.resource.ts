@@ -7,7 +7,7 @@ import {
   validateSchema,
   type WorkItemTree,
 } from '@wbs/contracts';
-import { NO_ALLOWANCE } from '@wbs/domain';
+import { formatStepNodeId, formatStepReference, listStepNodes, NO_ALLOWANCE } from '@wbs/domain';
 
 import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { Clock } from '../../ports/clock';
@@ -91,10 +91,10 @@ export class PlanDocumentService {
         steps: uncoded,
         command: STEP_CODE_BACKFILL_COMMAND,
       };
-    return { ok: true, value: await this.document(project, { ...tree, steps: coded }) };
+    return { ok: true, value: await this.buildDocument(project, { ...tree, steps: coded }) };
   }
 
-  private async document(
+  private async buildDocument(
     project: Project,
     tree: WorkItemTree & { steps: PlanDocument['steps'] },
   ): Promise<PlanDocument> {
@@ -119,6 +119,7 @@ export class PlanDocumentService {
     return {
       project,
       ...tree,
+      stepNodes: spellStepNodes(tree),
       document: {
         format: 'wbs-plan',
         version: PLAN_DOCUMENT_VERSION,
@@ -152,6 +153,34 @@ export class PlanDocumentService {
       directory: closure,
     };
   }
+}
+
+/**
+ * Every leaf's step nodes in tree and step order, each with its reference —
+ * the same nodes and spellings the work-item read answers, for a fully coded
+ * tree.
+ */
+function spellStepNodes(tree: {
+  workItems: readonly { id: string; parentId: string | null; number: string }[];
+  steps: PlanDocument['steps'];
+}): PlanDocument['stepNodes'] {
+  const parentIds = new Set(tree.workItems.map(({ parentId }) => parentId));
+  const codeByStepId = new Map(tree.steps.map(({ id, code }) => [id, code] as const));
+  return tree.workItems.flatMap(({ id, number }) =>
+    // Proof: with the leaf filter removed, `spells each leaf's step nodes
+    // beside their IDs` received the parent's nodes too (2026-09-27).
+    parentIds.has(id)
+      ? []
+      : listStepNodes(id, tree.steps).map((node) => {
+          const code = codeByStepId.get(node.stepId);
+          if (code === undefined) throw new Error(`step node names unknown step ${node.stepId}`);
+          return {
+            id: formatStepNodeId(node),
+            ...node,
+            reference: formatStepReference(number, code),
+          };
+        }),
+  );
 }
 
 export type PlanDocumentClassification =

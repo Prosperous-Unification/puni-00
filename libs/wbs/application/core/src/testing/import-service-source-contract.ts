@@ -1,4 +1,4 @@
-import type { PlanDocumentImport } from '@wbs/contracts';
+import type { PlanDocument, PlanDocumentImport } from '@wbs/contracts';
 import { suggestStepCode } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
@@ -206,10 +206,10 @@ function roundTripFixture(): PlanDocumentImport {
   return document;
 }
 
-async function exportProject(
+async function exportDocument(
   source: Source<TransactionalStores>,
   projectId: string,
-): Promise<PlanDocumentImport> {
+): Promise<PlanDocument> {
   const clock = clockOf({ now: () => STAMP.at, newId: () => crypto.randomUUID() });
   const broadcast = recordingBroadcaster();
   const graph = servicesOver(source.stores, { clock, broadcast, scheduler: fastScheduler });
@@ -225,7 +225,14 @@ async function exportProject(
     clock,
   }).export(project, tree);
   if (!exported.ok) throw new Error(`imported project export refused: ${exported.error}`);
-  const classified = await classifyPlanDocument(exported.value);
+  return exported.value;
+}
+
+async function exportProject(
+  source: Source<TransactionalStores>,
+  projectId: string,
+): Promise<PlanDocumentImport> {
+  const classified = await classifyPlanDocument(await exportDocument(source, projectId));
   if (!classified.ok) throw new Error(`exported project refused at ${classified.path}`);
   return classified.value;
 }
@@ -1132,7 +1139,7 @@ export function importServiceSourceContract(
 
           const imported = await importService(source).import(classified.value, ACTOR);
           if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
-          const exported = await exportProject(source, imported.projectId);
+          const exported = await exportDocument(source, imported.projectId);
 
           expect(exported.document.version).toBe(3);
           expect(exported.steps.map(({ name, code }) => [name, code])).toEqual([
@@ -1140,6 +1147,14 @@ export function importServiceSourceContract(
             ['Build', codes[1]],
             ['Verify', codes[2]],
           ]);
+          // The copy's nodes follow its own work item and step IDs.
+          const stepIds = new Set(exported.steps.map(({ id }) => id));
+          const rowIds = new Set(exported.workItems.map(({ id }) => id));
+          for (const node of exported.stepNodes) {
+            expect(stepIds.has(node.stepId) && rowIds.has(node.workItemId)).toBe(true);
+            expect(node.id).toBe(`sn1.${node.workItemId}.${node.stepId}`);
+          }
+          expect(exported.stepNodes.length).toBeGreaterThan(0);
         } finally {
           await source.close();
         }
