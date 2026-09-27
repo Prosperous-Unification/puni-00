@@ -144,6 +144,21 @@ const parserArms = {
     at: 'number',
     kind: commandKindsType,
   }),
+  conflicting_step_address: type({
+    error: "'conflicting_step_address'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  invalid_step_node_id: type({
+    error: "'invalid_step_node_id'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  unknown_step_node_encoding: type({
+    error: "'unknown_step_node_encoding'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
   metric_must_be_text: type({
     error: "'metric_must_be_text'",
     at: 'number',
