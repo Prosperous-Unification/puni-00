@@ -6,8 +6,10 @@ import type { ProjectApi } from '@/lib/wbs-api';
 import { projectSourceOver } from '@/modules/project/composition';
 import type { ProjectCatalog } from '@/modules/project/contract';
 import { createProjectCatalog } from '@/modules/project/project-catalog.feature';
+import type { SavedPlanRoutes } from '@/modules/saved-plans/contract';
 import { createProjectOwner, type ProjectOwner } from '@/runtime/project-runtime';
 import type { SessionProjects } from '@/runtime/session-runtime';
+import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 
 /**
  * The catalog and the project owner a session would hand the page, over one
@@ -15,14 +17,17 @@ import type { SessionProjects } from '@/runtime/session-runtime';
  * without the session, which is never withdrawn here.
  *
  * `streamDeps` is the socket's wiring; left out, the stream is the browser's
- * own, as the page's suites have always drawn it.
+ * own, as the page's suites have always drawn it. `savedPlanRoutes` is the
+ * saved plans' port; left out, the node has none, so no suite asks jsdom for
+ * the OpenAPI document or opens a shelf socket it did not hand in.
  */
 export function pageWiring(
   owner: ProjectOwner,
   api: ProjectApi,
   streamDeps?: ProjectStreamDeps,
+  savedPlanRoutes: SavedPlanRoutes = NO_SAVED_PLANS,
 ): { catalog: ProjectCatalog; projects: SessionProjects } {
-  const source = projectSourceOver(api, streamDeps);
+  const source = projectSourceOver(api, streamDeps, savedPlanRoutes);
   return {
     catalog: createProjectCatalog({ routes: api, isCurrent: () => true }),
     projects: {
@@ -38,6 +43,7 @@ export function pageWiring(
 export type ProjectPageOverOwnerProps = Omit<ProjectPageProps, 'catalog' | 'projects'> & {
   api: ProjectApi;
   streamDeps?: ProjectStreamDeps;
+  savedPlanRoutes?: SavedPlanRoutes;
 };
 
 /**
@@ -55,9 +61,13 @@ export type ProjectPageOverOwnerProps = Omit<ProjectPageProps, 'catalog' | 'proj
 export function ProjectPageOverOwner({
   api,
   streamDeps,
+  savedPlanRoutes,
   ...props
 }: ProjectPageOverOwnerProps): React.JSX.Element {
   const [owner] = useState(createProjectOwner);
-  const wiring = useMemo(() => pageWiring(owner, api, streamDeps), [owner, api, streamDeps]);
+  const wiring = useMemo(
+    () => pageWiring(owner, api, streamDeps, savedPlanRoutes),
+    [owner, api, streamDeps, savedPlanRoutes],
+  );
   return <ProjectPage {...wiring} {...props} />;
 }

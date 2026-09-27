@@ -101,7 +101,7 @@ def a_request(
     offsets = dict(baseline) if baseline is not None else {key: 0 for key in keys}
     return {
         "wireVersion": 1,
-        "contractVersion": "10+0.1.3",
+        "contractVersion": "11+0.1.3",
         "solverVersion": "0.1.3",
         "objective": objective,
         "budgetMs": 30000,
@@ -717,6 +717,29 @@ class ZeroDurationSlices(unittest.TestCase):
         built = build_model(request)
         built.model.add(built.starts["b"] == 9)
         self.assertEqual(_solver().solve(built.model), cp_model.INFEASIBLE)
+
+
+    def test_an_unknown_predecessor_is_a_node_and_adds_no_delay(self) -> None:
+        """WBS 010.4.4: Bun sends an unestimated slice as zero units, so the
+        solver must keep its edge and floor while giving it no span. `a` is the
+        unknown, floored at 24 inside `c`'s span on the same person; `b` waits
+        on it and must start at `a`'s floor, not an assumed two workdays later.
+        """
+        request = a_request(
+            [a_slice("a", duration=0, person="p", not_before=24,
+                     work_item_is_milestone=True),
+             a_slice("b", duration=96, weight=1),
+             a_slice("c", duration=48, person="p", weight=1)],
+            edges=[an_edge("a", "b")],
+            objective="time",
+        )
+        built = build_model(request)
+        built.model.add(built.starts["c"] == 0)
+        solver = _solver()
+        self.assertEqual(solver.solve(built.model), cp_model.OPTIMAL)
+        self.assertEqual(solver.value(built.starts["a"]), 24)
+        self.assertEqual(solver.value(built.ends["a"]), 24)
+        self.assertEqual(solver.value(built.starts["b"]), 24)
 
 
 class TheHint(unittest.TestCase):

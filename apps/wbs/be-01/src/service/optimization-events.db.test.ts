@@ -9,6 +9,7 @@ import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore, type RecordedEvent } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
+import { createOptimizationRepository } from '../repository/optimization';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { OptimizationCoordinator, type OptimizationOutcomeEvent } from './optimization-coordinator';
 
@@ -87,7 +88,7 @@ describe('optimized outcome events', () => {
     let launches = 0;
     let token = 0;
     const instance = new OptimizationCoordinator({
-      db,
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -101,7 +102,6 @@ describe('optimized outcome events', () => {
         launches += 1;
         throw new Error('preflight failure reached launcher');
       },
-      eventLog: new DrizzleEventLogStore(db, OPEN),
       pushRecorded: (_subscription, _recorded, event) => {
         pushed.push(event);
         return Promise.resolve();
@@ -140,7 +140,7 @@ describe('optimized outcome events', () => {
     const pushed: OptimizationOutcomeEvent[] = [];
     let token = 0;
     const instance = new OptimizationCoordinator({
-      db,
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -163,7 +163,6 @@ describe('optimized outcome events', () => {
         await options.onExit({ code: 0, stdout: INFEASIBLE_RESPONSE, stderr: '' });
         return { kind: 'exited', code: 0 };
       },
-      eventLog: new DrizzleEventLogStore(db, OPEN),
       pushRecorded: (_subscription, _recorded, event) => {
         pushed.push(event);
         return Promise.resolve();
@@ -242,7 +241,7 @@ describe('optimized outcome events', () => {
     }[] = [];
     let token = 0;
     const instance = new OptimizationCoordinator({
-      db,
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -265,7 +264,6 @@ describe('optimized outcome events', () => {
         await options.onExit({ code: 0, stdout: RESPONSE, stderr: '' });
         return { kind: 'exited', code: 0 };
       },
-      eventLog: new DrizzleEventLogStore(db, OPEN),
       pushRecorded: (_subscription, recorded, event) => {
         const raw = openDatabase(path);
         try {

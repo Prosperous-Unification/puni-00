@@ -10,6 +10,7 @@ import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
+import { createOptimizationRepository } from '../repository/optimization';
 import { bindSolverSlot, reserveSolverSlot } from '../repository/optimization-admission';
 import { allocateGeneration } from '../repository/optimization-generation';
 import { storeOptimizedOutcome } from '../repository/optimized-schedule-cache';
@@ -148,7 +149,7 @@ describe('cross-coordinator cancellation', () => {
       expect(bindSolverSlot(blue, { ...slot, pid: child.pid })).toBe(true);
       const heartbeat = heartbeatGate();
       const lifecycle = runSolverChildLifecycle({
-        db: blue,
+        slots: createOptimizationRepository(blue, new DrizzleEventLogStore(blue, OPEN)),
         slot,
         child,
         now: () => 50,
@@ -227,7 +228,7 @@ describe('cross-coordinator cancellation', () => {
     }[] = [];
     const errors: unknown[] = [];
     const instance = new OptimizationCoordinator({
-      db: blue,
+      repository: createOptimizationRepository(blue, new DrizzleEventLogStore(blue, OPEN)),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -259,7 +260,6 @@ describe('cross-coordinator cancellation', () => {
         if (attempt === undefined) throw new Error('spawned child was not recorded');
         return runSolverChildLifecycle({ ...options, sleep: attempt.heartbeat.sleep });
       },
-      eventLog: new DrizzleEventLogStore(blue, OPEN),
       pushRecorded: () => Promise.resolve(),
       onChildError: (error) => errors.push(error),
     });

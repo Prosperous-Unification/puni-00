@@ -47,25 +47,22 @@ function uniqueIndexesOn(table: string): string[][] {
   const db = openDatabase(path);
   try {
     const listed = db
-      .query<{ name: string; unique: number; partial: number }, []>(`PRAGMA index_list(${table})`)
+      .query<{ name: string; unique: number }, []>(`PRAGMA index_list(${table})`)
       .all();
-    return (
-      listed
-        // Partial indexes count: `step_project_code` is unique only among coded
-        // steps, and SQLite's message for a collision names its columns exactly
-        // as a full index's does.
-        .filter((index) => index.unique === 1)
-        .map((index) =>
-          db
-            .query<{ seqno: number; name: string | null }, []>(`PRAGMA index_info("${index.name}")`)
-            .all()
-            .sort((left, right) => left.seqno - right.seqno)
-            // An expression index answers a null column name (`users_email_normalized`
-            // is `lower(email)`). It can never be one of ours, which are plain
-            // columns, so it stays in the list as an unmatchable entry.
-            .map((column) => `${table}.${column.name ?? ''}`),
-        )
-    );
+    // Partial unique indexes count: SQLite names their columns in the same
+    // message, and `organization_domain_claim_owner` and `step_project_code` are two.
+    return listed
+      .filter((index) => index.unique === 1)
+      .map((index) =>
+        db
+          .query<{ seqno: number; name: string | null }, []>(`PRAGMA index_info("${index.name}")`)
+          .all()
+          .sort((left, right) => left.seqno - right.seqno)
+          // An expression index answers a null column name (`users_email_normalized`
+          // is `lower(email)`). It can never be one of ours, which are plain
+          // columns, so it stays in the list as an unmatchable entry.
+          .map((column) => `${table}.${column.name ?? ''}`),
+      );
   } finally {
     db.close();
   }
@@ -128,7 +125,7 @@ describe('the unique indexes a refusal names', () => {
     // Both sides could be empty for the same wrong reason — a pragma naming a
     // table SQLite does not have would throw, but a filter that dropped every
     // index would not, and an empty list contains nothing to disagree with.
-    expect(Object.keys(UNIQUE_INDEXES).length).toBe(8);
+    expect(Object.keys(UNIQUE_INDEXES).length).toBe(9);
     expect(uniqueIndexesOn('step').length).toBeGreaterThan(0);
     expect(UNIQUE_INDEXES.stepNameInProject.length).toBe(2);
   });

@@ -2,6 +2,8 @@ import { isWithin, parentIndexOf } from '@wbs/domain/is-within';
 
 import type { WorkItemView } from '@/lib/wbs-api';
 
+import { moveRefusalFor } from './dep-graph';
+
 /** Where in a row the pointer is, and therefore what dropping there means. */
 export type DropZone = 'above' | 'into' | 'below';
 
@@ -9,7 +11,25 @@ export type DropZone = 'above' | 'into' | 'below';
  * `frozen` is gone since ADR 0023: a frozen work item moves like any other, and
  * be-01 no longer refuses the move this used to pre-empt.
  */
-export type DropRefusal = 'cycle' | 'unchanged' | 'not_found';
+export type DropRefusal =
+  | 'cycle'
+  | 'unchanged'
+  | 'not_found'
+  /** The new parent would contain, or sit inside, a row the dragged one has an edge with. */
+  | 'dependency_ancestor'
+  /** The dependencies already drawn would loop once expanded over the moved tree. */
+  | 'dependency_cycle';
+
+/**
+ * The row a drag is over and the zone the drop would land in, plus where the
+ * `Move under …` cue is drawn for a middle zone: the target row's bottom edge,
+ * in the table frame's scrolled coordinates.
+ */
+export interface DropHint {
+  rowId: string;
+  zone: DropZone;
+  cueTopPx: number;
+}
 
 /**
  * A resolved drop: exactly the two arguments `POST /work-items/:id/move` takes,
@@ -83,7 +103,9 @@ export function planMove(
   // which is also inside the subtree.
   // Proof: this line deleted and three tests failed — the drop onto itself, the
   // drop into its own subtree in all three zones, and the only-child case that
-  // then reported a move instead of `unchanged`.
+  // then reported a move instead of `unchanged`. Removed again on 2026-09-27,
+  // the `Move under …` cue showed over the dragged row's own child and the
+  // Move under… picker offered the row itself and its descendants.
   if (isWithin(parentIndexOf(rows), targetId, draggedId)) return { ok: false, reason: 'cycle' };
 
   const planned = resolve(rows, dragged, target, zone, targetShowsChildren);
@@ -98,6 +120,16 @@ export function planMove(
   const currentAfterId = currentGroup[currentIndex - 1]?.id ?? null;
   if (planned.parentId === dragged.parentId && planned.afterId === currentAfterId) {
     return { ok: false, reason: 'unchanged' };
+  }
+
+  // be-01 refuses a new parent the dependencies already drawn cannot survive
+  // (`canReparent`); asked here too so the drag can say why at once. A move
+  // among the same siblings changes no ancestry, so it is not asked.
+  // Proof: this refusal skipped, `refuses a move that would break a
+  // dependency, and sends nothing` failed with the move sent. Watched 2026-09-27.
+  if (planned.parentId !== dragged.parentId) {
+    const broken = moveRefusalFor(rows, draggedId, planned.parentId);
+    if (broken !== null) return { ok: false, reason: `dependency_${broken}` };
   }
 
   return { ok: true, ...planned };

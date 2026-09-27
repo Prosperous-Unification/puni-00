@@ -300,6 +300,13 @@ describe('a priority written up the tree reaches the leaves', () => {
  * The project still finishes at 12.5 and no estimated slice changed length.
  * What moved is who waits behind whom, which is exactly what a reach decides —
  * and the pin is here so that a change to *priority* cannot move it silently.
+ *
+ * **Re-derived a fourth time at `unestimated-steps-take-no-schedule-time`
+ * (2026-09-27).** `c-p1/role-qa` is unestimated and takes no schedule time
+ * again, so it stands at 4→4 behind its `Dev` and occupies `sam` for nothing.
+ * `c-parent` ends on day 4, `c-d` runs 4→7, `sam` takes `c-a/role-qa` 7→8
+ * and `c-c/role-dev` 8→10.5 behind its predecessor rather than behind a
+ * queue, and the project finishes at 10.5. `waitingForPerson` goes 4 → 2.
  */
 const CONTENTION_ROWS: readonly PlannedRow[] = [
   item('c-a'),
@@ -412,9 +419,9 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         estimated: true,
         earliestStart: 7,
         earliestFinish: 9,
-        latestStart: 11,
-        latestFinish: 13,
-        float: 4,
+        latestStart: 8.5,
+        latestFinish: 10.5,
+        float: 1.5,
         critical: false,
         personId: 'kat',
         boundBy: 'person',
@@ -428,15 +435,15 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         effort: 2.5,
         width: 1,
         estimated: true,
-        earliestStart: 10,
-        earliestFinish: 12.5,
-        latestStart: 10.5,
-        latestFinish: 13,
-        float: 0.5,
-        critical: false,
+        earliestStart: 8,
+        earliestFinish: 10.5,
+        latestStart: 8,
+        latestFinish: 10.5,
+        float: 0,
+        critical: true,
         personId: 'sam',
-        boundBy: 'person',
-        resourcePredecessorId: 'c-p1/step-qa',
+        boundBy: 'predecessor',
+        resourcePredecessorId: null,
         capacityPredecessorIds: [],
       },
       'c-d/step-dev': {
@@ -446,12 +453,12 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         effort: 3,
         width: 1,
         estimated: true,
-        earliestStart: 10,
-        earliestFinish: 13,
-        latestStart: 10,
-        latestFinish: 13,
-        float: 0,
-        critical: true,
+        earliestStart: 4,
+        earliestFinish: 7,
+        latestStart: 7.5,
+        latestFinish: 10.5,
+        float: 3.5,
+        critical: false,
         personId: 'ro',
         boundBy: 'predecessor',
         resourcePredecessorId: null,
@@ -482,15 +489,15 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         effort: 0,
         width: 1,
         estimated: false,
-        earliestStart: 8,
-        earliestFinish: 10,
-        latestStart: 8,
-        latestFinish: 10,
-        float: 0,
-        critical: true,
+        earliestStart: 4,
+        earliestFinish: 4,
+        latestStart: 7.5,
+        latestFinish: 7.5,
+        float: 3.5,
+        critical: false,
         personId: 'sam',
-        boundBy: 'person',
-        resourcePredecessorId: 'c-a/step-qa',
+        boundBy: 'stepOrder',
+        resourcePredecessorId: null,
         capacityPredecessorIds: [],
       },
       'c-p2/step-dev': {
@@ -502,9 +509,9 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         estimated: true,
         earliestStart: 0,
         earliestFinish: 1,
-        latestStart: 9,
-        latestFinish: 10,
-        float: 9,
+        latestStart: 6.5,
+        latestFinish: 7.5,
+        float: 6.5,
         critical: false,
         personId: 'ro',
         boundBy: 'projectStart',
@@ -539,38 +546,38 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         estimated: true,
         earliestStart: 7,
         earliestFinish: 9,
-        latestStart: 11,
-        latestFinish: 13,
-        float: 4,
+        latestStart: 8.5,
+        latestFinish: 10.5,
+        float: 1.5,
         critical: false,
       },
       'c-c': {
         duration: 2.5,
         estimated: true,
-        earliestStart: 10,
-        earliestFinish: 12.5,
-        latestStart: 10.5,
-        latestFinish: 13,
-        float: 0.5,
-        critical: false,
+        earliestStart: 8,
+        earliestFinish: 10.5,
+        latestStart: 8,
+        latestFinish: 10.5,
+        float: 0,
+        critical: true,
       },
       'c-d': {
         duration: 3,
         estimated: true,
-        earliestStart: 10,
-        earliestFinish: 13,
-        latestStart: 10,
-        latestFinish: 13,
-        float: 0,
-        critical: true,
+        earliestStart: 4,
+        earliestFinish: 7,
+        latestStart: 7.5,
+        latestFinish: 10.5,
+        float: 3.5,
+        critical: false,
       },
       'c-p1': {
         duration: 4,
         estimated: true,
         earliestStart: 0,
-        earliestFinish: 10,
+        earliestFinish: 4,
         latestStart: 0,
-        latestFinish: 10,
+        latestFinish: 7.5,
         float: 0,
         critical: true,
       },
@@ -579,28 +586,27 @@ describe('a plan that priorities nothing is scheduled exactly as it was', () => 
         estimated: true,
         earliestStart: 0,
         earliestFinish: 1,
-        latestStart: 9,
-        latestFinish: 10,
-        float: 9,
+        latestStart: 6.5,
+        latestFinish: 7.5,
+        float: 6.5,
         critical: false,
       },
       'c-parent': {
         duration: 0,
         estimated: true,
         earliestStart: 0,
-        earliestFinish: 10,
+        earliestFinish: 4,
         latestStart: 0,
-        latestFinish: 10,
+        latestFinish: 7.5,
         float: 0,
         critical: true,
       },
     });
 
-    // Three, not two, since `assumed-duration-schedules`: `c-p1`'s unestimated
-    // `QA` now occupies `sam` for two workdays and therefore queues behind
-    // `sam`'s other work, which is a third row the reader is told is waiting
-    // for a person. The count is honest about a slice that really is held.
-    expect(found.waitingForPerson).toBe(4);
+    // Two: `kat`'s `c-a` and `c-b`. `c-p1`'s unestimated `QA` takes no time
+    // and occupies nobody, and `c-c` now waits for its predecessor rather than
+    // for `sam`.
+    expect(found.waitingForPerson).toBe(2);
   });
 });
 
@@ -618,7 +624,7 @@ describe('a contention tie falls to tree order', () => {
    * `010`, which a byte-wise comparison of numbers orders the other way round.
    *
    * A plan whose numbers agree with its positions cannot separate the two
-   * rules, which is why every one of the eight golden-corpus cases stayed green
+   * rules, which is why every one of the then eight golden-corpus cases stayed green
    * when tree order was deliberately reversed. Measured, not assumed
    * (2026-09-11): that injection moved **nothing** across all 629 domain tests.
    */

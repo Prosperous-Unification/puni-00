@@ -483,5 +483,5 @@ describe('finite evidence artifact validation production CLI', () => {
     // Proof: this test runs the production CLI four times in sequence and timed out at 5009.20ms
     // under Bun's 5-second default (`Expected: 1`, `Received: null`) on 2026-09-20, while two other
     // suites loaded the machine; alone the file passed 9 of 9 in 18.72s.
-  }, 20_000);
+  }, 45_000);
 });

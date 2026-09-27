@@ -1,5 +1,5 @@
 {
-  "contractVersion": 10,
+  "contractVersion": 11,
   "cases": {
     "drift-above-a-whole-workday": {
       "units": 48,
@@ -17,8 +17,8 @@
       "units": 24,
       "rounded": false
     },
-    "unestimated-takes-the-assumption-whole": {
-      "units": 96,
+    "unestimated-crosses-as-zero": {
+      "units": 0,
       "rounded": false
     },
     "explicit-zero": {

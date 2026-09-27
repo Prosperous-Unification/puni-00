@@ -129,3 +129,92 @@ that no staged store, announcement collector or working plan is shared between t
 - **GIVEN** two command batches admitted in turn
 - **WHEN** each builds its writing services
 - **THEN** neither sees the other's staged stores or collected announcements
+
+### Requirement: Optimization persistence uses neutral repository ports
+
+The Optimization coordinator and child lifecycle SHALL access optimization persistence through neutral repository ports. Their production module files SHALL NOT import SQLite database types, transactional event-log types, or SQLite repository implementations.
+
+#### Scenario: Composition supplies persistence
+
+- **GIVEN** an Optimization installation supplied with an `OptimizationRepository`
+- **WHEN** a plan read, Retry, child heartbeat, outcome, release, or reconciliation performs persistence
+- **THEN** it uses that supplied repository
+- **AND** omitting the repository prevents coordinator resolution.
+
+### Requirement: Optimization extraction preserves transaction boundaries
+
+Each repository operation SHALL preserve its existing transactional unit and transaction mode. Retry eligibility, reservation, and queue admission SHALL remain one immediate transaction. Outcome storage and durable event recording SHALL remain one transaction. Outcome recording and slot release SHALL remain separate transactions.
+
+#### Scenario: Retry holds writer ownership before eligibility-dependent admission
+
+- **GIVEN** a retryable marker and a competing SQLite writer
+- **WHEN** Retry reaches token creation
+- **THEN** Retry already holds SQLite writer ownership
+- **AND** it reserves or queues without replacing the marker.
+
+#### Scenario: Event recording fails
+
+- **GIVEN** an otherwise admissible outcome
+- **WHEN** durable event recording throws
+- **THEN** cache, event-log, and event-sequencer changes from that outcome transaction are rolled back
+- **AND** no live outcome push is invoked.
+
+### Requirement: Attempts retain fenced ownership
+
+A solver attempt SHALL acquire its counted slot before spawning. Bind, heartbeat, outcome publication, and release SHALL respect the attempt token. Cancellation and generation replacement SHALL retain counted slots until terminal evidence or stored-deadline reclamation.
+
+#### Scenario: Two coordinators read the same missing variant
+
+- **GIVEN** one coordinator holds an unexpired slot for a variant
+- **WHEN** another coordinator reads that same variant
+- **THEN** it starts no additional launcher for the occupied slot
+- **AND** the original token remains its owner.
+
+#### Scenario: Input returns to an earlier hash
+
+- **GIVEN** an attempt admitted for input A
+- **WHEN** generation allocation observes B and then A
+- **AND** the first attempt completes before observing cancellation
+- **THEN** it creates no cache outcome or durable outcome event.
+
+#### Scenario: Cancellation is followed by re-enabling
+
+- **GIVEN** an admitted attempt
+- **WHEN** optimization is switched OFF and then ON
+- **AND** the old attempt completes before its next heartbeat
+- **THEN** the old cancel epoch prevents its outcome and event from being recorded.
+
+#### Scenario: Kill has not completed
+
+- **GIVEN** heartbeat cancellation has requested child termination
+- **WHEN** child exit evidence has not completed and the admitted deadline has not been reached
+- **THEN** the slot remains counted.
+
+### Requirement: Restart preserves recovery work
+
+A replacement coordinator SHALL preserve valid queued work behind retained attempts, SHALL NOT adopt those attempts, and SHALL recover closed drains using stored admission deadlines.
+
+#### Scenario: Queue survives an orphan
+
+- **GIVEN** valid queued work blocked by a retained matching slot
+- **WHEN** a replacement coordinator pumps before that slot is releasable
+- **THEN** the entry remains queued
+- **AND WHEN** release or reclamation makes it admissible and a pump runs
+- **THEN** it starts with a fresh attempt token.
+
+#### Scenario: Restart completes an abandoned drain
+
+- **GIVEN** a closed drain whose owner crashed while holding slots
+- **WHEN** reconciliation runs at or after those slots' stored admitted deadlines
+- **THEN** it reclaims the eligible slots and finishes the drain
+- **AND** it does not reopen admission.
+
+### Requirement: Optimization interleavings have executable negative proofs
+
+The repository-port extraction SHALL include an independent asynchronous reference model driving production coordinator, lifecycle, and SQLite adapter paths with controlled scheduling and time.
+
+#### Scenario: Safety and recovery dependencies are sabotaged
+
+- **WHEN** generation fencing, exclusive acquisition, cancellation fencing, release, or restart recovery is deliberately broken in a production path
+- **THEN** a recorded model trace fails its corresponding invariant or bounded recovery assertion
+- **AND** restoring the production behavior makes that trace pass.

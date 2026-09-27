@@ -291,6 +291,8 @@ function answerBatch(
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'not_before_reason_needs_a_date':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
+    case 'work_item_takes_one_type':
+      return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'invalid_kind':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'nothing_to_change':

@@ -1,10 +1,25 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { closeSync, openSync } from 'node:fs';
 
 import { Database } from 'bun:sqlite';
+
+import {
+  McpStoreRefused,
+  migrateMcpStore,
+  readCredentialEpoch,
+  SUPPORTED_CREDENTIAL_EPOCH,
+} from './store-migrations';
 
 const VERSION = 1;
 const NONCE_BYTES = 12;
 type Row = Record<string, string | number | Uint8Array | null>;
+
+/** The organization a credential acts for, with the stable WBS user and upstream issuer. */
+export interface CredentialBinding {
+  readonly organizationId: string;
+  readonly userId: string;
+  readonly issuer: string;
+}
 
 export interface FamilyInput {
   readonly familyId: string;
@@ -16,8 +31,11 @@ export interface FamilyInput {
   readonly upstreamExpiresAt: number;
   readonly idleExpiresAt: number;
   readonly absoluteExpiresAt: number;
+  /** Omitted for legacy epoch-0 issuance; the store stamps the durable epoch either way. */
+  readonly binding?: CredentialBinding;
 }
 export interface FamilyRecord extends FamilyInput {
+  readonly credentialEpoch: number;
   readonly upstreamRefreshedAt: number | null;
   readonly revokedAt: number | null;
   readonly leaseOwner: string | null;
@@ -34,24 +52,41 @@ export type RefreshOutcome =
 export class McpSessionStore {
   private readonly db: Database;
 
+  /**
+   * Opens the store, migrates it and validates the credential epoch before anything is served.
+   * Only an absent path is created (task 1.6's pre-activation exception); an existing empty,
+   * partial, unreadable or corrupt file, and any epoch this release does not understand, throw.
+   */
   constructor(
     path: string,
     private readonly keys: readonly Buffer[],
   ) {
     if (keys.length === 0 || keys.some((key) => key.length !== 32))
       throw new Error('MCP_STORE_KEY_CURRENT must decode to exactly 32 bytes');
+    let db: Database | undefined;
     try {
-      this.db = new Database(path, { create: true, strict: true });
-      this.db.run('PRAGMA busy_timeout = 5000');
-      this.db.run('PRAGMA journal_mode = WAL');
-      this.db.run('PRAGMA foreign_keys = ON');
-      this.db.run('PRAGMA synchronous = FULL');
-      // Bun deprecates exec, but run accepts one statement and this startup migration is intentionally atomic text.
-      // eslint-disable-next-line @typescript-eslint/no-deprecated -- multi-statement schema boundary
-      this.db.exec(SCHEMA);
+      const created = path === ':memory:' || createdAbsent(path);
+      db = new Database(path, { create: false, readwrite: true, strict: true });
+      db.run('PRAGMA busy_timeout = 5000');
+      db.run('PRAGMA journal_mode = WAL');
+      db.run('PRAGMA foreign_keys = ON');
+      db.run('PRAGMA synchronous = FULL');
+      migrateMcpStore(db, created);
+      const epoch = readCredentialEpoch(db);
+      // Proof: 2026-09-27, with this check removed `refuses startup on a unsupported epoch without
+      // reseeding` opened a store at epoch 1.
+      if (epoch !== SUPPORTED_CREDENTIAL_EPOCH)
+        throw new McpStoreRefused(
+          `MCP credential epoch ${String(epoch)} needs organization-aware mcp-01`,
+        );
     } catch (cause) {
-      throw new Error(`MCP_STORE_PATH is unreadable or corrupt: ${path}`, { cause });
+      db?.close();
+      const reason = cause instanceof Error ? cause.message : String(cause);
+      throw new Error(`MCP_STORE_PATH is unreadable, corrupt or refused: ${path}: ${reason}`, {
+        cause,
+      });
     }
+    this.db = db;
   }
 
   close(): void {
@@ -69,8 +104,10 @@ export class McpSessionStore {
         .query(
           `INSERT INTO mcp_family (
         family_id, client_id, subject, scope, upstream_access_ct, upstream_refresh_ct,
-        upstream_expires_at, idle_expires_at, absolute_expires_at, version
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+        upstream_expires_at, idle_expires_at, absolute_expires_at, version,
+        organization_id, user_id, issuer, credential_epoch
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?,
+        (SELECT epoch FROM mcp_credential_epoch WHERE singleton = 1))`,
         )
         .run(
           input.familyId,
@@ -84,6 +121,9 @@ export class McpSessionStore {
           input.upstreamExpiresAt,
           input.idleExpiresAt,
           input.absoluteExpiresAt,
+          input.binding?.organizationId ?? null,
+          input.binding?.userId ?? null,
+          input.binding?.issuer ?? null,
         );
       this.insertSession(jti, input.familyId, sessionExpiresAt);
       this.insertRefresh(refreshToken, input.familyId, input.absoluteExpiresAt);
@@ -313,10 +353,17 @@ export class McpSessionStore {
     return row === null ? null : this.familyOf(row);
   }
 
+  /** Copies the family's binding and epoch; the insert trigger rejects a stale epoch. */
   private insertSession(jti: string, familyId: string, expiresAt: number): void {
-    this.db
-      .query('INSERT INTO mcp_session (jti, family_id, expires_at) VALUES (?, ?, ?)')
-      .run(jti, familyId, expiresAt);
+    const inserted = this.db
+      .query(
+        `INSERT INTO mcp_session (
+        jti, family_id, expires_at, organization_id, user_id, issuer, credential_epoch
+      ) SELECT ?, family_id, ?, organization_id, user_id, issuer, credential_epoch
+        FROM mcp_family WHERE family_id = ?`,
+      )
+      .run(jti, expiresAt, familyId);
+    if (inserted.changes !== 1) throw new Error(`MCP family ${familyId} vanished mid-transaction`);
   }
   private insertRefresh(token: string, familyId: string, expiresAt: number): void {
     this.db
@@ -388,6 +435,8 @@ export class McpSessionStore {
         leaseOwner: row['lease_owner'] === null ? null : String(row['lease_owner']),
         leaseUntil: row['lease_until'] === null ? null : Number(row['lease_until']),
         version: Number(row['version']),
+        credentialEpoch: Number(row['credential_epoch']),
+        ...bindingOf(row),
       };
     } catch (cause) {
       this.revokeFamily(familyId, Date.now());
@@ -399,13 +448,35 @@ export class McpSessionStore {
   }
 }
 
+/**
+ * Creates `path` only if it is absent, so this start alone may initialize it. A file that already
+ * exists, even empty, belongs to an earlier or concurrent start and must be a valid store.
+ */
+function createdAbsent(path: string): boolean {
+  try {
+    closeSync(openSync(path, 'wx', 0o600));
+    return true;
+  } catch (cause) {
+    if (cause instanceof Error && 'code' in cause && cause.code === 'EEXIST') return false;
+    throw cause;
+  }
+}
+
+/** Reads a row's binding; the table CHECK makes the three columns all null or all set. */
+function bindingOf(row: Row): { binding?: CredentialBinding } {
+  const organizationId = row['organization_id'];
+  const userId = row['user_id'];
+  const issuer = row['issuer'];
+  if (organizationId === null && userId === null && issuer === null) return {};
+  if (
+    typeof organizationId !== 'string' ||
+    typeof userId !== 'string' ||
+    typeof issuer !== 'string'
+  )
+    throw new Error('MCP family binding is malformed');
+  return { binding: { organizationId, userId, issuer } };
+}
+
 function digestOf(token: string): Buffer {
   return createHash('sha256').update(token).digest();
 }
-
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS mcp_family (family_id TEXT PRIMARY KEY, client_id TEXT NOT NULL, subject TEXT NOT NULL, scope TEXT NOT NULL, upstream_access_ct BLOB NOT NULL, upstream_refresh_ct BLOB, upstream_expires_at INTEGER NOT NULL, upstream_refreshed_at INTEGER, idle_expires_at INTEGER NOT NULL, absolute_expires_at INTEGER NOT NULL, revoked_at INTEGER, lease_owner TEXT, lease_until INTEGER, version INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS mcp_session (jti TEXT PRIMARY KEY, family_id TEXT NOT NULL REFERENCES mcp_family(family_id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS mcp_refresh (token_digest BLOB PRIMARY KEY, family_id TEXT NOT NULL REFERENCES mcp_family(family_id) ON DELETE CASCADE, consumed_at INTEGER, expires_at INTEGER NOT NULL);
-CREATE INDEX IF NOT EXISTS mcp_session_family ON mcp_session(family_id);
-CREATE INDEX IF NOT EXISTS mcp_refresh_family ON mcp_refresh(family_id);`;

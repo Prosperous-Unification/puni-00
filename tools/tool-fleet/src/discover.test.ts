@@ -1243,7 +1243,9 @@ exit 98
     );
     expect(controllerInvocations).toContain('--network host');
     expect(controllerInvocations).toContain('timeout --signal=TERM --kill-after=0.1s');
-  }, 10_000);
+    // Budget measured 2026-09-27 (docs/test-budgets.md): 5.7s idle; on the loaded run it
+    // timed out at its old 10-second limit, so the new one is at least twice that.
+  }, 30_000);
 });
 
 it('commits strict uncached private inventories and a read-only machine identity playbook', async () => {
