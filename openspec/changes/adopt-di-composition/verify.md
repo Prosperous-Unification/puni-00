@@ -2351,8 +2351,8 @@ and Project; Realtime uses Event log; Bounded replay sweep uses Event log and Pl
 Authentication uses Account; Saved plans uses Saved plan persistence. Plan import remains in the
 boundary test's live debt ledger because its admitted initialization surface needs a separate
 slice covering both memory and SQLite source contracts. The new Plan event and Event log modules
-have README indexes and sealed module tests; wiki pilot registration is deferred because the
-frozen pilot revision has no predecessor for these new directories.
+have README indexes and sealed module tests, and register in the wiki pilot through their
+creation revisions (`36d5fa69c`, `12f47ce99`), as Plan import and Plan document do.
 
 Production-path negative proofs, each restored after the named test failed:
 
