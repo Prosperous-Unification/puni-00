@@ -12,7 +12,7 @@ import { rollbackTo } from './migrate-down';
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const STEP_CODE = '20260927150000_add_step_code';
 /** The one below it, which is where every rollback here stops. */
-const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
+const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
 
 let dir: string;
 let path: string;
@@ -122,7 +122,7 @@ describe(STEP_CODE, () => {
     });
     const before = readStepColumns().map((column) => column.name);
 
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([STEP_CODE]);
+    expect(rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toEqual([STEP_CODE]);
 
     expect(readStepColumns().map((column) => column.name)).toEqual(
       before.filter((name) => name !== 'code'),
@@ -156,6 +156,6 @@ describe(STEP_CODE, () => {
   it('refuses to roll back a schema whose code index is already gone', () => {
     withDatabase((sqlite) => sqlite.run('DROP INDEX step_project_code'));
 
-    expect(() => rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toThrow('step_project_code');
+    expect(() => rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toThrow('step_project_code');
   });
 });
