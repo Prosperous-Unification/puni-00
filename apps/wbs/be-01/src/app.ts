@@ -30,6 +30,7 @@ import type { BoundEndpoint } from './http/endpoint';
 import { identityResolver } from './http/identity';
 import { openApiPlugin } from './openapi/openapi-plugin';
 import type { DatabaseHealth } from './repository/health-probe';
+import { nodeDigest } from './runtime/bun-runtime';
 import type { AuthService } from './service/auth.service';
 import type { CalendarMarkerService } from './service/calendar-marker.service';
 import type { CapacityService } from './service/capacity.service';
@@ -243,7 +244,7 @@ export function mountedEndpoints(
       opts.clock,
       opts.optimizer,
     ),
-    ...workItemRoutes(opts.workItems, commands),
+    ...workItemRoutes(opts.workItems, commands, nodeDigest),
     ...calendarMarkerRoutes(opts.calendarMarkers),
     ...savedPlanRoutes(opts.savedPlans, opts.projects, opts.writes.announcements),
     ...internalRoutes({
