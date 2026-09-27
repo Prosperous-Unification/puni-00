@@ -3952,7 +3952,8 @@ test.describe('the marker rule, measured in the columns it paints', () => {
       ).toEqual({ width: where.body.width, height: where.body.height });
       console.info(
         `[marker-pixel-oracle] rung=${String(rung)} body=${String(bodyDifference.width)}x${String(bodyDifference.height)} ` +
-          `changedPixels=${String(bodyDifference.changedPixels)} maxDelta=${String(bodyDifference.greatestChannelDelta)}`,
+          `changedPixels=${String(bodyDifference.changedPixels)} maxDelta=${String(bodyDifference.greatestChannelDelta)} ` +
+          `columns=${bodyDifference.differingColumns.join(',')}`,
       );
       expect(
         bodyDifference.greatestChannelDelta,
