@@ -569,6 +569,46 @@ export const getWorkItems = defineEndpointShape({
   document: { summary: 'Read the project work-item tree.' },
 });
 
+/** Resolves a readable step address against the revision returned by the work-item read. */
+export const getStepReference = defineEndpointShape({
+  method: 'GET',
+  path: '/api/projects/:id/step-references',
+  operationId: 'getApiProjectsByIdStep-references',
+  policies: readPolicies,
+  params,
+  query: requestSchema(type({ reference: 'string', revision: 'string' })),
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(
+        type({ stepNodeId: 'string', workItemId: 'string', stepId: 'string', reference: 'string' }),
+      ),
+    },
+  ],
+  refusals: [
+    ...genericRefusals,
+    { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+    {
+      status: 409,
+      schema: responseSchema(
+        type({ error: "'stale_address_revision'", addressRevision: 'string' }),
+      ),
+    },
+    {
+      status: 422,
+      schema: responseSchema(
+        type({
+          error: "'unresolvable_reference'",
+          reason:
+            "'malformed' | 'unknown_work_item' | 'parent' | 'unknown_code' | 'alias_mismatch'",
+        }),
+      ),
+    },
+  ],
+  document: { summary: 'Resolve a step reference at an address revision.' },
+});
+
 /** Applies every command kind atomically; semantic parsing precedes the 200-command cap. */
 export const applyProjectCommands = defineEndpointShape({
   method: 'POST',

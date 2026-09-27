@@ -1330,6 +1330,25 @@ export class WorkItemService {
     this.clock = opts.clock;
   }
 
+  /** Reads only effective numbers and project steps for revision-bound references. */
+  async addresses(projectId: string): Promise<{
+    workItems: { id: string; parentId: string | null; number: string }[];
+    steps: Step[];
+  } | null> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return null;
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const numbers = deriveNumbers(rows);
+    return {
+      workItems: rows.map((row) => {
+        const number = numbers.get(row.id);
+        if (number === undefined) throw new Error(`no effective number for work item ${row.id}`);
+        return { id: row.id, parentId: row.parentId, number };
+      }),
+      steps: await this.opts.projects.stepsOf(projectId),
+    };
+  }
+
   /** Rebuild the canonical input a durable solver queue entry names. */
   async scheduleInput(projectId: string): Promise<ScheduleInput | null> {
     const project = await this.opts.projects.findById(projectId);

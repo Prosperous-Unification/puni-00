@@ -369,6 +369,13 @@ describe('toolsFromDocument, on the generated document', () => {
     });
   });
 
+  it('exposes revision-bound step resolution as a read tool', () => {
+    const resolve = byName(tools, 'getApiProjectsByIdStep-references');
+    expect(resolve.method).toBe('get');
+    expect(resolve.path).toBe('/api/projects/{id}/step-references');
+    expect(resolve.inputSchema.required).toEqual(['id', 'reference', 'revision']);
+  });
+
   it('derives a write with path parameters and a body from both sides', () => {
     // The step rename: two path parameters and a typebox body. Until
     // `plan-commands` this read the estimate PUT, which is a batch command now.

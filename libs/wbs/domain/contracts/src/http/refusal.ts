@@ -267,6 +267,10 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
     nothing_to_undo: { detail: string | null };
     stale_undo: { detail: string | null };
+    stale_address_revision: { addressRevision: string };
+    unresolvable_reference: {
+      reason: 'malformed' | 'unknown_work_item' | 'parent' | 'unknown_code' | 'alias_mismatch';
+    };
     malformed: { field: 'body' | 'markerId' | 'date' | 'name' | 'color' };
     contrast: { field: 'color' };
     quota: { refusal: Quota };
