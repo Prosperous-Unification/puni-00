@@ -285,9 +285,17 @@ describe('work item routes', () => {
       name: 'Review',
       code: 'review',
       position: 3000,
+      allowancePercent: 0,
     });
     const uncodedId = crypto.randomUUID();
-    seeded.push({ id: uncodedId, projectId, name: 'Legacy', code: null, position: 4000 });
+    seeded.push({
+      id: uncodedId,
+      projectId,
+      name: 'Legacy',
+      code: null,
+      position: 4000,
+      allowancePercent: 0,
+    });
     const firstId = await addWorkItem(send, token, projectId, { parentId: null, name: 'First' });
     const parentId = await addWorkItem(send, token, projectId, {
       parentId: null,
