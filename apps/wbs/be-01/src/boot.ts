@@ -1,6 +1,10 @@
 import { buildOidcVerifier } from '@wbs/auth';
 import type { Logger } from '@wbs/observability';
-import { openSqliteSource } from '@wbs/store-sqlite';
+import {
+  NO_BOUND_ORGANIZATION,
+  openSqliteSource,
+  SqliteOrganizationAccess,
+} from '@wbs/store-sqlite';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
 import { backfillStepCodes } from '@wbs/store-sqlite/step-code-backfill';
 import { DiBag } from 'di-bag';
@@ -177,6 +181,11 @@ export async function bootBe01(
               loginThrottle: services.loginThrottle,
               oidc: opts.oidc,
               projects: services.projects,
+              // Proof: wiring legacy access here instead made `refuses the
+              // project list after activation until a session binds an
+              // organization` in `boot.db.test.ts` receive 200 instead of 403;
+              // watched 2026-09-27.
+              organizations: new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION),
               steps: services.steps,
               calendarMarkers: services.calendarMarkers,
               workItems: services.workItems,

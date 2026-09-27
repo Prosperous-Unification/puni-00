@@ -12,7 +12,19 @@ export interface ProjectStore {
    * step to belong to, so the two are one transaction rather than two calls.
    */
   create(project: NewProject, steps: readonly Step[], stamp: WriteStamp): Promise<Project>;
+  /**
+   * {@link create} plus the project's organization mapping, in one transaction.
+   * Only an activated deployment's scoped creation calls it.
+   */
+  createInOrganization(
+    project: NewProject,
+    steps: readonly Step[],
+    stamp: WriteStamp,
+    organizationId: string,
+  ): Promise<Project>;
   findById(id: string): Promise<Project | null>;
+  /** {@link findById} confined to one organization; null alike for a foreign or absent id. */
+  findInOrganization(id: string, organizationId: string): Promise<Project | null>;
   findBySolutionSlug(slug: string): Promise<Project | null>;
   /** Every project, newest first. Readable by any account, so it is not filtered by owner. */
   list(): Promise<Project[]>;
@@ -30,6 +42,8 @@ export interface ProjectStore {
    * blank owner here would let a test pass against a list production refuses.
    */
   listFor(userId: string): Promise<ProjectWithAccess[]>;
+  /** {@link listFor} confined to one organization's projects. */
+  listForInOrganization(userId: string, organizationId: string): Promise<ProjectWithAccess[]>;
   /**
    * Records the acting account as having opened `projectId` at the stamp's
    * instant, replacing whatever moment was recorded before. Idempotent by the
@@ -42,8 +56,24 @@ export interface ProjectStore {
    * the act. Two names for one fact is how the two drift apart.
    */
   recordOpen(projectId: string, stamp: WriteStamp): Promise<void>;
+  /**
+   * {@link recordOpen} only while `organizationId` owns the project, checked in
+   * the write's own transaction; false, and nothing recorded, otherwise.
+   */
+  recordOpenInOrganization(
+    projectId: string,
+    stamp: WriteStamp,
+    organizationId: string,
+  ): Promise<boolean>;
   /** Returns null when the project is gone. */
   update(id: string, patch: ProjectPatch, stamp: WriteStamp): Promise<Project | null>;
+  /** {@link update} with the ownership predicate in the write; null when not the organization's. */
+  updateInOrganization(
+    id: string,
+    patch: ProjectPatch,
+    stamp: WriteStamp,
+    organizationId: string,
+  ): Promise<Project | null>;
   stepsOf(projectId: string): Promise<Step[]>;
   /**
    * Sets one step's allowance, moves that step's allowance revision by one and
