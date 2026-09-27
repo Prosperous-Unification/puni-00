@@ -2,7 +2,7 @@ import type * as React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
-import type { StepView } from '@/lib/wbs-api';
+import type { StepView, TypedDependencyView } from '@/lib/wbs-api';
 import type { PlanCommands } from '@/modules/plan-commands/contract';
 import type { BusyWrites } from '@/modules/plan-writer/busy-store';
 
@@ -32,6 +32,7 @@ export function usePlanDependencies({
   setDepPicker,
   run,
   steps,
+  typedDependencies,
 }: {
   flat: TreeRow[];
   pushToast: (toast: Toast) => void;
@@ -50,10 +51,16 @@ export function usePlanDependencies({
   isCurrent: () => boolean;
   refreshOrMarkStale: (scope?: PlanReadScope) => Promise<void>;
   setDepPicker: React.Dispatch<
-    React.SetStateAction<{ rowId: string; typed: string; highlightId: string | null } | null>
+    React.SetStateAction<{
+      rowId: string;
+      typed: string;
+      highlightId: string | null;
+      stepId?: string;
+    } | null>
   >;
   run: RunPlanWrite;
   steps: StepView[];
+  typedDependencies: readonly TypedDependencyView[];
 }) {
   /**
    * The callbacks the cells use, read through a ref rather than closed over.
@@ -197,8 +204,20 @@ export function usePlanDependencies({
    */
   const depEntriesFor = useCallback(
     (forRow: { id: string; dependsOn: readonly string[] }, typed: string) =>
-      pickerEntries(flat, forRow, typed),
-    [flat],
+      pickerEntries(
+        flat,
+        {
+          id: forRow.id,
+          dependsOn: [
+            ...forRow.dependsOn,
+            ...typedDependencies
+              .filter((dependency) => dependency.successor.workItemId === forRow.id)
+              .map((dependency) => dependency.predecessor.workItemId),
+          ],
+        },
+        typed,
+      ),
+    [flat, typedDependencies],
   );
 
   /**
@@ -215,7 +234,12 @@ export function usePlanDependencies({
         current === null ? null : { ...current, typed: '', highlightId: null },
       );
       return run((write) =>
-        write.perform(['tree'], () => commands.addDependency(successorId, predecessorId)),
+        write.perform(['tree'], () =>
+          commands.addTypedDependency(
+            { scope: 'whole', workItemId: predecessorId },
+            { scope: 'whole', workItemId: successorId },
+          ),
+        ),
       );
     },
     [commands, run, setDepPicker],

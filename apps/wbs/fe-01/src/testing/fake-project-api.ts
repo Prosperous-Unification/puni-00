@@ -13,6 +13,7 @@ import type {
   EstimateMethod,
   ProjectApi,
   StepView,
+  TypedDependencyView,
   UndoResult,
   WorkItemView,
 } from '@/lib/wbs-api';
@@ -128,6 +129,8 @@ export function fakeProjectApi(): ProjectApi & {
    * of the API, and be-01's answer side has no `null` in it.
    */
   const markers: CalendarMarkerView[] = [];
+  const typedDependencies: TypedDependencyView[] = [];
+  let nextDependencyId = 0;
   /** Minted here when the caller names none, as be-01 mints one. */
   let nextMarkerId = 0;
   const markerAt = (markerId: string): CalendarMarkerView => {
@@ -457,6 +460,7 @@ export function fakeProjectApi(): ProjectApi & {
       // The sequence advances with every mutation, the way be-01's does, so a
       // test that asserts what the stream was told is asserting something real.
       const plan = {
+        typedDependencies: typedDependencies.map((dependency) => ({ ...dependency })),
         workItems: rows.map((r) => ({
           ...r,
           projectId,
@@ -1075,6 +1079,59 @@ export function fakeProjectApi(): ProjectApi & {
     removeDependency(id, predecessorId) {
       const at = edges.findIndex((e) => e.predecessorId === predecessorId && e.successorId === id);
       if (at >= 0) edges.splice(at, 1);
+      renumber();
+      return Promise.resolve();
+    },
+    addTypedDependency(_projectId, predecessor, successor) {
+      typedDependencies.push({
+        id: `dependency-${String(++nextDependencyId)}`,
+        predecessor:
+          predecessor.scope === 'node'
+            ? {
+                ...predecessor,
+                workItemId: predecessor.stepNodeId.split('.')[1] ?? '',
+                stepId: predecessor.stepNodeId.split('.')[2],
+              }
+            : predecessor,
+        successor:
+          successor.scope === 'node'
+            ? {
+                ...successor,
+                workItemId: successor.stepNodeId.split('.')[1] ?? '',
+                stepId: successor.stepNodeId.split('.')[2],
+              }
+            : successor,
+        type: 'FS',
+      });
+      renumber();
+      return Promise.resolve();
+    },
+    updateTypedDependency(_projectId, dependencyId, predecessor, successor) {
+      const dependency = typedDependencies.find((candidate) => candidate.id === dependencyId);
+      if (dependency === undefined) return Promise.reject(new Error('not_found'));
+      dependency.predecessor =
+        predecessor.scope === 'node'
+          ? {
+              ...predecessor,
+              workItemId: predecessor.stepNodeId.split('.')[1] ?? '',
+              stepId: predecessor.stepNodeId.split('.')[2],
+            }
+          : predecessor;
+      dependency.successor =
+        successor.scope === 'node'
+          ? {
+              ...successor,
+              workItemId: successor.stepNodeId.split('.')[1] ?? '',
+              stepId: successor.stepNodeId.split('.')[2],
+            }
+          : successor;
+      renumber();
+      return Promise.resolve();
+    },
+    removeTypedDependency(_projectId, dependencyId) {
+      const at = typedDependencies.findIndex((dependency) => dependency.id === dependencyId);
+      if (at < 0) return Promise.reject(new Error('not_found'));
+      typedDependencies.splice(at, 1);
       renumber();
       return Promise.resolve();
     },

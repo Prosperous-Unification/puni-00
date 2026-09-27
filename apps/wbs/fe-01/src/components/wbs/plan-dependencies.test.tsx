@@ -1,10 +1,10 @@
-import { act, createEvent, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, createEvent, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectApi, WorkItemView } from '@/lib/wbs-api';
-import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
-import { DEV, fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
+import { DEFAULT_PERT_WEIGHTS_VIEW, WbsRequestError } from '@/lib/wbs-api';
+import { DEV, fakeProjectApi as fakeApi, QA } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
@@ -139,14 +139,248 @@ async function threeRoots() {
       expect(screen.getByLabelText(`Name of ${number}`)).toHaveProperty('value', name);
     });
   }
+  await screen.findByRole('button', { name: 'Unfold Dev estimates' });
   unfoldStep('Dev');
   return api;
 }
 
 describe('dependencies in the table', () => {
+  itDom('commits one whole FS relationship when a search result is clicked', async () => {
+    const api = await threeRoots();
+    const added = recordCalls(api, 'addTypedDependency');
+    const removed = recordCalls(api, 'removeTypedDependency');
+    fireEvent.focus(screen.getByLabelText('Add a dependency to 020'));
+    fireEvent.click(screen.getByRole('option', { name: '010 - Strip' }));
+    await waitFor(() => {
+      expect(added).toHaveLength(1);
+    });
+    expect(added[0]).toEqual([
+      'p1',
+      { scope: 'whole', workItemId: api.rows[0]?.id },
+      { scope: 'whole', workItemId: api.rows[1]?.id },
+    ]);
+    const chip = await screen.findByRole('button', {
+      name: /Edit dependency: whole work item 010 Strip finishes before whole work item 020 Sand starts/,
+    });
+    expect(chip.textContent).toBe('010 FS');
+    expect(screen.queryByRole('option', { name: '010 - Strip' })).toBeNull();
+    fireEvent.click(chip);
+    expect(screen.getByRole('dialog', { name: 'Customize dependency' })).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    await waitFor(() => {
+      expect(removed).toHaveLength(1);
+    });
+  });
+
+  itDom('saves an edited chip as one update command', async () => {
+    const api = await threeRoots();
+    const updated = recordCalls(api, 'updateTypedDependency');
+    fireEvent.focus(screen.getByLabelText('Add a dependency to 020'));
+    fireEvent.click(screen.getByRole('option', { name: '010 - Strip' }));
+    const chip = await screen.findByRole('button', {
+      name: /Edit dependency: whole work item 010 Strip finishes before whole work item 020 Sand starts/,
+    });
+    fireEvent.click(chip);
+    fireEvent.change(screen.getByLabelText('Predecessor'), { target: { value: DEV.id } });
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Customize dependency' })).getByRole('button', {
+        name: 'Save',
+      }),
+    );
+    await waitFor(() => {
+      expect(updated).toHaveLength(1);
+    });
+    expect(updated[0]?.[2]).toEqual({
+      scope: 'node',
+      stepNodeId: `sn1.${api.rows[0]?.id}.${DEV.id}`,
+    });
+  });
+
+  itDom('opens Customize without writing a dependency', async () => {
+    const api = await threeRoots();
+    const added = recordCalls(api, 'addTypedDependency');
+    fireEvent.focus(screen.getByLabelText('Add a dependency to 020'));
+    fireEvent.click(screen.getByRole('button', { name: 'Customize 010 - Strip' }));
+    expect(screen.getByRole('dialog', { name: 'Customize dependency' })).toBeDefined();
+    expect(added).toEqual([]);
+  });
+  itDom('keeps a refused editor open and explains a step cycle', async () => {
+    const api = await threeRoots();
+    api.addTypedDependency = () =>
+      Promise.reject(
+        new WbsRequestError({
+          kind: 'refusal',
+          operation: 'postApiProjectsByIdCommands',
+          refusal: { error: 'cycle', at: 0, kind: 'addTypedDependency' },
+        }),
+      );
+    fireEvent.focus(screen.getByLabelText('Add a dependency to 020'));
+    fireEvent.click(screen.getByRole('button', { name: 'Customize 010 - Strip' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Customize dependency' })).toBeDefined();
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByText('That dependency could not be added: it would make a loop.'),
+      ).toBeDefined();
+    });
+  });
+  itDom('starts from the QA cell with the same step id on both endpoints', async () => {
+    const api = await threeRoots();
+    const added = recordCalls(api, 'addTypedDependency');
+    const qaCell = screen.getByLabelText('QA estimate for 020').closest('[data-final]');
+    if (qaCell === null) throw new Error('Missing QA step cell');
+    fireEvent.mouseEnter(qaCell);
+    fireEvent.click(screen.getByRole('button', { name: 'Add dependency from QA' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Customize 010 - Strip' }));
+    expect(added).toEqual([]);
+    expect(screen.getByLabelText('Predecessor')).toHaveProperty('value', QA.id);
+    expect(screen.getByLabelText('This work item')).toHaveProperty('value', QA.id);
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => {
+      expect(added).toHaveLength(1);
+    });
+    expect(added[0]).toEqual([
+      'p1',
+      { scope: 'node', stepNodeId: `sn1.${api.rows[0]?.id}.${QA.id}` },
+      { scope: 'node', stepNodeId: `sn1.${api.rows[1]?.id}.${QA.id}` },
+    ]);
+  });
+  itDom(
+    'uses Enter for the default and Escape to return from Customize then close the picker',
+    async () => {
+      const api = await threeRoots();
+      const added = recordCalls(api, 'addTypedDependency');
+      const input = screen.getByLabelText('Add a dependency to 020');
+      fireEvent.focus(input);
+      fireEvent.keyDown(input, { key: 'ArrowDown' });
+      fireEvent.keyDown(input, { key: 'Enter' });
+      await waitFor(() => {
+        expect(added).toHaveLength(1);
+      });
+      expect(added[0]?.[1]).toEqual({ scope: 'whole', workItemId: api.rows[0]?.id });
+      const customize = screen.getByRole('button', { name: 'Customize 030 - Paint' });
+      expect(customize.tabIndex).toBe(0);
+      fireEvent.click(customize);
+      const editor = screen.getByRole('dialog', { name: 'Customize dependency' });
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Back to dependency picker' }),
+      );
+      expect(
+        [...editor.querySelectorAll('select')].map(
+          (selector) => selector.parentElement?.textContent,
+        ),
+      ).toEqual([
+        expect.stringContaining('Predecessor'),
+        expect.stringContaining('This work item'),
+        expect.stringContaining('Relationship'),
+      ]);
+      fireEvent.keyDown(editor, { key: 'Escape' });
+      expect(screen.queryByRole('dialog', { name: 'Customize dependency' })).toBeNull();
+      expect(document.activeElement).toBe(input);
+      fireEvent.keyDown(input, { key: 'Escape' });
+      expect(input.getAttribute('aria-expanded')).toBe('false');
+    },
+  );
+
+  itDom('proposes the same QA step from a QA cell and waits for Save', async () => {
+    const api = await threeRoots();
+    const added = recordCalls(api, 'addTypedDependency');
+    fireEvent.focus(screen.getByLabelText('QA estimate for 020'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add dependency from QA' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Customize 010 - Strip' }));
+    const dialog = screen.getByRole('dialog', { name: 'Customize dependency' });
+    const selectors = dialog.querySelectorAll('select');
+    expect(selectors[0].value).toBe(QA.id);
+    expect(selectors[1].value).toBe(QA.id);
+    expect(added).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => {
+      expect(added).toHaveLength(1);
+    });
+    expect(added[0]).toEqual([
+      'p1',
+      { scope: 'node', stepNodeId: `sn1.${api.rows[0]?.id}.${QA.id}` },
+      { scope: 'node', stepNodeId: `sn1.${api.rows[1]?.id}.${QA.id}` },
+    ]);
+  });
+
+  itDom('shows whole and node FS chips with complete accessible names', async () => {
+    const api = fakeApi();
+    const predecessor = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Strip',
+    });
+    const successor = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: predecessor.id,
+      name: 'Sand',
+    });
+    const predecessorId = predecessor.id;
+    const successorId = successor.id;
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'whole', workItemId: predecessorId },
+      { scope: 'whole', workItemId: successorId },
+    );
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'node', stepNodeId: `sn1.${predecessorId}.${DEV.id}` },
+      { scope: 'node', stepNodeId: `sn1.${successorId}.${DEV.id}` },
+    );
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Add a dependency to 020');
+    fireEvent.focus(screen.getByLabelText('Add a dependency to 020'));
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', {
+          name: /Edit dependency: whole work item 010 Strip finishes before whole work item 020 Sand starts/,
+        }).textContent,
+      ).toBe('010 FS');
+      expect(
+        screen.getByRole('button', {
+          name: /Edit dependency: Dev step of 010 Strip finishes before Dev step of 020 Sand starts/,
+        }).textContent,
+      ).toBe('010.dev FS → dev');
+    });
+  });
+
+  itDom('uses Enter for the default add and Escape to return from the editor', async () => {
+    const api = await threeRoots();
+    const added = recordCalls(api, 'addTypedDependency');
+    const input = screen.getByLabelText('Add a dependency to 020');
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => {
+      expect(added).toHaveLength(1);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Customize 030 - Paint' }));
+    const dialog = screen.getByRole('dialog', { name: 'Customize dependency' });
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Customize dependency' })).toBeNull();
+    expect(document.activeElement).toBe(input);
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByRole('listbox', { name: 'Work items 020 can depend on' })).toBeNull();
+  });
+
+  itDom('keeps a refused save visible in the editor', async () => {
+    const api = await threeRoots();
+    api.addTypedDependency = () => Promise.reject(new Error('cycle'));
+    fireEvent.focus(screen.getByLabelText('Add a dependency to 020'));
+    fireEvent.click(screen.getByRole('button', { name: 'Customize 010 - Strip' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    const dialog = screen.getByRole('dialog', { name: 'Customize dependency' });
+    await waitFor(() => {
+      expect(dialog.querySelector('[role="alert"]')?.textContent).toContain('Dependency refused');
+    });
+  });
   const dependOn = (rowNumber: string, predecessorNumber: string) => {
     const input = screen.getByLabelText(`Add a dependency to ${rowNumber}`);
-    fireEvent.change(input, { target: { value: predecessorNumber } });
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: `${predecessorNumber},` } });
     fireEvent.keyDown(input, { key: 'Enter' });
   };
 
@@ -624,6 +858,9 @@ describe('dependencies in the table', () => {
       }
     });
     fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
+    await waitFor(() => {
+      expect(screen.getByLabelText('Stop 030 waiting for 010').tabIndex).toBe(-1);
+    });
     return waited;
   };
 
@@ -980,7 +1217,11 @@ describe('picking dependencies from a list', () => {
     fireEvent.focus(input);
     fireEvent.click(screen.getByRole('option', { name: '010 - Strip' }));
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 020 waiting for 010')).toBeDefined();
+      expect(
+        screen.getByRole('button', {
+          name: /Edit dependency: whole work item 010 Strip finishes before whole work item 020 Sand starts/,
+        }),
+      ).toBeDefined();
     });
     // Still open, cleared, and no longer offering what was just taken.
     expect(optionTexts()).toEqual(['030 - Paint']);
@@ -994,7 +1235,11 @@ describe('picking dependencies from a list', () => {
     fireEvent.change(input, { target: { value: 'pa' } });
     fireEvent.keyDown(input, { key: 'Enter' });
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 020 waiting for 030')).toBeDefined();
+      expect(
+        screen.getByRole('button', {
+          name: /Edit dependency: whole work item 030 Paint finishes before whole work item 020 Sand starts/,
+        }),
+      ).toBeDefined();
     });
   });
 
@@ -1006,7 +1251,11 @@ describe('picking dependencies from a list', () => {
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     fireEvent.keyDown(input, { key: 'Enter' });
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 020 waiting for 030')).toBeDefined();
+      expect(
+        screen.getByRole('button', {
+          name: /Edit dependency: whole work item 030 Paint finishes before whole work item 020 Sand starts/,
+        }),
+      ).toBeDefined();
     });
   });
 
@@ -1116,7 +1365,11 @@ describe('picking dependencies from a list', () => {
     // dependsOn; edges only materialize through tree(), so the chip is also
     // the honest assertion.)
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 030 waiting for 040')).toBeDefined();
+      expect(
+        screen.getByRole('button', {
+          name: /Edit dependency: whole work item 040 Paint finishes before whole work item 030 Sand starts/,
+        }),
+      ).toBeDefined();
     });
   });
 
@@ -1526,7 +1779,7 @@ describe('dependencies in the table — cross-review findings', () => {
 describe('hovering a dependency lights the rows it names', () => {
   const dependOn = (rowNumber: string, predecessorNumber: string) => {
     const input = screen.getByLabelText(`Add a dependency to ${rowNumber}`);
-    fireEvent.change(input, { target: { value: predecessorNumber } });
+    fireEvent.change(input, { target: { value: `${predecessorNumber},` } });
     fireEvent.keyDown(input, { key: 'Enter' });
   };
 
@@ -1986,7 +2239,11 @@ describe('adding several dependencies at once', () => {
     typeDeps('030', '010');
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+      expect(
+        screen.getByRole('button', {
+          name: /Edit dependency: whole work item 010 Strip finishes before whole work item 030 Paint starts/,
+        }),
+      ).toBeDefined();
     });
     expect(screen.queryByRole('alert')).toBeNull();
   });

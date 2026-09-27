@@ -1,3 +1,7 @@
+import { useState } from 'react';
+
+import type { TypedDependencyEndpoint } from '@/lib/wbs-api';
+
 import { useCardOpenOn } from '../cell-card-store';
 import { PICKER_PANEL_STYLE } from '../creatable-picker';
 import { REFUSAL_SUFFIX } from '../dep-picker';
@@ -11,6 +15,7 @@ import {
   REFERENCE_SET_CHIP_CLASS,
   REFERENCE_SET_STRIP_STYLE,
 } from '../reference-set-field';
+import { dependencyWords, TypedDependencyEditor } from '../typed-dependency-editor';
 import { column } from './column';
 
 /** Builds the depends column family against the stable live cell contract. */
@@ -29,6 +34,14 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
       // name `cell` and cannot see the call site.
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const cardOpen = useCardOpenOn(live.current.cellCards, cellKey(row.original.id, 'depends'));
+      // This column's cell is rendered as a React component by flexRender.
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const [editing, setEditing] = useState<{
+        predecessorId: string;
+        dependencyId?: string;
+      } | null>(null);
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const [announcement, setAnnouncement] = useState('');
       // From the tree (`dependenciesOf` walks `flat`), never from the
       // rows on screen: a collapsed or filtered-out dependency has no row
       // to light, and the card naming it is then the only place it is
@@ -39,6 +52,9 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
       // "tooltip"` — the hidden dependency dropped, the cell left with
       // nothing to say. Watched, 2026-08-10.
       const waitingFor = row.original.readings.dependencies;
+      const typedDependencies = row.original.readings.typedDependencies;
+      const dependencyRows = row.original.readings.dependencyRows;
+      const dependencySteps = row.original.readings.dependencySteps;
       const dependsCell = cellKey(row.original.id, 'depends');
       // This cell's picker, or null while it is closed or under another row.
       const picker = row.original.readings.dependencyPicker;
@@ -61,7 +77,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
       // one 110px cell, and the one somebody is typing into is the one they
       // are looking at. `picker`, not `open`: a picker with nothing to
       // offer is still a cell being typed in.
-      const cardable = waitingFor.length > 0 && picker === null;
+      const cardable = (waitingFor.length > 0 || typedDependencies.length > 0) && picker === null;
       const carded = cardable && cardOpen;
       // What the card says, for a reader with no pointer. This cell cannot
       // answer a focus with the card the way the folded step cell does —
@@ -113,6 +129,9 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               {`Waiting for ${waitingFor.map(dependsLine).join(', ')}`}
             </span>
           )}
+          <span className="sr-only" aria-live="polite">
+            {announcement}
+          </span>
           {/*
                 The strip: the chips and the box, and nothing else — the
                 popovers below hang from the wrapper, because this box clips
@@ -469,6 +488,31 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 {number} ✕
               </button>
             ))}
+            {typedDependencies.map((dependency) => {
+              const words = dependencyWords(
+                dependency,
+                dependencyRows,
+                dependencySteps,
+                row.original.readings.dependencyStepNodes ?? undefined,
+              );
+              return (
+                <button
+                  key={dependency.id}
+                  type="button"
+                  className={`${REFERENCE_SET_CHIP_CLASS} border-0`}
+                  aria-label={`Edit dependency: ${words.label}`}
+                  tabIndex={picker === null ? -1 : undefined}
+                  onClick={() => {
+                    setEditing({
+                      predecessorId: dependency.predecessor.workItemId,
+                      dependencyId: dependency.id,
+                    });
+                  }}
+                >
+                  {words.chip}
+                </button>
+              );
+            })}
             <input
               aria-label={`Add a dependency to ${row.original.number}`}
               role="combobox"
@@ -503,11 +547,14 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               data-cell={cellKey(row.original.id, 'depends')}
               value={picker?.typed ?? ''}
               onFocus={() => {
-                live.current.setDepPicker({
+                live.current.setDepPicker((current) => ({
                   rowId: row.original.id,
                   typed: '',
                   highlightId: null,
-                });
+                  ...(current?.rowId === row.original.id && current.stepId !== undefined
+                    ? { stepId: current.stepId }
+                    : {}),
+                }));
                 // The keyboard's cell-level light — see {@link depFocus}.
                 // This is the reachable half: Tab through the plan lands on
                 // this box, and the rows the row waits for light while it
@@ -520,7 +567,12 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   }));
                 }
               }}
-              onBlur={() => {
+              onBlur={(event) => {
+                if (
+                  event.relatedTarget instanceof HTMLElement &&
+                  event.relatedTarget.closest('.typed-dependency-editor') !== null
+                )
+                  return;
                 live.current.setDepPicker((current) =>
                   current?.rowId === row.original.id ? null : current,
                 );
@@ -626,7 +678,13 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 if (e.key !== 'Enter') return;
                 e.preventDefault();
                 if (activeOption !== undefined) {
-                  void live.current.pickDependency(row.original.id, activeOption.id);
+                  void live.current
+                    .pickDependency(row.original.id, activeOption.id)
+                    .then((outcome) => {
+                      setAnnouncement(
+                        outcome === 'landed' ? 'Dependency added.' : 'Dependency refused.',
+                      );
+                    });
                   return;
                 }
                 // No highlight to take — the typed flow: one number or a
@@ -685,69 +743,209 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 // safe: options are not focusable, and the keyboard drives
                 // them from the input above through aria-activedescendant
                 // (ArrowUp/ArrowDown/Enter there).
-                // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+
                 <li
                   key={entry.id}
-                  id={`dep-option-${entry.id}`}
-                  role="option"
-                  aria-selected={entry.id === activeOption?.id}
+                  role="presentation"
                   data-status={entry.status}
                   // Shown and refused, rather than quietly absent: a row
                   // that vanishes from the list reads as a bug in the tool,
                   // and one that says why it cannot be picked teaches the
                   // shape of the plan.
-                  aria-disabled={entry.refusal !== undefined}
                   // The list scrolls; the highlighted entry must be where
                   // the eye is. jsdom has no scrollIntoView, hence the
                   // typeof — that boundary is the test environment, not a
                   // browser this will meet.
-                  ref={(element) => {
-                    if (
-                      entry.id === activeOption?.id &&
-                      element !== null &&
-                      typeof element.scrollIntoView === 'function'
-                    ) {
-                      element.scrollIntoView({ block: 'nearest' });
-                    }
-                  }}
                   style={{
-                    padding: '2px 6px',
-                    cursor: entry.refusal === undefined ? 'pointer' : 'default',
-                    whiteSpace: 'nowrap',
-                    color: entry.refusal === undefined ? undefined : 'var(--muted-foreground)',
-                    // A finished predecessor wears the status strip here as on
-                    // the card (`statusStripStyle`); the border replaces the
-                    // left padding so the text stays where it was.
+                    display: 'flex',
+                    alignItems: 'center',
                     ...statusStripStyle(entry.status),
-                    // No `background` here at all any more. `#e8f0fe` was
-                    // an inline style that outranked the stylesheet's own
-                    // `[data-grid] [role='option'][aria-selected='true']`
-                    // rule — which paints `var(--accent)` and has been
-                    // there all along — so the keyboard's highlight was a
-                    // fixed pale blue while the pointer's followed the
-                    // palette. One rule now answers for both.
-                  }}
-                  onClick={() => {
-                    if (entry.refusal !== undefined) return;
-                    void live.current.pickDependency(row.original.id, entry.id);
                   }}
                 >
-                  {/*
+                  <span
+                    id={`dep-option-${entry.id}`}
+                    role="option"
+                    aria-label={`${entry.number} - ${entry.name}${entry.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[entry.refusal]}`}`}
+                    aria-selected={entry.id === activeOption?.id}
+                    aria-disabled={entry.refusal !== undefined}
+                    tabIndex={-1}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') return;
+                      event.preventDefault();
+                      event.currentTarget.click();
+                    }}
+                    ref={(element) => {
+                      if (
+                        entry.id === activeOption?.id &&
+                        element !== null &&
+                        typeof element.scrollIntoView === 'function'
+                      ) {
+                        element.scrollIntoView({ block: 'nearest' });
+                      }
+                    }}
+                    style={{
+                      padding: '2px 6px',
+                      cursor: entry.refusal === undefined ? 'pointer' : 'default',
+                      whiteSpace: 'nowrap',
+                      color: entry.refusal === undefined ? undefined : 'var(--muted-foreground)',
+                      // A finished predecessor wears the status strip here as on
+                      // the card (`statusStripStyle`); the border replaces the
+                      // left padding so the text stays where it was.
+                      // No `background` here at all any more. `#e8f0fe` was
+                      // an inline style that outranked the stylesheet's own
+                      // `[data-grid] [role='option'][aria-selected='true']`
+                      // rule — which paints `var(--accent)` and has been
+                      // there all along — so the keyboard's highlight was a
+                      // fixed pale blue while the pointer's followed the
+                      // palette. One rule now answers for both.
+                    }}
+                    onClick={() => {
+                      if (entry.refusal !== undefined) return;
+                      void live.current
+                        .pickDependency(row.original.id, entry.id)
+                        .then((outcome) => {
+                          setAnnouncement(
+                            outcome === 'landed' ? 'Dependency added.' : 'Dependency refused.',
+                          );
+                        });
+                    }}
+                  >
+                    {/*
                         `010 - Strip the hull`, the way the plan is spoken
                         about: a space alone let a number and a name that starts
                         with a digit run together. The filter behind the list
                         already matches either half (`pickerEntries`).
                       */}
-                  {entry.number} - {entry.name}
-                  {entry.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[entry.refusal]}`}
+                    {entry.number} - {entry.name}
+                    {entry.refusal === undefined ? '' : ` — ${REFUSAL_SUFFIX[entry.refusal]}`}
+                  </span>
+                  <button
+                    type="button"
+                    className="typed-dependency-customize"
+                    aria-label={`Customize ${entry.number} - ${entry.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      // Proof: injecting pickDependency here made `opens Customize without writing
+                      // a dependency` fail: the API spy received one Whole→Whole write, expected [].
+                      // Watched 2026-09-27.
+                      setEditing({ predecessorId: entry.id });
+                    }}
+                  />
                 </li>
               ))}
             </ul>
           )}
+          {editing !== null &&
+            (() => {
+              const predecessor = dependencyRows.find(
+                (candidate) => candidate.id === editing.predecessorId,
+              );
+              if (predecessor === undefined)
+                throw new Error(`Missing predecessor ${editing.predecessorId}`);
+              const dependency = typedDependencies.find(
+                (candidate) => candidate.id === editing.dependencyId,
+              );
+              const close = () => {
+                setEditing(null);
+                document
+                  .querySelector<HTMLInputElement>(`[data-depends-input="${row.original.id}"]`)
+                  ?.focus();
+              };
+              return (
+                <TypedDependencyEditor
+                  predecessor={predecessor}
+                  successor={row.original}
+                  rows={dependencyRows}
+                  steps={dependencySteps}
+                  dependency={dependency}
+                  // Proof: forcing both editor defaults to whole made `starts from the QA cell
+                  // with the same step id on both endpoints` fail: predecessor was whole,
+                  // expected step-qa. Watched 2026-09-27.
+                  preferredStepId={picker?.stepId}
+                  availablePredecessorStepIds={row.original.readings.dependencyStepIdsByRow?.get(
+                    predecessor.id,
+                  )}
+                  onCancel={close}
+                  onSave={(source: TypedDependencyEndpoint, target: TypedDependencyEndpoint) =>
+                    live.current
+                      .run((write) =>
+                        write.perform(['tree'], () =>
+                          dependency === undefined
+                            ? live.current.commands.addTypedDependency(source, target)
+                            : live.current.commands.updateTypedDependency(
+                                dependency.id,
+                                source,
+                                target,
+                              ),
+                        ),
+                      )
+                      .then((outcome) => {
+                        setAnnouncement(
+                          outcome === 'landed'
+                            ? dependency === undefined
+                              ? 'Dependency added.'
+                              : 'Dependency updated.'
+                            : 'Dependency refused.',
+                        );
+                        return outcome;
+                      })
+                  }
+                  onRemove={
+                    dependency === undefined
+                      ? undefined
+                      : () =>
+                          live.current
+                            .run((write) =>
+                              write.perform(['tree'], () =>
+                                live.current.commands.removeTypedDependency(dependency.id),
+                              ),
+                            )
+                            .then((outcome) => {
+                              setAnnouncement(
+                                outcome === 'landed'
+                                  ? 'Dependency removed.'
+                                  : 'Dependency removal refused.',
+                              );
+                              return outcome;
+                            })
+                  }
+                />
+              );
+            })()}
           {carded && (
             <DependsCard
               number={row.original.number}
               entries={waitingFor}
+              typedEntries={typedDependencies.map((dependency) => ({
+                id: dependency.id,
+                label: dependencyWords(
+                  dependency,
+                  dependencyRows,
+                  dependencySteps,
+                  row.original.readings.dependencyStepNodes ?? undefined,
+                ).label,
+                onEdit: () => {
+                  setEditing({
+                    predecessorId: dependency.predecessor.workItemId,
+                    dependencyId: dependency.id,
+                  });
+                },
+                onRemove: () => {
+                  void live.current
+                    .run((write) =>
+                      write.perform(['tree'], () =>
+                        live.current.commands.removeTypedDependency(dependency.id),
+                      ),
+                    )
+                    .then((outcome) => {
+                      setAnnouncement(
+                        outcome === 'landed'
+                          ? 'Dependency removed.'
+                          : 'Dependency removal refused.',
+                      );
+                    });
+                },
+              }))}
               // This cell's pill hover and no other's: a card is only on
               // screen for the hovered cell, but the guard keeps a stale
               // `depHover` from another row emphasising an entry here.

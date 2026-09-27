@@ -103,6 +103,8 @@ export interface DependsCardProps {
   number: string;
   /** At least one: a cell with nothing in it opens no card. */
   entries: readonly DependsEntry[];
+  /** Authored relationships remain inspectable and editable without hovering their clipped chips. */
+  typedEntries?: readonly { id: string; label: string; onEdit: () => void; onRemove: () => void }[];
   /**
    * The entry whose pill the pointer is on, or null while the pointer is on
    * the cell's input area — where the whole list is the answer and no line is
@@ -152,6 +154,7 @@ export interface DependsCardProps {
 export function DependsCard({
   number,
   entries,
+  typedEntries = [],
   depLights,
   rowId,
   onPointEntry,
@@ -260,6 +263,21 @@ export function DependsCard({
     // (no Depends on cell but this card's own is under it now), and the
     // corridor's bounding box (see {@link dependencyPointerRegion}).
     <HoverCard label={`What ${number} waits for`}>
+      {typedEntries.map((dependency) => (
+        <div key={dependency.id} className="typed-dependency-card-entry">
+          <span>{dependency.label}</span>
+          <button type="button" onClick={dependency.onEdit} aria-label={`Edit ${dependency.label}`}>
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={dependency.onRemove}
+            aria-label={`Remove ${dependency.label}`}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
       {entries.map((entry) => (
         <div
           key={entry.id}

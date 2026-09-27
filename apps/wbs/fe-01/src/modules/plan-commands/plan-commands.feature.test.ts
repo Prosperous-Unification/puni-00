@@ -48,6 +48,9 @@ function recordingRoutes(): {
       arrangeBySchedule: (...args) => answer('arrangeBySchedule', args),
       freezeProject: (...args) => answer('freezeProject', args),
       unfreezeProject: (...args) => answer('unfreezeProject', args),
+      addTypedDependency: (...args) => answer('addTypedDependency', args),
+      updateTypedDependency: (...args) => answer('updateTypedDependency', args),
+      removeTypedDependency: (...args) => answer('removeTypedDependency', args),
       patchWorkItem: (...args) => answer('patchWorkItem', args),
       setStatus: (...args) => answer('setStatus', args),
       assignPerson: (...args) => answer('assignPerson', args),
@@ -92,6 +95,16 @@ describe('the plan commands of one project', () => {
       commands.arrangeBySchedule(),
       commands.freezeProject(),
       commands.unfreezeProject(),
+      commands.addTypedDependency(
+        { scope: 'whole', workItemId: 'w1' },
+        { scope: 'whole', workItemId: 'w2' },
+      ),
+      commands.updateTypedDependency(
+        'd1',
+        { scope: 'whole', workItemId: 'w1' },
+        { scope: 'whole', workItemId: 'w2' },
+      ),
+      commands.removeTypedDependency('d1'),
     ];
 
     expect(calls).toStrictEqual([
@@ -114,6 +127,20 @@ describe('the plan commands of one project', () => {
       ['arrangeBySchedule', 'p1'],
       ['freezeProject', 'p1'],
       ['unfreezeProject', 'p1'],
+      [
+        'addTypedDependency',
+        'p1',
+        { scope: 'whole', workItemId: 'w1' },
+        { scope: 'whole', workItemId: 'w2' },
+      ],
+      [
+        'updateTypedDependency',
+        'p1',
+        'd1',
+        { scope: 'whole', workItemId: 'w1' },
+        { scope: 'whole', workItemId: 'w2' },
+      ],
+      ['removeTypedDependency', 'p1', 'd1'],
     ]);
     // The route's own promise, not a wrapper: a refusal reaches the gesture as
     // the object be-01's client threw.

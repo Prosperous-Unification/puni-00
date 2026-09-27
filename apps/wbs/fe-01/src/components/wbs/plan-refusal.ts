@@ -536,6 +536,7 @@ export const PLAN_REFUSALS: RefusalWords = {
     // Reachable bare — the dependency **picker** takes one entry through `run`,
     // where the typed list composes its own sentence and keeps the word instead.
     cycle: 'That dependency could not be added: it would make a loop.',
+    dependency_cycle: 'That dependency would make a cycle between steps.',
     ancestor: 'That dependency could not be added: the row it names is already above this one.',
     // A move refused for the dependencies it would break, re-worded by
     // `translateMoveRefusal` because be-01 spells it with the two words above.

@@ -9,7 +9,13 @@ import {
   ModalTitle,
   ModalTrigger,
 } from '@/components/ui/modal';
-import type { Days, PriorityBandView, StepView } from '@/lib/wbs-api';
+import type {
+  Days,
+  PriorityBandView,
+  StepView,
+  TypedDependencyEndpoint,
+  TypedDependencyView,
+} from '@/lib/wbs-api';
 
 import { ActionsMenu, type MenuAction } from './actions-menu';
 import { CellInput } from './cell-input';
@@ -34,6 +40,7 @@ import { ReferenceSetSheet } from './reference-set-field';
 import { type PrintedDay, shortIsoDate } from './short-date';
 import { STATUS_LABEL } from './status-cell';
 import { cardIndentFor } from './table-frame';
+import { dependencyWords, TypedDependencyEditor } from './typed-dependency-editor';
 import type { TreeRow } from './wbs-rows';
 import { rowWords } from './work-item-words';
 
@@ -159,6 +166,19 @@ export interface PlanCardsProps {
    * "what does this row wait for" as soon as one of them is edited.
    */
   waitsFor: (row: TreeRow) => readonly DependencyEntry[];
+  /** Explicit relationships are listed beside legacy waits in the phone sheet. */
+  typedWaitsFor?: (row: TreeRow) => readonly TypedDependencyView[];
+  dependencyRows?: readonly TreeRow[];
+  saveTypedDependency?: (
+    dependencyId: string,
+    predecessor: TypedDependencyEndpoint,
+    successor: TypedDependencyEndpoint,
+  ) => Promise<CommitOutcome>;
+  addTypedDependency?: (
+    predecessor: TypedDependencyEndpoint,
+    successor: TypedDependencyEndpoint,
+  ) => Promise<CommitOutcome>;
+  removeTypedDependency?: (dependencyId: string) => Promise<CommitOutcome>;
   /**
    * The rows this one may be made to wait for, narrowed by what was typed, each
    * carrying the refusal be-01 would answer with.
@@ -1916,17 +1936,39 @@ function CardPriorityField({
 function CardDependsField({
   row,
   waits,
+  typedWaits,
+  dependencyRows,
+  steps,
+  saveTypedDependency,
+  addTypedDependency,
+  removeTypedDependency,
   options,
   addDependency,
   dropDependency,
 }: {
   row: TreeRow;
   waits: readonly DependencyEntry[];
+  typedWaits: readonly TypedDependencyView[];
+  dependencyRows: readonly TreeRow[];
+  steps: readonly StepView[];
+  saveTypedDependency?: (
+    dependencyId: string,
+    predecessor: TypedDependencyEndpoint,
+    successor: TypedDependencyEndpoint,
+  ) => Promise<CommitOutcome>;
+  addTypedDependency?: (
+    predecessor: TypedDependencyEndpoint,
+    successor: TypedDependencyEndpoint,
+  ) => Promise<CommitOutcome>;
+  removeTypedDependency?: (dependencyId: string) => Promise<CommitOutcome>;
   options: (row: TreeRow, typed: string) => readonly PickerEntry[];
   addDependency: (row: TreeRow, predecessorId: string) => Promise<CommitOutcome>;
   dropDependency: (row: TreeRow, predecessorId: string) => Promise<CommitOutcome>;
 }) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<{ predecessorId: string; dependencyId?: string } | null>(
+    null,
+  );
   const triggerRef = useTriggerAboveSheet(open);
   // What has been typed into the search box, cleared on every open and after
   // every pick. Not a draft of a value — nothing here is held back and sent
@@ -1994,12 +2036,25 @@ function CardDependsField({
           data-hint="What this work item waits for. It cannot start until these have finished."
           className={`${TAP} text-muted-foreground inline-flex max-w-full min-w-0 items-center text-left underline decoration-dotted underline-offset-2`}
         >
-          {waits.length === 0 ? (
+          {waits.length === 0 && typedWaits.length === 0 ? (
             // No `data-card-waits`: this row waits for nothing, and the
             // attribute is the waiting. What is drawn is the invitation.
             <span className="opacity-70">waits for…</span>
           ) : (
-            <span data-card-waits>waits for {waits.map((each) => each.number).join(', ')}</span>
+            <span data-card-waits>
+              waits for{' '}
+              {[
+                ...waits.map((each) => each.number),
+                ...typedWaits.map((dependency) => {
+                  const predecessor = dependencyRows.find(
+                    (candidate) => candidate.id === dependency.predecessor.workItemId,
+                  );
+                  if (predecessor === undefined)
+                    throw new Error(`Missing predecessor ${dependency.predecessor.workItemId}`);
+                  return predecessor.number;
+                }),
+              ].join(', ')}
+            </span>
           )}
         </button>
       </ModalTrigger>
@@ -2031,7 +2086,7 @@ function CardDependsField({
           </ModalDescription>
         </ModalHeader>
         <div className="flex min-h-0 flex-1 flex-col gap-3">
-          {waits.length > 0 && (
+          {(waits.length > 0 || typedWaits.length > 0) && (
             // Bounded on purpose: the surface no longer scrolls, so a row
             // with many waits must not push the box or the candidate list
             // out of the clipped surface — past `max-h-56` the waits scroll
@@ -2044,6 +2099,45 @@ function CardDependsField({
               aria-label={`Waits for, on ${row.number}`}
               className="flex max-h-56 shrink-0 flex-col gap-1 overflow-y-auto"
             >
+              {typedWaits.map((dependency) => {
+                const words = dependencyWords(dependency, dependencyRows, steps);
+                if (removeTypedDependency === undefined || saveTypedDependency === undefined)
+                  throw new Error('Missing typed dependency card commands');
+                return (
+                  <li key={dependency.id} className="typed-dependency-card-entry">
+                    <span>
+                      {words.chip} · {words.label}
+                    </span>
+                    <button
+                      type="button"
+                      className={`${TAP} rounded-md border px-3`}
+                      aria-label={`Edit ${words.label}`}
+                      onClick={() => {
+                        setEditing({
+                          predecessorId: dependency.predecessor.workItemId,
+                          dependencyId: dependency.id,
+                        });
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className={`${TAP} rounded-md border px-3`}
+                      aria-label={`Remove ${words.label}`}
+                      disabled={removing.has(dependency.id)}
+                      onClick={() => {
+                        setRemoving((current) => withId(current, dependency.id));
+                        void removeTypedDependency(dependency.id).then(() => {
+                          setRemoving((current) => withoutId(current, dependency.id));
+                        });
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                );
+              })}
               {waits.map((each) => (
                 <li
                   key={each.id}
@@ -2073,6 +2167,45 @@ function CardDependsField({
               ))}
             </ul>
           )}
+          {editing !== null &&
+            (() => {
+              const dependency = typedWaits.find(
+                (candidate) => candidate.id === editing.dependencyId,
+              );
+              const predecessor = dependencyRows.find(
+                (candidate) => candidate.id === editing.predecessorId,
+              );
+              if (predecessor === undefined)
+                throw new Error(`Missing predecessor ${editing.predecessorId}`);
+              if (
+                addTypedDependency === undefined ||
+                saveTypedDependency === undefined ||
+                removeTypedDependency === undefined
+              )
+                throw new Error('Missing typed dependency card commands');
+              return (
+                <TypedDependencyEditor
+                  predecessor={predecessor}
+                  successor={row}
+                  rows={dependencyRows}
+                  steps={steps}
+                  dependency={dependency}
+                  onCancel={() => {
+                    setEditing(null);
+                  }}
+                  onSave={(source, target) =>
+                    dependency === undefined
+                      ? addTypedDependency(source, target)
+                      : saveTypedDependency(dependency.id, source, target)
+                  }
+                  onRemove={
+                    dependency === undefined
+                      ? undefined
+                      : () => removeTypedDependency(dependency.id)
+                  }
+                />
+              );
+            })()}
           {/* `shrink-0`: the box is the control the whole fix is for, so it
               never gives height back to the flex column. */}
           <label className="flex shrink-0 flex-col gap-1 text-sm">
@@ -2118,6 +2251,16 @@ function CardDependsField({
             >
               {offered.map((entry) => (
                 <li key={entry.id}>
+                  <button
+                    type="button"
+                    className={`${TAP} rounded-md border px-3`}
+                    aria-label={`Customize ${entry.number} - ${entry.name}`}
+                    onClick={() => {
+                      setEditing({ predecessorId: entry.id });
+                    }}
+                  >
+                    ›
+                  </button>
                   <button
                     type="button"
                     data-card-depends-option={entry.number}
@@ -2374,6 +2517,11 @@ export function PlanCards({
   mentionOptions,
   assigneeOn,
   waitsFor,
+  typedWaitsFor,
+  dependencyRows,
+  saveTypedDependency,
+  addTypedDependency,
+  removeTypedDependency,
   dependencyOptions,
   addDependency,
   dropDependency,
@@ -2759,6 +2907,12 @@ export function PlanCards({
               <CardDependsField
                 row={row}
                 waits={waits}
+                typedWaits={typedWaitsFor?.(row) ?? []}
+                dependencyRows={dependencyRows ?? rows.map((card) => card.row)}
+                steps={steps}
+                saveTypedDependency={saveTypedDependency}
+                addTypedDependency={addTypedDependency}
+                removeTypedDependency={removeTypedDependency}
                 options={dependencyOptions}
                 addDependency={addDependency}
                 dropDependency={dropDependency}

@@ -636,6 +636,7 @@ export function WbsTable({
     workItems,
     treeReadProject,
     stepNodes,
+    typedDependencies,
     chartRead,
     steps,
     treeMayBeStale,
@@ -789,6 +790,7 @@ export function WbsTable({
     rowId: string;
     typed: string;
     highlightId: string | null;
+    stepId?: string;
   } | null>(null);
   /**
    * Which rows a hovered or focused **Depends on** cell lights — the pointer's
@@ -1209,6 +1211,7 @@ export function WbsTable({
     outdent,
     indent,
     drafts,
+    typedDependencies,
     removeEmptyRow,
     busy,
     pushToast,
@@ -1236,6 +1239,7 @@ export function WbsTable({
       setDepPicker,
       run,
       steps,
+      typedDependencies,
     });
   const {
     estimateValue,
@@ -1388,6 +1392,10 @@ export function WbsTable({
       nodesByStep.set(node.stepId, node);
       nodesByRow?.set(node.workItemId, nodesByStep);
     }
+    const dependencyStepIdsByRow =
+      nodesByRow === null
+        ? null
+        : new Map([...nodesByRow].map(([rowId, nodes]) => [rowId, [...nodes.keys()]]));
     const rows = attachRowReadings(workItems, (row) => {
       if (nodesByRow !== null && !row.rolledUp) {
         for (const step of steps) {
@@ -1437,8 +1445,33 @@ export function WbsTable({
         assigneeEntries,
         busy,
         dependencies: dependenciesOf(row.dependsOn),
+        typedDependencies: typedDependencies.filter(
+          (dependency) => dependency.successor.workItemId === row.id,
+        ),
+        dependencyRows: flat,
+        dependencySteps: steps,
+        dependencyStepNodes: stepNodes ?? null,
+        dependencyStepIdsByRow,
         dependencyEntries:
-          dependencyPicker === null ? [] : depEntriesFor(row, dependencyPicker.typed),
+          dependencyPicker === null
+            ? []
+            : depEntriesFor(
+                {
+                  id: row.id,
+                  dependsOn: [
+                    ...row.dependsOn,
+                    ...typedDependencies
+                      .filter(
+                        (dependency) =>
+                          dependency.successor.scope === 'whole' &&
+                          dependency.successor.workItemId === row.id &&
+                          dependency.predecessor.scope === 'whole',
+                      )
+                      .map((dependency) => dependency.predecessor.workItemId),
+                  ],
+                },
+                dependencyPicker.typed,
+              ),
         dependencyPicker,
         editingDeadline: editingDeadline === row.id,
         editingFactEnd: editingFactEnd === row.id,
@@ -1480,6 +1513,7 @@ export function WbsTable({
     editingFactStart,
     editingNotBefore,
     effectiveServiceLabelOf,
+    flat,
     effectiveTagLabelOf,
     effectiveTeamLabelOf,
     estimateValue,
@@ -1503,6 +1537,7 @@ export function WbsTable({
     workItems,
     workItemTypes,
     stepNodes,
+    typedDependencies,
   ]);
 
   /**
@@ -1541,6 +1576,15 @@ export function WbsTable({
     setDropHint,
     dependOn,
     setDepPicker,
+    openStepDependency: (rowId: string, stepId: string) => {
+      const box = gridElement.current?.querySelector<HTMLInputElement>(
+        `[data-depends-input="${rowId}"]`,
+      );
+      if (box === undefined || box === null)
+        throw new Error(`Missing dependency cell for ${rowId}`);
+      box.focus();
+      setDepPicker({ rowId, typed: '', highlightId: null, stepId });
+    },
     depLights,
     setOpenMenuRowId,
     depEntriesFor,
@@ -2460,6 +2504,29 @@ export function WbsTable({
               mentionOptions={mentionOptions}
               assigneeOn={assigneeOn}
               waitsFor={waitsFor}
+              typedWaitsFor={(row) =>
+                typedDependencies.filter((dependency) => dependency.successor.workItemId === row.id)
+              }
+              dependencyRows={flat}
+              saveTypedDependency={(dependencyId, predecessor, successor) =>
+                run((write) =>
+                  write.perform(['tree'], () =>
+                    commands.updateTypedDependency(dependencyId, predecessor, successor),
+                  ),
+                )
+              }
+              addTypedDependency={(predecessor, successor) =>
+                run((write) =>
+                  write.perform(['tree'], () =>
+                    commands.addTypedDependency(predecessor, successor),
+                  ),
+                )
+              }
+              removeTypedDependency={(dependencyId) =>
+                run((write) =>
+                  write.perform(['tree'], () => commands.removeTypedDependency(dependencyId)),
+                )
+              }
               // The Depends cell's own picker rule and its own two writers, handed
               // to the face that had neither. `depEntriesFor` is `pickerEntries`,
               // which is a *ported copy of be-01's judgement* about which edges are
