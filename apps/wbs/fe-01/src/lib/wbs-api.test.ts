@@ -126,7 +126,8 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
   return {
     ...tree,
     project: PROJECT,
-    document: { format: 'wbs-plan', version: 2, exportedAt: '2026-09-14T08:30:00.000Z' },
+    stepNodes: [],
+    document: { format: 'wbs-plan', version: 3, exportedAt: '2026-09-14T08:30:00.000Z' },
     settings: {
       name: PROJECT.name,
       restricted: PROJECT.restricted,

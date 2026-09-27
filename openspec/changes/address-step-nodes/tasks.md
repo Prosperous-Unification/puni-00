@@ -42,9 +42,9 @@
 
 ## 8. Carry codes through plan documents
 
-- [ ] 8.1 Red: code round trip, earlier-version import suggesting codes, missing/malformed/reserved/duplicate refusal, export refused while a step is uncoded, project copy.
-- [ ] 8.2 Allocate the next document version with the dependency and allowance changes; implement converters.
-- [ ] 8.3 Negative proofs: accept a duplicate code; accept a reserved code; export with an uncoded step. Watch each refusal fail, restore, add adjacent `Proof:`.
+- [x] 8.1 Red: code round trip, earlier-version import suggesting codes, missing/malformed/reserved/duplicate refusal, export refused while a step is uncoded, project copy.
+- [x] 8.2 Allocate the next document version with the dependency and allowance changes; implement converters.
+- [x] 8.3 Negative proofs: accept a duplicate code; accept a reserved code; export with an uncoded step. Watch each refusal fail, restore, add adjacent `Proof:`.
 
 ## 9. Name the node in the step cell
 

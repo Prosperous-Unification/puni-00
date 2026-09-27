@@ -1,8 +1,8 @@
 ## 1. Resolve endpoints on the step-node graph
 
-- [ ] 1.1 Red: `resolveStepNodeGraph` cases for whole/node/descendant-step endpoints, each default mapping (Whole→Whole last→first, node→whole, whole→node), parent Cartesian, stepless work-item boundary and `authored` provenance with relationship ID, including a self-node refusal.
-- [ ] 1.2 Add authored edges to the `address-step-nodes` seam and one combined-graph cycle check.
-- [ ] 1.3 Negative proof: omit one expanded parent pair; watch the graph refusal test fail, restore, add adjacent `Proof:`.
+- [x] 1.1 Red: `resolveStepNodeGraph` cases for whole/node/descendant-step endpoints, each default mapping (Whole→Whole last→first, node→whole, whole→node), parent Cartesian, stepless work-item boundary and `authored` provenance with relationship ID, including a self-node refusal.
+- [x] 1.2 Add authored edges to the `address-step-nodes` seam and one combined-graph cycle check.
+- [x] 1.3 Negative proof: omit one expanded parent pair; watch the graph refusal test fail, restore, add adjacent `Proof:`.
 
 ## 1a. Carry node endpoints through structural edits
 
