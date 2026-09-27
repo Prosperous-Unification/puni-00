@@ -330,3 +330,75 @@ describe('a refused draft typed over and refused again', () => {
     expect(screen.getByLabelText<HTMLInputElement>('Name of 010').value).toBe('Gamma');
   });
 });
+
+describe('an own edit that lands while the cell is being typed in again', () => {
+  /**
+   * `e2e/name-cell.spec.ts`'s peer-rename case, at the speed a loaded runner
+   * gives it. The name is typed and left, and the reader is back in the cell
+   * typing before that patch's answer comes home — the refetch it caused, and
+   * then the landing, both arrive while rule 2 is holding. They type back to
+   * what they had saved, a peer renames the row, and they leave.
+   *
+   * Nothing is left to send: the box says what be-01 already took. So the
+   * blur is the moment the peer's name is due, exactly as it is when the
+   * landing beat the click — and the box must not be left on the saved name
+   * for as long as nobody else happens to edit the row.
+   */
+  itDom('a peer name held back behind a slow landing arrives when the cell is left', async () => {
+    const { pending, commit } = queuedCommits();
+    const view = render(<TableFace value="" commit={commit} />);
+    typeAndLeave('Strip the wiring');
+    expect(pending.map((patch) => patch.typed)).toEqual(['Strip the wiring']);
+
+    const box = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'Strip the wiringX' } });
+
+    // The refetch the first patch caused, then its answer, both while the
+    // reader is typing.
+    view.rerender(<TableFace value="Strip the wiring" commit={commit} />);
+    await answerPatch(pending[0], 'landed');
+
+    fireEvent.change(box, { target: { value: 'Strip the wiring' } });
+    view.rerender(<TableFace value="Survey the racking" commit={commit} />);
+    expect(box.value, 'the peer edit was written into the box mid-visit').toBe('Strip the wiring');
+
+    act(() => {
+      box.blur();
+    });
+
+    expect(box.value).toBe('Survey the racking');
+    expect(pending.map((patch) => patch.typed)).toEqual(['Strip the wiring']);
+  });
+
+  /**
+   * The same visit with the answer beating its own refetch, which a busy
+   * be-01 is free to arrange: the field hears "landed" while the tree it holds
+   * still carries the name from before the edit. That name is older than the
+   * one that landed, and leaving the cell must not put it back.
+   */
+  itDom('a landing that beats its own refetch leaves the saved name in the box', async () => {
+    const { pending, commit } = queuedCommits();
+    const view = render(<TableFace value="" commit={commit} />);
+    typeAndLeave('Strip the wiring');
+
+    const box = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'Strip the wiringX' } });
+    await answerPatch(pending[0], 'landed');
+    fireEvent.change(box, { target: { value: 'Strip the wiring' } });
+
+    act(() => {
+      box.blur();
+    });
+    expect(box.value).toBe('Strip the wiring');
+
+    view.rerender(<TableFace value="Strip the wiring" commit={commit} />);
+    expect(box.value).toBe('Strip the wiring');
+    expect(pending.map((patch) => patch.typed)).toEqual(['Strip the wiring']);
+  });
+});

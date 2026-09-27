@@ -346,7 +346,7 @@ export class LiveField {
     // Rule 2. `document.activeElement` rather than a focus/blur flag of our own:
     // the question is only ever asked about right now, and the DOM already knows
     // the answer without a second copy of it to keep in step.
-    if (this.typedHere && node === document.activeElement) return;
+    if (this.isBeingTypedIn()) return;
     node.value = this.latest;
     this.shown = this.latest;
     this.typedHere = false;
@@ -395,6 +395,11 @@ export class LiveField {
     // Watched in Chromium, 2026-08-09.
     this.afterSync(this.node);
     return unsent();
+  }
+
+  /** Whether somebody has typed in this field's box and still has the focus in it. */
+  private isBeingTypedIn(): boolean {
+    return this.typedHere && this.node !== null && this.node === document.activeElement;
   }
 
   /** The half of {@link leave} that has something to send. */
@@ -493,6 +498,36 @@ export class LiveField {
       }
       this.refused = false;
       heldRefusals.delete(this.cellKey);
+      // The reader is already back in the cell and typing, so rule 2 holds
+      // the write below — but what landed is on the server now, and it is what
+      // this box held when they came back, so it is the baseline their typing
+      // is on top of. Left on the name from before the edit, typing back to
+      // the saved name read as a fresh edit on the next blur, rule 5 answered
+      // it from this very submission, and nothing ever released the peer's
+      // name rule 2 had held back. On a slow round trip that is
+      // `e2e/name-cell.spec.ts`'s peer rename, failing on CI only.
+      // Proof: this branch removed, `a peer name held back behind a slow
+      // landing arrives when the cell is left` failed on `expected 'Strip the
+      // wiring' to be 'Survey the racking'`, and the browser case with every
+      // command held 1.5s failed 5/5 on `the peer name never reached the box`
+      // with `Received: "Strip the wiring"`. Watched, 2026-09-27.
+      //
+      // Only while typing is held: a box nobody is in takes `latest` from
+      // `sync` as it always has, and a face can have rewritten its node since
+      // the blur, so `shown` is not assumed to match it. Unconditional, this
+      // broke `does not spend an old API success against its busy
+      // replacement` on `Received: "Departed write"`. Watched, 2026-09-27.
+      if (this.isBeingTypedIn()) {
+        // The answer can beat its own refetch, and a `latest` still on the
+        // baseline is older than what just landed rather than a newer server
+        // value for the blur to write over it. A peer's edit that did arrive
+        // stays for `sync`.
+        // Proof: this line removed, `a landing that beats its own refetch
+        // leaves the saved name in the box` failed on `expected '' to be
+        // 'Strip the wiring'`. Watched, 2026-09-27.
+        if (this.latest === baseline) this.latest = text;
+        this.shown = text;
+      }
       // The refetch this commit triggered lands *before* it resolves, so a
       // draft that rule 4 held back was held back through the one render
       // that carried its answer. Nothing else would come.
