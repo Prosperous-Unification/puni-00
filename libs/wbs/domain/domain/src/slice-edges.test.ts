@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { EstimatedSlice, LeafEdge, StepNodeGraphEdge } from './slice-edges';
+import type { GraphSlice, LeafEdge, StepNodeGraphEdge } from './slice-edges';
 import { reachedSliceOf, resolveStepNodeGraph } from './slice-edges';
 
 /**
@@ -8,13 +8,21 @@ import { reachedSliceOf, resolveStepNodeGraph } from './slice-edges';
  * two, `C` has one — enough for the chain, both reach arms and the join's
  * asymmetry to be told apart.
  */
-const groups: Record<string, readonly EstimatedSlice[] | undefined> = {
-  A: [{ days: null }, { days: null }, { days: 3 }],
-  B: [{ days: 2 }, { days: 1 }],
-  C: [{ days: 5 }],
+const groups: Record<string, readonly GraphSlice[] | undefined> = {
+  A: [
+    { days: null, stepId: 'design' },
+    { days: null, stepId: 'dev' },
+    { days: 3, stepId: 'qa' },
+  ],
+  B: [
+    { days: 2, stepId: 'dev' },
+    { days: 1, stepId: 'qa' },
+  ],
+  C: [{ days: 5, stepId: 'dev' }],
+  D: [{ days: null, stepId: null }],
 };
 const leafIds = ['A', 'B', 'C'];
-const slicesOf = (leafId: string): readonly EstimatedSlice[] => {
+const slicesOf = (leafId: string): readonly GraphSlice[] => {
   const found = groups[leafId];
   if (found === undefined) throw new Error(`no slice for work item ${leafId}`);
   return found;
@@ -52,6 +60,16 @@ describe('reachedSliceOf', () => {
 });
 
 describe('resolveStepNodeGraph', () => {
+  it('lists every node, isolated and unestimated ones included, and a stepless boundary', () => {
+    expect(resolveStepNodeGraph(['C', 'A', 'D'], slicesOf, [], 'whole-item').nodes).toEqual([
+      { kind: 'step', ref: { workItemId: 'C', stepId: 'dev' }, at: 0 },
+      { kind: 'step', ref: { workItemId: 'A', stepId: 'design' }, at: 0 },
+      { kind: 'step', ref: { workItemId: 'A', stepId: 'dev' }, at: 1 },
+      { kind: 'step', ref: { workItemId: 'A', stepId: 'qa' }, at: 2 },
+      { kind: 'boundary', workItemId: 'D', at: 0 },
+    ]);
+  });
+
   it('marks a Dev to QA chain as FS workflow edges', () => {
     expect(resolveStepNodeGraph(['B'], slicesOf, [], 'whole-item').edges).toEqual([
       {
