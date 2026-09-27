@@ -291,7 +291,9 @@ export interface ImportRefusal {
     | 'ancestor'
     | 'deadline_before_project_start'
     | 'engine_unavailable'
-    | 'source_refused';
+    | 'source_refused'
+    /** A row with several types; `detail` lists every such row's file id. */
+    | 'work_item_takes_one_type';
   path: string;
   detail: string | null;
 }
