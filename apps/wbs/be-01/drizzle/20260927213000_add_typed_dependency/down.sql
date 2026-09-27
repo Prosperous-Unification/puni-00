@@ -5,7 +5,7 @@
 -- the message the operator reads, so it carries the procedure.
 CREATE TEMP TABLE typed_dependency_rollback_guard (
   typed_rows INTEGER NOT NULL,
-  CONSTRAINT "typed dependencies exist: save and remove them first, then rerun migrate-down-cli.ts --to=20260927150000_add_step_code; see docs/runbook-prod-deploy.md#typed-dependency-rollback" CHECK (typed_rows = 0)
+  CONSTRAINT "typed dependencies exist: save and remove them first, then rerun migrate-down-cli.ts --to=<baseline>; see docs/runbook-prod-deploy.md#typed-dependency-rollback" CHECK (typed_rows = 0)
 );--> statement-breakpoint
 INSERT INTO typed_dependency_rollback_guard SELECT count(*) FROM typed_dependency;--> statement-breakpoint
 DROP TABLE typed_dependency_rollback_guard;--> statement-breakpoint

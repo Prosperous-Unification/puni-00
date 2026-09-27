@@ -11,7 +11,8 @@ import { rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const TYPED = '20260927213000_add_typed_dependency';
-const STEP_CODE = '20260927150000_add_step_code';
+/** The migration below this one, where every rollback here stops. */
+const BASELINE = '20260927190000_add_organization_bridge';
 let dir: string;
 let path: string;
 
@@ -201,7 +202,7 @@ describe(TYPED, () => {
   });
 
   it('rolls an empty table back and reapplies', () => {
-    expect(rollbackTo(path, FOLDER, STEP_CODE)).toEqual([TYPED]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([TYPED]);
     expect(
       withDatabase((sqlite) =>
         sqlite
@@ -240,7 +241,7 @@ describe(TYPED, () => {
         )
         .all(),
     );
-    expect(() => rollbackTo(path, FOLDER, STEP_CODE)).toThrow(
+    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(
       'docs/runbook-prod-deploy.md#typed-dependency-rollback',
     );
     withDatabase((sqlite) => {
@@ -267,6 +268,6 @@ describe(TYPED, () => {
     withDatabase((sqlite) => {
       sqlite.run('DROP TABLE typed_dependency');
     });
-    expect(() => rollbackTo(path, FOLDER, STEP_CODE)).toThrow('no such table: typed_dependency');
+    expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow('no such table: typed_dependency');
   });
 });

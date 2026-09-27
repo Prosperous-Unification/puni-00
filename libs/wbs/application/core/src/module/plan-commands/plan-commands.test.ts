@@ -75,7 +75,7 @@ describe('working plan batch ownership', () => {
     const projectId = createdProject.project.id;
     const stepId = createdProject.steps[0].id;
     await source.stores.steps.add(
-      { id: stepId, projectId, name: createdProject.steps[0].name },
+      { id: stepId, projectId, name: createdProject.steps[0].name, allowancePercent: 0 },
       { at: 1, by: OWNER },
     );
     const created = await publicGraph.workItems.create(projectId, OWNER, {
@@ -745,7 +745,10 @@ describe('working plan value mutations through runner commands', () => {
       const createdProject = await publicGraph.projects.create('Mixed-case value ordering', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       for (const id of ['a', 'A']) {
         await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
           at: 2,
@@ -823,7 +826,10 @@ describe('working plan value mutations through runner commands', () => {
       const createdProject = await publicGraph.projects.create('Value group ordering', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       for (const id of ['z-existing', 'a-earlier']) {
         await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
           at: 2,
@@ -919,7 +925,10 @@ describe('working plan value mutations through runner commands', () => {
       const createdProject = await publicGraph.projects.create('Value hand-down refresh', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       const parent = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -995,7 +1004,10 @@ describe('working plan value mutations through runner commands', () => {
       const createdProject = await publicGraph.projects.create('Value move refresh', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       for (const id of ['z-source', 'm-existing']) {
         await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
           at: 2,
@@ -1112,7 +1124,10 @@ describe('working plan value mutations through runner commands', () => {
       const createdProject = await publicGraph.projects.create('Value hand-up refresh', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       const parent = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -1179,7 +1194,10 @@ describe('working plan value mutations through runner commands', () => {
       const createdProject = await publicGraph.projects.create('Value remove refresh', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       const leaf = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -1381,7 +1399,10 @@ describe('working plan row mutations through runner commands', () => {
       const createdProject = await publicGraph.projects.create('Arranged row refresh', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       for (const [id, position] of [
         ['a', 10],
         ['b', 20],
@@ -1900,7 +1921,7 @@ describe('working plan value placement validation rolls back its production unit
         const projectId = createdProject.project.id;
         const stepId = createdProject.steps[0].id;
         await source.stores.steps.add(
-          { id: stepId, projectId, name: 'Build' },
+          { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
           { at: 2, by: OWNER },
         );
         for (const id of ['z-existing', 'a-earlier']) {

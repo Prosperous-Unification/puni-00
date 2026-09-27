@@ -110,8 +110,8 @@ beforeEach(async () => {
   devId = crypto.randomUUID();
   qaId = crypto.randomUUID();
   const starting: Step[] = [
-    { id: devId, projectId, name: 'Dev', position: 10, code: 'dev' },
-    { id: qaId, projectId, name: 'QA', position: 20, code: 'qa' },
+    { id: devId, projectId, name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 },
+    { id: qaId, projectId, name: 'QA', position: 20, code: 'qa', allowancePercent: 0 },
   ];
   await projects.create(project, starting, wrote());
 
@@ -119,7 +119,16 @@ beforeEach(async () => {
   otherProjectId = other.id;
   await projects.create(
     other,
-    [{ id: crypto.randomUUID(), projectId: other.id, name: 'Dev', position: 10, code: 'dev' }],
+    [
+      {
+        id: crypto.randomUUID(),
+        projectId: other.id,
+        name: 'Dev',
+        position: 10,
+        code: 'dev',
+        allowancePercent: 0,
+      },
+    ],
     wrote(),
   );
 
@@ -248,11 +257,21 @@ describe('StepRepository', () => {
   it('adds a step and moves the project’s revision', async () => {
     const before = await revisionOf(projectId);
 
-    const written = await steps.add({ id: 'design', projectId, name: 'Design' }, wrote());
+    const written = await steps.add(
+      { id: 'design', projectId, name: 'Design', allowancePercent: 0 },
+      wrote(),
+    );
 
     expect(written).toEqual({
       ok: true,
-      step: { id: 'design', projectId, name: 'Design', position: 30, code: 'design' },
+      step: {
+        id: 'design',
+        projectId,
+        name: 'Design',
+        position: 30,
+        code: 'design',
+        allowancePercent: 0,
+      },
     });
     const names = (await steps.listByProject(projectId)).map((each) => each.name);
     expect(names).toEqual(['Dev', 'QA', 'Design']);
@@ -261,27 +280,54 @@ describe('StepRepository', () => {
 
   it('writes the code its creator chose', async () => {
     const written = await steps.add(
-      { id: 'impl', projectId, name: 'Build', code: 'impl' },
+      { id: 'impl', projectId, name: 'Build', code: 'impl', allowancePercent: 0 },
       wrote(),
     );
 
     expect(written).toEqual({
       ok: true,
-      step: { id: 'impl', projectId, name: 'Build', position: 30, code: 'impl' },
+      step: {
+        id: 'impl',
+        projectId,
+        name: 'Build',
+        position: 30,
+        code: 'impl',
+        allowancePercent: 0,
+      },
     });
   });
 
   it('suggests a code against the codes the project holds', async () => {
-    const written = await steps.add({ id: 'qa-again', projectId, name: 'Q/A' }, wrote());
+    const written = await steps.add(
+      { id: 'qa-again', projectId, name: 'Q/A', allowancePercent: 0 },
+      wrote(),
+    );
 
     expect(written).toEqual({
       ok: true,
-      step: { id: 'qa-again', projectId, name: 'Q/A', position: 30, code: 'q-a' },
+      step: {
+        id: 'qa-again',
+        projectId,
+        name: 'Q/A',
+        position: 30,
+        code: 'q-a',
+        allowancePercent: 0,
+      },
     });
-    const clash = await steps.add({ id: 'dev-again', projectId, name: 'DEV!' }, wrote());
+    const clash = await steps.add(
+      { id: 'dev-again', projectId, name: 'DEV!', allowancePercent: 0 },
+      wrote(),
+    );
     expect(clash).toEqual({
       ok: true,
-      step: { id: 'dev-again', projectId, name: 'DEV!', position: 40, code: 'dev-2' },
+      step: {
+        id: 'dev-again',
+        projectId,
+        name: 'DEV!',
+        position: 40,
+        code: 'dev-2',
+        allowancePercent: 0,
+      },
     });
   });
 
@@ -294,7 +340,7 @@ describe('StepRepository', () => {
     const before = await revisionOf(projectId);
 
     const written = await steps.add(
-      { id: 'dup', projectId, name: 'Develop', code: 'dev' },
+      { id: 'dup', projectId, name: 'Develop', code: 'dev', allowancePercent: 0 },
       wrote(),
     );
 
@@ -314,9 +360,13 @@ describe('StepRepository', () => {
       name: 'Legacy',
       position: 30,
       code: null,
+      allowancePercent: 0,
     });
     // And a new step beside it is still coded: an uncoded step holds no code.
-    const written = await steps.add({ id: 'next', projectId, name: 'Legacy 2' }, wrote());
+    const written = await steps.add(
+      { id: 'next', projectId, name: 'Legacy 2', allowancePercent: 0 },
+      wrote(),
+    );
     expect(written.ok && written.step.code).toBe('legacy-2');
   });
 
@@ -325,7 +375,7 @@ describe('StepRepository', () => {
     // `WHERE project_id = ?` from `step_project_name`, so without an ORDER BY
     // these come back `Analysis, Dev, QA` — and step order is what a work
     // item's slices run in.
-    await steps.add({ id: 'analysis', projectId, name: 'Analysis' }, wrote());
+    await steps.add({ id: 'analysis', projectId, name: 'Analysis', allowancePercent: 0 }, wrote());
 
     const names = (await steps.listByProject(projectId)).map((each) => each.name);
 
@@ -333,7 +383,10 @@ describe('StepRepository', () => {
   });
 
   it('reads the same order through the project, which is where the schedule asks', async () => {
-    await steps.add({ id: 'analysis-2', projectId, name: 'Analysis' }, wrote());
+    await steps.add(
+      { id: 'analysis-2', projectId, name: 'Analysis', allowancePercent: 0 },
+      wrote(),
+    );
 
     const names = (await projects.stepsOf(projectId)).map((each) => each.name);
 
@@ -341,7 +394,10 @@ describe('StepRepository', () => {
   });
 
   it('refuses a name the project already holds, and leaves the steps as they were', async () => {
-    const written = await steps.add({ id: 'second-qa', projectId, name: 'QA' }, wrote());
+    const written = await steps.add(
+      { id: 'second-qa', projectId, name: 'QA', allowancePercent: 0 },
+      wrote(),
+    );
 
     expect(written).toEqual({ ok: false, reason: 'taken' });
     expect(await steps.listByProject(projectId)).toHaveLength(2);
@@ -349,7 +405,7 @@ describe('StepRepository', () => {
 
   it('accepts in one project a name another project holds', async () => {
     const written = await steps.add(
-      { id: 'other-qa', projectId: otherProjectId, name: 'QA' },
+      { id: 'other-qa', projectId: otherProjectId, name: 'QA', allowancePercent: 0 },
       wrote(),
     );
 
@@ -368,7 +424,7 @@ describe('StepRepository', () => {
       ok: true,
       // The code stays: a step code is immutable, and `010.qa` must keep
       // naming this step after the rename.
-      step: { id: qaId, projectId, name: 'Review', position: 20, code: 'qa' },
+      step: { id: qaId, projectId, name: 'Review', position: 20, code: 'qa', allowancePercent: 0 },
     });
     expect(await revisionOf(projectId)).toBe(before + 1);
   });
@@ -401,6 +457,7 @@ describe('StepRepository', () => {
       name: 'QA',
       position: 20,
       code: 'qa',
+      allowancePercent: 0,
     });
   });
 
@@ -833,7 +890,10 @@ describe('what a step read publishes', () => {
    * down with it (2026-09-02).
    */
   it('carries the columns the Step type declares and no others', async () => {
-    const written = await steps.add({ id: 'design', projectId, name: 'Design' }, wrote());
+    const written = await steps.add(
+      { id: 'design', projectId, name: 'Design', allowancePercent: 0 },
+      wrote(),
+    );
     if (!written.ok) throw new Error(`add refused: ${written.reason}`);
 
     const listed = (await steps.listByProject(projectId)).find((each) => each.id === 'design');
@@ -849,5 +909,84 @@ describe('what a step read publishes', () => {
     expect(Object.keys(renamed.step).sort()).toEqual(declared);
     expect(declared).not.toContain('createdBy');
     expect(declared).not.toContain('updatedAt');
+  });
+});
+
+describe('ProjectRepository.setStepAllowance', () => {
+  it('writes the allowance, answers the one it replaced and moves the project', async () => {
+    const before = await revisionOf(projectId);
+
+    const written = await projects.setStepAllowance(projectId, qaId, 12.34, wrote());
+
+    expect(written).toEqual({
+      ok: true,
+      step: {
+        id: qaId,
+        projectId,
+        name: 'QA',
+        position: 20,
+        code: 'qa',
+        allowancePercent: 12.34,
+      },
+      previousPercent: 0,
+      revision: 1,
+    });
+    expect((await steps.findById(qaId))?.allowancePercent).toBe(12.34);
+    expect(await revisionOf(projectId)).toBe(before + 1);
+  });
+
+  it('stores whole hundredths of a percent', async () => {
+    await projects.setStepAllowance(projectId, qaId, 12.34, wrote());
+    const sqlite = openDatabase(join(dir, 'test.db'));
+    try {
+      const stored = sqlite
+        .query<{ allowance_bps: number }, [string]>('SELECT allowance_bps FROM step WHERE id = ?')
+        .get(qaId);
+      expect(stored).toEqual({ allowance_bps: 1234 });
+    } finally {
+      sqlite.close();
+    }
+  });
+
+  /** Proof: see `ProjectRepository.setStepAllowance`. */
+  it('moves the step’s allowance revision on every write, even back to a value it held', async () => {
+    expect((await projects.stepAllowanceRevisions(projectId)).get(qaId)).toBe(0);
+
+    await projects.setStepAllowance(projectId, qaId, 50, wrote());
+    const back = await projects.setStepAllowance(projectId, qaId, 0, wrote());
+
+    expect(back).toMatchObject({ ok: true, previousPercent: 50, revision: 2 });
+    expect((await projects.stepAllowanceRevisions(projectId)).get(qaId)).toBe(2);
+    expect((await projects.stepAllowanceRevisions(projectId)).get(devId)).toBe(0);
+  });
+
+  it('refuses a step of another project, and a step that is gone', async () => {
+    expect(await projects.setStepAllowance(otherProjectId, qaId, 30, wrote())).toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
+    expect(await projects.setStepAllowance(projectId, 'gone', 30, wrote())).toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
+  });
+
+  it('refuses to store an allowance no boundary would have admitted', async () => {
+    let refused: unknown = null;
+    try {
+      await projects.setStepAllowance(projectId, qaId, 12.345, wrote());
+    } catch (cause) {
+      refused = cause;
+    }
+    expect(String(refused)).toContain('not a storable step allowance');
+    // The column's own CHECK, below the converter: a raw write out of range fails.
+    const sqlite = openDatabase(join(dir, 'test.db'));
+    try {
+      expect(() =>
+        sqlite.run('UPDATE step SET allowance_bps = 100001 WHERE id = ?', [qaId]),
+      ).toThrow('CHECK constraint failed');
+    } finally {
+      sqlite.close();
+    }
   });
 });

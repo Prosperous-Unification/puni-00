@@ -26,6 +26,7 @@ export * from './optimized-outcome';
 export * from './optimized-schedule-cache';
 export * from './optimizer-rows';
 export * from './organization';
+export * from './organization-activation';
 export * from './organization-ownership';
 export * from './plan-event';
 export * from './priority-band';

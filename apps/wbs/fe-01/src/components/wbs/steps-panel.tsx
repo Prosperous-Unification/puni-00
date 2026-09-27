@@ -1,4 +1,5 @@
 import { DEPENDENCY_REACHES, type DependencyReach } from '@wbs/domain/dependency-reach';
+import { allowancePercentOf } from '@wbs/domain/estimate';
 import { type KeyboardEvent, type SubmitEvent, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -100,6 +101,7 @@ export interface StepsPanelProps extends SettingsSectionReport {
   nameOf: NameOf;
   addStep: (name: string) => Promise<StepView>;
   renameStep: (stepId: string, name: string) => Promise<StepView>;
+  setStepAllowance: (stepId: string, allowancePercent: number) => Promise<StepView>;
   removeStep: (stepId: string, cascade: boolean) => Promise<{ ok: boolean; inUse?: StepUsage }>;
   /**
    * How far into a predecessor this project's dependencies reach — be-01's
@@ -185,6 +187,7 @@ export function StepsPanel({
   nameOf,
   addStep,
   renameStep,
+  setStepAllowance,
   removeStep,
   depReach,
   setDepReach,
@@ -202,6 +205,7 @@ export function StepsPanel({
    * at the name this browser last read.
    */
   const [renamed, setRenamed] = useState<Record<string, string>>({});
+  const [allowances, setAllowances] = useState<Partial<Record<string, string>>>({});
   const [confirming, setConfirming] = useState<Confirming | null>(null);
 
   /**
@@ -216,7 +220,11 @@ export function StepsPanel({
    */
   const section = useSettingsSection({
     words: STEP_REFUSALS,
-    dirty: newName.trim() !== '' || Object.keys(renamed).length > 0 || confirming !== null,
+    dirty:
+      newName.trim() !== '' ||
+      Object.keys(renamed).length > 0 ||
+      Object.keys(allowances).length > 0 ||
+      confirming !== null,
     onDirtyChange,
     onChanged,
     ...(onRefused === undefined ? {} : { onRefused }),
@@ -296,6 +304,29 @@ export function StepsPanel({
   function submitRename(event: SubmitEvent<HTMLFormElement>, step: StepView): void {
     event.preventDefault();
     commitRename(step);
+  }
+
+  function commitAllowance(step: StepView): void {
+    const typed = allowances[step.id];
+    if (typed === undefined) return;
+    const percent = allowancePercentOf(Number(typed));
+    // Proof: disabling this guard made `refuses a fractional hundredth overflow locally` fail: setStepAllowance was called once for 30.001.
+    if (typed.trim() === '' || percent === null) {
+      section.refuse('invalid_allowance');
+      return;
+    }
+    if (percent === step.allowancePercent) {
+      setAllowances((current) =>
+        Object.fromEntries(Object.entries(current).filter(([id]) => id !== step.id)),
+      );
+      return;
+    }
+    void attempt(async () => {
+      await setStepAllowance(step.id, percent);
+      setAllowances((current) =>
+        Object.fromEntries(Object.entries(current).filter(([id]) => id !== step.id)),
+      );
+    });
   }
 
   /**
@@ -404,6 +435,31 @@ export function StepsPanel({
                     Rename {step.name}
                   </button>
                 </form>
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor={`allowance-${step.id}`}>{step.name} allowance (%)</Label>
+                  <Input
+                    id={`allowance-${step.id}`}
+                    type="number"
+                    min={0}
+                    max={1000}
+                    step={0.01}
+                    value={allowances[step.id] ?? String(step.allowancePercent)}
+                    disabled={section.busy}
+                    onChange={(event) => {
+                      const typed = event.currentTarget.value;
+                      setAllowances((current) => ({ ...current, [step.id]: typed }));
+                    }}
+                    onBlur={() => {
+                      commitAllowance(step);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        commitAllowance(step);
+                      }
+                    }}
+                  />
+                </div>
                 <Button
                   type="button"
                   variant="outline"

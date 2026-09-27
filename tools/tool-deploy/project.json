@@ -58,6 +58,7 @@
         "{workspaceRoot}/bin/assert-no-prod-release.sh",
         "{workspaceRoot}/apps/wbs/be-01/**/*",
         "{workspaceRoot}/deploy/k8s/wbs/overlays/**/*",
+        "{workspaceRoot}/deploy/k8s/wbs/lab/**/*",
         "{workspaceRoot}/.github/workflows/ci.yml",
         "{workspaceRoot}/.github/workflows/deploy-k3s.yml",
         "{workspaceRoot}/.github/workflows/infra-check.yml",

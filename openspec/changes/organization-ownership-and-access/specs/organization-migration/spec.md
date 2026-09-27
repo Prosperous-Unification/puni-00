@@ -16,6 +16,30 @@ Migration SHALL resolve Dany to exactly one existing WBS user from reviewed prod
 - **WHEN** bridge writers drain and reconciliation runs
 - **THEN** the new project is mapped to the legacy organization before activation
 
+#### Scenario: Bridge stops at activation
+
+- **GIVEN** a legacy organization exists and the activation marker says activated
+- **WHEN** a second organization's root is created with its explicit mapping, or a legacy catalog entry is renamed
+- **THEN** the bridge maps nothing to the legacy organization and leaves every organization display name unchanged
+
+#### Scenario: Backfill without a legacy organization
+
+- **GIVEN** no legacy organization exists, or isolation is activated, or the marker is broken
+- **WHEN** the legacy backfill runs
+- **THEN** it refuses and maps nothing
+
+#### Scenario: Cross-organization dependent blocks activation
+
+- **GIVEN** every root is mapped but a dependency, catalog link, assignment, capacity, plan event or saved plan joins two organizations or two projects
+- **WHEN** reconciliation runs
+- **THEN** it reports that dependent, and activation refuses despite zero unmapped roots
+
+#### Scenario: Unresolved event stream blocks activation
+
+- **GIVEN** an event stream names no mapped project, including a deleted project's retained stream
+- **WHEN** reconciliation runs
+- **THEN** it reports the stream instead of assigning it to the legacy organization
+
 ### Requirement: Migration and rollback preserve tenant isolation
 
 Each WBS and durable MCP-store schema migration SHALL be additive and ship a paired `migration.sql` and `down.sql`. The MCP credential epoch and pre-activation credential revocation SHALL be included in activation preflight and rollback treatment. Expansion SHALL precede bridge writers; bridge writers SHALL maintain organization mappings while old and new processes share SQLite. Global catalog uniqueness SHALL remain compatible during overlap and become organization-scoped without losing legacy references. A durable activation marker SHALL record that organization isolation was enabled. Deployment and schema rollback MUST refuse any organization-unaware target after activation, even if new tenant content was later deleted; recovery SHALL use an organization-aware release or forward repair. Pre-activation rollback SHALL preflight its complete reversal and preserve legacy records. A failed rollback SHALL report its manual completion command.
@@ -37,6 +61,18 @@ Each WBS and durable MCP-store schema migration SHALL be additive and ship a pai
 - **GIVEN** isolation was activated and all later tenant content was deleted
 - **WHEN** an organization-unaware downgrade is requested
 - **THEN** the durable marker still refuses it
+
+#### Scenario: Broken activation marker
+
+- **GIVEN** the activation marker table is missing, cannot be read, or holds anything but one consistent row
+- **WHEN** activation or a bridge writer reads it
+- **THEN** it refuses with an error naming absent, unreadable or malformed state and never treats it as not activated
+
+#### Scenario: Marker reversal needs a trusted pre-activation marker
+
+- **GIVEN** the activation marker is activated, missing or malformed
+- **WHEN** a rollback reaches the migration that added it
+- **THEN** that reversal refuses and leaves the marker, its schema and its ledger entry unchanged
 
 ### Requirement: External identity mapping is stable
 
