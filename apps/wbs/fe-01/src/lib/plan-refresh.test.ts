@@ -22,6 +22,9 @@ async function setup() {
 }
 
 describe('plan refresh obligations', () => {
+  it('refreshes the tree and steps after a peer edits a step allowance', () => {
+    expect(resourcesFor('step_updated')).toEqual(['tree', 'steps']);
+  });
   it('refetches only the tree for a peer plan-unavailable event and retains the installed plan', async () => {
     const { api, owner } = await setup();
     const installed = owner.getSnapshot().tree.installed;
@@ -95,7 +98,7 @@ describe('plan refresh obligations', () => {
     api.steps = () => steps.promise;
     const wider = owner.invalidate({ resources: ['tree', 'steps'] });
     await owner.invalidate({ resources: ['tree'] });
-    steps.resolve([{ id: 'renamed', name: 'Renamed' }]);
+    steps.resolve([{ id: 'renamed', name: 'Renamed', allowancePercent: 0 }]);
     expect((await wider).status).toBe('installed');
     expect(owner.getSnapshot().steps.installed?.value.at(0)?.name).toBe('Renamed');
     owner.dispose();

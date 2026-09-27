@@ -14,6 +14,9 @@ on:
       - 'tools/tool-deploy/**'
       - 'tools/tool-remote-scripts/**'
       - 'bin/publish-release.sh'
+      # The k3s rehearsal rolls these migrations back through migrate-down.
+      - 'apps/wbs/be-01/drizzle/**'
+      - 'libs/wbs/adapters/store-sqlite/src/migrate-down.ts'
       - '.github/workflows/infra-check.yml'
       - '.github/workflows/deploy-k3s.yml'
   push:
@@ -23,6 +26,8 @@ on:
       - 'deploy/**'
       - 'tools/tool-fleet/**'
       - 'tools/tool-deploy/**'
+      - 'apps/wbs/be-01/drizzle/**'
+      - 'libs/wbs/adapters/store-sqlite/src/migrate-down.ts'
       - '.github/workflows/infra-check.yml'
       - '.github/workflows/deploy-k3s.yml'
 

@@ -85,8 +85,22 @@ describe('a saved plan does not move when the live plan does', () => {
         startDate: '2026-03-02',
       }),
       [
-        { id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' },
-        { id: 'st-2', projectId: 'p1', name: 'Review', position: 20, code: 'review' },
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+        {
+          id: 'st-2',
+          projectId: 'p1',
+          name: 'Review',
+          position: 20,
+          code: 'review',
+          allowancePercent: 0,
+        },
       ],
       wrote,
     );

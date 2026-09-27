@@ -94,7 +94,7 @@ describe('the Plan document module', () => {
 
     expect(exported.document).toEqual({
       format: 'wbs-plan',
-      version: 1,
+      version: 2,
       exportedAt: '2026-09-24T09:00:00.000Z',
     });
     expect(exported.calendarMarkers).toEqual([

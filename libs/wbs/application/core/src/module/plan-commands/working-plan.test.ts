@@ -47,7 +47,7 @@ describe('the admitted working batch baseline', () => {
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
-        { id: stepId, projectId, name: createdProject.steps[0].name },
+        { id: stepId, projectId, name: createdProject.steps[0].name, allowancePercent: 0 },
         { at: 1, by: OWNER },
       );
 
@@ -575,7 +575,10 @@ describe('targeted working-plan refreshes', () => {
       const createdProject = await publicGraph.projects.create('Retained subtree restore', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       for (const row of [
         workItemRow({ id: 'prior-parent', projectId, position: 10, name: 'Prior parent' }),
         workItemRow({ id: 'other-values', projectId, position: 20, name: 'Other values' }),
@@ -1055,7 +1058,10 @@ describe('working plan value failures', () => {
       const createdProject = await publicGraph.projects.create('Refused value refresh', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       const leaf = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -1112,7 +1118,10 @@ describe('working plan value failures', () => {
       const createdProject = await publicGraph.projects.create('Throwing value refresh', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
-      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: 'Build', allowancePercent: 0 },
+        { at: 2, by: OWNER },
+      );
       const leaf = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,

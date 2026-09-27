@@ -96,6 +96,8 @@ const ORGANIZATION_TABLES = [
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -228,6 +230,7 @@ describe('20260905090000_add_calendar_marker', () => {
     expect(reversed).toEqual([
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
+      STEP_ALLOWANCE,
       STEP_CODE,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,

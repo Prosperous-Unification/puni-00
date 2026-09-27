@@ -67,7 +67,8 @@ export type ParserRefusalCode =
   | `${'priority' | 'maxParallel' | 'size'}_must_be_a_whole_number_from_1`
   | `${'maxParallel' | 'size'}_must_be_at_most_1000`
   | 'cascade_must_be_true_or_false'
-  | 'startNoEarlierThanReason_must_be_at_most_200_characters';
+  | 'startNoEarlierThanReason_must_be_at_most_200_characters'
+  | 'allowancePercent_must_be_0_to_1000_with_two_decimals';
 
 /** Service/runner refusals after a command kind has been recognized. */
 export type CommandRefusalCode =
@@ -219,6 +220,7 @@ type BareRefusalCode =
   | 'invalid_origin'
   | 'unauthorized'
   | 'invalid_body'
+  | 'invalid_allowance'
   | 'invalid_query'
   | 'unsupported_format'
   | 'bad_start_date'
