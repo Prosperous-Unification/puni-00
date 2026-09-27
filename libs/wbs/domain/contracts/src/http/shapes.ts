@@ -46,6 +46,7 @@ import { addStep, removeStep, renameStep } from './step-shapes';
 import {
   applyDirectoryCommands,
   applyProjectCommands,
+  getStepReference,
   getWorkItems,
   redoProject,
   undoProject,
@@ -83,6 +84,7 @@ export const httpShapes = [
   patchProject,
   retryProjectOptimization,
   getWorkItems,
+  getStepReference,
   applyProjectCommands,
   applyDirectoryCommands,
   undoProject,

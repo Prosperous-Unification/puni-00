@@ -12,14 +12,14 @@ import { OrganizationOwnershipRepository, type UnmappedRoot } from './organizati
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
-const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
+const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 /** The step code column `address-step-nodes` adds, reversed first. */
 const STEP_CODE = '20260927150000_add_step_code';
 /**
  * The newest: the legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
  */
-const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
+const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
 
 let dir: string;
 let path: string;
@@ -238,8 +238,8 @@ describe('20260927130000_add_organization_ownership', () => {
     // this migration applied, used by both releases, and reversed.
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
       ORGANIZATION_BRIDGE,
-      STEP_CODE,
       ORGANIZATION_ACTIVATION,
+      STEP_CODE,
       ORGANIZATION_OWNERSHIP,
     ]);
     seed([
@@ -259,8 +259,8 @@ describe('20260927130000_add_organization_ownership', () => {
     ]);
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
       ORGANIZATION_BRIDGE,
-      STEP_CODE,
       ORGANIZATION_ACTIVATION,
+      STEP_CODE,
       ORGANIZATION_OWNERSHIP,
     ]);
 
