@@ -24,6 +24,7 @@ const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /** The newest: the step code column `address-step-nodes` adds, reversed first. */
 const STEP_CODE = '20260927150000_add_step_code';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 /** The newest folder before this one; named so a later folder is a red test here. */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
 const ORGANIZATION_TABLES = [
@@ -377,12 +378,17 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      TYPED_DEPENDENCY,
       STEP_CODE,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
     ]);
 
-    expect(tableNames()).toEqual(withTables.filter((name) => !ORGANIZATION_TABLES.includes(name)));
+    expect(tableNames()).toEqual(
+      withTables.filter(
+        (name) => name !== 'typed_dependency' && !ORGANIZATION_TABLES.includes(name),
+      ),
+    );
     const db = openDatabase(path);
     try {
       expect(db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM users').get()?.n).toBe(3);

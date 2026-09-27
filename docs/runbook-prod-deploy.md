@@ -79,3 +79,12 @@ exits non-zero and `commit` does not run. The error names the manual command,
 `docker exec be-01-<colour> bun run src/backfill-step-codes-cli.ts`. That command is idempotent:
 run it until it prints `step codes backfilled: <n>`, then rerun the deploy to record it
 (`backfillStepCodes` in `libs/wbs/adapters/store-sqlite/src/step-code-backfill.ts`).
+
+## Typed dependency rollback
+
+Rollback to `20260927150000_add_step_code` refuses while `typed_dependency` has rows,
+because the older release cannot read them. First list affected projects and links:
+`SELECT id, project_id FROM typed_dependency;`. Remove each listed link through the
+`removeTypedDependency` command. If the links must be preserved, export the affected
+projects before removing them. Then rerun `migrate-down-cli.ts
+--to=20260927150000_add_step_code`. Confirm the export before any removal.

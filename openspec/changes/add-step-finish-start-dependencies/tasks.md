@@ -18,9 +18,9 @@
 
 ## 3. Persist typed links and guard migration rollback
 
-- [ ] 3.1 Red: typed-row validation of scope/step pairing, leaf-only node and parent-only descendant-step endpoints, scope-encoded uniqueness, absent/unreadable migration state and rollback refusal with rows present.
-- [ ] 3.2 Add the typed table in additive `migration.sql` beside `down.sql`, and guard rollback with the recovery command.
-- [ ] 3.3 Negative proof: bypass the typed-row rollback guard; watch production-path refusal fail, restore, add adjacent `Proof:`.
+- [x] 3.1 Red: typed-row validation of scope/step pairing, leaf-only node and parent-only descendant-step endpoints, scope-encoded uniqueness, absent/unreadable migration state and rollback refusal with rows present.
+- [x] 3.2 Add the typed table in additive `migration.sql` beside `down.sql`, and guard rollback with the recovery command.
+- [x] 3.3 Negative proof: bypass the typed-row rollback guard; watch production-path refusal fail, restore, add adjacent `Proof:`.
 
 ## 4. Expose typed commands through HTTP and MCP
 

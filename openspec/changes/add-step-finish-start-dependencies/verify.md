@@ -4,16 +4,22 @@
 
 Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 0: 125 passed, 0 failed; this change was valid. The CLI emitted informational archive warnings because its target main specs are absent. File-scoped `bunx prettier --write` and `bunx prettier --check` exited 0; check reported all matched files use Prettier style. No application behavior is verified by this packet.
 
-## Planned checks — pending implementation
+## Task 3 — typed dependency persistence (WBS 010.4.6, 2026-09-27)
 
-- **Pending:** Migration lint, apply and rollback with an empty typed table; production rollback guard refusal when typed rows exist, plus explicit recovery command. Check absent versus unreadable trusted migration state separately.
+- `env -u CLAUDECODE bun test libs/wbs/adapters/store-sqlite`: 830 passed, 0 failed, 9,180 assertions across 71 files.
+- `bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json`: exited 0. `NX_DAEMON=false bunx nx run wbs-store-sqlite:lint:fast` and `NX_DAEMON=false bunx nx run wbs-core:lint:fast`: exited 0. The migration lint hook on both new SQL scripts exited 0.
+- The rollback test refused a typed row with the named recovery constraint and retained the table, row and migration ledger. With the guard statements removed from `down.sql`, it failed on `Received function did not throw` and returned the rolled-back folder; the guard was restored. The adjacent `Proof:` comment is in `typed-dependency-migration.db.test.ts`.
+- Reader mutants bypassing relationship type, scope, whole/step pairing and required step checks each made their production-path refusal test fail; restored. The tests inject corrupt rows through SQLite with `ignore_check_constraints` for cases the schema normally excludes.
+- Absent and unreadable migration state remain covered by `migrate-down.db.test.ts`; an absent typed table also fails rollback loudly. The h2puni gate runs through the integration queue.
+
+## Planned checks — pending later tasks
+
 - **Pending:** Expanded slice-graph cases: parent Cartesian product, self-slice/cycle refusal, apparent work-item cycle acceptance, referenced-step deletion refusal, reparenting, step insertion/deletion/reorder, legacy write, project `depReach` change, estimate-driven dynamic-anchor change and history replay.
 - **Pending:** Mounted HTTP/MCP old-client compatibility and typed add/edit/remove, duplicate and invalid-reference 4xx, batch atomicity, stale undo/redo.
 - **Pending:** Versioned export/import, whole-project copy, subtree duplication and frozen saved plan/snapshot round trips, including malformed new-format rejection.
 - **Pending:** Fast and CP-SAT golden corpus, canonical hash/cache retirement, independent materialized FS validation and unknown zero-duration predecessor.
 - **Pending:** Browser/geometry and accessibility checks for default add, Customize, chips, keyboard/mobile, endpoint ticks and collapsed proxies.
 - **Pending R5 proof:** Omit one parent-expanded edge; a mounted add or scheduler validation test must fail. Restore and add adjacent `Proof:` comment naming the observed failure.
-- **Pending R5 proof:** Bypass rollback guard with typed rows; rollback safety test must fail. Restore and record the observed output.
 - **Pending R5 proof:** Pin legacy anchor or substitute visual placeholder duration; a production-path scheduling test must fail. Restore and record output.
 - **Pending R5 proof:** Accept a dangling step or stale undo; mounted refusal test must fail. Restore and record output.
 - **Pending:** Format, lint, typecheck, build, OpenSpec validation and applicable h2puni gate. All implementation checks remain unverified at spec time.

@@ -72,6 +72,7 @@ const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
  * list and tails every ascending one.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 let dir: string;
 let path: string;
@@ -152,6 +153,7 @@ describe('the saved-plan migration', () => {
     expect(columnsOf('saved_plan_body')).toContain('bytes');
 
     expect(rollbackTo(path, FOLDER, LOOKUP_INDEXES)).toEqual([
+      TYPED_DEPENDENCY,
       STEP_CODE,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,

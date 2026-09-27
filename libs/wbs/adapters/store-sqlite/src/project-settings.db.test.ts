@@ -57,6 +57,7 @@ const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
  * list and tails every ascending one.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 /** The one below it, which is where every rollback here stops. */
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
@@ -185,6 +186,7 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        TYPED_DEPENDENCY,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -225,6 +227,7 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        TYPED_DEPENDENCY,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -308,6 +311,7 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        TYPED_DEPENDENCY,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,

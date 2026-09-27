@@ -86,6 +86,7 @@ const ORGANIZATION_TABLES = [
  * list and tails every ascending one.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -216,6 +217,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      TYPED_DEPENDENCY,
       STEP_CODE,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
@@ -230,7 +232,10 @@ describe('20260905090000_add_calendar_marker', () => {
     // Nothing else moved: the forward migration is additive, so its reversal
     // owes the rest of the schema byte-for-byte.
     expect(afterRollback).toEqual(
-      withTable.filter((n) => n !== 'calendar_marker' && !ORGANIZATION_TABLES.includes(n)),
+      withTable.filter(
+        (n) =>
+          n !== 'calendar_marker' && n !== 'typed_dependency' && !ORGANIZATION_TABLES.includes(n),
+      ),
     );
   });
 

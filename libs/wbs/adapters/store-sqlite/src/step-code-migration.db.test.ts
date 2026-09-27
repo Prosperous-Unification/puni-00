@@ -11,6 +11,7 @@ import { rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const STEP_CODE = '20260927150000_add_step_code';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 /** The one below it, which is where every rollback here stops. */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 
@@ -122,7 +123,7 @@ describe(STEP_CODE, () => {
     });
     const before = readStepColumns().map((column) => column.name);
 
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([STEP_CODE]);
+    expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([TYPED_DEPENDENCY, STEP_CODE]);
 
     expect(readStepColumns().map((column) => column.name)).toEqual(
       before.filter((name) => name !== 'code'),

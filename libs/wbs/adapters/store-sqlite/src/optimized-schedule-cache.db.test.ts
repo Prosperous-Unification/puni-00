@@ -86,6 +86,7 @@ const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
  * list and tails every ascending one.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 /** The one below it, which is where every rollback here stops. */
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
@@ -125,6 +126,7 @@ const ADDED_TABLES = [
 // add: the two the saved-plan migrations above the target add, and
 // `calendar_marker`, which landed above all of them on 2026-09-05.
 const ALSO_ROLLED_BACK = [
+  'typed_dependency',
   'saved_plan',
   'saved_plan_body',
   'calendar_marker',
@@ -321,6 +323,7 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        TYPED_DEPENDENCY,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
