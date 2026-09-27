@@ -29,6 +29,9 @@ export type ParserRefusalCode =
   | 'invalid_progress'
   | 'invalid_status'
   | 'invalid_estimate'
+  | 'conflicting_step_address'
+  | 'invalid_step_node_id'
+  | 'unknown_step_node_encoding'
   | 'cannot_send_both_teamIds_and_serviceTeamId'
   | 'unknown_kind'
   | 'unknown_strategy'
@@ -277,6 +280,16 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
     nothing_to_undo: { detail: string | null };
     stale_undo: { detail: string | null };
+    stale_address_revision: { addressRevision: string };
+    unresolvable_reference: {
+      reason:
+        | 'malformed'
+        | 'unknown_work_item'
+        | 'ambiguous_work_item'
+        | 'parent'
+        | 'unknown_code'
+        | 'alias_mismatch';
+    };
     malformed: { field: 'body' | 'markerId' | 'date' | 'name' | 'color' };
     contrast: { field: 'color' };
     quota: { refusal: Quota };

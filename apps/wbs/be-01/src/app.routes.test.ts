@@ -153,6 +153,7 @@ const REQUEST_QUERIES: Readonly<Partial<Record<string, Readonly<Record<string, s
   getApiAuthOktaCallback: { state: 'route-probe', error: 'access_denied' },
   getApiProjectsByIdExport: { format: 'json' },
   'getApiProjectsByIdSaved-plansCompare': { left: 'current', right: 'current' },
+  'getApiProjectsByIdStep-references': { reference: '010.dev', revision: 'ar1:route-probe' },
 };
 const REQUEST_BOUNDARY_ERRORS = new Set([
   'invalid_body',
@@ -185,6 +186,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiProjectsByIdHistory',
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
+  'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-items',
   'getApiSaved-plansById',
   'getApiServices',
@@ -251,6 +253,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiProjectsByIdExport',
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
+  'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-items',
   'getApiSaved-plansById',
   'getApiServices',

@@ -144,6 +144,21 @@ const parserArms = {
     at: 'number',
     kind: commandKindsType,
   }),
+  conflicting_step_address: type({
+    error: "'conflicting_step_address'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  invalid_step_node_id: type({
+    error: "'invalid_step_node_id'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  unknown_step_node_encoding: type({
+    error: "'unknown_step_node_encoding'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
   metric_must_be_text: type({
     error: "'metric_must_be_text'",
     at: 'number',
@@ -535,7 +550,20 @@ const batchRefusals = [
   },
 ] as const;
 
-/** Reads the complete tree and this account's conditional undo state. */
+/**
+ * Reads the complete tree, this account's conditional undo state, and current
+ * step addresses. The two address fields are optional on the wire because a
+ * newer client can read an older be-01 during blue/green swap or after rollback.
+ * Every be-01 that knows these fields sends both; they stay outside
+ * {@link workItemTree} so embedded plan documents retain their existing shape.
+ *
+ * Proof: with both address fields required, `tree boundary refuses missing core
+ * producer fields while allowing additive metadata` failed on `must have
+ * required property 'addressRevision'` and `must have required property
+ * 'stepNodes'`; watched 2026-09-27. With `addressRevision` and `reference`
+ * widened to `unknown`, the same test's malformed-present cases failed on
+ * `Expected issues, Received: undefined`; watched 2026-09-27.
+ */
 export const getWorkItems = defineEndpointShape({
   method: 'GET',
   path: '/api/projects/:id/work-items',
@@ -546,7 +574,19 @@ export const getWorkItems = defineEndpointShape({
     {
       kind: 'json',
       status: 200,
-      schema: responseSchema(workItemTree.and({ undoable: 'boolean', redoable: 'boolean' })),
+      schema: responseSchema(
+        workItemTree.and({
+          undoable: 'boolean',
+          redoable: 'boolean',
+          'addressRevision?': 'string',
+          'stepNodes?': type({
+            id: 'string',
+            workItemId: 'string',
+            stepId: 'string',
+            reference: 'string | null',
+          }).array(),
+        }),
+      ),
     },
   ],
   refusals: [
@@ -555,6 +595,49 @@ export const getWorkItems = defineEndpointShape({
     engineUnavailableRefusal,
   ],
   document: { summary: 'Read the project work-item tree.' },
+});
+
+/** Resolves a readable step address against the revision returned by the work-item read. */
+export const getStepReference = defineEndpointShape({
+  method: 'GET',
+  path: '/api/projects/:id/step-references',
+  operationId: 'getApiProjectsByIdStep-references',
+  policies: readPolicies,
+  params,
+  query: requestSchema(type({ reference: 'string', revision: 'string' })),
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(
+        type({ stepNodeId: 'string', workItemId: 'string', stepId: 'string', reference: 'string' }),
+      ),
+    },
+  ],
+  refusals: [
+    ...genericRefusals,
+    { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+    {
+      status: 409,
+      schema: responseSchema(
+        type({ error: "'stale_address_revision'", addressRevision: 'string' }),
+      ),
+    },
+    {
+      status: 422,
+      schema: responseSchema(
+        type({
+          error: "'unresolvable_reference'",
+          reason:
+            "'malformed' | 'unknown_work_item' | 'ambiguous_work_item' | 'parent' | 'unknown_code' | 'alias_mismatch'",
+        }),
+      ),
+    },
+  ],
+  document: {
+    summary:
+      'Resolve a step reference such as 010.dev to its step node ID. Pass the addressRevision the work-item read returned (not projectRevision). A 409 means addresses changed since that read: read the work items again and re-check which step you mean before resolving.',
+  },
 });
 
 /** Applies every command kind atomically; semantic parsing precedes the 200-command cap. */

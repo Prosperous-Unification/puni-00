@@ -226,6 +226,8 @@ export interface RestoreSubtree {
    */
   measures: StoredMeasure[];
   assignments: Assignment[];
+  /** New journals carry the parent-to-child node IDs; old journals omit them because older creates recorded no mapping. */
+  stepNodeMapping?: { from: string; to: string }[];
   /** Edges with both ends inside the branch: restored with it, in the same write. */
   internalDependencies: StoredDependency[];
   /**
@@ -419,6 +421,8 @@ export function touchedBy(command: CompensatingCommand): string[] {
     case 'set_progress':
     case 'clear_progress':
     case 'assign':
+      // Proof: omitting assignment owners made the SQLite assignment-only redo
+      // conflict test fail at `Expected: 409, Received: 200`; watched 2026-09-27.
       return [command.workItemId];
     case 'add_dependency':
     case 'remove_dependency':

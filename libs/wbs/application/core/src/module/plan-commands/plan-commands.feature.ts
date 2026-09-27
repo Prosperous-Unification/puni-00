@@ -387,6 +387,36 @@ export class PlanCommandRunner {
     const applied: AppliedCommand[] = [];
     for (const [index, command] of commands.entries()) {
       const context = new CommandContext(actorId, projectId, index, command.kind, refs);
+      // Proof: removing this check made the mounted cross-project estimate test fail:
+      // Expected: 404 / Received: 200 (2026-09-27).
+      if (projectId !== null && ('workItemId' in command || 'workItemRef' in command)) {
+        // Proof: checking the literal ID before resolving this context made a batch-created
+        // ref plus ignored missing ID return 404 instead of 200 (mounted, 2026-09-27).
+        const workItemId = context.id(
+          'workItemId' in command && typeof command.workItemId === 'string'
+            ? command.workItemId
+            : undefined,
+          'workItemRef' in command && typeof command.workItemRef === 'string'
+            ? command.workItemRef
+            : undefined,
+        );
+        if (
+          workItemId !== null &&
+          !(await graph.workItems.hasWorkItemInProject(projectId, workItemId))
+        ) {
+          context.refuse({ reason: 'not_found' });
+        }
+      }
+      if (projectId !== null && 'addressedBy' in command && command.addressedBy === 'node') {
+        // Proof: skipping this validation made mounted clearEstimate cases return 200
+        // for a parent (expected 409) and an unknown step (expected 404), 2026-09-27.
+        const refusal = await graph.workItems.validateStepNode(
+          projectId,
+          context.required(command.workItemId, command.workItemRef),
+          command.stepId,
+        );
+        if (refusal !== null) context.refuse({ reason: refusal });
+      }
       applied.push(await applyCommand(bindings, command, context));
     }
     return applied;
