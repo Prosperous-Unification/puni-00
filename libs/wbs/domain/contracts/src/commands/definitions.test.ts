@@ -33,6 +33,7 @@ const PINNED_COMMAND_KINDS = [
   'unfreezeProject',
   'unfreezeWorkItem',
   'setCapacity',
+  'setStepAllowance',
   'setPriorityBands',
   'createTeam',
   'patchTeam',

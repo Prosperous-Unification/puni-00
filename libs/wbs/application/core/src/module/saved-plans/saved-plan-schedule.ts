@@ -62,7 +62,7 @@ export function scheduleInputOfCaptured(reads: PlanInputReads): ScheduleInput {
     rows,
     reads.estimates,
     hasChildren,
-    reads.steps.map((each) => each.id),
+    reads.steps,
     rule,
     assigneesOf,
     effectiveTeamsOf(rows),

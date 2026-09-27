@@ -69,7 +69,7 @@ describe('the Step module', () => {
     const { broadcast, requirements } = await seeded();
     const { steps } = installStep(requirements);
 
-    const added = await steps.add(PROJECT, OWNER, ' Review ');
+    const added = await steps.add(PROJECT, OWNER, ' Review ', 0);
     if (!added.ok) throw new Error(`the step was refused: ${added.reason}`);
 
     expect(added.value).toMatchObject({ id: 'step-1', projectId: PROJECT, name: 'Review' });

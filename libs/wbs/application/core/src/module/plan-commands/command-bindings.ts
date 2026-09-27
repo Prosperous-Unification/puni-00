@@ -413,6 +413,17 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       );
       return { ...context.plain(), kind: command.kind };
     },
+    setStepAllowance: async (command, context) => {
+      context.value(
+        await workItems.setStepAllowance(
+          context.requireProjectId(),
+          context.actorId,
+          command.stepId,
+          command.allowancePercent,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
     setPriorityBands: async (command, context) => {
       context.value(
         await priorityBands.set(context.requireProjectId(), context.actorId, command.bands),

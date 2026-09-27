@@ -1,5 +1,7 @@
 export { STEP_POSITION_STEP } from '@wbs/domain';
 
+import type { AllowancePercent } from '@wbs/domain';
+
 import type { Assignment } from './directory-store';
 import type { WriteStamp } from './write-stamp';
 
@@ -20,6 +22,12 @@ export interface Step {
    * their step node IDs. Immutable once set; a rename keeps it.
    */
   code: string | null;
+  /**
+   * This step's estimate allowance, applied to every estimate for the step
+   * before rounding — see `chargedDays` in `@wbs/domain`. Zero unless a planner
+   * set one; there is no per-work-item override.
+   */
+  allowancePercent: AllowancePercent;
 }
 
 /**
@@ -40,6 +48,14 @@ export type NewStep = Omit<Step, 'position' | 'code'> & { code?: string };
 type StepWriteRefusal = 'taken' | 'code_taken' | 'not_found';
 
 export type StepWritten = { ok: true; step: Step } | { ok: false; reason: StepWriteRefusal };
+
+/**
+ * An allowance write's outcome: the step as written, the allowance it held just
+ * before, and the step's allowance revision after the write — or `not_found`.
+ */
+export type StepAllowanceWritten =
+  | { ok: true; step: Step; previousPercent: AllowancePercent; revision: number }
+  | { ok: false; reason: 'not_found' };
 
 /**
  * What points at one step, read for the refusal that names it.

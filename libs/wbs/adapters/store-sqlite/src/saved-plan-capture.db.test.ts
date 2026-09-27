@@ -144,7 +144,16 @@ describe('capturing a project’s plan input', () => {
       // cases below: `before`/`pert` is the seeded state, and the one edit
       // committed mid-capture moves both.
       projectRow({ id: 'p1', name: 'before', ownerId: 'owner', estimateMethod: 'pert' }),
-      [{ id: 'st-1', projectId: 'p1', name: 'before', position: 10, code: 'before' }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'before',
+          position: 10,
+          code: 'before',
+          allowancePercent: 0,
+        },
+      ],
       wrote,
     );
     const directory = new DirectoryRepository(db, OPEN);

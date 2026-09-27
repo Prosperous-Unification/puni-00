@@ -53,7 +53,16 @@ beforeEach(async () => {
       id: projectId,
       ownerId,
     }),
-    [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10, code: 'dev' }],
+    [
+      {
+        id: crypto.randomUUID(),
+        projectId,
+        name: 'Dev',
+        position: 10,
+        code: 'dev',
+        allowancePercent: 0,
+      },
+    ],
     wrote(),
   );
 });
