@@ -174,6 +174,57 @@ describe('TypedDependencyRepository', () => {
     expect(revision(c)).toBe(beforeC + 1);
   });
 
+  it('refuses update of an unknown id without changing rows or revisions', async () => {
+    const a = await addWorkItem('A');
+    const b = await addWorkItem('B');
+    const row = link(a, b);
+    await repo.add(row, wrote());
+    const revisions = [revision(a), revision(b)];
+    expect(await rejection(repo.update({ ...row, id: 'missing' }, wrote()))).toContain(
+      'does not exist',
+    );
+    expect(await repo.listByProject(projectId)).toEqual([row]);
+    expect([revision(a), revision(b)]).toEqual(revisions);
+  });
+
+  it('refuses removal of an unknown id without changing rows or revisions', async () => {
+    const a = await addWorkItem('A');
+    const b = await addWorkItem('B');
+    const row = link(a, b);
+    await repo.add(row, wrote());
+    const revisions = [revision(a), revision(b)];
+    expect(await rejection(repo.remove('missing', wrote()))).toContain('does not exist');
+    expect(await repo.listByProject(projectId)).toEqual([row]);
+    expect([revision(a), revision(b)]).toEqual(revisions);
+  });
+
+  it('refuses moving a typed dependency to another project without changing rows or revisions', async () => {
+    const a = await addWorkItem('A');
+    const b = await addWorkItem('B');
+    const row = link(a, b);
+    await repo.add(row, wrote());
+    const revisions = [revision(a), revision(b)];
+    const otherProject = crypto.randomUUID();
+    await new ProjectRepository(db, OPEN).create(
+      projectRow({ id: otherProject, ownerId }),
+      [
+        {
+          id: crypto.randomUUID(),
+          projectId: otherProject,
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+        },
+      ],
+      wrote(),
+    );
+    expect(await rejection(repo.update({ ...row, projectId: otherProject }, wrote()))).toContain(
+      'cannot move',
+    );
+    expect(await repo.listByProject(projectId)).toEqual([row]);
+    expect([revision(a), revision(b)]).toEqual(revisions);
+  });
+
   /**
    * Proof: the `isRelationshipType` read check removed made this case fail on
    * `Received: (resolved without throwing)` — an SS row came back as a link; watched

@@ -90,22 +90,20 @@ Run it inside the incoming container after its writers have stopped, with the sa
 Save the rows, then copy the file off the host:
 
 ```sh
-bun -e "import { Database } from 'bun:sqlite'; const [path, out] = process.argv.slice(-2); const db = new Database(path, { readonly: true }); await Bun.write(out, JSON.stringify(db.query('SELECT * FROM typed_dependency').all()))" "$DB_PATH" /data/typed-dependency-<date>.json
+docker exec be-01-<colour> bun run src/typed-dependency-rollback-cli.ts save /data/typed-dependency-<date>.json
 ```
 
-Remove them. This refuses if the saved file holds fewer rows than the table:
+Remove them only after the save is secure. Remove refuses unless the saved rows match the table
+exactly, including every column:
 
 ```sh
-bun -e "import { Database } from 'bun:sqlite'; const [path, saved] = process.argv.slice(-2); const kept = await Bun.file(saved).json(); const db = new Database(path); const n = db.query('SELECT count(*) AS n FROM typed_dependency').get().n; if (n !== kept.length) throw new Error('save again'); db.run('DELETE FROM typed_dependency')" "$DB_PATH" /data/typed-dependency-<date>.json
+docker exec be-01-<colour> bun run src/typed-dependency-rollback-cli.ts remove /data/typed-dependency-<date>.json
+docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
 ```
 
-Then rerun `bun run src/migrate-down-cli.ts --to=<baseline>`. After a later release applies the
-migration again, restore every saved row in one transaction with foreign keys on. The restore
-either lands every row or fails at the first work item or step that no longer exists:
+After a later forward migration, restore from the saved file. Restore refuses the whole set if
+any endpoint no longer fits its project or work-item shape:
 
 ```sh
-bun -e "import { Database } from 'bun:sqlite'; const [path, saved] = process.argv.slice(-2); const kept = await Bun.file(saved).json(); const db = new Database(path); db.run('PRAGMA foreign_keys = ON'); const put = db.prepare('INSERT INTO typed_dependency (id, project_id, predecessor_work_item_id, predecessor_scope, predecessor_step_id, successor_work_item_id, successor_scope, successor_step_id, type, created_at, updated_at, created_by) VALUES (\$id, \$project_id, \$predecessor_work_item_id, \$predecessor_scope, \$predecessor_step_id, \$successor_work_item_id, \$successor_scope, \$successor_step_id, \$type, \$created_at, \$updated_at, \$created_by)'); db.transaction(() => { for (const row of kept) put.run(Object.fromEntries(Object.entries(row).map(([k, v]) => ['\$' + k, v]))); })()" "$DB_PATH" /data/typed-dependency-<date>.json
+docker exec be-01-<colour> bun run src/typed-dependency-rollback-cli.ts restore /data/typed-dependency-<date>.json
 ```
-
-Verified 2026-09-27 on a scratch database. Save, remove, rollback, the forward run and restore all
-completed, and the restored row read back unchanged.
