@@ -132,6 +132,14 @@ async function observation(child: ReturnType<typeof spawnWorker>): Promise<Worke
  */
 const WORKER_READINESS_MS = 20_000;
 
+/**
+ * How long a test's lock holder waits for its COMMIT. A contender retrying `BEGIN IMMEDIATE` holds
+ * a shared lock for an instant on each attempt, and a COMMIT that meets one fails with SQLITE_BUSY
+ * when it does not wait. Bounded, so a reader that never lets go still fails the holder, and under
+ * the preload's 30 second test limit.
+ */
+const HOLDER_COMMIT_WAIT_MS = 10_000;
+
 function waitForFiles(paths: readonly string[]): void {
   const deadline = Date.now() + WORKER_READINESS_MS;
   // Proof: with WORKER_READINESS_MS set to 0 the two-process test failed on `worker readiness
@@ -666,11 +674,16 @@ test('bounds terminal lock contention and retries until a held write commits', a
 
   const holderReady = join(fixture.root, 'holder-ready');
   const release = join(fixture.root, 'release');
+  // The holder takes its reserved lock without waiting, so the contender cannot slip in first, but
+  // its COMMIT waits up to HOLDER_COMMIT_WAIT_MS for the contender's momentary shared lock: SQLite
+  // refuses new readers once COMMIT holds the pending lock, so the wait converges.
+  // Proof: with the COMMIT wait at 0, 2 of 200 loaded runs failed on the holder's exit
+  // (`Expected: 0, Received: 1`, WBS 080.17); with it, 0 of 1000 failed (2026-09-27).
   const holder = Bun.spawn(
     [
       process.execPath,
       '--eval',
-      `import { Database } from 'bun:sqlite'; import { existsSync, writeFileSync } from 'node:fs'; const db = new Database(process.argv[1]); db.run('PRAGMA busy_timeout = 0'); db.run('BEGIN IMMEDIATE'); writeFileSync(process.argv[2], 'ready'); while (!existsSync(process.argv[3])) Bun.sleepSync(1); db.run('COMMIT'); db.close();`,
+      `import { Database } from 'bun:sqlite'; import { existsSync, writeFileSync } from 'node:fs'; const db = new Database(process.argv[1]); db.run('PRAGMA busy_timeout = 0'); db.run('BEGIN IMMEDIATE'); writeFileSync(process.argv[2], 'ready'); while (!existsSync(process.argv[3])) Bun.sleepSync(1); db.run('PRAGMA busy_timeout = ${String(HOLDER_COMMIT_WAIT_MS)}'); db.run('COMMIT'); db.close();`,
       databasePath,
       holderReady,
       release,
@@ -690,6 +703,9 @@ test('bounds terminal lock contention and retries until a held write commits', a
   Bun.sleepSync(10);
   writeFileSync(release, 'release');
   expect(await holder.exited).toBe(0);
+  // Proof: with the waiting holder kept and `transact` made to throw contention on its first busy
+  // attempt, this failed on the contender's `ok: false` observation (2026-09-27), so the helper's
+  // wait does not stand in for production retry.
   expect(await observation(contender)).toMatchObject({ ok: true });
 });
 

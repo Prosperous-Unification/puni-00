@@ -2,7 +2,7 @@
 
 ### Requirement: Working plans expose committed typed dependency mutations
 
-A working plan SHALL include legacy and typed dependencies distinctly after each successful mutation in its admitted batch. A retained read after a typed edit SHALL see its stable ID, endpoint scopes, step IDs and FS type; a refused mutation SHALL not change the working plan.
+A working plan SHALL include legacy and typed dependencies distinctly after each successful mutation in its admitted batch. A retained read after a typed edit SHALL see its stable ID, endpoint scopes, step node IDs or step IDs and FS type; a refused mutation SHALL not change the working plan.
 
 #### Scenario: A typed edit is visible to a later batch command
 
