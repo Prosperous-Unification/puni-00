@@ -1,8 +1,8 @@
 ## 1. Make public discovery routable
 
-- [ ] 1.1 Add failing ingress/rendered-manifest and mounted-route tests for the exact protected-resource and authorization-server discovery URLs; prove the existing fallback reaches the frontend.
-- [ ] 1.2 Add narrow production ingress routes to mcp-01 and preserve `/mcp` and API routing.
-- [ ] 1.3 Remove one discovery route in a fault run; watch the routing test fail, restore and add an adjacent Proof: comment.
+- [x] 1.1 Add failing ingress/rendered-manifest and mounted-route tests for the exact protected-resource and authorization-server discovery URLs; prove the existing fallback reaches the frontend.
+- [x] 1.2 Add narrow production ingress routes to mcp-01 and preserve `/mcp` and API routing.
+- [x] 1.3 Remove one discovery route in a fault run; watch the routing test fail, restore and add an adjacent Proof: comment.
 
 ## 2. Bound OAuth redirects
 

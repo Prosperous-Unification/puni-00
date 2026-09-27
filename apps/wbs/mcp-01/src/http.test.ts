@@ -68,6 +68,37 @@ describe('oauthMetadataResponse', () => {
     });
   });
 
+  it('serves every public discovery URL through the mounted handler with consistent URLs', async () => {
+    const production: McpConfig = {
+      ...CONFIG,
+      MCP_PUBLIC_URL: 'https://wbs.bulletpoints.club/mcp',
+    };
+    const transport = { handleRequest: () => Promise.reject(new Error('discovery is anonymous')) };
+    const verifier = { verify: () => Promise.reject(new Error('discovery is anonymous')) };
+    const documents: Record<string, unknown>[] = [];
+    for (const path of [
+      '/.well-known/oauth-protected-resource',
+      '/.well-known/oauth-protected-resource/mcp',
+      '/.well-known/oauth-authorization-server/mcp/oauth',
+    ]) {
+      const response = await mcpHttpResponse(
+        new Request(`https://wbs.bulletpoints.club${path}`),
+        production,
+        verifier,
+        transport,
+        {},
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toMatch(/^application\/json/);
+      documents.push((await response.json()) as Record<string, unknown>);
+    }
+    const [origin, resource, server] = [documents.at(0), documents.at(1), documents.at(2)];
+    expect(origin).toEqual(resource);
+    expect(resource?.['resource']).toBe('https://wbs.bulletpoints.club/mcp');
+    expect(resource?.['authorization_servers']).toEqual([server?.['issuer']]);
+    expect(server?.['token_endpoint']).toBe('https://wbs.bulletpoints.club/mcp/oauth/token');
+  });
+
   it('does not answer metadata on a lookalike path', () => {
     expect(
       oauthMetadataResponse(
