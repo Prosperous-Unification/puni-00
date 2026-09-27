@@ -51,6 +51,11 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
   - The canonical `typed` entry removed → `hashes a typed dependency’s endpoints, scope and identity` failed on `Expected: 4, Received: 1`.
   - Cache retirement: a typed edit changes the input hash (the canonical case above), and the version bump evicts every row cached under 12. The contract-version test (`startsWith('13+')`) and the corpus-version lint pin the number.
 
+- **Astra review (high) of tasks 7–9:** no Critical. It confirmed the 12 → 13 bump and that no production path drops typed dependencies apart from the agreed saved-plan exception. Two Important findings and one Minor, all fixed:
+  - Materialisation's independent refusal had no proof. `refuses offsets that violate one expanded pair, independently of the wire`; proof: `materialiseOptimized` passing `[]` → `Received function did not throw`.
+  - Cache retirement had no production-path test. `a typed dependency edit and the contract bump retire cached rows` builds keys with `scheduleInputHash` and `contractVersionOf`. Proof: the canonical `typed` entry removed → the pre-edit row was served; the version put back to 12 → the version-12 row was served.
+  - Minor: an unknown typed endpoint had no negative. `refuses rather than dropping the relationship`; proof: `leavesUnderOf` answering `[]` → `Received function did not throw`.
+
 ## Planned checks — pending later tasks
 
 - **Pending:** Expanded slice-graph cases: parent Cartesian product, self-slice/cycle refusal, apparent work-item cycle acceptance, referenced-step deletion refusal, reparenting, step insertion/deletion/reorder, legacy write, project `depReach` change, estimate-driven dynamic-anchor change and history replay.

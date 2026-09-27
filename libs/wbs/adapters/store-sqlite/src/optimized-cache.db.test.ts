@@ -10,6 +10,7 @@ import {
   type StoredObjectiveValue,
 } from '@wbs/contracts/solver/optimized-result';
 import {
+  contractVersionOf,
   encodeSchedule,
   guardRealPublication,
   type PlannedRow,
@@ -2583,6 +2584,108 @@ describe('the adapter a plan read asks', () => {
       // And the third answer is a miss on the HASH rather than on the project:
       // the same read against the stored plan is not a miss for `time`'s row.
       expect(scheduleInputHash(otherPlan)).not.toBe(scheduleInputHash(input));
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+/**
+ * WBS 010.4.6 task 9: a cache built before a typed dependency existed cannot
+ * publish after one is added, and nothing cached under contract 12 is served
+ * under 13. Both keys are built the way the production reader builds them —
+ * `scheduleInputHash` over the canonical input and `contractVersionOf` — so the
+ * test fails if either stops moving.
+ *
+ * Proof: the canonical `typed` entry removed made this case fail with the
+ * pre-edit row served for the post-edit key (`kind: "ok"`, generation 1);
+ * `SCHEDULER_CONTRACT_VERSION` put back to 12 made it fail with the version-12
+ * row served (`kind: "ok"`, generation 2); both watched 2026-09-27.
+ */
+describe('a typed dependency edit and the contract bump retire cached rows', () => {
+  const rows: PlannedRow[] = [
+    { id: 'a', parentId: null, position: 10, frozenNumber: null, priority: null },
+    { id: 'b', parentId: null, position: 20, frozenNumber: null, priority: null },
+  ];
+  const slices: Slice[] = ['a', 'b'].map((workItemId) => ({
+    workItemId,
+    stepId: null,
+    days: 1,
+    personId: null,
+    width: 1,
+    poolIds: [],
+  }));
+  const before: ScheduleInput = {
+    rows,
+    edges: [],
+    slices,
+    notBefore: new Map(),
+    poolSizes: new Map(),
+    reach: 'whole-item',
+    deadlines: new Map(),
+    typed: [],
+  };
+  const after: ScheduleInput = {
+    ...before,
+    typed: [
+      {
+        id: 'r1',
+        predecessor: { scope: 'whole', workItemId: 'a' },
+        successor: { scope: 'whole', workItemId: 'b' },
+        type: 'FS',
+      },
+    ],
+  };
+
+  it('misses the row cached before the edit, and one cached under contract 12', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seedProject(db.path);
+      const contract = contractVersionOf('0.1.3');
+      const payload = JSON.stringify(encodeOptimizedResult(solverResult(realPlan())));
+      const current = allocateGeneration(
+        openDrizzle(db.path),
+        'p-1',
+        contract,
+        scheduleInputHash(before),
+        1,
+      );
+      storeRow(db.path, {
+        objective: 'pri',
+        generation: current,
+        status: 'ok',
+        resultJson: payload,
+        failureReason: null,
+        inputHash: scheduleInputHash(before),
+        contractVersion: contract,
+      });
+      const keyOf = (input: ScheduleInput): OptimizedCacheKey => ({
+        ...KEY,
+        inputHash: scheduleInputHash(input),
+        contractVersion: contract,
+      });
+      // The precondition: the pre-edit key is served.
+      expect(read(db.path, keyOf(before)).pri.kind).toBe('ok');
+      expect(read(db.path, keyOf(after)).pri).toEqual({ kind: 'miss' });
+
+      const retired = allocateGeneration(
+        openDrizzle(db.path),
+        'p-1',
+        '12+0.1.3',
+        scheduleInputHash(after),
+        2,
+      );
+      storeRow(db.path, {
+        objective: 'pri',
+        generation: retired,
+        status: 'ok',
+        resultJson: payload,
+        failureReason: null,
+        inputHash: scheduleInputHash(after),
+        contractVersion: '12+0.1.3',
+      });
+      expect(read(db.path, keyOf(after)).pri).toEqual({ kind: 'miss' });
     } finally {
       db.cleanup();
     }

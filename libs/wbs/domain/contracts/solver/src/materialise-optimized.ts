@@ -123,6 +123,9 @@ export function materialiseOptimized(
     poolSizes,
     reach,
     new Map(),
+    // Proof: `[]` here in place of `typed` made `refuses offsets that violate
+    // one expanded pair, independently of the wire` fail on `Received
+    // function did not throw`; watched 2026-09-27.
     typed,
     pinnedStarts,
   );

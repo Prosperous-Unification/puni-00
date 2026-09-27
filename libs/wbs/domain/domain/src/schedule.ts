@@ -447,6 +447,9 @@ export function expandToLeaves(
 export function leavesUnderOf(index: TreeIndex): (workItemId: string) => readonly string[] {
   return (workItemId) => {
     const found = index.leavesUnder.get(workItemId);
+    // Proof: `return []` here made `refuses rather than dropping the
+    // relationship` fail on `Received function did not throw`; watched
+    // 2026-09-27.
     if (found === undefined) throw new Error(`no work item ${workItemId} in this plan`);
     return found;
   };

@@ -111,3 +111,16 @@ describe('Fast with typed finish-to-start dependencies', () => {
     expect(startOf(placed, 'C', QA)).toBe(5);
   });
 });
+
+describe('Fast with a typed endpoint the plan does not hold', () => {
+  /**
+   * Proof: `leavesUnderOf` answering `[]` for an unknown work item instead of
+   * throwing made this case fail on `Received function did not throw` — the
+   * relationship vanished and B ran from day 0; watched 2026-09-27.
+   */
+  it('refuses rather than dropping the relationship', () => {
+    expect(() =>
+      run([item('A'), item('B')], { A: [1, 1], B: [1, 1] }, [fs('r1', whole('ghost'), whole('B'))]),
+    ).toThrow('no work item ghost in this plan');
+  });
+});

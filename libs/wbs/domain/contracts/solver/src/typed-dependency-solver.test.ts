@@ -2,6 +2,7 @@ import type { PlannedRow, Slice, TypedDependency } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { buildSolverRequest, type SolverRequestPlan } from './build-solver-request';
+import { materialiseOptimized } from './materialise-optimized';
 import { quantisedFastBaseline } from './quantised-baseline';
 import { revalidateSolverResult } from './revalidate-solver-result';
 import type { SolverObjectiveTerm, SolverObjectiveValues, SolverResponse } from './wire-types';
@@ -104,5 +105,46 @@ describe('typed dependencies on the solver wire', () => {
     const result = revalidateSolverResult(request, feasible(offsets));
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.failure).toBe('edge-violated');
+  });
+});
+
+describe('typed dependencies when an optimized answer is materialised', () => {
+  /**
+   * Proof: `materialiseOptimized` handing `schedule()` an empty typed list made
+   * this case fail on `Received function did not throw` — the optimized
+   * answer was materialised with B.dev before P2.qa finished; watched
+   * 2026-09-27.
+   */
+  it('refuses offsets that violate one expanded pair, independently of the wire', () => {
+    const request = requestFor(plan);
+    const offsets = { ...request.baselineOffsets, [key('B', DEV)]: 2 * 48, [key('B', QA)]: 3 * 48 };
+    expect(() =>
+      materialiseOptimized(
+        plan.rows,
+        plan.edges,
+        plan.slices,
+        plan.notBefore,
+        plan.poolSizes,
+        plan.reach,
+        plan.typed,
+        offsets,
+      ),
+    ).toThrow();
+  });
+
+  it('materialises offsets that honour every expanded pair', () => {
+    const request = requestFor(plan);
+    expect(() =>
+      materialiseOptimized(
+        plan.rows,
+        plan.edges,
+        plan.slices,
+        plan.notBefore,
+        plan.poolSizes,
+        plan.reach,
+        plan.typed,
+        request.baselineOffsets,
+      ),
+    ).not.toThrow();
   });
 });
