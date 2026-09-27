@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wbs-mcp
+  namespace: wbs
+  labels:
+    app.kubernetes.io/part-of: wbs
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: storage-class-set-by-overlay
+  resources:
+    requests:
+      storage: 1Gi

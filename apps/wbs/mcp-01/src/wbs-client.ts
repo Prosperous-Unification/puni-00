@@ -45,6 +45,18 @@ export class UpstreamRejected extends Error {
   }
 }
 
+/**
+ * The MCP session cannot be refreshed and its family is already ended: the session is missing,
+ * expired or revoked, or the identity provider refused the refresh. A modeled session outcome,
+ * never an operator failure; any other refresh rejection is unexpected.
+ */
+export class SessionRefreshRefused extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'SessionRefreshRefused';
+  }
+}
+
 /** The configured Basic edge gate rejected the deployment credential. */
 export class EdgeGate extends Error {
   constructor(message: string) {

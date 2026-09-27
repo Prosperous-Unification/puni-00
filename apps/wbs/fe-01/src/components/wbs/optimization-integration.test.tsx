@@ -6,11 +6,11 @@ import type { ProjectStreamDeps, SocketHandlers } from '@/lib/project-stream';
 import type { PlanOptimizationView } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 import { ProjectPageOverOwner } from '@/testing/project-page-over-owner';
 import { projectServicesOf } from '@/testing/project-services-of';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
-import type { SavedPlansPanelDeps } from './saved-plans-panel';
 import { type SubscriptionHandlers } from './wbs-table';
 
 const hasDom = typeof document !== 'undefined';
@@ -603,16 +603,6 @@ describe('project optimization in the plan', () => {
     expect([...calls].sort()).toEqual([...READS_THE_FULL_SCOPE_MAKES].sort());
   });
 
-  /** The shelf, off: this case selects a project, and the panel that mounts with it is not the subject. */
-  const SHELF_OFF: SavedPlansPanelDeps = {
-    available: () => Promise.resolve(false),
-    list: () => Promise.reject(new Error('the shelf is off in this case')),
-    subscribe: () => ({ unsubscribe: () => undefined }),
-    save: () => Promise.reject(new Error('the shelf is off in this case')),
-    compare: () => Promise.reject(new Error('the shelf is off in this case')),
-    rename: () => Promise.reject(new Error('the shelf is off in this case')),
-  };
-
   /**
    * A socket the case drives by hand, in the shape `subscribeToProject` opens.
    *
@@ -711,9 +701,8 @@ describe('project optimization in the plan', () => {
 
       render(
         <ProjectPageOverOwner
-          token="t"
           api={api}
-          savedPlansDeps={SHELF_OFF}
+          savedPlanRoutes={NO_SAVED_PLANS}
           streamDeps={socket.deps}
         />,
       );

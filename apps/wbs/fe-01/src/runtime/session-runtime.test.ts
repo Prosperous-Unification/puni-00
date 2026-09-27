@@ -4,9 +4,16 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DirectoryApi } from '@/lib/wbs-api';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
 import { projectServicesOver } from '@/modules/project/composition';
-import type { ProjectRuntime, ProjectSource } from '@/modules/project/contract';
+import {
+  CatalogWithdrawnError,
+  type ProjectRuntime,
+  type ProjectSource,
+} from '@/modules/project/contract';
 import { fakeProjectApi } from '@/testing/fake-project-api';
+import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
+import { recordCalls } from '@/testing/record-calls';
 
+import { credentialOf } from './credential';
 import { PartialAcquisitionError, type RetirableRuntime } from './lifetime-slot';
 import { installProjectRuntime, type ProjectRuntimeDependencies } from './project-runtime';
 import {
@@ -18,7 +25,7 @@ import {
 
 /** A project source over a fresh fake client, with no socket. */
 const projectSource = (): ProjectSource => ({
-  services: projectServicesOver(fakeProjectApi()),
+  services: projectServicesOver(fakeProjectApi(), NO_SAVED_PLANS),
   subscribe: undefined,
 });
 
@@ -58,6 +65,8 @@ describe('the session runtime', () => {
     const runtime = installSessionRuntime({
       userId: 'u1',
       directoryApi: fakeDirectoryApi(),
+      catalogRoutes: fakeProjectApi(),
+      projectSourceFor: projectSource,
       isCurrent: () => true,
       installProject: installProjectRuntime,
       budgetMs: 1_000,
@@ -66,6 +75,7 @@ describe('the session runtime', () => {
     // Enumerated rather than trusted to the type: an object with one more member
     // still satisfies `SessionRuntime`, and that member would reach the router.
     expect(Object.keys(runtime.services).sort()).toEqual([
+      'catalog',
       'directory',
       'isCurrent',
       'projects',
@@ -74,20 +84,97 @@ describe('the session runtime', () => {
     await runtime.close({ timeoutMs: 1_000 });
   });
 
+  it('lists the catalog and reads each project through the one client cut from the credential', async () => {
+    const credentials: string[] = [];
+    const client = fakeProjectApi();
+    const listed = recordCalls(client, 'listProjects');
+    const trees = recordCalls(client, 'tree', (projectId) => projectId);
+    const owner = createSessionOwner({
+      clientFor: () => fakeDirectoryApi(),
+      projectClientFor: (credential) => {
+        credentials.push(credential);
+        return client;
+      },
+      budgetMs: 1_000,
+    });
+    await owner.open({ userId: 'u1', credential: credentialOf('tok') });
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
+
+    await opened.services.catalog.list();
+    await opened.services.projects.open('p1');
+    await vi.waitFor(() => {
+      expect(trees).toEqual(['p1']);
+    });
+
+    expect(credentials).toEqual(['tok']);
+    expect(listed).toHaveLength(1);
+    await owner.leave();
+  });
+
+  it('keeps the first credential’s project client when the same user arrives with another', async () => {
+    const credentials: string[] = [];
+    const client = fakeProjectApi();
+    const trees = recordCalls(client, 'tree', (projectId) => projectId);
+    const owner = createSessionOwner({
+      clientFor: () => fakeDirectoryApi(),
+      projectClientFor: (credential) => {
+        credentials.push(credential);
+        return client;
+      },
+      budgetMs: 1_000,
+    });
+    await owner.open({ userId: 'u1', credential: credentialOf('first') });
+    await owner.open({ userId: 'u1', credential: credentialOf('second') });
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
+
+    await opened.services.catalog.list();
+    await opened.services.projects.open('p1');
+    await vi.waitFor(() => {
+      expect(trees).toEqual(['p1']);
+    });
+
+    expect(credentials).toEqual(['first']);
+    await owner.leave();
+  });
+
+  it('sends nothing for a catalog gesture asked of a withdrawn session', async () => {
+    const client = fakeProjectApi();
+    const listed = recordCalls(client, 'listProjects');
+    const owner = createSessionOwner({
+      clientFor: () => fakeDirectoryApi(),
+      projectClientFor: () => client,
+      budgetMs: 1_000,
+    });
+    await owner.open({ userId: 'u1', credential: credentialOf('') });
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
+    const leaving = owner.leave();
+
+    await expect(opened.services.catalog.list()).rejects.toBeInstanceOf(CatalogWithdrawnError);
+    await leaving;
+    expect(listed).toEqual([]);
+  });
+
   it('keeps one runtime for one user whatever credential arrives, and replaces it for another', async () => {
     const clients = clientsByCredential();
-    const owner = createSessionOwner({ clientFor: clients.clientFor, budgetMs: 1_000 });
+    const owner = createSessionOwner({
+      projectClientFor: () => fakeProjectApi(),
+      clientFor: clients.clientFor,
+      budgetMs: 1_000,
+    });
 
-    await owner.open({ userId: 'u1', credential: '' });
+    await owner.open({ userId: 'u1', credential: credentialOf('') });
     const first = owner.snapshot();
     if (first.status !== 'live') throw new Error(`u1 was not published: ${first.status}`);
-    await owner.open({ userId: 'u1', credential: 't' });
+    await owner.open({ userId: 'u1', credential: credentialOf('t') });
 
     expect(owner.snapshot()).toBe(first);
     expect(first.services.isCurrent()).toBe(true);
     expect(clients.asked).toEqual(['']);
 
-    const switching = owner.open({ userId: 'u2', credential: '' });
+    const switching = owner.open({ userId: 'u2', credential: credentialOf('') });
     expect(first.services.isCurrent()).toBe(false);
     await switching;
     const second = owner.snapshot();
@@ -98,15 +185,16 @@ describe('the session runtime', () => {
   it('retires the session’s project before the session, and opens none once it is withdrawn', async () => {
     const events: string[] = [];
     const owner = createSessionOwner({
+      projectClientFor: () => fakeProjectApi(),
       clientFor: () => fakeDirectoryApi(),
       installProject: recordedProjects(events),
       budgetMs: 1_000,
     });
-    await owner.open({ userId: 'u1', credential: '' });
+    await owner.open({ userId: 'u1', credential: credentialOf('') });
     const opened = owner.snapshot();
     if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
     const session = opened.services;
-    await session.projects.open('p1', projectSource());
+    await session.projects.open('p1');
     const project = session.projects.snapshot();
     if (project.status !== 'live') throw new Error(`p1 was not published: ${project.status}`);
 
@@ -118,7 +206,7 @@ describe('the session runtime', () => {
     expect(session.projects.snapshot().status).toBe('empty');
     expect(owner.snapshot().status).toBe('empty');
 
-    await session.projects.open('p2', projectSource());
+    await session.projects.open('p2');
     expect(events).toEqual(['project p1 opened', 'project p1 closed']);
     expect(session.projects.snapshot().status).toBe('empty');
   });
@@ -126,27 +214,31 @@ describe('the session runtime', () => {
   it('fails the session’s retirement when its project will not let go', async () => {
     const events: string[] = [];
     const owner = createSessionOwner({
+      projectClientFor: () => fakeProjectApi(),
       clientFor: () => fakeDirectoryApi(),
       installProject: recordedProjects(events, () =>
         Promise.reject(new Error('the socket would not close')),
       ),
       budgetMs: 1_000,
     });
-    await owner.open({ userId: 'u1', credential: '' });
+    await owner.open({ userId: 'u1', credential: credentialOf('') });
     const opened = owner.snapshot();
     if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
-    await opened.services.projects.open('p1', projectSource());
+    await opened.services.projects.open('p1');
 
     await expect(owner.leave()).resolves.toBeUndefined();
 
     const left = owner.snapshot();
     expect(left.status === 'fatal' && left.terminal).toBe(true);
-    await expect(owner.open({ userId: 'u2', credential: '' })).resolves.toBeUndefined();
+    await expect(
+      owner.open({ userId: 'u2', credential: credentialOf('') }),
+    ).resolves.toBeUndefined();
     expect(owner.snapshot()).toBe(left);
   });
 
   it('settles a half-built session that cannot be released, and leaves the owner terminally fatal', async () => {
     const owner = createSessionOwner({
+      projectClientFor: () => fakeProjectApi(),
       clientFor: () => fakeDirectoryApi(),
       install: () => {
         throw new PartialAcquisitionError(new Error('the directory could not be built'), () =>
@@ -156,7 +248,9 @@ describe('the session runtime', () => {
       budgetMs: 1_000,
     });
 
-    await expect(owner.open({ userId: 'u1', credential: '' })).resolves.toBeUndefined();
+    await expect(
+      owner.open({ userId: 'u1', credential: credentialOf('') }),
+    ).resolves.toBeUndefined();
 
     const state = owner.snapshot();
     expect(state.status === 'fatal' && state.terminal).toBe(true);
@@ -164,10 +258,14 @@ describe('the session runtime', () => {
 
   it('settles a request a newer one overtook, and builds nothing for it', async () => {
     const clients = clientsByCredential();
-    const owner = createSessionOwner({ clientFor: clients.clientFor, budgetMs: 1_000 });
+    const owner = createSessionOwner({
+      projectClientFor: () => fakeProjectApi(),
+      clientFor: clients.clientFor,
+      budgetMs: 1_000,
+    });
 
-    const overtaken = owner.open({ userId: 'u1', credential: 'first' });
-    const winner = owner.open({ userId: 'u2', credential: 'second' });
+    const overtaken = owner.open({ userId: 'u1', credential: credentialOf('first') });
+    const winner = owner.open({ userId: 'u2', credential: credentialOf('second') });
 
     await expect(overtaken).resolves.toBeUndefined();
     await winner;
@@ -178,6 +276,7 @@ describe('the session runtime', () => {
     const events: string[] = [];
     let letGo: () => void = () => undefined;
     const owner = createSessionOwner({
+      projectClientFor: () => fakeProjectApi(),
       clientFor: () => fakeDirectoryApi(),
       installProject: recordedProjects(
         events,
@@ -188,10 +287,10 @@ describe('the session runtime', () => {
       ),
       budgetMs: 1_000,
     });
-    await owner.open({ userId: 'u1', credential: '' });
+    await owner.open({ userId: 'u1', credential: credentialOf('') });
     const opened = owner.snapshot();
     if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
-    await opened.services.projects.open('p1', projectSource());
+    await opened.services.projects.open('p1');
 
     const first = owner.leave();
     let secondSettled = false;
@@ -208,8 +307,12 @@ describe('the session runtime', () => {
   });
 
   it('hands a region drawn for one user nothing of another user’s session', async () => {
-    const owner = createSessionOwner({ clientFor: () => fakeDirectoryApi(), budgetMs: 1_000 });
-    await owner.open({ userId: 'u1', credential: '' });
+    const owner = createSessionOwner({
+      projectClientFor: () => fakeProjectApi(),
+      clientFor: () => fakeDirectoryApi(),
+      budgetMs: 1_000,
+    });
+    await owner.open({ userId: 'u1', credential: credentialOf('') });
     const state = owner.snapshot();
     if (state.status !== 'live') throw new Error(`u1 was not published: ${state.status}`);
 
@@ -224,6 +327,7 @@ describe('log out', () => {
     const events: string[] = [];
     const client = fakeDirectoryApi();
     const owner = createSessionOwner({
+      projectClientFor: () => fakeProjectApi(),
       clientFor: () => client,
       install: (dependencies) => {
         const installed = installSessionRuntime(dependencies);
@@ -247,10 +351,10 @@ describe('log out', () => {
       },
       budgetMs: 1_000,
     });
-    await owner.open({ userId: 'u1', credential: '' });
+    await owner.open({ userId: 'u1', credential: credentialOf('') });
     const opened = owner.snapshot();
     if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
-    await opened.services.projects.open('p1', projectSource());
+    await opened.services.projects.open('p1');
     const sent = client.log.length;
 
     await expect(owner.exit()).resolves.toBe('signed-out');
@@ -279,6 +383,7 @@ describe('log out', () => {
         .buildContainer();
       socket.resolve('socket');
       const owner = createSessionOwner({
+        projectClientFor: () => fakeProjectApi(),
         clientFor: () => fakeDirectoryApi(),
         installProject: (dependencies) => {
           const installed = installProjectRuntime(dependencies);
@@ -292,10 +397,10 @@ describe('log out', () => {
         },
         budgetMs: 1_000,
       });
-      await owner.open({ userId: 'u1', credential: '' });
+      await owner.open({ userId: 'u1', credential: credentialOf('') });
       const opened = owner.snapshot();
       if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
-      await opened.services.projects.open('p1', projectSource());
+      await opened.services.projects.open('p1');
 
       let settled: SessionExit | null = null;
       void owner.exit().then((exit) => {
@@ -312,7 +417,7 @@ describe('log out', () => {
       await vi.advanceTimersByTimeAsync(0);
       expect(owner.snapshot()).toBe(left);
       await expect(owner.exit()).resolves.toBe('fatal');
-      await owner.open({ userId: 'u2', credential: '' });
+      await owner.open({ userId: 'u2', credential: credentialOf('') });
       expect(owner.snapshot()).toBe(left);
     } finally {
       vi.useRealTimers();
@@ -321,13 +426,14 @@ describe('log out', () => {
 
   it('settles fatal after a sign-in that could not be built, and keeps the fatal state', async () => {
     const owner = createSessionOwner({
+      projectClientFor: () => fakeProjectApi(),
       clientFor: () => fakeDirectoryApi(),
       install: () => {
         throw new Error('the directory could not be built');
       },
       budgetMs: 1_000,
     });
-    await owner.open({ userId: 'u1', credential: '' });
+    await owner.open({ userId: 'u1', credential: credentialOf('') });
     const refused = owner.snapshot();
     expect(refused.status === 'fatal' && !refused.terminal).toBe(true);
 

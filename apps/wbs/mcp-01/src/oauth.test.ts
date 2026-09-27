@@ -1,4 +1,4 @@
-import { createHash, generateKeyPairSync, type KeyObject } from 'node:crypto';
+import { createHash, generateKeyPairSync, type KeyObject, randomBytes } from 'node:crypto';
 import { existsSync, mkdtempSync, rmdirSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,6 +10,7 @@ import type { McpConfig } from './config';
 import { mcpHttpResponse } from './http';
 import { InMemoryMcpOAuth, mcpOAuthFromEnv, type OAuthRouteEvidence } from './oauth';
 import { McpSessionStore } from './session-store';
+import { EdgeGate, SessionRefreshRefused } from './wbs-client';
 
 const CONFIG: McpConfig = {
   MCP_AUTH_MODE: 'standalone',
@@ -1097,6 +1098,12 @@ describe('InMemoryMcpOAuth', () => {
       .toString('base64');
     expect(() =>
       mcpOAuthFromEnv(CONFIG, {
+        MCP_SIGNING_KEY_CURRENT: signing,
+        MCP_STORE_PATH: '/tmp/mcp-missing-store-key.sqlite',
+      }),
+    ).toThrow(/MCP_STORE_KEY_CURRENT/);
+    expect(() =>
+      mcpOAuthFromEnv(CONFIG, {
         MCP_ACCESS_TOKEN_TTL: '3600',
         MCP_SIGNING_KEY_CURRENT: signing,
         MCP_STORE_KEY_CURRENT: Buffer.alloc(32, 1).toString('base64'),
@@ -1241,6 +1248,131 @@ describe('InMemoryMcpOAuth', () => {
     expect((await request())?.status).toBe(503);
     expect((await request())?.status).toBe(200);
     expect(refreshCalls).toBe(2);
+  });
+
+  it('refuses a tool-call refresh of an ended or unrefreshable session as a session outcome', async () => {
+    const { oauth } = fixture();
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+    const accessToken = ((await issued.json()) as { access_token: string }).access_token;
+    const { mcpSessionId } = await oauth.callerSessionFor(accessToken);
+    if (mcpSessionId === null) throw new Error('a local MCP token carries its session id');
+
+    // The login's token set has no provider refresh token, so the provider cannot be asked.
+    const unrefreshable = await oauth
+      .refreshSession(mcpSessionId)
+      .catch((caught: unknown) => caught);
+    expect(unrefreshable).toBeInstanceOf(SessionRefreshRefused);
+    const ended = await oauth.refreshSession(mcpSessionId).catch((caught: unknown) => caught);
+    expect(ended).toBeInstanceOf(SessionRefreshRefused);
+  });
+
+  it('rejects a tool-call refresh with the store failure itself, not a session outcome', async () => {
+    const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+    const failure = new Error('SQLITE_IOERR while reading the family');
+    const { oauth } = fixture({ store });
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+    const accessToken = ((await issued.json()) as { access_token: string }).access_token;
+    const { mcpSessionId } = await oauth.callerSessionFor(accessToken);
+    if (mcpSessionId === null) throw new Error('a local MCP token carries its session id');
+    store.familyForSession = () => {
+      throw failure;
+    };
+
+    const caught = await oauth
+      .refreshSession(mcpSessionId)
+      .catch((rejection: unknown) => rejection);
+
+    expect(caught).toBe(failure);
+  });
+
+  it('keeps a transient provider refresh failure an edge-gate outcome of a tool-call refresh', async () => {
+    const { oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'upstream-okta-token',
+          expiresIn: 300,
+          refreshToken: 'upstream-refresh-token',
+        }),
+      refresh: () =>
+        Promise.reject(new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } })),
+    });
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+    const accessToken = ((await issued.json()) as { access_token: string }).access_token;
+    const { mcpSessionId } = await oauth.callerSessionFor(accessToken);
+    if (mcpSessionId === null) throw new Error('a local MCP token carries its session id');
+
+    const caught = await oauth
+      .refreshSession(mcpSessionId)
+      .catch((rejection: unknown) => rejection);
+
+    expect(caught).toBeInstanceOf(EdgeGate);
+  });
+
+  it('rejects a tool-call refresh with a local refresh defect, and releases the lease', async () => {
+    const defect = new TypeError('Cannot read properties of undefined (reading accessToken)');
+    let refreshCalls = 0;
+    const { oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'upstream-okta-token',
+          expiresIn: 300,
+          refreshToken: 'upstream-refresh-token',
+        }),
+      refresh: () => {
+        refreshCalls += 1;
+        return Promise.reject(defect);
+      },
+    });
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+    const accessToken = ((await issued.json()) as { access_token: string }).access_token;
+    const { mcpSessionId } = await oauth.callerSessionFor(accessToken);
+    if (mcpSessionId === null) throw new Error('a local MCP token carries its session id');
+
+    const first = await oauth.refreshSession(mcpSessionId).catch((rejection: unknown) => rejection);
+    const second = await oauth
+      .refreshSession(mcpSessionId)
+      .catch((rejection: unknown) => rejection);
+
+    expect(first).toBe(defect);
+    expect(second).toBe(defect);
+    expect(refreshCalls).toBe(2);
+  });
+
+  it('rejects a tool-call refresh with a store failure during the lease, not an edge outcome', async () => {
+    const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+    const failure = new Error('SQLITE_IOERR while leasing the refresh');
+    const { oauth } = fixture({
+      exchange: () =>
+        Promise.resolve({
+          accessToken: 'upstream-okta-token',
+          expiresIn: 300,
+          refreshToken: 'upstream-refresh-token',
+        }),
+      store,
+    });
+    const verifier = 'v'.repeat(43);
+    const code = await authorizationCode(oauth, verifier);
+    const issued = await tokenResponse(oauth, 'random-1', code, verifier);
+    const accessToken = ((await issued.json()) as { access_token: string }).access_token;
+    const { mcpSessionId } = await oauth.callerSessionFor(accessToken);
+    if (mcpSessionId === null) throw new Error('a local MCP token carries its session id');
+    store.acquireRefreshLease = () => {
+      throw failure;
+    };
+
+    const caught = await oauth
+      .refreshSession(mcpSessionId)
+      .catch((rejection: unknown) => rejection);
+
+    expect(caught).toBe(failure);
   });
 
   // Break caught: replacing the original standalone JWKS verifier with only

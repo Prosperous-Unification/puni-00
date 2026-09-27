@@ -125,7 +125,7 @@
       The page keeps the client for the project catalog and the archival import,
       which are not plan modules. When each service is opened and closed, and the
       feed's owner reads, stay task 10's.
-- [ ] 10. The project runtime owns feed, writer, markers and saved plans for one
+- [x] 10. The project runtime owns feed, writer, markers and saved plans for one
       selected project, replacing the per-effect ownership under `WbsTable`.
       Moved by 050-7-j, observed 2026-09-24: one DI Bag project runtime
       (`apps/wbs/fe-01/src/runtime/project-runtime.ts`) owns the selected
@@ -137,6 +137,16 @@
       project switch. This box stays unchecked for the one outcome still owed:
       saved plans, whose shelf keeps its own keyed watch and has no feature facade
       yet — the lifetime map's saved-plans prerequisite.
+      Closed by 050.09 (batch 9), observed 2026-09-27: the new `modules/saved-plans`
+      module's `openSavedPlans` reads and watches one project's shelf over its private
+      `SavedPlanRoutes` port and answers only while its runtime is current; the project
+      runtime installs it through `ProjectServices.savedPlansFor`, publishes
+      `ProjectRuntime.savedPlans` and closes the shelf's watch as its second owned
+      disposable. `ProjectPage` draws the shelf only from the live runtime and holds no
+      saved-plan client; `useSavedPlanShelf` and the browser factories are gone. The
+      switch test gained the saved-plan watch
+      (`components/wbs/project-replacement.test.tsx`). The delivery ledger went from five
+      routes to one, the application's `preferences` resource (task 12's accepted debt).
 - [x] 11. Project switch, route unmount and Strict Mode re-entry each replace all
       project ownership; a stale completion changes nothing.
       Closed by 050-7-m, observed 2026-09-25: a switch withdraws the old
@@ -178,7 +188,7 @@
       `plan-feed`, `plan-writer` and `project` have no `module.ts`, so no graph to verify
       but the runtime that installs them; `preferences` and `directory-management` verify
       theirs in `module.test.ts`.
-- [ ] 13. No infrastructure escapes a context: the architecture checks refuse a
+- [x] 13. No infrastructure escapes a context: the architecture checks refuse a
       bag, credential, broad client, repository or resource in delivery.
       Moved by 050-7-l, observed 2026-09-25: `apps/wbs/fe-01/src/delivery-boundaries.test.ts`
       resolves every identifier (and every export of a namespace object that escapes whole),
@@ -198,5 +208,20 @@
       remainder); the saved-plan shelf's client (task 10); and the application's
       `preferences` resource, task 12's accepted debt. A credential is a string, so the
       check follows it only where a factory that takes one is reached.
-- [ ] 14. On page hide the application's retirement awaits the session's and fails when
+      Closed by 050.08 (batch 9), observed 2026-09-27: the session runtime cuts one
+      project client from the identity's credential and publishes the `ProjectCatalog`
+      feature-service (`modules/project/project-catalog.feature.ts`, over its private
+      `ProjectCatalogRoutes` port), and its project owner opens a project by id over the
+      `ProjectSource` it composed once with `projectSourceOver`. `ProjectPage` and
+      `usePlanImport` take the catalog and the session's projects; `SignedInRegion` carries
+      no token and no client; the credential is the branded `Credential`
+      (`runtime/credential.ts`), which the check refuses as a credential. The ledger went
+      from twenty-one routes to five, none of them this task's: the saved-plan shelf's four
+      (task 10, WBS 050.09) and the application's `preferences` resource (task 12's
+      accepted debt).
+- [x] 14. On page hide the application's retirement awaits the session's and fails when
       it fails (WBS 4334fc49-e143-4671-af58-28cfd5f35423); see 050-7-m section 12.
+      Closed by 050.10 (batch 9), observed 2026-09-27, in its own change
+      `openspec/changes/await-session-retirement-on-page-hide`: the application runtime's
+      `retirements` join, which `SignedInApp`'s cleanup hands its session's retirement to and
+      whose close the application's retirement awaits.

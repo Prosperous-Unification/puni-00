@@ -2678,3 +2678,63 @@ links, and the unfiltered suite), `tool-devsync:test` and the host gate. None ra
 After the `Proof:` comments and this entry, owned-file Prettier `--write` then `--check` printed
 `All matched files use Prettier code style!`; `s2-format-after` (`nx format:check --all`),
 `s2-lint-after` and `s2-typecheck-after` (both uncached) each `status=0`.
+
+## 050.08 (batch 9) — the project catalog facade and the project runtime's source move into the session
+
+Observed 2026-09-27 on branch `batch-9/050-08-delivery-routes`, from `origin/main` at
+`5252968a3`. Task 13's remainder: the catalog (list, create, mark opened, rename, import) is the
+session runtime's `ProjectCatalog`, and the session opens each project by id over the
+`ProjectSource` it composed once from its one project client. `ProjectPage`, `usePlanImport`, the
+router's `SignedInRegion` and `SignedInApp` hold no `ProjectApi`, no token and no source. The
+delivery ledger in `apps/wbs/fe-01/src/delivery-boundaries.test.ts` went from 21 routes to 5: the
+saved-plan shelf's four (task 10, WBS 050.09) and `ApplicationServices.preferences` (task 12's
+accepted debt).
+
+Faults, each injected by hand, its test run, the file restored and the test rerun green:
+
+| Fault | Injected                                                                         | Named test                                                                                | Observed                                                                                                   |
+| ----- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `w1`  | `createProjectCatalog` sends whatever the session says (`true ? send() : …`)     | `sends nothing once its session is withdrawn, and says so`                                | `expected [ 'list', 'create:Shed', …(3) ] to deeply equal []`                                              |
+| `n1`  | the session's source over a second client, `httpProjectApi(identity.credential)` | `lists the catalog and reads each project through the one client cut from the credential` | `expected [] to deeply equal [ 'p1' ]`; the same through `projectClientFor`: `expected [ 'tok', 'tok' ] …` |
+| `n2`  | the session's catalog given `isCurrent: () => true`                              | `sends nothing for a catalog gesture asked of a withdrawn session`                        | `promise resolved "[ { id: 'p1', …(6) } ]" instead of rejecting`                                           |
+| `p1`  | `SignedInRegion` given `token?: Credential`                                      | `refuses every route but the ones still owed`                                             | `+ "SignedInRegion.token is a credential"`, `+ "src/app-router.tsx: Credential is a credential"`           |
+| `p2`  | `export type Leak = ProjectCatalogRoutes` in `use-plan-import.ts`                | `refuses every route but the ones still owed`                                             | `+ "src/components/wbs/use-plan-import.ts: ProjectCatalogRoutes is a repository port"`                     |
+| `p3`  | `SessionRuntime` given `readonly projectClient?: ProjectApi`                     | `refuses every route but the ones still owed`                                             | `+ "SessionRuntime.projectClient is a broad HTTP client"`                                                  |
+
+The ledger's stale-entry negative is the existing `o1`; it was not re-run for these fifteen strikes.
+
+Checks: `vitest run` over the eleven affected files, 140 tests passing; `nx run wbs-fe-01:typecheck`
+(uncached, with `typecheck:module`) `status=0`; ESLint over every touched file clean; Prettier
+`--write` over every touched file; `openspec validate --all --json` `{"items":118,"passed":118,"failed":0}`.
+The full `wbs-fe-01:test`, the host gate and CI are recorded in the pull request.
+
+## 050.09 (batch 9) — saved plans as a project-runtime facade
+
+Observed 2026-09-27 on branch `batch-9/050-09-saved-plans`, from `batch-9/050-08-delivery-routes`
+at `850fef10a` merged with `origin/main` at `140f86730`. Task 10's remainder: the new
+`modules/saved-plans` module reads and watches one project's shelf over its private
+`SavedPlanRoutes` port (`openSavedPlans`), the project runtime installs it through
+`ProjectServices.savedPlansFor`, publishes `ProjectRuntime.savedPlans` and closes the shelf's watch
+as its second owned disposable, and `ProjectPage` draws the shelf only from the live runtime. The
+delivery ledger went from five routes to one, `ApplicationServices.preferences` (task 12's accepted
+debt).
+
+Faults, each injected by hand, its test run, the file restored and the test rerun green:
+
+| Fault | Injected                                                                 | Named test                                                                                                                                                                                                                | Observed                                                                                            |
+| ----- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `s1`  | `openSavedPlans` publishes every shelf answer regardless of `isCurrent`  | `changes nothing once its runtime is withdrawn, not even with the read it had in flight`                                                                                                                                  | `expected { kind: 'ready', rows: [ { …(7) } ] } to deeply equal { kind: 'loading' }`                |
+| `s2`  | `openSavedPlans` sends every request regardless (`true ? send() : …`)    | `sends nothing once its runtime is withdrawn, and says so`                                                                                                                                                                | `expected Error: not answered in this case to be an instance of SavedPlansWithdrawnError`           |
+| `s3`  | `openSavedPlans` hands back a close that stops nothing                   | `stops watching when it is closed`; `throws what its stream threw when it is closed`                                                                                                                                      | `expected "vi.fn()" to be called 1 times, but got 0 times`; `expected [Function] to throw an error` |
+| `s4`  | the saved plans' `refresh` reads regardless of `isCurrent`               | `reads nothing when refreshed once its runtime is withdrawn`                                                                                                                                                              | `expected [ 'list:p1', 'list:p1' ] to deeply equal [ 'list:p1' ]`                                   |
+| `s5`  | the panel hands the list its retained rows in place of a failed read     | `keeps an open comparison when a background shelf read fails`                                                                                                                                                             | `Unable to find an accessible element with the role "alert"`                                        |
+| `r1`  | the project runtime's saved-plan disposer closes nothing                 | `stops the saved-plan shelf’s watch once, when the project is left`; `shows a saved-plan shelf that will not stop as the fatal state`; `draws no shelf while the last project lets go, and the next one’s own rows after` | `expected +0 to be 1`; `expected false to be true`; `expected [] to deeply equal [ 'p1' ]`          |
+| `v1`  | `saveOf` builds a fresh `SaveDeps` on every call                         | `joins a save started before the shelf moved, rather than sending a second`                                                                                                                                               | `expected [ [ 'p1' ], [ 'p1' ] ] to have a length of 1 but got 2`                                   |
+| `v2`  | `ProjectPage` draws the shelf from the last live runtime through the gap | `draws no shelf while the last project lets go, and the next one’s own rows after`                                                                                                                                        | `expected [ Array(1) ] to be null`                                                                  |
+| `t1`  | `export type Leak = SavedPlanRoutes` in `saved-plans-panel.tsx`          | `refuses every route but the ones still owed`                                                                                                                                                                             | `+ "src/components/wbs/saved-plans-panel.tsx: SavedPlanRoutes is a repository port"`                |
+
+Checks: `nx run wbs-fe-01:typecheck --skip-nx-cache` (with `typecheck:module`) succeeded; ESLint
+and Prettier over every touched file clean; the affected suites (42 files, 414 tests) pass, four
+5-second timeouts under a host load average of 56 passing when rerun alone. The full
+`wbs-fe-01:test`, e2e, the host gate and CI are recorded in the pull request. The trusted-wiki lint
+of the new module's registration needs an external activation root this host does not have.

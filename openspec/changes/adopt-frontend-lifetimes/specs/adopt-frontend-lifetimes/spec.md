@@ -265,18 +265,22 @@ no access at all, as the requirement on degrading visibly already states.
 
 fe-01 SHALL build the services of one signed-in identity - the directory
 management, installed from the directory-management module over a client cut
-from the identity's credential, and the owner of its selected project - as one
-DI Bag session runtime, outside React, through one session owner keyed by the
+from the identity's credential, the project catalog, and the owner of its
+selected project, both over one project client cut from the same credential -
+as one DI Bag session runtime, outside React, through one session owner keyed by the
 user id. An identity for the user already asked for SHALL NOT replace the
 runtime, whatever its credential; an identity for another user, or leaving the
 session, SHALL withdraw the current runtime synchronously, before its disposal
 starts, and every project runtime it owns in the same instant. A withdrawn
 session runtime SHALL hand nothing on from a late directory answer, SHALL send
-nothing for a directory read or change asked of it, and SHALL open no project.
+nothing for a directory read or change or a catalog gesture asked of it, and
+SHALL open no project.
 Its retirement SHALL retire its project first, SHALL fail when that project
 cannot be given back, and a second trigger SHALL settle only once the retirement
 it joined has run. The runtime SHALL publish only its user id, its currency, its
-directory management and its project owner.
+directory management, its project catalog and its project owner. A project is
+opened through the session by its id alone, over the session's own project
+client and stream; no page holds that client, that stream or the credential.
 
 #### Scenario: A late answer, a read, a change and a project after a user switch
 
@@ -306,6 +310,15 @@ directory management and its project owner.
 - **WHEN** a project is selected on the project page of a signed-in session
 - **THEN** its runtime is opened through that session runtime's own project
   owner, and not through an owner of the page's own
+
+#### Scenario: The catalog and every project read through the session's one client
+
+- **WHEN** a signed-in session lists, creates, renames, marks opened or imports
+  a project, or opens one
+- **THEN** each request goes through the one project client the session cut
+  from the identity's credential, and once the session has been withdrawn a
+  catalog gesture sends nothing and rejects with a withdrawn-session refusal
+  the page draws like any other failure
 
 #### Scenario: A project given back after its page has gone fails visibly
 
@@ -566,16 +579,17 @@ and the page SHALL open its project in the one runtime asked for afterwards.
 
 fe-01 SHALL build the plan services of one selected project - its delivered plan,
 its busy state, its refusal and command-issued channels, its plan feed, its
-calendar markers, its plan writer and its plan commands - as one DI Bag project
+calendar markers, its plan writer, its plan commands and its saved plans - as one DI Bag project
 runtime, outside React, through one project owner that holds at most one current
 runtime. The owner SHALL withdraw the current runtime synchronously when another
 project is opened or the project is left, before its disposal starts, and every
 guard inside the runtime SHALL answer from that withdrawal: a withdrawn runtime
 SHALL hand nothing on from a late answer or a stream frame, SHALL send nothing
-for a reread or a calendar-marker gesture asked of it, and SHALL NOT answer that
-it is current again. Its feed SHALL be given back exactly once, closing its
-stream, however many triggers retire it. The runtime SHALL publish only feature
-and store surfaces.
+for a reread, a calendar-marker gesture or a saved-plan request asked of it, SHALL
+never change its saved-plan shelf again, and SHALL NOT answer that it is current
+again. Its feed and its saved-plan shelf's watch SHALL each be given back exactly
+once, closing their streams, however many triggers retire it. The runtime SHALL
+publish only feature and store surfaces.
 
 #### Scenario: A late answer, a frame, a reread and a marker after a switch
 
@@ -596,6 +610,16 @@ and store surfaces.
   the previous project's stream is closed once; and when a retirement fails, the
   sanitized report and its occurrence handle are shown in place of the page's
   main and the next project is never drawn
+
+#### Scenario: The saved-plan shelf is the runtime's
+
+- **WHEN** a project's shelf has been read, a read of it is still in flight, and
+  another project is selected
+- **THEN** no shelf is drawn from the old runtime's withdrawal until the next
+  runtime is live; the in-flight answer changes nothing anybody sees; the old
+  project's shelf broadcast is unsubscribed once when its retirement runs; the
+  next project's shelf starts from loading and shows only its own rows; and a
+  shelf watch that cannot be stopped fails the retirement like any other
 
 #### Scenario: A project switch resets presence
 
@@ -658,7 +682,7 @@ fe-01 SHALL keep an architecture check that judges delivery — every production
 `src/components`, `src/app-router.tsx` and each module's `view/` — by symbol identity through the
 TypeScript checker, and the types a context, a route or a runtime hands delivery by their members'
 types. It SHALL refuse any route to a bag, a broad HTTP client, a repository or its port, a
-resource-service, a composition root, a socket or browser storage — whether named, renamed,
+resource-service, a composition root, a credential, a socket or browser storage — whether named, renamed,
 namespaced, re-exported, imported dynamically, keyed by a literal-typed or literal-constrained key,
 destructured or returned by a call — except the routes it records as still owed, each naming the task that owns removing it; a recorded
 route that no longer exists SHALL fail the check as well.
@@ -680,6 +704,12 @@ route that no longer exists SHALL fail the check as well.
 - **WHEN** a member of a type delivery is handed by a context, a route or a runtime is typed as a
   broad client
 - **THEN** the check fails, naming the type and the member
+
+#### Scenario: A credential handed to delivery
+
+- **WHEN** a delivery file reaches the branded session credential, or a member of a type delivery
+  is handed by a context, a route or a runtime is typed as it
+- **THEN** the check fails, naming the file or the type and member, and that it is a credential
 
 #### Scenario: A route still owed is paid off
 

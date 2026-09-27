@@ -1,5 +1,5 @@
 import { canEditProject, DEFAULT_ESTIMATE_RULE, isIsoDate, PertWeights } from '@wbs/domain';
-import { STEP_POSITION_STEP } from '@wbs/domain';
+import { STEP_POSITION_STEP, suggestStepCodes } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
 import type { Clock } from '../../ports/clock';
@@ -145,11 +145,13 @@ export class ProjectService {
     // Positions written here rather than left to the store: `create` takes the
     // seed as it is, and `STARTING_STEPS` is already an order — Dev is done
     // before QA, which is the order the schedule runs a work item's slices in.
+    const codes = suggestStepCodes(STARTING_STEPS, new Set());
     const steps = STARTING_STEPS.map((stepName, place) => ({
       id: this.clock.newId(),
       projectId: project.id,
       name: stepName,
       position: (place + 1) * STEP_POSITION_STEP,
+      code: codes[place],
     }));
     // The store's answer rather than the seed: `create` fills the three
     // settings from the column defaults, so the seed is a `NewProject` and only

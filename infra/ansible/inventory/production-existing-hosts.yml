@@ -1,0 +1,66 @@
+all:
+  vars:
+    puni_cluster_id: platform
+    # Hetzner Cloud private networks carry an MTU of 1450; preflight prints the observed value.
+    puni_private_mtu: 1450
+    puni_cluster_cidr: 10.42.0.0/16
+    puni_service_cidr: 10.43.0.0/16
+    puni_enrolled_private_addresses: [10.1.0.4, 10.1.0.2]
+    puni_required_mounts: [{ path: /, minimum_bytes: 20000000000 }]
+    puni_registration_url: https://10.1.0.4:6443
+    puni_registration_host: h4claw
+    puni_tls_sans: [10.1.0.4]
+    puni_disable_cloud_controller: false
+    # A new account, so the base role replaces no existing user's authorized keys.
+    puni_operator_name: puni-fleet
+    # Adopted hosts keep their administrators' cloud-init sudo grant.
+    puni_remove_cloud_init_sudoers: false
+  children:
+    k3s_bootstrap_servers:
+      hosts:
+        h4claw:
+          ansible_host: 10.1.0.4
+          # `unread` until preflight prints it; must equal desired.yaml (placement.test.ts).
+          puni_machine_id: unread
+          puni_node_name: h4claw
+          puni_node_ip: 10.1.0.4
+          puni_private_interface: enp7s0
+          puni_node_capabilities: [control-plane, product, ingress]
+          puni_swap_file_mib: 0
+          # 15 GiB host; OpenHands under Docker keeps the system reservation.
+          puni_kubelet_system_reserved_memory: 1536Mi
+          puni_kubelet_kube_reserved_memory: 512Mi
+          puni_kubelet_eviction_memory: 256Mi
+          puni_preflight_minimum_memory_mib: 14000
+          puni_preserved_listeners: [127.0.0.1:3000, 0.0.0.0:22]
+          # Filled from the before-enrollment preflight fact, as `name` of each running container.
+          puni_preserved_containers: []
+    k3s_agents:
+      hosts:
+        h3mon:
+          ansible_host: 10.1.0.2
+          puni_machine_id: unread
+          puni_node_name: h3mon
+          puni_node_ip: 10.1.0.2
+          puni_private_interface: enp7s0
+          puni_node_capabilities: [observability]
+          # Victoria, Grafana and MLflow may spill here; pods never swap.
+          puni_swap_file_mib: 4096
+          # 7.6 GiB host: kubepods is capped at capacity minus these, leaving the host services
+          # at least 1408 MiB of RAM plus the swap file (budget test: observability-budget.test.ts).
+          puni_kubelet_system_reserved_memory: 1024Mi
+          puni_kubelet_kube_reserved_memory: 384Mi
+          puni_kubelet_eviction_memory: 256Mi
+          puni_preflight_minimum_memory_mib: 7000
+          puni_preserved_listeners:
+            - 127.0.0.1:8428
+            - 127.0.0.1:9428
+            - 10.1.0.2:9428
+            - 127.0.0.1:10428
+            - 127.0.0.1:3000
+            - 127.0.0.1:5000
+            - 127.0.0.1:4318
+            - 0.0.0.0:22
+          puni_preserved_containers: []
+    k3s_join_servers:
+      hosts: {}

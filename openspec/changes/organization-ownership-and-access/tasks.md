@@ -1,0 +1,60 @@
+## 1. Inventory and paired migrations
+
+- [ ] 1.1 Inventory deployed SHA, sanitized auth mode/issuer, Dany candidates, effective rights, all resource roots, indirect references, MCP families and global uniqueness keys. Red: zero/two Dany candidates or an unmapped allowance/dependency/history/import/event root blocks activation. Fault: omit one inventoried root; observe the production preflight test fail, restore and add adjacent `Proof:`.
+- [x] 1.2 Add paired additive WBS identity-mapping `migration.sql`/`down.sql` while preserving local IDs and password accounts. Red: duplicate issuer/subject and pre-activation rollback round trip. Fault: remove uniqueness; observe the mounted resolver test fail, restore and add `Proof:`.
+- [x] 1.3 Add paired organization/membership storage migration and atomic first-super-admin creation. Red: concurrent creation and final-owner refusal. Fault: bypass final-owner guard; observe mounted demotion test fail, restore and add `Proof:`.
+- [x] 1.4 Add paired ownership/shadow-catalog migration with old-reader compatibility. Red: production-shaped apply/down and same-name catalogs in two organizations. Fault: omit one ownership mapping; observe reconciliation test fail, restore and add `Proof:`.
+- [x] 1.5 Add paired invitation, join-request and domain-claim migration. Red: up/down preserves legacy records and unique verified-domain owner. Fault: remove unique claim index; observe concurrent claim test fail, restore and add `Proof:`.
+- [x] 1.6 Add paired additive migration for the separate durable MCP store, including bound family/session fields and credential epoch. Legacy issuance remains permitted at epoch 0; bound issuance requires complete bindings at every epoch; at epoch ≥1 every issuance requires complete bindings. Red: old store opens, new rows require bindings, pre-activation down preflights live new rows. Fault: accept null organization or unreadable epoch; observe startup/credential test fail, restore and add `Proof:`.
+
+## 2. Bridge, identity and activation state
+
+- [ ] 2.1 Bridge new legacy-era writes for projects and directory roots, then idempotently backfill them. Red: mixed-version writes and preserved references. Fault: omit a bridge write; observe zero-unmapped reconciliation fail, restore and add `Proof:`.
+- [ ] 2.2 Bridge saved plans, allowances, dependencies, imports, journal/history, schedule snapshots and events; reconcile after old writers drain. Red: late writes in each family map to the legacy organization without losing effective rights. Fault: inject a late unbound dependency or history record; observe activation refusal, restore and add `Proof:`.
+- [ ] 2.3 Resolve Auth0 issuer/subject and first-party identity to stable local IDs. Red: collision, absent and malformed trusted identity mapping. Fault: replace mapping with an email match; observe mounted collision refusal fail, restore and add `Proof:`.
+- [ ] 2.4 Bind browser active organization to WBS session and current membership. Red: zero/one/multiple memberships, forged header, and revoked live session. Fault: bypass membership recheck; observe mounted protected-route test fail, restore and add `Proof:`.
+- [ ] 2.5 Issue and verify audience-specific signed bearer, gateway and MCP delegation. Red: wrong audience, forged organization and expired signature. Fault: trust caller header; observe mounted route refusal fail, restore and add `Proof:`.
+- [ ] 2.6 Make activation marker durable and validate absent, unreadable and malformed trusted marker states separately. Red: each state blocks activation or unsafe routing with explicit error. Fault: default one broken state to inactive; observe actual swap preflight test fail, restore and add `Proof:`.
+
+## 3. Resource authorization, one boundary at a time
+
+- [ ] 3.1 Scope project list/detail/create/update/delete and restricted creator stewardship. Red: cross-organization 404, viewer 403 and restricted creator/super-admin recovery. Fault: remove project organization predicate; observe mounted foreign read fail, restore and add `Proof:`.
+- [ ] 3.2 Scope directory people, teams, services, tags, types and external systems, including organization-local names. Red: same names across organizations and foreign ID 404. Fault: remove directory predicate; observe mounted foreign entry test fail, restore and add `Proof:`.
+- [ ] 3.3 Scope project steps, estimates, allowances and schedules. Red: a foreign step or allowance ID cannot influence an A schedule. Fault: remove step reference check; observe mounted schedule test fail, restore and add `Proof:`.
+- [ ] 3.4 Scope dependencies and all batch commands, including indirect refs and atomic refusal. Red: foreign service/predecessor in a batch leaves every command unchanged. Fault: bypass one reference check; observe mounted batch test fail, restore and add `Proof:`.
+- [ ] 3.5 Scope project copy, import/export and external references. Red: cross-organization import/duplicate/reference refusal. Fault: remove import reference check; observe mounted foreign import test fail, restore and add `Proof:`.
+- [ ] 3.6 Scope saved plans, journal, history and generated events. Red: foreign detail and historical reads return 404 without revealing existence. Fault: omit saved-plan owner predicate; observe mounted history test fail, restore and add `Proof:`.
+- [ ] 3.7 Enforce role changes, invitations authority, recovery audit and last-super-admin protection at the service boundary. Red: admin promotion, viewer mutation, recovery and final-owner matrix. Fault: bypass role guard; observe mounted unauthorized mutation test fail, restore and add `Proof:`.
+
+## 4. Onboarding state transitions
+
+- [ ] 4.1 Let a signed-in password-only account add and verify email using an expiring, single-use address challenge while retaining its local ID. Red: missing/unverified email, wrong address, replay, expiry and failed delivery. Fault: accept an unverified address; observe mounted onboarding refusal fail, restore and add `Proof:`.
+- [ ] 4.2 Link Auth0 to an existing password account only after proving both sessions and verified Auth0 email, preserving local ID. Red: issuer/subject collision and same-email different-user case. Fault: merge by email; observe mounted identity test fail, restore and add `Proof:`.
+- [ ] 4.3 Route verified email by exact currently verified domain and atomically create an unmatched organization with first super-admin. Red: matching-domain creation refusal and concurrent creation. Fault: skip domain match; observe mounted creation test fail, restore and add `Proof:`.
+- [ ] 4.4 Issue/revoke invitations, then accept with current verified recipient email in one consuming transaction. Red: wrong address, expiry, concurrent accept and replay. Fault: disable consumption; observe replay test fail, restore and add `Proof:`.
+- [ ] 4.5 Submit, approve or deny join requests; approval rechecks domain, email and admin role and only issues an invitation. Red: suspended domain and concurrent approval. Fault: skip domain recheck; observe mounted approval test fail, restore and add `Proof:`.
+- [ ] 4.6 Render onboarding, password-email verification, link collision/recovery, switcher, members and domain settings with loading, empty, failure and lost-access states. Red: stale tab after switch or removal. Fault: retain organization cache; observe browser test fail, restore and add `Proof:`.
+
+## 5. Domain ownership lifecycle
+
+- [ ] 5.1 Validate domain and versioned public-domain policy before issuing a 24-hour challenge. Red: public/relay domain and absent, unreadable and malformed policy separately. Fault: default a broken policy to empty; observe mounted claim test fail, restore and add `Proof:`.
+- [ ] 5.2 Verify exact authoritative TXT with bounded timeout and transactional unique ownership. Red: old challenge, malformed response, timeout and concurrent claims. Fault: skip exact-token or unique-owner check; observe DNS test fail, restore and add `Proof:`.
+- [ ] 5.3 Retain ownership proof beyond challenge expiry and recheck on day 7. Red: expired initial challenge with valid retained proof stays verified. Fault: use initial expiry for recheck; observe day-7 test fail, restore and add `Proof:`.
+- [ ] 5.4 Rotate proof with bounded overlap; suspend after 14 days without success while retaining owner, members and content. Red: day-14 loss, old proof after rotation and no signup routing. Fault: release owner on suspension; observe lifecycle test fail, restore and add `Proof:`.
+- [ ] 5.5 Restore suspended claim after valid retained or rotated proof; release only by current super-admin and require a fresh claim for transfer. Red: recovery and transfer without proof. Fault: auto-transfer a suspended claim; observe mounted transfer test fail, restore and add `Proof:`.
+
+## 6. Gateway and MCP boundaries
+
+- [ ] 6.1 Authorize gateway subscribe, presence and organization event routing. Red: cross-organization subscribe/presence/event refusal. Fault: bypass subscribe check; observe live socket test fail, restore and add `Proof:`.
+- [ ] 6.2 Authorize queued replay and forwarded commands, including after revocation. Red: queued B event cannot reach A or removed member. Fault: bypass replay recheck; observe socket test fail, restore and add `Proof:`.
+- [ ] 6.3 Invalidate gateway leases on membership change and enforce the five-second bound when notification drops. Red: timed removal. Fault: remove lease expiry; observe revocation test fail, restore and add `Proof:`.
+- [ ] 6.4 Bind MCP consent, code, grant, family, session and be-01 delegation to one organization and current membership. Red: A/B grants, forged tool argument and wrong audience. Fault: drop organization from delegation; observe end-to-end tool refusal fail, restore and add `Proof:`.
+- [ ] 6.5 After old mcp-01 processes drain and are fenced from restart, advance the MCP credential epoch before the WBS marker, revoke old durable families/sessions and reject old in-memory codes after restart. Red: pre-activation access/refresh/code refusal. Fault: leave an old MCP writer active or accept an old-epoch family; observe overlap or restart refresh test fail, restore and add `Proof:`.
+- [ ] 6.6 Reject unbound direct upstream tokens and preserve signed organization delegation through upstream refresh retry. Red: direct-token fallback and refreshed retry after membership loss. Fault: forward raw upstream token on retry; observe be-01 refusal test fail, restore and add `Proof:`.
+
+## 7. Activation, rollback and verification
+
+- [ ] 7.1 Preflight inventory, bridge reconciliation, old-process drain, MCP epoch and trusted policy/marker state; activate only after all pass. Fault: omit one reconciliation family; observe activation test fail, restore and add `Proof:`.
+- [ ] 7.2 Before activation, execute paired WBS and MCP down migrations in dependency order on production-shaped fixture after preflight. Fault: make reversal drop a legacy relation or live new MCP credential; observe rollback test fail, restore and add `Proof:`.
+- [ ] 7.3 After activation, refuse organization-unaware code routing and WBS/MCP schema reversal even after second-tenant deletion. Test the actual swap abort path and manual completion command on failure. Fault: bypass durable marker; observe swap test fail, restore and add `Proof:`.
+- [ ] 7.4 Run targeted unit, mounted API, socket, MCP, migration and browser tests. Record observed faults and adjacent `Proof:` comments in `verify.md`; run migration lint, OpenSpec validation, formatting and `bin/h2puni-gate.sh <sha>` on the committed implementation SHA.

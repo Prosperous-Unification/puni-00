@@ -21,7 +21,15 @@ export interface SubtreeCopy {
    * `work_item.id`, so any other order is refused by the database rather than
    * silently reordered.
    */
-  rows: readonly (WorkItem & { teamIds?: readonly string[] })[];
+  rows: readonly (WorkItem & {
+    teamIds?: readonly string[];
+    /**
+     * The row's types, copied exactly (WBS 010.4.10): a type conflict is carried
+     * unchanged, never resolved, because a copy is not an authored type write.
+     * Absent writes no types.
+     */
+    typeIds?: readonly string[];
+  })[];
   /** Existing siblings of the copied root whose positions the placement moved. */
   respaced: readonly Repositioned[];
   /**

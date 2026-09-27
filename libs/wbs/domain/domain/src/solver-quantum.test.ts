@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'bun:test';
 
-import { ASSUMED_SLICE_WORKDAYS } from './assumed-duration';
 import { isOnTime } from './on-time';
 import { durationOf, type Slice, workItemIdsWithPositiveDuration } from './schedule';
 import { durationRoundedUp, durationUnits, SOLVER_QUANTUM } from './solver-quantum';
@@ -24,17 +23,16 @@ describe('workItemIdsWithPositiveDuration', () => {
 });
 
 describe('durationUnits', () => {
-  it('divides an estimate by width, and never divides the assumption', () => {
-    // The two arms of `durationOf`, asserted end to end through the quantum
-    // because the plan restated them and got both wrong: it divided the
-    // assumption by `width` too, which would make a plan naming three people on
-    // an unsized step a third as long as one naming one.
+  it('divides an estimate by width, and gives an unknown length zero units', () => {
+    // The two arms of `durationOf`, asserted end to end through the quantum.
+    // An unknown length is zero schedule time, so it crosses as exactly zero
+    // units and never as the Gantt's assumed drawing span.
     expect(durationOf(slice(1, 2))).toBe(0.5);
     expect(durationUnits(slice(1, 2))).toBe(24);
 
-    expect(durationOf(slice(null, 3))).toBe(ASSUMED_SLICE_WORKDAYS);
-    expect(durationUnits(slice(null, 3))).toBe(ASSUMED_SLICE_WORKDAYS * SOLVER_QUANTUM);
-    expect(durationUnits(slice(null, 3))).toBe(96);
+    expect(durationOf(slice(null, 3))).toBe(0);
+    expect(durationUnits(slice(null, 3))).toBe(0);
+    expect(durationRoundedUp(slice(null, 3))).toBe(false);
   });
 
   it('rounds up a width the quantum does not divide, and says that it did', () => {
@@ -85,7 +83,7 @@ describe('durationUnits', () => {
 
     // A null estimate never divides, so it is finite at every width and stays
     // an answer rather than becoming an error.
-    expect(durationUnits(slice(null, 0))).toBe(ASSUMED_SLICE_WORKDAYS * SOLVER_QUANTUM);
+    expect(durationUnits(slice(null, 0))).toBe(0);
   });
 
   it('is 30 units for 2.11’s fixture where real Fast finishes at 28.8 — measured, not claimed', () => {

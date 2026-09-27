@@ -1,0 +1,619 @@
+{
+  "schemaVersion": 1,
+  "policyId": "rules.puni-00.v1",
+  "ruleModes": [
+    {
+      "ruleId": "F1",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "F7",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "K2",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "K3",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "K4",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "K5",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "K6",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "mode": "observe"
+    }
+  ],
+  "kindInventory": {
+    "path": "docs/code-organization/kinds.json"
+  },
+  "classificationPolicy": {
+    "schemaVersion": 1,
+    "policyId": "classification.puni-00.v1",
+    "selectorVersion": 1,
+    "contentClasses": [
+      "source",
+      "test",
+      "config",
+      "script",
+      "migration",
+      "fixture",
+      "generated",
+      "vendored",
+      "placeholder",
+      "document",
+      "openspec"
+    ],
+    "contentRules": [
+      {
+        "contentClass": "test",
+        "include": [
+          {
+            "kind": "suffix",
+            "value": ".test.ts"
+          },
+          {
+            "kind": "suffix",
+            "value": ".spec.ts"
+          },
+          {
+            "kind": "suffix",
+            "value": ".test.tsx"
+          },
+          {
+            "kind": "suffix",
+            "value": ".spec.tsx"
+          },
+          {
+            "kind": "suffix",
+            "value": ".test.sh"
+          },
+          {
+            "kind": "segment",
+            "value": "e2e"
+          },
+          {
+            "kind": "segment",
+            "value": "test"
+          },
+          {
+            "kind": "segment",
+            "value": "tests"
+          }
+        ],
+        "exclude": []
+      },
+      {
+        "contentClass": "generated",
+        "include": [
+          {
+            "kind": "segment",
+            "value": "generated"
+          }
+        ],
+        "exclude": []
+      },
+      {
+        "contentClass": "vendored",
+        "include": [
+          {
+            "kind": "segment",
+            "value": "vendor"
+          },
+          {
+            "kind": "segment",
+            "value": "third-party"
+          }
+        ],
+        "exclude": []
+      },
+      {
+        "contentClass": "fixture",
+        "include": [
+          {
+            "kind": "segment",
+            "value": "fixtures"
+          },
+          {
+            "kind": "segment",
+            "value": "__fixtures__"
+          }
+        ],
+        "exclude": []
+      },
+      {
+        "contentClass": "migration",
+        "include": [
+          {
+            "kind": "segment",
+            "value": "migrations"
+          },
+          {
+            "kind": "segment",
+            "value": "drizzle"
+          }
+        ],
+        "exclude": []
+      },
+      {
+        "contentClass": "openspec",
+        "include": [
+          {
+            "kind": "prefix",
+            "value": "openspec"
+          }
+        ],
+        "exclude": []
+      },
+      {
+        "contentClass": "placeholder",
+        "include": [
+          {
+            "kind": "name",
+            "value": ".gitkeep"
+          },
+          {
+            "kind": "name",
+            "value": ".keep"
+          }
+        ],
+        "exclude": []
+      },
+      {
+        "contentClass": "script",
+        "include": [
+          {
+            "kind": "suffix",
+            "value": ".sh"
+          },
+          {
+            "kind": "prefix",
+            "value": "bin"
+          },
+          {
+            "kind": "path",
+            "value": "ops/agent-trailer/prepare-commit-msg"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/solver/files/puni-cri-peer"
+          }
+        ],
+        "exclude": [
+          {
+            "kind": "suffix",
+            "value": ".test.sh"
+          }
+        ]
+      },
+      {
+        "contentClass": "config",
+        "include": [
+          {
+            "kind": "suffix",
+            "value": ".json"
+          },
+          {
+            "kind": "suffix",
+            "value": ".yaml"
+          },
+          {
+            "kind": "suffix",
+            "value": ".yml"
+          },
+          {
+            "kind": "suffix",
+            "value": ".toml"
+          },
+          {
+            "kind": "suffix",
+            "value": ".config.ts"
+          },
+          {
+            "kind": "suffix",
+            "value": ".lock"
+          },
+          {
+            "kind": "suffix",
+            "value": ".example"
+          },
+          {
+            "kind": "suffix",
+            "value": ".sops"
+          },
+          {
+            "kind": "suffix",
+            "value": ".service"
+          },
+          {
+            "kind": "suffix",
+            "value": ".caddy"
+          },
+          {
+            "kind": "suffix",
+            "value": ".candidate"
+          },
+          {
+            "kind": "suffix",
+            "value": ".bootstrap"
+          },
+          {
+            "kind": "suffix",
+            "value": ".tmpl"
+          },
+          {
+            "kind": "suffix",
+            "value": ".Dockerfile"
+          },
+          {
+            "kind": "name",
+            "value": "Dockerfile"
+          },
+          {
+            "kind": "name",
+            "value": "Caddyfile"
+          },
+          {
+            "kind": "name",
+            "value": ".bun-version"
+          },
+          {
+            "kind": "name",
+            "value": ".dockerignore"
+          },
+          {
+            "kind": "name",
+            "value": ".editorconfig"
+          },
+          {
+            "kind": "name",
+            "value": ".gitignore"
+          },
+          {
+            "kind": "name",
+            "value": ".nxignore"
+          },
+          {
+            "kind": "name",
+            "value": ".prettierignore"
+          },
+          {
+            "kind": "path",
+            "value": ".agents/skills/.openspec-target"
+          },
+          {
+            "kind": "name",
+            "value": "Containerfile"
+          },
+          {
+            "kind": "suffix",
+            "value": ".cfg"
+          },
+          {
+            "kind": "suffix",
+            "value": ".j2"
+          },
+          {
+            "kind": "suffix",
+            "value": ".hcl"
+          },
+          {
+            "kind": "suffix",
+            "value": ".tf"
+          }
+        ],
+        "exclude": [
+          {
+            "kind": "segment",
+            "value": "fixtures"
+          },
+          {
+            "kind": "segment",
+            "value": "drizzle"
+          },
+          {
+            "kind": "segment",
+            "value": "migrations"
+          },
+          {
+            "kind": "prefix",
+            "value": "openspec"
+          },
+          {
+            "kind": "segment",
+            "value": "e2e"
+          },
+          {
+            "kind": "segment",
+            "value": "test"
+          },
+          {
+            "kind": "segment",
+            "value": "tests"
+          },
+          {
+            "kind": "prefix",
+            "value": "docs/review-evidence"
+          },
+          {
+            "kind": "prefix",
+            "value": "docs/experiment-evidence"
+          }
+        ]
+      },
+      {
+        "contentClass": "source",
+        "include": [
+          {
+            "kind": "suffix",
+            "value": ".ts"
+          },
+          {
+            "kind": "suffix",
+            "value": ".tsx"
+          },
+          {
+            "kind": "suffix",
+            "value": ".js"
+          },
+          {
+            "kind": "suffix",
+            "value": ".mjs"
+          },
+          {
+            "kind": "suffix",
+            "value": ".py"
+          },
+          {
+            "kind": "suffix",
+            "value": ".css"
+          },
+          {
+            "kind": "suffix",
+            "value": ".html"
+          },
+          {
+            "kind": "suffix",
+            "value": ".svg"
+          }
+        ],
+        "exclude": [
+          {
+            "kind": "suffix",
+            "value": ".test.ts"
+          },
+          {
+            "kind": "suffix",
+            "value": ".spec.ts"
+          },
+          {
+            "kind": "suffix",
+            "value": ".test.tsx"
+          },
+          {
+            "kind": "suffix",
+            "value": ".spec.tsx"
+          },
+          {
+            "kind": "suffix",
+            "value": ".config.ts"
+          },
+          {
+            "kind": "segment",
+            "value": "e2e"
+          },
+          {
+            "kind": "segment",
+            "value": "test"
+          },
+          {
+            "kind": "segment",
+            "value": "tests"
+          },
+          {
+            "kind": "segment",
+            "value": "fixtures"
+          },
+          {
+            "kind": "segment",
+            "value": "generated"
+          },
+          {
+            "kind": "segment",
+            "value": "vendor"
+          }
+        ]
+      },
+      {
+        "contentClass": "document",
+        "include": [
+          {
+            "kind": "suffix",
+            "value": ".md"
+          },
+          {
+            "kind": "suffix",
+            "value": ".txt"
+          },
+          {
+            "kind": "name",
+            "value": "NOTICE"
+          },
+          {
+            "kind": "name",
+            "value": "LICENSE"
+          }
+        ],
+        "exclude": [
+          {
+            "kind": "prefix",
+            "value": "openspec"
+          },
+          {
+            "kind": "segment",
+            "value": "fixtures"
+          }
+        ]
+      }
+    ],
+    "evidenceRoots": [
+      {
+        "path": "docs/review-evidence",
+        "allowedRecordKinds": ["review-receipt", "opaque-transcript"]
+      },
+      {
+        "path": "docs/experiment-evidence",
+        "allowedRecordKinds": ["benchmark-corpus", "candidate-inventory", "experiment-manifest"]
+      }
+    ],
+    "binaryDeclarations": [
+      {
+        "path": "docs/assistant/work-view-prototype-A.png",
+        "format": "image/png",
+        "consumer": "docs/assistant/work-view-prototype.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "docs/assistant/work-view-prototype.html"
+        }
+      },
+      {
+        "path": "docs/assistant/work-view-prototype-B.png",
+        "format": "image/png",
+        "consumer": "docs/assistant/work-view-prototype.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "docs/assistant/work-view-prototype.html"
+        }
+      },
+      {
+        "path": "docs/assistant/work-view-prototype-C.png",
+        "format": "image/png",
+        "consumer": "docs/assistant/work-view-prototype.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "docs/assistant/work-view-prototype.html"
+        }
+      },
+      {
+        "path": "infra/platform/charts/cert-manager-v1.21.2.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/networking/cert-manager.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/eck-elasticsearch-0.20.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/observability/elastic/local/elasticsearch.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/eck-kibana-0.20.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/observability/kibana/kibana.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/eck-operator-3.5.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/observability/eck/eck-operator.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/hcloud-cloud-controller-manager-1.37.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/storage/production/hcloud-ccm.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/hcloud-csi-2.23.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/storage/production/hcloud-csi.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/kube-prometheus-stack-91.4.1.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/observability/prometheus/kube-prometheus-stack.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/opentelemetry-collector-0.173.1.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/observability/otel/collector.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/traefik-41.6.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/networking/traefik.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/velero-12.2.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/backup/velero/local/velero.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      }
+    ],
+    "gitlinkBoundaries": [],
+    "symlinks": "inventory-only",
+    "gitlinks": "declared-external-boundary"
+  }
+}

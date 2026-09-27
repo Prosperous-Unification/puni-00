@@ -79,7 +79,7 @@ beforeEach(async () => {
   });
   await projects.create(
     project,
-    [{ id: stepId, projectId: project.id, name: 'Dev', position: 10 }],
+    [{ id: stepId, projectId: project.id, name: 'Dev', position: 10, code: 'dev' }],
     WROTE,
   );
   projectId = project.id;

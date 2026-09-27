@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { Roster } from '@/components/presence/presence-panel';
 import type { ProjectStreamDeps, SocketHandlers } from '@/lib/project-stream';
+import type { SavedPlanListEntryView, SavedPlanListReply } from '@/lib/saved-plan-api';
 import type { ProjectListEntry, UndoResult } from '@/lib/wbs-api';
 import type { ProjectRuntime } from '@/modules/project/contract';
+import type { SavedPlanRoutes } from '@/modules/saved-plans/contract';
 import {
   createProjectOwner,
   installProjectRuntime,
@@ -13,9 +15,10 @@ import {
 } from '@/runtime/project-runtime';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
+import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
+import { pageWiring } from '@/testing/project-page-over-owner';
 
 import { ProjectPage } from './project-page';
-import type { SavedPlansPanelDeps } from './saved-plans-panel';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -32,16 +35,6 @@ const entry = (id: string, name: string): ProjectListEntry => ({
   ownerName: 'kat',
   createdAt: 1_780_000_000_000,
 });
-
-/** A node without saved plans: the shelf is task 10's, and not what these cases replace. */
-const NO_SHELF: SavedPlansPanelDeps = {
-  available: () => Promise.resolve(false),
-  list: () => Promise.reject(new Error('no saved plans on this node')),
-  subscribe: () => ({ unsubscribe: () => undefined }),
-  save: () => Promise.reject(new Error('no saved plans on this node')),
-  compare: () => Promise.reject(new Error('no saved plans on this node')),
-  rename: () => Promise.reject(new Error('no saved plans on this node')),
-};
 
 /**
  * Two projects over the plan fixture, with something to undo, and every undo
@@ -81,6 +74,73 @@ function recordedSockets() {
   };
   return { opened, closed: () => closed, streamDeps };
 }
+
+/** One saved plan, named for the project and the moment it is answered in. */
+const checkpoint = (id: string, name: string): SavedPlanListEntryView => ({
+  id,
+  name,
+  createdBy: 'kat',
+  createdAt: 1_788_501_600_000,
+  inputBytes: 4096,
+  scheduleBytes: null,
+  scheduleAbsentReason: 'not_computed',
+});
+
+/**
+ * Saved plans on every project, each shelf read held until the case answers it,
+ * and a broadcast per project the case fires by hand.
+ */
+function heldShelves() {
+  const reads: { projectId: string; answer: (rows: readonly SavedPlanListEntryView[]) => void }[] =
+    [];
+  const broadcasts = new Map<string, () => void>();
+  const unsubscribed: string[] = [];
+  const notServed = () => Promise.reject(new Error('not asked in this case'));
+  const routes: SavedPlanRoutes = {
+    available: () => Promise.resolve(true),
+    list: (projectId) =>
+      new Promise<SavedPlanListReply>((resolve) => {
+        reads.push({
+          projectId,
+          answer: (rows) => {
+            resolve({
+              kind: 'success',
+              representation: 'json',
+              status: 200,
+              headers: new Headers(),
+              body: { savedPlans: [...rows] },
+            });
+          },
+        });
+      }),
+    save: notServed,
+    rename: notServed,
+    compare: notServed,
+    subscribe: (projectId, onChange) => {
+      broadcasts.set(projectId, onChange);
+      return {
+        unsubscribe: () => {
+          unsubscribed.push(projectId);
+          broadcasts.delete(projectId);
+        },
+      };
+    },
+  };
+  /** The newest read of this project the case has not answered yet. */
+  const pending = (projectId: string) => {
+    const at = reads.map((candidate) => candidate.projectId).lastIndexOf(projectId);
+    if (at === -1) throw new Error(`no shelf read of ${projectId} yet`);
+    return reads.splice(at, 1)[0].answer;
+  };
+  return { routes, reads, broadcasts, unsubscribed, pending };
+}
+
+/** The saved-plan names the shelf is drawing, or `null` while no shelf is drawn. */
+const shelfNames = (): string[] | null => {
+  const shelf = document.querySelector('[data-saved-plans]');
+  if (shelf === null) return null;
+  return [...shelf.querySelectorAll('li')].map((row) => row.textContent);
+};
 
 /**
  * The production owner over the production installer, recording each runtime
@@ -190,7 +250,7 @@ describe('replacing the selected project', () => {
     async () => {
       const { api, undos } = twoProjects();
       const { owner } = recordingOwner();
-      render(<ProjectPage token="t" api={api} projectOwner={owner} savedPlansDeps={NO_SHELF} />);
+      render(<ProjectPage {...pageWiring(owner, api, undefined, NO_SAVED_PLANS)} />);
       await leaveMidUndo(owner, undos);
 
       firstOf(undos, 'undo').answer({ ok: true, done: 'rename “Strip”', detail: null });
@@ -206,7 +266,7 @@ describe('replacing the selected project', () => {
     async () => {
       const { api, undos } = twoProjects();
       const { owner } = recordingOwner();
-      render(<ProjectPage token="t" api={api} projectOwner={owner} savedPlansDeps={NO_SHELF} />);
+      render(<ProjectPage {...pageWiring(owner, api, undefined, NO_SAVED_PLANS)} />);
       await leaveMidUndo(owner, undos);
 
       firstOf(undos, 'undo').refuse(new Error('forbidden'));
@@ -233,7 +293,7 @@ describe('replacing the selected project', () => {
             })
           : Promise.reject(new Error('cycle'));
       const { owner } = recordingOwner();
-      render(<ProjectPage token="t" api={api} projectOwner={owner} savedPlansDeps={NO_SHELF} />);
+      render(<ProjectPage {...pageWiring(owner, api, undefined, NO_SAVED_PLANS)} />);
       await selectProject('p1');
       await tableDrawn();
       const list = await screen.findByLabelText('Add a dependency to 030');
@@ -269,11 +329,7 @@ describe('replacing the selected project', () => {
     const asked: Roster[] = [];
     render(
       <ProjectPage
-        token="t"
-        api={api}
-        projectOwner={owner}
-        savedPlansDeps={NO_SHELF}
-        streamDeps={sockets.streamDeps}
+        {...pageWiring(owner, api, sockets.streamDeps, NO_SAVED_PLANS)}
         presence={(roster) => {
           asked.push(roster);
           return null;
@@ -328,7 +384,7 @@ describe('replacing the selected project', () => {
   itDom('draws the next project in a table of its own', async () => {
     const { api } = twoProjects();
     const { owner } = recordingOwner();
-    render(<ProjectPage token="t" api={api} projectOwner={owner} savedPlansDeps={NO_SHELF} />);
+    render(<ProjectPage {...pageWiring(owner, api, undefined, NO_SAVED_PLANS)} />);
     await selectProject('p1');
     const first = await tableDrawn();
 
@@ -354,13 +410,7 @@ describe('replacing the selected project', () => {
     const sockets = recordedSockets();
     const view = render(
       <StrictMode>
-        <ProjectPage
-          token="t"
-          api={api}
-          projectOwner={owner}
-          savedPlansDeps={NO_SHELF}
-          streamDeps={sockets.streamDeps}
-        />
+        <ProjectPage {...pageWiring(owner, api, sockets.streamDeps, NO_SAVED_PLANS)} />
       </StrictMode>,
     );
     await selectProject('p1');
@@ -384,4 +434,68 @@ describe('replacing the selected project', () => {
     expect(given).toEqual(['p1', 'p2']);
     expect(sockets.closed()).toBe(2);
   });
+
+  /**
+   * Task 10: the shelf's watch is the runtime's. A switch draws no shelf until
+   * the next runtime is live, a read the left project still had in flight
+   * changes nothing anybody sees, and the left project's broadcast is
+   * unsubscribed with its runtime, once.
+   */
+  itDom(
+    'draws no shelf while the last project lets go, and the next one’s own rows after',
+    async () => {
+      const { api } = twoProjects();
+      const { owner, releases } = recordingOwner({ hold: true });
+      const shelves = heldShelves();
+      render(<ProjectPage {...pageWiring(owner, api, undefined, shelves.routes)} />);
+      await selectProject('p1');
+      await tableDrawn();
+      await waitFor(() => {
+        expect(shelves.reads.map((read) => read.projectId)).toEqual(['p1']);
+      });
+      act(() => {
+        shelves.pending('p1')([checkpoint('sp1', 'Shed, before the rewire')]);
+      });
+      await waitFor(() => {
+        expect(shelfNames()?.join()).toContain('Shed, before the rewire');
+      });
+      // A collaborator saves in p1: the shelf reads again, and that read is still out.
+      act(() => {
+        shelves.broadcasts.get('p1')?.();
+      });
+      await waitFor(() => {
+        expect(shelves.reads.map((read) => read.projectId)).toEqual(['p1']);
+      });
+
+      await selectProject('p2');
+      await waitFor(() => {
+        expect(releases).toHaveLength(1);
+      });
+      act(() => {
+        shelves.pending('p1')([checkpoint('sp9', 'Shed, answered late')]);
+      });
+      await settle();
+
+      expect(shelfNames()).toBeNull();
+
+      await act(async () => {
+        firstOf(releases, 'retirement')();
+        await Promise.resolve();
+      });
+      await waitFor(() => {
+        expect(liveProject(owner)).toBe('p2');
+      });
+      await waitFor(() => {
+        expect(shelves.reads.map((read) => read.projectId)).toEqual(['p2']);
+      });
+      act(() => {
+        shelves.pending('p2')([checkpoint('sp2', 'Fence, first coat')]);
+      });
+      await waitFor(() => {
+        expect(shelfNames()?.join()).toContain('Fence, first coat');
+      });
+      expect(shelfNames()?.join()).not.toContain('Shed');
+      expect(shelves.unsubscribed).toEqual(['p1']);
+    },
+  );
 });

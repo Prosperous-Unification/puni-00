@@ -24,6 +24,7 @@ import {
   type HeldByFake,
   writeRefusingBrowserStorage,
 } from '@/modules/preferences/fake-browser-storage';
+import type { SavedPlanRoutes } from '@/modules/saved-plans/contract';
 import { type ApplicationServices, installApplicationRuntime } from '@/runtime/application-runtime';
 import {
   ApplicationServicesProvider,
@@ -38,7 +39,6 @@ import { refusingApi } from '@/testing/refusing-api';
 import { planRead } from '@/testing/views';
 
 import { recallLastProject, rememberLastProject } from './project-page';
-import type { SavedPlansPanelDeps } from './saved-plans-panel';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -321,9 +321,9 @@ const savedPlanRenameReply = (): SavedPlanRenameReply => ({
  * page around it is tested with, which is the same bargain `api` already makes
  * one prop up.
  */
-const fakeSavedPlansDeps = (
+const fakeSavedPlanRoutes = (
   rows: readonly SavedPlanListEntryView[] = [CHECKPOINT],
-): SavedPlansPanelDeps => ({
+): SavedPlanRoutes => ({
   available: () => Promise.resolve(true),
   list: () => Promise.resolve(savedPlanListReply(rows)),
   subscribe: () => ({ unsubscribe: () => undefined }),
@@ -332,8 +332,8 @@ const fakeSavedPlansDeps = (
   rename: () => Promise.resolve(savedPlanRenameReply()),
 });
 
-const pageWith = (api: ProjectApi, savedPlansDeps: SavedPlansPanelDeps = fakeSavedPlansDeps()) =>
-  render(<ProjectPageOverOwner token="t" api={api} savedPlansDeps={savedPlansDeps} />);
+const pageWith = (api: ProjectApi, savedPlanRoutes: SavedPlanRoutes = fakeSavedPlanRoutes()) =>
+  render(<ProjectPageOverOwner api={api} savedPlanRoutes={savedPlanRoutes} />);
 
 const picker = () => screen.getByLabelText<HTMLInputElement>('Project');
 
@@ -531,7 +531,7 @@ describe('opening an imported project', () => {
     });
 
     view.rerender(
-      <ProjectPageOverOwner token="t" api={replacement} savedPlansDeps={fakeSavedPlansDeps()} />,
+      <ProjectPageOverOwner api={replacement} savedPlanRoutes={fakeSavedPlanRoutes()} />,
     );
     await act(async () => {
       finishImport(IMPORTED);
@@ -574,7 +574,7 @@ describe('opening an imported project', () => {
       importFile();
 
       view.rerender(
-        <ProjectPageOverOwner token="t" api={replacement} savedPlansDeps={fakeSavedPlansDeps()} />,
+        <ProjectPageOverOwner api={replacement} savedPlanRoutes={fakeSavedPlanRoutes()} />,
       );
       await act(async () => {
         finishRead();
@@ -612,7 +612,7 @@ describe('opening an imported project', () => {
     });
 
     view.rerender(
-      <ProjectPageOverOwner token="t" api={replacement} savedPlansDeps={fakeSavedPlansDeps()} />,
+      <ProjectPageOverOwner api={replacement} savedPlanRoutes={fakeSavedPlanRoutes()} />,
     );
     await act(async () => {
       finishCatalogue([
@@ -858,7 +858,6 @@ describe('the header bar', () => {
   itDom('gives the header the slots the app fills, in the bar itself', async () => {
     render(
       <ProjectPageOverOwner
-        token="t"
         api={fakeProjects(TWO)}
         presence={() => <p>who is here</p>}
         account={<button type="button">the account</button>}
@@ -885,7 +884,6 @@ describe('the header bar', () => {
   itDom('carries the navigation beside the project controls', async () => {
     render(
       <ProjectPageOverOwner
-        token="t"
         api={fakeProjects(TWO)}
         nav={<nav aria-label="Pages">the two pages</nav>}
       />,
@@ -917,7 +915,6 @@ describe('the header bar', () => {
     const asked: { users: readonly string[]; connected: boolean }[] = [];
     render(
       <ProjectPageOverOwner
-        token="t"
         api={fakeProjects(TWO)}
         presence={(roster) => {
           asked.push(roster);
@@ -957,7 +954,6 @@ describe('the header bar', () => {
       const asked: { users: readonly string[]; connected: boolean }[] = [];
       render(
         <ProjectPageOverOwner
-          token="t"
           api={fakeProjects(TWO)}
           streamDeps={streamDeps}
           presence={(roster) => {
@@ -1009,7 +1005,6 @@ describe('the header bar', () => {
       const asked: { users: readonly string[]; connected: boolean }[] = [];
       render(
         <ProjectPageOverOwner
-          token="t"
           api={fakeProjects(TWO)}
           streamDeps={streamDeps}
           presence={(roster) => {
@@ -1066,9 +1061,7 @@ describe('the header bar', () => {
       cancel: () => undefined,
       random: () => 0,
     };
-    const view = render(
-      <ProjectPageOverOwner token="t" api={fakeProjects(TWO)} streamDeps={streamDeps} />,
-    );
+    const view = render(<ProjectPageOverOwner api={fakeProjects(TWO)} streamDeps={streamDeps} />);
     await selectProject('p2');
     await waitFor(() => {
       expect(opened).toBe(1);
@@ -1099,7 +1092,7 @@ describe('the header bar', () => {
         cancel: () => undefined,
         random: () => 0,
       };
-      render(<ProjectPageOverOwner token="t" api={fakeProjects(TWO)} streamDeps={streamDeps} />);
+      render(<ProjectPageOverOwner api={fakeProjects(TWO)} streamDeps={streamDeps} />);
       await selectProject('p1');
       await waitFor(() => {
         expect(opened).toBe(1);
@@ -1339,8 +1332,8 @@ describe('the saved-plan shelf is on the project page', () => {
     */
     const OTHER: SavedPlanListEntryView = { ...CHECKPOINT, id: 'sp9', name: 'the other project’s' };
     const compared: [string, unknown][] = [];
-    const deps: SavedPlansPanelDeps = {
-      ...fakeSavedPlansDeps(),
+    const deps: SavedPlanRoutes = {
+      ...fakeSavedPlanRoutes(),
       list: (projectId: string) =>
         Promise.resolve(savedPlanListReply([projectId === 'p2' ? CHECKPOINT : OTHER])),
       compare: (projectId, left) => {
@@ -1496,7 +1489,7 @@ describe('the remembered project, over the runtime live when it is used', () => 
   const pageUnder = (slot: LifetimeSlot<ApplicationServices>, api: ProjectApi) =>
     render(
       <ApplicationServicesProvider slot={slot}>
-        <ProjectPageOverOwner token="t" api={api} savedPlansDeps={fakeSavedPlansDeps()} />
+        <ProjectPageOverOwner api={api} savedPlanRoutes={fakeSavedPlanRoutes()} />
       </ApplicationServicesProvider>,
     );
 
@@ -2078,7 +2071,6 @@ describe('the hover card follows the list, not a stale pointer', () => {
     let pageRenders = 0;
     render(
       <ProjectPageOverOwner
-        token="t"
         api={fakeProjects(TWO)}
         presence={() => {
           pageRenders += 1;

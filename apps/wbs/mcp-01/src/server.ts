@@ -10,7 +10,13 @@ import type { McpConfig } from './config';
 import type { DerivedTool } from './openapi-tools';
 import type { UnexpectedToolFailureReporter } from './unexpected-tool-failure';
 import type { FetchLike, ToolTextResult } from './wbs-client';
-import { callTool, EdgeGate, ToolInputRefused, UpstreamRejected } from './wbs-client';
+import {
+  callTool,
+  EdgeGate,
+  SessionRefreshRefused,
+  ToolInputRefused,
+  UpstreamRejected,
+} from './wbs-client';
 
 /**
  * The three pieces composed: the tools section 2 derives, the call section 3
@@ -180,7 +186,15 @@ export function createServer(deps: ServerDeps): Server {
           } catch (refreshCause) {
             if (refreshCause instanceof EdgeGate)
               return asCallToolResult(errorText(refreshCause.message));
-            // A refused refresh ends the family below.
+            // A refused refresh ends the family below. Any other rejection (the session store
+            // throwing while the family is looked up) is reported below and the session is kept:
+            // the failure is mcp-01's, not a verdict on the caller's credential.
+            // Proof: on 2026-09-27, removing this assignment failed `reports a refresh whose
+            // session lookup throws, and keeps the session` on `Expected length: 1`, `Received
+            // length: 0`: the session ended and no operator record was written.
+            // Proof: on 2026-09-27, reporting every refresh rejection failed `keeps a refused
+            // refresh modeled: the session ends and nothing is reported`.
+            if (!(refreshCause instanceof SessionRefreshRefused)) cause = refreshCause;
           }
         }
         if (refreshedToken !== null) {
@@ -205,7 +219,15 @@ export function createServer(deps: ServerDeps): Server {
           }
         }
         if (cause instanceof UpstreamRejected) {
-          if (sessionId !== null) await endSession?.(sessionId);
+          try {
+            if (sessionId !== null) await endSession?.(sessionId);
+          } catch (endCause) {
+            // A session end that fails is reported below, and the result does not claim it ended.
+            // Proof: on 2026-09-27, awaiting endSession outside this try failed `reports a session
+            // end that rejects instead of failing the protocol call`: the client rejected with
+            // `MCP error -32603` carrying the store's own message, and nothing was reported.
+            return reportToolFailure(tool.name, endCause);
+          }
           return asCallToolResult(
             errorText(
               sessionId === null
@@ -224,18 +246,25 @@ export function createServer(deps: ServerDeps): Server {
       if (cause instanceof ToolInputRefused) {
         return asCallToolResult(errorText(`${tool.name} could not be called: ${cause.message}`));
       }
-      // Proof: on 2026-09-21, replacing this call with a fabricated disclosure left the linked
-      // SDK reporter count at zero; invoking it twice made the production exact-one count two.
-      const disclosure = reportUnexpectedToolFailure(cause);
-      return asCallToolResult(
-        errorText(
-          // Proof: on 2026-09-21, replacing this format with fixed synthetic public text preserved
-          // reporter safety but failed the exact generic sentence and correlation envelope.
-          `${tool.name} could not be called: ${disclosure.sentence}. Reference ${disclosure.occurrenceId}.`,
-        ),
-      );
+      return reportToolFailure(tool.name, cause);
     }
   });
+
+  function reportToolFailure(
+    toolName: string,
+    caught: unknown,
+  ): ReturnType<typeof asCallToolResult> {
+    // Proof: on 2026-09-21, replacing this call with a fabricated disclosure left the linked
+    // SDK reporter count at zero; invoking it twice made the production exact-one count two.
+    const disclosure = reportUnexpectedToolFailure(caught);
+    return asCallToolResult(
+      errorText(
+        // Proof: on 2026-09-21, replacing this format with fixed synthetic public text preserved
+        // reporter safety but failed the exact generic sentence and correlation envelope.
+        `${toolName} could not be called: ${disclosure.sentence}. Reference ${disclosure.occurrenceId}.`,
+      ),
+    );
+  }
 
   return server;
 }

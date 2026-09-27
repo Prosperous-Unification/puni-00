@@ -8,7 +8,6 @@ import type * as Api from '@/lib/api';
 import { ThemeProvider } from '@/lib/theme';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
 import { browserStorage } from '@/modules/preferences/browser-storage.repository';
-import { projectServicesOver } from '@/modules/project/composition';
 import { type ApplicationServices, installApplicationRuntime } from '@/runtime/application-runtime';
 import { ApplicationServicesProvider } from '@/runtime/application-services-context';
 import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
@@ -98,10 +97,17 @@ beforeEach(async () => {
   );
 });
 
+/** Whether the application's retirement has already failed, as a case can make it on purpose. */
+const applicationFailed = (): boolean => {
+  const state = servicesSlot.snapshot();
+  return state.status === 'fatal' && state.terminal;
+};
+
 afterEach(async () => {
   // React cleanup first, so nothing renders against a slot already retiring.
   cleanup();
-  await servicesSlot.retire();
+  // A case that made the application's retirement fail has asserted that itself.
+  if (!applicationFailed()) await servicesSlot.retire();
   logged.mockRestore();
   vi.unstubAllGlobals();
   localStorage.clear();
@@ -487,6 +493,7 @@ describe('log out', () => {
   ): SessionOwner =>
     createSessionOwner({
       clientFor: () => fakeDirectoryApi(),
+      projectClientFor: () => fakeProjectApi(),
       install: (dependencies) => {
         const installed = installSessionRuntime(dependencies);
         return {
@@ -533,10 +540,7 @@ describe('log out', () => {
     const opened = owner.snapshot();
     if (opened.status !== 'live') throw new Error(`u1 was not published: ${opened.status}`);
     await act(async () => {
-      await opened.services.projects.open('p1', {
-        services: projectServicesOver(fakeProjectApi()),
-        subscribe: undefined,
-      });
+      await opened.services.projects.open('p1');
     });
     expect(opened.services.projects.snapshot().status).toBe('live');
     return opened.services;
@@ -642,8 +646,75 @@ describe('log out', () => {
       expect(screen.queryByRole('heading', { name: 'Directory' })).toBeNull();
       expect(owner.snapshot().status).toBe('live');
       expect(events).toEqual([]);
+
+      // The region going hands the session's failed retirement to the application.
+      cleanup();
+      await expect(servicesSlot.retire()).rejects.toThrow();
+      expect(applicationFailed()).toBe(true);
     },
   );
+
+  /**
+   * Task 14: on page hide the bootstrap takes the root down and then retires
+   * the application, which waits for the session the region's cleanup started
+   * to give back, and fails when it could not.
+   */
+  itDom('retires the application only once the region’s session has been given back', async () => {
+    requestsSent();
+    const events: string[] = [];
+    let letGo: () => void = () => undefined;
+    const owner = recordingOwner(
+      events,
+      () =>
+        new Promise<void>((resolve) => {
+          letGo = resolve;
+        }),
+    );
+    await signedInWithProject(owner, () => events.push('signed out'));
+
+    cleanup();
+    const retiring = servicesSlot.retire().then(() => events.push('application retired'));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(events).toEqual([]);
+    letGo();
+    await retiring;
+
+    expect(events).toEqual(['project given back', 'session given back', 'application retired']);
+    expect(servicesSlot.snapshot().status).toBe('empty');
+  });
+
+  itDom(
+    'fails the application’s retirement when the session could not be given back as the region went',
+    async () => {
+      requestsSent();
+      const events: string[] = [];
+      const owner = recordingOwner(events, () =>
+        Promise.reject(new Error('the socket would not close')),
+      );
+      await signedInWithProject(owner, () => events.push('signed out'));
+
+      cleanup();
+
+      await expect(servicesSlot.retire()).rejects.toThrow();
+      expect(applicationFailed()).toBe(true);
+    },
+  );
+
+  itDom('does not fail the application again for a session already drawn as fatal', async () => {
+    requestsSent();
+    const events: string[] = [];
+    const owner = recordingOwner(events, () =>
+      Promise.reject(new Error('the socket would not close')),
+    );
+    await signedInWithProject(owner, () => events.push('signed out'));
+    logOut();
+    await fatalShown();
+
+    cleanup();
+
+    await expect(servicesSlot.retire()).resolves.toBeUndefined();
+    expect(servicesSlot.snapshot().status).toBe('empty');
+  });
 
   itDom(
     'returns to the sign-in form through the app, and a reload restores the identity',
@@ -701,6 +772,7 @@ describe('the selected project, through the router', () => {
   ): SessionOwner =>
     createSessionOwner({
       clientFor: () => fakeDirectoryApi(),
+      projectClientFor: () => fakeProjectApi(),
       install: (dependencies) => {
         const installed = installSessionRuntime(dependencies);
         events.push('session built');
@@ -745,7 +817,6 @@ describe('the selected project, through the router', () => {
             session={{ token: '', user: KAT }}
             onSignedOut={() => undefined}
             openOwner={() => owner}
-            projectApi={fakeProjectApi()}
           />
         </ThemeProvider>
       </ApplicationServicesProvider>
@@ -834,6 +905,11 @@ describe('the selected project, through the router', () => {
       expect(screen.queryByRole('navigation', { name: 'Pages' })).toBeNull();
       expect(owner.snapshot().status).toBe('live');
       expect(events).toEqual(['session built', 'project p1 built']);
+
+      // The region going hands the session's failed retirement to the application.
+      cleanup();
+      await expect(servicesSlot.retire()).rejects.toThrow();
+      expect(applicationFailed()).toBe(true);
     },
   );
 
