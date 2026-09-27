@@ -1,8 +1,11 @@
--- Refuse a rollback that would hide typed links from an older reader. Recovery:
--- docs/runbook-prod-deploy.md#typed-dependency-rollback.
+-- Refuses a rollback that would hide typed links from an older reader, and
+-- names the lossless procedure: save the rows, remove them, roll back, and
+-- restore them after a later forward run
+-- (docs/runbook-prod-deploy.md#typed-dependency-rollback). The CHECK's name is
+-- the message the operator reads, so it carries the procedure.
 CREATE TEMP TABLE typed_dependency_rollback_guard (
   typed_rows INTEGER NOT NULL,
-  CONSTRAINT "typed dependencies exist: SELECT id, project_id FROM typed_dependency; remove each via removeTypedDependency (export projects first to keep them); rerun migrate-down-cli.ts --to=20260927150000_add_step_code; see docs/runbook-prod-deploy.md#typed-dependency-rollback" CHECK (typed_rows = 0)
+  CONSTRAINT "typed dependencies exist: save and remove them first, then rerun migrate-down-cli.ts --to=20260927150000_add_step_code; see docs/runbook-prod-deploy.md#typed-dependency-rollback" CHECK (typed_rows = 0)
 );--> statement-breakpoint
 INSERT INTO typed_dependency_rollback_guard SELECT count(*) FROM typed_dependency;--> statement-breakpoint
 DROP TABLE typed_dependency_rollback_guard;--> statement-breakpoint

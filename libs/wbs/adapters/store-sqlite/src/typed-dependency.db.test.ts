@@ -25,6 +25,7 @@ let repo: TypedDependencyRepository;
 let ownerId: string;
 let projectId: string;
 let workItems: WorkItemRepository;
+let devStepId: string;
 const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
 beforeEach(async () => {
@@ -40,9 +41,10 @@ beforeEach(async () => {
     wrote(),
   );
   projectId = crypto.randomUUID();
+  devStepId = crypto.randomUUID();
   await new ProjectRepository(db, OPEN).create(
     projectRow({ id: projectId, ownerId }),
-    [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10, code: 'dev' }],
+    [{ id: devStepId, projectId, name: 'Dev', position: 10, code: 'dev' }],
     wrote(),
   );
 });
@@ -50,9 +52,17 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-async function addWorkItem(name: string): Promise<string> {
+async function addWorkItem(
+  name: string,
+  parentId: string | null = null,
+  inProject: string = projectId,
+): Promise<string> {
   const id = crypto.randomUUID();
-  await workItems.insert(workItemRow({ id, projectId, position: 10, name }), [], wrote());
+  await workItems.insert(
+    workItemRow({ id, projectId: inProject, parentId, position: 10, name }),
+    [],
+    wrote(),
+  );
   return id;
 }
 
@@ -74,7 +84,69 @@ function revision(id: string): number {
   return row.revision;
 }
 
+/**
+ * The message a promise rejected with, or a marker when it resolved.
+ *
+ * `.rejects.toThrow` returns void under Bun's types and cannot be awaited, and
+ * an assertion nobody awaits passes whatever happens (`project.db.test.ts`).
+ */
+async function rejection(promise: Promise<unknown>): Promise<string> {
+  try {
+    await promise;
+    return '(resolved without throwing)';
+  } catch (err) {
+    const messages: string[] = [];
+    for (let at: unknown = err; at instanceof Error; at = at.cause) messages.push(at.message);
+    return messages.join('\n');
+  }
+}
+
 describe('TypedDependencyRepository', () => {
+  it('refuses an endpoint outside the project or in the wrong shape', async () => {
+    const otherProject = crypto.randomUUID();
+    const otherStep = crypto.randomUUID();
+    await new ProjectRepository(db, OPEN).create(
+      projectRow({ id: otherProject, ownerId }),
+      [{ id: otherStep, projectId: otherProject, name: 'Dev', position: 10, code: 'dev' }],
+      wrote(),
+    );
+    const leaf = await addWorkItem('Leaf');
+    const parent = await addWorkItem('Parent');
+    await addWorkItem('Child', parent);
+    const foreign = await addWorkItem('Foreign', null, otherProject);
+    const refusals: [string, StoredTypedDependency, string][] = [
+      ['foreign work item', link(foreign, leaf), 'outside project'],
+      [
+        'foreign step',
+        {
+          ...link(leaf, parent),
+          predecessor: { scope: 'node', workItemId: leaf, stepId: otherStep },
+        },
+        'outside project',
+      ],
+      [
+        'node on a parent',
+        {
+          ...link(leaf, parent),
+          successor: { scope: 'node', workItemId: parent, stepId: devStepId },
+        },
+        'a parent',
+      ],
+      [
+        'descendant-step on a leaf',
+        {
+          ...link(leaf, parent),
+          predecessor: { scope: 'descendant-step', workItemId: leaf, stepId: devStepId },
+        },
+        'a leaf',
+      ],
+    ];
+    for (const [name, row, message] of refusals) {
+      expect(await rejection(repo.add(row, wrote())), name).toContain(message);
+    }
+    expect(await repo.listByProject(projectId)).toEqual([]);
+  });
+
   it('adds, lists, updates and removes a link while bumping both endpoints', async () => {
     const a = await addWorkItem('A');
     const b = await addWorkItem('B');
@@ -86,7 +158,9 @@ describe('TypedDependencyRepository', () => {
     expect(await repo.listByProject(projectId)).toEqual([row]);
     expect(revision(a)).toBe(beforeA + 1);
     expect(revision(b)).toBe(beforeB + 1);
-    expect(repo.add({ ...row, id: crypto.randomUUID() }, wrote())).rejects.toThrow('Failed query');
+    expect(await rejection(repo.add({ ...row, id: crypto.randomUUID() }, wrote()))).toContain(
+      'Failed query',
+    );
     const changed = { ...row, successor: { scope: 'whole' as const, workItemId: c } };
     await repo.update(changed, wrote());
     expect(await repo.listByProject(projectId)).toEqual([changed]);
@@ -102,8 +176,8 @@ describe('TypedDependencyRepository', () => {
 
   /**
    * Proof: the `isRelationshipType` read check removed made this case fail on
-   * `Received function did not throw` — an SS row came back as a link;
-   * watched 2026-09-27.
+   * `Received: (resolved without throwing)` — an SS row came back as a link; watched
+   * 2026-09-27.
    */
   it('refuses an SS row admitted by storage but unknown to this release', async () => {
     const a = await addWorkItem('A');
@@ -117,7 +191,9 @@ describe('TypedDependencyRepository', () => {
     } finally {
       sqlite.close();
     }
-    expect(repo.listByProject(projectId)).rejects.toThrow('unknown relationship type SS');
+    expect(await rejection(repo.listByProject(projectId))).toContain(
+      'unknown relationship type SS',
+    );
   });
 
   it('refuses unknown scopes and scope/step mismatches on read', async () => {
@@ -134,19 +210,25 @@ describe('TypedDependencyRepository', () => {
         'INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
         ['bad-scope', projectId, a, 'other', b, 'whole', 'FS'],
       );
-      expect(repo.listByProject(projectId)).rejects.toThrow('unknown predecessor scope other');
+      expect(await rejection(repo.listByProject(projectId))).toContain(
+        'unknown predecessor scope other',
+      );
       sqlite.run("DELETE FROM typed_dependency WHERE id='bad-scope'");
       sqlite.run(
         'INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?,?)',
         ['bad-pair', projectId, a, 'whole', step.id, b, 'whole', 'FS'],
       );
-      expect(repo.listByProject(projectId)).rejects.toThrow('whole predecessor with a step');
+      expect(await rejection(repo.listByProject(projectId))).toContain(
+        'whole predecessor with a step',
+      );
       sqlite.run("DELETE FROM typed_dependency WHERE id='bad-pair'");
       sqlite.run(
         'INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
         ['missing-step', projectId, a, 'node', b, 'whole', 'FS'],
       );
-      expect(repo.listByProject(projectId)).rejects.toThrow('node predecessor without a step');
+      expect(await rejection(repo.listByProject(projectId))).toContain(
+        'node predecessor without a step',
+      );
     } finally {
       sqlite.close();
     }
