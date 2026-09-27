@@ -481,8 +481,11 @@ describe('sharing the plan', () => {
         'Download chart as SVG',
         'Download what’s on screen',
         'Download JSON',
+        'Import with AI',
       ],
     );
+    // Proof: on 2026-09-27, taking `<ImportWithAiHelp />` out of the menu failed this on the
+    // missing 'Import with AI'.
     const importInput = screen.getByLabelText<HTMLInputElement>('Import JSON');
     expect(importInput).toHaveAttribute('type', 'file');
     expect(importInput).toHaveAttribute('accept', 'application/json');
