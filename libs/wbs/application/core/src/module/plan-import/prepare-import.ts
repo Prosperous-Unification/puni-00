@@ -12,6 +12,7 @@ import {
   PertWeights,
   priorityLadderProblem,
   type StepState,
+  suggestStepCodes,
   type ThreePointEstimate as Estimate,
   ThreePointEstimate,
   validateCustomColor,
@@ -45,6 +46,12 @@ export interface PreparedStep {
   fileId: string;
   name: string;
   position: number;
+  /**
+   * The step code the imported step is written with. A version 1 document
+   * carries none, so each is suggested from the name exactly as for a newly
+   * created step, in step order.
+   */
+  code: string;
 }
 
 export interface PreparedNamedEntry {
@@ -722,11 +729,20 @@ export function prepareImport(
       successorFileId: row.id,
     })),
   );
-  const preparedSteps = document.steps.map(({ id, name, position }) => ({
-    fileId: id,
-    name,
-    position,
-  }));
+  const inStepOrder = [...document.steps].sort(
+    (left, right) =>
+      left.position - right.position || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
+  );
+  const suggested = suggestStepCodes(
+    inStepOrder.map(({ name }) => name),
+    new Set(),
+  );
+  const codeByFileId = new Map(inStepOrder.map(({ id }, at) => [id, suggested[at]] as const));
+  const preparedSteps = document.steps.map(({ id, name, position }) => {
+    const code = codeByFileId.get(id);
+    if (code === undefined) throw new Error(`step ${id} was not coded during preparation`);
+    return { fileId: id, name, position, code };
+  });
   const stepByFileId = new Map(preparedSteps.map((step) => [step.fileId, step] as const));
   const preparedTeams = document.directory.teams.map(({ id, name, serviceIds }) => ({
     fileId: id,

@@ -117,6 +117,7 @@ export const UNIQUE_INDEXES = {
   personName: ['person.name'],
   serviceName: ['service.name'],
   stepNameInProject: ['step.project_id', 'step.name'],
+  stepCodeInProject: ['step.project_id', 'step.code'],
   tagName: ['tag.name'],
   teamName: ['service_team.name'],
   username: ['users.username'],

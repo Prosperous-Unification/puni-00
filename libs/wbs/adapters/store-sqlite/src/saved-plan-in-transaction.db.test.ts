@@ -50,7 +50,7 @@ describe('the quota is read inside the transaction that would write', () => {
     );
     await new ProjectRepository(seed.db, OPEN).create(
       projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10 }],
+      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
       wrote,
     );
     seed.close();
@@ -185,7 +185,7 @@ describe('a saved plan is independent of the batch beside it', () => {
     );
     await new ProjectRepository(seed.db, OPEN).create(
       projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10 }],
+      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
       wrote,
     );
     seed.close();

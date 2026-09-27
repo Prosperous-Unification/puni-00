@@ -383,6 +383,61 @@ describe('POST /api/projects/:id/steps', () => {
     expect(await stepStore.listByProject(project.id)).toHaveLength(3);
   });
 
+  it('codes a new step from its name, against the codes the project holds', async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+
+    const res = await addStep(project.id, token, 'Code Review!');
+
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { step: Step }).step.code).toBe('code-review');
+  });
+
+  it('writes the code its creator chose', async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+
+    const res = await send(`/api/projects/${project.id}/steps`, token, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Implementation', code: 'impl' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { step: Step }).step.code).toBe('impl');
+  });
+
+  it('refuses a reserved code and writes no step', async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+
+    const res = await send(`/api/projects/${project.id}/steps`, token, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Review', code: 's2-review' }),
+    });
+
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({ error: 'reserved_code' });
+    expect(await stepStore.listByProject(project.id)).toHaveLength(2);
+  });
+
+  it('refuses a code outside the grammar, and one the project already holds', async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+    const post = (code: string) =>
+      send(`/api/projects/${project.id}/steps`, token, {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Design', code }),
+      });
+
+    const invalid = await post('Design');
+    expect(invalid.status).toBe(422);
+    expect(await invalid.json()).toEqual({ error: 'invalid_code' });
+    const taken = await post('dev');
+    expect(taken.status).toBe(409);
+    expect(await taken.json()).toEqual({ error: 'code_taken' });
+    expect(await stepStore.listByProject(project.id)).toHaveLength(2);
+  });
+
   it('answers 409 taken for a name the project already holds', async () => {
     const token = await register('owner');
     const project = await newProject(token);
@@ -450,7 +505,7 @@ describe('PATCH /api/projects/:id/steps/:stepId', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      step: { id: project.qaId, projectId: project.id, name: 'Review', position: 20 },
+      step: { id: project.qaId, projectId: project.id, name: 'Review', position: 20, code: 'qa' },
     });
   });
 

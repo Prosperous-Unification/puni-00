@@ -100,7 +100,7 @@ async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
       id: projectId,
       ownerId,
     }),
-    [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10 }],
+    [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10, code: 'dev' }],
     { at: 1, by: ownerId },
   );
   return { projectId: project.id, ownerId };

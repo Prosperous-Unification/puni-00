@@ -50,7 +50,7 @@ function uniqueIndexesOn(table: string): string[][] {
       .query<{ name: string; unique: number }, []>(`PRAGMA index_list(${table})`)
       .all();
     // Partial unique indexes count: SQLite names their columns in the same
-    // message, and `organization_domain_claim_owner` is one.
+    // message, and `organization_domain_claim_owner` and `step_project_code` are two.
     return listed
       .filter((index) => index.unique === 1)
       .map((index) =>
@@ -141,6 +141,15 @@ describe('the unique indexes a refusal names', () => {
       `INSERT INTO step (id, project_id, name) VALUES (hex(randomblob(8)), 'p1', 'same')`,
     );
     expect(isUniqueViolation(err, UNIQUE_INDEXES.stepNameInProject)).toBe(true);
+  });
+
+  it('matches the message the partial step code index really produces', () => {
+    seedProject();
+    const err = refusalOf(
+      `INSERT INTO step (id, project_id, name, code) VALUES (hex(randomblob(8)), 'p1', hex(randomblob(8)), 'dev')`,
+    );
+    expect(isUniqueViolation(err, UNIQUE_INDEXES.stepCodeInProject)).toBe(true);
+    expect(isUniqueViolation(err, UNIQUE_INDEXES.stepNameInProject)).toBe(false);
   });
 
   it('refuses to answer for an index the message does not name', () => {

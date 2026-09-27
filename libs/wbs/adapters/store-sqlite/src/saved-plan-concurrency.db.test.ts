@@ -66,7 +66,7 @@ describe('a save that meets a held write lock is refused, not queued behind it',
     );
     await new ProjectRepository(seed.db, OPEN).create(
       projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10 }],
+      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
       wrote,
     );
     seed.close();

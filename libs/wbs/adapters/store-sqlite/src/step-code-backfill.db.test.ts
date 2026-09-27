@@ -6,6 +6,8 @@ import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { type Drizzle, openDatabase, openDrizzle } from './db';
+import { DrizzleEventLogStore } from './event-log';
+import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { backfillStepCodes } from './step-code-backfill';
 
@@ -76,7 +78,7 @@ describe('backfillStepCodes', () => {
     oldWriterStep('q-analysis', 'q', 'Analysis', 20);
     oldWriterStep('q-analysis-2', 'q', 'analysis', 30);
 
-    const coded = backfillStepCodes(db, 5_000);
+    const coded = backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), 5_000);
 
     expect(coded).toEqual([
       { projectId: 'p', stepId: 'p-review-2', code: 'review-2' },
@@ -95,12 +97,35 @@ describe('backfillStepCodes', () => {
     ]);
   });
 
+  it('announces each coded step in its project’s durable log, with the code', () => {
+    oldWriterStep('p-dev', 'p', 'Dev', 10);
+
+    backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), 5_000);
+
+    const logged = sqlite
+      .query<{ subscription: string; message: string; created_at: number }, []>(
+        'SELECT subscription, message, created_at FROM event_log',
+      )
+      .all()
+      .map((row) => ({ ...row, message: JSON.parse(row.message) as unknown }));
+    expect(logged).toEqual([
+      {
+        subscription: 'project:p',
+        message: {
+          type: 'step_renamed',
+          step: { id: 'p-dev', projectId: 'p', name: 'Dev', position: 10, code: 'dev' },
+        },
+        created_at: 5_000,
+      },
+    ]);
+  });
+
   it('moves the revision of each project it coded a step in, once, and no other', () => {
     oldWriterStep('p-dev', 'p', 'Dev', 10);
     oldWriterStep('p-qa', 'p', 'QA', 20);
     codedStep('q-dev', 'q', 'Dev', 10, 'dev');
 
-    backfillStepCodes(db, 5_000);
+    backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), 5_000);
 
     expect(revisions()).toEqual({ p: 1, q: 0 });
   });
@@ -108,24 +133,24 @@ describe('backfillStepCodes', () => {
   it('never persists a code in the reserved alias namespace, however the name is cut', () => {
     oldWriterStep('p-long', 'p', `s${'1'.repeat(31)}x`, 10);
 
-    expect(backfillStepCodes(db, 5_000).map((coded) => coded.code)).toEqual([
-      `step-s${'1'.repeat(26)}`,
-    ]);
+    expect(
+      backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), 5_000).map((coded) => coded.code),
+    ).toEqual([`step-s${'1'.repeat(26)}`]);
   });
 
   it('is idempotent: a second run codes nothing and moves nothing', () => {
     oldWriterStep('p-dev', 'p', 'Dev', 10);
-    backfillStepCodes(db, 5_000);
+    backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), 5_000);
     const after = { codes: codes(), revisions: revisions() };
 
-    expect(backfillStepCodes(db, 9_000)).toEqual([]);
+    expect(backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), 9_000)).toEqual([]);
     expect({ codes: codes(), revisions: revisions() }).toEqual(after);
   });
 
   it('codes nothing in a database with no uncoded step', () => {
     codedStep('p-dev', 'p', 'Dev', 10, 'dev');
 
-    expect(backfillStepCodes(db, 5_000)).toEqual([]);
+    expect(backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), 5_000)).toEqual([]);
     expect(revisions()).toEqual({ p: 0, q: 0 });
   });
 });

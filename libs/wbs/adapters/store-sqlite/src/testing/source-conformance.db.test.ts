@@ -219,6 +219,7 @@ async function seedSqliteSource(
           id,
           projectId,
           name: stepIndex === 0 ? 'Dev' : 'QA',
+          code: stepIndex === 0 ? 'dev' : 'qa',
           position: (stepIndex + 1) * 10,
         })),
         stamp,
