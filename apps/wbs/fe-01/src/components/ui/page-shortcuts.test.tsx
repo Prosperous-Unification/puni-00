@@ -116,7 +116,7 @@ function silentApi(): SilentApi {
       redo: () => Promise.resolve({ ok: true as const, done: 'rename', detail: null }),
       setEstimateMethod: nothing,
       setStartDate: nothing,
-      steps: () => Promise.resolve([{ id: 'step-dev', name: 'Dev' }]),
+      steps: () => Promise.resolve([{ id: 'step-dev', name: 'Dev', allowancePercent: 0 }]),
       addStep: () => Promise.reject(new Error('not_in_these_tests')),
       renameStep: () => Promise.reject(new Error('not_in_these_tests')),
       removeStep: () => Promise.reject(new Error('not_in_these_tests')),

@@ -295,6 +295,8 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
  * The newest: the legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
@@ -406,6 +408,7 @@ describe('the WBS domain migration', () => {
       expect(reversed).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -749,6 +752,7 @@ describe('the capacity migrations', () => {
       expect(reversed).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1230,6 +1234,7 @@ describe('the work item team migration', () => {
       expect(reversed).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1478,6 +1483,7 @@ describe('the priority band migration', () => {
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1778,6 +1784,7 @@ describe('the plan event migration', () => {
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -2016,6 +2023,7 @@ describe('the actual migration', () => {
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -2298,6 +2306,7 @@ describe('the step progress migration', () => {
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -2564,6 +2573,7 @@ describe('the not-before reason migration', () => {
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -2821,6 +2831,7 @@ describe('the tag migration', () => {
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -3183,6 +3194,7 @@ describe('the service migration', () => {
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -3337,6 +3349,7 @@ describe('the work-item-service migration', () => {
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
+      STEP_ALLOWANCE,
       STEP_CODE,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
@@ -3502,6 +3515,7 @@ describe('the work-item-service migration', () => {
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -3800,6 +3814,7 @@ describe('the step measure migration', () => {
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -3897,6 +3912,7 @@ describe('the person kind migration', () => {
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
+      STEP_ALLOWANCE,
       STEP_CODE,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
@@ -4134,6 +4150,7 @@ describe('the person kind migration', () => {
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -4276,6 +4293,135 @@ describe('the role -> step rename', () => {
       } finally {
         sqlite.close();
       }
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+describe('the step allowance migration', () => {
+  /** A project with one step, written the way the outgoing release writes it: no allowance. */
+  function seededBeforeAllowances(dbPath: string): void {
+    const db = openDatabase(dbPath);
+    try {
+      db.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('u', 'owner', 'x', 1)",
+      );
+      db.run(
+        'INSERT INTO project (id, name, owner_id, restricted, estimate_method, start_date, revision, created_at)' +
+          " VALUES ('p', 'Rewire the shed', 'u', 0, 'pert', NULL, 0, 1)",
+      );
+      db.run("INSERT INTO step (id, project_id, name, position) VALUES ('qa', 'p', 'QA', 10)");
+    } finally {
+      db.close();
+    }
+  }
+
+  function allowanceOf(dbPath: string, stepId: string): number | undefined {
+    const db = openDatabase(dbPath);
+    try {
+      return (
+        db
+          .query<{ allowance_bps: number }, [string]>('SELECT allowance_bps FROM step WHERE id = ?')
+          .get(stepId) ?? undefined
+      )?.allowance_bps;
+    } finally {
+      db.close();
+    }
+  }
+
+  function stepColumns(dbPath: string): string[] {
+    const db = openDatabase(dbPath);
+    try {
+      return db
+        .query<{ name: string }, []>('PRAGMA table_info(step)')
+        .all()
+        .map((column) => column.name);
+    } finally {
+      db.close();
+    }
+  }
+
+  it('reads an existing step at no allowance, and lets the outgoing release keep inserting', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([
+        ORGANIZATION_BRIDGE,
+        ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
+      ]);
+      seededBeforeAllowances(db.path);
+
+      runMigrations(db.path, FOLDER);
+
+      expect(allowanceOf(db.path, 'qa')).toBe(0);
+      const sqlite = openDatabase(db.path);
+      try {
+        // The outgoing release's three-column insert, mid-swap.
+        sqlite.run(
+          "INSERT INTO step (id, project_id, name, position) VALUES ('dev', 'p', 'Dev', 20)",
+        );
+        expect(() => sqlite.run("UPDATE step SET allowance_bps = -1 WHERE id = 'dev'")).toThrow(
+          'CHECK constraint failed',
+        );
+        expect(() => sqlite.run("UPDATE step SET allowance_bps = 12.5 WHERE id = 'dev'")).toThrow(
+          'CHECK constraint failed',
+        );
+      } finally {
+        sqlite.close();
+      }
+      expect(allowanceOf(db.path, 'dev')).toBe(0);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('rolls back while every allowance is zero, and re-applies onto the result', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seededBeforeAllowances(db.path);
+
+      expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([
+        ORGANIZATION_BRIDGE,
+        ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
+      ]);
+      expect(stepColumns(db.path)).not.toContain('allowance_bps');
+      expect(stepColumns(db.path)).not.toContain('allowance_revision');
+      expect(tables(db.path)).not.toContain('step_allowance_rollback_guard');
+
+      runMigrations(db.path, FOLDER);
+      expect(allowanceOf(db.path, 'qa')).toBe(0);
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * A rollback would silently re-charge `QA +30%` at base days, so it refuses.
+   *
+   * Proof: with the guard's INSERT removed from `down.sql`, this rollback
+   * returned `[STEP_ALLOWANCE]` and dropped the column (2026-09-27).
+   */
+  it('refuses to roll back while a step carries a nonzero allowance', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seededBeforeAllowances(db.path);
+      const sqlite = openDatabase(db.path);
+      try {
+        sqlite.run("UPDATE step SET allowance_bps = 3000 WHERE id = 'qa'");
+      } finally {
+        sqlite.close();
+      }
+
+      expect(() => rollbackTo(db.path, FOLDER, STEP_CODE)).toThrow(
+        'CHECK constraint failed: step_allowance_rollback_guard',
+      );
+      expect(allowanceOf(db.path, 'qa')).toBe(3000);
+      expect(stepColumns(db.path)).toContain('allowance_bps');
     } finally {
       db.cleanup();
     }

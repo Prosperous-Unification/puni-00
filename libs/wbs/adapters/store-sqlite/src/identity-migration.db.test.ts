@@ -104,6 +104,8 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
  * forward, the index and the column back.
  */
 const STEP_CODE = '20260927150000_add_step_code';
+/** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
+const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
  * The newest: the legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
@@ -126,6 +128,7 @@ function beforeIdentity(dbPath: string): void {
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
     ORGANIZATION_BRIDGE,
     ORGANIZATION_ACTIVATION,
+    STEP_ALLOWANCE,
     STEP_CODE,
     ORGANIZATION_OWNERSHIP,
     ORGANIZATION_RECORDS,
@@ -232,6 +235,7 @@ describe('the OIDC identity migration', () => {
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -303,6 +307,7 @@ describe('the OIDC identity migration', () => {
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
+        STEP_ALLOWANCE,
         STEP_CODE,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,

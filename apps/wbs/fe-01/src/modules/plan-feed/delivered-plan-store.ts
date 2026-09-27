@@ -81,10 +81,22 @@ function nothingDelivered(): DeliveredPlan {
   };
 }
 
-/** Whether two step lists say the same thing, so an equal one can be discarded. */
+/**
+ * Whether two step lists say the same thing, so an equal one can be discarded.
+ *
+ * Proof: with the allowance left out of the comparison, `a changed allowance
+ * is a different step list` failed: an allowance-only refresh was discarded
+ * (2026-09-27).
+ */
 export function sameSteps(a: readonly StepView[], b: readonly StepView[]): boolean {
   return (
-    a.length === b.length && a.every((step, i) => step.id === b[i]?.id && step.name === b[i]?.name)
+    a.length === b.length &&
+    a.every(
+      (step, i) =>
+        step.id === b[i]?.id &&
+        step.name === b[i]?.name &&
+        step.allowancePercent === b[i]?.allowancePercent,
+    )
   );
 }
 

@@ -27,6 +27,8 @@ const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 /** Main's step code column, stamped after the marker and so reversed before it. */
 const STEP_CODE = '20260927150000_add_step_code';
 const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
+/** The step allowance column, stamped between {@link STEP_CODE} and the marker. */
+const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 
 let dir: string;
 let path: string;
@@ -204,6 +206,7 @@ describe('organization activation marker schema', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
+      STEP_ALLOWANCE,
       STEP_CODE,
     ]);
     expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_OWNERSHIP);

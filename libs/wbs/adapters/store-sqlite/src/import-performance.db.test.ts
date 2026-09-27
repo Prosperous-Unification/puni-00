@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { PlanDocumentRequest } from '@wbs/contracts';
+import type { PlanDocumentImport } from '@wbs/contracts';
 import {
   clockOf,
   ImportService,
@@ -26,7 +26,7 @@ const ACTOR = 'import-owner';
 const ROWS = 500;
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 
-function measuredDocument(): PlanDocumentRequest {
+function measuredDocument(): PlanDocumentImport {
   const document = planDocumentFixture();
   const template = document.workItems.at(0);
   if (template === undefined) throw new Error('plan document fixture has no work item');

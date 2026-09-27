@@ -72,8 +72,8 @@ export const planFixtureRows: PlanInputRows = {
     },
   ],
   steps: [
-    { id: 's2', name: 'Test', position: 20 },
-    { id: 's1', name: 'Build', position: 10 },
+    { id: 's2', name: 'Test', position: 20, allowancePercent: 0 },
+    { id: 's1', name: 'Build', position: 10, allowancePercent: 0 },
   ],
   stepValues: [
     {
