@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase, openDrizzle } from './db';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
-import { OrganizationOwnershipRepository } from './organization-ownership';
+import { OrganizationOwnershipRepository, type UnmappedRoot } from './organization-ownership';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
@@ -82,7 +82,7 @@ describe('OrganizationOwnershipRepository.findUnmappedRoots', () => {
 
     // Written out rather than read from `OWNED_ROOT_KINDS`, so a kind dropped
     // from the production list is a red here and not a shorter expectation.
-    for (const root of [
+    const expected: UnmappedRoot[] = [
       { kind: 'project', id: 'p1' },
       { kind: 'person', id: 'pe1' },
       { kind: 'service_team', id: 'st1' },
@@ -91,8 +91,8 @@ describe('OrganizationOwnershipRepository.findUnmappedRoots', () => {
       { kind: 'work_item_type', id: 'w1' },
       { kind: 'external_system', id: 'e1' },
       { kind: 'saved_plan', id: 'sp1' },
-    ])
-      expect(unmapped).toContainEqual(root);
+    ];
+    for (const root of expected) expect(unmapped).toContainEqual(root);
     expect(unmapped).not.toContainEqual({ kind: 'tag', id: 't2' });
   });
 
