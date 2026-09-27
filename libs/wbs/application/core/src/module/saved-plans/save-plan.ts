@@ -1,6 +1,6 @@
 import type { AuthenticatedUser } from '@wbs/contracts';
-import { canEditProject } from '@wbs/domain';
 
+import { mayEditProjectWithin, type ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectService } from '../../service/project.service';
 import type {
@@ -10,7 +10,7 @@ import type {
 } from './saved-plans.feature';
 
 export interface SavePlanGraph {
-  readonly projects: Pick<ProjectService, 'read'>;
+  readonly projects: Pick<ProjectService, 'readWithin'>;
   readonly plans: Pick<SavedPlanService, 'save'>;
   readonly announcements: Pick<Broadcaster, 'publish'>;
 }
@@ -19,6 +19,8 @@ export interface SavePlanInput {
   readonly projectId: string;
   readonly actor: AuthenticatedUser;
   readonly name?: string;
+  /** The caller's organization access, resolved before the save is admitted. */
+  readonly access: ResourceAccess;
 }
 
 export type SavedPlanUseCaseOutcome =
@@ -38,9 +40,15 @@ export async function savePlan(
   input: SavePlanInput,
 ): Promise<SavedPlanUseCaseOutcome> {
   if (!input.actor.scopes.includes('write')) return { outcome: 'insufficient_scope' };
-  const found = await graph.projects.read(input.projectId);
+  // Proof: reading the project unscoped made `answers 404 alike for a foreign
+  // and an absent project on every saved-plan and history route` in
+  // `saved-plan-organization.controller.db.test.ts` save a plan of B's
+  // project; watched 2026-09-27.
+  const found = await graph.projects.readWithin(input.projectId, input.access);
   if (found === null) return { outcome: 'not_found' };
-  if (!canEditProject(found.project, input.actor.id)) return { outcome: 'forbidden' };
+  if (!mayEditProjectWithin(found.project, input.actor.id, input.access)) {
+    return { outcome: 'forbidden' };
+  }
   const request: SavedPlanSaveRequest = {
     projectId: input.projectId,
     ...(input.name === undefined ? {} : { name: input.name }),

@@ -37,7 +37,14 @@
     - The solution lookup answers a foreign slug as an absent one.
     - Copies (`duplicateWorkItem`) and external references are held by 3.4's per-command checks.
   - Part 2 (open): solution slugs scoped by organization. It needs an additive migration, because `project_solution_slug` is unique across the deployment. Until then, a scoped link is refused and a scoped import leaves the slug off.
-- [ ] 3.6 Scope saved plans, journal, history and generated events. Red: foreign detail and historical reads return 404 without revealing existence. Fault: omit saved-plan owner predicate; observe mounted history test fail, restore and add `Proof:`.
+- [x] 3.6 Scope saved plans, journal, history and generated events. Red: foreign detail and historical reads return 404 without revealing existence. Fault: omit saved-plan owner predicate; observe mounted history test fail, restore and add `Proof:`.
+  - Done as slice 14. Every saved-plan route and the history read resolve organization access first.
+    - Routes addressed by a project read it through the caller's access.
+    - Routes addressed by a saved plan check the plan's project the same way, so a foreign plan answers exactly as an absent one.
+    - Under scoped access only a writing role saves, renames or deletes.
+    - A plan saved after activation is mapped to its project's organization in the save's own transaction.
+  - The journal (undo and redo) was scoped in 3.4. Generated events are published only to the acting project, and to the organization's projects for an import's `directory_changed`. Gateway subscribe and replay authorization is 6.1–6.2.
+  - Not applicable here: history labels and saved snapshots written after activation carry directory names as the writer read them. Those can be opaque root names for entries created after activation, which is a display concern for the switch to local names, not an isolation one.
 - [ ] 3.7 Enforce role changes, invitations authority, recovery audit and last-super-admin protection at the service boundary. Red: admin promotion, viewer mutation, recovery and final-owner matrix. Fault: bypass role guard; observe mounted unauthorized mutation test fail, restore and add `Proof:`.
 
 ## 4. Onboarding state transitions

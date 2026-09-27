@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
+import { organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 const params = requestSchema(type({ id: 'string' }));
@@ -66,6 +67,7 @@ const integrity = type({
 const commonRefusals = [
   { status: 400, schema: responseSchema(type({ error: "'invalid_params'" })) },
   { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
+  organizationRefusal,
   {
     status: 501,
     schema: responseSchema(

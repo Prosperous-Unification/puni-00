@@ -239,7 +239,7 @@ export function mountedEndpoints(
     ...smokeRoutes(),
     ...stepRoutes(opts.steps, commands, opts.organizations),
     ...directoryRoutes(opts.directory, opts.organizations),
-    ...historyRoutes(opts.history),
+    ...historyRoutes(opts.history, opts.projects, opts.organizations),
     ...solutionRoutes(opts.projects, opts.organizations),
     // Proof: omitting this spread made the production import reachability test receive 404.
     ...importRoutes(opts.writes.imports, opts.organizations),
@@ -254,7 +254,12 @@ export function mountedEndpoints(
     ),
     ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),
     ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations),
-    ...savedPlanRoutes(opts.savedPlans, opts.projects, opts.writes.announcements),
+    ...savedPlanRoutes(
+      opts.savedPlans,
+      opts.projects,
+      opts.writes.announcements,
+      opts.organizations,
+    ),
     ...internalRoutes({
       // A deliberate pure ack: every mutation is an HTTP call to be-01, so a
       // client socket message has no write authority.

@@ -4,6 +4,7 @@ import { DiBag } from 'di-bag';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
+import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Digest } from '../../ports/runtime';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
@@ -118,7 +119,7 @@ describe('the Saved plans module', () => {
 
     const outcome = await savePlan(
       { projects, plans: savedPlans, announcements },
-      { projectId, actor: owner, name: 'Announced' },
+      { projectId, actor: owner, name: 'Announced', access: LEGACY_ACCESS },
     );
 
     expect(outcome).toHaveProperty('outcome', 'saved');

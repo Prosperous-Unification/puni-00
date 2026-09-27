@@ -6,7 +6,13 @@ import type { Connection, Drizzle } from './db';
 import { drizzleOuterTransaction, drizzleReadTransaction, refuseToWaitForWriteLock } from './db';
 import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
 import { savedPlanWriteFaultOf } from './saved-plan-write-fault';
-import { project, savedPlan, savedPlanBody } from './schema';
+import {
+  project,
+  projectOrganization,
+  savedPlan,
+  savedPlanBody,
+  savedPlanOrganization,
+} from './schema';
 
 export { bodyByteLength } from '@wbs/core';
 
@@ -317,6 +323,30 @@ export class SavedPlanRepository implements SavedPlanStore {
           }
           const header = savedPlanHeader(plan, inputBytes, scheduleBytes);
           await db.insert(savedPlan).values(header);
+          // The plan belongs to its project's organization. Before activation
+          // the bridge trigger has already mapped it; after it, nothing else
+          // would, so the mapping is written here, in the save's own
+          // transaction. Builder statements rather than a raw one, so the
+          // transaction's only raw statements stay its BEGIN and its end.
+          // Proof: skipping this insert made `maps a plan saved after
+          // activation to its project's organization` in
+          // `saved-plan-organization.controller.db.test.ts` find no mapping;
+          // watched 2026-09-27.
+          const owner = (
+            await db
+              .select({ organizationId: projectOrganization.organizationId })
+              .from(projectOrganization)
+              .where(eq(projectOrganization.resourceId, plan.projectId))
+          ).at(0);
+          const mapped = await db
+            .select({ id: savedPlanOrganization.resourceId })
+            .from(savedPlanOrganization)
+            .where(eq(savedPlanOrganization.resourceId, plan.id));
+          if (owner !== undefined && mapped.length === 0) {
+            await db
+              .insert(savedPlanOrganization)
+              .values({ resourceId: plan.id, organizationId: owner.organizationId });
+          }
           if (writeFault?.kind !== 'omit-input' || writeFault.targetId !== plan.id)
             await db
               .insert(savedPlanBody)

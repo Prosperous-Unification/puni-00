@@ -14,6 +14,7 @@ import {
   type WritingServices,
 } from './compose';
 import { clockOf } from './ports/clock';
+import { LEGACY_ACCESS } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
 import type { Scope } from './ports/unit-of-work';
 import type { Decision } from './ports/unit-of-work';
@@ -280,12 +281,18 @@ describe('composeServices', () => {
     const foreign = { id: 'other', username: 'other', scopes: ['write'] as const };
     const owner = { id: 'owner', username: 'owner', scopes: ['write'] as const };
     expect(
-      await savePlan(graph, { projectId: project.project.id, actor: foreign, name: 'Denied' }),
+      await savePlan(graph, {
+        projectId: project.project.id,
+        actor: foreign,
+        name: 'Denied',
+        access: LEGACY_ACCESS,
+      }),
     ).toEqual({ outcome: 'forbidden' });
     const saved = await savePlan(graph, {
       projectId: project.project.id,
       actor: owner,
       name: 'Baseline',
+      access: LEGACY_ACCESS,
     });
     expect(saved.outcome).toBe('saved');
     if (saved.outcome !== 'saved') return;

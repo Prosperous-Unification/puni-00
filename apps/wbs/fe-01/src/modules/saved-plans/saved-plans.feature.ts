@@ -64,6 +64,8 @@ export async function readShelf(deps: ShelfDeps, projectId: string): Promise<Sav
           case 'not_found':
           case 'invalid_body':
           case 'invalid_query':
+          case 'no_active_organization':
+          case 'not_a_member':
             return { kind: 'error', code: reply.body.error };
           default:
             return unreachable(reply.body);

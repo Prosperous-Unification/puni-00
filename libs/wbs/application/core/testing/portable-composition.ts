@@ -164,12 +164,14 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
       projectId: project.project.id,
       actor: { id: 'reader', username: 'reader', scopes: ['write'] },
       name: 'Denied',
+      access: LEGACY_ACCESS,
     });
     assert(deniedSave.outcome === 'forbidden', 'foreign browser save was admitted');
     const saved = await savePlan(graph, {
       projectId: project.project.id,
       actor,
       name: 'Browser snapshot',
+      access: LEGACY_ACCESS,
     });
     assert(saved.outcome === 'saved', 'browser save did not persist');
     const readBack = await graph.savedPlans.read(saved.record.id);
