@@ -62,7 +62,9 @@ test('typed step bindings preserve the service value, actor and trimmed name', a
   expect(renamed).toEqual({
     ok: true,
     status: 200,
-    body: { step: { id: 'step', projectId: 'project', name: 'Review', position: 10 } },
+    body: {
+      step: { id: 'step', projectId: 'project', name: 'Review', position: 10, code: 'design' },
+    },
   });
   expect(broadcast.published.map((entry) => entry.event.type)).toEqual([
     'step_added',

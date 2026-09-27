@@ -1,18 +1,18 @@
 ## 1. Name step nodes in the domain
 
 - [ ] 1.1 Red: domain tests for `StepNodeRef`, the `sn1` encoding and leaf node enumeration including a stepless project; mounted refusals for unknown prefix, arity, unknown work item or step, parent and a step node ID from another project.
-- [ ] 1.2 Implement the value, codec and enumeration with JSDoc on each symbol.
+- [x] 1.2 Implement the value, codec and enumeration with JSDoc on each symbol.
 - [ ] 1.3 Negative proofs: accept a parent work item; skip the same-project check; accept an unknown step ID. Watch each mounted refusal fail, restore, add adjacent `Proof:`.
 
 ## 2. Store and suggest step codes
 
-- [ ] 2.1 Red: `suggestStepCode` cases (punctuation, leading digit, reserved `s2-…`, collision suffix, repeated collisions on a 32-character stem), step create/rename keeping the code, reserved and duplicate refusals through the mounted route.
-- [ ] 2.2 Add additive `migration.sql` beside `down.sql`, the store column and partial unique index, and the uncoded union in contracts.
-- [ ] 2.3 Negative proof: drop the reserved-code check; watch the mounted refusal fail, restore, add adjacent `Proof:`. Run migration lint, apply and rollback.
+- [x] 2.1 Red: `suggestStepCode` cases (punctuation, leading digit, reserved `s2-…`, collision suffix, repeated collisions on a 32-character stem), step create/rename keeping the code, reserved and duplicate refusals through the mounted route.
+- [x] 2.2 Add additive `migration.sql` beside `down.sql`, the store column and partial unique index, and the uncoded union in contracts.
+- [x] 2.3 Negative proof: drop the reserved-code check; watch the mounted refusal fail, restore, add adjacent `Proof:`. Run migration lint, apply and rollback.
 
 ## 3. Backfill uncoded steps during a swap
 
-- [ ] 3.1 Red: a step inserted without a code reads as uncoded; the backfill CLI codes it idempotently; a backfill failure fails the swap with the manual command.
+- [x] 3.1 Red: a step inserted without a code reads as uncoded; the backfill CLI codes it idempotently; a backfill failure fails the swap with the manual command.
 - [x] 3.2 Implement the CLI and wire it into the swap after the old colour drains.
 - [x] 3.3 Negative proof: make the swap ignore the CLI's exit status; watch the swap-failure test fail, restore, add adjacent `Proof:`.
 

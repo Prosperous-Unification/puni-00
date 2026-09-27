@@ -23,7 +23,7 @@ const response = {
     scheduleEngine: 'optimized' as const,
     scheduleObjective: 'time' as const,
   },
-  steps: [{ id: 'step', projectId: 'project', name: 'Build', position: 10 }],
+  steps: [{ id: 'step', projectId: 'project', name: 'Build', position: 10, code: 'build' }],
 };
 
 test('emits the existing solution operation and required slug plus complete project response', () => {
@@ -35,7 +35,7 @@ test('emits the existing solution operation and required slug plus complete proj
   expect(operation?.responses['200']?.content?.['application/json']?.schema).toMatchObject({
     properties: {
       project: { required: Object.keys(response.project).sort() },
-      steps: { items: { required: ['id', 'name', 'position', 'projectId'] } },
+      steps: { items: { required: ['code', 'id', 'name', 'position', 'projectId'] } },
     },
   });
 });

@@ -57,7 +57,11 @@ describe('migration deploy entrypoints', () => {
       ],
       [
         'backfill-step-codes-cli.ts',
-        ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/step-code-backfill'"],
+        [
+          "from '@wbs/store-sqlite/db'",
+          "from '@wbs/store-sqlite/event-log'",
+          "from '@wbs/store-sqlite/step-code-backfill'",
+        ],
       ],
     ]);
     for (const [file, imports] of expectedImports) {

@@ -517,7 +517,15 @@ export function fakeProjectApi(): ProjectApi & {
         // On the read that carried the slices, as be-01 sends them: the chart
         // reads its steps and its names from here and not from the separate
         // `steps`/`listPeople` calls the pickers make.
-        steps: stepList.map((step, position) => ({ ...step, projectId, position })),
+        // The read requires a code on every step, and fe-01 keeps none yet. A
+        // distinct placeholder per position is all a code is owed here: this
+        // fake makes no claim about how be-01 suggests one.
+        steps: stepList.map((step, position) => ({
+          ...step,
+          projectId,
+          position,
+          code: `fake-${String(position + 1)}`,
+        })),
         assignedPeople: people.map(({ id, name }) => ({ id, name })),
         // Present and empty, never absent: be-01 always sends it, so a fake that
         // left it out would let `teamsOnThePlan` be handed `undefined` here and

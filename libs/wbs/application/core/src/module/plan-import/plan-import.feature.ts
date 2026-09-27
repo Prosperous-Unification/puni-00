@@ -248,6 +248,7 @@ export class ImportService {
         projectId,
         name: step.name,
         position: step.position,
+        code: step.code,
       }));
       const stepsByFileId = new Map(
         prepared.steps.map((step, at) => {

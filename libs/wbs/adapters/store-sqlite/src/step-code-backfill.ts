@@ -1,8 +1,10 @@
+import { type ProjectEvent, subscriptionFor } from '@wbs/core';
 import { suggestStepCodes } from '@wbs/domain';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { auditOnUpdate } from './audit';
 import type { Drizzle } from './db';
+import type { EventLogTransactionalWrite } from './event-log';
 import { bumpProject } from './revision';
 import { step } from './schema';
 
@@ -32,10 +34,20 @@ export interface CodedStep {
  * Idempotent: only `code IS NULL` rows are read or written, so a rerun after a
  * partial failure codes what is left and a rerun after success codes nothing.
  *
+ * Each coded step is announced in the project's durable event log, inside the
+ * same transaction, as `step_renamed` carrying the whole step: the event every
+ * client already applies as "this step now reads so", which is exactly what a
+ * code arriving is. This runs in a CLI with no route to gw-01, so nothing is
+ * pushed live; a client picks the events up from the log when it next replays.
+ *
  * @returns the steps coded, in the order they were coded.
  * @throws the driver's error on any failure; projects already committed stay coded.
  */
-export function backfillStepCodes(db: Drizzle, at: number): CodedStep[] {
+export function backfillStepCodes(
+  db: Drizzle,
+  eventLog: EventLogTransactionalWrite,
+  at: number,
+): CodedStep[] {
   const pending = db
     .selectDistinct({ projectId: step.projectId })
     .from(step)
@@ -46,7 +58,7 @@ export function backfillStepCodes(db: Drizzle, at: number): CodedStep[] {
     db.transaction(
       (tx) => {
         const steps = tx
-          .select({ id: step.id, name: step.name, code: step.code })
+          .select({ id: step.id, name: step.name, code: step.code, position: step.position })
           .from(step)
           .where(eq(step.projectId, projectId))
           .orderBy(step.position, step.id)
@@ -64,12 +76,19 @@ export function backfillStepCodes(db: Drizzle, at: number): CodedStep[] {
           // Same length by construction: one suggestion per name.
           code: suggested[index],
         }));
-        for (const { stepId, code } of coded) {
+        const subscription = subscriptionFor(projectId);
+        uncoded.forEach((each, index) => {
+          const code = suggested[index];
           tx.update(step)
             .set({ code, ...auditOnUpdate({ at }) })
-            .where(and(eq(step.id, stepId), isNull(step.code)))
+            .where(and(eq(step.id, each.id), isNull(step.code)))
             .run();
-        }
+          const announced: ProjectEvent = {
+            type: 'step_renamed',
+            step: { id: each.id, projectId, name: each.name, position: each.position, code },
+          };
+          eventLog.recordEventIn(tx, subscription, announced, at);
+        });
         bumpProject(tx, projectId, { at });
         return coded;
       },

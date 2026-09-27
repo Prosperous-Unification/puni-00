@@ -9,11 +9,25 @@ const stepParams = requestSchema(type({ id: 'string', stepId: 'string' }));
 // Proof: using responseSchema admitted the extra name body,200 instead of422
 // in step.controller.db.test.ts's undeclared-input case.
 const nameBody = requestSchema(type({ name: 'string' }));
-const stepReply = responseSchema(
-  type({
-    step: { id: 'string', projectId: 'string', name: 'string', position: 'number' },
-  }),
-);
+/**
+ * A new step's name and, optionally, the step code its creator chose; absent,
+ * the code is suggested from the name. Grammar and reservation are domain
+ * refusals (422), not structural defects, so the code arrives as any string.
+ */
+const newStepBody = requestSchema(type({ name: 'string', 'code?': 'string' }));
+/**
+ * One step as every read and write returns it. `code` is `null` while the step
+ * is uncoded — written mid-swap by an older release and not yet backfilled —
+ * which is a state the reader must render, not a missing field.
+ */
+export const stepShape = type({
+  id: 'string',
+  projectId: 'string',
+  name: 'string',
+  position: 'number',
+  code: 'string | null',
+});
+const stepReply = responseSchema(type({ step: stepShape }));
 const policies = [
   // Proof: removing origin or weakening write-scope independently reached JSON
   // parsing,400 instead of403 in the mounted step-policy case.
@@ -45,10 +59,14 @@ export const addStep = defineEndpointShape({
   operationId: 'postApiProjectsByIdSteps',
   policies,
   params: projectParams,
-  body: nameBody,
+  body: newStepBody,
   bodyMedia: ['application/json', 'application/x-www-form-urlencoded', 'multipart/form-data'],
   responses: [{ kind: 'json', status: 200, schema: stepReply }],
-  refusals: nameRefusals,
+  refusals: [
+    ...nameRefusals,
+    { status: 422, schema: responseSchema(type({ error: "'invalid_code' | 'reserved_code'" })) },
+    { status: 409, schema: responseSchema(type({ error: "'code_taken'" })) },
+  ] as const,
   document: { summary: 'Add a project step.' },
 });
 

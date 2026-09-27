@@ -66,7 +66,7 @@ beforeEach(async () => {
       id: projectId,
       ownerId,
     }),
-    [{ id: stepId, projectId, name: 'Dev', position: 10 }],
+    [{ id: stepId, projectId, name: 'Dev', position: 10, code: 'dev' }],
     wrote(),
   );
   personId = (

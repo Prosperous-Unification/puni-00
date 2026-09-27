@@ -51,7 +51,7 @@ async function seededSource() {
       scheduleEngine: 'fast',
       scheduleObjective: 'pri',
     },
-    [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10 }],
+    [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
     stamp,
   );
   return source;
@@ -544,7 +544,7 @@ describe('the staged memory source', () => {
         scheduleEngine: 'fast',
         scheduleObjective: 'pri',
       },
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10 }],
+      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
       stamp,
     );
     const entry: NewJournalEntry = {

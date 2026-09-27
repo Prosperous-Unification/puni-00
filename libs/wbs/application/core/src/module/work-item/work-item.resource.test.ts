@@ -62,7 +62,7 @@ beforeEach(async () => {
   stepId = crypto.randomUUID();
   await projects.create(
     project,
-    [{ id: stepId, projectId: project.id, name: 'Dev', position: 10 }],
+    [{ id: stepId, projectId: project.id, name: 'Dev', position: 10, code: 'dev' }],
     WROTE,
   );
   projectId = project.id;
@@ -509,8 +509,8 @@ describe('the plan waits for the people in it', () => {
     await projects.create(
       project,
       [
-        { id: dev, projectId: project.id, name: 'Dev', position: 10 },
-        { id: qa, projectId: project.id, name: 'QA', position: 20 },
+        { id: dev, projectId: project.id, name: 'Dev', position: 10, code: 'dev' },
+        { id: qa, projectId: project.id, name: 'QA', position: 20, code: 'qa' },
       ],
       WROTE,
     );
@@ -1356,8 +1356,8 @@ describe('the project’s dependency reach', () => {
         depReach: reach,
       }),
       [
-        { id: dev, projectId: id, name: 'Dev', position: 10 },
-        { id: qa, projectId: id, name: 'QA', position: 20 },
+        { id: dev, projectId: id, name: 'Dev', position: 10, code: 'dev' },
+        { id: qa, projectId: id, name: 'QA', position: 20, code: 'qa' },
       ],
       WROTE,
     );
@@ -1494,8 +1494,8 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
         createdAt: 1,
       },
       [
-        { id: devId, projectId: id, name: 'Dev', position: 10 },
-        { id: qaId, projectId: id, name: 'QA', position: 20 },
+        { id: devId, projectId: id, name: 'Dev', position: 10, code: 'dev' },
+        { id: qaId, projectId: id, name: 'QA', position: 20, code: 'qa' },
       ],
       WROTE,
     );
@@ -1960,8 +1960,8 @@ describe('the slices the schedule placed, on the wire', () => {
         ownerId: OWNER,
       }),
       [
-        { id: devId, projectId: id, name: 'Dev', position: 10 },
-        { id: qaId, projectId: id, name: 'QA', position: 20 },
+        { id: devId, projectId: id, name: 'Dev', position: 10, code: 'dev' },
+        { id: qaId, projectId: id, name: 'QA', position: 20, code: 'qa' },
       ],
       WROTE,
     );
@@ -2302,7 +2302,7 @@ describe('assignment projections isolate memory projects', () => {
     const other = projectRow({ id: 'other-assignment-project', ownerId: OWNER });
     await projects.create(
       other,
-      [{ id: 'other-step', projectId: other.id, name: 'Other', position: 10 }],
+      [{ id: 'other-step', projectId: other.id, name: 'Other', position: 10, code: 'other' }],
       WROTE,
     );
     const second = await service.create(other.id, OWNER, {

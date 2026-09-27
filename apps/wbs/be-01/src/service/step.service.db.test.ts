@@ -198,14 +198,14 @@ describe('StepService.rename', () => {
 
     expect(outcome).toEqual({
       ok: true,
-      value: { id: qaId, projectId, name: 'Review', position: 20 },
+      value: { id: qaId, projectId, name: 'Review', position: 20, code: 'qa' },
     });
     expect(broadcast.published).toEqual([
       {
         projectId,
         event: {
           type: 'step_renamed',
-          step: { id: qaId, projectId, name: 'Review', position: 20 },
+          step: { id: qaId, projectId, name: 'Review', position: 20, code: 'qa' },
         },
       },
     ]);

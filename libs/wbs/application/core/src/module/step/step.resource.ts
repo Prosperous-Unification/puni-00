@@ -1,4 +1,4 @@
-import { canEditProject, stepIsInUse } from '@wbs/domain';
+import { canEditProject, isReservedStepCode, isStepCode, stepIsInUse } from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
 import type { Broadcaster } from '../../ports/project-event';
@@ -22,7 +22,14 @@ export interface StepServiceOptions {
 }
 
 /** Why a step could not be added or renamed. All four are states, not faults. */
-export type StepRefusal = 'not_found' | 'forbidden' | 'name_required' | 'taken';
+export type StepRefusal =
+  | 'not_found'
+  | 'forbidden'
+  | 'name_required'
+  | 'taken'
+  | 'invalid_code'
+  | 'reserved_code'
+  | 'code_taken';
 
 export type StepOutcome = { ok: true; value: Step } | { ok: false; reason: StepRefusal };
 
@@ -124,17 +131,36 @@ export class StepService {
     this.clock = opts.clock;
   }
 
-  async add(projectId: string, actorId: string, name: string): Promise<StepOutcome> {
+  /**
+   * Adds a step with the code the caller chose, or with one suggested from its
+   * name when `code` is absent.
+   *
+   * A chosen code is checked before the project is read: `invalid_code` when it
+   * breaks the grammar, `reserved_code` when it lies in the ordinal alias's
+   * namespace (`s2`, `s2-review`), which would make `010.s2-review` mean two
+   * things. `code_taken` comes from the store's unique index.
+   *
+   * Proof: with the `isReservedStepCode` refusal removed, `refuses a reserved
+   * code and writes no step` in `step.controller.db.test.ts` failed on
+   * `Expected: 422, Received: 200`; watched 2026-09-27.
+   */
+  async add(projectId: string, actorId: string, name: string, code?: string): Promise<StepOutcome> {
     const clean = cleanName(name);
     // Before the project is read: a step called nothing would sit in every
     // header and every estimate row with no way to tell it from the next one.
     if (clean === null) return { ok: false, reason: 'name_required' };
+    if (code !== undefined && !isStepCode(code)) return { ok: false, reason: 'invalid_code' };
+    if (code !== undefined && isReservedStepCode(code)) {
+      return { ok: false, reason: 'reserved_code' };
+    }
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const written = await this.opts.steps.add(
-      { id: this.clock.newId(), projectId, name: clean },
+      code === undefined
+        ? { id: this.clock.newId(), projectId, name: clean }
+        : { id: this.clock.newId(), projectId, name: clean, code },
       this.clock.stampFor(actorId),
     );
     if (!written.ok) return { ok: false, reason: written.reason };

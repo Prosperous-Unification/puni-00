@@ -190,6 +190,11 @@ function stepWriteCode(refusal: RefusalOf<'postApiProjectsByIdSteps'>): string {
     case 'invalid_json':
     case 'taken':
     case 'invalid_body':
+    case 'invalid_code':
+    case 'reserved_code':
+    case 'code_taken':
+      // fe-01 sends no code yet, so the last three cannot arrive from the step
+      // header; named so a caller that does send one reads the refusal.
       return refusal.error;
     default:
       return unreachable(refusal);

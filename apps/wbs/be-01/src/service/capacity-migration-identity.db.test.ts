@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
+import { DEFAULT_PRIORITY_BANDS, suggestStepCode } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
@@ -286,6 +286,13 @@ describe('every plan schedules identically across the migration', () => {
       expect(depReach).toBe('anchor-slice');
       const lifted = {
         ...treeWithoutReach,
+        // `code` is lifted by `address-step-nodes` and asserted: the oracle
+        // predates step codes, and each replayed step carries the code its
+        // name suggests. A step code names a step; it moves no date.
+        steps: tree.steps.map(({ code, ...step }) => {
+          expect(code).toBe(suggestStepCode(step.name, new Set()));
+          return step;
+        }),
         // `capacityTeamId` is lifted off every slice for `teamIds`' reason and
         // asserted on its own here: the oracle predates the field, and a
         // payload that gained one is not a payload that moved a date.
@@ -628,6 +635,7 @@ describe('every plan schedules identically across the migration', () => {
       id,
       projectId: plan.projectId,
       name: `Step ${String(place)}`,
+      code: `step-${String(place)}`,
       position: (place + 1) * STEP_POSITION_STEP,
     }));
     await projects.create(project, steps, STAMP);

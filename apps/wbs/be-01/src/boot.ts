@@ -1,6 +1,7 @@
 import { buildOidcVerifier } from '@wbs/auth';
 import type { Logger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
+import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
 import { backfillStepCodes } from '@wbs/store-sqlite/step-code-backfill';
 import { DiBag } from 'di-bag';
 
@@ -227,7 +228,7 @@ export async function bootBe01(
                 runMigrations(opts.dbPath, opts.migrationsFolder ?? './drizzle');
                 // The swap's post-`stop-blue` step, here because a process that
                 // migrates itself has no older colour left to wait for.
-                const coded = backfillStepCodes(db, Date.now());
+                const coded = backfillStepCodes(db, new DrizzleEventLogStore(db, OPEN), Date.now());
                 opts.logger.info({ coded: coded.length }, 'step codes backfilled');
               }
               if (opts.localIdentity !== undefined) {

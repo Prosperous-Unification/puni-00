@@ -45,6 +45,8 @@ let projectId: string;
 let otherProjectId: string;
 let devId: string;
 let qaId: string;
+/** A raw connection, for writing rows the way an older release writes them. */
+let rawDb: ReturnType<typeof openDatabase>;
 
 /**
  * The stamp every write here carries. The account is the projects' owner, which
@@ -87,6 +89,7 @@ beforeEach(async () => {
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   const db = openDrizzle(path);
+  rawDb = openDatabase(path);
   steps = new StepRepository(db, OPEN);
   projects = new ProjectRepository(db, OPEN);
   estimates = new EstimateRepository(db, OPEN);
@@ -107,8 +110,8 @@ beforeEach(async () => {
   devId = crypto.randomUUID();
   qaId = crypto.randomUUID();
   const starting: Step[] = [
-    { id: devId, projectId, name: 'Dev', position: 10 },
-    { id: qaId, projectId, name: 'QA', position: 20 },
+    { id: devId, projectId, name: 'Dev', position: 10, code: 'dev' },
+    { id: qaId, projectId, name: 'QA', position: 20, code: 'qa' },
   ];
   await projects.create(project, starting, wrote());
 
@@ -116,7 +119,7 @@ beforeEach(async () => {
   otherProjectId = other.id;
   await projects.create(
     other,
-    [{ id: crypto.randomUUID(), projectId: other.id, name: 'Dev', position: 10 }],
+    [{ id: crypto.randomUUID(), projectId: other.id, name: 'Dev', position: 10, code: 'dev' }],
     wrote(),
   );
 
@@ -126,6 +129,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  rawDb.close();
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -243,11 +247,72 @@ describe('StepRepository', () => {
 
     expect(written).toEqual({
       ok: true,
-      step: { id: 'design', projectId, name: 'Design', position: 30 },
+      step: { id: 'design', projectId, name: 'Design', position: 30, code: 'design' },
     });
     const names = (await steps.listByProject(projectId)).map((each) => each.name);
     expect(names).toEqual(['Dev', 'QA', 'Design']);
     expect(await revisionOf(projectId)).toBe(before + 1);
+  });
+
+  it('writes the code its creator chose', async () => {
+    const written = await steps.add(
+      { id: 'impl', projectId, name: 'Build', code: 'impl' },
+      wrote(),
+    );
+
+    expect(written).toEqual({
+      ok: true,
+      step: { id: 'impl', projectId, name: 'Build', position: 30, code: 'impl' },
+    });
+  });
+
+  it('suggests a code against the codes the project holds', async () => {
+    const written = await steps.add({ id: 'qa-again', projectId, name: 'Q/A' }, wrote());
+
+    expect(written).toEqual({
+      ok: true,
+      step: { id: 'qa-again', projectId, name: 'Q/A', position: 30, code: 'q-a' },
+    });
+    const clash = await steps.add({ id: 'dev-again', projectId, name: 'DEV!' }, wrote());
+    expect(clash).toEqual({
+      ok: true,
+      step: { id: 'dev-again', projectId, name: 'DEV!', position: 40, code: 'dev-2' },
+    });
+  });
+
+  /**
+   * Proof: with the `stepCodeInProject` branch removed, this case failed on
+   * `SQLiteError: UNIQUE constraint failed: step.project_id, step.code`
+   * escaping the repository instead of a `code_taken`; watched 2026-09-27.
+   */
+  it('refuses a chosen code the project already holds, writing nothing', async () => {
+    const before = await revisionOf(projectId);
+
+    const written = await steps.add(
+      { id: 'dup', projectId, name: 'Develop', code: 'dev' },
+      wrote(),
+    );
+
+    expect(written).toEqual({ ok: false, reason: 'code_taken' });
+    expect(await steps.listByProject(projectId)).toHaveLength(2);
+    expect(await revisionOf(projectId)).toBe(before);
+  });
+
+  it('reads a step an older release inserted without a code as uncoded', async () => {
+    rawDb.run(
+      `INSERT INTO step (id, project_id, name, position) VALUES ('legacy', '${projectId}', 'Legacy', 30)`,
+    );
+
+    expect(await steps.findById('legacy')).toEqual({
+      id: 'legacy',
+      projectId,
+      name: 'Legacy',
+      position: 30,
+      code: null,
+    });
+    // And a new step beside it is still coded: an uncoded step holds no code.
+    const written = await steps.add({ id: 'next', projectId, name: 'Legacy 2' }, wrote());
+    expect(written.ok && written.step.code).toBe('legacy-2');
   });
 
   it('reads a step added later last, however its name sorts', async () => {
@@ -296,7 +361,9 @@ describe('StepRepository', () => {
 
     expect(written).toEqual({
       ok: true,
-      step: { id: qaId, projectId, name: 'Review', position: 20 },
+      // The code stays: a step code is immutable, and `010.qa` must keep
+      // naming this step after the rename.
+      step: { id: qaId, projectId, name: 'Review', position: 20, code: 'qa' },
     });
     expect(await revisionOf(projectId)).toBe(before + 1);
   });
@@ -323,7 +390,13 @@ describe('StepRepository', () => {
   });
 
   it('finds a step by id, carrying the project it belongs to', async () => {
-    expect(await steps.findById(qaId)).toEqual({ id: qaId, projectId, name: 'QA', position: 20 });
+    expect(await steps.findById(qaId)).toEqual({
+      id: qaId,
+      projectId,
+      name: 'QA',
+      position: 20,
+      code: 'qa',
+    });
   });
 
   it('counts the step’s estimates and hands back every assignment in the project', async () => {

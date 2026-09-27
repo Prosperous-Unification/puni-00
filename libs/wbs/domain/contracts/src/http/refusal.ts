@@ -227,7 +227,19 @@ type BareRefusalCode =
   | 'unsupported_version'
   | 'invalid_oidc_callback'
   | 'invalid_oidc_session'
-  | 'oidc_identity_conflict';
+  | 'oidc_identity_conflict'
+  // A step's chosen code (ADR 0031): breaks the grammar, lies in the ordinal
+  // alias's namespace, or is already held in the project.
+  | 'invalid_code'
+  | 'reserved_code'
+  | 'code_taken'
+  // Why a step reference does not resolve to a step node now.
+  | 'malformed_reference'
+  | 'stale_reference'
+  | 'unknown_work_item'
+  | 'parent_work_item'
+  | 'unknown_code'
+  | 'alias_mismatch';
 
 type SharedCommandCode = 'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use';
 

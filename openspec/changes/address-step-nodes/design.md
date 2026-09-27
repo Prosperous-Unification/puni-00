@@ -16,7 +16,7 @@ Backfill is a CLI beside the migration CLIs (`backfill-step-codes-cli.ts`), run 
 
 ## References
 
-`resolveStepReference({ projectId, revision, reference })` parses `^(<number>)\.(?:s(\d+)-)?([a-z][a-z0-9-]*)$`, where `<number>` is the existing work-item number grammar. The longest work-item number that exists wins only if its remainder is a valid step code; because codes cannot contain dots, the split is unique. A revision other than the project's current one is refused as stale; this keeps resolution from silently following renumbering. The resolver returns `StepNodeRef` plus the canonical spelling.
+`resolveStepReference({ projectId, revision, reference })` parses `^(<number>)\.(?:s(\d+)-)?([a-z][a-z0-9-]*)$`, where `<number>` is the existing work-item number grammar. The longest work-item number that exists wins only if its remainder is a valid step code; because codes cannot contain dots, the split is unique. A revision other than the project's current one is refused as stale; this keeps resolution from silently following renumbering. The revision is an **address revision**, `ar1:` plus the SHA-256 of `describeAddressSpace` (every work item's id, effective number and leafhood; every step's id, code or null, and position), returned by the work-item read: `project.revision` does not move when work items are renumbered, and an event sequence would refuse on unrelated edits. The resolver returns `StepNodeRef` plus the canonical spelling.
 
 ## Graph seam
 

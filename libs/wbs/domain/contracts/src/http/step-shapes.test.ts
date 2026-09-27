@@ -49,8 +49,9 @@ test('declares the full step response and each usage count and assumed-assignee 
           projectId: { type: 'string' },
           name: { type: 'string' },
           position: { type: 'number' },
+          code: { anyOf: [{ type: 'string' }, { type: 'null' }] },
         },
-        required: ['id', 'name', 'position', 'projectId'],
+        required: ['code', 'id', 'name', 'position', 'projectId'],
       },
     },
   });
