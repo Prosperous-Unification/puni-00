@@ -12,8 +12,14 @@ import { OrganizationOwnershipRepository, type UnmappedRoot } from './organizati
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
-/** The newest: the step code column `address-step-nodes` adds, reversed first. */
+const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
+/** The step code column `address-step-nodes` adds, reversed first. */
 const STEP_CODE = '20260927150000_add_step_code';
+/**
+ * The newest: the legacy bridge triggers, stamped after
+ * {@link ORGANIZATION_ACTIVATION} and reversed before it.
+ */
+const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
 
 let dir: string;
 let path: string;
@@ -71,8 +77,17 @@ function seed(statements: readonly string[]): void {
   }
 }
 
+/**
+ * Reverses the bridge triggers, so roots written after the legacy organization
+ * stay unmapped, as the outgoing release leaves them when no bridge exists.
+ */
+function withoutBridge(): void {
+  rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION);
+}
+
 describe('OrganizationOwnershipRepository.findUnmappedRoots', () => {
   it('reports an unmapped root of every kind, and only the unmapped ones', async () => {
+    withoutBridge();
     seed([
       ...ROOTS,
       "INSERT INTO tag (id, name) VALUES ('t2', 'mapped')",
@@ -116,6 +131,7 @@ describe('OrganizationOwnershipRepository.findUnmappedRoots', () => {
 
 describe('20260927130000_add_organization_ownership', () => {
   it('holds the same catalog name in two organizations, once each', () => {
+    withoutBridge();
     // Storage capability only: the legacy `tag_name` index still refuses a
     // second `tag.name`, so each organization's `urgent` is a separate backing
     // row. Live two-organization naming is task 3.2's mounted test.
@@ -187,6 +203,7 @@ describe('20260927130000_add_organization_ownership', () => {
 
   for (const table of CATALOGS)
     it(`refuses one ${table} name twice in one organization`, () => {
+      withoutBridge();
       seed([...ROOTS, `INSERT INTO ${table} (id, name) VALUES ('second', 'second-name')`]);
       const db = openDatabase(path);
       try {
@@ -220,6 +237,8 @@ describe('20260927130000_add_organization_ownership', () => {
     // The previous release's schema, populated the way it populates it, then
     // this migration applied, used by both releases, and reversed.
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      ORGANIZATION_BRIDGE,
+      ORGANIZATION_ACTIVATION,
       STEP_CODE,
       ORGANIZATION_OWNERSHIP,
     ]);
@@ -239,6 +258,8 @@ describe('20260927130000_add_organization_ownership', () => {
       "DELETE FROM tag WHERE id = 't-old'",
     ]);
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      ORGANIZATION_BRIDGE,
+      ORGANIZATION_ACTIVATION,
       STEP_CODE,
       ORGANIZATION_OWNERSHIP,
     ]);

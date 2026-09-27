@@ -119,6 +119,8 @@ describe('ProjectRepository', () => {
     await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
+      '20260927190000_add_organization_bridge',
+      '20260927180000_add_organization_activation',
       '20260927150000_add_step_code',
       '20260927130000_add_organization_ownership',
       '20260927120000_add_organization_records',
