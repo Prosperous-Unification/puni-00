@@ -105,8 +105,8 @@ function userSchema(db: Database): SchemaObject[] {
 /**
  * True only when `db` holds exactly the objects `migrations` create, plus the ledger when
  * `withLedger`: every table, column, constraint, index and trigger, and nothing else. The
- * pre-ledger constructor created the baseline with `IF NOT EXISTS`, which SQLite keeps in
- * `sqlite_master`, so it is stripped before comparing.
+ * pre-ledger constructor created the baseline with `IF NOT EXISTS`; SQLite drops that clause
+ * from `sqlite_master` (the dev store confirms it), and stripping it too is a harmless guard.
  */
 function matchesMigrations(
   db: Database,
