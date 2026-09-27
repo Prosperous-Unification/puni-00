@@ -133,7 +133,7 @@ support a resource still imports.
 | Saved plans          | rename and delete publish in `http/saved-plan.routes.ts` (task 3.3)              | `plans` and `capture`                        | task 3.3's owner; resource-services |
 | Plan import          | none stated                                                                      | the direct store writes inside its `uow` run | resource-services                   |
 | Authentication       | throttle orchestration stays in delivery                                         | `users` and `identities`                     | feature owners; resource-services   |
-| Optimization         | none stated                                                                      | the SQLite `db` and its repository functions | Optimization repository ports (3.6) |
+| Optimization         | none stated                                                                      | feature depends on a repository port         | resource-services follow-up (7.4)   |
 | Plan commands        | be-01 constructs `PlanCommandRunner`; routes take `WorkItemService`              | none                                         | feature owners                      |
 | Plan document        | `http/project.routes.ts` installs it (a composition export changes `AppOptions`) | none                                         | Plan document composition export    |
 | Calendar marker      | routes take `CalendarMarkerService`                                              | none                                         | feature owners                      |
@@ -184,7 +184,7 @@ Current behavior: bind checks slot identity, token and `starting`, but does not 
 - **I6 Reads/Retry:** only misses auto-admit; failed/corrupt markers persist until Retry, which checks stale input before retryability, then liveness and capacity.
 - **I7 Events:** one successful outcome write records one durable event atomically; live push starts after commit. Rejected writes add no event.
 
-Proposed ports: `SolverSlotRepository` (`refreshSlot`, `releaseSlot`) and `OptimizationRepository` (generation allocation, pair/liveness reads, reservation, bind, queue enqueue/dequeue, Retry admission, outcome recording and drain reconciliation). The SQLite adapter will implement them; no port extraction occurs in this slice.
+The slice 1 proposal was `SolverSlotRepository` (`refreshSlot`, `releaseSlot`) and `OptimizationRepository` (generation allocation, pair/liveness reads, reservation, bind, queue enqueue/dequeue, Retry admission, outcome recording and drain reconciliation). Slices 2–5 now supply these contracts from the SQLite adapter; the transaction units below remain the review map.
 
 | Port operation                      | Current implementation                                 | Transaction boundary to preserve                                                          |
 | ----------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------- |

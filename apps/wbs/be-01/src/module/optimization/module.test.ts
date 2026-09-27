@@ -39,7 +39,7 @@ const INPUT: ScheduleInput = {
  */
 function requirements(): OptimizationRequirements {
   return {
-    db: {} as unknown as OptimizationRequirements['db'],
+    repository: {} as unknown as OptimizationRequirements['repository'],
     contractVersion: CONTRACT,
     solverVersion: '0.1.0',
     budgetMs: BUDGET_MS,
@@ -53,7 +53,6 @@ function requirements(): OptimizationRequirements {
     onChildError: (error) => {
       throw error;
     },
-    eventLog: {} as unknown as OptimizationRequirements['eventLog'],
     pushRecorded: () => Promise.resolve(),
   };
 }
@@ -61,7 +60,9 @@ function requirements(): OptimizationRequirements {
 const hostRequirements = () => {
   const supplied = requirements();
   return {
-    db: DiBag.createProvider(() => supplied.db, { factoryReturnKind: 'sync-value' }),
+    repository: DiBag.createProvider(() => supplied.repository, {
+      factoryReturnKind: 'sync-value',
+    }),
     contractVersion: DiBag.createProvider(() => supplied.contractVersion, {
       factoryReturnKind: 'sync-value',
     }),
@@ -79,7 +80,6 @@ const hostRequirements = () => {
     hashInput: DiBag.createProvider(() => supplied.hashInput, { factoryReturnKind: 'sync-value' }),
     spawn: DiBag.createProvider(() => supplied.spawn, { factoryReturnKind: 'sync-value' }),
     runChild: DiBag.createProvider(() => supplied.runChild, { factoryReturnKind: 'sync-value' }),
-    eventLog: DiBag.createProvider(() => supplied.eventLog, { factoryReturnKind: 'sync-value' }),
     pushRecorded: DiBag.createProvider(() => supplied.pushRecorded, {
       factoryReturnKind: 'sync-value',
     }),
@@ -224,6 +224,21 @@ describe('the Optimization module', () => {
 
     expect(() => host.resolve('optimizer')).toThrow(
       `Cannot resolve "${OPTIMIZATION_LABEL}/optimizationOptions": dependency "onChildError" is not registered. Resolution path: optimizer -> ${OPTIMIZATION_LABEL}/optimizationOptions -> onChildError.`,
+    );
+  });
+
+  it('refuses coordinator resolution when the repository is omitted', () => {
+    const { repository: _repository, ...provided } = hostRequirements();
+    const partial = DiBag.createBuilder()
+      .withInstalledModules([optimizationModule])
+      .withServices({
+        ...provided,
+        onChildError: DiBag.createProvider(() => requirements().onChildError, {
+          factoryReturnKind: 'sync-value',
+        }),
+      }) as unknown as { buildContainer: () => { resolve: (key: string) => unknown } };
+    expect(() => partial.buildContainer().resolve('optimizer')).toThrow(
+      'dependency "repository" is not registered',
     );
   });
 });

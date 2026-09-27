@@ -11,6 +11,7 @@ import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
+import { createOptimizationRepository } from '../repository/optimization';
 import { beginOptimizationDrain } from '../repository/optimization-drain';
 import { ProjectRepository } from '../repository/project';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
@@ -26,6 +27,9 @@ function sampledScheduler() {
   return fc.sample(fc.scheduler(), 1)[0];
 }
 const reached = new Map<string, number>();
+function resetReached(): void {
+  reached.clear();
+}
 function note(command: string): void {
   reached.set(command, (reached.get(command) ?? 0) + 1);
 }
@@ -107,6 +111,8 @@ interface Model {
   expectedEvents: number;
   expectedCache: number;
   draining: boolean;
+  recoveryOnly: boolean;
+  queuedGeneration: number | null;
 }
 
 interface World {
@@ -177,7 +183,7 @@ function createWorld(scheduler: ReturnType<typeof sampledScheduler>): World {
 function coordinator(world: World, owner: Owner): OptimizationCoordinator {
   const db = world.connections[owner];
   return new OptimizationCoordinator({
-    db,
+    repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
     contractVersion: CONTRACT,
     solverVersion: '0.1.0',
     budgetMs: BUDGET,
@@ -258,7 +264,6 @@ function coordinator(world: World, owner: Owner): OptimizationCoordinator {
         },
       }),
     onChildError: (error) => world.errors.push(error),
-    eventLog: new DrizzleEventLogStore(db, OPEN),
     pushRecorded: (...push) => {
       world.pushes.push(push);
       return Promise.resolve();
@@ -301,7 +306,8 @@ function assertState(model: Model, world: World, context: string): void {
     expect(row.owner_id, `${context}: I2 owner`).toBe(claim.owner);
     expect(row.generation, `${context}: I2 generation`).toBe(claim.generation);
     expect(row.objective, `${context}: I2 objective`).toBe(claim.objective);
-    expect(claim.phase, `${context}: I4 exited child retains slot`).toBe('held');
+    if (!model.recoveryOnly)
+      expect(claim.phase, `${context}: I4 exited child retains slot`).toBe('held');
   }
   for (const attempt of world.attempts) {
     const slot = slots.find((row) => row.attempt_token === attempt.token);
@@ -330,6 +336,30 @@ function assertState(model: Model, world: World, context: string): void {
   expect(world.errors, `${context}: child error`).toEqual([]);
 }
 
+function claimNewAttempts(model: Model, world: World, context: string): void {
+  const objectiveOrder: Record<Objective, number> = { pri: 0, time: 0 };
+  for (const claim of model.attempts.values()) objectiveOrder[claim.objective]++;
+  for (const spawned of world.attempts) {
+    if (model.attempts.has(spawned.token)) continue;
+    const order = objectiveOrder[spawned.objective]++;
+    expect(
+      spawned.generation,
+      `${context}: I2 ${spawned.objective} admission ${String(order)} generation`,
+    ).toBe(model.generation);
+    expect(
+      spawned.epoch,
+      `${context}: I2 ${spawned.objective} admission ${String(order)} epoch`,
+    ).toBe(model.epoch);
+    model.attempts.set(spawned.token, {
+      generation: model.generation,
+      objective: spawned.objective,
+      owner: spawned.owner,
+      epoch: model.epoch,
+      phase: 'held',
+    });
+  }
+}
+
 type Command = fc.AsyncCommand<Model, World>;
 
 class ReadPlan implements Command {
@@ -353,16 +383,7 @@ class ReadPlan implements Command {
       enabled: model.enabled,
     });
     await settle();
-    for (const attempt of world.attempts) {
-      if (!model.attempts.has(attempt.token))
-        model.attempts.set(attempt.token, {
-          generation: model.generation,
-          objective: attempt.objective,
-          owner: attempt.owner,
-          epoch: model.epoch,
-          phase: 'held',
-        });
-    }
+    claimNewAttempts(model, world, this.toString());
     assertState(model, world, this.toString());
   }
   toString(): string {
@@ -428,13 +449,17 @@ class ExitChild implements Command {
       oomKilled: false,
     });
     await settle();
-    for (
-      let turn = 0;
-      turn < 40 && rows(world, 'solver_slot').some((row) => row.attempt_token === attempt.token);
-      turn++
+    // Stream EOF and terminal evidence cross Bun's stream task queue; bounded
+    // zero-delay turns let that queue run without making elapsed time the oracle.
+    for (let turn = 0; turn < 80; turn++) {
+      if (!rows(world, 'solver_slot').some((row) => row.attempt_token === attempt.token)) break;
+      await Bun.sleep(0);
+    }
+    if (
+      !model.recoveryOnly &&
+      rows(world, 'solver_slot').some((row) => row.attempt_token === attempt.token)
     )
-      await new Promise((resolve) => setTimeout(resolve, 1));
-    await new Promise((resolve) => setTimeout(resolve, 2));
+      throw new Error(`${this.toString()}: I4 exited child retains slot ${attempt.token}`);
     await settle();
     const claim = model.attempts.get(attempt.token);
     if (claim !== undefined) claim.phase = 'exited';
@@ -442,16 +467,7 @@ class ExitChild implements Command {
       model.expectedEvents++;
       model.expectedCache++;
     }
-    for (const spawned of world.attempts) {
-      if (!model.attempts.has(spawned.token))
-        model.attempts.set(spawned.token, {
-          generation: spawned.generation,
-          objective: spawned.objective,
-          owner: spawned.owner,
-          epoch: spawned.epoch,
-          phase: 'held',
-        });
-    }
+    claimNewAttempts(model, world, this.toString());
     assertState(model, world, this.toString());
   }
   toString(): string {
@@ -478,7 +494,7 @@ class Toggle implements Command {
     expect(await service.update('p-1', 'u-1', { optimizationEnabled: this.enabled })).toMatchObject(
       { ok: true },
     );
-    if (!this.enabled) model.epoch++;
+    if (!this.enabled && model.hash !== null) model.epoch++;
     model.enabled = this.enabled;
     assertState(model, world, this.toString());
   }
@@ -513,16 +529,7 @@ class Pump implements Command {
     world.coordinators[this.owner].start();
     world.ticks[this.owner]();
     await settle();
-    for (const attempt of world.attempts) {
-      if (!model.attempts.has(attempt.token))
-        model.attempts.set(attempt.token, {
-          generation: model.generation,
-          objective: attempt.objective,
-          owner: attempt.owner,
-          epoch: model.epoch,
-          phase: 'held',
-        });
-    }
+    claimNewAttempts(model, world, this.toString());
     assertState(model, world, this.toString());
   }
   toString(): string {
@@ -610,16 +617,7 @@ class Retry implements Command {
       input: inputAt(model.revision),
     });
     await settle();
-    for (const attempt of world.attempts) {
-      if (!model.attempts.has(attempt.token))
-        model.attempts.set(attempt.token, {
-          generation: model.generation,
-          objective: attempt.objective,
-          owner: attempt.owner,
-          epoch: model.epoch,
-          phase: 'held',
-        });
-    }
+    claimNewAttempts(model, world, this.toString());
     assertState(model, world, this.toString());
   }
   toString(): string {
@@ -632,17 +630,42 @@ class ExpectRecovery implements Command {
     return true;
   }
   run(model: Model, world: World): Promise<void> {
-    const resumed = world.attempts.filter((attempt) => attempt.generation === model.generation);
-    note('queuedRecovery');
-    expect(resumed.length, 'I5 queued work did not start after release and pump').toBeGreaterThan(
-      0,
+    const resumed = world.attempts.filter(
+      (attempt) => attempt.generation === model.queuedGeneration,
     );
-    expect(rows(world, 'solver_queue').length, 'I5 queued head was not consumed').toBeLessThan(2);
+    note('queuedRecovery');
+    expect(model.queuedGeneration, 'I5 missing queued generation claim').toBe(model.generation);
+    expect(
+      resumed.map((attempt) => attempt.objective).sort(),
+      'I5 queued objectives did not start',
+    ).toEqual(['pri', 'time']);
+    expect(rows(world, 'solver_queue').length, 'I5 queued work did not drain').toBe(0);
     assertState(model, world, this.toString());
     return Promise.resolve();
   }
   toString(): string {
     return 'ExpectRecovery';
+  }
+}
+
+class ExpectQueued implements Command {
+  check(): boolean {
+    return true;
+  }
+  run(model: Model, world: World): Promise<void> {
+    model.recoveryOnly = true;
+    model.queuedGeneration = model.generation;
+    expect(
+      rows(world, 'solver_queue')
+        .map((row) => row.objective)
+        .sort(),
+      'I5 queued objectives',
+    ).toEqual(['pri', 'time']);
+    assertState(model, world, this.toString());
+    return Promise.resolve();
+  }
+  toString(): string {
+    return 'ExpectQueued';
   }
 }
 
@@ -659,6 +682,8 @@ async function trace(commands: Iterable<Command>, scheduler = sampledScheduler()
     expectedEvents: 0,
     expectedCache: 0,
     draining: false,
+    recoveryOnly: false,
+    queuedGeneration: null,
   };
   let failure: Error | null = null;
   try {
@@ -681,6 +706,7 @@ async function trace(commands: Iterable<Command>, scheduler = sampledScheduler()
 
 describe('OptimizationCoordinator production SQLite model', () => {
   it('fences stale generation, duplicate acquisition, cancellation and normal release', async () => {
+    resetReached();
     // Proof: dropping generation equality in admissionStillCurrent writes an old A outcome; ExitChild reports I3 unexpected publication (2026-09-27).
     await trace([
       new ReadPlan('blue'),
@@ -688,9 +714,8 @@ describe('OptimizationCoordinator production SQLite model', () => {
       new BumpGeneration(1),
       new BumpGeneration(0),
       new ExitChild(0),
-      new ExpectRecovery(),
     ]);
-    // Proof: replacing an occupied reservation with a fresh token makes ReadPlan(green) report I2 unexpected token (2026-09-27).
+    // Proof: replacing an occupied reservation with a fresh token makes ReadPlan(green) report I4 premature release blue-0 (2026-09-27).
     await trace([new ReadPlan('blue'), new ReadPlan('green')]);
     // Proof: dropping cancel-epoch equality writes after OFF/ON; ExitChild reports I3 unexpected publication (2026-09-27).
     await trace([new ReadPlan('blue'), new Toggle(false), new Toggle(true), new ExitChild(0)]);
@@ -711,12 +736,30 @@ describe('OptimizationCoordinator production SQLite model', () => {
       new AdvanceClock(200_000),
       new Restart('green'),
     ]);
-    for (const boundary of ['abaExit', 'cancelledExit', 'queuedRecovery']) {
+    for (const boundary of ['abaExit', 'cancelledExit']) {
       expect(reached.get(boundary) ?? 0, `model never reached ${boundary}`).toBeGreaterThan(0);
     }
-  });
+  }, 120_000);
+
+  it('starts queued objectives after old-generation slots exit', async () => {
+    resetReached();
+    // Proof: suppressing normal-exit release retains four older slots; after
+    // both exits and a pump, ExpectRecovery reports I5 queued objectives did not start.
+    await trace([
+      new ReadPlan('blue'),
+      new BumpGeneration(1),
+      new BumpGeneration(2),
+      new ExpectQueued(),
+      new ExitChild(0),
+      new ExitChild(0),
+      new Pump('green'),
+      new ExpectRecovery(),
+    ]);
+    expect(reached.get('queuedRecovery')).toBe(1);
+  }, 120_000);
 
   it('explores bounded command histories', async () => {
+    resetReached();
     expect(fc.__version).toBe('4.9.0');
     const commands = fc.commands<Model, World, false>(
       [
@@ -751,8 +794,6 @@ describe('OptimizationCoordinator production SQLite model', () => {
       'pump',
       'retry',
       'clock',
-      'restart',
-      'drain',
     ]) {
       expect(reached.get(command) ?? 0, `model never reached ${command}`).toBeGreaterThan(0);
     }

@@ -17,7 +17,9 @@ export function installOptimization(requirements: OptimizationRequirements): Opt
   const bag = DiBag.createBuilder()
     .withInstalledModules([optimizationModule])
     .withServices({
-      db: DiBag.createProvider(() => requirements.db, { factoryReturnKind: 'sync-value' }),
+      repository: DiBag.createProvider(() => requirements.repository, {
+        factoryReturnKind: 'sync-value',
+      }),
       contractVersion: DiBag.createProvider(() => requirements.contractVersion, {
         factoryReturnKind: 'sync-value',
       }),
@@ -48,9 +50,6 @@ export function installOptimization(requirements: OptimizationRequirements): Opt
         factoryReturnKind: 'sync-value',
       }),
       onChildError: DiBag.createProvider(() => requirements.onChildError, {
-        factoryReturnKind: 'sync-value',
-      }),
-      eventLog: DiBag.createProvider(() => requirements.eventLog, {
         factoryReturnKind: 'sync-value',
       }),
       pushRecorded: DiBag.createProvider(() => requirements.pushRecorded, {

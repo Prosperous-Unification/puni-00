@@ -1,6 +1,8 @@
 import type { BuiltSolverRequest } from '@wbs/contracts/solver/build-request';
-import type { ProjectEvent } from '@wbs/core';
-import type { SolverObjectiveName } from '@wbs/domain';
+import type { OptimizedResult } from '@wbs/contracts/solver/optimized-result';
+import type { PlanInfeasibleResult } from '@wbs/contracts/solver/plan-infeasible';
+import type { OptimizationVariantState, ProjectEvent, RecordedEvent } from '@wbs/core';
+import type { SolverFailureReason, SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type {
@@ -115,15 +117,11 @@ export type OptimizationOutcomeEvent =
  * starts and stops the one coordinator a process holds; the module registers
  * no disposer.
  *
- * **K3 debt disclosed.** The backend module map gives Optimization queue,
- * generation, cache, slot and outcome repository ports. This extraction does
- * not add them: the feature still takes the SQLite `db` and calls
- * `@wbs/store-sqlite`'s queue, admission, drain, generation, cache and
- * outcome functions directly, and its private `solver-child-lifecycle.ts`
- * does the same for heartbeat and release. Those calls sit inside the spawn,
- * cancel and restart interleavings the coordinator owns, so replacing them is
- * its own change with an interleaving test. Tracked under tasks 3.6 and 7.4
- * of `openspec/changes/adopt-di-composition/tasks.md`.
+ * **K3 debt disclosed.** The coordinator and lifecycle now use neutral
+ * {@link OptimizationRepository} and {@link SolverSlotRepository} ports.
+ * The feature's repository-port dependency remains preserved K3 debt under
+ * the layering ledger and task 7.4; the extraction closes direct SQLite
+ * coupling without claiming full K3 compliance.
  */
 export type OptimizationRequirements = OptimizationCoordinatorOptions;
 
@@ -140,3 +138,164 @@ export interface OptimizationExports {
  * the `module.` prefix.
  */
 export const OPTIMIZATION_LABEL = 'backend.optimization';
+
+/** Persisted cache state before live slot and queue projection. */
+export type OptimizationCachedOutcome =
+  | { readonly kind: 'miss' }
+  | {
+      readonly kind: 'ok';
+      readonly result: OptimizedResult;
+      readonly generation: number;
+      readonly createdAt: number;
+    }
+  | {
+      readonly kind: 'failed';
+      readonly reason: SolverFailureReason;
+      readonly generation: number;
+      readonly createdAt: number;
+    }
+  | {
+      readonly kind: 'plan-infeasible';
+      readonly certificate: PlanInfeasibleResult;
+      readonly generation: number;
+      readonly createdAt: number;
+    }
+  | {
+      readonly kind: 'corrupt';
+      readonly reason: string;
+      readonly generation: number;
+      readonly createdAt: number;
+    };
+
+export type OptimizationPair = Readonly<Record<SolverObjectiveName, OptimizationCachedOutcome>>;
+export type OptimizationOutcome =
+  | {
+      readonly kind: 'ok';
+      readonly result: OptimizedResult;
+    }
+  | { readonly kind: 'failed'; readonly reason: SolverFailureReason }
+  | {
+      readonly kind: 'plan-infeasible';
+      readonly certificate: PlanInfeasibleResult;
+    };
+
+export interface SolverSlotIdentity {
+  readonly projectId: string;
+  readonly contractVersion: string;
+  readonly generation: number;
+  readonly objective: SolverObjectiveName;
+  readonly budgetMs: number;
+  readonly attemptToken: string;
+}
+export interface SolverSlotRequest extends Omit<SolverSlotIdentity, 'attemptToken'> {
+  readonly ownerId: string;
+  readonly attemptToken: string;
+  readonly now: number;
+}
+export type SolverSlotAdmission =
+  | ReservedSolverAdmission
+  | { readonly kind: 'already-present' | 'closed' | 'project-full' | 'global-full' };
+export type SolverSlotHeartbeatOutcome =
+  | { readonly kind: 'live' }
+  | { readonly kind: 'cancelled'; readonly reason: 'requested' | 'generation' }
+  | { readonly kind: 'lost' };
+export interface SolverSlotReleaseOutcome {
+  readonly released: boolean;
+  readonly retirement: 'finished' | 'waiting' | 'open' | 'absent';
+  readonly deletion: 'finished' | 'waiting' | 'open' | 'absent';
+}
+
+/** Heartbeat and release retain exact attempt-token ownership. */
+export interface SolverSlotRepository {
+  refreshSlot(
+    slot: SolverSlotIdentity & { readonly admittedCancelEpoch: number; readonly now: number },
+  ): SolverSlotHeartbeatOutcome;
+  releaseSlot(slot: SolverSlotIdentity): SolverSlotReleaseOutcome;
+}
+
+export interface OptimizationQueueRequest extends Omit<SolverSlotIdentity, 'attemptToken'> {
+  readonly enqueuedAt: number;
+}
+export interface OptimizationQueueEntry extends OptimizationQueueRequest {
+  readonly admittedCancelEpoch: number;
+}
+export type OptimizationDequeued =
+  | { readonly kind: 'empty' }
+  | { readonly kind: 'capacity-full' }
+  | {
+      readonly kind: 'reserved';
+      readonly entry: OptimizationQueueEntry;
+      readonly inputHash: string;
+      readonly admission: ReservedSolverAdmission;
+    };
+export interface OptimizationOutcomeWrite {
+  readonly claim: SolverSlotIdentity & { readonly ownerId: string };
+  readonly inputHash: string;
+  readonly admittedCancelEpoch: number;
+  readonly outcome: OptimizationOutcome;
+  readonly now: number;
+}
+export interface RecordedOptimizationOutcome {
+  readonly result: 'stored' | 'superseded' | 'already-recorded';
+  readonly subscription?: string;
+  readonly recorded?: RecordedEvent;
+  readonly event?: OptimizationOutcomeEvent;
+}
+export type OptimizationRetryDecision =
+  | {
+      readonly kind: 'not-retryable';
+      readonly state: OptimizationVariantState['state'];
+    }
+  | { readonly kind: 'already-running' }
+  | {
+      readonly kind: 'accepted';
+      readonly generation: number;
+      readonly admission: ReservedSolverAdmission | null;
+    };
+
+/** Durable optimization decisions. Each method keeps its existing SQLite transaction boundary. */
+export interface OptimizationRepository extends SolverSlotRepository {
+  allocateGeneration(
+    projectId: string,
+    contractVersion: string,
+    inputHash: string,
+    now: number,
+  ): number | null;
+  readPairAndAdmit(
+    key: OptimizationCacheKey,
+    admit: (request: {
+      readonly key: OptimizationCacheKey;
+      readonly objective: SolverObjectiveName;
+    }) => void,
+  ): OptimizationPair;
+  isVariantLive(
+    key: OptimizationCacheKey,
+    generation: number,
+    objective: SolverObjectiveName,
+    now: number,
+  ): boolean;
+  reserveSlot(request: SolverSlotRequest): SolverSlotAdmission;
+  bindSlot(slot: SolverSlotIdentity & { readonly pid: number }): boolean;
+  enqueueRequest(request: OptimizationQueueRequest): {
+    readonly kind: 'queued' | 'already-present' | 'closed';
+  };
+  dequeueRequest(request: {
+    readonly ownerId: string;
+    readonly attemptToken: string;
+    readonly now: number;
+  }): OptimizationDequeued;
+  admitRetry(ask: {
+    readonly key: OptimizationCacheKey;
+    readonly objective: SolverObjectiveName;
+    readonly ownerId: string;
+    readonly now: number;
+    readonly attemptToken: () => string;
+  }): OptimizationRetryDecision;
+  recordOutcome(write: OptimizationOutcomeWrite): RecordedOptimizationOutcome;
+  reconcileDrains(now: number): {
+    readonly reclaimed: number;
+    readonly finished: number;
+    readonly waiting: number;
+  };
+  slotStartedAt(admission: ReservedSolverAdmission, budgetMs: number): number;
+}
