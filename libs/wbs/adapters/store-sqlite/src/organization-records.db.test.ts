@@ -23,10 +23,15 @@ const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
  */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /**
- * The newest: the durable activation marker, stamped after
+ * The durable activation marker, stamped after
  * {@link ORGANIZATION_OWNERSHIP} and reversed before it.
  */
 const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
+/**
+ * The newest: the legacy bridge triggers, stamped after
+ * {@link ORGANIZATION_ACTIVATION} and reversed before it.
+ */
+const ORGANIZATION_BRIDGE = '20260927150000_add_organization_bridge';
 /** The newest folder before this one; named so a later folder is a red test here. */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
 const ORGANIZATION_TABLES = [
@@ -381,6 +386,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,

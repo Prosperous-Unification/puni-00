@@ -295,10 +295,15 @@ const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
  */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /**
- * The newest: the durable activation marker, stamped after
+ * The durable activation marker, stamped after
  * {@link ORGANIZATION_OWNERSHIP} and reversed before it.
  */
 const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
+/**
+ * The newest: the legacy bridge triggers, stamped after
+ * {@link ORGANIZATION_ACTIVATION} and reversed before it.
+ */
+const ORGANIZATION_BRIDGE = '20260927150000_add_organization_bridge';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -632,6 +637,7 @@ describe('readMigrationFolders', () => {
       ORGANIZATION_RECORDS,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_ACTIVATION,
+      ORGANIZATION_BRIDGE,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -752,11 +758,13 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_RECORDS,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_ACTIVATION,
+        ORGANIZATION_BRIDGE,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -873,6 +881,7 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_RECORDS,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_ACTIVATION,
+        ORGANIZATION_BRIDGE,
       ]);
     } finally {
       db.cleanup();
@@ -943,6 +952,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1035,6 +1045,7 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,
@@ -1112,6 +1123,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_OWNERSHIP,
         ORGANIZATION_RECORDS,

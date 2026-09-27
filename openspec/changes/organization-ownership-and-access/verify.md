@@ -112,6 +112,23 @@ Astra design call (2026-09-27): ship the marker and reader now, and do not wire 
 
 Command: `env -u CLAUDECODE bun test` over the eleven migration-listing suites in `libs/wbs/adapters/store-sqlite` plus `organization-activation.db.test.ts`.
 
+## Slice 5 — legacy bridge (task 2.1)
+
+Branch `batch-9/010-5-2-orgs-4`, stacked on slice 4. `apps/wbs/be-01/drizzle/20260927150000_add_organization_bridge` adds an `AFTER INSERT` trigger on each of the eight root tables and an `AFTER UPDATE OF name` trigger on the six catalogs. While the marker says `pre_activation` and a legacy organization exists, they map each new root to it and keep catalog side names equal. With no legacy organization they map nothing. After activation they map nothing and never touch display names. A missing or malformed marker aborts the root write. `OrganizationOwnershipRepository.backfillLegacyOwnership` maps every unmapped root in one immediate transaction and never overwrites. It refuses when no legacy organization exists, after activation, or over a broken marker. `findCatalogNameDrift` reports legacy side names that no longer equal their root's. Saved plans map to legacy like every other root. Their project-equality check, and the rest of task 2.2's dependent reconciliation, is the next slice.
+
+| Check                                     | Injected fault                                             | Observed failure (`organization-bridge.db.test.ts`, 2026-09-27)                                                                                    |
+| ----------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Insert bridge                             | `WHEN 0` on the `project`, then the `service`, trigger     | `maps every root either release writes …`, `maps late writes from a second connection without another backfill` (plus backfill and rollback cases) |
+| Rename bridge                             | `WHEN 0` on the `tag` rename trigger                       | `keeps every catalog side name equal through renames`                                                                                              |
+| Insert lifecycle                          | `pre_activation` predicate dropped (`project`, then `tag`) | `leaves a second organization's roots and names to explicit mappings`                                                                              |
+| Rename lifecycle                          | `pre_activation` predicate dropped (`tag`)                 | `stops mirroring legacy catalog renames into organization display names`                                                                           |
+| Broken marker                             | every RAISE replaced by `SELECT 1`                         | both `refuses a root write over …` cases                                                                                                           |
+| Backfill after activation / broken marker | marker read removed                                        | `refuses to backfill after activation`, `refuses backfill over a broken marker`                                                                    |
+| Backfill without legacy                   | refusal returns empty counts                               | `maps nothing and refuses backfill while no legacy organization exists`                                                                            |
+| Name drift                                | comparison replaced by `WHERE 0`                           | `reports catalog name drift the bridge missed`                                                                                                     |
+
+Command: `env -u CLAUDECODE bun test` over 22 store-sqlite files, including every migration-listing suite, `directory`, `import.service` and `saved-plan*`: 337 pass.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

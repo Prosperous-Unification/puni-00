@@ -1,10 +1,12 @@
-import { eq, isNull } from 'drizzle-orm';
+import { eq, isNull, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import type { SQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core';
 
+import { readOrganizationActivation } from './organization-activation';
 import {
   externalSystem,
   externalSystemOrganization,
+  organization,
   person,
   personOrganization,
   project,
@@ -34,6 +36,21 @@ export const OWNED_ROOT_KINDS = [
 ] as const;
 
 export type OwnedRootKind = (typeof OWNED_ROOT_KINDS)[number];
+
+/** Root kinds whose side table carries the organization-scoped display name. */
+export const CATALOG_ROOT_KINDS = [
+  'person',
+  'service_team',
+  'service',
+  'tag',
+  'work_item_type',
+  'external_system',
+] as const satisfies readonly OwnedRootKind[];
+
+type CatalogRootKind = (typeof CATALOG_ROOT_KINDS)[number];
+
+/** Why the legacy backfill refused; nothing was written. */
+export class LegacyBackfillRefused extends Error {}
 
 /** A root resource with no ownership row. */
 export interface UnmappedRoot {
@@ -92,6 +109,10 @@ function pair(
   return { root, rootId, side, sideResourceId };
 }
 
+function isCatalogKind(kind: OwnedRootKind): kind is CatalogRootKind {
+  return (CATALOG_ROOT_KINDS as readonly OwnedRootKind[]).includes(kind);
+}
+
 /**
  * Reads organization ownership of root resources. Inert until the bridge
  * (task 2.1) writes mappings and activation preflight (task 7.1) requires
@@ -125,5 +146,78 @@ export class OrganizationOwnershipRepository {
           return { kind, id: row.id };
         });
     });
+  }
+
+  /**
+   * Maps every unmapped root to the legacy organization, copying catalog names, in one
+   * immediate transaction, and returns how many rows each kind gained. Repeatable while the
+   * outgoing release still writes: an existing mapping is never overwritten, and a conflicting
+   * name fails the whole pass instead of being skipped. Run explicitly, never at boot.
+   *
+   * @throws {LegacyBackfillRefused} after activation or when no legacy organization exists.
+   * @throws {OrganizationActivationRefused} when the marker is absent, unreadable or malformed.
+   */
+  async backfillLegacyOwnership(): Promise<ReadonlyMap<OwnedRootKind, number>> {
+    await Promise.resolve();
+    return this.db.transaction(
+      (tx) => {
+        // Proof: 2026-09-27, with this read removed `refuses to backfill after activation` mapped
+        // roots after activation and `refuses backfill over a broken marker` resolved.
+        if (readOrganizationActivation(tx) !== 'pre_activation')
+          throw new LegacyBackfillRefused(
+            'legacy backfill refused: organization isolation is activated',
+          );
+        const legacy = tx
+          .select({ id: organization.id })
+          .from(organization)
+          .where(eq(organization.legacy, true))
+          .get();
+        // Proof: 2026-09-27, returning empty counts here made `maps nothing and refuses backfill
+        // while no legacy organization exists` resolve instead of refusing.
+        if (legacy === undefined)
+          throw new LegacyBackfillRefused('legacy backfill refused: no legacy organization exists');
+        const counts = new Map<OwnedRootKind, number>();
+        for (const kind of OWNED_ROOT_KINDS) {
+          const side = sql.identifier(`${kind}_organization`);
+          const root = sql.identifier(kind);
+          const statement = isCatalogKind(kind)
+            ? sql`INSERT INTO ${side} (resource_id, organization_id, name)
+                SELECT id, ${legacy.id}, name FROM ${root}
+                WHERE id NOT IN (SELECT resource_id FROM ${side})`
+            : sql`INSERT INTO ${side} (resource_id, organization_id)
+                SELECT id, ${legacy.id} FROM ${root}
+                WHERE id NOT IN (SELECT resource_id FROM ${side})`;
+          counts.set(kind, tx.run(statement).changes);
+        }
+        return counts;
+      },
+      { behavior: 'immediate' },
+    );
+  }
+
+  /**
+   * Catalog roots whose legacy-organization side row no longer carries the root's name, by kind
+   * then id. Before activation the bridge keeps them equal, so any answer means a rename the
+   * name trigger missed (a rebuilt table, a dropped trigger); activation must refuse it.
+   *
+   * Proof: `WHERE 0` in place of the name comparison failed `organization-bridge.db.test.ts`
+   * `reports catalog name drift the bridge missed`. Observed 2026-09-27.
+   */
+  async findCatalogNameDrift(): Promise<UnmappedRoot[]> {
+    await Promise.resolve();
+    return CATALOG_ROOT_KINDS.flatMap((kind) =>
+      this.db
+        .all<{ id: unknown }>(
+          sql`SELECT r.id AS id FROM ${sql.identifier(kind)} AS r
+            JOIN ${sql.identifier(`${kind}_organization`)} AS s ON s.resource_id = r.id
+            JOIN organization AS o ON o.id = s.organization_id AND o.legacy = 1
+            WHERE s.name != r.name ORDER BY r.id`,
+        )
+        .map((row) => {
+          // Raw SQL rows arrive unknown; every root id is a text primary key.
+          if (typeof row.id !== 'string') throw new Error(`${kind} has a non-text id`);
+          return { kind, id: row.id };
+        }),
+    );
   }
 }

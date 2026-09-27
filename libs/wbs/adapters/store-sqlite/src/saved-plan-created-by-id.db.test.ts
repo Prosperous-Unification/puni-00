@@ -65,10 +65,15 @@ const ORGANIZATION_RECORDS = '20260927120000_add_organization_records';
  */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /**
- * The newest: the durable activation marker, stamped after
+ * The durable activation marker, stamped after
  * {@link ORGANIZATION_OWNERSHIP} and reversed before it.
  */
 const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
+/**
+ * The newest: the legacy bridge triggers, stamped after
+ * {@link ORGANIZATION_ACTIVATION} and reversed before it.
+ */
+const ORGANIZATION_BRIDGE = '20260927150000_add_organization_bridge';
 
 let dir: string;
 let path: string;
@@ -161,6 +166,7 @@ describe('saved_plan.created_by_id', () => {
     expect(nullable()).toBe(0);
 
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
@@ -254,6 +260,7 @@ describe('saved_plan.created_by_id', () => {
    */
   it('leaves a row written before the column reading null', () => {
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
       ORGANIZATION_OWNERSHIP,
       ORGANIZATION_RECORDS,
