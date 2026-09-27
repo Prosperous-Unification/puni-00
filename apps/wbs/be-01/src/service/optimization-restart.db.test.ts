@@ -9,6 +9,7 @@ import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
+import { createOptimizationRepository } from '../repository/optimization';
 import { reserveSolverSlot } from '../repository/optimization-admission';
 import { releaseSolverSlot } from '../repository/optimization-drain';
 import { allocateGeneration, readGeneration } from '../repository/optimization-generation';
@@ -104,7 +105,7 @@ function restarted(
 ): OptimizationCoordinator {
   let token = 0;
   return new OptimizationCoordinator({
-    db,
+    repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
     hashInput: scheduleInputHash,
     contractVersion: CONTRACT,
     solverVersion: '0.1.0',
@@ -125,7 +126,6 @@ function restarted(
         kill: () => undefined,
       });
     },
-    eventLog: new DrizzleEventLogStore(db, OPEN),
     pushRecorded: () => Promise.resolve(),
     setInterval: interval,
     clearInterval: () => undefined,

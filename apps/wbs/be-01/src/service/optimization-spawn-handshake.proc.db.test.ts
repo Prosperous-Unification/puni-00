@@ -9,6 +9,7 @@ import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
+import { createOptimizationRepository } from '../repository/optimization';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { solverSlot } from '../repository/schema';
 import {
@@ -150,7 +151,7 @@ describe('the two-coordinator spawn handshake', () => {
     const errors: unknown[] = [];
     const coordinator = (db: typeof blue, owner: string): OptimizationCoordinator =>
       new OptimizationCoordinator({
-        db,
+        repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
         hashInput: scheduleInputHash,
         contractVersion: CONTRACT,
         solverVersion: '0.1.0',
@@ -166,7 +167,6 @@ describe('the two-coordinator spawn handshake', () => {
           if (owner === 'blue') await paused.promise;
           return attempt.child;
         },
-        eventLog: new DrizzleEventLogStore(db, OPEN),
         pushRecorded: () => Promise.resolve(),
         onChildError: (error) => errors.push(error),
       });

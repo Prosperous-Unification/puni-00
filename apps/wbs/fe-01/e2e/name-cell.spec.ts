@@ -366,10 +366,10 @@ test.describe('the Name cell at rest is the name alone', () => {
     // stop the same `Received: "Strip the wiring"` on CI shard 3 (pull requests
     // 39 and 40, 2026-09-22): the box was not late, it was stuck. On a loaded
     // runner this reader's own save of `SHORT_NAME` came back while they were
-    // typing again, `LiveField` kept the name from before it as its baseline,
-    // and nothing released the peer's name — the case below holds the save to
-    // make that order certain, and `LiveField.submit` now advances the
-    // baseline when a save lands. The config's own `expect.timeout` is all
+    // typing again, the blur was answered from that save, and nothing released
+    // the peer's name — the case below holds the save to make that order
+    // certain, and `LiveField.submit` now releases it when the save it matches
+    // has landed. The config's own `expect.timeout` is all
     // this wait gets.
     await expect(mine, 'the peer name never reached the box').toHaveValue(LONG_NAME);
     const after = await boxOf(mine);
@@ -388,13 +388,13 @@ test.describe('the Name cell at rest is the name alone', () => {
    * 2 is holding. That is the order a loaded runner produced on pixels shard 3
    * (pull requests 39 and 40), where the case above failed on `the peer name
    * never reached the box` with the box still on `Strip the wiring` — never
-   * late, stuck: `LiveField` kept the name from before the save as its
-   * baseline, took the typed-back name for an edit already sent, and nothing
-   * released the peer's name.
+   * late, stuck: `LiveField` took the typed-back name for the save already
+   * sent, answered the blur from that save, and nothing released the peer's
+   * name.
    *
-   * Proof: `LiveField.submit`'s baseline advance removed, this failed on `the
-   * peer name never reached the box` with `Received: "Strip the wiring"`.
-   * Watched in Chromium, 2026-09-27.
+   * Proof: the landed branch of `LiveField.submit`'s rule 5 removed, this
+   * failed 5/5 on `the peer name never reached the box` with `Received:
+   * "Strip the wiring"`. Watched in Chromium, 2026-09-27.
    */
   test("a peer's longer name still arrives when my own save came back while I was typing", async ({
     page,

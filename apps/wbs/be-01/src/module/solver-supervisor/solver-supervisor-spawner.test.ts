@@ -40,6 +40,7 @@ describe('solverSupervisorSpawner', () => {
       generation: 7,
       admission: {
         kind: 'reserved',
+        startedAt: 0,
         attemptToken: '22222222-2222-4222-8222-222222222222',
         admittedCancelEpoch: 3,
         childDeadlineAt: 70_000,

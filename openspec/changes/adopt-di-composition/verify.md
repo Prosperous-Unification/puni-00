@@ -2274,3 +2274,72 @@ tools/tool-devsync/src/module-labels.test.ts`, with `kinds.json` taken from `git
   1110 pass, 0 fail; `typecheck` for `wbs-core`, `wbs-be-01`, `wbs-fe-01` and `tool-devsync`
   and `lint:fast` for `wbs-be-01` and `wbs-fe-01` exited 0. Three fe-01 comments that named the
   deleted be-01 paths now name the core owners.
+
+### Optimization model, slice 1 — 2026-09-27
+
+- Review follow-up: command coverage counters now reset per test; generated histories assert only commands they generate. Spawn claims use model generation and cancel epoch, checked by objective and admission order. `ExitChild` settles through at most 80 `Bun.sleep(0)` turns. A separate four-slot fixed trace proves the newest generation's queued `pri` and `time` objectives both launch and the queue drains after old slots exit.
+- Re-ran all five production mutations after those changes with `env -u CLAUDECODE bun test src/service/optimization-coordinator.model.db.test.ts -t fences` from `apps/wbs/be-01`; each exited 1. Generation removal: `ExitChild(0,failed): I3 unexpected publication`; occupied-slot replacement: `ReadPlan(green): I4 premature release blue-0`; cancel-epoch removal: `ExitChild(0,failed): I3 unexpected publication`; normal-exit release removal: `ExitChild(0,failed): I4 exited child retains slot blue-0`; startup reconciliation removal: `Restart(green): I5 expired slots`. The release mutation also failed `-t 'queued objectives'` with `I5 queued objectives did not start`; the restored recovery trace passed 1 test, 0 failed. No store-sqlite diff remained after restoration.
+
+- Added the attempt identities, phases, transitions, I1–I7 and transaction map to `design.md`. No ports or production behavior were changed.
+- The original slice 1 run had 2 passed, 0 failed and 100 generated runs with seed 20260927. The review follow-up adds a separate queued-recovery test, so subsequent runs contain 3 tests. The harness uses a migrated WAL file, separate blue/green connections, the production coordinator and child lifecycle, controlled children and clock, scheduled exit delivery, and raw SQLite assertions after commands.
+- Each mutation below was applied to the named production path, run with `env -u CLAUDECODE bun test apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts -t 'fences stale generation'`, then restored. Every run exited 1; the test `fences stale generation, duplicate acquisition, cancellation and normal release` failed:
+
+| Injected fault                                                   | Observed failure                                    |
+| ---------------------------------------------------------------- | --------------------------------------------------- |
+| Drop generation equality in `admissionStillCurrent`              | `ExitChild(0,failed): I3 unexpected publication`    |
+| Replace occupied slot with fresh owner/token and return reserved | `ReadPlan(green): I4 premature release blue-0`      |
+| Drop cancel-epoch equality in `admissionStillCurrent`            | `ExitChild(0,failed): I3 unexpected publication`    |
+| Remove normal-exit `releaseSolverSlot`                           | `ExitChild(0,failed): I4 exited child retains slot` |
+| Suppress startup `reconcileDrains`                               | `Restart(green): I5 expired slots`                  |
+
+- The production-path diffs under `libs/wbs/adapters/store-sqlite` and `apps/wbs/be-01/src/module/optimization` were empty after restoration.
+- `bunx nx run wbs-be-01:typecheck` and `bunx nx run wbs-be-01:lint:fast` passed with `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`; `bunx prettier --check` on the three touched files and `git diff --check` passed. An earlier lint invocation overlapped the test and exited without diagnostics; the solo rerun passed.
+- OpenSpec validation: `bunx @fission-ai/openspec@1.12.0 validate --all --json` reported 127 passed, 0 failed, including `adopt-di-composition`. Existing INFO archive advisories appeared for unrelated changes.
+
+### Optimization repository ports, slices 2-5 — 2026-09-27
+
+- `OptimizationRepository` and `SolverSlotRepository` are neutral module contracts. `createOptimizationRepository` delegates to the existing SQLite functions; Retry eligibility, reservation, and queue admission moved unchanged into one `{ behavior: 'immediate' }` transaction with token creation inside it. Outcome and durable event remain one transaction; release remains separate. The coordinator, lifecycle, composition root and compatibility callers now take the adapter. The module boundary test finds no production Optimization import of be-01 repository files or `@wbs/store-sqlite`.
+- Adapter test red/green: before moving malformed-event validation inside the outcome transaction, `rejects a stored outcome with no event envelope before committing` failed with cache count `Expected: 0, Received: 1`; restored test passed. Splitting cache storage into its own transaction made `rolls back cache, event, and sequencer if event recording writes then throws` fail with cache count `Expected: 0, Received: 1`; restored test passed. Removing Retry immediate mode made `takes SQLite writer ownership before reading Retry eligibility` fail with `DrizzleQueryError: Failed query: delete from "solver_slot" where "solver_slot"."admitted_deadline_at" <= ?`; restored test passed. A fourth focused Retry test retained the failed marker and refused a live second admission; minting a token on the live branch failed it with `Expected: 1, Received: 2`. The restored adapter suite passed 4 tests, 0 failed.
+- Boundary negatives: injected `../../repository/optimization-admission` import reported both the be-01 shim and its `libs/wbs/adapters/store-sqlite/src/optimization-admission.ts` target; direct `@wbs/store-sqlite/optimization-admission` import reported the SQLite target; an `import()` type reported the shim and forwarded declaration. Each failed `src/module-boundaries.test.ts` with 0 passed, 1 failed; restored boundary test passed 1, 0 failed.
+- Final wired model mutations, each restored after its red run: generation equality removed → `ExitChild(0,failed): I3 unexpected publication`; occupied slot replaced with fresh token → `ReadPlan(green): I4 premature release blue-0`; cancel-epoch equality removed → `ExitChild(0,failed): I3 unexpected publication`; normal-exit release removed → `ExitChild(0,failed): I4 exited child retains slot blue-0`, and the separate queued trace → `I5 queued objectives did not start`; startup reconciliation suppressed → `Restart(green): I5 expired slots`. Each run exited 1. No `libs/wbs/adapters/store-sqlite` diff remained after restoration.
+- Focused model, lifecycle, module and adapter run: 14 passed, 0 failed before the additional missing-repository module case (subsequently 8 module tests passed). Model histories used seed 20260927 and 100 runs. `env -u CLAUDECODE bun test src` from `apps/wbs/be-01` finished with 1090 passed, 1 skipped, 27 failed across 1118 tests and 97 files. Twenty-six failures involved server `listen` denied with `EPERM`; the subprocess handshake failed at its marker wait. A standalone diagnostic run showed two green slots at `running` and two `EPERM` errors on child stdin writes. The temporary diagnostic was removed. These sandbox-denied checks remain unverified.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-be-01 wbs-core tool-devsync`: 3 projects succeeded, 0 cache hits. `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast -p wbs-be-01`: succeeded after deleting a stale generated ESLint cache that retained a removed `import()` type annotation. `env -u CLAUDECODE bun test tools/tool-devsync/src/service-kinds.test.ts tools/tool-devsync/src/module-labels.test.ts`: 22 passed, 0 failed. `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 127 items passed, 0 failed. Prettier, final focused tests and final diff status are recorded by the closing verification below.
+- Closing verification after formatting: `env -u CLAUDECODE bun test` on model, adapter, lifecycle, coordinator, module and boundary files passed 51 tests, 0 failed across 6 files (13,135 assertions) before the fourth focused adapter test. The final count is recorded below. The requested three-project Nx typecheck passed all 3; `wbs-be-01:lint:fast` passed; Prettier `--check` reported all touched files matched; OpenSpec validation reported 127/127 passed; `git diff --check` passed and `git diff --exit-code -- libs/wbs/adapters/store-sqlite` was empty. The complete be-01 suite remains red only in the sandbox-denied server and child-process cases recorded above. No h2puni gate was run: this worktree is uncommitted, the gate checks out a SHA under its lock, and the user prohibited commits.
+- Final focused rerun after the fourth adapter test: 52 passed, 0 failed, 13,141 assertions across 6 files. The final three-project typecheck succeeded (`wbs-core` and `tool-devsync` outputs matched Nx cache; `wbs-be-01` ran), and `wbs-be-01:lint:fast` ran successfully.
+
+### Optimization review round — 2026-09-27
+
+Supersedes the observed messages and suite counts above where they differ. After the review round
+(discriminated commit result, adapter-side cache projection with a module `applyVariantLiveness`,
+model predictions made before production runs, scheduler-released spawn/verdict/heartbeat/EOF/exit
+evidence, owner incarnations, the matching-orphan queue trace), each fault below was applied, the
+model file run with `env -u CLAUDECODE bun test apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts`,
+and the file restored (`git diff --stat libs/wbs/adapters/store-sqlite` empty afterwards):
+
+| Injected fault                                                          | Observed failure                                                                                       |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| (a) drop generation equality in `admissionStillCurrent`                 | `ExitChild(0,failed): I3 unexpected publication` (fixed trace and generated histories); 4 pass, 2 fail |
+| (b) delete the occupied row and reserve afresh in `reserveSolverSlotIn` | `ReadPlan(green): I2 unexpected token green-2`, and the matching-orphan trace; 3 pass, 3 fail          |
+| (c) drop cancel-epoch equality in `admissionStillCurrent`               | `ExitChild(0,failed): I3 unexpected publication`; 5 pass, 1 fail                                       |
+| (d) remove the lifecycle's normal-exit `releaseSlot`                    | `ExitChild(0,failed): I4 exited child retains slot blue-0` and generated histories; 4 pass, 2 fail     |
+| (e) suppress the coordinator's `reconcileDrains` call                   | `Restart(blue): I5 expired slots`; 5 pass, 1 fail                                                      |
+| (f) consume the queue head when reservation returns `already-present`   | `keeps a matching queue head behind a crashed owner until its stored deadline` fails; 5 pass, 1 fail   |
+
+Restored: 6 pass, 0 fail, 18,137 assertions, about 9 s. Outside the sandbox,
+`cd apps/wbs/be-01 && env -u CLAUDECODE bun test src`: 1121 pass, 1 skip (pre-existing), 0 fail;
+the EPERM failures recorded above were the sandbox's. `nx run-many -t typecheck -p wbs-be-01 wbs-core tool-devsync`
+and `nx run wbs-be-01:lint:fast` exit 0.
+
+- Second review: the model now clears its queue on OFF (without that, the fixed trace `ReadPlan(blue),
+BumpGeneration(1), BumpGeneration(2), Cancel` failed `Cancel: queue identities` on correct
+  production behaviour), and a crashed incarnation's child exits are no longer delivered. The two
+  projection guards in `repository/optimization.ts` carry observed proofs. Sabotages (a) to (f)
+  re-run on this tree fail as tabled above (4/2, 3/3, 5/1, 4/2, 5/1, 5/1 pass/fail). Known limit:
+  settling still uses a bounded twelve-microtask flush after the scheduler goes idle.
+- The model's two coordinators are now `east` and `west`, not `blue` and `green`:
+  `workspace-targets.test.ts` refuses re-declaring the deploy colour union `'blue' | 'green'`, and
+  these owners are not deploy colours (CI `tool-devsync:test` failed on
+  `…optimization-coordinator.model.db.test.ts re-declares 'blue' | 'green'`). The table's
+  `blue-0`, `green-2` and `Restart(blue)` now read `east-0`, `west-2` and `Restart(east)`. After
+  the rename, sabotages (a)-(f) fail 4/2, 3/3, 5/1, 4/2, 5/1, 5/1 again, and
+  `env -u CLAUDECODE bunx nx run tool-devsync:test` succeeds.
