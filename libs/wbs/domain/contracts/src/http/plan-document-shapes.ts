@@ -7,16 +7,19 @@ import { workItemTree } from './work-item-response';
 /**
  * The plan document version this release writes.
  *
- * `2` carries each step's `allowancePercent` (`add-project-step-estimate-allowances`);
- * a version-1 file is read through the explicit legacy conversion in
- * `classifyPlanDocument`, which charges every step at 0%. The typed-dependency
- * changes (`add-step-finish-start-dependencies`) take the next free number.
+ * `3` carries each step's `code` (`address-step-nodes`); `2` added each step's
+ * `allowancePercent` (`add-project-step-estimate-allowances`). Files of
+ * versions 1 and 2 are read through the explicit conversions in
+ * `classifyPlanDocument`: version 1 charges every step at 0%, and neither
+ * earlier version's steps keep a code — each is suggested on import exactly as
+ * for a newly created step. The typed-dependency changes
+ * (`add-step-finish-start-dependencies`) take the next free number, 4.
  */
-export const PLAN_DOCUMENT_VERSION = 2;
+export const PLAN_DOCUMENT_VERSION = 3;
 
 const planHeader = type({
   format: "'wbs-plan'",
-  version: '2',
+  version: '3',
   exportedAt: 'string',
 });
 
@@ -57,10 +60,16 @@ const authoredMarker = type({
 });
 
 /**
- * Version 2 keeps the complete established export, every authored value needed
- * to interpret its file-local references during a restore, and step allowances.
+ * Version 3 keeps the complete established export, every authored value needed
+ * to interpret its file-local references during a restore, step allowances and
+ * step codes.
+ *
+ * A step's `code` is optional and nullable on the work-item read (an older
+ * be-01, an uncoded step); here it is a required string, because the export
+ * refuses an uncoded project rather than write a file without its codes.
  */
 export const planDocument = workItemTree.and({
+  steps: type({ code: 'string' }).array(),
   project,
   document: planHeader,
   settings: planSettings,
@@ -127,14 +136,17 @@ const writablePlanDocument = type({
   calendarMarkers: authoredMarker.array(),
   directory,
   workItems: authoredWorkItem.array(),
-  // Optional structurally because version 1 has no such field; the version
-  // decides whether it is required (2) or must be absent (1) — see
-  // `classifyPlanDocument`.
+  // Optional structurally because version 1 has no allowance and versions 1
+  // and 2 carry no code the import keeps; the version decides what each field
+  // must be — see `classifyPlanDocument`. `code` stays `unknown` here so an
+  // earlier-version file is read exactly as before codes existed, whatever it
+  // held under that key (a version-2 export writes the read's `code: null`).
   steps: type({
     id: 'string',
     name: 'string',
     position: 'number',
     'allowancePercent?': 'number',
+    'code?': 'unknown',
   }).array(),
 });
 
@@ -146,11 +158,13 @@ export type PlanDocumentRequest = (typeof writablePlanDocument)['infer'];
 
 /**
  * A writable plan document once its version has been read: every step carries
- * the allowance it is imported with — the file's own at version 2, zero at
- * version 1.
+ * the allowance it is imported with — the file's own from version 2, zero at
+ * version 1 — and the code the file gives it from version 3, or `null` for an
+ * earlier version, whose steps are coded by suggestion on import.
  */
 export type PlanDocumentImport = Omit<PlanDocumentRequest, 'steps'> & {
-  steps: (Omit<PlanDocumentRequest['steps'][number], 'allowancePercent'> & {
+  steps: (Omit<PlanDocumentRequest['steps'][number], 'allowancePercent' | 'code'> & {
     allowancePercent: number;
+    code: string | null;
   })[];
 };

@@ -116,9 +116,9 @@ function roundTripFixture(): PlanDocumentImport {
     scheduleObjective: 'time',
   };
   document.steps = [
-    { id: 'step-discover', name: 'Discover', position: 10, allowancePercent: 0 },
-    { id: 'step-build', name: 'Build', position: 30, allowancePercent: 12.5 },
-    { id: 'step-verify', name: 'Verify', position: 70, allowancePercent: 30 },
+    { id: 'step-discover', name: 'Discover', position: 10, allowancePercent: 0, code: 'discover' },
+    { id: 'step-build', name: 'Build', position: 30, allowancePercent: 12.5, code: 'impl' },
+    { id: 'step-verify', name: 'Verify', position: 70, allowancePercent: 30, code: 'verify' },
   ];
   document.calendarMarkers = [
     {
@@ -224,7 +224,8 @@ async function exportProject(
     markers: graph.calendarMarkers,
     clock,
   }).export(project, tree);
-  const classified = await classifyPlanDocument(exported);
+  if (!exported.ok) throw new Error(`imported project export refused: ${exported.error}`);
+  const classified = await classifyPlanDocument(exported.value);
   if (!classified.ok) throw new Error(`exported project refused at ${classified.path}`);
   return classified.value;
 }
@@ -517,9 +518,9 @@ export function importServiceSourceContract(
         document.settings.scheduleEngine = 'optimized';
         document.settings.scheduleObjective = 'time';
         document.steps = [
-          { id: 'step-discover', name: 'Discover', position: 10, allowancePercent: 0 },
-          { id: 'step-build', name: 'Build', position: 30, allowancePercent: 0 },
-          { id: 'step-verify', name: 'Verify', position: 70, allowancePercent: 0 },
+          { id: 'step-discover', name: 'Discover', position: 10, allowancePercent: 0, code: null },
+          { id: 'step-build', name: 'Build', position: 30, allowancePercent: 0, code: null },
+          { id: 'step-verify', name: 'Verify', position: 70, allowancePercent: 0, code: null },
         ];
         const row = document.workItems.at(0);
         if (row === undefined) throw new Error('plan document fixture has no work item');
@@ -1110,6 +1111,40 @@ export function importServiceSourceContract(
         await source.close();
       }
     });
+
+    it.each([
+      [1, ['discover', 'build', 'verify']],
+      [2, ['discover', 'build', 'verify']],
+      [3, ['discover', 'impl', 'verify']],
+    ] as const)(
+      'round trips a version-%d file’s step codes, suggesting those it does not keep',
+      async (version, codes) => {
+        const source = await ownedSource();
+        try {
+          const file: unknown = structuredClone(roundTripFixture());
+          const header: unknown = Reflect.get(file as object, 'document');
+          Reflect.set(header as object, 'version', version);
+          if (version === 1)
+            for (const step of Reflect.get(file as object, 'steps') as object[])
+              Reflect.deleteProperty(step, 'allowancePercent');
+          const classified = await classifyPlanDocument(file);
+          if (!classified.ok) throw new Error(`version ${String(version)} refused`);
+
+          const imported = await importService(source).import(classified.value, ACTOR);
+          if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+          const exported = await exportProject(source, imported.projectId);
+
+          expect(exported.document.version).toBe(3);
+          expect(exported.steps.map(({ name, code }) => [name, code])).toEqual([
+            ['Discover', codes[0]],
+            ['Build', codes[1]],
+            ['Verify', codes[2]],
+          ]);
+        } finally {
+          await source.close();
+        }
+      },
+    );
 
     it('round trips every authored input while storing leaf values only', async () => {
       const source = await ownedSource();

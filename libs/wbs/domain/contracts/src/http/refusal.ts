@@ -281,6 +281,11 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     nothing_to_undo: { detail: string | null };
     stale_undo: { detail: string | null };
     stale_address_revision: { addressRevision: string };
+    /**
+     * A plan export of a project holding steps an older writer left uncoded:
+     * each such step, and the be-01 backfill command that codes them.
+     */
+    uncoded_steps: { steps: { id: string; name: string }[]; command: string };
     unresolvable_reference: {
       reason:
         | 'malformed'
