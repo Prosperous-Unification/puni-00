@@ -1,8 +1,9 @@
 # Enroll h4claw and h3mon
 
 The ordered operator commands that make h4claw the platform k3s server and join h3mon as its
-observability agent (Twilight Dash WBS 070.1, 070.2, 070.4, 070.5). Steps 2–4 ran on
-2026-09-27 (h4claw is the bootstrapped server); step 5 onward has not run. Each step needs
+observability agent (Twilight Dash WBS 070.1, 070.2, 070.4, 070.5). On 2026-09-27 step 2 ran, step 3
+ran without the provider snapshots (so no whole-host restore point exists), and step 4 bootstrapped
+h4claw but stopped before copying the join tokens; step 5 onward has not run. Each step needs
 Dany's authorization of this exact procedure; the real-host record, the QEMU rehearsal and its
 limits are in
 [the enroll-existing-hosts verification](../../openspec/changes/enroll-existing-hosts/verify.md).

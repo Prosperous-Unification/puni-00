@@ -1,7 +1,7 @@
 # Verification
 
-All runs 2026-09-27 on the lane worktree `batch-9/infra-prep`; no real host, cluster or cloud API
-was contacted. Real-host steps (task 8) are unrun.
+The unit, contract and QEMU runs below were on the lane worktree `batch-9/infra-prep` and contacted
+no real host, cluster or cloud API. The partial real-host run (task 8) is under "Real hosts".
 
 ## Unit and contract tests
 
@@ -102,7 +102,8 @@ was running a host gate. Ansible reached `10.1.0.4` and `10.1.0.2` as root throu
 
 ## Not run
 
-Real hosts; `tool-fleet:discover` against production (SSH discovery cannot pass a user or
+Real hosts: the h4claw join-token transfer, `join.yml` on h3mon, `validate-enrollment.yml`, the
+after-enrollment preflight on h3mon and steps 6–8; `tool-fleet:discover` against production (SSH discovery cannot pass a user or
 known-hosts file to the controller yet, so the runbook uses the playbooks directly);
 `platform.yml` Flux bootstrap on the VM lab; Hetzner snapshots; a memory-pressure drill on the
 observability stack.
