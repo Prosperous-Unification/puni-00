@@ -524,7 +524,18 @@ const batchRefusals = [
   },
 ] as const;
 
-/** Reads the complete tree and this account's conditional undo state. */
+/**
+ * Reads the complete tree, this account's conditional undo state, and current
+ * step addresses. The two address fields are optional on the wire because a
+ * newer client can read an older be-01 during blue/green swap or after rollback.
+ * Every be-01 that knows these fields sends both; they stay outside
+ * {@link workItemTree} so embedded plan documents retain their existing shape.
+ *
+ * Proof: with both address fields required, `tree boundary refuses missing core
+ * producer fields while allowing additive metadata` failed on `must have
+ * required property 'addressRevision'` and `must have required property
+ * 'stepNodes'`; watched 2026-09-27.
+ */
 export const getWorkItems = defineEndpointShape({
   method: 'GET',
   path: '/api/projects/:id/work-items',
@@ -535,7 +546,19 @@ export const getWorkItems = defineEndpointShape({
     {
       kind: 'json',
       status: 200,
-      schema: responseSchema(workItemTree.and({ undoable: 'boolean', redoable: 'boolean' })),
+      schema: responseSchema(
+        workItemTree.and({
+          undoable: 'boolean',
+          redoable: 'boolean',
+          'addressRevision?': 'string',
+          'stepNodes?': type({
+            id: 'string',
+            workItemId: 'string',
+            stepId: 'string',
+            reference: 'string | null',
+          }).array(),
+        }),
+      ),
     },
   ],
   refusals: [

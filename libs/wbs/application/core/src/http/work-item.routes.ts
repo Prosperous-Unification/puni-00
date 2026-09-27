@@ -13,6 +13,8 @@ import {
 } from '@wbs/contracts';
 import { type, ValidationError } from '@wbs/validation';
 
+import { readStepAddresses } from '../module/work-item/step-addresses';
+import type { Digest } from '../ports/runtime';
 import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
 import type { PlanCommand } from '../service/plan-command';
 import type { AppliedCommand, BatchRefusal, PlanCommandRunner } from '../service/plan-commands';
@@ -351,7 +353,11 @@ async function appliedWire(applied: AppliedCommand) {
 }
 
 /** Five typed work-item endpoints; services retain transactions, access, sequencing and announcements. */
-export function workItemRoutes(workItems: WorkItemService, commands: PlanCommandRunner) {
+export function workItemRoutes(
+  workItems: WorkItemService,
+  commands: PlanCommandRunner,
+  digest: Digest,
+) {
   return [
     bind(getWorkItems, async ({ params, principal }): Promise<HttpReply<typeof getWorkItems>> => {
       const tree = await workItems.tree(params.id);
@@ -367,7 +373,11 @@ export function workItemRoutes(workItems: WorkItemService, commands: PlanCommand
       return {
         ok: true,
         status: 200,
-        body: { ...tree, ...(await workItems.undoState(params.id, principal.id)) },
+        body: {
+          ...tree,
+          ...(await workItems.undoState(params.id, principal.id)),
+          ...(await readStepAddresses(params.id, tree, digest)),
+        },
       };
     }),
     bind(

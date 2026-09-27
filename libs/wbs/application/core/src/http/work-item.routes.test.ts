@@ -14,7 +14,12 @@ function fixture() {
     uow: writes.uow,
     announcements: writes.announcements,
   });
-  return { runner, endpoints: workItemRoutes(plan.service, runner) };
+  return {
+    runner,
+    endpoints: workItemRoutes(plan.service, runner, {
+      sha256: () => Promise.resolve('0'.repeat(64)),
+    }),
+  };
 }
 
 test('typed undo and redo preserve actor and details without exposing journal entry ids', async () => {

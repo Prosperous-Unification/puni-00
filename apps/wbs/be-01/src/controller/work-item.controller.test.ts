@@ -256,6 +256,33 @@ async function firstRow(
 }
 
 describe('work item routes', () => {
+  it('reads leaf step nodes and address revision without nodes on parents', async () => {
+    const { token, send, projectId } = await setup();
+    const parentId = await addWorkItem(send, token, projectId, { parentId: null, name: 'Parent' });
+    const leafId = await addWorkItem(send, token, projectId, { parentId, name: 'Leaf' });
+
+    const response = await send(`/api/projects/${projectId}/work-items`, token);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      addressRevision?: string;
+      stepNodes?: { id: string; workItemId: string; stepId: string; reference: string | null }[];
+      workItems: { id: string; number: string }[];
+      steps: { id: string; code: string | null }[];
+    };
+    expect(body.addressRevision).toMatch(/^ar1:[0-9a-f]{64}$/);
+    expect(body.stepNodes?.filter((node) => node.workItemId === parentId)).toEqual([]);
+    const number = body.workItems.find((row) => row.id === leafId)?.number;
+    if (number === undefined) throw new Error('leaf absent from the tree');
+    expect(body.stepNodes).toEqual(
+      body.steps.map((step) => ({
+        id: `sn1.${leafId}.${step.id}`,
+        workItemId: leafId,
+        stepId: step.id,
+        reference: step.code === null ? null : `${number}.${step.code}`,
+      })),
+    );
+  });
+
   it('refuses a directly stored optimized project when this runtime has no adapter', async () => {
     const { projects, projectId, send, token } = await setup();
     await projects.update(

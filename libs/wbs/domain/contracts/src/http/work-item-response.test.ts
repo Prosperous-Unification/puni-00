@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 
 import { responseSchema, validateSchema } from './schema-shape';
 import { workItemTree } from './work-item-response';
+import { getWorkItems } from './work-item-shapes';
 
 test('tree boundary refuses missing core producer fields while allowing additive metadata', async () => {
   const schema = responseSchema(workItemTree);
@@ -25,6 +26,10 @@ test('tree boundary refuses missing core producer fields while allowing additive
   };
   expect(
     (await validateSchema(schema, { ...tree, future: { extra: true } })).issues,
+  ).toBeUndefined();
+  const olderReply = { ...tree, undoable: false, redoable: false };
+  expect(
+    (await validateSchema(getWorkItems.responses[0].schema, olderReply)).issues,
   ).toBeUndefined();
   const { projectRevision, ...missing } = tree;
   expect((await validateSchema(schema, missing)).issues).toBeDefined();
