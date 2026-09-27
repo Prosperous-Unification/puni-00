@@ -209,5 +209,9 @@
       from twenty-one routes to five, none of them this task's: the saved-plan shelf's four
       (task 10, WBS 050.09) and the application's `preferences` resource (task 12's
       accepted debt).
-- [ ] 14. On page hide the application's retirement awaits the session's and fails when
+- [x] 14. On page hide the application's retirement awaits the session's and fails when
       it fails (WBS 4334fc49-e143-4671-af58-28cfd5f35423); see 050-7-m section 12.
+      Closed by 050.10 (batch 9), observed 2026-09-27, in its own change
+      `openspec/changes/await-session-retirement-on-page-hide`: the application runtime's
+      `retirements` join, which `SignedInApp`'s cleanup hands its session's retirement to and
+      whose close the application's retirement awaits.
