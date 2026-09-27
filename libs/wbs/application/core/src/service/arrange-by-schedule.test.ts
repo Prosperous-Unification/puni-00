@@ -31,10 +31,14 @@ beforeEach(async () => {
   ({ projects, workItems, dependencies, estimates } = harness.stores);
   service = harness.service;
   const project: Project = projectRow({ id: crypto.randomUUID(), ownerId: OWNER });
-  await projects.create(project, [{ id: DEV, projectId: project.id, name: 'Dev', position: 10 }], {
-    at: 1,
-    by: OWNER,
-  });
+  await projects.create(
+    project,
+    [{ id: DEV, projectId: project.id, name: 'Dev', position: 10, code: 'dev' }],
+    {
+      at: 1,
+      by: OWNER,
+    },
+  );
   projectId = project.id;
 });
 
