@@ -67,7 +67,7 @@ function recordedSockets() {
   const opened: SocketHandlers[] = [];
   let closed = 0;
   const streamDeps: ProjectStreamDeps = {
-    openSocket: (_url, handlers) => {
+    openSocket: (handlers) => {
       opened.push(handlers);
       return {
         send: () => undefined,
