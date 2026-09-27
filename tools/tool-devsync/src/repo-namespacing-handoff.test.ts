@@ -625,7 +625,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'historical bootstrap policy or mapping': 44,
       'historical policy selector or baseline': 87,
       'production proof or revision transition': 18,
-      'test fixture or proof': 106,
+      'test fixture or proof': 107,
     },
     coverage: {
       dockerfiles: [
@@ -865,8 +865,12 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // suite failed on the observed digest below at the same 308 occurrences and categories:
     // every context the project carries kept its match and class and changed only the path it
     // is reported under, none unclassified (2026-09-25).
-    digest: 'c0a77f3355f27bc1e8fa7f23bd427c7b4cc7c068e6f787bb1552364482f28c22',
-    occurrences: 308,
+    // Proof: the creation-revision negatives in the pilot suite name Plan import's pre-namespacing
+    // `libs/core/src/service/import.service.ts` as a forged predecessor; leaving `c0a77f33…` at
+    // 308 here failed on the observed digest below, `test fixture or proof` 106 to 107 and
+    // occurrences 308 to 309, none unclassified (2026-09-27).
+    digest: '25590416198b2c59edb27f1854a2a75611dd50050e10e843c239814f7c449c29',
+    occurrences: 309,
     unclassified: [],
   });
 });
