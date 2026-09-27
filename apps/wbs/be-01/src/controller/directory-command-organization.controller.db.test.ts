@@ -382,6 +382,20 @@ describe('after activation', () => {
         ],
       ],
       [
+        "A's assignment of A's person on B's step",
+        [
+          [
+            "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-a', ?, NULL, 0, 'Mine')",
+            [own],
+          ],
+          [
+            'INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, ?)',
+            ['w-a', step, 'pe-a'],
+          ],
+        ],
+        [{ kind: 'deletePerson', personId: 'pe-a', cascade: true }],
+      ],
+      [
         "A's person in B's team",
         [["INSERT INTO person_team (person_id, service_team_id) VALUES ('pe-a', 'tm-b')", []]],
         [{ kind: 'patchPerson', personId: 'pe-a', patch: { kind: 'agent' } }],
@@ -438,7 +452,8 @@ describe('after activation', () => {
       h.sqlite.run("DELETE FROM person_team WHERE person_id = 'pe-b'");
       h.sqlite.run('DELETE FROM project_team_capacity WHERE project_id = ?', [foreign]);
       h.sqlite.run("DELETE FROM team_service WHERE team_id = 'tm-b'");
-      h.sqlite.run("DELETE FROM assignment WHERE work_item_id = 'w-b'");
+      h.sqlite.run("DELETE FROM assignment WHERE work_item_id IN ('w-a', 'w-b')");
+      h.sqlite.run("DELETE FROM work_item WHERE id = 'w-a'");
       h.sqlite.run("DELETE FROM person_team WHERE person_id = 'pe-a'");
       h.sqlite.run("DELETE FROM team_service WHERE team_id = 'tm-a'");
       h.sqlite.run("DELETE FROM work_item_team WHERE work_item_id = 'w-b'");
