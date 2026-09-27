@@ -2353,10 +2353,24 @@ export class WorkItemService {
         dependency: original,
       })),
     ];
+    const forwardCommand: CompensatingCommand =
+      forwardSteps.length === 1 ? forward : { do: 'batch', steps: forwardSteps };
+    const inverseCommand: CompensatingCommand =
+      inverseSteps.length === 1 ? inverse : { do: 'batch', steps: inverseSteps };
     await this.record(projectId, stamp, 'create', `add ${quoteName(workItem.name)}`, {
-      forward: forwardSteps.length === 1 ? forward : { do: 'batch', steps: forwardSteps },
-      inverse: inverseSteps.length === 1 ? inverse : { do: 'batch', steps: inverseSteps },
-      touched: gainsFirstChild === null ? [workItem.id] : [workItem.id, gainsFirstChild],
+      forward: forwardCommand,
+      inverse: inverseCommand,
+      // Both batches name every typed endpoint whose revision replay writes.
+      // Proof: 2026-09-28, keeping only child and parent made both mounted
+      // hand-down undo chains return 409 on their earlier entry.
+      touched: [
+        ...new Set([
+          workItem.id,
+          ...(gainsFirstChild === null ? [] : [gainsFirstChild]),
+          ...touchedBy(forwardCommand),
+          ...touchedBy(inverseCommand),
+        ]),
+      ],
       before: rows,
     });
     return { ok: true, value: workItem, stepNodeMapping };
@@ -2741,7 +2755,8 @@ export class WorkItemService {
         successorId: copyOf(edge.successorId),
       }));
     const copiedTyped = typed
-      // Proof: 2026-09-27, accepting the X → C1 external row made the mounted copy test see 4 relationships instead of 3.
+      // Proof: 2026-09-28, admitting either outside endpoint made the mounted
+      // copy test receive 500 instead of 200 (no copy exists for X).
       .filter(
         (dependency) =>
           inside.has(dependency.predecessor.workItemId) &&
@@ -2862,9 +2877,8 @@ export class WorkItemService {
                   deleteCopy,
                 ],
               },
-        // Every copied row, all of them at 0. Anything typed into the copy
-        // moves one of these and the undo refuses rather than throwing away
-        // work somebody did in it.
+        // Every copied row, including endpoint revisions bumped by copied
+        // typed relationships. Later writes to the copy make undo refuse.
         touched: copyIds,
         before: rows,
       },
