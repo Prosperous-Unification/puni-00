@@ -18,7 +18,7 @@ import type { SavedPlanResource } from './saved-plan.resource';
  * The dates a captured plan has, computed from the captured values alone.
  *
  * Captured arguments to `schedule()` are derived here from {@link PlanInputReads};
- * typed dependencies stay empty until task 6b. There is no store, connection,
+ * typed dependencies come from that same snapshot. There is no store, connection,
  * or second read. That is the
  * whole point of slice 3 and the reason {@link PlanInputReads} is kept apart
  * from `PlanInputRows` — a scheduling pass is the most expensive thing this
@@ -110,9 +110,8 @@ export function scheduleInputOfCaptured(reads: PlanInputReads): ScheduleInput {
     poolSizes: reads.capacity,
     reach: reads.project.depReach,
     deadlines,
-    // Saved plans do not capture typed dependencies until task 6b in
-    // openspec/changes/add-step-finish-start-dependencies/tasks.md.
-    typed: [],
+    // Proof: dropping the captured list made `schedules a captured node relationship into a later successor step` observe B.s2 at day 1 instead of 3 (2026-09-27).
+    typed: reads.typedDependencies,
   };
 }
 

@@ -220,7 +220,7 @@ describe('a saved plan and step allowances', () => {
     const body = JSON.parse(read.plan.input.bytes) as {
       steps: { id: string; allowancePercent: number }[];
     };
-    expect(read.plan.input.schemaVersion).toBe(2);
+    expect(read.plan.input.schemaVersion).toBe(3);
     expect(body.steps.find((step) => step.id === qa.id)?.allowancePercent).toBe(30);
   });
 });

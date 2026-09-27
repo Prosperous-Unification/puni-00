@@ -14,6 +14,7 @@ type CaptureSeedStores = Pick<
   | 'progress'
   | 'measures'
   | 'dependencies'
+  | 'typedDependencies'
   | 'directory'
   | 'capacity'
   | 'priorityBands'
@@ -111,6 +112,7 @@ export function observePlanInput(reads: PlanInputReads) {
           left.predecessorId.localeCompare(right.predecessorId) ||
           left.successorId.localeCompare(right.successorId),
       ),
+    typedDependencies: reads.typedDependencies.map((row) => structuredClone(row)).sort(byId),
     assignments: reads.assignments
       .map((row) => ({ ...row }))
       .sort((left, right) => byPair(left, right) || left.personId.localeCompare(right.personId)),
@@ -262,6 +264,7 @@ export function savedPlanCaptureExpected(
         successorId: isA ? secondWorkItemId : firstWorkItemId,
       },
     ],
+    typedDependencies: [],
     assignments: [
       {
         workItemId: firstWorkItemId,
@@ -317,6 +320,7 @@ async function readSeededPlanInput(
     progress,
     measures,
     dependencies,
+    typedDependencies,
     assignmentRows,
     capacity,
     priorityBands,
@@ -335,6 +339,7 @@ async function readSeededPlanInput(
     stores.progress.listByProject(projectId),
     stores.measures.listByProject(projectId),
     stores.dependencies.listByProject(projectId),
+    stores.typedDependencies.listByProject(projectId),
     stores.directory.assignmentsInProject(projectId),
     stores.capacity.slotsFor(projectId),
     stores.priorityBands.listFor(projectId),
@@ -355,6 +360,12 @@ async function readSeededPlanInput(
     progress,
     measures,
     dependencies,
+    typedDependencies: typedDependencies.map(({ id, predecessor, successor, type }) => ({
+      id,
+      predecessor,
+      successor,
+      type,
+    })),
     assignments: assignmentRows.assignments,
     capacity,
     priorityBands,

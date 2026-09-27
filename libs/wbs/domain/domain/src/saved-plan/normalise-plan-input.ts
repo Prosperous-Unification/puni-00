@@ -56,7 +56,14 @@ export type PlanInputUpgrade = (body: Record<string, unknown>) => Record<string,
  */
 export const PLAN_INPUT_UPGRADES: ReadonlyMap<number, PlanInputUpgrade> = new Map([
   [1, withZeroStepAllowances],
+  [2, withNoTypedDependencies],
 ]);
+
+/** Version 2 to 3: typed links did not exist in the saved body. */
+function withNoTypedDependencies(body: Record<string, unknown>): Record<string, unknown> {
+  // Proof: removing this upgrade made `reads a version-2 body with no typed relationships` fail with no-upgrade-path (2026-09-27).
+  return { ...body, typedDependencies: [] };
+}
 
 /**
  * Version 1 to 2: every captured step gains the 0% allowance it was charged at.

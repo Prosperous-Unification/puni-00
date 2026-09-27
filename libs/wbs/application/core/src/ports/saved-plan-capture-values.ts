@@ -8,6 +8,7 @@ import type {
   PriorityBand,
   ScheduleEngine,
   SolverObjectiveName,
+  TypedDependency,
 } from '@wbs/domain';
 
 export interface CapturedProject {
@@ -125,6 +126,8 @@ export interface PlanInputReads {
   readonly progress: readonly CapturedProgress[];
   readonly measures: readonly CapturedMeasure[];
   readonly dependencies: readonly CapturedDependency[];
+  /** Detached relationship identities and endpoints from the capture snapshot. */
+  readonly typedDependencies: readonly TypedDependency[];
   readonly assignments: readonly CapturedAssignment[];
   readonly capacity: ReadonlyMap<string, number>;
   readonly priorityBands: readonly PriorityBand[];

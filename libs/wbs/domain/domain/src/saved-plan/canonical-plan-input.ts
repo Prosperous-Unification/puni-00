@@ -1,6 +1,7 @@
 import type { DependencyReach } from '../dependency-reach';
 import type { EstimateMethod, EstimateRounding } from '../estimate';
 import type { StepState } from '../progress';
+import type { TypedDependency } from '../typed-dependency';
 
 /**
  * Every field a Saved plan's **plan input** body holds, and nothing else.
@@ -40,7 +41,7 @@ import type { StepState } from '../progress';
  */
 export interface CanonicalPlanInput {
   /** Bumped whenever this field list changes; the body carries it. */
-  readonly schemaVersion: 2;
+  readonly schemaVersion: 3;
   readonly project: CanonicalProject;
   /** Sorted by `id`. */
   readonly workItems: readonly CanonicalWorkItem[];
@@ -52,6 +53,8 @@ export interface CanonicalPlanInput {
   readonly measures: readonly CanonicalMeasure[];
   /** Sorted by `predecessorId`, then `successorId`. */
   readonly dependencies: readonly CanonicalDependency[];
+  /** Relationship IDs and endpoint identities, sorted by `id`. */
+  readonly typedDependencies: readonly TypedDependency[];
   /** Sorted by `workItemId`, then `stepId`, then `personId`. */
   readonly assignments: readonly CanonicalAssignment[];
   /** Sorted by `id`. */
@@ -320,6 +323,7 @@ export interface PlanInputRows {
   readonly stepValues: readonly CanonicalStepValue[];
   readonly measures: readonly CanonicalMeasure[];
   readonly dependencies: readonly CanonicalDependency[];
+  readonly typedDependencies: readonly TypedDependency[];
   readonly assignments: readonly CanonicalAssignment[];
   readonly people: readonly CanonicalNamedRow[];
   readonly teams: readonly CanonicalNamedRow[];
@@ -336,7 +340,7 @@ export interface PlanInputRows {
 }
 
 /** The one version this module writes. Stored bodies carry it; readers check it. */
-export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 2 as const;
+export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 3 as const;
 
 const byString =
   <T>(...keys: readonly ((row: T) => string)[]) =>
@@ -476,6 +480,29 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
         (row) => row.successorId,
       ),
     ).map((row) => ({ predecessorId: row.predecessorId, successorId: row.successorId })),
+    typedDependencies: sorted(
+      values.typedDependencies,
+      byString((row) => row.id),
+    ).map((row) => ({
+      id: row.id,
+      predecessor:
+        row.predecessor.scope === 'whole'
+          ? { scope: row.predecessor.scope, workItemId: row.predecessor.workItemId }
+          : {
+              scope: row.predecessor.scope,
+              workItemId: row.predecessor.workItemId,
+              stepId: row.predecessor.stepId,
+            },
+      successor:
+        row.successor.scope === 'whole'
+          ? { scope: row.successor.scope, workItemId: row.successor.workItemId }
+          : {
+              scope: row.successor.scope,
+              workItemId: row.successor.workItemId,
+              stepId: row.successor.stepId,
+            },
+      type: row.type,
+    })),
     assignments: sorted(
       values.assignments,
       byString(

@@ -833,6 +833,7 @@ function emptyMissingCapture(): PlanInputReads {
     progress: [],
     measures: [],
     dependencies: [],
+    typedDependencies: [],
     assignments: [],
     capacity: new Map(),
     priorityBands: [],
@@ -6328,7 +6329,8 @@ describe('SQLite existing source conformance', () => {
     expect(cleanupProof.failure).toContain(
       'cleanup failed: injected SQLite capture cleanup failure after assertion',
     );
-  });
+    // Eighteen capture reads per exercise moved this case beyond Bun's five-second default.
+  }, 15_000);
 
   it('Task 6.5 settles independent SQLite history writes without waiting', async () => {
     const caseIds = [

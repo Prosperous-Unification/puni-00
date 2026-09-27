@@ -166,8 +166,16 @@ describe('the version-1 to version-2 upgrade — step allowances', () => {
   });
 
   it('writes version 2 with each step’s allowance', () => {
-    expect(CANONICAL_PLAN_INPUT_SCHEMA_VERSION).toBe(2);
+    expect(CANONICAL_PLAN_INPUT_SCHEMA_VERSION).toBe(3);
     const body = JSON.parse(bytes) as { steps: { allowancePercent: unknown }[] };
     for (const step of body.steps) expect(typeof step.allowancePercent).toBe('number');
+  });
+});
+
+describe('the version-2 to version-3 upgrade — typed dependencies', () => {
+  it('reads a version-2 body with no typed relationships', () => {
+    const { typedDependencies: _absent, ...older } = JSON.parse(bytes) as Record<string, unknown>;
+    const upgraded = normalisePlanInputForward({ ...older, schemaVersion: 2 }, 2);
+    expect(upgraded.typedDependencies).toEqual([]);
   });
 });
