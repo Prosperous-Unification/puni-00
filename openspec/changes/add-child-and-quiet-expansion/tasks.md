@@ -18,11 +18,11 @@
 
 ## 4. Make drag into a parent legible and recoverable
 
-- [ ] 4.1 Add failing drag-zone tests for middle-to-last-child, tinted target and indented “Move under 010 · Release” cue, edge insertion lines and stable target while the layout opens.
-- [ ] 4.2 Add failing timer tests: valid collapsed parent opens after about 600ms; exit/cancel clears the timer and restores transient expansion; success retains expansion. Implement with the existing top/middle/bottom planner.
-- [ ] 4.3 Add failing refusal tests for self/descendant and dependency-invalid reparenting, concurrent tree edits, server refusal, frozen-number label preservation and one-command undo. Restore preview and explain refused writes.
-- [ ] 4.4 Add failing keyboard/mobile tests for arbitrary-destination Move under… parent picker. Preserve Alt+Right and Alt+Left behavior and implement the picker.
-- [ ] 4.5 Inject stale-hover timer, rejected-write preview retention and self-drop acceptance; watch the production-path tests fail, restore and add adjacent Proof: comments.
+- [x] 4.1 Add failing drag-zone tests for middle-to-last-child, tinted target and indented “Move under 010 · Release” cue, edge insertion lines and stable target while the layout opens.
+- [x] 4.2 Add failing timer tests: valid collapsed parent opens after about 600ms; exit/cancel clears the timer and restores transient expansion; success retains expansion. Implement with the existing top/middle/bottom planner.
+- [x] 4.3 Add failing refusal tests for self/descendant and dependency-invalid reparenting, concurrent tree edits, server refusal, frozen-number label preservation and one-command undo. Restore preview and explain refused writes.
+- [x] 4.4 Add failing keyboard/mobile tests for arbitrary-destination Move under… parent picker. Preserve Alt+Right and Alt+Left behavior and implement the picker.
+- [x] 4.5 Inject stale-hover timer, rejected-write preview retention and self-drop acceptance; watch the production-path tests fail, restore and add adjacent Proof: comments.
 
 ## 5. Verify
 

@@ -500,9 +500,10 @@ test.describe('the command chords, in a browser', () => {
 
     await page.getByRole('button', { name: 'Actions for 010' }).click();
     // The status entry heads the menu since `status-from-the-menu`, then Add
-    // child; Duplicate is two steps down, and it is the item whose plain Enter
-    // this case proves.
+    // child and Move under…; Duplicate is three steps down, and it is the item
+    // whose plain Enter this case proves.
     await expect(page.getByRole('menuitem', { name: 'Set status to Done' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
     const duplicate = page.getByRole('menuitem', { name: 'Duplicate' });

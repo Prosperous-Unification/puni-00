@@ -422,6 +422,8 @@ export interface CardRowActionHandlers {
   duplicate: (rowId: string) => void;
   /** A new last child under the row, opened into view — the table's `Add child`. */
   addChild: (row: TreeRow) => void;
+  /** Opens the Move under… picker over the row, by id — the table's own. */
+  moveUnder: (rowId: string) => void;
   unfreeze: (rowId: string) => void;
   remove: (row: TreeRow) => void;
   /** Opens the completion prompt over the row — `Mark done…`, the table's own gesture. */
@@ -438,7 +440,7 @@ export interface CardRowActionHandlers {
  */
 const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuAction[] => [
   // The same list the table's ⋯ offers (`plan-columns/actions.tsx`), in the
-  // same order: the status entries, Add child, Duplicate, Unfreeze where it applies, and
+  // same order: the status entries, Add child, Move under…, Duplicate, Unfreeze where it applies, and
   // Delete last in the destructive tint.
   ...SETTABLE_STATUSES.filter((status) => status !== row.status).map((status) => ({
     id: `set-${status}`,
@@ -454,6 +456,13 @@ const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuActi
     label: 'Add child',
     run: () => {
       handlers.addChild(row);
+    },
+  },
+  {
+    id: 'move-under',
+    label: 'Move under…',
+    run: () => {
+      handlers.moveUnder(row.id);
     },
   },
   {
