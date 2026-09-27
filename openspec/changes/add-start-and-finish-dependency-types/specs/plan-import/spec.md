@@ -2,7 +2,7 @@
 
 ### Requirement: Plan transfer preserves typed and legacy dependencies
 
-New-version export SHALL distinguish typed FS, SS and FF endpoint/type relationships from legacy `depReach` links and preserve both on import. Legacy-format import SHALL retain project-reach semantics without invented explicit scopes. Malformed new-format endpoint, step, missing or unsupported type, or duplicate relationship SHALL be refused before any partial plan write. Whole-project copy and subtree duplication SHALL remap internal relationship endpoints and stable IDs according to the copy, preserving external links only under the existing duplication policy and never creating dangling or cross-project endpoints.
+New-version export SHALL distinguish typed FS, SS and FF endpoint/type relationships from legacy `depReach` links and preserve both on import. Legacy-format import SHALL retain project-reach semantics without invented explicit scopes. Malformed new-format endpoint, scope, step, missing or unsupported type, or duplicate relationship SHALL be refused before any partial plan write, including a node endpoint on a parent or a descendant-step endpoint on a leaf. Whole-project copy and subtree duplication SHALL remap internal relationship endpoints, step node IDs and stable IDs according to the copy, preserving external links only under the existing duplication policy and never creating dangling or cross-project endpoints.
 
 #### Scenario: FF round-trip
 

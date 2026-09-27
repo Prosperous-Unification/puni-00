@@ -4,10 +4,10 @@ import { describe, expect, it } from 'vitest';
 import type { DirectoryApi, PersonView } from '@/lib/wbs-api';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
 import type { DirectorySnapshot } from '@/modules/directory-management/contract';
-import { projectServicesOver } from '@/modules/project/composition';
-import type { ProjectRuntime, ProjectSource } from '@/modules/project/contract';
+import type { ProjectRuntime } from '@/modules/project/contract';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 
+import { credentialOf } from './credential';
 import { PartialAcquisitionError } from './lifetime-slot';
 import { installProjectRuntime } from './project-runtime';
 import {
@@ -156,11 +156,6 @@ function clientFor(world: SessionWorld, credential: string): DirectoryApi {
   return client;
 }
 
-/** A project source over a fresh client; project reads answer at once. */
-function projectSource(): ProjectSource {
-  return { services: projectServicesOver(fakeProjectApi()), subscribe: undefined };
-}
-
 /** Records, at the instant before a withdrawal is asked for, what the current session held. */
 function freezeTheCurrent(world: SessionWorld): void {
   for (const record of world.built) {
@@ -251,7 +246,9 @@ class SignIn implements SessionCommand {
       freezeTheCurrent(world);
       model.userChanges += 1;
     }
-    world.inflight.push(world.owner.open({ userId: this.userId, credential: this.credential }));
+    world.inflight.push(
+      world.owner.open({ userId: this.userId, credential: credentialOf(this.credential) }),
+    );
     model.wanted = this.userId;
     if (another) model.broken = false;
     if (another) assertWithdrawn(world, `signIn(${this.userId})`);
@@ -311,7 +308,9 @@ class SignInBroken implements SessionCommand {
       freezeTheCurrent(world);
       model.userChanges += 1;
     }
-    world.inflight.push(world.owner.open({ userId: this.userId, credential: BROKEN }));
+    world.inflight.push(
+      world.owner.open({ userId: this.userId, credential: credentialOf(BROKEN) }),
+    );
     if (another) {
       model.wanted = this.userId;
       model.broken = true;
@@ -349,7 +348,7 @@ class ReenterFromListener implements SessionCommand {
         freezeTheCurrent(world);
         model.userChanges += 1;
       }
-      world.inflight.push(world.owner.open({ userId: this.userId, credential: '' }));
+      world.inflight.push(world.owner.open({ userId: this.userId, credential: credentialOf('') }));
       if (!another) return;
       model.wanted = this.userId;
       model.broken = false;
@@ -476,7 +475,7 @@ class OpenProject implements SessionCommand {
     const runtime = record?.runtime ?? null;
     if (record === null || runtime === null) return;
     if (!runtime.isCurrent()) reached.projectOpenedUnderWithdrawn += 1;
-    world.inflight.push(runtime.projects.open(this.projectId, projectSource()));
+    world.inflight.push(runtime.projects.open(this.projectId));
     await Promise.resolve();
     assertOwnership(world, model, `openProject(${record.name}, ${this.projectId})`);
   }
@@ -547,6 +546,8 @@ describe('the session owner, against a reference model', () => {
         const world: SessionWorld = {
           owner: createSessionOwner({
             clientFor: (credential) => clientFor(world, credential),
+            // Project reads answer at once, as the fresh client of every project source did.
+            projectClientFor: () => fakeProjectApi(),
             install: (dependencies) => {
               const record = world.byClient.get(dependencies.directoryApi);
               if (record === undefined) throw new Error('a session was installed from no client');

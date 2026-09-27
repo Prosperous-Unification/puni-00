@@ -710,12 +710,7 @@ describe('project optimization in the plan', () => {
       const socket = fakeSocket();
 
       render(
-        <ProjectPageOverOwner
-          token="t"
-          api={api}
-          savedPlansDeps={SHELF_OFF}
-          streamDeps={socket.deps}
-        />,
+        <ProjectPageOverOwner api={api} savedPlansDeps={SHELF_OFF} streamDeps={socket.deps} />,
       );
       await waitFor(() => {
         expect(indicatorWords()).toContain('Priority-first: Optimizing…');

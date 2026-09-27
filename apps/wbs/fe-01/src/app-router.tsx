@@ -11,30 +11,23 @@ import { lazy, type ReactNode, Suspense, useMemo, useState } from 'react';
 import { PageNav } from '@/components/chrome/page-nav';
 import type { Roster } from '@/components/presence/presence-panel';
 import { ProjectPage } from '@/components/wbs/project-page';
-import type { ProjectApi } from '@/lib/wbs-api';
 import type { SessionRuntime } from '@/runtime/session-runtime';
 
 /**
  * What the signed-in region is given by the gate above it.
  *
- * These are the session's, not any page's: its runtime — the directory and the
- * project owner, and nothing else of it — the token the project catalog's client
- * is still built from, the presence slot that needs the account's own username,
- * and the account menu that signs out. They reach the pages as **router
+ * These are the session's, not any page's: its runtime — the directory, the
+ * project catalog and the project owner, and nothing else of it — the presence
+ * slot that needs the account's own username, and the account menu that signs
+ * out. No credential and no client: the session holds those. They reach the pages as **router
  * context** rather than as props threaded through routes, because a route
  * component takes no props — anything else would be a closure captured at
  * route-creation time, which is a second place the session would live.
  */
 export interface SignedInRegion {
   session: SessionRuntime;
-  token: string;
   presence: (roster: Roster) => ReactNode;
   account: ReactNode;
-  /**
-   * Injected in tests. Production leaves it out and the project page builds the
-   * real client from `token`, exactly as it already did.
-   */
-  projectApi?: ProjectApi;
 }
 
 /** The region, plus the navigation both pages draw and neither owns. */
@@ -57,15 +50,14 @@ const projectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   component: function ProjectRoute() {
-    const { session, token, presence, account, nav, projectApi } = projectRoute.useRouteContext();
+    const { session, presence, account, nav } = projectRoute.useRouteContext();
     return (
       <ProjectPage
         // Proof: on 2026-09-24, handing the page an owner of its own (r1) failed `opens the
         // selected project through the signed-in session’s own project owner`: expected 'empty'
         // to be 'p1', the session's owner never opened the project.
-        projectOwner={session.projects}
-        token={token}
-        api={projectApi}
+        projects={session.projects}
+        catalog={session.catalog}
         presence={presence}
         account={account}
         nav={nav}
@@ -158,10 +150,10 @@ export function AppRouter({
   history,
   ...region
 }: SignedInRegion & { history?: RouterHistory }): React.JSX.Element {
-  const { session, token, presence, account, projectApi } = region;
+  const { session, presence, account } = region;
   const context = useMemo<RouteContext>(
-    () => ({ session, token, presence, account, projectApi, nav: <PageNav /> }),
-    [session, token, presence, account, projectApi],
+    () => ({ session, presence, account, nav: <PageNav /> }),
+    [session, presence, account],
   );
   const [router] = useState(() => createAppRouter(context, history));
   return <RouterProvider router={router} context={context} />;
