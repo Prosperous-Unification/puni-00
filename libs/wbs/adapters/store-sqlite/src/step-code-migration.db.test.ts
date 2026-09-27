@@ -13,6 +13,8 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
 const STEP_CODE = '20260927150000_add_step_code';
 /** The one below it, which is where every rollback here stops. */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
+/** The organization activation marker, stamped after this one and so reversed first. */
+const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 
 let dir: string;
 let path: string;
@@ -122,7 +124,10 @@ describe(STEP_CODE, () => {
     });
     const before = readStepColumns().map((column) => column.name);
 
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([STEP_CODE]);
+    expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+      ORGANIZATION_ACTIVATION,
+      STEP_CODE,
+    ]);
 
     expect(readStepColumns().map((column) => column.name)).toEqual(
       before.filter((name) => name !== 'code'),
