@@ -400,6 +400,7 @@ Branch `batch-9/010-5-2-orgs-13`, stacked on slice 13.
 - Read, rename and delete check the saved plan's project through `SavedPlanService.projectOf` and `readWithin`. Rename and delete also need a writing role under scoped access.
 - `savePlan` takes the caller's access and applies `mayEditProjectWithin`.
 - The SQLite save maps the new plan to its project's organization inside its own transaction. `NOT EXISTS` defers to the pre-activation bridge trigger.
+- After activation, the save refuses a project without an owner and a plan already mapped elsewhere, and rolls back. Astra review 1 raised this as an Important finding.
 
 | Check                              | Injected fault                  | Observed failure (`saved-plan-organization.controller.db.test.ts`, 2026-09-27)                           |
 | ---------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------- |

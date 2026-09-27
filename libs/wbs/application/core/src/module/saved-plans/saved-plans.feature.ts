@@ -413,6 +413,15 @@ export class SavedPlanService {
   }
 
   /**
+   * The project a saved plan belongs to, from its header alone, so a corrupt
+   * plan still answers; null for a plan that is not there. Routes addressed by
+   * a saved plan's id check that project against the caller's access.
+   */
+  projectOf(savedPlanId: string): Promise<string | null> {
+    return this.opts.resource.projectOfPlan(savedPlanId);
+  }
+
+  /**
    * Renames a saved plan, if `actorId` may touch it. Writes `name` and nothing
    * else — the repository's one `UPDATE` is the whole of the write.
    *
@@ -429,15 +438,6 @@ export class SavedPlanService {
    * permanent record. A saved plan is not an editable row of the plan; it is
    * somebody's record of it.
    */
-  /**
-   * The project a saved plan belongs to, from its header alone, so a corrupt
-   * plan still answers; null for a plan that is not there. Routes addressed by
-   * a saved plan's id check that project against the caller's access.
-   */
-  projectOf(savedPlanId: string): Promise<string | null> {
-    return this.opts.resource.projectOfPlan(savedPlanId);
-  }
-
   async rename(savedPlanId: string, actorId: string, name: string): Promise<SavedPlanTouchResult> {
     return this.opts.resource.renamePlan(savedPlanId, actorId, name);
   }
