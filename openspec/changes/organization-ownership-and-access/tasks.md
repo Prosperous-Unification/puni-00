@@ -31,6 +31,12 @@
     - A foreign or absent target answers the same 404. Membership and ownership links must stay inside the organization.
     - Removal usage shows only the organization's projects under local names, and fails closed on a foreign project naming the entry.
 - [ ] 3.5 Scope project copy, import/export and external references. Red: cross-organization import/duplicate/reference refusal. Fault: remove import reference check; observe mounted foreign import test fail, restore and add `Proof:`.
+  - Part 1, slice 13, covers the following:
+    - The JSON export reads the organization's own catalogs under local names. It fails closed on a person's or team's link into another organization, which is the assignee→team→service closure.
+    - Import creates the project in the organization. It resolves and creates directory names among the organization's entries and leaves a solution reference off. Only the organization's projects hear `directory_changed`, and a viewer is refused.
+    - The solution lookup answers a foreign slug as an absent one.
+    - Copies (`duplicateWorkItem`) and external references are held by 3.4's per-command checks.
+  - Part 2 (open): solution slugs scoped by organization. It needs an additive migration, because `project_solution_slug` is unique across the deployment. Until then, a scoped link is refused and a scoped import leaves the slug off.
 - [ ] 3.6 Scope saved plans, journal, history and generated events. Red: foreign detail and historical reads return 404 without revealing existence. Fault: omit saved-plan owner predicate; observe mounted history test fail, restore and add `Proof:`.
 - [ ] 3.7 Enforce role changes, invitations authority, recovery audit and last-super-admin protection at the service boundary. Red: admin promotion, viewer mutation, recovery and final-owner matrix. Fault: bypass role guard; observe mounted unauthorized mutation test fail, restore and add `Proof:`.
 

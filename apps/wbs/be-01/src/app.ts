@@ -240,9 +240,9 @@ export function mountedEndpoints(
     ...stepRoutes(opts.steps, commands, opts.organizations),
     ...directoryRoutes(opts.directory, opts.organizations),
     ...historyRoutes(opts.history),
-    ...solutionRoutes(opts.projects),
+    ...solutionRoutes(opts.projects, opts.organizations),
     // Proof: omitting this spread made the production import reachability test receive 404.
-    ...importRoutes(opts.writes.imports),
+    ...importRoutes(opts.writes.imports, opts.organizations),
     ...projectRoutes(
       opts.projects,
       opts.organizations,

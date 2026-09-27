@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
+import { organizationRefusal } from './organization-refusal';
 import { projectWithSteps } from './project-response';
 import { requestSchema, responseSchema } from './schema-shape';
 
@@ -28,6 +29,7 @@ export const readSolution = defineEndpointShape({
     },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
+    organizationRefusal,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
   ],
   document: { summary: 'Resolve a plan by its external solution slug.' },

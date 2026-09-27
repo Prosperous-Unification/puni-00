@@ -185,7 +185,7 @@ export function projectRoutes(
             // Proof: returning this as a JSON body made the mounted Markdown export receive 500 instead of 200.
             text: projectMarkdown(found.project, tree.workItems),
           };
-        const exported = await planDocuments.export(found.project, tree);
+        const exported = await planDocuments.export(found.project, tree, resolved.access);
         if (!exported.ok)
           return {
             ok: false,

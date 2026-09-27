@@ -365,6 +365,33 @@ Branch `batch-9/010-5-2-orgs-11`, stacked on slice 11.
 | Opaque person created without teams first                                       | teams added in the colliding call     | `directory.resource.test.ts` `retries a colliding opaque person name without touching the person it collided with`: the colliding person joined `t`                                                                                                                                                               |
 | Assignment arm checks the step's project too                                    | step clause dropped                   | `fails closed on an entry another organization reaches …`: 200, deleting A's assignment on B's step                                                                                                                                                                                                               |
 
+## Slice 13 — import, JSON export and solution lookup (task 3.5, part 1)
+
+Branch `batch-9/010-5-2-orgs-12`, stacked on slice 12.
+
+- `PlanDocumentService.export` takes the caller's access. Under scoped access it reads `listInOrganization`, so every name is local and a crossing person-team or team-service link throws.
+- `ImportService.import` takes the caller's access. Under scoped access:
+  - a viewer answers 403 `forbidden`;
+  - names resolve and create through `DirectoryService.listWithin` and the `*Within` writes (external systems included);
+  - the project is created with `createInOrganization`;
+  - a solution reference is `left-off`;
+  - the `directory_changed` fan-out reaches only the organization's projects.
+- `GET /plans/by-solution/:slug` resolves access and answers a foreign slug with the absent slug's 404.
+- The import and solution contracts gain the organization refusals, and import gains `forbidden`.
+- Astra review 1: 2 Important findings, both fixed. First, a foreign slug whose row is unreadable answered 500; the slug is now filtered by organization before any decoding, through `findBySolutionSlugInOrganization`. Second, the fan-out filter lacked a proof.
+
+| Check                                         | Injected fault                                     | Observed failure (`import-export-organization.controller.db.test.ts`, 2026-09-27)                                         |
+| --------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Scoped export directory                       | legacy lists under scoped access                   | `exports only the organization's own directory, under its local names`: `root-pe-a`, `root-tm-a` and `root-sv-a` exported |
+| Viewer import                                 | refusal skipped                                    | `refuses a viewer's import`: 201                                                                                          |
+| Scoped name resolution                        | tags read through legacy access                    | `imports into the organization, resolving names among its own entries`: a second `Release` tag created                    |
+| Scoped project creation                       | project created unmapped                           | same case: the project missing from A's list                                                                              |
+| Solution reference left off                   | slug kept under scoped access                      | `leaves a solution reference off, revealing nothing`: `kept`                                                              |
+| Access resolved first                         | import route skips resolution                      | `refuses an unbound session and a removed member before any import`: 500 instead of 403                                   |
+| Scoped solution lookup                        | ownership check skipped                            | `answers a foreign solution slug as an absent one`: 200 with B's project                                                  |
+| Slug filtered by organization before decoding | slug found deployment-wide, then ownership checked | `answers a foreign solution slug as an absent one, even when its row is unreadable`: 500 instead of 404                   |
+| `directory_changed` fan-out scoped            | every project told                                 | `tells only the organization's projects that its directory changed`: B's project told                                     |
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

@@ -326,6 +326,14 @@ export class DirectoryService {
     return legacy[catalog]();
   }
 
+  /** One organization's catalog, as {@link DirectoryStore.listInOrganization} reads it. */
+  listInOrganization<C extends DirectoryCatalog>(
+    catalog: C,
+    organizationId: string,
+  ): Promise<DirectoryCatalogRows[C]> {
+    return this.opts.directory.listInOrganization(catalog, organizationId);
+  }
+
   /** Every team **with the services it owns** — the map ships whole, design D4. */
   listTeams(): Promise<TeamWithServices[]> {
     return this.opts.directory.listTeams();
@@ -751,7 +759,7 @@ export class DirectoryService {
    * watched 2026-09-27.
    */
   async addWithin(
-    catalog: 'tags' | 'workItemTypes' | 'services' | 'teams',
+    catalog: 'tags' | 'workItemTypes' | 'services' | 'teams' | 'externalSystems',
     actorId: string,
     name: string,
     access: ResourceAccess,
@@ -762,6 +770,7 @@ export class DirectoryService {
         workItemTypes: () => this.addWorkItemType(actorId, name),
         services: () => this.addService(actorId, name),
         teams: () => this.addTeam(actorId, name),
+        externalSystems: () => this.addExternalSystem(actorId, name),
       };
       return legacy[catalog]();
     }
@@ -779,6 +788,8 @@ export class DirectoryService {
         this.opts.directory.addWorkItemType(row, stamp),
       services: (row: { id: string; name: string }) => this.opts.directory.addService(row, stamp),
       teams: (row: { id: string; name: string }) => this.opts.directory.addTeam(row, stamp),
+      externalSystems: (row: { id: string; name: string }) =>
+        this.opts.directory.addExternalSystem(row, stamp),
     };
     const id = await this.addOpaqueRoot((row) => roots[catalog](row));
     await this.opts.directory.mapInOrganization(catalog, id, organizationId, clean);
@@ -986,8 +997,9 @@ export class DirectoryService {
     name: string,
     teamIds: readonly string[],
     access: ResourceAccess,
+    kind?: PersonKind,
   ): Promise<DirectoryOutcome<Person>> {
-    if (access.kind === 'legacy') return this.addPerson(actorId, name, teamIds);
+    if (access.kind === 'legacy') return this.addPerson(actorId, name, teamIds, kind);
     const clean = cleanName(name);
     if (clean === null) return { ok: false, reason: 'name_required' };
     const { scope } = access;
@@ -1016,7 +1028,7 @@ export class DirectoryService {
       }
       return { ok: true, value: { id: existing.id, name: existing.name, kind: existing.kind } };
     }
-    let kind: Person['kind'] | undefined;
+    let addedKind: Person['kind'] | undefined;
     // The root alone first: on a collision the legacy add answers the existing
     // person, and memberships added in the same call would land on it.
     // Proof: adding the teams in this call made `retries a colliding opaque
@@ -1024,12 +1036,16 @@ export class DirectoryService {
     // `directory.resource.test.ts` join the colliding person to the team;
     // watched 2026-09-27.
     const id = await this.addOpaqueRoot(async (row) => {
-      const added = await this.opts.directory.addPerson(row, [], stamp);
+      const added = await this.opts.directory.addPerson(
+        kind === undefined ? row : { ...row, kind },
+        [],
+        stamp,
+      );
       if (!added.ok) throw new Error(`person refused teams already checked: ${added.reason}`);
-      kind = added.person.kind;
+      addedKind = added.person.kind;
       return added.person;
     });
-    if (kind === undefined) throw new Error(`person "${id}" was added without a kind`);
+    if (addedKind === undefined) throw new Error(`person "${id}" was added without a kind`);
     await this.opts.directory.mapInOrganization('people', id, scope.organizationId, clean);
     if (teamIds.length > 0) {
       const joined = await this.opts.directory.patchPerson(id, { teamIds }, stamp);
@@ -1037,7 +1053,7 @@ export class DirectoryService {
         throw new Error(`person "${id}" refused teams already checked: ${joined.reason}`);
       }
     }
-    return { ok: true, value: { id, name: clean, kind } };
+    return { ok: true, value: { id, name: clean, kind: addedKind } };
   }
 
   /**
