@@ -2255,3 +2255,21 @@ directory`; 0 pass, 5 fail.
   5 pass, 0 fail (`slice2-check-after.log`), reading none of these files.
 - Not run by the executor: `tool-devsync:test` (it writes Git objects), the wiki pilot suite,
   `check-indexes committed` and the host gate; all are the planner's.
+
+### Optimization model, slice 1 — 2026-09-27
+
+- Added the attempt identities, phases, transitions, I1–I7 and transaction map to `design.md`. No ports or production behavior were changed.
+- `env -u CLAUDECODE bun test apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts`: 2 passed, 0 failed, 100 generated runs with seed 20260927; last measured run 13.76 s. Fixed traces also check queued recovery after release, kill before exit evidence, and feasible output. The harness uses a migrated WAL file, separate blue/green connections, the production coordinator and child lifecycle, controlled children and clock, scheduled exit delivery, and raw SQLite assertions after commands.
+- Each mutation below was applied to the named production path, run with `env -u CLAUDECODE bun test apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts -t 'fences stale generation'`, then restored. Every run exited 1; the test `fences stale generation, duplicate acquisition, cancellation and normal release` failed:
+
+| Injected fault                                                   | Observed failure                                    |
+| ---------------------------------------------------------------- | --------------------------------------------------- |
+| Drop generation equality in `admissionStillCurrent`              | `ExitChild(0,failed): I3 unexpected publication`    |
+| Replace occupied slot with fresh owner/token and return reserved | `ReadPlan(green): I4 premature release blue-0`      |
+| Drop cancel-epoch equality in `admissionStillCurrent`            | `ExitChild(0,failed): I3 unexpected publication`    |
+| Remove normal-exit `releaseSolverSlot`                           | `ExitChild(0,failed): I4 exited child retains slot` |
+| Suppress startup `reconcileDrains`                               | `Restart(green): I5 expired slots`                  |
+
+- The production-path diffs under `libs/wbs/adapters/store-sqlite` and `apps/wbs/be-01/src/module/optimization` were empty after restoration.
+- `bunx nx run wbs-be-01:typecheck` and `bunx nx run wbs-be-01:lint:fast` passed with `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`; `bunx prettier --check` on the three touched files and `git diff --check` passed. An earlier lint invocation overlapped the test and exited without diagnostics; the solo rerun passed.
+- OpenSpec validation: `bunx @fission-ai/openspec@1.12.0 validate --all --json` reported 127 passed, 0 failed, including `adopt-di-composition`. Existing INFO archive advisories appeared for unrelated changes.
