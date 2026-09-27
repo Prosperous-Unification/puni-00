@@ -8,7 +8,6 @@ const root = fileURLToPath(new URL('../../../../../..', import.meta.url));
 const services = [
   'assumed-assignee',
   'auth.service',
-  'broadcast',
   'calendar-marker.service',
   'capacity.service',
   'clean-name',
