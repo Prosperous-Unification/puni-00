@@ -158,6 +158,9 @@ export async function bootstrapApplication(
   const invalidateRoot = (): void => {
     if (root === null) return;
     root.unmount();
+    // Proof: on 2026-09-27, keeping the unmounted root here (b2) failed `takes the root down once
+    // however many times the page is hidden` on `expected 2 to be 1`: a second page hide would run
+    // the region's cleanup, and hand its session over, twice.
     root = null;
     // Proof: on 2026-09-23, dropping this reset made 'hiding and restoring an
     // already-fatal page…' fail: the redraw after restoration never ran,

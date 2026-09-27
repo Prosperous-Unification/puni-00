@@ -204,6 +204,8 @@ export function useApplicationServicesReader(): () => ApplicationServicesState {
  */
 export function useRetirementJoin(): (retirement: Promise<void>) => void {
   const slot = useContext(ApplicationServicesContext);
+  // Proof: on 2026-09-27, falling back to `applicationSlot` here (c5) failed `refuses to be read
+  // below no provider, naming itself` on `expected null to be 'useRetirementJoin must be read below …'`.
   if (slot === null) {
     throw new Error('useRetirementJoin must be read below ApplicationServicesProvider');
   }

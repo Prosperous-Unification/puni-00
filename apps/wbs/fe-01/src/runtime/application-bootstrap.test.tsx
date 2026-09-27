@@ -415,6 +415,27 @@ describe('the page-lifecycle retirement trigger', () => {
     expect(seen).toEqual(['root taken down while live', 'session given back']);
   });
 
+  itDom('takes the root down once however many times the page is hidden', async () => {
+    const slot = createLifetimeSlot<ApplicationServices>(1_000);
+    const root = recordingRoot(slot);
+    const eventTarget = new EventTarget();
+    await bootstrapApplication(document.createElement('div'), {
+      slot,
+      mount: root.mount,
+      app: FakeApp,
+      acquire: () => installApplicationRuntime({ openStore: fakeBrowserStorage }),
+      eventTarget,
+    });
+
+    eventTarget.dispatchEvent(pageHideEvent(true));
+    eventTarget.dispatchEvent(pageHideEvent(true));
+    await waitFor(() => {
+      expect(slot.snapshot().status).toBe('empty');
+    });
+
+    expect(root.unmounts()).toBe(1);
+  });
+
   itDom(
     'starts retirement before its pagehide dispatch returns, and never waits for the disposal to settle',
     async () => {

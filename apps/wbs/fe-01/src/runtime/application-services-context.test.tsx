@@ -523,6 +523,13 @@ describe('useRetirementJoin', () => {
     return Wrapper;
   }
 
+  itDom('refuses to be read below no provider, naming itself', () => {
+    const { result: hook } = renderHook(() => safely(() => useRetirementJoin()));
+    expect(hook.current.threw).toBe(
+      'useRetirementJoin must be read below ApplicationServicesProvider',
+    );
+  });
+
   itDom('hands a retirement to the live application, whose retirement waits for it', async () => {
     const slot = liveSlot();
     await Promise.resolve();
