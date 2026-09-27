@@ -1378,8 +1378,10 @@ describe('working plan row mutations through runner commands', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Arranged row refresh', OWNER)).project
-        .id;
+      const createdProject = await publicGraph.projects.create('Arranged row refresh', OWNER);
+      const projectId = createdProject.project.id;
+      const stepId = createdProject.steps[0].id;
+      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
       for (const [id, position] of [
         ['a', 10],
         ['b', 20],
@@ -1387,6 +1389,12 @@ describe('working plan row mutations through runner commands', () => {
         await source.stores.workItems.insert(
           workItemRow({ id, projectId, position, name: id.toUpperCase() }),
           [],
+          { at: 2, by: OWNER },
+        );
+        // Estimated, because an unestimated row takes no schedule time and the
+        // dependency below would then move no start to arrange by.
+        await source.stores.estimates.set(
+          { workItemId: id, stepId, optimistic: 1, realistic: 1, pessimistic: 1 },
           { at: 2, by: OWNER },
         );
       }

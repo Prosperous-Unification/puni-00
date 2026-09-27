@@ -57,9 +57,9 @@ changing the transaction's phase order.
   Job completion); rollback refuses a `down.sql` whose hash differs from capture and checks
   the restored applied set. Snapshot: `VACUUM INTO` on the data volume, `integrity_check`,
   SHA-256, journaled; it is for manual restore and F7 export, never reused by recovery.
-- **MCP image.** No Dockerfile or Dagger target exists for `mcp-01`; the lab builds
-  `deploy/k8s/wbs/lab/mcp-01.Dockerfile`. A production MCP image is an open item for the
-  Dagger owner.
+- **MCP image.** `apps/wbs/mcp-01/Dockerfile` is the production image source. Dagger publishes
+  it as `mcp` in the release record; the F8 lab builds that same Dockerfile. A real publish
+  and staging pull remain acceptance steps.
 - **Non-root runtime.** All tiers run as UID 10001 with read-only roots and `/tmp` emptyDirs.
   fe-01 is served by its image's Caddy on :8080 from a mounted Caddyfile; the Caddy binary's
   file capability requires `NET_BIND_SERVICE` in the bounding set (Restricted permits it).

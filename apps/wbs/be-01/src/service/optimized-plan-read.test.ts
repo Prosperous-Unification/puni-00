@@ -55,7 +55,7 @@ beforeEach(async () => {
   stepId = crypto.randomUUID();
   await projects.create(
     project,
-    [{ id: stepId, projectId: project.id, name: 'Dev', position: 10 }],
+    [{ id: stepId, projectId: project.id, name: 'Dev', position: 10, code: 'dev' }],
     WROTE,
   );
   projectId = project.id;
@@ -225,9 +225,9 @@ describe('the plan read and the optimized cache', () => {
         pri: { state: 'ready', proof: 'proven' },
         time: { state: 'ready', proof: 'proven' },
       },
-      // The unestimated leaf occupies `ASSUMED_SLICE_WORKDAYS`, so Fast
-      // finishes on day 2 and a slice moved to day 3 finishes on day 5.
-      finishDays: { fast: 2, pri: 5, time: 5 },
+      // The unestimated leaf takes no schedule time, so Fast finishes on day
+      // 0 and a slice moved to day 3 finishes on day 3.
+      finishDays: { fast: 0, pri: 3, time: 3 },
       sameOrderAsFast: { pri: true, time: true },
     });
   });
@@ -252,7 +252,7 @@ describe('the plan read and the optimized cache', () => {
       // Fast's own finish is always there — it is the schedule this read had to
       // compute — and a variant that answered nothing contributes neither
       // figure rather than a zero, which would read as "finishes on day zero".
-      finishDays: { fast: 2 },
+      finishDays: { fast: 0 },
       sameOrderAsFast: {},
     });
   });
@@ -360,7 +360,7 @@ describe('the plan read and the optimized cache', () => {
     // below failed the same way on `pri`. That is the state a project is in for
     // the whole of its first solve and after any switch back to Fast: nothing
     // to compare, and so nothing for the cue to say. Watched 2026-09-08.
-    expect(tree.optimization?.finishDays).toEqual({ fast: 2, pri: 5, time: 8 });
+    expect(tree.optimization?.finishDays).toEqual({ fast: 0, pri: 3, time: 6 });
     expect(tree.optimization?.sameOrderAsFast).toEqual({ pri: true, time: true });
   });
 
@@ -382,7 +382,7 @@ describe('the plan read and the optimized cache', () => {
     if (tree === null) throw new Error('project vanished');
     // Absent rather than zero: a zero finish is a legal answer about a plan of
     // nothing, and a reader cannot tell the two apart.
-    expect(tree.optimization?.finishDays).toEqual({ fast: 2, pri: 5 });
+    expect(tree.optimization?.finishDays).toEqual({ fast: 0, pri: 3 });
     expect(tree.optimization?.sameOrderAsFast).toEqual({ pri: true });
   });
 

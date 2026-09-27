@@ -25,9 +25,10 @@ names.
 
 ## Wiki registration
 
-Not a member of `docs/wiki-policy/modules.json`'s content-review pilot, for the reason Plan import
-is not: every pilot boundary under this namespaced tree binds a predecessor that existed at the
-pilot's frozen `sourceRevision`, and `plan-document.ts` was introduced after it, so no
-`sourceSelector` can yield a baseline entry. This directory still declares the module layout the
-Burokrat rule model requires independently of the pilot: this `module-index` block and
-`contract.ts`.
+A member of `docs/wiki-policy/modules.json`'s content-review pilot, as `module.application.plan-document`
+(`docs/wiki-policy/policy.json`'s `boundary.application.plan-document`). Its files postdate the pilot's
+frozen `sourceRevision` and were never renamed from anything, so there is no predecessor for a
+`sourceSelector` to bind. The boundary names a `creationRevision` instead: `b53693a2`, the commit
+that first added this directory, and its baseline is this directory's tuples at that commit. The
+trusted loader refuses a creation revision that is not that first commit or disagrees with the
+baseline.

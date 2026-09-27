@@ -5,38 +5,7 @@ import {
 import type { RecordedEvent } from '@wbs/core';
 import type { Schedule, SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
-import { storeOptimizedOutcomeAndRecord } from '@wbs/store-sqlite/optimized-outcome';
 
-import type { Drizzle } from '../../repository/db';
-import type { EventLogTransactionalWrite } from '../../repository/event-log';
-import {
-  bindSolverSlot,
-  reserveSolverSlot,
-  reserveSolverSlotIn,
-  solverAdmissionStartedAt,
-  type SolverSlotAdmission,
-} from '../../repository/optimization-admission';
-import {
-  DRAIN_RECONCILE_INTERVAL_MS,
-  reconcileOptimizationDrains,
-  releaseSolverSlot,
-} from '../../repository/optimization-drain';
-import {
-  allocateEnabledGeneration,
-  readGeneration,
-} from '../../repository/optimization-generation';
-import {
-  dequeueSolverRequest,
-  enqueueSolverRequest,
-  enqueueSolverRequestIn,
-} from '../../repository/optimization-queue';
-import {
-  optimizedVariantIsLive,
-  type OutcomeWrite,
-  type OutcomeWriteResult,
-  readOptimizedPair,
-  readOptimizedPairAndSpawn,
-} from '../../repository/optimized-schedule-cache';
 import {
   evaluateSolverOutcome,
   type SolverProcessOutcome,
@@ -44,14 +13,16 @@ import {
 import { buildSolverRequestPair, type SolverRequestPair } from '../../service/solver-request-pair';
 import type {
   OptimizationOutcomeEvent,
+  OptimizationOutcomeWrite,
+  OptimizationRepository,
   ReservedSolverChild,
   ReservedSpawner,
   ReservedSpawnRequest,
   ScheduleInputHasher,
 } from './contract';
 import {
+  applyVariantLiveness,
   type OptimizationVariantState,
-  optimizationVariantState,
   type OptimizedScheduleReader,
 } from './optimized-schedule-reader';
 import {
@@ -61,7 +32,7 @@ import {
 } from './solver-child-lifecycle';
 
 export interface OptimizationCoordinatorOptions {
-  readonly db: Drizzle;
+  readonly repository: OptimizationRepository;
   readonly contractVersion: string;
   readonly solverVersion: string;
   readonly budgetMs: number;
@@ -85,7 +56,6 @@ export interface OptimizationCoordinatorOptions {
   readonly runChild?: (options: SolverChildLifecycleOptions) => Promise<SolverChildLifecycleResult>;
   readonly onChildError: (error: unknown) => void;
   /** Durable half of a newly stored result's project event. */
-  readonly eventLog: EventLogTransactionalWrite;
   /** Best-effort live half, invoked only after the outcome transaction commits. */
   readonly pushRecorded: (
     subscription: string,
@@ -98,8 +68,6 @@ export interface OptimizationCoordinatorOptions {
   readonly clearInterval?: (handle: unknown) => void;
 }
 
-type ReservedAdmission = Extract<SolverSlotAdmission, { kind: 'reserved' }>;
-
 export type OptimizationRetryResult =
   | { readonly kind: 'stale-input-hash'; readonly currentInputHash: string }
   | { readonly kind: 'not-retryable'; readonly state: OptimizationVariantState['state'] }
@@ -111,15 +79,8 @@ export type OptimizationRetryResult =
       readonly inputHash: string;
     };
 
-type OptimizationRetryDecision =
-  | Extract<OptimizationRetryResult, { readonly kind: 'not-retryable' | 'already-running' }>
-  | {
-      readonly kind: 'accepted';
-      readonly generation: number;
-      readonly admission: ReservedAdmission | null;
-    };
-
 export const OPTIMIZATION_EDIT_DEBOUNCE_MS = 250;
+export const OPTIMIZATION_RECONCILE_INTERVAL_MS = 60_000;
 
 const sleep = (milliseconds: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -130,7 +91,7 @@ const sleep = (milliseconds: number): Promise<void> =>
  * A cache hit returns immediately. A miss also returns immediately, after
  * requesting admission for each absent objective; the child never sits on the
  * request path. Exact-key `failed` and `corrupt` rows remain terminal until an
- * explicit Retry because {@link readOptimizedPairAndSpawn} admits only misses.
+ * explicit Retry because the repository pair read admits only misses.
  */
 export class OptimizationCoordinator {
   private readonly inFlight = new Set<Promise<void>>();
@@ -153,7 +114,7 @@ export class OptimizationCoordinator {
     const handle = (this.options.setInterval ?? setInterval)(() => {
       this.reconcileDrains();
       this.requestPump();
-    }, DRAIN_RECONCILE_INTERVAL_MS);
+    }, OPTIMIZATION_RECONCILE_INTERVAL_MS);
     (handle as { unref?: () => void }).unref?.();
     this.reconcileHandle = handle;
     this.requestPump();
@@ -177,7 +138,7 @@ export class OptimizationCoordinator {
 
   private reconcileDrains(): void {
     try {
-      reconcileOptimizationDrains(this.options.db, this.options.now());
+      this.options.repository.reconcileDrains(this.options.now());
     } catch (error) {
       this.options.onChildError(error);
     }
@@ -233,19 +194,14 @@ export class OptimizationCoordinator {
 
   /** Never stamp a Retry replacement before the slot that authorized it. */
   private outcomeTimestamp(request: ReservedSpawnRequest): number {
-    return Math.max(
-      this.options.now(),
-      solverAdmissionStartedAt(request.admission, request.key.budgetMs),
-    );
+    return Math.max(this.options.now(), request.admission.startedAt);
   }
 
-  private storeOutcome(write: OutcomeWrite): OutcomeWriteResult {
-    const committed = storeOptimizedOutcomeAndRecord(this.options.db, this.options.eventLog, write);
-    if (
-      committed.subscription !== undefined &&
-      committed.recorded !== undefined &&
-      committed.event !== undefined
-    ) {
+  private storeOutcome(
+    write: OptimizationOutcomeWrite,
+  ): 'stored' | 'superseded' | 'already-recorded' {
+    const committed = this.options.repository.recordOutcome(write);
+    if (committed.kind === 'stored') {
       const tracked = this.options
         .pushRecorded(committed.subscription, committed.recorded, committed.event)
         .catch((error: unknown) => {
@@ -254,7 +210,7 @@ export class OptimizationCoordinator {
         .finally(() => this.inFlight.delete(tracked));
       this.inFlight.add(tracked);
     }
-    return committed.result;
+    return committed.kind;
   }
 
   /**
@@ -293,7 +249,7 @@ export class OptimizationCoordinator {
       throw error;
     }
 
-    const bound = bindSolverSlot(this.options.db, {
+    const bound = this.options.repository.bindSlot({
       ...slot,
       pid: child.pid,
     });
@@ -319,7 +275,7 @@ export class OptimizationCoordinator {
     const execute = this.options.runChild ?? runSolverChildLifecycle;
     try {
       await execute({
-        db: this.options.db,
+        slots: this.options.repository,
         slot,
         child,
         now: this.options.now,
@@ -375,7 +331,7 @@ export class OptimizationCoordinator {
 
   private async pumpQueue(): Promise<void> {
     for (;;) {
-      const next = dequeueSolverRequest(this.options.db, {
+      const next = this.options.repository.dequeueRequest({
         ownerId: this.options.ownerId,
         attemptToken: this.options.attemptToken(),
         now: this.options.now(),
@@ -392,11 +348,11 @@ export class OptimizationCoordinator {
       };
       const input = await this.options.inputOf(next.entry.projectId);
       if (input === null) {
-        releaseSolverSlot(this.options.db, slot);
+        this.options.repository.releaseSlot(slot);
         continue;
       }
       if (this.options.hashInput(input) !== next.inputHash) {
-        releaseSolverSlot(this.options.db, slot);
+        this.options.repository.releaseSlot(slot);
         const enabled = await this.options.enabledOf(next.entry.projectId);
         if (!enabled) continue;
         this.readPlan({
@@ -418,13 +374,10 @@ export class OptimizationCoordinator {
             inputHash: next.inputHash,
             admittedCancelEpoch: next.admission.admittedCancelEpoch,
             outcome: { kind: 'failed', reason: dispositionOfPreflightFailure(built.failure) },
-            now: Math.max(
-              this.options.now(),
-              solverAdmissionStartedAt(next.admission, next.entry.budgetMs),
-            ),
+            now: Math.max(this.options.now(), next.admission.startedAt),
           });
         } finally {
-          releaseSolverSlot(this.options.db, slot);
+          this.options.repository.releaseSlot(slot);
         }
         continue;
       }
@@ -466,63 +419,13 @@ export class OptimizationCoordinator {
       budgetMs: this.options.budgetMs,
     };
     const now = this.options.now();
-    const decision: OptimizationRetryDecision = this.options.db.transaction(
-      (tx) => {
-        const current = readGeneration(tx, ask.projectId, this.options.contractVersion);
-        if (current?.inputHash !== currentInputHash) {
-          return { kind: 'not-retryable', state: 'idle' } as const;
-        }
-
-        const outcome = readOptimizedPair(tx, key)[ask.objective];
-        const live = optimizedVariantIsLive(tx, key, current.generation, ask.objective, now);
-        if (outcome.kind !== 'failed' && outcome.kind !== 'corrupt') {
-          return {
-            kind: 'not-retryable',
-            state: optimizationVariantState(outcome, live).state,
-          } as const;
-        }
-        if (live) return { kind: 'already-running' } as const;
-
-        // Strictly after the marker even when a deterministic test clock has not
-        // advanced: storeOptimizedOutcomeIn uses this order to permit one update.
-        const admittedAt = Math.max(now, outcome.createdAt + 1);
-        const request = {
-          projectId: ask.projectId,
-          contractVersion: this.options.contractVersion,
-          generation: current.generation,
-          objective: ask.objective,
-          budgetMs: this.options.budgetMs,
-          ownerId: this.options.ownerId,
-          attemptToken: this.options.attemptToken(),
-          now: admittedAt,
-        };
-        const admission = reserveSolverSlotIn(tx, request);
-        if (admission.kind === 'already-present') return { kind: 'already-running' } as const;
-        if (admission.kind === 'closed') {
-          return { kind: 'not-retryable', state: outcome.kind } as const;
-        }
-        if (admission.kind === 'reserved') {
-          return { kind: 'accepted', generation: current.generation, admission } as const;
-        }
-        const queued = enqueueSolverRequestIn(tx, {
-          projectId: ask.projectId,
-          contractVersion: this.options.contractVersion,
-          generation: current.generation,
-          objective: ask.objective,
-          budgetMs: this.options.budgetMs,
-          enqueuedAt: admittedAt,
-        });
-        if (queued.kind === 'closed') {
-          return { kind: 'not-retryable', state: outcome.kind } as const;
-        }
-        if (queued.kind === 'already-present') return { kind: 'already-running' } as const;
-        return { kind: 'accepted', generation: current.generation, admission: null } as const;
-      },
-      // Drizzle's installed bun-sqlite adapter defaults to DEFERRED. Retry reads
-      // eligibility before writing, so own SQLite's writer slot at BEGIN and
-      // prevent an intervening WAL commit from causing SQLITE_BUSY_SNAPSHOT.
-      { behavior: 'immediate' },
-    );
+    const decision = this.options.repository.admitRetry({
+      key,
+      objective: ask.objective,
+      ownerId: this.options.ownerId,
+      now,
+      attemptToken: this.options.attemptToken,
+    });
 
     if (decision.kind !== 'accepted') return decision;
     if (decision.admission !== null) {
@@ -544,10 +447,10 @@ export class OptimizationCoordinator {
             inputHash: currentInputHash,
             admittedCancelEpoch: decision.admission.admittedCancelEpoch,
             outcome: { kind: 'failed', reason: dispositionOfPreflightFailure(built.failure) },
-            now: Math.max(now, solverAdmissionStartedAt(decision.admission, key.budgetMs)),
+            now: Math.max(now, decision.admission.startedAt),
           });
         } finally {
-          releaseSolverSlot(this.options.db, slot);
+          this.options.repository.releaseSlot(slot);
           this.requestPump();
         }
       } else {
@@ -595,8 +498,7 @@ export class OptimizationCoordinator {
     }
 
     const now = this.options.now();
-    const generation = allocateEnabledGeneration(
-      this.options.db,
+    const generation = this.options.repository.allocateGeneration(
       ask.projectId,
       this.options.contractVersion,
       inputHash,
@@ -611,8 +513,8 @@ export class OptimizationCoordinator {
       };
     }
     let requests: SolverRequestPair | undefined;
-    const pair = readOptimizedPairAndSpawn(this.options.db, key, (request) => {
-      const admission = reserveSolverSlot(this.options.db, {
+    const pair = this.options.repository.readPairAndAdmit(key, (request) => {
+      const admission = this.options.repository.reserveSlot({
         projectId: request.key.projectId,
         contractVersion: request.key.contractVersion,
         generation,
@@ -623,7 +525,7 @@ export class OptimizationCoordinator {
         now,
       });
       if (admission.kind === 'project-full' || admission.kind === 'global-full') {
-        enqueueSolverRequest(this.options.db, {
+        this.options.repository.enqueueRequest({
           projectId: request.key.projectId,
           contractVersion: request.key.contractVersion,
           generation,
@@ -661,7 +563,7 @@ export class OptimizationCoordinator {
               now,
             });
           } finally {
-            releaseSolverSlot(this.options.db, slot);
+            this.options.repository.releaseSlot(slot);
             this.requestPump();
           }
           return;
@@ -678,23 +580,19 @@ export class OptimizationCoordinator {
       }
     });
     const live = (objective: SolverObjectiveName): boolean =>
-      optimizedVariantIsLive(this.options.db, key, generation, objective, now);
+      this.options.repository.isVariantLive(key, generation, objective, now);
     // Both, because `pair` already holds both decoded payloads and the plan
     // read compares every ready variant with Fast (tasks.md 8b.3). `ask.objective`
     // is still what *selects* the schedule to display; it no longer decides
     // which one is handed over.
-    const scheduleOf = (objective: SolverObjectiveName): Schedule | null => {
-      const outcome = pair[objective];
-      return outcome.kind === 'ok' ? outcome.result.schedule : null;
-    };
     return {
       ...key,
       generation,
       variants: {
-        pri: optimizationVariantState(pair.pri, live('pri')),
-        time: optimizationVariantState(pair.time, live('time')),
+        pri: applyVariantLiveness(pair.pri.state, live('pri')),
+        time: applyVariantLiveness(pair.time.state, live('time')),
       },
-      schedules: { pri: scheduleOf('pri'), time: scheduleOf('time') },
+      schedules: { pri: pair.pri.schedule, time: pair.time.schedule },
     };
   };
 

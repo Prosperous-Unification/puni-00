@@ -9,12 +9,16 @@ Plain TypeScript, no React (rule F1 of the code organization design in
 `docs/superpowers/specs/2026-09-19-code-organization-design.md`).
 
 - `contract.ts` declares `ProjectServices`, what a plan screen may build for the project it shows —
-  its feed, its calendar-marker gestures and its commands — as feature-services only (rule K2).
+  its feed, its calendar-marker gestures, its commands and its saved plans — as feature-services
+  only (rule K2).
 - `composition.ts` is `projectServicesOver`, which builds that surface over one client: the plan
   feed reads through `PlanReadRoutes` (`src/lib/plan-refresh.ts`), the calendar markers write
   through `CalendarMarkerRoutes` (`modules/calendar-markers/contract.ts`), and the commands write
-  through `PlanCommandRoutes` (`modules/plan-commands/contract.ts`). `projectSourceOver` adds the
-  project stream to those services: the `ProjectSource` the session opens every project over.
+  through `PlanCommandRoutes` (`modules/plan-commands/contract.ts`). The saved plans
+  (`modules/saved-plans/`) are the one module not cut from that client: they read and write be-01's
+  checkpoint routes through their own `SavedPlanRoutes`, which `browserSavedPlanRoutes` builds.
+  `projectSourceOver` adds the project stream to those services: the `ProjectSource` the session
+  opens every project over.
 - `project-catalog.feature.ts` is `createProjectCatalog`, the `ProjectCatalog` feature-service —
   listing, creating, marking opened, renaming and importing projects — over its own port,
   `ProjectCatalogRoutes`, cut from the same client. The session runtime publishes it.

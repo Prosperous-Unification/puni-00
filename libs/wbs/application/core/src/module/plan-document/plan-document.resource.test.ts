@@ -106,7 +106,7 @@ const TREE: WorkItemTree = {
       lateBy: null,
     },
   ],
-  steps: [{ id: 'step-1', projectId: PROJECT.id, name: 'Build', position: 10 }],
+  steps: [{ id: 'step-1', projectId: PROJECT.id, name: 'Build', position: 10, code: 'build' }],
   assignedPeople: [{ id: 'person-used', name: 'Kat' }],
   teamCapacities: [{ serviceTeamId: 'team-capacity', size: 4 }],
   priorityBands: [

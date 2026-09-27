@@ -16,8 +16,9 @@ import {
 } from './organization-ownership';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-const ORGANIZATION_ACTIVATION = '20260927140000_add_organization_activation';
-const ORGANIZATION_BRIDGE = '20260927150000_add_organization_bridge';
+/** Main's step code column, the folder stamped just below the bridge. */
+const STEP_CODE = '20260927150000_add_step_code';
+const ORGANIZATION_BRIDGE = '20260927160000_add_organization_bridge';
 
 let dir: string;
 let path: string;
@@ -316,10 +317,10 @@ describe('the legacy bridge after activation', () => {
   });
 });
 
-describe('20260927150000_add_organization_bridge', () => {
+describe('20260927160000_add_organization_bridge', () => {
   it('rolls back to no triggers, keeping mappings and legacy writes working', async () => {
     run([LEGACY, ...writeRoots('1')]);
-    expect(rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toEqual([ORGANIZATION_BRIDGE]);
+    expect(rollbackTo(path, FOLDER, STEP_CODE)).toEqual([ORGANIZATION_BRIDGE]);
     expect(
       rows("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE '%_bridge'"),
     ).toEqual([]);

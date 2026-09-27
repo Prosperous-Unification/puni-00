@@ -190,6 +190,11 @@ function stepWriteCode(refusal: RefusalOf<'postApiProjectsByIdSteps'>): string {
     case 'invalid_json':
     case 'taken':
     case 'invalid_body':
+    case 'invalid_code':
+    case 'reserved_code':
+    case 'code_taken':
+      // fe-01 sends no code yet, so the last three cannot arrive from the step
+      // header; named so a caller that does send one reads the refusal.
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -292,6 +297,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'serviceRefs_must_be_at_most_10':
     case 'typeIds_must_be_at_most_10':
     case 'typeRefs_must_be_at_most_10':
+    case 'work_item_takes_one_type':
     case 'tagIds_must_be_at_most_50':
     case 'tagRefs_must_be_at_most_50':
     case 'startNoEarlierThan_must_be_a_date':
@@ -513,6 +519,11 @@ export const PLAN_REFUSALS: RefusalWords = {
     // where the typed list composes its own sentence and keeps the word instead.
     cycle: 'That dependency could not be added: it would make a loop.',
     ancestor: 'That dependency could not be added: the row it names is already above this one.',
+    // A move refused for the dependencies it would break, re-worded by
+    // `translateMoveRefusal` because be-01 spells it with the two words above.
+    move_ancestor:
+      'That row could not be moved there: it would sit inside a row it depends on, or one that depends on it.',
+    move_cycle: 'That row could not be moved there: its dependencies would make a loop.',
     // The two the In-parallel cell earns, spelled out rather than left to the
     // fallback below. That cell deliberately keeps no copy of be-01's rule and
     // sends `0`, `-1`, `1.5` and `1001` for be-01 to answer — which is right,

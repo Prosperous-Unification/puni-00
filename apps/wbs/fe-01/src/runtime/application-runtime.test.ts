@@ -100,13 +100,65 @@ describe('the page’s runtime, installed transactionally', () => {
    * object still satisfies {@link ApplicationServices}, so the type checker refuses
    * nothing here. Enumerating the surface does.
    */
-  it('publishes its two public services and nothing else', () => {
+  it('publishes its three public services and nothing else', () => {
     const { services } = installApplicationRuntime({ openStore: fakeBrowserStorage });
 
-    expect(Object.keys(services)).toEqual(['preferences', 'remembered']);
+    expect(Object.keys(services)).toEqual(['preferences', 'remembered', 'retirements']);
+    expect(Object.keys(services.retirements)).toEqual(['join']);
     expect(
       Object.values(services).every((value) => !(value instanceof Object && 'resolve' in value)),
     ).toBe(true);
+  });
+
+  it('retires only once the retirement joined to it has settled', async () => {
+    const slot = createLifetimeSlot<ApplicationServices>(1_000);
+    const services = await slot.replace(() =>
+      installApplicationRuntime({ openStore: fakeBrowserStorage }),
+    );
+    const seen: string[] = [];
+    let giveBack: () => void = () => undefined;
+    services.retirements.join(
+      new Promise<void>((resolve) => {
+        giveBack = () => {
+          seen.push('session given back');
+          resolve();
+        };
+      }),
+    );
+
+    const retiring = slot.retire().then(() => seen.push('application retired'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    giveBack();
+    await retiring;
+
+    expect(seen).toEqual(['session given back', 'application retired']);
+    expect(slot.snapshot().status).toBe('empty');
+  });
+
+  it('is terminally fatal when a retirement joined to it failed', async () => {
+    const slot = createLifetimeSlot<ApplicationServices>(1_000);
+    const services = await slot.replace(() =>
+      installApplicationRuntime({ openStore: fakeBrowserStorage }),
+    );
+    services.retirements.join(Promise.reject(new Error('the session could not be given back')));
+
+    await expect(slot.retire()).rejects.toThrow();
+
+    const state = slot.snapshot();
+    expect(state.status === 'fatal' && state.terminal).toBe(true);
+  });
+
+  it('is terminally fatal at its budget when a retirement joined to it never settles', async () => {
+    const slot = createLifetimeSlot<ApplicationServices>(20);
+    const services = await slot.replace(() =>
+      installApplicationRuntime({ openStore: fakeBrowserStorage }),
+    );
+    services.retirements.join(new Promise<void>(() => undefined));
+
+    await expect(slot.retire()).rejects.toThrow();
+
+    const state = slot.snapshot();
+    expect(state.status === 'fatal' && state.terminal).toBe(true);
   });
 
   it('revokes the store it owns when the installation closes', async () => {

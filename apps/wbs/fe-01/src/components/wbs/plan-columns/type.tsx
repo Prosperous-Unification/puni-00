@@ -25,13 +25,19 @@ export function createTypeColumn({ live }: { live: PlanLive }) {
       // Every chip is removable for the same reason — nothing drawn here
       // was stated somewhere else, so there is no chip that would need its
       // ✕ withheld the way an inherited tag's does.
+      //
+      // The strip selects one type (`holdsOneMember`). A row stored with
+      // several reads as a flagged type conflict, every type shown, until
+      // somebody keeps one.
       const own = row.original.typeIds;
       return (
         <ReferenceSetStrip
           label={`Types for ${row.original.number}`}
           addLabel={`Add a type to ${row.original.number}`}
           removeLabel={(entry) => `Remove ${entry.name} from ${row.original.number}`}
-          placeholder={own.length > 0 ? 'add' : 'search'}
+          keepLabel={(entry) => `Keep ${entry.name} for ${row.original.number}`}
+          // One type per work item (WBS 010.4.10): a choice replaces it.
+          placeholder={own.length > 0 ? 'change' : 'search'}
           adapter={{
             kind: 'type',
             entries: row.original.readings.workItemTypes,

@@ -8,7 +8,7 @@ import type { PlanCommands } from '@/modules/plan-commands/contract';
 import { type CellCards } from './cell-card-store';
 import { type DepLights } from './dep-light-store';
 import type { PickerEntry } from './dep-picker';
-import { type DropZone } from './drag-drop';
+import { type DropHint } from './drag-drop';
 import { type CellElement } from './editable-grid';
 import type { FocusIntent } from './live-editing';
 import { type CommitOutcome } from './live-editing';
@@ -26,6 +26,9 @@ export interface PlanLiveValues {
   commands: PlanCommands;
   run: RunPlanWrite;
   duplicateRow: (id: string) => Promise<CommitOutcome>;
+  addChild: (parent: TreeRow) => Promise<CommitOutcome>;
+  /** Opens the Move under… picker over a row — the keyboard's and the phone's reparent. */
+  openMoveUnder: (rowId: string) => void;
   deleteRow: (row: TreeRow) => Promise<CommitOutcome>;
   commitNameCell: (rowId: string, typed: string, baseline: string) => Promise<CommitOutcome>;
   onKeyDown: (event: React.KeyboardEvent, row: TreeRow) => void;
@@ -34,7 +37,7 @@ export interface PlanLiveValues {
   onAltMove: (event: React.KeyboardEvent, row: TreeRow, columnId: string) => void;
   onCommandKey: (event: React.KeyboardEvent, row: TreeRow, columnId: string) => void;
   setDragging: React.Dispatch<React.SetStateAction<string | null>>;
-  setDropHint: React.Dispatch<React.SetStateAction<{ rowId: string; zone: DropZone } | null>>;
+  setDropHint: React.Dispatch<React.SetStateAction<DropHint | null>>;
   dependOn: (successorId: string, typed: string) => void;
   setDepPicker: React.Dispatch<
     React.SetStateAction<{ rowId: string; typed: string; highlightId: string | null } | null>

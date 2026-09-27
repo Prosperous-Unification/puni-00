@@ -184,6 +184,8 @@ export function usePlanFilterState({ projectId }: { projectId: string }) {
   return { query, commitQuery, facets, setFacets, savedViews, setSavedViews };
 }
 
+const NOTHING_REVEALED: ReadonlySet<string> = new Set();
+
 /**
  * The rows this render shows, and the six facet lists the panel offers.
  *
@@ -371,7 +373,31 @@ export function usePlanFilter({
    */
   const criteria = useMemo<FilterCriteria>(() => ({ query, ...facets }), [query, facets]);
 
-  const search = useMemo(() => narrowTree(narrowable, criteria), [narrowable, criteria]);
+  /**
+   * Rows made while this exact filter is on, and the filter they were made
+   * under. Keyed by the criteria object so that changing the filter — or
+   * clearing it — forgets them: the reveal is for the row being typed into
+   * now, not a second, invisible filter.
+   */
+  const [revealed, setRevealed] = useState<{ under: FilterCriteria; ids: ReadonlySet<string> }>(
+    () => ({ under: criteria, ids: new Set() }),
+  );
+  const revealedIds = revealed.under === criteria ? revealed.ids : NOTHING_REVEALED;
+  /** Keeps `rowId` on screen until the filter changes; see {@link narrowTree}. */
+  const revealRow = useCallback(
+    (rowId: string) => {
+      setRevealed((current) => ({
+        under: criteria,
+        ids: new Set([...(current.under === criteria ? current.ids : []), rowId]),
+      }));
+    },
+    [criteria],
+  );
+
+  const search = useMemo(
+    () => narrowTree(narrowable, criteria, revealedIds),
+    [narrowable, criteria, revealedIds],
+  );
 
   /**
    * Whether a filter is on — a query with something in it other than spaces,
@@ -497,6 +523,7 @@ export function usePlanFilter({
     gaps,
     criteria,
     search,
+    revealRow,
     filtering,
     filterLabels,
     facetTeams,
