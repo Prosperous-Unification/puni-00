@@ -75,6 +75,34 @@ function revision(id: string): number {
 }
 
 describe('TypedDependencyRepository', () => {
+  /** Proof: removing the bulk delete left all three links present; watched 2026-09-27. */
+  it('returns a doomed set of links and bumps only surviving endpoints', async () => {
+    const a = await addWorkItem('A');
+    const b = await addWorkItem('B');
+    const c = await addWorkItem('C');
+    const d = await addWorkItem('D');
+    const internal = link(a, b);
+    const outgoing = link(a, c);
+    const incoming = link(d, b);
+    await repo.add(internal, wrote());
+    await repo.add(outgoing, wrote());
+    await repo.add(incoming, wrote());
+    const revisions = new Map([a, b, c, d].map((id) => [id, revision(id)]));
+
+    expect(
+      (await repo.removeAllFor([a, b], wrote())).sort((left, right) =>
+        left.id.localeCompare(right.id),
+      ),
+    ).toEqual(
+      [internal, outgoing, incoming].sort((left, right) => left.id.localeCompare(right.id)),
+    );
+    expect(await repo.listByProject(projectId)).toEqual([]);
+    expect(revision(a)).toBe(revisions.get(a) ?? -1);
+    expect(revision(b)).toBe(revisions.get(b) ?? -1);
+    expect(revision(c)).toBe((revisions.get(c) ?? 0) + 1);
+    expect(revision(d)).toBe((revisions.get(d) ?? 0) + 1);
+  });
+
   it('adds, lists, updates and removes a link while bumping both endpoints', async () => {
     const a = await addWorkItem('A');
     const b = await addWorkItem('B');
@@ -118,6 +146,31 @@ describe('TypedDependencyRepository', () => {
       sqlite.close();
     }
     expect(repo.listByProject(projectId)).rejects.toThrow('unknown relationship type SS');
+  });
+
+  it('refuses malformed rows during bulk removal before deleting them', async () => {
+    const a = await addWorkItem('A');
+    const b = await addWorkItem('B');
+    const sqlite = openDatabase(path);
+    try {
+      sqlite.run(
+        'INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
+        ['future-type', projectId, a, 'whole', b, 'whole', 'SS'],
+      );
+    } finally {
+      sqlite.close();
+    }
+    expect(repo.removeAllFor([a], wrote())).rejects.toThrow('unknown relationship type SS');
+    const stored = openDatabase(path);
+    try {
+      expect(stored.query<{ id: string }, []>('SELECT id FROM typed_dependency').all()).toEqual([
+        { id: 'future-type' },
+      ]);
+    } finally {
+      stored.close();
+    }
+    // Proof: bypassing readTypedDependency in bulk removal returns the SS row
+    // and deletes it; the refusal fails. Watched 2026-09-27.
   });
 
   it('refuses unknown scopes and scope/step mismatches on read', async () => {

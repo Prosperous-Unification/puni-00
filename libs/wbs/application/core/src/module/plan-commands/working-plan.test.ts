@@ -21,6 +21,49 @@ function silentBroadcaster(): Broadcaster {
 }
 
 describe('the admitted working batch baseline', () => {
+  it('passes typed links through the batch and refuses cross-project and closed access', async () => {
+    const source = openMemorySource();
+    const plan = createWorkingPlan({ stores: source.stores }, 'project-a');
+    const row = {
+      id: 'typed-a',
+      projectId: 'project-a',
+      predecessor: { scope: 'whole' as const, workItemId: 'a' },
+      successor: { scope: 'whole' as const, workItemId: 'b' },
+      type: 'FS' as const,
+    };
+    const stamp = { at: 1, by: OWNER };
+    try {
+      await plan.stores.typedDependencies.add(row, stamp);
+      expect(await plan.stores.typedDependencies.listByProject('project-a')).toEqual([row]);
+      const later = {
+        ...row,
+        id: 'typed-later',
+        successor: { scope: 'whole' as const, workItemId: 'c' },
+      };
+      await source.stores.typedDependencies.add(later, stamp);
+      expect(await plan.stores.typedDependencies.listByProject('project-a')).toEqual([row, later]);
+      expect(() => plan.stores.typedDependencies.listByProject('project-b')).toThrow();
+      expect(() =>
+        plan.stores.typedDependencies.add({ ...row, id: 'other', projectId: 'project-b' }, stamp),
+      ).toThrow();
+      await source.stores.typedDependencies.add(
+        {
+          ...row,
+          id: 'foreign',
+          projectId: 'project-b',
+          predecessor: { scope: 'whole', workItemId: 'foreign' },
+        },
+        stamp,
+      );
+      expect(plan.stores.typedDependencies.remove('foreign', stamp)).rejects.toThrow();
+      expect(plan.stores.typedDependencies.removeAllFor(['foreign'], stamp)).rejects.toThrow();
+      plan.close();
+      expect(() => plan.stores.typedDependencies.listByProject('project-a')).toThrow();
+    } finally {
+      await source.close();
+    }
+  });
+
   it('preserves the four mutation sequences through a working collection', async () => {
     const source = openMemorySource();
     const admitted: PlanTransactionalStores[] = [];

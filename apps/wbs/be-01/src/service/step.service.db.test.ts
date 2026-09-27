@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { Broadcaster } from '@wbs/core';
 import { EventLogService } from '@wbs/core';
 import { systemTimers } from '@wbs/runtime-portable';
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
@@ -519,6 +520,7 @@ describe('a step removed between the check and the write', () => {
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),
       dependencies: new DependencyRepository(db, OPEN),
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
       subtrees: new SubtreeRepository(db, OPEN),
       journal: new CommandJournalRepository(db, OPEN),
       broadcast: recordingBroadcaster(),
@@ -563,6 +565,7 @@ describe('a step removed between the check and the write', () => {
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),
       dependencies: new DependencyRepository(db, OPEN),
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
       subtrees: new SubtreeRepository(db, OPEN),
       journal: new CommandJournalRepository(db, OPEN),
       broadcast: recordingBroadcaster(),

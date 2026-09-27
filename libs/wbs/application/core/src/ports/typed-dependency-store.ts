@@ -11,4 +11,6 @@ export interface TypedDependencyStore {
   add(row: StoredTypedDependency, stamp: WriteStamp): Promise<void>;
   update(row: StoredTypedDependency, stamp: WriteStamp): Promise<void>;
   remove(id: string, stamp: WriteStamp): Promise<void>;
+  /** Removes every incident link and returns the removed rows for journaling. */
+  removeAllFor(workItemIds: readonly string[], stamp: WriteStamp): Promise<StoredTypedDependency[]>;
 }

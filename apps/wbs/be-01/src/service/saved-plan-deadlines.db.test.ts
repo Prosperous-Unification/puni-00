@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import type { Schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { ActualRepository } from '../repository/actual';
@@ -188,6 +189,7 @@ describe('a captured plan and its deadlines', () => {
       measures: new StepMeasureRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
       dependencies: new DependencyRepository(db, OPEN),
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
       directory: new DirectoryRepository(db, OPEN),
       capacity: new CapacityRepository(db, OPEN),
       priorityBands: new PriorityBandRepository(db, OPEN),

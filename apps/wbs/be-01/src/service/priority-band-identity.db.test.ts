@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand, suggestStepCode } from '@wbs/domain';
+import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
@@ -301,6 +302,7 @@ describe('a priority ladder moves no date', () => {
       measures,
       progress,
       dependencies,
+      typedDependencies: inMemoryTypedDependencies(),
       directory,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands({ contended: bands }),
@@ -711,6 +713,7 @@ describe('a priority ladder moves no date', () => {
       measures,
       progress,
       dependencies,
+      typedDependencies: inMemoryTypedDependencies(),
       directory,
       // The pools the capture was taken under — see {@link CAPACITIES}. Identical
       // across both replays, so the ladder is the only thing that differs.

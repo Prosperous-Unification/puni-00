@@ -9,6 +9,7 @@ import {
   type PriorityBand,
   priorityBandRankOf,
 } from '@wbs/domain';
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, spyOn } from 'bun:test';
 
 import type { Step } from '../repository';
@@ -130,6 +131,7 @@ beforeEach(async () => {
     capacity: capacityStore,
     priorityBands: bandStore,
     dependencies: dependencyStore,
+    typedDependencies: new TypedDependencyRepository(db, OPEN),
     subtrees: new SubtreeRepository(db, OPEN),
     journal: journalStore,
     broadcast,

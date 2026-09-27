@@ -73,6 +73,7 @@ import type {
 } from '../../ports/scheduler';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeStore } from '../../ports/subtree-store';
+import type { TypedDependencyStore } from '../../ports/typed-dependency-store';
 import type {
   LabelledWorkItem,
   Reparented,
@@ -853,6 +854,7 @@ export interface WorkItemServiceOptions {
    */
   priorityBands: PriorityBandStore;
   dependencies: DependencyStore;
+  typedDependencies: TypedDependencyStore;
   subtrees: SubtreeStore;
   /**
    * Where every reversible command is written down.

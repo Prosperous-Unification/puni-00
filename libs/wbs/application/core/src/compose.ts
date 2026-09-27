@@ -130,6 +130,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       measures: stores.measures,
       progress: stores.progress,
       dependencies: stores.dependencies,
+      typedDependencies: stores.typedDependencies,
       directory: stores.directory,
       capacity: stores.capacity,
       priorityBands: stores.priorityBands,

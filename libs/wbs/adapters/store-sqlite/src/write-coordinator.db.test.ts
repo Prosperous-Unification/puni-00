@@ -36,6 +36,7 @@ import { sqliteUnitOfWork } from './sqlite-unit-of-work';
 import { StepRepository } from './step';
 import { StepMeasureRepository } from './step-measure';
 import { StepProgressRepository } from './step-progress';
+import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
 import { SubtreeRepository, WorkItemRepository } from './work-item';
 
@@ -143,6 +144,7 @@ beforeEach(async () => {
     capacity: capacityStore,
     priorityBands: bandStore,
     dependencies: new DependencyRepository(db, OPEN),
+    typedDependencies: new TypedDependencyRepository(db, OPEN),
     subtrees: new SubtreeRepository(db, OPEN),
     journal: new CommandJournalRepository(db, OPEN),
     broadcast,

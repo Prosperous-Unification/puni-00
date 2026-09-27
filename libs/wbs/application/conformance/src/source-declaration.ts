@@ -139,6 +139,7 @@ export interface SourceReaders {
   readonly measures: Pick<Stores['measures'], 'listByProject'>;
   readonly progress: Pick<Stores['progress'], 'listByProject'>;
   readonly dependencies: Pick<Stores['dependencies'], 'listByProject'>;
+  readonly typedDependencies: Pick<Stores['typedDependencies'], 'listByProject'>;
   readonly directory: Pick<
     Stores['directory'],
     | 'listTags'

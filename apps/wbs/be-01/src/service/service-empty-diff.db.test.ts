@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Step, WriteStamp } from '../repository';
@@ -157,6 +158,7 @@ beforeEach(async () => {
     capacity: capacityStore,
     priorityBands: inMemoryPriorityBands(),
     dependencies: new DependencyRepository(db, OPEN),
+    typedDependencies: new TypedDependencyRepository(db, OPEN),
     subtrees: new SubtreeRepository(db, OPEN),
     journal: new CommandJournalRepository(db, OPEN),
     broadcast: recordingBroadcaster(),

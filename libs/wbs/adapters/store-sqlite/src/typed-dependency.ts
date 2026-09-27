@@ -4,7 +4,7 @@ import {
   isDependencyEndpointScope,
   isRelationshipType,
 } from '@wbs/domain';
-import { eq } from 'drizzle-orm';
+import { eq, inArray, or } from 'drizzle-orm';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Drizzle } from './db';
@@ -140,6 +140,61 @@ export class TypedDependencyRepository implements TypedDependencyStore {
         readTypedDependency(prior);
         tx.delete(typedDependency).where(eq(typedDependency.id, id)).run();
         bumpWorkItems(tx, [prior.predecessorWorkItemId, prior.successorWorkItemId], stamp);
+      });
+    });
+  }
+
+  /**
+   * Both directions, because a work item being deleted is neither a predecessor
+   * nor a successor any more. The foreign keys would refuse the delete otherwise,
+   * which is the point: a link to a row that is gone is not a thing to keep.
+   *
+   * The **surviving** ends are bumped and the doomed ones are not. This is the
+   * one place the links have to be read before they are written: which work
+   * items lose a link is not knowable from the argument, and it is the *set of
+   * rows* being read, never the counter — the counter is still `revision + 1`
+   * in SQL, inside the same transaction as the delete. The caller is on its way
+   * to deleting these rows, so bumping one would move a counter onto a row about
+   * to stop existing.
+   *
+   * **The whole doomed set at once, in one transaction.** A per-row delete
+   * would get the survivor rule wrong: a link between two doomed rows would
+   * bump the far end, because a single-id call cannot tell a doomed sibling
+   * from a survivor. Reading the set makes that answerable. The removed rows
+   * pass through the same validating read as listByProject before being returned
+   * for journaling.
+   *
+   * Proof: removing the bulk delete left all three links present in
+   * `returns a doomed set of links and bumps only surviving endpoints`;
+   * watched 2026-09-27.
+   */
+  async removeAllFor(
+    workItemIds: readonly string[],
+    stamp: WriteStamp,
+  ): Promise<StoredTypedDependency[]> {
+    return this.gate.enter(async () => {
+      await Promise.resolve();
+      if (workItemIds.length === 0) return [];
+      const doomed = new Set(workItemIds);
+      const touchesAny = or(
+        inArray(typedDependency.predecessorWorkItemId, workItemIds),
+        inArray(typedDependency.successorWorkItemId, workItemIds),
+      );
+      return this.db.transaction((tx) => {
+        const losing = tx.select().from(typedDependency).where(touchesAny).all();
+        const removed = losing.map(readTypedDependency);
+        tx.delete(typedDependency).where(touchesAny).run();
+        bumpWorkItems(
+          tx,
+          losing
+            .flatMap(({ predecessorWorkItemId, successorWorkItemId }) => [
+              predecessorWorkItemId,
+              successorWorkItemId,
+            ])
+            .filter((id) => !doomed.has(id)),
+          stamp,
+        );
+        return removed;
       });
     });
   }

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { DEFAULT_PRIORITY_BANDS, suggestStepCode } from '@wbs/domain';
+import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
@@ -575,6 +576,7 @@ describe('every plan schedules identically across the migration', () => {
       measures,
       progress,
       dependencies,
+      typedDependencies: inMemoryTypedDependencies(),
       directory,
       capacity: inMemoryCapacity({
         [plan.projectId]: Object.fromEntries(seeded.get(plan.projectId) ?? []),
