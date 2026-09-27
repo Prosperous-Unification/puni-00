@@ -420,6 +420,9 @@
       boundary needs either the pilot's `sourceRevision` moved forward or a documented exemption
       for a boundary with no predecessor, neither of which this packet decides; see
       `docs/superpowers/plans/2026-09-21-batch-6/040-6-e3-plan-import.md`.
+      Landed 2026-09-27 for Plan import and Plan document through change
+      `trusted-boundary-creation-revision`: each boundary names a `creationRevision`, the commit
+      that first added its directory (`5a99d244` and `b53693a2`), instead of a `sourceSelector`.
 - [x] 7.6 Label agreement: every sealed module's DI Bag label, the identifier its location implies,
       its README index, its wiki pilot row and boundary, and every `kinds.json` shim row naming it
       agree. Landed 2026-09-24 as `tools/tool-devsync/src/module-labels.test.ts`, which reads the

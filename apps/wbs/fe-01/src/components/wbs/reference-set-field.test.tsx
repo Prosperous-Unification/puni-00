@@ -641,3 +641,105 @@ describe('referenceSetLines', () => {
     expect(referenceSetLines([], [], undefined)).toEqual([]);
   });
 });
+
+describe('the Type cell selects one type', () => {
+  const types = [
+    { id: 'type-story', name: 'Story' },
+    { id: 'type-spike', name: 'Spike' },
+    { id: 'type-epic', name: 'Epic' },
+  ];
+  const typed = (ownIds: string[], overrides: Partial<ReferenceSetAdapter> = {}) =>
+    adapter({ kind: 'type', entries: types, ownIds, inheritedLabel: undefined, ...overrides });
+
+  itDom('replaces the current type with the chosen one', async () => {
+    // Proof: the one-type projection written as `[...current, id]` again and
+    // this received ['type-story', 'type-spike']. Watched 2026-09-27.
+    const model = typed(['type-story']);
+    render(<ReferenceSetStrip label="Types" adapter={model} />);
+
+    const box = screen.getByRole<HTMLInputElement>('combobox', { name: 'Types' });
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: 'Spike' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(model.replace).toHaveBeenCalledWith(['type-spike']);
+    });
+  });
+
+  itDom('clears the type with its chip, leaving the row untyped', () => {
+    const model = typed(['type-epic']);
+    render(<ReferenceSetStrip label="Types" adapter={model} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Epic type' }));
+    expect(model.replace).toHaveBeenCalledWith([]);
+  });
+
+  itDom('creates a new type and selects it alone', async () => {
+    // Proof: create handed the current set again and this received
+    // ('Bug', ['type-story']). Watched 2026-09-27.
+    const model = typed(['type-story']);
+    render(<ReferenceSetStrip label="Types" adapter={model} />);
+
+    const box = screen.getByRole<HTMLInputElement>('combobox', { name: 'Types' });
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: 'Bug' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(model.create).toHaveBeenCalledWith('Bug', []);
+    });
+  });
+
+  itDom('flags a type conflict, shows every type, and keeps the one picked', () => {
+    // Proof: the conflict predicate forced false and the flag query found
+    // nothing. Watched 2026-09-27.
+    const model = typed(['type-story', 'type-spike']);
+    render(
+      <ReferenceSetStrip
+        label="Types"
+        adapter={model}
+        keepLabel={(entry) => `Keep ${entry.name} for 010`}
+      />,
+    );
+
+    expect(screen.getByText('Story')).toBeInTheDocument();
+    expect(screen.getByText('Spike')).toBeInTheDocument();
+    const flag = document.querySelector('[data-type-conflict]');
+    expect(flag?.getAttribute('data-fact')).toMatch(/type conflict/i);
+    expect(model.replace).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Keep Story for 010' }));
+    expect(model.replace).toHaveBeenCalledWith(['type-story']);
+  });
+
+  itDom('offers no keep button and no flag while the row holds one type', () => {
+    render(
+      <ReferenceSetStrip
+        label="Types"
+        adapter={typed(['type-story'])}
+        keepLabel={(entry) => `Keep ${entry.name} for 010`}
+      />,
+    );
+    expect(document.querySelector('[data-type-conflict]')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Keep / })).toBeNull();
+  });
+
+  itDom('rests a flagged conflict on one line', () => {
+    render(<ReferenceSetStrip label="Types" adapter={typed(['type-story', 'type-spike'])} />);
+    expect(getComputedStyle(strip()).flexWrap).toBe('nowrap');
+    expect(getComputedStyle(chipsOf()).flexWrap).toBe('nowrap');
+  });
+
+  itDom('keeps adding to the whole set for a many-member kind', async () => {
+    const model = adapter();
+    render(<ReferenceSetStrip label="Teams" adapter={model} />);
+    const box = screen.getByRole<HTMLInputElement>('combobox', { name: 'Teams' });
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: 'New team' } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await waitFor(() => {
+      expect(model.create).toHaveBeenCalledWith('New team', ['team-1']);
+    });
+  });
+});

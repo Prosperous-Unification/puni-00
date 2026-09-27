@@ -88,6 +88,8 @@ export interface ReferenceSetStripProps {
   gridCell?: CreatablePickerProps['gridCell'];
   addLabel?: string;
   removeLabel?: (entry: ReferenceSetEntry) => string;
+  /** The name of a conflicted type's keep button; see {@link holdsOneMember}. */
+  keepLabel?: (entry: ReferenceSetEntry) => string;
   placeholder?: string;
   'data-hint'?: string;
   /** The project fact this box carries, drawn at once where a hint would wait. */
@@ -95,6 +97,15 @@ export interface ReferenceSetStripProps {
 }
 
 const unique = (ids: readonly string[]): string[] => [...new Set(ids)];
+
+/**
+ * Whether a kind holds at most one member: the work item type does
+ * (WBS 010.4.10), so choosing replaces, creating selects the new type alone, and
+ * a row stored with several is a **type conflict** drawn whole and flagged, with
+ * a keep button per type. Nothing here picks one for the reader. The other
+ * kinds add to a set.
+ */
+export const holdsOneMember = (kind: ReferenceSetKind): boolean => kind === 'type';
 
 export const REFERENCE_SET_STRIP_STYLE = {
   display: 'flex',
@@ -252,12 +263,17 @@ export function ReferenceSetStrip({
   gridCell,
   addLabel,
   removeLabel,
+  keepLabel,
   placeholder,
   'data-hint': hint,
   'data-fact': fact,
 }: ReferenceSetStripProps) {
   const root = useRef<HTMLSpanElement>(null);
   const ownIds = unique(adapter.ownIds);
+  const holdsOne = holdsOneMember(adapter.kind);
+  // Proof: forced false and `flags a type conflict, shows every type, and keeps
+  // the one picked` found no flag. Watched 2026-09-27.
+  const conflicted = holdsOne && ownIds.length > 1;
   const own = ownIds.map(
     (id) => adapter.entries.find((entry) => entry.id === id) ?? { id, name: id },
   );
@@ -377,6 +393,14 @@ export function ReferenceSetStrip({
   const remove = async (id: string): Promise<void> => {
     await mutate(
       (current) => current.filter((ownId) => ownId !== id),
+      (_current, next) => adapter.replace(next),
+    );
+  };
+
+  /** Resolves a type conflict to one of its own types, in one undoable write. */
+  const keep = async (id: string): Promise<void> => {
+    await mutate(
+      () => [id],
       (_current, next) => adapter.replace(next),
     );
   };
@@ -629,6 +653,18 @@ export function ReferenceSetStrip({
             overflow: wrapping ? 'visible' : 'hidden',
           }}
         >
+          {conflicted && (
+            // Inline, in the chips' own line, so a flagged cell keeps its height.
+            <span
+              data-type-conflict=""
+              data-fact={`Type conflict: ${own.map((entry) => entry.name).join(', ')}. Keep one.`}
+              className="text-destructive shrink-0"
+              aria-label="Type conflict"
+              role="img"
+            >
+              ⚠
+            </span>
+          )}
           {own.map((entry) => (
             <span
               key={entry.id}
@@ -636,6 +672,23 @@ export function ReferenceSetStrip({
               className={REFERENCE_SET_CHIP_CLASS}
             >
               <span className="truncate">{entry.name}</span>
+              {conflicted && (
+                <button
+                  type="button"
+                  aria-label={keepLabel?.(entry) ?? `Keep ${entry.name} ${adapter.kind}`}
+                  disabled={pending}
+                  tabIndex={editing ? undefined : -1}
+                  // The ✕ beside it explains both guards: no focus on press,
+                  // out of the tab order while the line clips.
+                  onMouseDown={(pressed) => {
+                    pressed.preventDefault();
+                  }}
+                  className={REFERENCE_SET_REMOVE_CLASS}
+                  onClick={() => void keep(entry.id)}
+                >
+                  ✓
+                </button>
+              )}
               <button
                 type="button"
                 aria-label={removeLabel?.(entry) ?? `Remove ${entry.name} ${adapter.kind}`}
@@ -758,14 +811,21 @@ export function ReferenceSetStrip({
             value={null}
             onChoose={(id) =>
               mutate(
-                (current) => [...current, id],
+                // Proof: written as `[...current, id]` for every kind and
+                // `replaces the current type with the chosen one` received
+                // ['type-story', 'type-spike']. Watched 2026-09-27.
+                (current) => (holdsOne ? [id] : [...current, id]),
                 (_current, next) => adapter.replace(next),
               )
             }
             onCreate={(name) =>
               mutate(
                 (current) => current,
-                (current) => adapter.create(name, current),
+                // A new type is selected alone: the adapter appends it to `[]`.
+                // Proof: the current set handed over again and `creates a new
+                // type and selects it alone` received ('Bug', ['type-story']).
+                // Watched 2026-09-27.
+                (current) => adapter.create(name, holdsOne ? [] : current),
               )
             }
             closeWhen={(outcome) => outcome === 'landed'}

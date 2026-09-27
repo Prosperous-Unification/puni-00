@@ -129,6 +129,8 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+const ORGANIZATION_ROLE_COLUMNS = ['organization_invitation.role', 'organization_membership.role'];
+
 describe('the names the schema uses', () => {
   /**
    * The physical schema and the domain agree, and this reads the **live
@@ -195,7 +197,10 @@ describe('the names the schema uses', () => {
           columnsOf(each.name)
             .filter((column) => /role/i.test(column))
             .map((column) => `${each.name}.${column}`),
-        );
+        )
+        // An organization role is its own domain term, not a leftover step:
+        // named here so any other `role` column is still a red.
+        .filter((column) => !ORGANIZATION_ROLE_COLUMNS.includes(column));
       expect(roleColumns).toEqual([]);
     } finally {
       sqlite.close();

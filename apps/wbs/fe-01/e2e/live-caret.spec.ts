@@ -308,7 +308,9 @@ test.describe('a caret survives another session’s edit', () => {
     expect(before.focused, 'the editor did not hold focus before the peer marker').toBe(true);
     expect(before.sameElement, 'the editor witness was not installed').toBe(true);
 
-    await peer.locator('[data-axis-day="3"]').click();
+    // Day 1, inside the chart: the one unestimated row takes no schedule time,
+    // so the axis holds only its two-workday placeholder (WBS 010.4.4).
+    await peer.locator('[data-axis-day="1"]').click();
     const composer = peer.getByRole('dialog', { name: /^New calendar marker on / });
     await expect(composer).toBeVisible();
     await composer.getByLabel('Marker name').fill('Peer checkpoint');

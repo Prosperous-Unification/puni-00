@@ -414,17 +414,18 @@ ${indentedPrivateKey}
   ed25519_public: ${hostPublicKey.trim()}
 `,
     metaData: `instance-id: ${machine.name}\nlocal-hostname: ${machine.name}\n`,
+    // Interfaces keep their kernel names; the lab finds the private one by route. Proof: with
+    // `set-name` the Ubuntu 26.04 image's cloud-init ended `degraded done` ("[busy] Error renaming
+    // ... from enp0s1 to ens3") and the lab refused the machine.
     networkConfig: `version: 2
 ethernets:
   wan:
     match:
       macaddress: '${mac(10)}'
-    set-name: ens3
     dhcp4: true
   private:
     match:
       macaddress: '${mac(20)}'
-    set-name: ens4
     addresses: [${machine.privateAddress}/24]
 `,
   };

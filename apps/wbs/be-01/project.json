@@ -54,7 +54,7 @@
         "{workspaceRoot}/tools/tool-remote-scripts/src/fixtures/solver-supervisor-orphan-host.ts"
       ],
       "options": {
-        "command": "bun test --coverage --coverage-reporter=lcov",
+        "command": "bun test --coverage --coverage-reporter=lcov --timeout=10000",
         "cwd": "apps/wbs/be-01"
       },
       "outputs": ["{projectRoot}/coverage"]
@@ -62,14 +62,14 @@
     "test:unit": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bun test $(find src -name '*.test.ts' ! -name '*.db.test.ts' | tr '\\n' ' ')",
+        "command": "bun test $(find src -name '*.test.ts' ! -name '*.db.test.ts' | tr '\\n' ' ') --timeout=10000",
         "cwd": "apps/wbs/be-01"
       }
     },
     "test:store": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bun test .db.test.ts",
+        "command": "bun test .db.test.ts --timeout=10000",
         "cwd": "apps/wbs/be-01"
       }
     },

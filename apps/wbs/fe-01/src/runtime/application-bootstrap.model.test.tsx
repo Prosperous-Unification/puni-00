@@ -30,7 +30,9 @@ type Command =
   | { readonly kind: 'retireFromListener' }
   | { readonly kind: 'settle' }
   | { readonly kind: 'pagehide' }
-  | { readonly kind: 'pageshow'; readonly persisted: boolean };
+  | { readonly kind: 'pageshow'; readonly persisted: boolean }
+  /** The drawn app signs a reader in: its region's session will end its retirement this way. */
+  | { readonly kind: 'session'; readonly disposal: Disposal };
 
 const disposalArb: fc.Arbitrary<Disposal> = fc.constantFrom('settles', 'rejects', 'never');
 
@@ -51,7 +53,19 @@ const commandArb: fc.Arbitrary<Command> = fc.oneof(
     arbitrary: fc.record({ kind: fc.constant('pageshow' as const), persisted: fc.boolean() }),
     weight: 2,
   },
+  {
+    arbitrary: fc.record({ kind: fc.constant('session' as const), disposal: disposalArb }),
+    weight: 3,
+  },
 );
+
+/** A session retirement a region's cleanup handed to the application, and how it went. */
+interface JoinedSession {
+  /** The application runtime it was handed to. */
+  readonly runtime: ApplicationServices;
+  readonly disposal: Disposal;
+  settled: boolean;
+}
 
 const FakeApp = (): null => null;
 
@@ -113,6 +127,10 @@ describe("the page's bootstrap, under generated interleavings", () => {
      * `live` at the instant it fired.
      */
     let pagehideCount = 0;
+    /** Sessions a region handed over whose runtime then retired, and that settled first. */
+    let sessionsHeldThenReleased = 0;
+    /** Sessions that failed or hung, whose application runtime ended the run terminally fatal. */
+    let failedSessionsMadeFatal = 0;
     let pageshowPersistedCount = 0;
     let pageshowNonPersistedCount = 0;
     let triggeredWhileLive = 0;
@@ -120,10 +138,43 @@ describe("the page's bootstrap, under generated interleavings", () => {
     await fc.assert(
       fc.asyncProperty(
         fc.scheduler(),
-        fc.array(commandArb, { minLength: 2, maxLength: 8 }),
+        // Half the sequences open on a bootstrap, so a page is drawn often enough for a
+        // reader to sign in and for a page hide to take their region down.
+        fc
+          .tuple(fc.boolean(), disposalArb, fc.array(commandArb, { minLength: 2, maxLength: 8 }))
+          .map(([opensOnBootstrap, disposal, rest]): Command[] =>
+            opensOnBootstrap ? [{ kind: 'bootstrap', disposal }, ...rest] : rest,
+          ),
         async (scheduler, commands) => {
+          // 20ms rather than 1ms: a joined session's scheduled settlement has to be able to
+          // arrive inside the application's retirement budget, or no run could show a
+          // retirement held by a session and then released.
           const slot: LifetimeSlot<ApplicationServices> =
-            createLifetimeSlot<ApplicationServices>(1);
+            createLifetimeSlot<ApplicationServices>(20);
+          /** Every session a region's cleanup handed to the application, in order. */
+          const joined: JoinedSession[] = [];
+          /** How each runtime this run built disposes of itself. */
+          const runtimeDisposal = new Map<ApplicationServices, Disposal>();
+          /** The session the drawn app's region holds, or `null` while nobody is signed in. */
+          let regionSession: Disposal | null = null;
+          // 6. A retirement a region handed over holds the application's retirement: no
+          //    runtime it was handed to is replaced by an empty slot or another live one
+          //    until the session has settled.
+          const heldViolations: string[] = [];
+          slot.subscribe(() => {
+            const state = slot.snapshot();
+            if (state.status !== 'empty' && state.status !== 'live') return;
+            for (const session of joined) {
+              if (state.status === 'live' && state.services === session.runtime) continue;
+              if (!session.settled) {
+                heldViolations.push(
+                  `the slot went ${state.status} before a joined session settled`,
+                );
+              } else if (session.disposal === 'settles') {
+                sessionsHeldThenReleased += 1;
+              }
+            }
+          });
           const rendered: Rendered[] = [];
           /** The status the slot held each time a root was created, in order. */
           const mounted: string[] = [];
@@ -179,10 +230,15 @@ describe("the page's bootstrap, under generated interleavings", () => {
            */
           const buildAcquire = (disposal: Disposal): Acquire<ApplicationServices> => {
             if (disposal === 'settles') {
-              // The real production graph: its own disposer is a synchronous
-              // store revocation that can neither reject nor hang, exactly as
+              // The real production graph: its own disposers are a synchronous
+              // store revocation and the retirement join, which waits only for
+              // the sessions a region handed it — exactly as
               // `lifetime-slot.model.test.ts`'s own `buildInstalled` relies on.
-              return () => installApplicationRuntime({ openStore: fakeBrowserStorage });
+              return () => {
+                const installed = installApplicationRuntime({ openStore: fakeBrowserStorage });
+                runtimeDisposal.set(installed.services, 'settles');
+                return installed;
+              };
             }
             // A generated graph whose own DI Bag disposer rejects or never
             // settles, under the scheduler. DI Bag's own bounded `close()` is
@@ -200,15 +256,17 @@ describe("the page's bootstrap, under generated interleavings", () => {
                     }),
                     disposeService: async () => {
                       if (disposal === 'never') return new Promise<void>(() => undefined);
-                      await scheduler.schedule(
-                        Promise.reject(new Error('the page runtime refused to dispose')),
-                        'dispose the page runtime',
-                      );
+                      // Rejected once the scheduler releases it, never before: a rejection
+                      // built eagerly is unhandled whenever DI Bag's budget gives up on
+                      // this disposer first.
+                      await scheduler.schedule(Promise.resolve(), 'dispose the page runtime');
+                      throw new Error('the page runtime refused to dispose');
                     },
                   }),
                 })
                 .buildContainer();
               const services = bag.resolve('owned');
+              runtimeDisposal.set(services, disposal);
               return {
                 services,
                 close: (options) => bag.close({ waitTimeoutMs: options.timeoutMs }),
@@ -216,18 +274,55 @@ describe("the page's bootstrap, under generated interleavings", () => {
             };
           };
 
+          /**
+           * A session's retirement, settling, rejecting or never settling under
+           * the scheduler — what `SignedInApp`'s cleanup hands the application.
+           */
+          const sessionRetirement = (disposal: Disposal): Promise<void> => {
+            if (disposal === 'never') return new Promise<void>(() => undefined);
+            return scheduler.schedule(Promise.resolve(), 'give the session back').then(() => {
+              if (disposal === 'rejects') throw new Error('the session could not be given back');
+            });
+          };
+
           const mount = () => {
             mounted.push(slot.snapshot().status);
+            /** Whether this root's last draw was the app, whose region a cleanup would run. */
+            let drawsApp = false;
             return {
               render: (tree: ReactNode) => {
                 const held = slot.snapshot();
+                const fatal = isValidElement(tree) && tree.type === LifetimeFault;
+                drawsApp = !fatal;
                 rendered.push({
-                  fatal: isValidElement(tree) && tree.type === LifetimeFault,
+                  fatal,
                   status: held.status,
                   services: held.status === 'live' ? held.services : null,
                 });
               },
-              unmount: () => undefined,
+              /**
+               * The tree's own cleanup, run inside the unmount as React runs it:
+               * a signed-in region hands its session's retirement to the live
+               * application through the same join `useRetirementJoin` reaches.
+               */
+              unmount: () => {
+                if (!drawsApp || regionSession === null) return;
+                const held = slot.snapshot();
+                if (held.status !== 'live') return;
+                const session: JoinedSession = {
+                  runtime: held.services,
+                  disposal: regionSession,
+                  settled: false,
+                };
+                regionSession = null;
+                joined.push(session);
+                const settle = () => {
+                  session.settled = true;
+                };
+                const retirement = sessionRetirement(session.disposal);
+                retirement.then(settle, settle);
+                held.services.retirements.join(retirement);
+              },
             };
           };
 
@@ -292,6 +387,11 @@ describe("the page's bootstrap, under generated interleavings", () => {
               if (command.persisted) pageshowPersistedCount += 1;
               else pageshowNonPersistedCount += 1;
               eventTarget.dispatchEvent(pageShowEvent(command.persisted));
+            } else if (command.kind === 'session') {
+              // A reader signs in to a page already drawn: let a bootstrap still settling
+              // draw first, as a real sign-in waits for the form to be on screen.
+              await new Promise((resolve) => setTimeout(resolve, 0));
+              regionSession = command.disposal;
             } else if (scheduler.count() > 0) {
               await scheduler.waitNext(1);
             } else {
@@ -350,6 +450,20 @@ describe("the page's bootstrap, under generated interleavings", () => {
               'a runtime live before a pagehide trigger was still the one live at the end',
             ).not.toContain(finalState.services);
           }
+          // 6. (recorded by the subscriber above)
+          expect(heldViolations, 'a joined session did not hold the application').toEqual([]);
+          // 7. A session that failed or never settled fails the application runtime it was
+          //    handed to: that runtime never gives way to an empty slot or another live one,
+          //    and the slot ends terminally fatal.
+          for (const session of joined) {
+            if (session.disposal === 'settles') continue;
+            if (runtimeDisposal.get(session.runtime) !== 'settles') continue;
+            expect(
+              finalState.status === 'fatal' && finalState.terminal,
+              `a session that ${session.disposal === 'never' ? 'never settled' : 'failed'} left the slot ${finalState.status}`,
+            ).toBe(true);
+            failedSessionsMadeFatal += 1;
+          }
         },
       ),
       { seed: 20260924, numRuns: 300 },
@@ -367,6 +481,14 @@ describe("the page's bootstrap, under generated interleavings", () => {
     expect(
       triggeredWhileLive,
       'the pinned run never fired a pagehide while a runtime was genuinely live',
+    ).toBeGreaterThan(0);
+    expect(
+      sessionsHeldThenReleased,
+      'the pinned run never released an application retirement a session had held',
+    ).toBeGreaterThan(0);
+    expect(
+      failedSessionsMadeFatal,
+      'the pinned run never failed an application retirement through its session',
     ).toBeGreaterThan(0);
   }, 120_000);
 });

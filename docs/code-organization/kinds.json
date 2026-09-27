@@ -12,11 +12,6 @@
       "disposition": "re-export shim; delete when importers use @wbs/core/service/auth.service directly"
     },
     {
-      "path": "apps/wbs/be-01/src/service/broadcast.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/broadcast directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/calendar-marker.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core/service/calendar-marker.service directly"
@@ -229,12 +224,6 @@
       "path": "libs/wbs/application/core/src/service/auth.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core or the authentication module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/broadcast.ts",
-      "kind": "support",
-      "disposition": "an implementation of the neutral Broadcaster port shared by the two admitting features, Plan commands and Plan import; barred from either feature by K6; its end state is beside that port under ports/",
-      "rationale": "the Plan commands and Plan import features each build one AnnouncementCollector per admitted act over the Broadcaster port of ports/project-event.ts, so a private owner would give the other a feature-to-feature edge; the event contracts it re-exports for compatibility live in that port"
     },
     {
       "path": "libs/wbs/application/core/src/service/calendar-marker.service.ts",

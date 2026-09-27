@@ -148,7 +148,8 @@ export type ImportRefusalCode =
   | 'cycle'
   | 'ancestor'
   | 'deadline_before_project_start'
-  | 'engine_unavailable';
+  | 'engine_unavailable'
+  | 'work_item_takes_one_type';
 
 /** The complete file-id resolution, or the first fault in stable document order. */
 export type ImportPreparation =
@@ -433,6 +434,32 @@ function validateDates(row: DocumentRow, at: number, projectStart: string | null
 }
 
 /**
+ * Refuses every row carrying more than one distinct type (WBS 010.4.10), whatever
+ * the document version: `path` is the first such row and `detail` lists the file
+ * ids of all of them, so one round trip names every row to fix. A type conflict
+ * already in a project is kept by copying; a file cannot create one.
+ *
+ * Proof: the call in prepareImport skipped and `refuses rows carrying several
+ * types, naming every such row` received ok: true; the module test `refuses a
+ * row carrying two types before any write, announcing nothing` received
+ * ok: true too. Watched 2026-09-27.
+ */
+function multiTypeRowsRefusal(
+  rows: readonly { id: string; typeIds: readonly string[] }[],
+): Refusal | null {
+  const conflicted = rows.flatMap((row, at) =>
+    new Set(row.typeIds).size > 1 ? [{ row, at }] : [],
+  );
+  const first = conflicted.at(0);
+  if (first === undefined) return null;
+  return refuses(
+    'work_item_takes_one_type',
+    `workItems[${String(first.at)}].typeIds`,
+    conflicted.map(({ row }) => row.id).join(', '),
+  );
+}
+
+/**
  * Validates and resolves one archival document completely before source admission.
  *
  * The input has already crossed {@link PlanDocumentRequest}'s structural boundary,
@@ -591,6 +618,8 @@ export function prepareImport(
   // Proof: bypassing whole-graph hierarchy validation made the mounted self-cycle test return 204.
   const hierarchyRefusal = firstHierarchyRefusal(document.workItems, rows.byId);
   if (hierarchyRefusal !== null) return hierarchyRefusal;
+  const typeRefusal = multiTypeRowsRefusal(document.workItems);
+  if (typeRefusal !== null) return typeRefusal;
   const parents = new Set(document.workItems.flatMap((row) => row.parentId ?? []));
   const preparedRows: PreparedWorkItem[] = [];
   const externalRefIds = new Set<string>();

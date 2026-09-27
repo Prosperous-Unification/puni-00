@@ -3,7 +3,7 @@
 The R5 entries recorded here after the wbs-tool-v1 history was merged in. They continue
 [the inherited catalogue](checks-that-cannot-fail.md#r5-catalogue-heading), which is pinned
 block-for-block by `root-migration.v1.json` and so cannot take additions. With these, the
-count is **thirty**.
+count is **thirty-one**.
 
 Two more on 2026-09-06 in `twilight-review-hardening` and the Twilight plan review, and
 **neither shipped**. Marking each generated workflow copy with the source a human should edit
@@ -58,3 +58,15 @@ gate finally failed `apps/wbs/be-01/src/production-entrypoint.test.ts` on
 `Could not resolve: "di-bag"`, and the planner installed by hand. CI installs at the top of its
 gate job; the host gate did not, and no test asked whether it did. **A gate that reads a tree it
 never assembled is reporting about a different commit than the one it names.**
+
+One more on 2026-09-27, found while working WBS 080.15, and it **shipped** — the thirty-first.
+`tools/test/scratch/preload.ts` called `setDefaultTimeout(30_000)` so that every suite loading it
+would outlast Bun's five-second default, and its proof was a test in `scratch.test.ts` that slept
+5.3 seconds and passed. That project has one test file. Bun 1.4.2 applies a preload's default to
+the first file a run loads and gives every later file five seconds again, so in the ten other
+projects that load the preload, most files never had the thirty seconds. The dev poller's overlap
+test kept failing at 5001 to 5005 ms under the preload (pull requests 41, 43, 46 and a specs lane
+on 2026-09-26), each read as a flake. Two hung suites under one preload showed `700ms` for the
+first and `5000ms` for the rest; `--timeout` reached all three. Every Bun test target now states
+`--timeout=<ms>`, the preload sets nothing, and `scratch.test.ts` hangs two files. **A proof run
+on one file says nothing about the second.**
