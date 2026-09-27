@@ -20,3 +20,27 @@ The repository-root command bunx @fission-ai/openspec@1.12.0 validate --all --js
 - **Pending R5 proof:** Bypass write-scope or revocation check; mounted write/revocation tests must fail. Restore and record output.
 - **Pending:** Live public URL authentication and refresh trace with ordinary WBS account, grant-bound organization, recorded role and disposable project. The 3600-second default is documented; observed dev TTL and refresh remain unverified here.
 - **Pending:** Format, lint, typecheck and host gate. No public connectivity or application behavior has been verified at spec time.
+
+## Implementation evidence (WBS 010.4.8)
+
+### 1. Public discovery routing
+
+- The prod and staging Ingress overlays route the three discovery URLs to `wbs-mcp` as `Exact`
+  paths; `/mcp`, `/api`, `/ws` and the SPA fallback are unchanged. Other `/.well-known/*` paths
+  still reach the frontend.
+- `env -u CLAUDECODE bun test tools/tool-deploy/src/k8s/mcp-manifest.test.ts`: 7 pass, 0 fail.
+  Before the overlay change the discovery case failed on both hosts with `Expected: "wbs-mcp"`,
+  `Received: "wbs-frontend"`.
+- R5 proof: removing the `/.well-known/oauth-protected-resource/mcp` rule from the prod overlay
+  failed `routes each discovery URL on prod to mcp-01` the same way; restored, 7 pass.
+- Mounted handler: `serves every public discovery URL through the mounted handler with
+consistent URLs` (http.test.ts) checks status, JSON content type and resource/issuer/token URL
+  consistency for the production `MCP_PUBLIC_URL`.
+- The h2puni Caddy edge already carries the same three narrow routes for dev
+  (`tools/tool-remote-scripts/src/lib/site.ts`, covered by `site.test.ts`). The compose prod
+  vhost runs no mcp-01, so it gains no routes; public prod MCP arrives with the k3s overlay.
+- Live, read-only, 2026-09-27: `curl` of the three URLs on `https://dev.wbs.bulletpoints.club`
+  returned 200 `application/json` with resource `https://dev.wbs.bulletpoints.club/mcp` and
+  issuer `https://dev.wbs.bulletpoints.club/mcp/oauth`. On `https://wbs.bulletpoints.club` all
+  three returned 200 `text/html` (the SPA), because prod still serves from the compose vhost.
+  The k3s prod overlay is not deployed; public prod discovery stays unproven.

@@ -25,6 +25,18 @@ spec:
           - path: /mcp
             pathType: Prefix
             backend: { service: { name: wbs-mcp, port: { name: http } } }
+          # OAuth discovery for the public MCP resource (RFC 9728 at both locations clients use,
+          # RFC 8414 at the issuer path). Exact, not a /.well-known Prefix: this origin may serve
+          # other discovery documents independently.
+          - path: /.well-known/oauth-protected-resource
+            pathType: Exact
+            backend: { service: { name: wbs-mcp, port: { name: http } } }
+          - path: /.well-known/oauth-protected-resource/mcp
+            pathType: Exact
+            backend: { service: { name: wbs-mcp, port: { name: http } } }
+          - path: /.well-known/oauth-authorization-server/mcp/oauth
+            pathType: Exact
+            backend: { service: { name: wbs-mcp, port: { name: http } } }
           - path: /
             pathType: Prefix
             backend: { service: { name: wbs-frontend, port: { number: 80 } } }
