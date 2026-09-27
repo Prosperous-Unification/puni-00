@@ -139,7 +139,7 @@ Branch `batch-9/010-5-2-orgs-5`, stacked on slice 5. Following Astra's 2.1 desig
 - a work item's parent in another project;
 - a work item's team or service in another organization;
 - a tag, team, type, service or external-ref link across organizations;
-- an assignment to another organization's person, or to another project's step;
+- an assignment to another organization's person, or an assignment, estimate, actual, step progress or step measure on another project's step;
 - a person-team or team-service pair across organizations;
 - a team capacity across organizations;
 - a plan event naming another project's work item or step;
@@ -147,11 +147,12 @@ Branch `batch-9/010-5-2-orgs-5`, stacked on slice 5. Following Astra's 2.1 desig
 
 A deleted project's retained stream is reported rather than guessed. Its retention or purge is an open 7.1 decision. No allowance table exists. Command-journal payloads and captured schedule bodies are not parsed; 7.1 owns them.
 
-| Check                           | Injected fault                                     | Observed failure (`organization-reconciliation.db.test.ts`, 2026-09-27) |
-| ------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------- |
-| Each of the 17 conflict queries | that query alone replaced by one selecting nothing | its own `reports a <kind> conflict` case                                |
+| Check                           | Injected fault                                     | Observed failure (`organization-reconciliation.db.test.ts`, 2026-09-27)                    |
+| ------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Each of the 21 conflict queries | that query alone replaced by one selecting nothing | its own `reports a <kind> conflict` case                                                   |
+| Late writes bridged             | `saved_plan_organization_bridge` set to `WHEN 0`   | `keeps late legacy-era writes of every family mapped and conflict-free through the bridge` |
 
-Command: `env -u CLAUDECODE bun test src/organization-reconciliation.db.test.ts`: 19 pass.
+Command: `env -u CLAUDECODE bun test src/organization-reconciliation.db.test.ts`: 23 pass.
 
 ## Pending gate output
 

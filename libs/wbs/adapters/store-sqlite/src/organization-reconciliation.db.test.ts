@@ -74,6 +74,10 @@ function links(org: string): string[] {
     `INSERT INTO work_item_service (work_item_id, service_id) VALUES ('w-${org}', 'sv-${org}')`,
     `INSERT INTO work_item_external_ref (id, work_item_id, system_id, url, name, position) VALUES ('x-${org}', 'w-${org}', 'es-${org}', 'https://x', 'X', 0)`,
     `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('w-${org}', 'st-${org}', 'pe-${org}')`,
+    `INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('w-${org}', 'st-${org}', 1, 2, 3)`,
+    `INSERT INTO actual (work_item_id, step_id, days, recorded_at) VALUES ('w-${org}', 'st-${org}', 1, 1)`,
+    `INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES ('w-${org}', 'st-${org}', 'done', 1)`,
+    `INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at) VALUES ('w-${org}', 'st-${org}', 'hours_actual', 1, 1)`,
     `INSERT INTO person_team (person_id, service_team_id) VALUES ('pe-${org}', 'tm-${org}')`,
     `INSERT INTO team_service (team_id, service_id) VALUES ('tm-${org}', 'sv-${org}')`,
     `INSERT INTO project_team_capacity (project_id, service_team_id, size) VALUES ('p-${org}', 'tm-${org}', 1)`,
@@ -150,6 +154,22 @@ const INJECTIONS: Record<OwnershipConflictKind, readonly [string, string]> = {
     "INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('w2-a', 'st-b', 'pe-a')",
     'w2-a/st-b/pe-a',
   ],
+  estimate_step: [
+    "INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('w2-a', 'st-b', 1, 2, 3)",
+    'w2-a/st-b',
+  ],
+  actual_step: [
+    "INSERT INTO actual (work_item_id, step_id, days, recorded_at) VALUES ('w2-a', 'st-b', 1, 1)",
+    'w2-a/st-b',
+  ],
+  step_progress_step: [
+    "INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES ('w2-a', 'st-b', 'done', 1)",
+    'w2-a/st-b',
+  ],
+  step_measure_step: [
+    "INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at) VALUES ('w2-a', 'st-b', 'token_actual', 1, 1)",
+    'w2-a/st-b/token_actual',
+  ],
   person_team: [
     "INSERT INTO person_team (person_id, service_team_id) VALUES ('pe-a', 'tm-b')",
     'pe-a/tm-b',
@@ -183,10 +203,15 @@ describe('OrganizationOwnershipRepository.findOwnershipConflicts', () => {
     expect(await findConflicts()).toEqual([{ kind, id }]);
   });
 
-  it('keeps late legacy-era writes of every family conflict-free through the bridge', async () => {
+  it('keeps late legacy-era writes of every family mapped and conflict-free through the bridge', async () => {
     // An outgoing-release writer adds a whole project family after the legacy organization exists.
-    run(roots('c'));
-    run(links('c'));
+    // Proof: dropping `saved_plan_organization_bridge` first made this case fail on the unmapped
+    // `sp-c`. Observed 2026-09-27.
+    run([...roots('c'), ...links('c')]);
+    const repository = new OrganizationOwnershipRepository(openDrizzle(path));
+    expect((await repository.findUnmappedRoots()).filter((root) => root.id.endsWith('-c'))).toEqual(
+      [],
+    );
     expect(await findConflicts()).toEqual([]);
   });
 });

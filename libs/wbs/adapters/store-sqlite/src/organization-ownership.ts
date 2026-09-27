@@ -67,6 +67,10 @@ export const OWNERSHIP_CONFLICT_KINDS = [
   'work_item_external_ref',
   'assignment_person',
   'assignment_step',
+  'estimate_step',
+  'actual_step',
+  'step_progress_step',
+  'step_measure_step',
   'person_team',
   'team_service',
   'project_team_capacity',
@@ -83,11 +87,11 @@ export interface OwnershipConflict {
 }
 
 /** The organization owning the project in `projectColumn`, as a scalar subquery. */
-function projectOwner(projectColumn: string): string {
+function buildProjectOwnerSql(projectColumn: string): string {
   return `(SELECT organization_id FROM project_organization WHERE resource_id = ${projectColumn})`;
 }
 
-function catalogOwner(kind: CatalogRootKind, idColumn: string): string {
+function buildCatalogOwnerSql(kind: CatalogRootKind, idColumn: string): string {
   return `(SELECT organization_id FROM ${kind}_organization WHERE resource_id = ${idColumn})`;
 }
 
@@ -95,82 +99,100 @@ function catalogOwner(kind: CatalogRootKind, idColumn: string): string {
  * A work-item link to a catalog entry whose owner differs from the work item's project owner.
  * Unmapped ends compare as NULL and are left to {@link OrganizationOwnershipRepository.findUnmappedRoots}.
  */
-function workItemCatalogLink(
+function buildWorkItemCatalogConflictSql(
   table: string,
   column: string,
   kind: CatalogRootKind,
   id: string,
 ): string {
   return `SELECT ${id} AS id FROM ${table} AS l JOIN work_item AS w ON w.id = l.work_item_id
-    WHERE ${projectOwner('w.project_id')} != ${catalogOwner(kind, `l.${column}`)}`;
+    WHERE ${buildProjectOwnerSql('w.project_id')} != ${buildCatalogOwnerSql(kind, `l.${column}`)}`;
+}
+
+/** A per-step row whose step lies in another project than its work item. */
+function buildWorkItemStepConflictSql(table: string, id: string): string {
+  return `SELECT ${id} AS id FROM ${table} AS l
+    JOIN work_item AS w ON w.id = l.work_item_id JOIN step AS st ON st.id = l.step_id
+    WHERE st.project_id != w.project_id`;
 }
 
 /**
  * Every conflict query, keyed so a kind added to {@link OWNERSHIP_CONFLICT_KINDS} without a
  * query here is a type error. Each selects the conflicting rows' `id`.
  *
- * Proof: each of the seventeen queries replaced alone by one selecting nothing failed its own
+ * Proof: each of the twenty-one queries replaced alone by one selecting nothing failed its own
  * `reports a <kind> conflict` case in `organization-reconciliation.db.test.ts`. Observed
  * 2026-09-27.
  */
 const CONFLICT_QUERIES: Record<OwnershipConflictKind, string> = {
   saved_plan_project: `SELECT sp.id AS id FROM saved_plan AS sp
     WHERE (SELECT organization_id FROM saved_plan_organization WHERE resource_id = sp.id)
-      != ${projectOwner('sp.project_id')}`,
+      != ${buildProjectOwnerSql('sp.project_id')}`,
   dependency_endpoint: `SELECT d.id AS id FROM dependency AS d
     JOIN work_item AS p ON p.id = d.predecessor_id JOIN work_item AS s ON s.id = d.successor_id
     WHERE p.project_id != d.project_id OR s.project_id != d.project_id`,
   work_item_parent: `SELECT w.id AS id FROM work_item AS w JOIN work_item AS parent ON parent.id = w.parent_id
     WHERE parent.project_id != w.project_id`,
   work_item_service_team: `SELECT w.id AS id FROM work_item AS w
-    WHERE ${projectOwner('w.project_id')} != ${catalogOwner('service_team', 'w.service_team_id')}`,
+    WHERE ${buildProjectOwnerSql('w.project_id')} != ${buildCatalogOwnerSql('service_team', 'w.service_team_id')}`,
   work_item_service: `SELECT w.id AS id FROM work_item AS w
-    WHERE ${projectOwner('w.project_id')} != ${catalogOwner('service', 'w.service_id')}`,
-  work_item_tag: workItemCatalogLink(
+    WHERE ${buildProjectOwnerSql('w.project_id')} != ${buildCatalogOwnerSql('service', 'w.service_id')}`,
+  work_item_tag: buildWorkItemCatalogConflictSql(
     'work_item_tag',
     'tag_id',
     'tag',
     "l.work_item_id || '/' || l.tag_id",
   ),
-  work_item_team: workItemCatalogLink(
+  work_item_team: buildWorkItemCatalogConflictSql(
     'work_item_team',
     'team_id',
     'service_team',
     "l.work_item_id || '/' || l.team_id",
   ),
-  work_item_type: workItemCatalogLink(
+  work_item_type: buildWorkItemCatalogConflictSql(
     'work_item_work_item_type',
     'type_id',
     'work_item_type',
     "l.work_item_id || '/' || l.type_id",
   ),
-  work_item_service_link: workItemCatalogLink(
+  work_item_service_link: buildWorkItemCatalogConflictSql(
     'work_item_service',
     'service_id',
     'service',
     "l.work_item_id || '/' || l.service_id",
   ),
-  work_item_external_ref: workItemCatalogLink(
+  work_item_external_ref: buildWorkItemCatalogConflictSql(
     'work_item_external_ref',
     'system_id',
     'external_system',
     'l.id',
   ),
-  assignment_person: workItemCatalogLink(
+  assignment_person: buildWorkItemCatalogConflictSql(
     'assignment',
     'person_id',
     'person',
     "l.work_item_id || '/' || l.step_id || '/' || l.person_id",
   ),
-  assignment_step: `SELECT a.work_item_id || '/' || a.step_id || '/' || a.person_id AS id FROM assignment AS a
-    JOIN work_item AS w ON w.id = a.work_item_id JOIN step AS st ON st.id = a.step_id
-    WHERE st.project_id != w.project_id`,
+  assignment_step: buildWorkItemStepConflictSql(
+    'assignment',
+    "l.work_item_id || '/' || l.step_id || '/' || l.person_id",
+  ),
+  estimate_step: buildWorkItemStepConflictSql('estimate', "l.work_item_id || '/' || l.step_id"),
+  actual_step: buildWorkItemStepConflictSql('actual', "l.work_item_id || '/' || l.step_id"),
+  step_progress_step: buildWorkItemStepConflictSql(
+    'step_progress',
+    "l.work_item_id || '/' || l.step_id",
+  ),
+  step_measure_step: buildWorkItemStepConflictSql(
+    'step_measure',
+    "l.work_item_id || '/' || l.step_id || '/' || l.metric",
+  ),
   person_team: `SELECT pt.person_id || '/' || pt.service_team_id AS id FROM person_team AS pt
-    WHERE ${catalogOwner('person', 'pt.person_id')} != ${catalogOwner('service_team', 'pt.service_team_id')}`,
+    WHERE ${buildCatalogOwnerSql('person', 'pt.person_id')} != ${buildCatalogOwnerSql('service_team', 'pt.service_team_id')}`,
   team_service: `SELECT ts.team_id || '/' || ts.service_id AS id FROM team_service AS ts
-    WHERE ${catalogOwner('service_team', 'ts.team_id')} != ${catalogOwner('service', 'ts.service_id')}`,
+    WHERE ${buildCatalogOwnerSql('service_team', 'ts.team_id')} != ${buildCatalogOwnerSql('service', 'ts.service_id')}`,
   project_team_capacity: `SELECT c.project_id || '/' || c.service_team_id AS id FROM project_team_capacity AS c
-    WHERE ${projectOwner('c.project_id')} != ${catalogOwner('service_team', 'c.service_team_id')}`,
+    WHERE ${buildProjectOwnerSql('c.project_id')} != ${buildCatalogOwnerSql('service_team', 'c.service_team_id')}`,
   plan_event_subject: `SELECT e.id AS id FROM plan_event AS e
     WHERE EXISTS (SELECT 1 FROM work_item AS w WHERE w.id = e.work_item_id AND w.project_id != e.project_id)
       OR EXISTS (SELECT 1 FROM step AS st WHERE st.id = e.step_id AND st.project_id != e.project_id)`,
