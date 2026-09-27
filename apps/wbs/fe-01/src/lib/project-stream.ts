@@ -19,8 +19,14 @@ export interface StreamSocket {
  * Handlers are passed in rather than a `WebSocket`-shaped object being returned,
  * so a test can supply a socket without emulating `EventTarget` — and so nothing
  * here has to cast a fake into a `WebSocket`.
+ *
+ * Where to connect is the opener's own business, not a parameter: the browser's
+ * opener reads the page's `location`, and an injected one reads no browser
+ * global at all. A URL resolved by the caller and passed in made every injected
+ * socket read `location` anyway, which the `node` test tier reported as 29
+ * unhandled `ReferenceError`s from `session-runtime.model.test.ts`.
  */
-export type OpenSocket = (url: string, handlers: SocketHandlers) => StreamSocket;
+export type OpenSocket = (handlers: SocketHandlers) => StreamSocket;
 
 export interface ProjectStreamDeps {
   openSocket: OpenSocket;
@@ -90,8 +96,8 @@ const BASE_DELAY_MS = 500;
 const MAX_DELAY_MS = 15_000;
 
 const browserDeps: ProjectStreamDeps = {
-  openSocket: (url, handlers) => {
-    const socket = new WebSocket(url);
+  openSocket: (handlers) => {
+    const socket = new WebSocket(websocketUrl());
     socket.addEventListener('open', () => {
       handlers.onOpen();
     });
@@ -277,7 +283,10 @@ export function subscribeToProject(
     // stale open send three extra frames, and stale resume/presence call their owners
     // in `ignores stale %s from the physical socket replaced by a reconnect`.
     const isCurrent = () => !unsubscribed && socketEpoch === epoch;
-    socket = deps.openSocket(websocketUrl(), {
+    // Proof: a `websocketUrl()` call restored here (2026-09-27), with the model's
+    // silent socket still injected, made `session-runtime.model.test.ts` raise 29
+    // unhandled `location is not defined` in the node tier.
+    socket = deps.openSocket({
       onOpen: () => {
         if (!isCurrent()) return;
         socket?.send(wsSubscribe(subscription));
