@@ -1301,6 +1301,19 @@
         }
       ],
       "obligationIds": []
+    },
+    {
+      "boundaryId": "boundary.frontend.saved-plans",
+      "selector": { "kind": "prefix", "value": "apps/wbs/fe-01/src/modules/saved-plans" },
+      "sourceSelector": { "kind": "prefix", "value": "apps/fe-01/src/lib/saved-plan-shelf.ts" },
+      "baselineEntries": [
+        {
+          "mode": "100644",
+          "blob": "4befe358d23ee0fcfdbbd73f76e89d93334239d7",
+          "path": "apps/fe-01/src/lib/saved-plan-shelf.ts"
+        }
+      ],
+      "obligationIds": []
     }
   ],
   "obligations": [],

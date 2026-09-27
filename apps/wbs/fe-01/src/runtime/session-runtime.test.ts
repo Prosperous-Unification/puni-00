@@ -10,6 +10,7 @@ import {
   type ProjectSource,
 } from '@/modules/project/contract';
 import { fakeProjectApi } from '@/testing/fake-project-api';
+import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';
 import { recordCalls } from '@/testing/record-calls';
 
 import { credentialOf } from './credential';
@@ -24,7 +25,7 @@ import {
 
 /** A project source over a fresh fake client, with no socket. */
 const projectSource = (): ProjectSource => ({
-  services: projectServicesOver(fakeProjectApi()),
+  services: projectServicesOver(fakeProjectApi(), NO_SAVED_PLANS),
   subscribe: undefined,
 });
 

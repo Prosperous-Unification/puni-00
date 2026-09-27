@@ -798,6 +798,31 @@
           { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/session-runtime.ts" }
         ]
       }
+    },
+    {
+      "moduleId": "module.frontend.saved-plans",
+      "name": "Saved plans frontend module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "apps/wbs/fe-01/src/modules/saved-plans",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "apps/wbs/fe-01/src/modules/saved-plans/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/saved-plan-list.tsx" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/components/wbs/saved-plans-panel.tsx" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/lib/saved-plan-save.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/composition.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/modules/project/contract.ts" },
+          { "kind": "path", "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts" }
+        ]
+      }
     }
   ]
 }

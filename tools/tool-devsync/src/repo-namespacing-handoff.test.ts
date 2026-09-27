@@ -623,7 +623,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'current recursive selector': 34,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 44,
-      'historical policy selector or baseline': 87,
+      'historical policy selector or baseline': 89,
       'production proof or revision transition': 18,
       'test fixture or proof': 106,
     },
@@ -865,8 +865,13 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // suite failed on the observed digest below at the same 308 occurrences and categories:
     // every context the project carries kept its match and class and changed only the path it
     // is reported under, none unclassified (2026-09-25).
-    digest: 'c0a77f3355f27bc1e8fa7f23bd427c7b4cc7c068e6f787bb1552364482f28c22',
-    occurrences: 308,
+    // Proof: registering the saved-plans frontend module added `boundary.frontend.saved-plans`'s
+    // `sourceSelector` and one `baselineEntries` path, naming the pre-namespacing
+    // `apps/fe-01/src/lib/saved-plan-shelf.ts`; leaving `c0a77f33…` at 308 here failed with
+    // `- Expected - 3 / + Received + 3`, `historical policy selector or baseline` 87 to 89,
+    // occurrences 308 to 310, none unclassified (2026-09-27).
+    digest: 'e00989df4879377d1041074af17939a9e5385bbdf83a01ab048c9abba2629369',
+    occurrences: 310,
     unclassified: [],
   });
 });

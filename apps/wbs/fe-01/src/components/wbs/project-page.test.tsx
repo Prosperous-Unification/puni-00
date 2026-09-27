@@ -24,6 +24,7 @@ import {
   type HeldByFake,
   writeRefusingBrowserStorage,
 } from '@/modules/preferences/fake-browser-storage';
+import type { SavedPlanRoutes } from '@/modules/saved-plans/contract';
 import { type ApplicationServices, installApplicationRuntime } from '@/runtime/application-runtime';
 import {
   ApplicationServicesProvider,
@@ -38,7 +39,6 @@ import { refusingApi } from '@/testing/refusing-api';
 import { planRead } from '@/testing/views';
 
 import { recallLastProject, rememberLastProject } from './project-page';
-import type { SavedPlansPanelDeps } from './saved-plans-panel';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -321,9 +321,9 @@ const savedPlanRenameReply = (): SavedPlanRenameReply => ({
  * page around it is tested with, which is the same bargain `api` already makes
  * one prop up.
  */
-const fakeSavedPlansDeps = (
+const fakeSavedPlanRoutes = (
   rows: readonly SavedPlanListEntryView[] = [CHECKPOINT],
-): SavedPlansPanelDeps => ({
+): SavedPlanRoutes => ({
   available: () => Promise.resolve(true),
   list: () => Promise.resolve(savedPlanListReply(rows)),
   subscribe: () => ({ unsubscribe: () => undefined }),
@@ -332,8 +332,8 @@ const fakeSavedPlansDeps = (
   rename: () => Promise.resolve(savedPlanRenameReply()),
 });
 
-const pageWith = (api: ProjectApi, savedPlansDeps: SavedPlansPanelDeps = fakeSavedPlansDeps()) =>
-  render(<ProjectPageOverOwner api={api} savedPlansDeps={savedPlansDeps} />);
+const pageWith = (api: ProjectApi, savedPlanRoutes: SavedPlanRoutes = fakeSavedPlanRoutes()) =>
+  render(<ProjectPageOverOwner api={api} savedPlanRoutes={savedPlanRoutes} />);
 
 const picker = () => screen.getByLabelText<HTMLInputElement>('Project');
 
@@ -530,7 +530,9 @@ describe('opening an imported project', () => {
       expect(importPlan).toHaveBeenCalledTimes(1);
     });
 
-    view.rerender(<ProjectPageOverOwner api={replacement} savedPlansDeps={fakeSavedPlansDeps()} />);
+    view.rerender(
+      <ProjectPageOverOwner api={replacement} savedPlanRoutes={fakeSavedPlanRoutes()} />,
+    );
     await act(async () => {
       finishImport(IMPORTED);
       await Promise.resolve();
@@ -572,7 +574,7 @@ describe('opening an imported project', () => {
       importFile();
 
       view.rerender(
-        <ProjectPageOverOwner api={replacement} savedPlansDeps={fakeSavedPlansDeps()} />,
+        <ProjectPageOverOwner api={replacement} savedPlanRoutes={fakeSavedPlanRoutes()} />,
       );
       await act(async () => {
         finishRead();
@@ -609,7 +611,9 @@ describe('opening an imported project', () => {
       expect(listProjects).toHaveBeenCalledTimes(2);
     });
 
-    view.rerender(<ProjectPageOverOwner api={replacement} savedPlansDeps={fakeSavedPlansDeps()} />);
+    view.rerender(
+      <ProjectPageOverOwner api={replacement} savedPlanRoutes={fakeSavedPlanRoutes()} />,
+    );
     await act(async () => {
       finishCatalogue([
         ...TWO,
@@ -1328,8 +1332,8 @@ describe('the saved-plan shelf is on the project page', () => {
     */
     const OTHER: SavedPlanListEntryView = { ...CHECKPOINT, id: 'sp9', name: 'the other project’s' };
     const compared: [string, unknown][] = [];
-    const deps: SavedPlansPanelDeps = {
-      ...fakeSavedPlansDeps(),
+    const deps: SavedPlanRoutes = {
+      ...fakeSavedPlanRoutes(),
       list: (projectId: string) =>
         Promise.resolve(savedPlanListReply([projectId === 'p2' ? CHECKPOINT : OTHER])),
       compare: (projectId, left) => {
@@ -1485,7 +1489,7 @@ describe('the remembered project, over the runtime live when it is used', () => 
   const pageUnder = (slot: LifetimeSlot<ApplicationServices>, api: ProjectApi) =>
     render(
       <ApplicationServicesProvider slot={slot}>
-        <ProjectPageOverOwner api={api} savedPlansDeps={fakeSavedPlansDeps()} />
+        <ProjectPageOverOwner api={api} savedPlanRoutes={fakeSavedPlanRoutes()} />
       </ApplicationServicesProvider>,
     );
 
