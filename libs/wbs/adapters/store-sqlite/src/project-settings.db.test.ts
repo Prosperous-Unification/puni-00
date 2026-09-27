@@ -40,6 +40,13 @@ const EXTERNAL_REF_NAME = '20260909120000_add_external_ref_name';
  * was newest.
  */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
+/**
+ * The newest: the nullable step code column and its partial unique index
+ * `address-step-nodes` adds. One `ADD COLUMN` and one `CREATE UNIQUE INDEX`
+ * forward, the index and the column back, so it heads every descending reversal
+ * list and tails every ascending one.
+ */
+const STEP_CODE = '20260927150000_add_step_code';
 
 /** The one below it, which is where every rollback here stops. */
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
@@ -168,6 +175,7 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        STEP_CODE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -205,6 +213,7 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        STEP_CODE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -285,6 +294,7 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        STEP_CODE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,

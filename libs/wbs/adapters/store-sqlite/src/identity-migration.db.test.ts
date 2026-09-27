@@ -83,6 +83,13 @@ const EXTERNAL_REF_NAME = '20260909120000_add_external_ref_name';
  * was newest.
  */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
+/**
+ * The newest: the nullable step code column and its partial unique index
+ * `address-step-nodes` adds. One `ADD COLUMN` and one `CREATE UNIQUE INDEX`
+ * forward, the index and the column back, so it heads every descending reversal
+ * list and tails every ascending one.
+ */
+const STEP_CODE = '20260927150000_add_step_code';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -98,6 +105,7 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    STEP_CODE,
     WORK_ITEM_FACTS,
     EXTERNAL_REF_NAME,
     WORK_ITEM_DEADLINE,
@@ -199,6 +207,7 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        STEP_CODE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
@@ -265,6 +274,7 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        STEP_CODE,
         WORK_ITEM_FACTS,
         EXTERNAL_REF_NAME,
         WORK_ITEM_DEADLINE,
