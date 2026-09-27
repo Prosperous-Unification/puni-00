@@ -1672,3 +1672,217 @@ describe('InMemoryMcpOAuth', () => {
     expect(revoked).toEqual(['provider-refresh-token']);
   });
 });
+
+describe('OAuth client redirects', () => {
+  const HOSTED = [
+    'https://claude.ai/api/mcp/auth_callback',
+    'https://claude.com/api/mcp/auth_callback',
+    'https://vscode.dev/redirect',
+    'https://www.perplexity.ai/rest/connections/oauth_callback',
+    'https://enterprise.perplexity.ai/rest/connections/oauth_callback',
+    'https://chatgpt.com/connector_platform_oauth_redirect',
+  ];
+
+  it.each(HOSTED)('registers the reviewed hosted callback %s', async (uri) => {
+    const { oauth } = fixture();
+    expect((await registrationResponse(oauth, [uri])).status).toBe(201);
+  });
+
+  it.each([
+    'http://127.0.0.1:1/callback',
+    'http://127.0.0.1:54321/oauth/callback',
+    'http://localhost:65535/callback',
+    'http://localhost/callback',
+    'http://[::1]:49152/callback',
+    'https://127.0.0.1:8443/callback',
+    'http://localhost:6274/oauth/callback?client=inspector',
+  ])('registers the loopback callback %s at any valid port', async (uri) => {
+    const { oauth } = fixture();
+    expect((await registrationResponse(oauth, [uri])).status).toBe(201);
+  });
+
+  // Proof: on 2026-09-27, admitting a parsed https host that `endsWith` a reviewed hostname on the
+  // same path failed this test for evilvscode.dev, evilclaude.ai, VSCODE.dev, :443, :8443, the
+  // dot-segment path, credentials, query and fragment (`Expected: 400`, `Received: 201`).
+  it.each([
+    'https://claude.ai.evil.example/api/mcp/auth_callback',
+    'https://evilclaude.ai/api/mcp/auth_callback',
+    'https://evilvscode.dev/redirect',
+    'https://vscode.dev.evil.example/redirect',
+    'https://vscode.dev/redirect/',
+    'https://vscode.dev/Redirect',
+    'https://VSCODE.dev/redirect',
+    'https://vscode.dev:443/redirect',
+    'https://vscode.dev:8443/redirect',
+    'http://vscode.dev/redirect',
+    'https://vscode.dev/redirect?next=1',
+    'https://vscode.dev/redirect#fragment',
+    'https://user:secret@vscode.dev/redirect',
+    'https://vscode.dev/a/../redirect',
+    'https://perplexity.ai/rest/connections/oauth_callback',
+    'https://www.perplexity.ai.evil.example/rest/connections/oauth_callback',
+    'https://chatgpt.com/connector/oauth/abc123',
+    'https://chatgpt.com/connector_platform_oauth_redirect/extra',
+    'https://10.0.0.1/callback',
+    'http://192.168.1.2:8080/callback',
+    'http://0.0.0.0:8080/callback',
+    'http://127.1:8080/callback',
+    'http://LOCALHOST:8080/callback',
+    'http://localhost.evil.example:8080/callback',
+    'http://127.0.0.1:0/callback',
+    'http://[::1]:0/callback',
+    'http://localhost:080/callback',
+    'http://localhost:65536/callback',
+    'http://user@localhost:8080/callback',
+    'http://localhost:8080/callback#fragment',
+    'http://localhost:8080/callback?code=planted',
+    'http://localhost:8080/callback?state=planted',
+    'http://localhost:8080/callback?iss=planted',
+    'http://localhost:8080/callback?error=planted',
+    'javascript://localhost/%0aalert(1)',
+  ])('refuses the near-miss callback %s', async (uri) => {
+    const { oauth } = fixture();
+    const response = await registrationResponse(oauth, [uri]);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'invalid_redirect_uri' });
+  });
+
+  async function registeredClient(
+    oauth: InMemoryMcpOAuth,
+    redirectUris: readonly string[],
+  ): Promise<string> {
+    const registration = await registrationResponse(oauth, redirectUris);
+    expect(registration.status).toBe(201);
+    return ((await registration.json()) as { client_id: string }).client_id;
+  }
+
+  async function codeFor(
+    oauth: InMemoryMcpOAuth,
+    clientId: string,
+    redirectUri: string,
+    verifier: string,
+  ): Promise<URL> {
+    const url = authorizeUrl(clientId, redirectUri);
+    url.searchParams.set('code_challenge', challengeOf(verifier));
+    const started = await oauth.response(new Request(url));
+    expect(started?.status).toBe(302);
+    const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    const upstream = new URL(started?.headers.get('location') ?? 'https://invalid');
+    const completed = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=upstream&state=${String(upstream.searchParams.get('state'))}`,
+        { headers: { cookie: binding } },
+      ),
+    );
+    expect(completed?.status).toBe(302);
+    return new URL(completed?.headers.get('location') ?? 'https://invalid');
+  }
+
+  function exchange(
+    oauth: InMemoryMcpOAuth,
+    clientId: string,
+    code: string,
+    verifier: string,
+    redirectUri: string,
+  ): Promise<Response | undefined> {
+    return oauth.response(
+      new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/token', {
+        body: new URLSearchParams({
+          client_id: clientId,
+          code,
+          code_verifier: verifier,
+          grant_type: 'authorization_code',
+          redirect_uri: redirectUri,
+        }),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        method: 'POST',
+      }),
+    );
+  }
+
+  it('carries a loopback client through authorization and token exchange at its own port', async () => {
+    const { oauth } = fixture();
+    const loopback = 'http://127.0.0.1:54321/oauth/callback';
+    const clientId = await registeredClient(oauth, [loopback]);
+    const verifier = 'l'.repeat(43);
+    const returned = await codeFor(oauth, clientId, loopback, verifier);
+
+    expect(`${returned.origin}${returned.pathname}`).toBe(loopback);
+    const code = returned.searchParams.get('code') ?? '';
+    const otherPort = await exchange(
+      oauth,
+      clientId,
+      code,
+      verifier,
+      'http://127.0.0.1:54322/oauth/callback',
+    );
+    expect(otherPort?.status).toBe(400);
+    expect(await otherPort?.json()).toEqual({ error: 'invalid_grant' });
+  });
+
+  it('exchanges a loopback code only with the unchanged redirect', async () => {
+    const { oauth } = fixture();
+    const loopback = 'http://[::1]:49152/callback';
+    const clientId = await registeredClient(oauth, [loopback]);
+    const verifier = 'm'.repeat(43);
+    const code = (await codeFor(oauth, clientId, loopback, verifier)).searchParams.get('code');
+
+    expect((await exchange(oauth, clientId, code ?? '', verifier, loopback))?.status).toBe(200);
+  });
+
+  it('authorizes only a URI registered to that client, even when it is allowlisted', async () => {
+    const { oauth } = fixture();
+    const clientId = await registeredClient(oauth, ['https://vscode.dev/redirect']);
+    const response = await oauth.response(
+      new Request(
+        authorizeUrl(clientId, 'https://www.perplexity.ai/rest/connections/oauth_callback'),
+      ),
+    );
+
+    expect(response?.status).toBe(400);
+    expect(response?.headers.get('location')).toBeNull();
+    expect(await response?.json()).toEqual({ error: 'invalid_request' });
+  });
+
+  // Proof: on 2026-09-27, dropping the `redirect_uri !== grant.redirectUri` comparison from token
+  // exchange failed this test and the loopback other-port test (`Expected: 400`, `Received: 200`).
+  it('refuses a token exchange that substitutes another registered redirect, and burns the code', async () => {
+    const { oauth } = fixture();
+    const vscode = 'https://vscode.dev/redirect';
+    const claude = 'https://claude.ai/api/mcp/auth_callback';
+    const clientId = await registeredClient(oauth, [vscode, claude]);
+    const verifier = 's'.repeat(43);
+    const code = (await codeFor(oauth, clientId, vscode, verifier)).searchParams.get('code') ?? '';
+
+    const substituted = await exchange(oauth, clientId, code, verifier, claude);
+    expect(substituted?.status).toBe(400);
+    expect(await substituted?.json()).toEqual({ error: 'invalid_grant' });
+    expect((await exchange(oauth, clientId, code, verifier, vscode))?.status).toBe(400);
+  });
+
+  // RFC 9207: the issuer in every authorization response lets a client with several
+  // authorization servers (ChatGPT's stable callback) detect a mix-up.
+  it('names the WBS issuer on successful and failed authorization redirects', async () => {
+    const { oauth } = fixture();
+    const clientId = await registeredClient(oauth, [
+      'https://chatgpt.com/connector_platform_oauth_redirect',
+    ]);
+    const success = await codeFor(
+      oauth,
+      clientId,
+      'https://chatgpt.com/connector_platform_oauth_redirect',
+      'i'.repeat(43),
+    );
+    expect(success.searchParams.get('iss')).toBe('https://dev.wbs.bulletpoints.club/mcp/oauth');
+    expect(success.searchParams.get('code')).not.toBeNull();
+
+    const refused = fixture({
+      verifyUpstream: () =>
+        Promise.resolve({ iss: 'https://idp.example', sub: 'person-1', wbs_groups: [] }),
+    });
+    const refusedClient = await registeredClient(refused.oauth, [CALLBACK]);
+    const failure = await codeFor(refused.oauth, refusedClient, CALLBACK, 'j'.repeat(43));
+    expect(failure.searchParams.get('error')).toBe('access_denied');
+    expect(failure.searchParams.get('iss')).toBe('https://dev.wbs.bulletpoints.club/mcp/oauth');
+  });
+});

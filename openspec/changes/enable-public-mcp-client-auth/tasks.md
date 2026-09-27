@@ -6,9 +6,9 @@
 
 ## 2. Bound OAuth redirects
 
-- [ ] 2.1 Add failing mounted registration, authorization and token tests for every exact hosted URI and loopback arbitrary ports; add negatives for lookalikes, path/query/port changes, credentials, fragments and redirect substitution.
-- [ ] 2.2 Implement the reviewed allowlist, with ChatGPT stable URI gated on issuer proof and exact per-connection entries for callback-ID mode. Retain exact registration and grant binding.
-- [ ] 2.3 Inject host-suffix acceptance and swapped token redirect; watch mounted negatives fail, restore and add Proof: comments.
+- [x] 2.1 Add failing mounted registration, authorization and token tests for every exact hosted URI and loopback arbitrary ports; add negatives for lookalikes, path/query/port changes, credentials, fragments and redirect substitution.
+- [x] 2.2 Implement the reviewed allowlist, with ChatGPT stable URI gated on issuer proof and exact per-connection entries for callback-ID mode. Retain exact registration and grant binding.
+- [x] 2.3 Inject host-suffix acceptance and swapped token redirect; watch mounted negatives fail, restore and add Proof: comments.
 
 ## 3. Prove write and renewal
 

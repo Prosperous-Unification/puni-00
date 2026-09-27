@@ -44,3 +44,21 @@ consistent URLs` (http.test.ts) checks status, JSON content type and resource/is
   issuer `https://dev.wbs.bulletpoints.club/mcp/oauth`. On `https://wbs.bulletpoints.club` all
   three returned 200 `text/html` (the SPA), because prod still serves from the compose vhost.
   The k3s prod overlay is not deployed; public prod discovery stays unproven.
+
+### 2. Bounded redirects
+
+- `isRedirect` admits the six reviewed hosted callbacks as exact strings and a literal loopback
+  host (`localhost`, `127.0.0.1`, `[::1]`) over HTTP(S) at any port from 1 to 65535. A loopback
+  query may not pre-set `code`, `state`, `iss` or `error*`. ChatGPT's stable
+  `https://chatgpt.com/connector_platform_oauth_redirect` is admitted because every
+  authorization response now carries the RFC 9207 `iss` and metadata advertises
+  `authorization_response_iss_parameter_supported`. Callback-ID URIs stay out.
+- `OAuth client redirects` (oauth.test.ts) covers each hosted entry, seven loopback shapes, 35
+  near-misses, a loopback flow at its own port, another-port and substituted-redirect token
+  refusals, exact per-client authorization and `iss` on success and `access_denied`.
+  `bunx nx run wbs-mcp-01:test --skip-nx-cache`: 267 tests, all pass.
+- R5 proof: a parsed `hostname.endsWith` hosted match failed nine near-miss cases with
+  `Expected: 400`, `Received: 201`. Removing the token `redirect_uri` comparison failed the
+  substitution and loopback other-port tests with `Received: 200`. Both restored.
+- Not proven: that ChatGPT's connection displays the stable URI, and that Claude, VS Code and
+  Perplexity accept the added `iss` parameter. Both need the live client acceptance run.
