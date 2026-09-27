@@ -40,7 +40,7 @@ import type { StepState } from '../progress';
  */
 export interface CanonicalPlanInput {
   /** Bumped whenever this field list changes; the body carries it. */
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly project: CanonicalProject;
   /** Sorted by `id`. */
   readonly workItems: readonly CanonicalWorkItem[];
@@ -182,6 +182,12 @@ export interface CanonicalStep {
   readonly id: string;
   readonly name: string;
   readonly position: number;
+  /**
+   * The step's estimate allowance when the plan was saved — history, never
+   * the live project's (`add-project-step-estimate-allowances`). A version-1
+   * body predates allowances and is read at 0% by the `1` upgrade.
+   */
+  readonly allowancePercent: number;
 }
 
 /** The three-point estimate, the derived number, the actual and the progress. */
@@ -330,7 +336,7 @@ export interface PlanInputRows {
 }
 
 /** The one version this module writes. Stored bodies carry it; readers check it. */
-export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 1 as const;
+export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 2 as const;
 
 const byString =
   <T>(...keys: readonly ((row: T) => string)[]) =>
@@ -432,6 +438,7 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
       id: row.id,
       name: row.name,
       position: row.position,
+      allowancePercent: row.allowancePercent,
     })),
     stepValues: sorted(
       values.stepValues,

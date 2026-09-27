@@ -285,8 +285,11 @@ describe('every plan schedules identically across the migration', () => {
         // `code` is lifted by `address-step-nodes` and asserted: the oracle
         // predates step codes, and each replayed step carries the code its
         // name suggests. A step code names a step; it moves no date.
-        steps: tree.steps.map(({ code, ...step }) => {
+        steps: tree.steps.map(({ code, allowancePercent, ...step }) => {
           expect(code).toBe(suggestStepCode(step.name, new Set()));
+          // The capture also predates step allowances: every replayed step carries
+          // the 0% the migration gives it.
+          expect(allowancePercent).toBe(0);
           return step;
         }),
         // `capacityTeamId` is lifted off every slice for `teamIds`' reason and
@@ -626,6 +629,7 @@ describe('every plan schedules identically across the migration', () => {
       name: `Step ${String(place)}`,
       code: `step-${String(place)}`,
       position: (place + 1) * STEP_POSITION_STEP,
+      allowancePercent: 0,
     }));
     await projects.create(project, steps, STAMP);
     for (const row of plan.rows) {

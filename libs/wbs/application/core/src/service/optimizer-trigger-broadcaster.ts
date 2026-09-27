@@ -7,6 +7,9 @@ function changesScheduleInput(event: ProjectEvent): boolean {
     event.type === 'tree_replaced' ||
     event.type === 'step_added' ||
     event.type === 'step_removed' ||
+    // Proof: with this line removed, `starts the optimizer debounce after a
+    // step allowance edit` saw no trigger (2026-09-27).
+    event.type === 'step_updated' ||
     event.type === 'directory_changed' ||
     event.type === 'capacity_changed' ||
     event.type === 'project_settings_changed'

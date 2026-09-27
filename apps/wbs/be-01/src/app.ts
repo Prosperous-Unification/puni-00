@@ -6,6 +6,7 @@ import type {
   ReplayOrchestrator,
   SavedPlanService,
 } from '@wbs/core';
+import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
 
@@ -208,6 +209,10 @@ export function mountedEndpoints(
     uow: opts.writes.uow,
     announcements: opts.writes.announcements,
   });
+  // A project reach change and a step removal read the combined dependency
+  // graph before they write, so each runs as one unit of work: a write landing
+  // between the check and the write could otherwise leave a cycle.
+  const admitted = admittedWrites(opts.writes);
   return [
     // Proof: omitting health and metrics separately made app.routes.test.ts
     // expect 40 local bindings and receive 39 for each injected fault.
@@ -230,14 +235,28 @@ export function mountedEndpoints(
     // Proof: omitting this binding made “binds each shared HTTP shape once”
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
-    ...stepRoutes(opts.steps),
+    ...stepRoutes(
+      {
+        add: (...args) => opts.steps.add(...args),
+        rename: (...args) => opts.steps.rename(...args),
+        find: (...args) => opts.steps.find(...args),
+        remove: admitted.removeStep,
+      },
+      commands,
+    ),
     ...directoryRoutes(opts.directory),
     ...historyRoutes(opts.history),
     ...solutionRoutes(opts.projects),
     // Proof: omitting this spread made the production import reachability test receive 404.
     ...importRoutes(opts.writes.imports),
     ...projectRoutes(
-      opts.projects,
+      {
+        create: (...args) => opts.projects.create(...args),
+        list: (...args) => opts.projects.list(...args),
+        open: (...args) => opts.projects.open(...args),
+        read: (...args) => opts.projects.read(...args),
+        update: admitted.updateProject,
+      },
       opts.workItems,
       opts.directory,
       opts.calendarMarkers,

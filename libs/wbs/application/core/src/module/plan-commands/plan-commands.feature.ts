@@ -158,6 +158,7 @@ const CALENDAR_AFFECTING_KINDS: ReadonlySet<PlanCommandKind> = new Set([
   'setAssignee',
   'addDependency',
   'setCapacity',
+  'setStepAllowance',
 ]);
 
 /**

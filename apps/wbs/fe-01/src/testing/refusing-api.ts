@@ -37,12 +37,13 @@ import {
   updateCalendarMarker,
 } from '@wbs/contracts';
 
-import type {
-  CalendarMarkerView,
-  DeleteOptions,
-  PlanRead,
-  ProjectApi,
-  WbsOperationId,
+import {
+  type CalendarMarkerView,
+  type DeleteOptions,
+  type PlanRead,
+  type ProjectApi,
+  stepViewOf,
+  type WbsOperationId,
 } from '@/lib/wbs-api';
 
 /**
@@ -195,6 +196,7 @@ const PROJECT_API_OPERATIONS = {
   steps: 'getApiProjectsById',
   addStep: 'postApiProjectsByIdSteps',
   renameStep: 'patchApiProjectsByIdStepsByStepId',
+  setStepAllowance: 'patchApiProjectsByIdStepsByStepId',
   removeStep: 'deleteApiProjectsByIdStepsByStepId',
   createWorkItem: 'postApiProjectsByIdCommands',
   patchWorkItem: 'postApiProjectsByIdCommands',
@@ -690,7 +692,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       const reply = await client.getApiProjectsById({ params: { id: projectId } });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
-      return reply.body.steps.map((step) => ({ id: step.id, name: step.name }));
+      return reply.body.steps.map(stepViewOf);
     };
   }
 
@@ -795,7 +797,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       // name; refusing-api.test.ts observed the mutation spy called and no rejection.
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
-      return { id: reply.body.step.id, name: reply.body.step.name };
+      return stepViewOf(reply.body.step);
     };
   }
 
@@ -1029,8 +1031,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       const started = startMutation(
         renameStep,
         { params: { id: projectId, stepId }, body: { name } },
-        (prepared) =>
-          renameStepAnswer(prepared.params.id, prepared.params.stepId, prepared.body.name),
+        (prepared) => renameStepAnswer(prepared.params.id, prepared.params.stepId, name),
       );
       const { prepared, mutation } = isPromiseLike(started) ? await started : started;
       const client = clientFromShapes([renameStep], async () => {
@@ -1058,11 +1059,44 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       });
       if (reply.kind === 'failure') boundaryFailure(reply.failure);
       if (reply.kind === 'refusal') throw new Error(reply.body.error);
-      return { id: reply.body.step.id, name: reply.body.step.name };
+      return stepViewOf(reply.body.step);
     };
   }
 
   const removeStepAnswer = answers.removeStep;
+  const setStepAllowanceAnswer = answers.setStepAllowance;
+  if (setStepAllowanceAnswer !== undefined) {
+    checked.setStepAllowance = async (projectId, stepId, allowancePercent) => {
+      const started = startMutation(
+        renameStep,
+        { params: { id: projectId, stepId }, body: { allowancePercent } },
+        (prepared) =>
+          setStepAllowanceAnswer(prepared.params.id, prepared.params.stepId, allowancePercent),
+      );
+      const { prepared, mutation } = isPromiseLike(started) ? await started : started;
+      const client = clientFromShapes([renameStep], async () => {
+        try {
+          const step = await mutation;
+          return { kind: 'json', status: 200, body: { step: { ...step, projectId, position: 0 } } };
+        } catch (cause) {
+          if (!(cause instanceof Error)) throw cause;
+          if (cause.message === 'invalid_allowance')
+            return { kind: 'json', status: 422, body: { error: 'invalid_allowance' } };
+          if (cause.message === 'not_found')
+            return { kind: 'json', status: 404, body: { error: 'not_found' } };
+          throw cause;
+        }
+      });
+      const reply = await client.patchApiProjectsByIdStepsByStepId({
+        params: prepared.params,
+        body: prepared.body,
+      });
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
+      return stepViewOf(reply.body.step);
+    };
+  }
+
   if (removeStepAnswer !== undefined) {
     checked.removeStep = async (projectId, stepId, cascade) => {
       const started = startMutation(

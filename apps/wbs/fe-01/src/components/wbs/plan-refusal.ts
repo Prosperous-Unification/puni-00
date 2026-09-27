@@ -191,6 +191,7 @@ function stepWriteCode(refusal: RefusalOf<'postApiProjectsByIdSteps'>): string {
     case 'invalid_json':
     case 'taken':
     case 'invalid_body':
+    case 'invalid_allowance':
     case 'invalid_code':
     case 'reserved_code':
     case 'code_taken':
@@ -358,6 +359,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'in_use':
     case 'calendar_range':
     case 'deadline_before_project_start':
+    case 'allowancePercent_must_be_0_to_1000_with_two_decimals':
       return refusal.error;
     default:
       return unreachable(refusal);

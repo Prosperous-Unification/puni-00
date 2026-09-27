@@ -250,6 +250,13 @@ export const commandDefinitions = {
     scope: 'project',
     description: 'How many of a team may be at work at once on this project; null means unstated.',
   }),
+  setStepAllowance: defineCommand('setStepAllowance', {
+    schema: type({ kind: "'setStepAllowance'", stepId: 'string', allowancePercent: 'number' }),
+    scope: 'project',
+    description:
+      'Set one project step’s estimate allowance: a percentage from 0 to 1000 with at most ' +
+      'two decimal places, applied to every estimate for that step before rounding. One undo.',
+  }),
   setPriorityBands: defineCommand('setPriorityBands', {
     schema: type({
       kind: "'setPriorityBands'",

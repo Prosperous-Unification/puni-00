@@ -235,6 +235,7 @@ async function seedMemorySource(
         name: stepIndex === 0 ? 'Dev' : 'QA',
         code: stepIndex === 0 ? 'dev' : 'qa',
         position: (stepIndex + 1) * 10,
+        allowancePercent: 0,
       }));
       await stores.projects.create(
         projectRow({
@@ -725,6 +726,7 @@ async function seedProgressStep(source: MemorySource): Promise<void> {
       id: PROGRESS_SENTINEL_STEP_ID,
       projectId: DETERMINISTIC_SEED.projectIds[0],
       name: 'Review',
+      allowancePercent: 0,
     },
     DETERMINISTIC_SEED.stamps[0],
   );

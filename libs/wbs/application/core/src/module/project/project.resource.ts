@@ -1,5 +1,5 @@
 import { canEditProject, DEFAULT_ESTIMATE_RULE, isIsoDate, PertWeights } from '@wbs/domain';
-import { STEP_POSITION_STEP, suggestStepCodes } from '@wbs/domain';
+import { NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCodes } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
 import type { Clock } from '../../ports/clock';
@@ -170,6 +170,7 @@ export class ProjectService {
       name: stepName,
       position: (place + 1) * STEP_POSITION_STEP,
       code: codes[place],
+      allowancePercent: NO_ALLOWANCE,
     }));
     // The store's answer rather than the seed: `create` fills the three
     // settings from the column defaults, so the seed is a `NewProject` and only
@@ -258,8 +259,9 @@ export class ProjectService {
     if (turnsTheOptimizerOn(project, patch) && !this.optimizerAvailable()) {
       return { ok: false, reason: 'optimizer_unavailable' };
     }
-    // Asked of the state the patch would leave, before the write. A project
-    // PATCH is not a batch, so there is no transaction to roll back after it.
+    // Asked of the state the patch would leave, before the write. The route
+    // runs this whole method as one unit of work (`admitted-write.ts`), so no
+    // other write lands between this read and the write below.
     // Proof: this check skipped made the mounted `refuses a depReach change
     // that closes a step-node cycle` fail on `Expected: 409, Received: 200`;
     // watched 2026-09-27.

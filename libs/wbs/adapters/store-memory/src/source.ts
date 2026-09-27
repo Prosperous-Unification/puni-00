@@ -176,6 +176,9 @@ export class MemoryState {
     replaceMap(this.tables.projects.projects, next.tables.projects.projects);
     replaceMap(this.tables.projects.steps, next.tables.projects.steps);
     replaceMap(this.tables.projects.opened, next.tables.projects.opened);
+    // Proof: with this line removed, `undoes an allowance edit committed in an
+    // earlier unit of work` failed: the undo answered ok: false (2026-09-27).
+    replaceMap(this.tables.projects.allowanceRevisions, next.tables.projects.allowanceRevisions);
     replaceMap(this.tables.directory.teams, next.tables.directory.teams);
     replaceMap(this.tables.directory.tags, next.tables.directory.tags);
     replaceMap(this.tables.directory.services, next.tables.directory.services);
@@ -349,7 +352,11 @@ function coordinatedStores(
 ): TransactionalStores {
   return {
     users: coordinatedStore(stores.users, ['create', 'resolveOidcIdentity'], coordinator),
-    projects: coordinatedStore(stores.projects, ['create', 'recordOpen', 'update'], coordinator),
+    projects: coordinatedStore(
+      stores.projects,
+      ['create', 'recordOpen', 'update', 'setStepAllowance'],
+      coordinator,
+    ),
     directory: coordinatedStore(
       stores.directory,
       [

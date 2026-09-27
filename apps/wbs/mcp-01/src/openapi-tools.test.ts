@@ -328,6 +328,7 @@ describe('toolsFromDocument, on the generated document', () => {
       'unfreezeProject',
       'unfreezeWorkItem',
       'setCapacity',
+      'setStepAllowance',
       'setPriorityBands',
       'createTeam',
       'patchTeam',
@@ -416,14 +417,21 @@ describe('toolsFromDocument, on the generated document', () => {
   });
 
   it('derives a write with path parameters and a body from both sides', () => {
-    // The step rename: two path parameters and a typebox body. Until
-    // `plan-commands` this read the estimate PUT, which is a batch command now.
+    // The step patch: two path parameters and a body that renames the step,
+    // sets its estimate allowance, or both. Until `plan-commands` this read
+    // the estimate PUT, which is a batch command now.
     const rename = byName(tools, 'patchApiProjectsByIdStepsByStepId');
     expect(rename.method).toBe('patch');
-    expect(Object.keys(rename.inputSchema.properties).sort()).toEqual(['id', 'name', 'stepId']);
-    expect([...(rename.inputSchema.required ?? [])].sort()).toEqual(['id', 'name', 'stepId']);
+    expect(Object.keys(rename.inputSchema.properties).sort()).toEqual([
+      'allowancePercent',
+      'id',
+      'name',
+      'stepId',
+    ]);
+    expect([...(rename.inputSchema.required ?? [])].sort()).toEqual(['id', 'stepId']);
     expect(rename.locations['stepId']).toBe('path');
     expect(rename.locations['name']).toBe('body');
+    expect(rename.locations['allowancePercent']).toBe('body');
     expect(byName(tools, 'postApiProjectsByIdCommands').description).toContain('all or none');
   });
 

@@ -1,4 +1,10 @@
-import { canEditProject, isReservedStepCode, isStepCode, stepIsInUse } from '@wbs/domain';
+import {
+  type AllowancePercent,
+  canEditProject,
+  isReservedStepCode,
+  isStepCode,
+  stepIsInUse,
+} from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
 import type { Broadcaster } from '../../ports/project-event';
@@ -27,9 +33,13 @@ export interface StepServiceOptions {
    * would leave a relationship naming nothing.
    *
    * Adding a step asks nothing of it. A new step is appended last to every
-   * leaf and nothing can name it yet, so the only edges into its nodes are the
-   * workflow edges from the old last nodes: any cycle through one would pass
-   * through the old last node and already be a cycle.
+   * leaf and no endpoint can name it yet, so the only edge into each new node
+   * is the workflow edge from that leaf's old last node. Every edge that left
+   * the old last node — a whole predecessor, a legacy link reached there —
+   * now leaves the new node instead, one workflow edge later, so contracting
+   * the new node onto the old last one gives back the graph before the add: a
+   * cycle after it was a cycle before it. A stepless project's first step
+   * replaces each leaf's boundary node one for one, which changes no edge.
    */
   dependencyGraph: Pick<DependencyGraphGuard, 'findCycle' | 'findStepReferences'>;
 }
@@ -154,7 +164,9 @@ export class StepService {
   }
 
   /**
-   * Adds a step with the code the caller chose, or with one suggested from its
+   * Adds a step with `allowancePercent` as its estimate allowance (zero when the
+   * caller named none, which the route decides; validated at the request
+   * boundary) and with the code the caller chose, or one suggested from its
    * name when `code` is absent.
    *
    * A chosen code is checked before the project is read: `invalid_code` when it
@@ -168,7 +180,13 @@ export class StepService {
    * `refuses a code outside the grammar, and one the project already holds`
    * failed the same way, the step written as `Design`. Both watched 2026-09-27.
    */
-  async add(projectId: string, actorId: string, name: string, code?: string): Promise<StepOutcome> {
+  async add(
+    projectId: string,
+    actorId: string,
+    name: string,
+    allowancePercent: AllowancePercent,
+    code?: string,
+  ): Promise<StepOutcome> {
     const clean = cleanName(name);
     // Before the project is read: a step called nothing would sit in every
     // header and every estimate row with no way to tell it from the next one.
@@ -183,8 +201,8 @@ export class StepService {
 
     const written = await this.opts.steps.add(
       code === undefined
-        ? { id: this.clock.newId(), projectId, name: clean }
-        : { id: this.clock.newId(), projectId, name: clean, code },
+        ? { id: this.clock.newId(), projectId, name: clean, allowancePercent }
+        : { id: this.clock.newId(), projectId, name: clean, allowancePercent, code },
       this.clock.stampFor(actorId),
     );
     if (!written.ok) return { ok: false, reason: written.reason };
@@ -282,6 +300,18 @@ export class StepService {
     }
     await this.opts.broadcast.publish(projectId, { type: 'step_removed', stepId });
     return { ok: true };
+  }
+
+  /**
+   * The step as it is now, when it is this project's and the caller may edit
+   * the project — the reply a route owes after a write it delegated elsewhere.
+   */
+  async find(projectId: string, stepId: string, actorId: string): Promise<StepOutcome> {
+    const gate = await this.gate(projectId, stepId, actorId);
+    if (!gate.ok) return gate;
+    const found = await this.opts.steps.findById(stepId);
+    if (found === null) return { ok: false, reason: 'not_found' };
+    return { ok: true, value: found };
   }
 
   /**

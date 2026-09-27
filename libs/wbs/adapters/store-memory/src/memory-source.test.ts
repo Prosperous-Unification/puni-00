@@ -52,7 +52,7 @@ async function seededSource() {
       scheduleEngine: 'fast',
       scheduleObjective: 'pri',
     },
-    [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
+    [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev', allowancePercent: 0 }],
     stamp,
   );
   return source;
@@ -84,7 +84,7 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
   const workItem = workItemRow({ id: 'wi-1', projectId: 'p1', name: 'Stored work' });
   await stores.workItems.insert(workItem, [], stamp);
   const addedStep = await stores.steps.add(
-    { id: 'step-memory', projectId: 'p1', name: 'Stored step' },
+    { id: 'step-memory', projectId: 'p1', name: 'Stored step', allowancePercent: 0 },
     stamp,
   );
   await stores.dependencies.add(
@@ -411,7 +411,10 @@ describe('the staged memory source', () => {
     const source = await seededSource();
     const settled = Promise.race([
       source.uow.run(async (scope) => {
-        await scope.stores.steps.add({ id: 'st-2', projectId: 'p1', name: 'QA' }, stamp);
+        await scope.stores.steps.add(
+          { id: 'st-2', projectId: 'p1', name: 'QA', allowancePercent: 0 },
+          stamp,
+        );
         await scope.stores.directory.addTag({ id: 'tag-1', name: 'urgent' }, stamp);
         await scope.stores.projects.update('p1', { name: 'Committed' }, stamp);
         await scope.stores.typedDependencies.add(
@@ -492,7 +495,7 @@ describe('the staged memory source', () => {
         stamp,
       );
       await scope.stores.steps.add(
-        { id: 'refused-step', projectId: 'p1', name: 'Refused only' },
+        { id: 'refused-step', projectId: 'p1', name: 'Refused only', allowancePercent: 0 },
         stamp,
       );
       return { commit: false, value: undefined };
@@ -584,7 +587,16 @@ describe('the staged memory source', () => {
         scheduleEngine: 'fast',
         scheduleObjective: 'pri',
       },
-      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10, code: 'dev' }],
+      [
+        {
+          id: 'st-1',
+          projectId: 'p1',
+          name: 'Dev',
+          position: 10,
+          code: 'dev',
+          allowancePercent: 0,
+        },
+      ],
       stamp,
     );
     const entry: NewJournalEntry = {

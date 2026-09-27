@@ -30,13 +30,16 @@ import { testWrites } from './writes-fixture';
  * inherits the rest.
  */
 export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof buildApp> {
-  const workItems = testWorkItemService();
-  const directory = testDirectoryService();
-  const capacity = testCapacityService();
-  const priorityBands = testPriorityBandService();
-  const projects = testProjectService();
-  const steps = testStepService();
-  const calendarMarkers = testCalendarMarkerService();
+  // An overridden service is the one the batch graph hands out too, so a
+  // route that runs through `writes` (a project PATCH, a step removal) meets the
+  // same service the caller named rather than a double beside it.
+  const workItems = overrides.workItems ?? testWorkItemService();
+  const directory = overrides.directory ?? testDirectoryService();
+  const capacity = overrides.capacity ?? testCapacityService();
+  const priorityBands = overrides.priorityBands ?? testPriorityBandService();
+  const projects = overrides.projects ?? testProjectService();
+  const steps = overrides.steps ?? testStepService();
+  const calendarMarkers = overrides.calendarMarkers ?? testCalendarMarkerService();
   return buildApp({
     appOrigin: 'http://localhost',
     loginThrottle: testLoginThrottle(),

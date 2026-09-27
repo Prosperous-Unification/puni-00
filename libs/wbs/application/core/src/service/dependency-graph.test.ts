@@ -1,4 +1,4 @@
-import type { TypedDependency } from '@wbs/domain';
+import { NO_ALLOWANCE, type TypedDependency } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { StoredDependency } from '../ports/dependency-store';
@@ -26,7 +26,10 @@ const nodeFs = (id: string, from: [string, string], to: [string, string]): Typed
 /** A and B, each with Dev then QA; every node estimated unless a case clears one. */
 const base: DependencyGraphState = {
   rows: [item('A'), item('B')],
-  stepIds: ['dev', 'qa'],
+  steps: [
+    { id: 'dev', allowancePercent: NO_ALLOWANCE },
+    { id: 'qa', allowancePercent: NO_ALLOWANCE },
+  ],
   estimates: [
     { workItemId: 'A', stepId: 'dev' },
     { workItemId: 'A', stepId: 'qa' },
@@ -101,7 +104,7 @@ describe('findDependencyGraphCycle', () => {
     expect(
       findDependencyGraphCycle({
         ...base,
-        stepIds: [],
+        steps: [],
         estimates: [],
         typed: [
           {

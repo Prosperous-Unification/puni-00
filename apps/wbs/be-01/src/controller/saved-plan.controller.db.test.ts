@@ -92,9 +92,17 @@ describe('the saved-plan routes', () => {
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
     broadcast = recordingBroadcaster();
-    writes = testWrites(broadcast);
     const connection = openConnection(path);
     const projects = new ProjectRepository(connection.db, OPEN);
+    const projectService = new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(connection.db, projects),
+      clock: testClock,
+      projects,
+      broadcast,
+    });
+    // The same project service the routes use: a project PATCH runs through
+    // the batch graph, and a double there has never seen these projects.
+    writes = testWrites(broadcast, { projects: projectService });
 
     app = buildApp({
       loginThrottle: testLoginThrottle(),
@@ -111,12 +119,7 @@ describe('the saved-plan routes', () => {
       // production hands every service one announcer. A private recorder here
       // would compile and would quietly put this app's project events somewhere
       // nothing in the file can read.
-      projects: new ProjectService({
-        dependencyGraph: sqliteDependencyGraph(connection.db, projects),
-        clock: testClock,
-        projects,
-        broadcast,
-      }),
+      projects: projectService,
       savedPlans: savedPlanServiceOn(path),
       steps: testStepService(),
       workItems: testWorkItemService(),
@@ -504,7 +507,7 @@ describe('the saved-plan routes', () => {
       version: 9999,
       // Named rather than matched loosely: the answer has to say what this
       // build *does* know, or an operator cannot tell how far behind it is.
-      supported: [1],
+      supported: [1, 2],
     });
 
     const read = await as(tokens['ada'], `/api/saved-plans/${id}`);
@@ -883,7 +886,12 @@ function fixture() {
   restorations.push(() => {
     authenticate.mockRestore();
   });
-  const app = testApp({ auth, savedPlans: plans, projects, writes: testWrites(announcements) });
+  const app = testApp({
+    auth,
+    savedPlans: plans,
+    projects,
+    writes: testWrites(announcements, { projects }),
+  });
   const call = (
     path: string,
     method = 'GET',

@@ -22,7 +22,7 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
 ## Task 2 — every graph-changing write (WBS 010.4.6, 2026-09-27)
 
 - `DependencyGraphGuard` (`libs/wbs/application/core/src/service/dependency-graph.ts`) reads the combined graph and asks `findStepNodeCycle`, applying a proposed reach, removed step or typed set first. The batch runner asks it after each graph-changing command (`createWorkItem`, `moveWorkItem`, `duplicateWorkItem`, `deleteWorkItem`, `setEstimate`, `clearEstimate`, `addDependency`), and the refusal rolls the whole batch back. `walkStack` asks it after an undo or redo. `ProjectService.update` asks it before a `depReach` change, and `StepService.remove` before a removal, which is also refused while a typed endpoint names the step (`referenced_by_dependency`).
-- A project with no typed dependency answers `null` without reading the rest. A legacy-only cycle is a leaf-level cycle, which `canDepend` and `canReparent` already refuse (JSDoc on the guard). Adding a step asks nothing: an appended step's nodes are entered only from the old last nodes (JSDoc on `StepServiceOptions.dependencyGraph`). Steps have no reorder operation, so there is none to guard.
+- A project with no typed dependency is asked the leaf-level question (`hasCycle` over legacy links), which is equivalent for a legacy-only graph (JSDoc on the guard) and catches an undo of a move replayed without `canReparent`. Adding a step asks nothing: an appended step's nodes are entered only from the old last nodes (JSDoc on `StepServiceOptions.dependencyGraph`). Steps have no reorder operation, so there is none to guard.
 - Mounted over SQLite with the real unit of work (`typed-dependency-graph.controller.db.test.ts`): 8 pass, 0 fail. `env -u CLAUDECODE bun test apps/wbs/be-01/src`: 1167 pass, 0 fail. The libs, contracts, adapters and mcp-01 runs: 2977 pass. There were three failures. Two, a stale `step-shapes` expectation and a fake service lacking `findDependencyCycle`, are fixed. The third is Bun collecting Playwright's `portable-composition.spec.ts`, as on main.
 - **R5 proofs (2026-09-27):** each check was skipped in turn.
   - Runner → the legacy-link, estimate-clearing and move cases failed on `Expected: 409, Received: 200`.
@@ -30,6 +30,11 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
   - Project update → the reach case failed on `Received: 200`.
   - Step references → the referenced-step case failed on `Received: 500` (the foreign key underneath).
   - Step cycle → the anchor-moving removal failed on `Received: 204`.
+
+- **Astra review (high) of task 2:** no Critical. Three Important findings:
+  - The zero-typed shortcut let an undo of a move replay a legacy cycle, because a replayed move skips `canReparent`. Fixed: a legacy-only project is asked the leaf-level question instead. Mounted `refuses an undo of a move that a legacy link made cyclic`; proof: `return null` in its place → `Expected: 409, Received: 200`.
+  - Project PATCH and step DELETE checked outside a unit of work, which left a race. Fixed: `admitted-write.ts` runs both as one unit of work over the batch graph, announcing after commit. Proof: `updateProject` bypassing `uow.run` → `admits … inside one unit of work` failed with `begin`/`commit` missing.
+  - Structural edits against typed endpoints (first-child hand-down, deleting the last child under a descendant-step endpoint, deleting a directly referenced work item) still throw rather than refuse. Deferred to task 1a, which lands with the typed commands. No typed row can be written before then.
 
 ## Planned checks — pending later tasks
 
