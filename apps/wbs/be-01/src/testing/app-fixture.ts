@@ -4,6 +4,11 @@ import { testCalendarMarkerService } from './calendar-marker-fixture';
 import { testCapacityService } from './capacity-fixture';
 import { testClock } from './clock-fixture';
 import { testDirectoryService } from './directory-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingTestEmailDelivery,
+} from './email-verification-fixture';
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
 import { refusingOnboarding } from './onboarding-fixture';
@@ -45,6 +50,9 @@ export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof 
   return buildApp({
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    emailVerification: refusingEmailVerification,
+    invitations: refusingInvitations,
+    emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     appOrigin: 'http://localhost',
     loginThrottle: testLoginThrottle(),

@@ -2,6 +2,8 @@ import { buildOidcVerifier } from '@wbs/auth';
 import type { DelegationIssuer } from '@wbs/core';
 import type { Logger } from '@wbs/observability';
 import {
+  EmailVerificationRepository,
+  InvitationRepository,
   NO_BOUND_ORGANIZATION,
   OnboardingRepository,
   openSqliteSource,
@@ -23,6 +25,7 @@ import { UserRepository } from './repository/user';
 import { REFUSE_DELEGATIONS } from './runtime/delegation';
 import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
 import { importDelegationKeys } from './runtime/delegation-keys';
+import { refusingEmailDelivery } from './runtime/email-delivery';
 import type { AuthenticatedUser } from './service/auth.service';
 import { type BeServices, buildServices, type OptimizerRuntime } from './services';
 
@@ -205,6 +208,9 @@ export async function bootBe01(
               organizations: new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION),
               memberships: new OrganizationRepository(db, services.gate),
               onboarding: new OnboardingRepository(db, services.gate),
+              emailVerification: new EmailVerificationRepository(db, services.gate),
+              invitations: new InvitationRepository(db, services.gate),
+              emailDelivery: refusingEmailDelivery,
               steps: services.steps,
               calendarMarkers: services.calendarMarkers,
               workItems: services.workItems,

@@ -205,22 +205,30 @@ interface WorkflowStep {
   with?: { 'fetch-depth'?: number };
 }
 
+interface CiJob {
+  if?: string;
+  needs?: string | string[];
+  steps?: WorkflowStep[];
+}
+
 /**
- * `jobs` names `gate` rather than being a `Record`, for the reason
+ * `jobs` names the gate jobs rather than being a `Record`, for the reason
  * `corpus-lint-workflow.test.ts` gives: an index signature types every lookup as
  * present and `no-unnecessary-condition` then rejects the `?.` a missing job needs.
  */
 interface CiWorkflow {
-  jobs?: { gate?: { steps?: WorkflowStep[] } };
+  jobs?: { gate_mode?: CiJob; gate_workspace?: CiJob; gate_tool_wiki?: CiJob };
 }
+
+type GateJob = keyof NonNullable<CiWorkflow['jobs']>;
 
 async function readCiWorkflow(): Promise<CiWorkflow> {
   return Bun.YAML.parse(await read('.github/workflows/ci.yml')) as CiWorkflow;
 }
 
-function gateStep(workflow: CiWorkflow, name: string): WorkflowStep {
-  const step = workflow.jobs?.gate?.steps?.find((candidate) => candidate.name === name);
-  expect(step, `the gate job has no \`${name}\` step`).toBeDefined();
+function gateStep(workflow: CiWorkflow, job: GateJob, name: string): WorkflowStep {
+  const step = workflow.jobs?.[job]?.steps?.find((candidate) => candidate.name === name);
+  expect(step, `the ${job} job has no \`${name}\` step`).toBeDefined();
   return step ?? {};
 }
 
@@ -315,7 +323,7 @@ describe('the CI gate scope', () => {
     // The set equality is the other half: adding a trigger to `on:` without a case arm
     // fails on the two sets rather than choosing a scope by accident.
     const workflow = await readCiWorkflow();
-    const script = gateStep(workflow, 'Gate mode').run ?? '';
+    const script = gateStep(workflow, 'gate_mode', 'Gate mode').run ?? '';
     const arms = caseArmEvents(script);
 
     // Exactly one `*`, sorted rather than positional — the `on:` key order is not the arm
@@ -328,7 +336,7 @@ describe('the CI gate scope', () => {
   });
 
   it('takes the pull-request boundary from the immutable payload', async () => {
-    const step = gateStep(await readCiWorkflow(), 'Gate mode');
+    const step = gateStep(await readCiWorkflow(), 'gate_mode', 'Gate mode');
 
     // The same shape `Corpus version lint` uses: payload values arrive as environment
     // variables, never interpolated into the shell, and a mutable ref is not a fallback.
@@ -361,13 +369,16 @@ describe('the CI gate scope', () => {
   });
 
   it('runs affected on a pull request and the unchanged full gate everywhere else', async () => {
-    const step = gateStep(await readCiWorkflow(), 'Gate — test, lint, typecheck, build');
+    const step = gateStep(
+      await readCiWorkflow(),
+      'gate_workspace',
+      'Gate — test, lint, typecheck, build',
+    );
     const script = commandsOf(step.run ?? '');
 
     expect(step.env).toEqual({
-      GATE_MODE: '${{ steps.gate_mode.outputs.mode }}',
-      GATE_BASE: '${{ steps.gate_mode.outputs.base }}',
-      GATE_TOOL_WIKI: '${{ steps.gate_mode.outputs.tool_wiki }}',
+      GATE_MODE: '${{ needs.gate_mode.outputs.mode }}',
+      GATE_BASE: '${{ needs.gate_mode.outputs.base }}',
     });
     // The SELECTOR and the BRANCH BODIES, not only the two command lines. Until 2026-09-16
     // nothing pinned either, and each gap has its own way of narrowing `push` and
@@ -377,58 +388,51 @@ describe('the CI gate scope', () => {
     // Pinning the predicate alone is not enough, and this file claimed otherwise for one
     // commit: with the predicate intact and the `then`/`else` BODIES exchanged, every
     // assertion here passed — the predicate text is present, both command lines are present,
-    // and all three occurrence counts are unchanged, because a swap moves commands without
-    // adding or removing any. Watched 2026-09-16: 17 passed / 0 failed on that fault. So the
-    // branch and its body are pinned together, as one normalised string each.
+    // and all occurrence counts are unchanged, because a swap moves commands without adding
+    // or removing any. Watched 2026-09-16: 17 passed / 0 failed on that fault. So the branch
+    // and its body are pinned together, as one normalised string each.
     //
-    // Proof (2026-09-16), each fault watched separately against the production workflow:
+    // Proof (2026-09-28, re-observed on the workspace shard), each fault watched separately
+    // against the production workflow:
     //   predicate -> `if true; then`   fails on `Expected to contain: "if [ \"$GATE_MODE\" =
-    //                                  affected ]; then"`, 16 passed / 1 failed
+    //                                  affected ]; then"`
     //   bodies exchanged               fails on `Expected to contain: "if [ \"$GATE_MODE\" =
-    //                                  affected ]; then { bunx nx affected -t test lint
-    //                                  typecheck build --base=\"$GATE_BASE\" --head=HEAD"`,
-    //                                  16 passed / 1 failed
-    const branches = oneLine(commandsOf(step.run ?? ''));
+    //                                  affected ]; then bunx nx affected -t test lint
+    //                                  typecheck build --base=\"$GATE_BASE\" --head=HEAD"`
+    const branches = oneLine(script);
     expect(script).toContain('if [ "$GATE_MODE" = affected ]; then');
     expect(branches).toContain(
-      'if [ "$GATE_MODE" = affected ]; then { ' +
+      'if [ "$GATE_MODE" = affected ]; then ' +
         'bunx nx affected -t test lint typecheck build --base="$GATE_BASE" --head=HEAD',
     );
-    expect(branches).toContain('else { bunx nx run-many -t test lint typecheck build --parallel=2');
-    expect(script).toContain(
-      'bunx nx affected -t test lint typecheck build --base="$GATE_BASE" --head=HEAD',
-    );
-    expect(script).toContain('bunx nx run-many -t test lint typecheck build --parallel=2');
-    // Both branches keep the same three parts: the workspace run without Tool Wiki, Tool
-    // Wiki's own targets, and its explicit source lint. Counting rather than containing,
-    // because one branch quietly losing a part is exactly what this is here to see.
+    expect(branches).toContain('else bunx nx run-many -t test lint typecheck build --parallel=2');
+    // Both branches run the workspace without Tool Wiki, whose targets `gate_tool_wiki` owns.
+    // Counting rather than containing, because one branch quietly losing its exclusion — Tool
+    // Wiki's 26-minute suite back on this runner — is what this is here to see.
     expect(occurrences(script, '--exclude=twilight-burokrat')).toBe(2);
-    expect(
-      occurrences(script, 'bunx nx run-many -t test typecheck build -p twilight-burokrat'),
-    ).toBe(2);
-    expect(
-      occurrences(
-        script,
-        'bunx nx run twilight-burokrat:lint:source --skip-nx-cache --output-style=stream',
-      ),
-    ).toBe(2);
+    expect(occurrences(script, 'twilight-burokrat')).toBe(2);
   });
 
-  it('keeps Tool Wiki in the pull-request gate, read as JSON rather than grepped', async () => {
-    // Proof (2026-09-16): with the `if [ "$GATE_TOOL_WIKI" = run ]` branch replaced by
-    // `true` in the affected arm of the production workflow, this case failed on
-    // `Expected to contain: "if [ \"$GATE_TOOL_WIKI\" = run ]; then"` and the case above
-    // failed on `Expected: 2 · Received: 1` for
-    // `bunx nx run-many -t test typecheck build -p twilight-burokrat` — 2 failed / 14 passed. A
-    // pull request touching Tool Wiki would have gated everything except Tool Wiki.
+  it('keeps Tool Wiki in the gate as its own shard, read as JSON rather than grepped', async () => {
+    // Proof (2026-09-16): with the Tool Wiki branch of the then single gate step replaced by
+    // `true`, this case failed on the missing branch — 2 failed / 14 passed. A pull request
+    // touching Tool Wiki would have gated everything except Tool Wiki. Since 2026-09-28 that
+    // branch is `gate_tool_wiki`'s job-level `if`, and the `gate` check refuses the job's skip
+    // unless `gate_mode` said `skip` (`gate-workflow.test.ts`).
+    // Proof (2026-09-28): with that `if` reading `outputs.mode` instead, this failed on the job
+    // condition; with the `lint:source` command deleted, on that command.
     // The `not.toContain('grep')` is the second fault this pins: measured on Nx 23.2.0,
     // 2026-09-16, `bunx nx show projects --affected --base=HEAD~1 --head=HEAD` prints a
     // ONE-LINE JSON array on a non-TTY runner whatever `--sep` asks for, so a
     // `grep -qx twilight-burokrat` over it can never match and would drop the project from every
     // pull request while exiting 0.
     const workflow = await readCiWorkflow();
-    const mode = commandsOf(gateStep(workflow, 'Gate mode').run ?? '');
-    const gate = commandsOf(gateStep(workflow, 'Gate — test, lint, typecheck, build').run ?? '');
+    const mode = commandsOf(gateStep(workflow, 'gate_mode', 'Gate mode').run ?? '');
+    const toolWiki = workflow.jobs?.gate_tool_wiki;
+    const targets = commandsOf(
+      gateStep(workflow, 'gate_tool_wiki', 'Tool Wiki — test, typecheck, build, source lint').run ??
+        '',
+    );
 
     expect(mode).toContain(
       'bunx nx show projects --affected --base="$PR_BASE_SHA" --head=HEAD --json',
@@ -437,7 +441,14 @@ describe('the CI gate scope', () => {
     expect(mode).not.toContain('grep');
     expect(mode).toContain(`printf 'tool_wiki=run\\n' >> "$GITHUB_OUTPUT"`);
     expect(mode).toContain(`printf 'tool_wiki=skip\\n' >> "$GITHUB_OUTPUT"`);
-    expect(gate).toContain('if [ "$GATE_TOOL_WIKI" = run ]; then');
+    expect(toolWiki?.needs).toBe('gate_mode');
+    expect(toolWiki?.if).toBe("${{ needs.gate_mode.outputs.tool_wiki == 'run' }}");
+    expect(targets).toContain(
+      'bunx nx run-many -t test typecheck build -p twilight-burokrat --parallel=2',
+    );
+    expect(targets).toContain(
+      'bunx nx run twilight-burokrat:lint:source --skip-nx-cache --output-style=stream',
+    );
   });
 
   it('refuses a jq failure instead of reading it as Tool Wiki being unaffected', async () => {
@@ -471,7 +482,7 @@ describe('the CI gate scope', () => {
     // with a `jq` stub that works once and then exits 2, the step printed
     // `jq failed reading the affected project list (status 2)` and exited 2, where the
     // two-branch form would have recorded Tool Wiki as unaffected.
-    const mode = commandsOf(gateStep(await readCiWorkflow(), 'Gate mode').run ?? '');
+    const mode = commandsOf(gateStep(await readCiWorkflow(), 'gate_mode', 'Gate mode').run ?? '');
 
     // The shape is: assert the output IS an array, then branch on the explicit status.
     expect(mode).toContain(`jq -s -e 'length == 1 and (.[0] | type == "array")'`);
@@ -483,14 +494,16 @@ describe('the CI gate scope', () => {
     );
   });
 
-  it('checks the gate job out at full depth, which --base cannot resolve without', async () => {
+  it('checks every gate job out at full depth, which --base cannot resolve without', async () => {
     const workflow = await readCiWorkflow();
-    const checkout = workflow.jobs?.gate?.steps?.find(({ uses }) =>
-      uses?.startsWith('actions/checkout@'),
-    );
+    for (const job of ['gate_mode', 'gate_workspace', 'gate_tool_wiki'] as const) {
+      const checkout = workflow.jobs?.[job]?.steps?.find(({ uses }) =>
+        uses?.startsWith('actions/checkout@'),
+      );
 
-    expect(checkout, 'the gate job has no checkout step').toBeDefined();
-    expect(checkout?.with?.['fetch-depth']).toBe(0);
+      expect(checkout, `the ${job} job has no checkout step`).toBeDefined();
+      expect(checkout?.with?.['fetch-depth']).toBe(0);
+    }
   });
 });
 
