@@ -610,21 +610,6 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Tab') {
-                  // Proof: forcing this branch off made `tabs from the picker into
-                  // Customize, then escapes the editor` fail: focus stayed on the
-                  // input instead of reaching Customize. Watched 2026-09-28.
-                  if (!e.shiftKey && open) {
-                    const customize = e.currentTarget
-                      .closest('[data-depends-strip]')
-                      ?.parentElement?.querySelector<HTMLButtonElement>(
-                        '.typed-dependency-customize',
-                      );
-                    if (customize !== undefined && customize !== null) {
-                      e.preventDefault();
-                      customize.focus();
-                      return;
-                    }
-                  }
                   // The move blurs this input, which closes the list and
                   // drops what was typed into it — this cell's blur contract
                   // since it was written, now reached by Tab on purpose. The
@@ -637,6 +622,25 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   // failed with the key left to the browser. Watched,
                   // 2026-08-07.
                   live.current.onTabKey(e, row.original.id, 'depends');
+                  return;
+                }
+                if (
+                  open &&
+                  !e.altKey &&
+                  !e.ctrlKey &&
+                  !e.metaKey &&
+                  !e.shiftKey &&
+                  (e.key === 'ArrowRight' || e.key === '›')
+                ) {
+                  e.preventDefault();
+                  if (activeOption !== undefined) {
+                    // Proof: without this branch, both highlighted-result keyboard
+                    // cases found no Customize dialog. Watched 2026-09-28.
+                    // Proof: without the modifier guards, `Alt+→ and Alt+←
+                    // restructure the row from the Depends on cell` left the
+                    // row at 020 instead of indenting it to 010.1. Watched 2026-09-28.
+                    setEditing({ predecessorId: activeOption.id });
+                  }
                   return;
                 }
                 if (escapesAnOpenList(e)) {
@@ -773,7 +777,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 // The ARIA combobox pattern is the boundary that makes this
                 // safe: options are not focusable, and the keyboard drives
                 // them from the input above through aria-activedescendant
-                // (ArrowUp/ArrowDown/Enter there).
+                // (ArrowUp/ArrowDown/Enter/ArrowRight there).
 
                 <li
                   key={entry.id}

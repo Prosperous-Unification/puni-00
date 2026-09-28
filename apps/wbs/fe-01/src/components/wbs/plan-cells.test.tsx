@@ -122,6 +122,13 @@ describe('step node details', () => {
           { id: 'sn1.w1.step-qa', workItemId: row.id, stepId: QA.id, reference: null },
         ],
       });
+    } else {
+      const readTree = api.tree.bind(api);
+      api.tree = async (projectId) => {
+        const olderRead = { ...(await readTree(projectId)) };
+        delete olderRead.stepNodes;
+        return olderRead;
+      };
     }
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     const estimate = await screen.findByLabelText('Dev estimate for 010');

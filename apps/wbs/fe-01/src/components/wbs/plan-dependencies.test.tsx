@@ -234,22 +234,33 @@ describe('dependencies in the table', () => {
     expect(screen.getByRole('dialog', { name: 'Customize dependency' })).toBeDefined();
     expect(added).toEqual([]);
   });
-  itDom('tabs from the picker into Customize, then escapes the editor', async () => {
-    await threeRoots();
-    const input = screen.getByLabelText<HTMLInputElement>('Add a dependency to 020');
-    fireEvent.focus(input);
-    const customize = await screen.findByRole('button', { name: 'Customize 010 - Strip' });
-    fireEvent.keyDown(input, { key: 'Tab' });
-    expect(document.activeElement).toBe(customize);
-    expect(screen.getByRole('listbox', { name: 'Work items 020 can depend on' })).toBeDefined();
-    fireEvent.click(customize);
-    const editor = screen.getByRole('dialog', { name: 'Customize dependency' });
-    expect(document.activeElement).toBe(
-      screen.getByRole('button', { name: 'Back to dependency picker' }),
-    );
-    fireEvent.keyDown(editor, { key: 'Escape' });
-    expect(document.activeElement).toBe(input);
-  });
+  itDom.each([
+    ['ArrowRight', 'Escape'],
+    ['›', 'ArrowLeft'],
+  ])(
+    '%s opens Customize for the highlighted result without writing, then %s returns to the list',
+    async (key, backKey) => {
+      const api = await threeRoots();
+      const added = recordCalls(api, 'addTypedDependency');
+      const input = screen.getByLabelText<HTMLInputElement>('Add a dependency to 020');
+      fireEvent.focus(input);
+      const customize = await screen.findByRole('button', { name: 'Customize 010 - Strip' });
+      fireEvent.keyDown(input, { key: 'ArrowDown' });
+      expect(input.getAttribute('aria-activedescendant')).toBe('dep-option-w1');
+      fireEvent.keyDown(input, { key });
+      const editor = screen.getByRole('dialog', { name: 'Customize dependency' });
+      expect(customize).toBeDefined();
+      expect(added).toEqual([]);
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Back to dependency picker' }),
+      );
+      fireEvent.keyDown(editor, { key: backKey });
+      expect(document.activeElement).toBe(input);
+      expect(screen.getByRole('listbox', { name: 'Work items 020 can depend on' })).toBeDefined();
+      fireEvent.keyDown(input, { key: 'Escape' });
+      expect(input.getAttribute('aria-expanded')).toBe('false');
+    },
+  );
   itDom('keeps QA preselected after typing a predecessor search', async () => {
     await threeRoots();
     const qaCell = screen.getByLabelText('QA estimate for 020').closest('[data-final]');
