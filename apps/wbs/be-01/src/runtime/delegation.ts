@@ -33,24 +33,8 @@ export type DelegationVerifier = (
   audience: DelegationAudience,
 ) => Promise<DelegationOutcome>;
 
-/**
- * Verifies WBS-signed delegation tokens (task 2.5) with a dedicated RS256
- * public key, never the session HMAC key or the internal secret.
- *
- * A token is a delegation exactly when its protected header declares
- * {@link DELEGATION_TOKEN_TYPE}; such a token is judged here alone and a
- * refusal never falls back to session authentication. A verified token must:
- * name issuer {@link DELEGATION_ISSUER} and the audience the route's policy
- * expects (never one the caller chooses); live at most
- * {@link MOST_DELEGATION_SECONDS} and not be expired; carry a local user, an
- * organization, a client, a `jti` and known scopes; and bind an upstream
- * `(issuer, subject)` that maps to that same local user. Scopes only narrow.
- *
- * @throws anything other than a JOSE refusal or a malformed claim, such as an
- * unusable key or a failing identity lookup: unknown, not a refusal.
- */
 /** Whether `token` declares itself a delegation, without believing anything else it says. */
-function declaresDelegation(token: string): boolean {
+export function declaresDelegation(token: string): boolean {
   try {
     return decodeProtectedHeader(token).typ === DELEGATION_TOKEN_TYPE;
   } catch (cause) {
@@ -67,6 +51,23 @@ function declaresDelegation(token: string): boolean {
 export const REFUSE_DELEGATIONS: DelegationVerifier = (token) =>
   Promise.resolve(declaresDelegation(token) ? { kind: 'refused' } : { kind: 'not_delegation' });
 
+/**
+ * Verifies WBS-signed delegation tokens (task 2.5) with a dedicated RS256
+ * public key, never the session HMAC key or the internal secret.
+ *
+ * A token is a delegation exactly when its protected header declares
+ * {@link DELEGATION_TOKEN_TYPE}; such a token is judged here alone and a
+ * refusal never falls back to session authentication. A verified token must:
+ * name issuer {@link DELEGATION_ISSUER} and the audience the route's policy
+ * expects (never one the caller chooses); live at most
+ * {@link MOST_DELEGATION_SECONDS} and not be expired; carry a local user, an
+ * organization, a client, a grant or refresh family, a `jti` and known
+ * scopes; be issued no later than now; and bind an upstream
+ * `(issuer, subject)` that maps to that same local user. Scopes only narrow.
+ *
+ * @throws anything other than a JOSE refusal or a malformed claim, such as an
+ * unusable key or a failing identity lookup: unknown, not a refusal.
+ */
 export function delegationVerifier(
   key: CryptoKey,
   mappedUserOf: MappedUserOf,
@@ -94,7 +95,7 @@ export function delegationVerifier(
       if (cause instanceof errors.JOSEError) return { kind: 'refused' };
       throw cause;
     }
-    const claims = parseClaims(payload);
+    const claims = parseClaims(payload, now);
     if (claims === null) return { kind: 'refused' };
     const mapped = await mappedUserOf(claims.upstream);
     // Proof: accepting any mapped upstream identity made `refuses a delegation
@@ -107,7 +108,12 @@ export function delegationVerifier(
         id: mapped.id,
         username: mapped.username,
         scopes: claims.scopes,
-        delegation: { organizationId: claims.organizationId, audience, client: claims.client },
+        delegation: {
+          organizationId: claims.organizationId,
+          audience,
+          client: claims.client,
+          grant: claims.grant,
+        },
       },
     };
   };
@@ -117,17 +123,20 @@ interface DelegationClaims {
   readonly userId: string;
   readonly organizationId: string;
   readonly client: string;
+  readonly grant: string;
   readonly scopes: readonly WbsScope[];
   readonly upstream: { readonly issuer: string; readonly subject: string };
 }
 
 /** The claims a verified delegation must carry, or null when one is missing or malformed. */
-function parseClaims(payload: Record<string, unknown>): DelegationClaims | null {
-  const { sub, org, client, scope, upstream_iss, upstream_sub, iat, exp } = payload;
+function parseClaims(payload: Record<string, unknown>, now: () => number): DelegationClaims | null {
+  const { sub, org, client, grant, jti, scope, upstream_iss, upstream_sub, iat, exp } = payload;
   if (
     !isFilled(sub) ||
     !isFilled(org) ||
     !isFilled(client) ||
+    !isFilled(grant) ||
+    !isFilled(jti) ||
     !isFilled(upstream_iss) ||
     !isFilled(upstream_sub) ||
     typeof scope !== 'string' ||
@@ -138,6 +147,12 @@ function parseClaims(payload: Record<string, unknown>): DelegationClaims | null 
   // Proof: skipping this bound made `refuses a delegation longer than five
   // minutes` in `delegation.controller.db.test.ts` fail; watched 2026-09-28.
   if (exp - iat > MOST_DELEGATION_SECONDS) return null;
+  // Together with JOSE's own `exp` check this also refuses a lifetime of zero
+  // or less: `exp <= iat <= now` is expired.
+  // Proof: skipping this made `refuses a delegation issued in the future, of
+  // no lifetime, or with no grant` in `delegation.controller.db.test.ts`
+  // fail; so did dropping the grant claim check; watched 2026-09-28.
+  if (iat * 1000 > now()) return null;
   const scopes = scope.split(' ');
   if (!scopes.every((named): named is WbsScope => (SCOPES as readonly string[]).includes(named)))
     return null;
@@ -145,6 +160,7 @@ function parseClaims(payload: Record<string, unknown>): DelegationClaims | null 
     userId: sub,
     organizationId: org,
     client,
+    grant,
     scopes,
     upstream: { issuer: upstream_iss, subject: upstream_sub },
   };

@@ -50,6 +50,14 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
     // `project-organization.controller.db.test.ts` still list both
     // organizations' projects after activation; watched 2026-09-27.
     if (readOrganizationActivation(this.db) === 'pre_activation') {
+      // A delegation names one organization, which does not exist as an
+      // authority before activation; it must never widen into deployment-wide
+      // legacy access.
+      // Proof: answering `legacy` for a delegation made `refuses a verified
+      // delegation before activation` in `delegation.controller.db.test.ts`
+      // list every organization's projects; watched 2026-09-28.
+      if (principal.delegation !== undefined)
+        return { ok: false, refusal: 'no_active_organization' };
       return { ok: true, access: { kind: 'legacy' } };
     }
     // A verified delegation (task 2.5) carries its organization; a session

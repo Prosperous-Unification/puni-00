@@ -593,6 +593,18 @@ All faults were watched failing in `delegation.controller.db.test.ts` on 2026-09
 | Delegation's organization is the one checked | session binding used instead                                | `lists only the delegated organization’s projects`; `refuses a delegation to an organization the user has left` |
 | No header selects authority                  | `x-wbs-organization` replaces the delegation's organization | `lets no header select the organization`: B's project read                                                      |
 
+Astra review 1 raised 4 Important and 2 Minor findings, all fixed. Each fault below was watched failing on 2026-09-28:
+
+| Check                                 | Injected fault                              | Observed failure                                                              |
+| ------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------- |
+| No legacy access through a delegation | pre-activation delegation answered `legacy` | `refuses a verified delegation before activation`                             |
+| Not issued in the future              | `iat` check skipped                         | `refuses a delegation issued in the future, of no lifetime, or with no grant` |
+| Grant or family bound                 | `grant` claim check skipped                 | same case                                                                     |
+| No delegation in the session cookie   | cookie-carrier refusal skipped              | `refuses a delegation carried in the session cookie, or beside one`           |
+| No delegation beside a session cookie | ambiguity refusal skipped                   | same case                                                                     |
+
+A lifetime of zero or less is refused by JOSE's `exp` check combined with the `iat` check, so it has no guard of its own. The `jti` must be non-empty text. The Minor findings are also fixed: `lets no header select the organization` now covers an unbound session with forged headers (403), and the verifier's JSDoc now sits on `delegationVerifier`.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

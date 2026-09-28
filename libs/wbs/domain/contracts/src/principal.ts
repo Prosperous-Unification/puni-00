@@ -41,6 +41,8 @@ export interface Delegation {
   readonly audience: DelegationAudience;
   /** The OAuth client the delegating service acted for. */
   readonly client: string;
+  /** The grant or refresh family the delegating service's credential belongs to. */
+  readonly grant: string;
 }
 
 /**

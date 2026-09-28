@@ -44,6 +44,8 @@ interface Claims {
   readonly upstream?: string;
   readonly lifetime?: number;
   readonly issuedAgo?: number;
+  /** null leaves the grant claim out. */
+  readonly grant?: string | null;
 }
 
 /** A delegation for `ada` to org-a via mcp-01, signed with the delegation key unless told otherwise. */
@@ -59,6 +61,7 @@ async function delegation(
     username,
     org: claims.org ?? 'org-a',
     client: 'client-1',
+    ...(claims.grant === null ? {} : { grant: claims.grant ?? 'family-1' }),
     scope: 'read write',
     upstream_iss: ISSUER,
     upstream_sub: claims.upstream ?? `sub-${username}`,
@@ -133,6 +136,40 @@ describe('after activation', () => {
     ).toMatchObject({ status: 401 });
   });
 
+  it('refuses a delegation issued in the future, of no lifetime, or with no grant', async () => {
+    for (const claims of [
+      { issuedAgo: -3600 },
+      { lifetime: 0 },
+      { grant: null },
+    ] satisfies Claims[]) {
+      expect(await h.callWith(await delegation(claims), 'GET', '/api/projects')).toMatchObject({
+        status: 401,
+      });
+    }
+  });
+
+  it('refuses a delegation carried in the session cookie, or beside one', async () => {
+    const signed = await delegation({}, new TextEncoder().encode(TEST_JWT_KEY));
+    const cookieOnly = await h.app.handle(
+      new Request('http://localhost/api/projects', {
+        headers: { cookie: `__Host-wbs_access=${signed}` },
+      }),
+    );
+    expect(cookieOnly.status).toBe(401);
+
+    // Proof: skipping the ambiguity refusal in `http/identity.ts` made this
+    // answer 200; watched 2026-09-28.
+    const beside = await h.app.handle(
+      new Request('http://localhost/api/projects', {
+        headers: {
+          cookie: `__Host-wbs_access=${h.token('ada')}`,
+          authorization: `Bearer ${await delegation({ org: 'org-b' })}`,
+        },
+      }),
+    );
+    expect(beside.status).toBe(401);
+  });
+
   it('refuses a delegation whose upstream identity maps to someone else', async () => {
     expect(
       await h.callWith(await delegation({ upstream: 'sub-grace' }), 'GET', '/api/projects'),
@@ -162,10 +199,24 @@ describe('after activation', () => {
     expect(
       await h.callWith(h.token('ada'), 'GET', `/api/projects/${bProject}`, undefined, forged),
     ).toMatchObject({ status: 404 });
+    h.unbind('ada');
+    expect(
+      await h.callWith(h.token('ada'), 'GET', `/api/projects/${bProject}`, undefined, forged),
+    ).toMatchObject({ status: 403 });
   });
 });
 
 describe('before activation', () => {
+  it('refuses a verified delegation before activation', async () => {
+    await project('grace', 'B plan');
+
+    expect(await h.callWith(await delegation(), 'GET', '/api/projects')).toMatchObject({
+      status: 403,
+      body: { error: 'no_active_organization' },
+    });
+    expect((await h.call('ada', 'GET', '/api/projects')).status).toBe(200);
+  });
+
   it('refuses every delegation when no delegation key is configured', async () => {
     h.close();
     h = OrganizationHarness.open();

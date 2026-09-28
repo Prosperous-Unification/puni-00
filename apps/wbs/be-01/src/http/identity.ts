@@ -1,5 +1,9 @@
-import { userFromHeaders } from '../middleware/authenticated';
-import type { DelegationVerifier } from '../runtime/delegation';
+import {
+  credentialFromHeaders,
+  tokenFromHeaders,
+  userFromHeaders,
+} from '../middleware/authenticated';
+import { declaresDelegation, type DelegationVerifier } from '../runtime/delegation';
 import type { AuthenticatedUser, AuthService } from '../service/auth.service';
 import type { IdentityResolver } from './endpoint';
 
@@ -54,14 +58,23 @@ async function delegatedOrSession(
   delegation: DelegationVerifier,
   headers: Headers,
 ): Promise<AuthenticatedUser | null> {
+  const flat = Object.fromEntries(headers.entries());
   const bearer = headers.get('authorization');
-  if (bearer?.startsWith('Bearer ') === true) {
-    const judged = await delegation(bearer.slice(7), 'wbs-be-01/via-mcp-01');
+  const presented = bearer?.startsWith('Bearer ') === true ? bearer.slice(7) : null;
+  if (presented !== null && declaresDelegation(presented)) {
+    // A delegation is the request's only credential: beside a session cookie,
+    // which would otherwise take precedence, the request is ambiguous.
+    if (credentialFromHeaders({ cookie: flat['cookie'] }).token !== null) return null;
+    const judged = await delegation(presented, 'wbs-be-01/via-mcp-01');
     // Proof: falling through to the session path on a refusal failed five
     // cases of `delegation.controller.db.test.ts`, a session-key-signed
     // delegation among them; watched 2026-09-28.
-    if (judged.kind === 'refused') return null;
-    if (judged.kind === 'verified') return judged.principal;
+    return judged.kind === 'verified' ? judged.principal : null;
   }
-  return userFromHeaders(auth, Object.fromEntries(headers.entries()));
+  const session = tokenFromHeaders(flat);
+  // Proof: skipping this made `refuses a delegation carried in the session
+  // cookie` in `delegation.controller.db.test.ts` answer 200; watched
+  // 2026-09-28.
+  if (session !== null && declaresDelegation(session)) return null;
+  return userFromHeaders(auth, flat);
 }
