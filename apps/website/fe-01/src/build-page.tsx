@@ -160,6 +160,7 @@ function Conversation({
 }) {
   const [message, setMessage] = useState('');
   const [pendingIdentity, setPendingIdentity] = useState<string | null>(null);
+  const [initialCompleted, setInitialCompleted] = useState(false);
   const [recoverable, setRecoverable] = useState<PendingOperation | null>(() =>
     history.requestId === null
       ? null
@@ -240,6 +241,7 @@ function Conversation({
       void requestJson<ChatHistory>('/chat')
         .then((saved) => {
           onAllowance(saved.remainingTurns);
+          if (saved.initialOperation?.state === 'completed') setInitialCompleted(true);
           const pending =
             history.requestId === null
               ? null
@@ -262,6 +264,7 @@ function Conversation({
     },
     onError: (error) => {
       activeOperation.current = null;
+      initialSent.current = false;
       setPendingIdentity(null);
       setMessage(failureMessage(error));
       void requestJson<ChatHistory>('/chat')
@@ -274,6 +277,10 @@ function Conversation({
     },
   });
   const runtime = useAISDKRuntime(chat);
+  // Proof: the browser test failed on the old mount effect with one stream POST before Send.
+  // Its dropped-POST fault also failed when reload exposed the ordinary composer before the first turn.
+  const awaitingInitialCompletion =
+    initialOperation !== null && initialOperation.state !== 'completed' && !initialCompleted;
 
   useEffect(() => {
     if (recoverable && savedOperationCompleted(recoverable, history.turns)) {
@@ -282,11 +289,20 @@ function Conversation({
     }
   }, [history.turns.length]);
 
-  useEffect(() => {
-    if (initialOperation?.state !== 'not-started' || initialSent.current) return;
+  function sendInitial(): void {
+    if (initialSent.current) return;
     initialSent.current = true;
-    void chat.sendMessage({ text: draft.description }, { body: { initial: true } });
-  }, [initialOperation?.state, draft.description]);
+    setMessage('');
+    // Proof: the failed browser pending-state write duplicated the Home row when retry sent a second optimistic user message.
+    const initialAttempt = chat.messages.some((turn) => turn.role === 'user')
+      ? chat.regenerate({ body: { initial: true } })
+      : chat.sendMessage({ text: draft.description }, { body: { initial: true } });
+    void initialAttempt.catch((error: unknown) => {
+      // Proof: the browser's failed pending-write case requires the initial Send button to recover without reload.
+      initialSent.current = false;
+      setMessage(failureMessage(error));
+    });
+  }
 
   async function cancel(): Promise<void> {
     const identity = activeOperation.current;
@@ -372,7 +388,9 @@ function Conversation({
           <ThreadPrimitive.Viewport className="build-messages">
             <AuiIf condition={(state) => state.thread.isEmpty}>
               <p className="chat-empty">
-                Your Home request will appear as the first conversation turn after sign-in.
+                {initialOperation?.state === 'not-started' && !recoverable
+                  ? 'Your Home request is ready below. Press Send when you want to start the conversation.'
+                  : 'Your opening request is shown below. Check its status before sending another message.'}
               </p>
             </AuiIf>
             <ThreadPrimitive.Messages>
@@ -388,24 +406,49 @@ function Conversation({
           </ThreadPrimitive.Viewport>
           <div className="build-compose">
             <ComposerPrimitive.Root>
-              <label htmlFor="build-message">Your message</label>
-              <ComposerPrimitive.Input
-                id="build-message"
-                placeholder="What should the first version help people do?"
-                maxLength={4000}
-              />
+              {awaitingInitialCompletion ? (
+                <>
+                  <label htmlFor="build-message">Your request</label>
+                  <textarea id="build-message" value={draft.description} readOnly rows={3} />
+                </>
+              ) : (
+                <>
+                  <label htmlFor="build-message">Your message</label>
+                  <ComposerPrimitive.Input
+                    id="build-message"
+                    placeholder="What should the first version help people do?"
+                    maxLength={4000}
+                  />
+                </>
+              )}
               <div className="build-compose-actions">
                 <span>{remainingTurns} turns available</span>
-                <ComposerPrimitive.Send
-                  className="button"
-                  disabled={
-                    remainingTurns === 0 ||
-                    initialOperation?.state === 'unknown' ||
-                    history.latestOperation?.state === 'unknown'
-                  }
-                >
-                  Send <span aria-hidden="true">↗</span>
-                </ComposerPrimitive.Send>
+                {awaitingInitialCompletion ? (
+                  <button
+                    className="button"
+                    type="button"
+                    disabled={
+                      initialOperation.state !== 'not-started' ||
+                      remainingTurns === 0 ||
+                      pendingIdentity !== null ||
+                      recoverable !== null
+                    }
+                    onClick={sendInitial}
+                  >
+                    Send <span aria-hidden="true">↗</span>
+                  </button>
+                ) : (
+                  <ComposerPrimitive.Send
+                    className="button"
+                    disabled={
+                      remainingTurns === 0 ||
+                      initialOperation?.state === 'unknown' ||
+                      history.latestOperation?.state === 'unknown'
+                    }
+                  >
+                    Send <span aria-hidden="true">↗</span>
+                  </ComposerPrimitive.Send>
+                )}
                 {pendingIdentity && (
                   <button type="button" className="text-button" onClick={() => void cancel()}>
                     Stop response

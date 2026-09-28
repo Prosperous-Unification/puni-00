@@ -12,7 +12,7 @@ The existing /manual redirect configuration stays available for manual routes. A
 
 assistant-ui supplies React primitives styled with PUNI's Geist/Inter Tight fonts and palette. AI SDK UI message streaming supplies transport. Canonical messages, operation identity, authorization, provider policy and budget accounting remain in the API/database. Completed operations replay their saved result; an in-flight duplicate cannot start another provider call. Cancellation and missing usage retain conservative reservations. Keep the existing JSON /chat route compatible while the new stream endpoint is introduced.
 
-Initial request identity derives from the owned request, not prompt text or browser storage. Persist it before calling the model. Failure and cancellation must be distinguishable from successful completed history.
+Initial request identity derives from the owned request, not prompt text or browser storage. The signed-in workspace shows the saved request in the composer and waits for explicit Send; mounting, reloading and sign-in alone do not call the model. Keep the later-message composer unavailable until the initial operation is confirmed completed, including reloads with a pending retry. Persist the operation identity before calling the model. Failure and cancellation must be distinguishable from successful completed history.
 
 ## Panels and unavailable states
 

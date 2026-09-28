@@ -30,7 +30,16 @@ The app SHALL offer Google sign-in, preserve the request through OIDC, and requi
 
 ### Requirement: Customer conversation
 
-The Build app SHALL use assistant-ui and stream server-authorized replies through AI SDK. It SHALL show saved conversation, send/pending/error states, remaining allowance, and working cancellation and retry. The original Home request SHALL become the first user turn exactly once after sign-in. A stable server-owned operation identity SHALL prevent duplicate provider calls on retry, reload or simultaneous submission. Unknown usage SHALL retain its reservation and prevent further paid admission until reconciled.
+The Build app SHALL use assistant-ui and stream server-authorized replies through AI SDK. It SHALL show saved conversation, send/pending/error states, remaining allowance, and working cancellation and retry. After sign-in, Build SHALL show the saved Home request and wait for the customer to press Send before making its initial inference request. That deliberate action SHALL make the Home request the first user turn exactly once. A stable server-owned operation identity SHALL prevent duplicate provider calls on retry, reload or simultaneous submission. Unknown usage SHALL retain its reservation and prevent further paid admission until reconciled.
+
+#### Scenario: Opening request waits for Send
+
+- **WHEN** Build mounts or reloads with a saved Home request whose initial operation has not started
+- **THEN** the request remains visible and no stream request is sent until the customer presses Send
+- **WHEN** the customer presses Send
+- **THEN** Build sends one initial operation using the server-owned identity and shows the saved request as the first conversation turn
+- **WHEN** the initial request fails before reaching the API and Build reloads
+- **THEN** the saved request remains the only available first turn, and Retry resends that operation with the same identity
 
 #### Scenario: Retry or reload
 
