@@ -605,6 +605,19 @@ Astra review 1 raised 4 Important and 2 Minor findings, all fixed. Each fault be
 
 A lifetime of zero or less is refused by JOSE's `exp` check combined with the `iat` check, so it has no guard of its own. The `jti` must be non-empty text. The Minor findings are also fixed: `lets no header select the organization` now covers an unbound session with forged headers (403), and the verifier's JSDoc now sits on `delegationVerifier`.
 
+## Slice 23 — public domains are never claimable (task 5.1, first part)
+
+Branch `batch-9/010-5-2-orgs-21`, stacked on slice 22. There is no migration.
+
+| Check                              | Injected fault                      | Observed failure (2026-09-28)                                                          |
+| ---------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------- |
+| Public mailbox providers refused   | provider check dropped              | `public-email-domain.test.ts` `never lets a public mailbox provider be claimed`        |
+| Public suffixes refused            | suffix check dropped                | `never lets a public suffix or a top-level domain be claimed`                          |
+| Top-level domains refused          | single-label check dropped          | same case                                                                              |
+| Canonical input required           | canonical check skipped             | `throws on a domain that is not canonical`                                             |
+| No claim opened on a public domain | `openClaim` policy check skipped    | `organization-records.db.test.ts` `never opens or promotes a claim on a public domain` |
+| No planted public claim promoted   | `promoteClaim` policy check skipped | same case                                                                              |
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

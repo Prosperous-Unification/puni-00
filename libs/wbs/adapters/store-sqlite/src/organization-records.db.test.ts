@@ -352,6 +352,39 @@ describe('DomainClaimRepository', () => {
     expect(await claims.findOwner('example.org')).toBe('org-a');
   });
 
+  it('never opens or promotes a claim on a public domain', async () => {
+    const claims = await twoOrganizationsClaiming('example.org');
+
+    expect(
+      await claims.openClaim(
+        {
+          id: 'c-gmail',
+          organizationId: 'org-a',
+          domain: 'gmail.com',
+          challengeDigest: 'digest-gmail',
+          challengeExpiresAt: 1000,
+        },
+        stamp('u-a'),
+      ),
+    ).toBe('unclaimable');
+    const db = openDatabase(path);
+    try {
+      expect(
+        db.query("SELECT id FROM organization_domain_claim WHERE id = 'c-gmail'").all(),
+      ).toEqual([]);
+      db.run(
+        `INSERT INTO organization_domain_claim (id, organization_id, domain, status, challenge_digest, challenge_expires_at, created_at)
+         VALUES ('c-planted', 'org-a', 'outlook.com', 'pending', 'digest-planted', 1000, 1)`,
+      );
+    } finally {
+      db.close();
+    }
+    expect(await claims.promoteClaim('c-planted', 'digest-planted', stamp('u-a', 20))).toBe(
+      'unclaimable',
+    );
+    expect(await claims.findOwner('outlook.com')).toBeNull();
+  });
+
   it('refuses promotion with a stale or expired challenge', async () => {
     const claims = await twoOrganizationsClaiming('example.org');
 

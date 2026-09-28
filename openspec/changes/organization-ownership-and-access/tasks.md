@@ -103,6 +103,10 @@
 ## 5. Domain ownership lifecycle
 
 - [ ] 5.1 Validate domain and versioned public-domain policy before issuing a 24-hour challenge. Red: public/relay domain and absent, unreadable and malformed policy separately. Fault: default a broken policy to empty; observe mounted claim test fail, restore and add `Proof:`.
+  - Slice 23, public domains never claimable (Astra design call, 2026-09-28):
+    - `isClaimableDomain` in `@wbs/domain` refuses public mailbox providers, multi-label public suffixes and top-level domains, and throws on a non-canonical domain. Its reviewed snapshot is compiled in, so the policy has no absent or unreadable state.
+    - `DomainClaimRepository.openClaim` answers `unclaimable` and writes nothing. `promoteClaim` refuses to promote a planted public-domain claim.
+  - Open: importing a maintained list with its revision, checksum and licence, and adding relay domains; the challenge and its route; the malformed-policy states.
 - [ ] 5.2 Verify exact authoritative TXT with bounded timeout and transactional unique ownership. Red: old challenge, malformed response, timeout and concurrent claims. Fault: skip exact-token or unique-owner check; observe DNS test fail, restore and add `Proof:`.
 - [ ] 5.3 Retain ownership proof beyond challenge expiry and recheck on day 7. Red: expired initial challenge with valid retained proof stays verified. Fault: use initial expiry for recheck; observe day-7 test fail, restore and add `Proof:`.
 - [ ] 5.4 Rotate proof with bounded overlap; suspend after 14 days without success while retaining owner, members and content. Red: day-14 loss, old proof after rotation and no signup routing. Fault: release owner on suspension; observe lifecycle test fail, restore and add `Proof:`.

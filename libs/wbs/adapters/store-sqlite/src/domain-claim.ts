@@ -1,4 +1,5 @@
 import type { WriteStamp } from '@wbs/core';
+import { isClaimableDomain } from '@wbs/domain';
 import { and, eq, gt, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -27,8 +28,18 @@ export class DomainClaimRepository {
     private readonly gate: Gate,
   ) {}
 
-  /** Records a pending claim. A pending claim reserves nothing. */
-  async openClaim(claim: OpenedDomainClaim, stamp: WriteStamp): Promise<void> {
+  /**
+   * Records a pending claim, or answers `unclaimable` for a public mailbox
+   * provider, public suffix or top-level domain (see `isClaimableDomain`),
+   * writing nothing. A pending claim reserves nothing.
+   *
+   * @throws when the domain is not canonical.
+   */
+  async openClaim(claim: OpenedDomainClaim, stamp: WriteStamp): Promise<'opened' | 'unclaimable'> {
+    // Proof: skipping this made `never opens or promotes a claim on a public
+    // domain` in `organization-records.db.test.ts` open the claim; watched
+    // 2026-09-28.
+    if (!isClaimableDomain(claim.domain)) return 'unclaimable';
     await this.gate.enter(async () => {
       await Promise.resolve();
       this.db
@@ -36,6 +47,7 @@ export class DomainClaimRepository {
         .values({ ...claim, status: 'pending', ...auditOnCreate(stamp) })
         .run();
     });
+    return 'opened';
   }
 
   /**
@@ -56,9 +68,19 @@ export class DomainClaimRepository {
     claimId: string,
     observedDigest: string,
     stamp: WriteStamp,
-  ): Promise<'verified' | 'taken' | 'stale'> {
+  ): Promise<'verified' | 'taken' | 'stale' | 'unclaimable'> {
     return await this.gate.enter(async () => {
       await Promise.resolve();
+      const pending = this.db
+        .select({ domain: organizationDomainClaim.domain })
+        .from(organizationDomainClaim)
+        .where(eq(organizationDomainClaim.id, claimId))
+        .get();
+      // A claim opened before the policy listed its domain, or written around
+      // `openClaim`, is still never promoted.
+      // Proof: skipping this made `never opens or promotes a claim on a public
+      // domain` promote the planted claim; watched 2026-09-28.
+      if (pending !== undefined && !isClaimableDomain(pending.domain)) return 'unclaimable';
       try {
         const promoted = this.db
           .update(organizationDomainClaim)
