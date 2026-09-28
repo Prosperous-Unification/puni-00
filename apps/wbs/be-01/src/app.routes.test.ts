@@ -21,6 +21,11 @@ import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
 import { testCapacityService } from './testing/capacity-fixture';
 import { testClock } from './testing/clock-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingTestEmailDelivery,
+} from './testing/email-verification-fixture';
 import { testHistoryService } from './testing/history-fixture';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
 import {
@@ -39,6 +44,9 @@ function options(): AppOptions {
   return {
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    emailVerification: refusingEmailVerification,
+    invitations: refusingInvitations,
+    emailDelivery: refusingTestEmailDelivery,
     onboarding: {
       discover: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
       createOrganization: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
@@ -133,6 +141,10 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postApiAuthLogin: { username: 'route-probe', password: 'valid-password' },
   postApiOnboardingOrganizations: { name: 'Reachable organization' },
   postApiOnboardingJoinRequests: { organizationId: ROUTE_ID },
+  postApiOnboardingEmailChallenges: { email: 'test@example.org' },
+  postApiOnboardingEmailChallengesConfirm: { email: 'test@example.org', token: 'invalid' },
+  postApiOrganizationInvitations: { email: 'test@example.org', role: 'viewer' },
+  postApiOnboardingInvitationsAccept: { token: 'invalid' },
   postApiSmokeEcho: { text: 'reachable' },
   postApiProjectsByIdSteps: { name: 'Reachable step' },
   patchApiProjectsByIdStepsByStepId: { name: 'Renamed step' },
@@ -203,6 +215,7 @@ const PUBLIC_OPERATIONS = [
 const SIGNED_IN_OPERATIONS = [
   'getApiExternal-systems',
   'getApiOnboarding',
+  'getApiOrganizationInvitations',
   'getApiPeople',
   'getApiProjects',
   'getApiProjectsById',
@@ -220,6 +233,7 @@ const SIGNED_IN_OPERATIONS = [
 ] as const;
 const READ_SCOPE_OPERATIONS = ['getApiProjectsByIdExport', 'getPlansBy-solutionBySlug'] as const;
 const WRITE_SCOPE_OPERATIONS = [
+  'deleteApiOrganizationInvitationsById',
   'deleteApiOrganizationMembersByUserId',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',
@@ -230,8 +244,12 @@ const WRITE_SCOPE_OPERATIONS = [
   'patchApiProjectsByIdStepsByStepId',
   'patchApiSaved-plansById',
   'postApiDirectoryCommands',
+  'postApiOnboardingEmailChallenges',
+  'postApiOnboardingEmailChallengesConfirm',
+  'postApiOnboardingInvitationsAccept',
   'postApiOnboardingJoinRequests',
   'postApiOnboardingOrganizations',
+  'postApiOrganizationInvitations',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -246,10 +264,15 @@ const WRITE_SCOPE_OPERATIONS = [
 const INTERNAL_OPERATIONS = ['postInternalForward', 'postInternalResume'] as const;
 const GATEWAY_OPERATIONS = ['postInternalGatewayProjectAccess'] as const;
 const ALWAYS_ORIGIN_OPERATIONS = [
+  'deleteApiOrganizationInvitationsById',
   'postApiAuthLogin',
   'postApiAuthRegister',
+  'postApiOnboardingEmailChallenges',
+  'postApiOnboardingEmailChallengesConfirm',
+  'postApiOnboardingInvitationsAccept',
   'postApiOnboardingJoinRequests',
   'postApiOnboardingOrganizations',
+  'postApiOrganizationInvitations',
 ] as const;
 const COOKIE_ORIGIN_OPERATIONS = [
   'deleteApiOrganizationMembersByUserId',
@@ -286,6 +309,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiAuthOktaCallback',
   'getApiExternal-systems',
   'getApiOnboarding',
+  'getApiOrganizationInvitations',
   'getApiPeople',
   'getApiProjects',
   'getApiProjectsById',

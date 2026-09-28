@@ -72,6 +72,15 @@ After activation, `POST /api/auth/link/auth0` SHALL require an originating first
 - **WHEN** U confirms a fresh single-use challenge sent to its new address
 - **THEN** U keeps the same local ID and may continue onboarding with that verified address
 
+#### Scenario: Password challenge delivery and consumption
+
+- **GIVEN** activation is complete and U is signed in with a password-only account
+- **WHEN** U requests a normalized address challenge through an injected mail sink and confirms its 30-minute token
+- **THEN** WBS stores only the token digest, marks the challenge delivered before confirmation, consumes it once in an immediate transaction, and updates U's existing email and verification flag without changing U's ID
+- **AND** pending or failed delivery, expiry, revocation, wrong account, replay and address conflict refuse without verifying U; an inactive marker refuses both routes
+- **AND** until an internationalized-address policy matches the existing SQLite email uniqueness rule, the challenge routes refuse non-ASCII addresses with typed `400 invalid_body`
+- **AND** the production sink currently refuses delivery with typed `503 delivery_failed` until a reviewed delivery adapter is provided
+
 #### Scenario: Auth0 link collision
 
 - **GIVEN** a password-only account U and an Auth0 issuer/subject already mapped to V
@@ -87,6 +96,8 @@ After activation, `POST /api/auth/link/auth0` SHALL require an originating first
 ### Requirement: Invitations are bound and single use
 
 An authorized administrator SHALL create a revocable invitation for one normalized verified recipient email, organization and permitted role with an expiry. Only the matching currently verified email SHALL accept it. Acceptance SHALL consume the invitation and create or retain one membership atomically; expiry, revocation, concurrent acceptance and replay MUST be refused. Admins SHALL only invite viewer or member; super-admins SHALL also invite admin. An invitation SHALL NOT directly grant super-admin.
+
+The active-organization GET/POST `/api/organization/invitations` and DELETE `/api/organization/invitations/:id` SHALL recheck administrator authority in their store transaction. An admin SHALL NOT revoke an admin offer. A foreign or missing invitation id SHALL have the same 404. POST `/api/onboarding/invitations/accept` SHALL require a session with write scope, read the current durable verified email, and answer 403 for a recipient mismatch or missing verification, 404 for an unknown token, and 409 for an expired, revoked or consumed offer. Acceptance SHALL retain an existing membership's role without upgrading it. Issuance SHALL use the injected mail port, store only a token digest, and answer 503 while delivery fails. All four routes SHALL refuse before activation; delegated callers SHALL receive 403.
 
 #### Scenario: Invitation replay
 
