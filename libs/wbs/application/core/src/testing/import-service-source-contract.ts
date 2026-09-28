@@ -354,11 +354,22 @@ function heldSolutionUnitOfWork(
             }
             return stored.create(project, steps, stamp);
           },
+          createInOrganization: (project, steps, stamp, organizationId) =>
+            stored.createInOrganization(project, steps, stamp, organizationId),
           findById: (id) => stored.findById(id),
+          findInOrganization: (id, organizationId) => stored.findInOrganization(id, organizationId),
+          findCrossReferences: (projectId, organizationId) =>
+            stored.findCrossReferences(projectId, organizationId),
+          listForInOrganization: (userId, organizationId) =>
+            stored.listForInOrganization(userId, organizationId),
           findBySolutionSlug: (slug) => stored.findBySolutionSlug(slug),
           list: () => stored.list(),
           listFor: (userId) => stored.listFor(userId),
           recordOpen: (projectId, stamp) => stored.recordOpen(projectId, stamp),
+          recordOpenInOrganization: (projectId, stamp, organizationId) =>
+            stored.recordOpenInOrganization(projectId, stamp, organizationId),
+          updateInOrganization: (id, changes, stamp, organizationId) =>
+            stored.updateInOrganization(id, changes, stamp, organizationId),
           update: (id, changes, stamp) => stored.update(id, changes, stamp),
           stepsOf: (projectId) => stored.stepsOf(projectId),
           setStepAllowance: (projectId, stepId, percent, stamp) =>

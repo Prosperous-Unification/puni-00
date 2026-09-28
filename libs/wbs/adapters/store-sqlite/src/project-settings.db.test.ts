@@ -64,10 +64,15 @@ const STEP_CODE = '20260927150000_add_step_code';
 /** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
 const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 /**
- * The newest: the legacy bridge triggers, stamped after
+ * The legacy bridge triggers, stamped after
  * {@link ORGANIZATION_ACTIVATION} and reversed before it.
  */
 const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
+/**
+ * The newest: the triggers that freeze organization ownership, stamped after
+ * {@link ORGANIZATION_BRIDGE} and reversed before it.
+ */
+const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
 const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 /** The one below it, which is where every rollback here stops. */
@@ -198,6 +203,7 @@ describe('the project settings migration', () => {
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
         TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
         STEP_ALLOWANCE,
@@ -242,6 +248,7 @@ describe('the project settings migration', () => {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
         TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
         STEP_ALLOWANCE,
@@ -329,6 +336,7 @@ describe('the project settings migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
         TYPED_DEPENDENCY,
+        ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
         STEP_ALLOWANCE,

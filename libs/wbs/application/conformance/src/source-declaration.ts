@@ -119,6 +119,10 @@ export type ScenarioControl =
       changeDirectory(): Promise<CaptureDirectoryChange>;
     }
   | {
+      readonly kind: 'capture-typed-change';
+      changeTypedDependencies(): Promise<void>;
+    }
+  | {
       readonly kind: 'competing-history-write';
       readonly rivalWriter: SavedPlanStore;
       readonly expectedRival: 'quota-refused' | 'snapshot_busy';

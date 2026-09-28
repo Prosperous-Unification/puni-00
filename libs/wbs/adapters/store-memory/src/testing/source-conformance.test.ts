@@ -7,6 +7,7 @@ import {
   type CaptureDirectoryChange,
   type CaseFixture,
   type CaseId,
+  changeSavedPlanCaptureTypedDependencies,
   completeSubtreeCopy,
   createFaultControl,
   defineFault,
@@ -486,7 +487,13 @@ async function openMemorySavedPlanCaptureCase(
             firstRead: { entered, release },
             changeDirectory: () => changeMemoryCaptureDirectory(source),
           }
-        : { kind: 'ordinary' },
+        : caseId === 'savedPlanCapture.readPlanInput:detached'
+          ? {
+              kind: 'capture-typed-change',
+              changeTypedDependencies: () =>
+                changeSavedPlanCaptureTypedDependencies(source.stores, DETERMINISTIC_SEED),
+            }
+          : { kind: 'ordinary' },
     close: async () => {
       release();
       await source.close();
@@ -1049,6 +1056,7 @@ function emptyMissingCapture(): PlanInputReads {
     progress: [],
     measures: [],
     dependencies: [],
+    typedDependencies: [],
     assignments: [],
     capacity: new Map(),
     priorityBands: [],
@@ -4227,7 +4235,14 @@ async function proveFault(
           journalAppender: source.journal,
           seed: DETERMINISTIC_SEED,
           readers: readersOf(source),
-          scenario: { kind: 'ordinary' },
+          scenario:
+            caseId === 'savedPlanCapture.readPlanInput:detached'
+              ? {
+                  kind: 'capture-typed-change',
+                  changeTypedDependencies: () =>
+                    changeSavedPlanCaptureTypedDependencies(source.stores, DETERMINISTIC_SEED),
+                }
+              : { kind: 'ordinary' },
           close: () => source.close(),
         });
       };

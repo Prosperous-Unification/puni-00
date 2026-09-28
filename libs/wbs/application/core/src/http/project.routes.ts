@@ -12,13 +12,15 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import { installPlanDocument } from '../module/plan-document/check';
 import type { Clock } from '../ports/clock';
+import type { OrganizationAccess } from '../ports/organization-access';
 import type { Project } from '../ports/project-store';
 import type { OptimizationVariantState } from '../ports/scheduler';
 import type { CalendarMarkerService } from '../service/calendar-marker.service';
 import type { DirectoryService } from '../service/directory.service';
-import { canEdit, type ProjectService } from '../service/project.service';
+import type { ProjectService } from '../service/project.service';
 import type { WorkItemService } from '../service/work-item.service';
 import { bind, EMPTY, type HttpReply, type RequestFailure } from './endpoint';
+import { organizationRefusal } from './organization-refusal';
 
 export interface OptimizationRetry {
   retry(ask: {
@@ -110,7 +112,11 @@ function classifyExportFailure(failure: RequestFailure) {
  * Opening is caller navigation, so it bypasses canEdit while retaining write scope.
  */
 export function projectRoutes(
-  projects: Pick<ProjectService, 'create' | 'list' | 'open' | 'read' | 'update'>,
+  projects: Pick<
+    ProjectService,
+    'authorizeEdit' | 'createWithin' | 'listWithin' | 'openWithin' | 'readWithin' | 'updateWithin'
+  >,
+  organizations: OrganizationAccess,
   workItems: WorkItemService,
   directory: DirectoryService,
   calendarMarkers: CalendarMarkerService,
@@ -121,30 +127,51 @@ export function projectRoutes(
   return [
     bind(
       createProject,
-      async ({ body, principal }) => ({
-        ok: true,
-        status: 200,
-        body: await projects.create(body.name, principal.id),
-      }),
+      async ({ body, principal }): Promise<HttpReply<typeof createProject>> => {
+        const resolved = await organizations.resolve(principal.id);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        const outcome = await projects.createWithin(body.name, principal.id, resolved.access);
+        return outcome.ok
+          ? { ok: true, status: 200, body: outcome.value }
+          : { ok: false, status: 403, body: { error: outcome.reason } };
+      },
       { classifyRequestFailure: classifyBodyFailure },
     ),
-    bind(listProjects, async ({ principal }) => ({
-      ok: true,
-      status: 200,
-      body: { projects: await projects.list(principal.id) },
-    })),
+    bind(listProjects, async ({ principal }): Promise<HttpReply<typeof listProjects>> => {
+      const resolved = await organizations.resolve(principal.id);
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      return {
+        ok: true,
+        status: 200,
+        body: { projects: await projects.listWithin(principal.id, resolved.access) },
+      };
+    }),
     // Proof: returning null instead of EMPTY made the mounted reader-open test receive 500 instead of 204.
-    bind(recordProjectOpen, async ({ params, principal }) =>
-      (await projects.open(params.id, principal.id))
-        ? { ok: true, status: 204, body: EMPTY }
-        : { ok: false, status: 404, body: { error: 'not_found' } },
+    bind(
+      recordProjectOpen,
+      async ({ params, principal }): Promise<HttpReply<typeof recordProjectOpen>> => {
+        const resolved = await organizations.resolve(principal.id);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        return (await projects.openWithin(params.id, principal.id, resolved.access))
+          ? { ok: true, status: 204, body: EMPTY }
+          : { ok: false, status: 404, body: { error: 'not_found' } };
+      },
     ),
     bind(
       exportProject,
-      async ({ params, query }): Promise<HttpReply<typeof exportProject>> => {
-        const found = await projects.read(params.id);
+      async ({ params, query, principal }): Promise<HttpReply<typeof exportProject>> => {
+        const resolved = await organizations.resolve(principal.id);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        // Proof: reading through `projects.read` instead made `answers 404 alike
+        // for a foreign and an absent project, and changes nothing` in
+        // `project-organization.controller.db.test.ts` answer 200 with the
+        // foreign project's Markdown; watched 2026-09-27.
+        const found = await projects.readWithin(params.id, resolved.access);
         if (found === null) return { ok: false, status: 404, body: { error: 'not_found' } };
-        const tree = await workItems.tree(params.id);
+        // Proof: reading the tree unscoped made `fails the export and the
+        // optimizer retry closed over a crossing row` in
+        // `schedule-organization.controller.db.test.ts` export with 200.
+        const tree = await workItems.treeWithin(params.id, resolved.access);
         if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         // Proof: removing this branch made both mounted unavailable export cases
         // receive 500 instead of 409, before either could inspect media or body.
@@ -177,8 +204,10 @@ export function projectRoutes(
       },
       { classifyRequestFailure: classifyExportFailure },
     ),
-    bind(readProject, async ({ params }) => {
-      const found = await projects.read(params.id);
+    bind(readProject, async ({ params, principal }): Promise<HttpReply<typeof readProject>> => {
+      const resolved = await organizations.resolve(principal.id);
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      const found = await projects.readWithin(params.id, resolved.access);
       return found === null
         ? { ok: false, status: 404, body: { error: 'not_found' } }
         : { ok: true, status: 200, body: found };
@@ -186,7 +215,9 @@ export function projectRoutes(
     bind(
       patchProject,
       async ({ params, body, principal }): Promise<HttpReply<typeof patchProject>> => {
-        const outcome = await projects.update(params.id, principal.id, body);
+        const resolved = await organizations.resolve(principal.id);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        const outcome = await projects.updateWithin(params.id, principal.id, body, resolved.access);
         if (outcome.ok) return { ok: true, status: 200, body: { project: outcome.value } };
         switch (outcome.reason) {
           case 'not_found':
@@ -208,12 +239,21 @@ export function projectRoutes(
     bind(
       retryProjectOptimization,
       async ({ params, body, principal }): Promise<HttpReply<typeof retryProjectOptimization>> => {
-        const found = await projects.read(params.id);
-        if (found === null) return { ok: false, status: 404, body: { error: 'not_found' } };
-        if (!canEdit(found.project, principal.id)) {
-          return { ok: false, status: 403, body: { error: 'forbidden' } };
+        const resolved = await organizations.resolve(principal.id);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        const authorization = await projects.authorizeEdit(
+          params.id,
+          principal.id,
+          resolved.access,
+        );
+        if (!authorization.ok) {
+          return authorization.reason === 'not_found'
+            ? { ok: false, status: 404, body: { error: 'not_found' } }
+            : { ok: false, status: 403, body: { error: 'forbidden' } };
         }
-        const input = await workItems.scheduleInput(params.id);
+        // Proof: building the input unscoped made that case answer 409 instead
+        // of 500, retrying over the crossing row.
+        const input = await workItems.scheduleInputWithin(params.id, resolved.access);
         if (input === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         if (optimizer === undefined) {
           return {

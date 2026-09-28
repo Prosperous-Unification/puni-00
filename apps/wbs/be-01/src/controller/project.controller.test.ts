@@ -20,6 +20,7 @@ import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects, memoryProjectTables, projectRow } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -103,6 +104,7 @@ function buildHarness(
     steps: testStepService(projectStore),
   };
   const app = buildApp({
+    organizations: legacyOrganizationAccess,
     loginThrottle: testLoginThrottle(),
     clock: testClock,
     appOrigin: 'http://localhost',
@@ -1310,7 +1312,7 @@ it('validates solution project settings and retains additive response fields', a
 it('rejects undeclared project creation fields before creating a project', async () => {
   const h = buildHarness();
   const token = await h.register('owner');
-  const create = spyOn(h.projects, 'create');
+  const create = spyOn(h.projects, 'createWithin');
   try {
     const response = await h.send('/api/projects', token, {
       method: 'POST',
@@ -1329,7 +1331,7 @@ it('rejects undeclared project patches at every nested boundary before calling t
   const token = await h.register('owner');
   const made = await h.send('/api/projects', token, created('Project'));
   const { project } = (await made.json()) as { project: { id: string } };
-  const update = spyOn(h.projects, 'update');
+  const update = spyOn(h.projects, 'updateWithin');
   try {
     for (const body of [
       { extra: true },
@@ -1357,7 +1359,7 @@ it('keeps opened write scope and write origin before malformed input', async () 
     username: 'reader',
     scopes: ['read'],
   });
-  const opened = spyOn(h.projects, 'open');
+  const opened = spyOn(h.projects, 'openWithin');
   try {
     const denied = await h.send('/api/projects/p/opened', 'reader', { method: 'POST' });
     expect(denied.status).toBe(403);
@@ -1397,7 +1399,7 @@ it('refuses structural settings before the service but preserves its semantic re
   expect(response.status).toBe(200);
   const { project } = (await response.json()) as { project: { id: string; name: string } };
   expect(project.name).toBe('');
-  const update = spyOn(h.projects, 'update');
+  const update = spyOn(h.projects, 'updateWithin');
   try {
     for (const body of [
       '{"pertWeights":{"optimistic":1e999,"realistic":4,"pessimistic":1}}',
@@ -1490,7 +1492,7 @@ it('refuses binary patch bytes instead of treating them as an empty settings pat
   const token = await h.register('owner');
   const made = await h.send('/api/projects', token, created('Project'));
   const { project } = (await made.json()) as { project: { id: string } };
-  const update = spyOn(h.projects, 'update');
+  const update = spyOn(h.projects, 'updateWithin');
   try {
     const response = await h.app.handle(
       new Request(`http://localhost/api/projects/${project.id}`, {
@@ -1515,7 +1517,7 @@ it('keeps export format precedence, duplicate last values and tree disappearance
   const token = await h.register('owner');
   const made = await h.send('/api/projects', token, created('Export'));
   const { project } = (await made.json()) as { project: { id: string } };
-  const read = spyOn(h.projects, 'read');
+  const read = spyOn(h.projects, 'readWithin');
   const tree = spyOn(h.workItems, 'tree');
   try {
     for (const query of ['', '?format=', '?format=bad&extra=1']) {
@@ -1587,7 +1589,7 @@ it('validates list owner metadata while retaining additive project response fiel
   const user = await h.auth.authenticate(token);
   if (user === null) throw new Error('fixture identity missing');
   const rows = await h.projects.list(user.id);
-  const list = spyOn(h.projects, 'list');
+  const list = spyOn(h.projects, 'listWithin');
   try {
     for (const field of ['ownerName', 'lastOpenedAt'] as const) {
       const damaged = structuredClone(rows);
@@ -1654,7 +1656,7 @@ for (const media of ['application/merge-patch+json', 'application/not-json', 'AP
   it(`refuses ${media} before project creation`, async () => {
     const h = buildHarness();
     const token = await h.register('owner');
-    const create = spyOn(h.projects, 'create');
+    const create = spyOn(h.projects, 'createWithin');
     try {
       const response = await h.app.handle(
         new Request('http://localhost/api/projects', {

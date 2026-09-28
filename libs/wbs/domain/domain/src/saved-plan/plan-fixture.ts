@@ -72,8 +72,8 @@ export const planFixtureRows: PlanInputRows = {
     },
   ],
   steps: [
-    { id: 's2', name: 'Test', position: 20, allowancePercent: 0 },
-    { id: 's1', name: 'Build', position: 10, allowancePercent: 0 },
+    { id: 's2', code: null, name: 'Test', position: 20, allowancePercent: 0 },
+    { id: 's1', code: 'build', name: 'Build', position: 10, allowancePercent: 0 },
   ],
   stepValues: [
     {
@@ -106,6 +106,20 @@ export const planFixtureRows: PlanInputRows = {
   dependencies: [
     { predecessorId: 'w2', successorId: 'w1' },
     { predecessorId: 'w1', successorId: 'w2' },
+  ],
+  typedDependencies: [
+    {
+      id: 'typed-2',
+      predecessor: { scope: 'whole', workItemId: 'w2' },
+      successor: { scope: 'node', workItemId: 'w2', stepId: 's2' },
+      type: 'FS',
+    },
+    {
+      id: 'typed-1',
+      predecessor: { scope: 'node', workItemId: 'w2', stepId: 's1' },
+      successor: { scope: 'whole', workItemId: 'w1' },
+      type: 'FS',
+    },
   ],
   assignments: [
     { workItemId: 'w2', stepId: 's2', personId: 'per-1' },
@@ -179,6 +193,7 @@ export function reversed(values: PlanInputRows): PlanInputRows {
     stepValues: [...values.stepValues].reverse(),
     measures: [...values.measures].reverse(),
     dependencies: [...values.dependencies].reverse(),
+    typedDependencies: [...values.typedDependencies].reverse(),
     assignments: [...values.assignments].reverse(),
     people: [...values.people].reverse(),
     teams: [...values.teams].reverse(),

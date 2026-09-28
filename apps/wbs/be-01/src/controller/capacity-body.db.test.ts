@@ -35,6 +35,7 @@ import { testClock } from '../testing/clock-fixture';
 import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
@@ -130,6 +131,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       }),
     };
     app = buildApp({
+      organizations: legacyOrganizationAccess,
       loginThrottle: testLoginThrottle(),
       clock: testClock,
       ...writing,

@@ -7,6 +7,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { EventLogService } from '../module/event-log/event-log.resource';
 import { PlanEventService } from '../module/plan-event/plan-event.resource';
+import { LEGACY_ACCESS } from '../ports/organization-access';
 import { PlanCommandRunner } from '../service/plan-commands';
 import { inMemoryServices } from '../testing/harness';
 import { batchServices, testWrites } from '../testing/writes-fixture';
@@ -23,13 +24,13 @@ describe('runCommandBatch', () => {
     const mutations: string[] = [];
     const outcome = await runCommandBatch(
       {
-        run: () => {
+        runWithin: () => {
           mutations.push('mutated');
           return Promise.resolve({ ok: true, results: [], undoable: false, redoable: false });
         },
-        runDirectory: () => Promise.reject(new Error('directory runner must not be called')),
+        runDirectoryWithin: () => Promise.reject(new Error('directory runner must not be called')),
       },
-      { projectId: 'p1', actor: reader, commands: [] },
+      { projectId: 'p1', actor: reader, commands: [], access: LEGACY_ACCESS },
     );
     // Proof: deleting the write-scope branch returned ok:true here instead of this refusal.
     expect(outcome).toEqual({ ok: false, error: 'insufficient_scope' });
@@ -63,6 +64,7 @@ describe('runCommandBatch', () => {
       await runCommandBatch(runner, {
         projectId: 'p1',
         actor: absent,
+        access: LEGACY_ACCESS,
         commands: [
           {
             kind: 'createWorkItem',

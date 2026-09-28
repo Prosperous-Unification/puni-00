@@ -11,6 +11,7 @@ import {
   type CaptureDirectoryChange,
   type CaseFixture,
   type CaseId,
+  changeSavedPlanCaptureTypedDependencies,
   createFaultControl,
   defineFault,
   DEPENDENCY_SURVIVOR_IDS,
@@ -472,7 +473,13 @@ async function openSqliteSavedPlanCaptureCase(
             firstRead: { entered, release },
             changeDirectory: () => changeSqliteCaptureDirectory(source),
           }
-        : { kind: 'ordinary' },
+        : caseId === 'savedPlanCapture.readPlanInput:detached'
+          ? {
+              kind: 'capture-typed-change',
+              changeTypedDependencies: () =>
+                changeSavedPlanCaptureTypedDependencies(source.stores, DETERMINISTIC_SEED),
+            }
+          : { kind: 'ordinary' },
     close: async () => {
       release();
       await closeSqliteResources(source, directory);
@@ -833,6 +840,7 @@ function emptyMissingCapture(): PlanInputReads {
     progress: [],
     measures: [],
     dependencies: [],
+    typedDependencies: [],
     assignments: [],
     capacity: new Map(),
     priorityBands: [],
@@ -2264,8 +2272,8 @@ const renameFault = defineFault({
       steps: replaceMethod(
         source.stores.steps,
         'rename',
-        (rename) => (stepId, name, stamp) =>
-          rename(stepId, control.reach('steps.rename') ? 'faulted rename' : name, stamp),
+        (rename) => (projectId, stepId, name, stamp) =>
+          rename(projectId, stepId, control.reach('steps.rename') ? 'faulted rename' : name, stamp),
       ),
     });
   },
@@ -4603,7 +4611,14 @@ async function proveFault(
           journalAppender: source.stores.journal,
           seed: DETERMINISTIC_SEED,
           readers: readersOf(source),
-          scenario: { kind: 'ordinary' },
+          scenario:
+            caseId === 'savedPlanCapture.readPlanInput:detached'
+              ? {
+                  kind: 'capture-typed-change',
+                  changeTypedDependencies: () =>
+                    changeSavedPlanCaptureTypedDependencies(source.stores, DETERMINISTIC_SEED),
+                }
+              : { kind: 'ordinary' },
           close: () => closeSqliteResources(source, directory),
         });
       };
@@ -6328,6 +6343,7 @@ describe('SQLite existing source conformance', () => {
     expect(cleanupProof.failure).toContain(
       'cleanup failed: injected SQLite capture cleanup failure after assertion',
     );
+    // Eighteen capture reads per exercise moved this case beyond Bun's five-second default.
   });
 
   it('Task 6.5 settles independent SQLite history writes without waiting', async () => {
