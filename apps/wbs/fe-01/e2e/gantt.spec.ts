@@ -1737,6 +1737,17 @@ test.describe('the chart on a phone', () => {
 const surface = (page: Page): Locator => page.getByRole('tooltip');
 
 /**
+ * The surface one row's bar opens, by the name `HoverCard` gives it.
+ *
+ * {@link surface} is any card on the page, and a table card can still be up
+ * when the bar is hovered: a pointer parked on a folded step cell keeps that
+ * cell's card for `REACH_FOR_THE_CARD_MS` after it leaves, by design. Named,
+ * the wait is for the bar's own card rather than whichever came first.
+ */
+const barSurface = (page: Page, number: string): Locator =>
+  page.getByRole('tooltip', { name: `Facts for ${number}`, exact: true });
+
+/**
  * The bar for one row **and one step**, found by the accessible name it carries.
  *
  * Never by its place in the list. A project is seeded with two steps, so every
@@ -1915,11 +1926,24 @@ test.describe('the surface a bar opens, as a browser places it', () => {
     await scrollChartFullyRight(page);
 
     const bar = page.locator('[data-gantt-bar]').last();
+    await expect(bar).toHaveAttribute('aria-label', /^010\.2 - /);
     await bar.hover();
-    await expect(surface(page)).toBeVisible();
+    // The bar's own card, not any tooltip. Seeding clicks last at 010.2's
+    // Earliest start, and filling 010.1's estimate reflows 010.1's folded Dev
+    // cell under that parked pointer, so its card opens; the Gantt click moves
+    // the pointer off and the card lingers up to `REACH_FOR_THE_CARD_MS`. A
+    // fast hover met that card, it went while its box was being read, and the
+    // bar's own card was not open yet: CI run 36482644786, `the surface is not
+    // on the page at all`, reproduced here 3 times in 20.
+    // Proof: with the pointer hovered onto 010.1's Dev cell before the bar,
+    // `REACH_FOR_THE_CARD_MS` raised to 5000 and a 400ms pause after this wait,
+    // `surface(page)` failed 5 of 5 on `strict mode violation:
+    // getByRole('tooltip') resolved to 2 elements`; this locator passed 5 of 5.
+    const shownSurface = barSurface(page, '010.2');
+    await expect(shownSurface).toBeVisible();
 
     const mark = await rectOfLocator(bar, 'the right-most bar');
-    const shown = await rectOfLocator(surface(page), 'the surface');
+    const shown = await rectOfLocator(shownSurface, 'the surface');
     const width = await page.evaluate(() => window.innerWidth);
     // The precondition, and the whole reason this is not a check about a
     // surface that was inside the window all along: placed from the bar's own
