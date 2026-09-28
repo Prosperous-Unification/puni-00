@@ -93,6 +93,7 @@ describe('the organization audit', () => {
       '20260928020000_add_email_verification',
       '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
+      '20260927213000_add_typed_dependency',
     ]);
   });
 

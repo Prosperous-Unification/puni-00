@@ -102,6 +102,7 @@ const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
  * {@link ORGANIZATION_BRIDGE} and reversed before it.
  */
 const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 /** The one below it, which is where every rollback here stops. */
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
@@ -141,6 +142,7 @@ const ADDED_TABLES = [
 // add: the two the saved-plan migrations above the target add, and
 // `calendar_marker`, which landed above all of them on 2026-09-05.
 const ALSO_ROLLED_BACK = [
+  'typed_dependency',
   'saved_plan',
   'saved_plan_body',
   'calendar_marker',
@@ -343,6 +345,7 @@ describe('the optimizer migration', () => {
         '20260928020000_add_email_verification',
         '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,

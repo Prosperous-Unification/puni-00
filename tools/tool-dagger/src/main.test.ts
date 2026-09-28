@@ -122,7 +122,8 @@ describe('candidate image inputs', () => {
     );
     writeFileSync(
       join(commands, 'docker'),
-      '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$WBS_DOCKER_LOG"\nexit 86\n',
+      '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$WBS_DOCKER_LOG"\n' +
+        '[ "$1 $2" = "image inspect" ] && echo "No such image: $3" >&2\nexit 86\n',
     );
     chmodSync(join(commands, 'mktemp'), 0o755);
     chmodSync(join(commands, 'docker'), 0o755);
@@ -142,8 +143,10 @@ describe('candidate image inputs', () => {
     expect(invocation.exitCode).toBe(86);
     // Proof: with the old `../../..` ascent, the real script called fake Docker with
     // `<workspace>/apps/apps/wbs/be-01/Dockerfile` and context `<workspace>/apps`.
-    expect(readFileSync(dockerLog, 'utf8').split('\n')[0]).toBe(
-      `build --file ${WORKSPACE}/apps/wbs/be-01/Dockerfile --tag wbs-be-01:solver-smoke ${WORKSPACE}`,
+    expect(readFileSync(dockerLog, 'utf8').split('\n')[0]).toMatch(
+      new RegExp(
+        `^build --file ${WORKSPACE}/apps/wbs/be-01/Dockerfile --tag wbs-be-01:solver-smoke-[0-9a-f-]{36} ${WORKSPACE}$`,
+      ),
     );
   });
 });

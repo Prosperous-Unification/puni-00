@@ -66,6 +66,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'dependencies.add:idempotent-pair',
   'dependencies.remove:pair',
   'dependencies.removeAllFor:touching-set',
+  'typedDependencies.write:identity-and-bulk',
   'directory.addTag',
   'directory.assign:unknown_person',
   'directory.assign:scope-replace-clear',

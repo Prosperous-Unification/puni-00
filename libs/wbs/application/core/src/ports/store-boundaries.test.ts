@@ -81,6 +81,7 @@ describe('store ports', () => {
       progress: [],
       measures: [],
       dependencies: [],
+      typedDependencies: [],
       assignments: [],
       capacity: new Map(),
       priorityBands: [],

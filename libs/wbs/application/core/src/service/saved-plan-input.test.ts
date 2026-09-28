@@ -1,11 +1,12 @@
-import { canonicalisePlanInput } from '@wbs/domain';
+import { canonicalisePlanInput, sliceKey } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
+import { schedulePlanInput } from '../module/saved-plans/saved-plan-schedule';
 import type { PlanInputReads } from '../ports/saved-plan-capture-store';
 import { planInputRowsOf } from './saved-plan-input';
 
 /**
- * One capture's reads, as the seventeen stores hand them over.
+ * One capture's reads, as the eighteen stores hand them over.
  *
  * The directory halves are deliberately **wider than the plan**: `per-3` belongs
  * to no captured team and is assigned nothing, `team-9` is a team this project
@@ -83,6 +84,7 @@ const reads = {
     { workItemId: 'w1', stepId: 's1', metric: 'tokens', value: 1200, recordedAt: 1_756_000_300 },
   ],
   dependencies: [{ id: 'd1', projectId: 'p1', predecessorId: 'w1', successorId: 'w1' }],
+  typedDependencies: [],
   assignments: [{ workItemId: 'w1', stepId: 's1', personId: 'per-1' }],
   capacity: new Map([['team-2', 3]]),
   priorityBands: [{ startsAt: 1, label: 'Critical', defaultValue: 10 }],
@@ -119,6 +121,42 @@ const reads = {
 const ids = (rows: readonly { id: string }[]): string[] => rows.map((row) => row.id).sort();
 
 describe('planInputRowsOf', () => {
+  it('schedules a captured node relationship into a later successor step', () => {
+    const first = reads.workItems.at(0);
+    if (first === undefined) throw new Error('fixture has no work item');
+    const captured: PlanInputReads = {
+      ...reads,
+      project: { ...reads.project, startDate: null },
+      steps: reads.steps.map((step) => ({ ...step, allowancePercent: 0 })),
+      workItems: [
+        { ...first, id: 'A', priority: null, teamIds: [], serviceIds: [] },
+        { ...first, id: 'B', priority: null, teamIds: [], serviceIds: [] },
+      ],
+      estimates: [
+        { workItemId: 'A', stepId: 's1', optimistic: 3, realistic: 3, pessimistic: 3 },
+        { workItemId: 'A', stepId: 's2', optimistic: 1, realistic: 1, pessimistic: 1 },
+        { workItemId: 'B', stepId: 's1', optimistic: 1, realistic: 1, pessimistic: 1 },
+        { workItemId: 'B', stepId: 's2', optimistic: 1, realistic: 1, pessimistic: 1 },
+      ],
+      actuals: [],
+      progress: [],
+      measures: [],
+      dependencies: [],
+      assignments: [],
+      typedDependencies: [
+        {
+          id: 'captured-fs',
+          predecessor: { scope: 'node', workItemId: 'A', stepId: 's1' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 's2' },
+          type: 'FS',
+        },
+      ],
+      capacity: new Map(),
+    };
+    const planned = schedulePlanInput(captured);
+    expect(planned.slices.get(sliceKey('B', 's1'))?.earliestStart).toBe(0);
+    expect(planned.slices.get(sliceKey('B', 's2'))?.earliestStart).toBe(3);
+  });
   it('carries the project settings the dates come from, and its solution ref split in two', () => {
     expect(planInputRowsOf(reads).project).toEqual({
       id: 'p1',

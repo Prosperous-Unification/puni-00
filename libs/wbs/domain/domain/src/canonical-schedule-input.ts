@@ -24,6 +24,7 @@ import type { DependencyReach } from './dependency-reach';
 import type { PlannedRow } from './derive-numbers';
 import { type DependencyEdge, indexTree, type PoolSizes, type Slice } from './schedule';
 import { groupSlicesByLeaf } from './slice-groups';
+import type { DependencyEndpoint, TypedDependency } from './typed-dependency';
 
 /**
  * The exact argument tuple of `schedule(rows, edges, slices, notBefore,
@@ -53,6 +54,8 @@ export interface ScheduleInput {
   readonly poolSizes: PoolSizes;
   readonly reach: DependencyReach;
   readonly deadlines: ReadonlyMap<string, number>;
+  /** `schedule()`'s eighth argument: the typed dependencies, resolved beside the legacy edges. */
+  readonly typed: readonly TypedDependency[];
 }
 
 /**
@@ -69,6 +72,13 @@ const byBytes = (left: string, right: string): number => (left < right ? -1 : le
 /** `[key, value]` pairs from a map, sorted by key. Used for (d), (e) and (g). */
 const sortedPairs = <V>(map: ReadonlyMap<string, V>): [string, V][] =>
   [...map.entries()].sort(([left], [right]) => byBytes(left, right));
+
+/** One endpoint with its fields in a fixed order, the step named only where the scope has one. */
+function canonicalEndpoint(endpoint: DependencyEndpoint): Record<string, string> {
+  return endpoint.scope === 'whole'
+    ? { scope: endpoint.scope, workItemId: endpoint.workItemId }
+    : { scope: endpoint.scope, workItemId: endpoint.workItemId, stepId: endpoint.stepId };
+}
 
 /**
  * The canonical JSON string for one `schedule()` call.
@@ -218,6 +228,22 @@ export function canonicalScheduleInput(input: ScheduleInput): string {
     })),
   }));
 
+  // Typed dependencies by id, each with both endpoints, scope and step
+  // included, and the type: two relationships between one pair of work items
+  // are two constraints. Present only when there is one, so every plan without
+  // a typed dependency keeps the hash it had before they existed; the empty
+  // list and its absence are the same plan.
+  // Proof: this entry left out made `hashes a typed dependency’s endpoints,
+  // scope and identity` fail on `Expected: 4, Received: 1`; watched 2026-09-27.
+  const typed = [...input.typed]
+    .sort((left, right) => byBytes(left.id, right.id))
+    .map((dependency) => ({
+      id: dependency.id,
+      predecessor: canonicalEndpoint(dependency.predecessor),
+      successor: canonicalEndpoint(dependency.successor),
+      type: dependency.type,
+    }));
+
   return JSON.stringify({
     rows,
     edges,
@@ -226,5 +252,6 @@ export function canonicalScheduleInput(input: ScheduleInput): string {
     poolSizes: sortedPairs(input.poolSizes),
     reach: input.reach,
     deadlines: sortedPairs(input.deadlines),
+    ...(typed.length === 0 ? {} : { typed }),
   });
 }
