@@ -3,7 +3,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { generateKeyPair, SignJWT } from 'jose';
 
 import { DELEGATION_TOKEN_TYPE } from '../runtime/delegation';
@@ -13,6 +13,7 @@ let harness: OrganizationHarness;
 let policyDirectory: string | undefined;
 let dnsRecords: readonly string[] | Error | 'hang' = new Error('DNS unavailable');
 let beforeDnsReply: (() => void) | undefined;
+let dnsBarrier: Promise<void> | undefined;
 const assetSource = new URL('../../../../../libs/wbs/domain/domain/src/', import.meta.url);
 
 function copyPolicy(): string {
@@ -30,15 +31,33 @@ function pinAsset(directory: string, content: string): void {
   writeFileSync(manifestPath, JSON.stringify(manifest));
 }
 
+async function withShortDnsTimeout<T>(run: () => Promise<T>): Promise<T> {
+  const timeout = AbortSignal.timeout.bind(AbortSignal);
+  const requested: number[] = [];
+  const timeoutSpy = spyOn(AbortSignal, 'timeout').mockImplementation((milliseconds) => {
+    requested.push(milliseconds);
+    return timeout(1);
+  });
+  try {
+    const answer = await run();
+    expect(requested).toEqual([5_000]);
+    return answer;
+  } finally {
+    timeoutSpy.mockRestore();
+  }
+}
+
 beforeEach(async () => {
   dnsRecords = new Error('DNS unavailable');
   beforeDnsReply = undefined;
+  dnsBarrier = undefined;
   harness = OrganizationHarness.open(undefined, copyPolicy(), {
-    lookupTxt: () => {
+    lookupTxt: async () => {
       beforeDnsReply?.();
+      await dnsBarrier;
       if (dnsRecords === 'hang') return Promise.withResolvers<readonly string[]>().promise;
-      if (dnsRecords instanceof Error) return Promise.reject(dnsRecords);
-      return Promise.resolve(dnsRecords);
+      if (dnsRecords instanceof Error) throw dnsRecords;
+      return dnsRecords;
     },
   });
   await harness.register('owner');
@@ -236,7 +255,12 @@ describe('mounted organization domain challenges', () => {
     expect(rotated.status).toBe(201);
     const replacement = (rotated.body as { dnsValue: string }).dnsValue;
     expect(replacement).not.toBe(issued.dnsValue);
-    const start = Date.now();
+    const overlapDeadline = (
+      harness.sqlite
+        .query('SELECT previous_proof_valid_until FROM organization_domain_claim WHERE id = ?')
+        .get(issued.id) as { previous_proof_valid_until: number }
+    ).previous_proof_valid_until;
+    const start = overlapDeadline - 86_400_000;
     harness.sqlite.run('UPDATE organization_domain_claim SET last_checked_at = ? WHERE id = ?', [
       start - 6 * 86_400_000 - 1,
       issued.id,
@@ -247,16 +271,61 @@ describe('mounted organization domain challenges', () => {
     });
     expect(
       harness.sqlite
-        .query('SELECT status FROM organization_domain_claim WHERE id = ?')
+        .query('SELECT status, last_success_at FROM organization_domain_claim WHERE id = ?')
         .get(issued.id),
-    ).toEqual({ status: 'verified' });
-    expect(await harness.checkDomains(start + 8 * 86_400_000)).toEqual({ checked: 1, stale: 0 });
+    ).toEqual({ status: 'verified', last_success_at: start + 1 * 86_400_000 - 1 });
+    // Hold the commit clock before expiry to isolate the lookup-time cutoff.
+    expect(await harness.checkDomains(start + 8 * 86_400_000, () => overlapDeadline - 1)).toEqual({
+      checked: 1,
+      stale: 0,
+    });
+    expect(
+      harness.sqlite
+        .query('SELECT last_success_at FROM organization_domain_claim WHERE id = ?')
+        .get(issued.id),
+    ).toEqual({ last_success_at: start + 1 * 86_400_000 - 1 });
     expect(await harness.checkDomains(start + 15 * 86_400_000)).toEqual({ checked: 1, stale: 0 });
     expect(
       harness.sqlite
-        .query('SELECT status FROM organization_domain_claim WHERE id = ?')
+        .query('SELECT status, last_success_at FROM organization_domain_claim WHERE id = ?')
         .get(issued.id),
-    ).toEqual({ status: 'suspended' });
+    ).toEqual({ status: 'suspended', last_success_at: start + 1 * 86_400_000 - 1 });
+  });
+
+  it('does not accept an old proof when its overlap expires during DNS lookup', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    expect(
+      (await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`)).status,
+    ).toBe(200);
+    expect(
+      (await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/rotate`)).status,
+    ).toBe(201);
+    const deadline = (
+      harness.sqlite
+        .query('SELECT previous_proof_valid_until FROM organization_domain_claim WHERE id = ?')
+        .get(issued.id) as { previous_proof_valid_until: number }
+    ).previous_proof_valid_until;
+    const at = deadline - 1;
+    const lastSuccessAt = at - 86_400_000;
+    harness.sqlite.run(
+      'UPDATE organization_domain_claim SET last_checked_at = ?, last_success_at = ? WHERE id = ?',
+      [at - 7 * 86_400_000, lastSuccessAt, issued.id],
+    );
+    let clockTime = at;
+    beforeDnsReply = () => {
+      clockTime = deadline + 1;
+    };
+    expect(await harness.checkDomains(at, () => clockTime)).toEqual({ checked: 1, stale: 0 });
+    expect(
+      harness.sqlite
+        .query('SELECT last_success_at FROM organization_domain_claim WHERE id = ?')
+        .get(issued.id),
+    ).toEqual({ last_success_at: lastSuccessAt });
   });
 
   it('suspends without releasing domain ownership or memberships', async () => {
@@ -364,7 +433,7 @@ describe('mounted organization domain challenges', () => {
     ).toEqual({ previous_proof_digest: null });
   });
 
-  it('refuses a rotated proof after the 24-hour confirmation window', async () => {
+  it('confirms a replacement proof after the old-proof overlap ends', async () => {
     harness.activate();
     const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
       id: string;
@@ -384,7 +453,35 @@ describe('mounted organization domain challenges', () => {
     dnsRecords = [rotated.dnsValue];
     expect(
       await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
-    ).toEqual({ status: 409, body: { error: 'stale' } });
+    ).toEqual({ status: 200, body: { id: issued.id, status: 'verified' } });
+    expect(
+      harness.sqlite
+        .query('SELECT previous_proof_digest FROM organization_domain_claim WHERE id = ?')
+        .get(issued.id),
+    ).toEqual({ previous_proof_digest: null });
+  });
+
+  it('throws for a verified claim with a missing retained proof digest on rotation', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    expect(
+      (await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`)).status,
+    ).toBe(200);
+    harness.sqlite.run('PRAGMA ignore_check_constraints = ON');
+    try {
+      harness.sqlite.run('UPDATE organization_domain_claim SET proof_digest = NULL WHERE id = ?', [
+        issued.id,
+      ]);
+    } finally {
+      harness.sqlite.run('PRAGMA ignore_check_constraints = OFF');
+    }
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/rotate`),
+    ).toEqual({ status: 500, body: 'Internal Server Error' });
   });
 
   it('rechecks rotation snapshot after DNS lookup', async () => {
@@ -496,7 +593,7 @@ describe('mounted organization domain challenges', () => {
       stale: 0,
     });
     dnsRecords = 'hang';
-    await harness.checkDomains(dayZero + 7 * 24 * 60 * 60 * 1000);
+    await withShortDnsTimeout(() => harness.checkDomains(dayZero + 7 * 24 * 60 * 60 * 1000));
     const warned = await harness.call('owner', 'GET', '/api/organization/domains');
     expect(
       (
@@ -537,6 +634,172 @@ describe('mounted organization domain challenges', () => {
         .query("SELECT last_checked_at FROM organization_domain_claim WHERE id = 'planted'")
         .get(),
     ).toEqual({ last_checked_at: at });
+  });
+
+  it('rejects a verified claim with a missing retained check timestamp', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    expect(
+      (await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`)).status,
+    ).toBe(200);
+    harness.sqlite.run('UPDATE organization_domain_claim SET last_checked_at = NULL WHERE id = ?', [
+      issued.id,
+    ]);
+    let failure: unknown;
+    try {
+      await harness.checkDomains(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    } catch (cause) {
+      failure = cause;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    if (!(failure instanceof Error)) throw new Error('expected corrupt proof refusal');
+    expect(failure.message).toContain('lacks retained proof state');
+  });
+
+  it('records a failed retained check for a malformed TXT response', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    expect(
+      (await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`)).status,
+    ).toBe(200);
+    const dayZero = Date.now();
+    harness.sqlite.run(
+      'UPDATE organization_domain_claim SET last_success_at = ?, last_checked_at = ? WHERE id = ?',
+      [dayZero, dayZero, issued.id],
+    );
+    // The resolver violates its trusted return contract after verification.
+    dnsRecords = [42] as unknown as readonly string[];
+    expect(await harness.checkDomains(dayZero + 7 * 24 * 60 * 60 * 1000)).toEqual({
+      checked: 1,
+      stale: 0,
+    });
+    expect(
+      harness.sqlite
+        .query(
+          'SELECT last_success_at, last_checked_at FROM organization_domain_claim WHERE id = ?',
+        )
+        .get(issued.id),
+    ).toEqual({
+      last_success_at: dayZero,
+      last_checked_at: dayZero + 7 * 24 * 60 * 60 * 1000,
+    });
+  });
+
+  for (const [snapshot, change] of [
+    [
+      'organization',
+      (claimId: string) => {
+        harness.organization('org-b');
+        harness.sqlite.run(
+          'UPDATE organization_domain_claim SET organization_id = ? WHERE id = ?',
+          ['org-b', claimId],
+        );
+      },
+    ],
+    [
+      'domain',
+      (claimId: string) => {
+        harness.sqlite.run('UPDATE organization_domain_claim SET domain = ? WHERE id = ?', [
+          'example.net',
+          claimId,
+        ]);
+      },
+    ],
+    [
+      'digest',
+      (claimId: string) => {
+        harness.sqlite.run('UPDATE organization_domain_claim SET proof_digest = ? WHERE id = ?', [
+          '0'.repeat(64),
+          claimId,
+        ]);
+      },
+    ],
+    [
+      'timestamp',
+      (claimId: string) => {
+        harness.sqlite.run(
+          'UPDATE organization_domain_claim SET last_checked_at = last_checked_at + 1 WHERE id = ?',
+          [claimId],
+        );
+      },
+    ],
+  ] as const) {
+    it(`leaves a retained check stale when its ${snapshot} changes during lookup`, async () => {
+      harness.activate();
+      const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' }))
+        .body as {
+        id: string;
+        dnsValue: string;
+      };
+      dnsRecords = [issued.dnsValue];
+      expect(
+        (await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`))
+          .status,
+      ).toBe(200);
+      beforeDnsReply = () => {
+        beforeDnsReply = undefined;
+        change(issued.id);
+      };
+      const before = harness.sqlite
+        .query(
+          'SELECT last_success_at, last_checked_at FROM organization_domain_claim WHERE id = ?',
+        )
+        .get(issued.id) as { last_success_at: number; last_checked_at: number };
+      expect(await harness.checkDomains(Date.now() + 7 * 24 * 60 * 60 * 1000)).toEqual({
+        checked: 0,
+        stale: 1,
+      });
+      expect(
+        harness.sqlite
+          .query(
+            'SELECT last_success_at, last_checked_at FROM organization_domain_claim WHERE id = ?',
+          )
+          .get(issued.id),
+      ).toEqual({
+        last_success_at: before.last_success_at,
+        last_checked_at: before.last_checked_at + (snapshot === 'timestamp' ? 1 : 0),
+      });
+    });
+  }
+
+  it('leaves a retained check stale when activation changes during lookup', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    expect(
+      (await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`)).status,
+    ).toBe(200);
+    const before = harness.sqlite
+      .query('SELECT last_checked_at FROM organization_domain_claim WHERE id = ?')
+      .get(issued.id);
+    beforeDnsReply = () => {
+      beforeDnsReply = undefined;
+      // Inject a rollback that production's irreversible activation trigger refuses.
+      harness.sqlite.run('DROP TRIGGER organization_activation_no_revert');
+      harness.sqlite.run(
+        "UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL WHERE singleton = 1",
+      );
+    };
+    expect(await harness.checkDomains(Date.now() + 7 * 24 * 60 * 60 * 1000)).toEqual({
+      checked: 0,
+      stale: 1,
+    });
+    expect(
+      harness.sqlite
+        .query('SELECT last_checked_at FROM organization_domain_claim WHERE id = ?')
+        .get(issued.id),
+    ).toEqual(before);
   });
 
   it('does not record a retained check after its claim is released during DNS lookup', async () => {
@@ -595,6 +858,43 @@ describe('mounted organization domain challenges', () => {
         .query('SELECT last_checked_at FROM organization_domain_claim WHERE id = ?')
         .get(issued.id),
     ).toEqual(before);
+  });
+
+  it('surfaces corrupt pending proof fields as a server error', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+    };
+    harness.sqlite.run(
+      'UPDATE organization_domain_claim SET challenge_digest = NULL, challenge_expires_at = NULL WHERE id = ?',
+      [issued.id],
+    );
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
+    ).toEqual({ status: 500, body: 'Internal Server Error' });
+  });
+  it('surfaces pending proof fields corrupted during DNS lookup as a server error', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    beforeDnsReply = () => {
+      beforeDnsReply = undefined;
+      harness.sqlite.run(
+        'UPDATE organization_domain_claim SET challenge_digest = NULL, challenge_expires_at = NULL WHERE id = ?',
+        [issued.id],
+      );
+    };
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
+    ).toEqual({ status: 500, body: 'Internal Server Error' });
+    expect(
+      harness.sqlite
+        .query('SELECT status, proof_digest FROM organization_domain_claim WHERE id = ?')
+        .get(issued.id),
+    ).toEqual({ status: 'pending', proof_digest: null });
   });
   it('verifies only an exact current TXT value and retains its digest', async () => {
     harness.activate();
@@ -745,6 +1045,52 @@ describe('mounted organization domain challenges', () => {
     ).toEqual({ status: 409, body: { error: 'domain_taken' } });
   });
 
+  it('settles concurrent DNS lookups with one owner and an untouched losing proof', async () => {
+    await harness.register('owner-b');
+    harness.organization('org-b');
+    harness.member('org-b', 'owner-b', 'super_admin');
+    harness.bind('owner-b', 'org-b');
+    harness.activate();
+    const first = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    const second = (await harness.call('owner-b', 'POST', path, { domain: 'example.org' }))
+      .body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [first.dnsValue, second.dnsValue];
+    const bothLooking = Promise.withResolvers<undefined>();
+    const releaseDns = Promise.withResolvers<undefined>();
+    dnsBarrier = releaseDns.promise;
+    let lookups = 0;
+    beforeDnsReply = () => {
+      lookups += 1;
+      if (lookups === 2) bothLooking.resolve(undefined);
+    };
+    const answers = [
+      harness.call('owner', 'POST', `/api/organization/domains/${first.id}/verify`),
+      harness.call('owner-b', 'POST', `/api/organization/domains/${second.id}/verify`),
+    ];
+    await bothLooking.promise;
+    releaseDns.resolve(undefined);
+    const settled = await Promise.all(answers);
+    expect(settled.map((answer) => answer.status).sort()).toEqual([200, 409]);
+    const loser = settled[0]?.status === 409 ? first : second;
+    expect(
+      harness.sqlite
+        .query(
+          'SELECT status, challenge_digest, proof_digest FROM organization_domain_claim WHERE id = ?',
+        )
+        .get(loser.id),
+    ).toEqual({
+      status: 'pending',
+      challenge_digest: createHash('sha256').update(loser.dnsValue).digest('hex'),
+      proof_digest: null,
+    });
+  });
+
   it('refuses malformed and timed-out resolver answers', async () => {
     harness.activate();
     const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
@@ -757,7 +1103,9 @@ describe('mounted organization domain challenges', () => {
     ).toEqual({ status: 503, body: { error: 'dns_unavailable' } });
     dnsRecords = 'hang';
     expect(
-      await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
+      await withShortDnsTimeout(() =>
+        harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
+      ),
     ).toEqual({ status: 503, body: { error: 'dns_unavailable' } });
     expect(
       harness.sqlite
@@ -862,7 +1210,10 @@ describe('mounted organization domain challenges', () => {
 
   it('refuses a delegated caller even with current super-admin membership', async () => {
     const keys = await generateKeyPair('RS256');
-    const delegated = OrganizationHarness.open(keys.publicKey);
+    let dnsValue = '';
+    const delegated = OrganizationHarness.open(keys.publicKey, undefined, {
+      lookupTxt: () => Promise.resolve([dnsValue]),
+    });
     try {
       await delegated.register('delegated-owner');
       delegated.organization('delegated-org');
@@ -873,6 +1224,12 @@ describe('mounted organization domain challenges', () => {
         ['delegated-map', delegated.userId('delegated-owner'), 'https://idp.test', 'delegated-sub'],
       );
       delegated.activate();
+      const issued = await delegated.call('delegated-owner', 'POST', path, {
+        domain: 'example.org',
+      });
+      expect(issued.status).toBe(201);
+      const claim = issued.body as { id: string; dnsValue: string };
+      dnsValue = claim.dnsValue;
       const token = async () =>
         new SignJWT({
           username: 'delegated-owner',
@@ -904,6 +1261,13 @@ describe('mounted organization domain challenges', () => {
       expect(
         await delegated.callWith(await token(), 'DELETE', '/api/organization/domains/missing'),
       ).toEqual({ status: 403, body: { error: 'insufficient_scope' } });
+      expect(
+        await delegated.callWith(
+          await token(),
+          'POST',
+          `/api/organization/domains/${claim.id}/verify`,
+        ),
+      ).toEqual({ status: 403, body: { error: 'insufficient_scope' } });
     } finally {
       delegated.close();
     }
@@ -933,6 +1297,17 @@ describe('mounted organization domain challenges', () => {
       domain: 'xn--bcher-kva.de',
       dnsName: '_wbs-verification.xn--bcher-kva.de',
     });
+  });
+
+  it('refuses a domain whose complete TXT challenge hostname exceeds DNS length', async () => {
+    harness.activate();
+    const domain = `${'a'.repeat(57)}.${'b'.repeat(60)}.${'c'.repeat(60)}.${'d'.repeat(60)}.com`;
+    expect(domain).toHaveLength(244);
+    expect(await harness.call('owner', 'POST', path, { domain })).toEqual({
+      status: 400,
+      body: { error: 'invalid_domain' },
+    });
+    expect(harness.sqlite.query('SELECT id FROM organization_domain_claim').all()).toEqual([]);
   });
 
   it('honors a checked suffix override beyond the pinned PSL', async () => {

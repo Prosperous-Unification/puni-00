@@ -10,7 +10,7 @@ import type {
   WriteStamp,
 } from '@wbs/core';
 import { isClaimableDomain } from '@wbs/domain';
-import { and, eq, gt, inArray, lte } from 'drizzle-orm';
+import { and, eq, gt, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -56,17 +56,12 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
       const due = tx
         .select()
         .from(organizationDomainClaim)
-        .where(
-          and(
-            eq(organizationDomainClaim.status, 'verified'),
-            // Proof: 2026-09-28, consulting the expired initial challenge
-            // instead made mounted `shows retained proof check timestamps and
-            // a warning after a failed day-seven check` skip the due claim.
-            lte(organizationDomainClaim.lastCheckedAt, at - 7 * 24 * 60 * 60 * 1000),
-          ),
-        )
+        .where(eq(organizationDomainClaim.status, 'verified'))
         .all();
-      return due.map((claim) => {
+      return due.flatMap((claim) => {
+        // Proof: 2026-09-28, filtering by last_checked_at in SQL hid a NULL
+        // verified timestamp; mounted `rejects a verified claim with a missing
+        // retained check timestamp` resolved instead of throwing.
         if (
           claim.proofDigest === null ||
           claim.lastCheckedAt === null ||
@@ -75,37 +70,52 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
           throw new Error(`verified domain ${claim.id} lacks retained proof state`);
         if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
           throw new Error(`verified domain ${claim.id} is no longer claimable`);
-        return {
-          id: claim.id,
-          organizationId: claim.organizationId,
-          domain: claim.domain,
-          proofDigest: claim.proofDigest,
-          previousProofDigest: claim.previousProofDigest,
-          previousProofValidUntil: claim.previousProofValidUntil,
-          lastCheckedAt: claim.lastCheckedAt,
-        };
+        // Proof: 2026-09-28, filtering by challenge expiry instead made mounted
+        // `shows retained proof check timestamps and a warning after a failed
+        // day-seven check` skip a due verified claim. Bypassing this due filter
+        // made that test check the claim on day six (checked: 1 instead of 0).
+        if (claim.lastCheckedAt > at - 7 * 24 * 60 * 60 * 1000) return [];
+        return [
+          {
+            id: claim.id,
+            organizationId: claim.organizationId,
+            domain: claim.domain,
+            proofDigest: claim.proofDigest,
+            previousProofDigest: claim.previousProofDigest,
+            previousProofValidUntil: claim.previousProofValidUntil,
+            lastCheckedAt: claim.lastCheckedAt,
+          },
+        ];
       });
     });
   }
 
-  /** Records a check only while the same verified ownership snapshot survives. */
+  /** Records a check under the surviving snapshot, rechecking old-proof expiry at commit. */
   async finishProofCheck(
     proof: RetainedDomainProof,
     matched: 'current' | 'previous' | null,
     at: number,
+    now: () => number,
   ): Promise<'checked' | 'stale'> {
     return this.gate.enter(async () => {
       await Promise.resolve();
       return this.db.transaction(
         (tx) => {
+          // Proof: 2026-09-28, bypassing this read made mounted `leaves a
+          // retained check stale when activation changes during lookup`
+          // record checked after an injected marker rollback.
           if (readOrganizationActivation(tx) !== 'activated') return 'stale' as const;
           const current = tx
             .select()
             .from(organizationDomainClaim)
             .where(eq(organizationDomainClaim.id, proof.id))
             .get();
-          // Proof: 2026-09-28, bypassing the release/snapshot check made mounted
-          // `does not record a retained check after its claim is released during DNS lookup` report checked rather than stale.
+          // Proof: 2026-09-28, bypassing the release check made mounted `does
+          // not record a retained check after its claim is released during DNS
+          // lookup` report checked. Bypassing organization, domain, digest and
+          // timestamp comparisons separately made each corresponding mounted
+          // `leaves a retained check stale when its ... changes during lookup`
+          // report checked instead of stale.
           if (
             current?.status !== 'verified' ||
             current.organizationId !== proof.organizationId ||
@@ -123,10 +133,18 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
             throw new Error(`verified domain ${current.id} is no longer claimable`);
           if (current.lastSuccessAt === null)
             throw new Error(`owned domain ${current.id} lacks last successful proof`);
+          const overlapDeadline = current.previousProofValidUntil;
+          // Proof: 2026-09-28, bypassing this commit-time deadline made mounted
+          // `does not accept an old proof when its overlap expires during DNS lookup`
+          // advance lastSuccessAt to the run time after the injected clock crossed expiry.
+          const accepted =
+            matched === 'previous' && overlapDeadline !== null && now() >= overlapDeadline
+              ? null
+              : matched;
           tx.update(organizationDomainClaim)
             .set({
               lastCheckedAt: at,
-              ...(matched
+              ...(accepted
                 ? { lastSuccessAt: at }
                 : // Proof: 2026-09-28, setting pending here made mounted
                   // `retains a suspended owner until release and refuses a stale recovery after release`
@@ -138,7 +156,7 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
                   : {}),
               // Proof: 2026-09-28, bypassing this clear made mounted `ends
               // old-proof overlap when the replacement succeeds` retain the old digest.
-              ...(matched === 'current' && current.previousProofDigest !== null
+              ...(accepted === 'current' && current.previousProofDigest !== null
                 ? { previousProofDigest: null, previousProofValidUntil: null }
                 : {}),
               ...auditOnUpdate({ at }),
@@ -152,7 +170,9 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
     });
   }
 
-  /** Replaces an owned proof with a 24-hour overlap under current authority. */
+  /** Replaces an owned proof with a 24-hour overlap under current authority.
+   * @throws when verified ownership lacks its retained digest.
+   */
   async rotateClaim(
     organizationId: string,
     actorId: string,
@@ -194,11 +214,13 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
             )
             .get();
           if (claim === undefined) return { kind: 'not_found' } as const;
-          if (
-            (claim.status !== 'verified' && claim.status !== 'suspended') ||
-            claim.proofDigest === null
-          )
+          if (claim.status !== 'verified' && claim.status !== 'suspended')
             return { kind: 'stale' } as const;
+          // Proof: 2026-09-28, treating this trusted corruption as stale made
+          // mounted `throws for a verified claim with a missing retained proof
+          // digest on rotation` return 409 after the stored digest was forced NULL.
+          if (claim.proofDigest === null)
+            throw new Error(`verified domain ${claim.id} lacks retained proof digest`);
           if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
             return { kind: 'stale' } as const;
           const dnsValue = `wbs-domain-verification=${organizationId}:${claim.domain}:${token}`;
@@ -282,20 +304,22 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
       // `restores a suspended claim through retained TXT proof without changing owner`
       // return stale 409 rather than verify the retained digest.
       const isRecovery = claim.status === 'suspended';
+      if (!isRotation && !isRecovery && claim.status !== 'pending') return 'stale';
+      // Proof: 2026-09-28, returning stale here made mounted `surfaces corrupt
+      // pending proof fields as a server error` answer 409 for a pending row
+      // with both required fields null.
       if (
-        !isRotation &&
-        !isRecovery &&
-        (claim.status !== 'pending' ||
-          claim.challengeDigest === null ||
-          claim.challengeExpiresAt === null)
+        claim.status === 'pending' &&
+        (claim.challengeDigest === null || claim.challengeExpiresAt === null)
       )
-        return 'stale';
+        throw new Error(`pending domain claim ${claim.id} lacks challenge proof`);
       if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
         return 'stale';
       if (isRotation || isRecovery) {
         if (claim.proofDigest === null || (isRotation && claim.previousProofValidUntil === null))
           throw new Error(`rotating domain ${claim.id} lacks retained proof`);
         return {
+          kind: 'rotation',
           id: claim.id,
           domain: claim.domain,
           challengeDigest: claim.proofDigest,
@@ -308,6 +332,7 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
       if (claim.challengeDigest === null || claim.challengeExpiresAt === null)
         throw new Error(`pending domain ${claim.id} lacks challenge`);
       return {
+        kind: 'initial',
         id: claim.id,
         domain: claim.domain,
         challengeDigest: claim.challengeDigest,
@@ -326,6 +351,7 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
     claim: DomainVerificationSnapshot,
     observedDigest: string,
     stamp: WriteStamp,
+    now: () => number,
   ): Promise<'verified' | 'forbidden' | 'not_found' | 'stale' | 'taken' | 'inactive'> {
     return this.gate.enter(async () => {
       await Promise.resolve();
@@ -361,20 +387,26 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
             // `retains a suspended owner until release and refuses a stale recovery after release`
             // return 409 rather than 404 after release during DNS lookup.
             if (current === undefined) return 'not_found' as const;
+            // Proof: 2026-09-28, removing this check made mounted `surfaces pending
+            // proof fields corrupted during DNS lookup as a server error` answer
+            // 409 stale for a pending row whose digest and expiry became NULL.
+            if (
+              current.status === 'pending' &&
+              (current.challengeDigest === null || current.challengeExpiresAt === null)
+            )
+              throw new Error(`pending domain claim ${current.id} lacks challenge proof`);
             if (claim.phase === 'rotation' || claim.phase === 'recovery') {
               // Proof: 2026-09-28, omitting this branch made mounted `confirms a
               // rotated proof through verify before the overlap ends` answer stale.
-              // Proof: 2026-09-28, bypassing the overlap snapshot and deadline
-              // made mounted `rechecks rotation snapshot after DNS lookup` return 200 after expiry.
+              // Proof: 2026-09-28, bypassing the overlap-deadline snapshot
+              // comparison made mounted `rechecks rotation snapshot after DNS
+              // lookup` return 200 after the stored deadline changed during DNS.
               if (
                 current.status !== (claim.phase === 'rotation' ? 'verified' : 'suspended') ||
                 current.domain !== claim.domain ||
                 current.proofDigest !== claim.challengeDigest ||
                 current.previousProofDigest !== claim.previousProofDigest ||
                 current.previousProofValidUntil !== claim.previousProofValidUntil ||
-                (claim.phase === 'rotation' &&
-                  (current.previousProofValidUntil === null ||
-                    current.previousProofValidUntil <= stamp.at)) ||
                 observedDigest !== claim.challengeDigest
               )
                 return 'stale' as const;
@@ -400,13 +432,17 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
             // Proof: 2026-09-28, omitting the digest snapshot comparison let the mounted reissue-during-lookup test promote the old challenge.
             if (
               current.status !== 'pending' ||
+              claim.kind !== 'initial' ||
               current.domain !== claim.domain ||
               current.challengeDigest !== claim.challengeDigest ||
               current.challengeExpiresAt !== claim.challengeExpiresAt ||
               current.challengeExpiresAt === null ||
               // Proof: 2026-09-28, bypassing this expiry recheck made mounted
               // `rechecks challenge expiry and maintained policy after DNS lookup` promote after a 1.2-second lookup crossed expiry (200 instead of 409).
-              current.challengeExpiresAt <= stamp.at ||
+              // Proof: 2026-09-28, replacing this transaction-time read with
+              // stamp.at made `refuses a challenge that expires while verification
+              // waits for the write gate` promote the expired claim.
+              current.challengeExpiresAt <= now() ||
               observedDigest !== claim.challengeDigest
             )
               return 'stale' as const;
@@ -414,7 +450,9 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
             // `rechecks challenge expiry and maintained policy after DNS lookup` promote a newly denied domain (200 instead of 409).
             if (!isClaimableDomain(current.domain, loadPublicEmailPolicy(this.policyDirectory)))
               return 'stale' as const;
-            // Proof: 2026-09-28, the mounted two-owner test failed when unique ownership was bypassed; the database index decides the race.
+            // Proof: 2026-09-28, dropping organization_domain_claim_owner made
+            // mounted `settles concurrent DNS lookups with one owner and an
+            // untouched losing proof` verify both claims (200, 200).
             tx.update(organizationDomainClaim)
               .set({
                 status: 'verified',
@@ -575,6 +613,9 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
     | { kind: 'issued'; id: string }
     | { kind: 'forbidden' | 'unclaimable' | 'already_claimed' | 'inactive' }
   > {
+    // Proof: 2026-09-28, bypassing gate.enter made `waits for a batch rollback
+    // before issuing a durable challenge` answer issued inside the held batch;
+    // after rollback the digest was still digest-c-a, not digest-after.
     return await this.gate.enter(async () => {
       await Promise.resolve();
       return this.db.transaction(

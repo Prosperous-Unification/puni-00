@@ -1,7 +1,8 @@
 import type { DomainProofChecks, RetainedDomainProof } from '../ports/domain-challenges';
 
 // Proof: 2026-09-28, raising this to 50 seconds made mounted `shows retained
-// proof check timestamps and a warning after a failed day-seven check` time out at 10 seconds.
+// proof check timestamps and a warning after a failed day-seven check` observe
+// 50,000 instead of the required 5,000 through its injected short timer.
 const LOOKUP_TIMEOUT_MS = 5_000;
 
 /** Runs one bounded authoritative lookup against a retained, bound digest. */
@@ -25,8 +26,9 @@ async function matchesProof(
         );
       }),
     ]);
-    // Proof: 2026-09-28, treating a resolver error as success made mounted
-    // `shows retained proof check timestamps and a warning after a failed day-seven check` lose its warning.
+    // Proof: 2026-09-28, bypassing response validation made mounted `records
+    // a failed retained check for a malformed TXT response` throw a TypeError
+    // on numeric TXT data instead of recording a failed check.
     if (!Array.isArray(records) || !records.every((record) => typeof record === 'string'))
       return null;
   } catch {
@@ -51,8 +53,10 @@ async function matchesProof(
     // `shows retained proof check timestamps and a warning after a failed day-seven check`
     // clear its warning on a different token.
     if (digest === proof.proofDigest) return 'current';
-    // Proof: 2026-09-28, removing the deadline made mounted `rotates an owned
-    // proof and accepts the old proof only during overlap` retain verification on day 7.
+    // Proof: 2026-09-28, disabling old-proof matching made mounted `rotates an
+    // owned proof and accepts the old proof only during overlap` leave
+    // lastSuccessAt unchanged before expiry. Removing the lookup deadline
+    // advanced it on day eight with the commit clock held before expiry.
     // Proof: 2026-09-28, returning on the first old record made mounted
     // `ends old-proof overlap when the replacement succeeds` retain the old digest
     // when DNS also contained the new record.
@@ -66,16 +70,17 @@ async function matchesProof(
   return foundPrevious ? 'previous' : null;
 }
 
-/** Checks due retained proofs once; a caller must schedule it explicitly. */
+/** Checks due retained proofs once; `now` is read again inside the commit. */
 export async function checkDomainProofs(
   checks: DomainProofChecks,
   at: number,
+  now: () => number = Date.now,
 ): Promise<{ checked: number; stale: number }> {
   let checked = 0;
   let stale = 0;
   for (const proof of await checks.readDueProofs(at)) {
     const matched = await matchesProof(checks, proof, at);
-    const finished = await checks.finishProofCheck(proof, matched, at);
+    const finished = await checks.finishProofCheck(proof, matched, at, now);
     if (finished === 'checked') checked += 1;
     else stale += 1;
   }

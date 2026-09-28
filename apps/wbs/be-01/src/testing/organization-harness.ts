@@ -94,8 +94,11 @@ export class OrganizationHarness {
   ) {}
 
   /** Runs one injected dormant worker pass against this harness's SQLite claim store. */
-  checkDomains(at: number): Promise<{ checked: number; stale: number }> {
-    return runDomainProofWorker(this.domains, at);
+  checkDomains(
+    at: number,
+    now: () => number = () => at,
+  ): Promise<{ checked: number; stale: number }> {
+    return runDomainProofWorker(this.domains, at, now);
   }
 
   /** Exercises the claim-side status check consumed by join approval in task 4.5. */

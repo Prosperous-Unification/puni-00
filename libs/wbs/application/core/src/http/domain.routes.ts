@@ -23,7 +23,10 @@ function canonicalDomain(submitted: string): string | null {
   try {
     const host = new URL(`http://${raw}`).hostname;
     if (/^\d+(?:\.\d+){3}$/.test(host) || (host === raw && !host.includes('.'))) return null;
-    return isCanonicalDomain(host) ? host : null;
+    // Proof: 2026-09-28, omitting the TXT owner-name length check made mounted
+    // `refuses a domain whose complete TXT challenge hostname exceeds DNS length`
+    // issue 201 for a 244-character domain and a 262-character DNS name.
+    return isCanonicalDomain(host) && `_wbs-verification.${host}`.length <= 253 ? host : null;
   } catch {
     return null;
   }
@@ -114,6 +117,9 @@ export function domainRoutes(
     bind(
       verifyDomainClaim,
       async ({ principal, params }): Promise<HttpReply<typeof verifyDomainClaim>> => {
+        // Proof: 2026-09-28, removing this guard made mounted `refuses a
+        // delegated caller even with current super-admin membership` promote
+        // a matching claim, 200 instead of 403.
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
         const resolved = await organizations.resolve(principal);
@@ -133,10 +139,18 @@ export function domainRoutes(
         // Proof: 2026-09-28, treating a retained proof's null expiry as zero made mounted
         // `restores a suspended claim through retained TXT proof without changing owner`
         // return stale 409 instead of checking authoritative TXT.
-        if (claim.challengeExpiresAt !== null && claim.challengeExpiresAt <= now)
+        // Proof: 2026-09-28, applying the old-proof overlap deadline to a
+        // replacement made mounted `confirms a replacement proof after the
+        // old-proof overlap ends` answer 409 instead of verifying the new TXT.
+        if (
+          claim.phase === 'pending' &&
+          claim.challengeExpiresAt !== null &&
+          claim.challengeExpiresAt <= now
+        )
           return { ok: false, status: 409, body: { error: 'stale' } };
         // Proof: 2026-09-28, raising this bound to 50 seconds made mounted
-        // `refuses malformed and timed-out resolver answers` exceed its 8-second test deadline.
+        // `refuses malformed and timed-out resolver answers` observe 50,000
+        // instead of 5,000 through its injected short timer.
         const signal = AbortSignal.timeout(5_000);
         let records: readonly string[];
         try {
@@ -186,6 +200,7 @@ export function domainRoutes(
           claim,
           claim.challengeDigest,
           { at: clock.now(), by: principal.id },
+          () => clock.now(),
         );
         switch (verified) {
           case 'verified':

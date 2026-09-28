@@ -4,7 +4,18 @@ import { join } from 'node:path';
 
 import { isCanonicalDomain, type PublicEmailPolicy } from '@wbs/domain';
 
-const POLICY_DIRECTORY = new URL('../../../domain/domain/src/', import.meta.url).pathname;
+// Source execution reads the maintained asset; Bun's single-file build places
+// the same checked pair beside its output through the be-01 build target.
+// Proof: 2026-09-28, retaining the source-relative path in a Bun bundle made
+// `loads checked assets beside a bundled backend module` fail with ENOENT at
+// /domain/domain/src/public-email-policy.manifest.json; the paired asset smoke
+// passes when the bundle resolves its own packaged directory.
+const POLICY_DIRECTORY = new URL(
+  import.meta.url.endsWith('/public-email-policy.ts')
+    ? '../../../domain/domain/src/'
+    : './public-email-policy/',
+  import.meta.url,
+).pathname;
 const MANIFEST = 'public-email-policy.manifest.json';
 
 function record(value: unknown): value is Record<string, unknown> {

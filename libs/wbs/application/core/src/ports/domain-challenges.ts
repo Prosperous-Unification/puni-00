@@ -13,6 +13,7 @@ export interface DomainClaimSummary {
 
 /** An authorized claim snapshot captured before an external DNS lookup. */
 export interface DomainVerificationSnapshot {
+  readonly kind: 'initial' | 'rotation';
   readonly id: string;
   readonly domain: string;
   readonly challengeDigest: string;
@@ -43,10 +44,12 @@ export interface RetainedDomainProof {
 export interface DomainProofChecks {
   readonly resolver: DomainResolver;
   readDueProofs(at: number): Promise<readonly RetainedDomainProof[]>;
+  /** Rechecks an old match against `now` inside the committing transaction. */
   finishProofCheck(
     proof: RetainedDomainProof,
     matched: 'current' | 'previous' | null,
     at: number,
+    now: () => number,
   ): Promise<'checked' | 'stale'>;
 }
 
@@ -79,6 +82,7 @@ export interface DomainChallenges {
     claim: DomainVerificationSnapshot,
     observedDigest: string,
     stamp: WriteStamp,
+    now: () => number,
   ): Promise<'verified' | 'forbidden' | 'not_found' | 'stale' | 'taken' | 'inactive'>;
   rotateClaim(
     organizationId: string,
