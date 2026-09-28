@@ -6,10 +6,14 @@ import { CREATOR_ADMISSION } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import {
   DomainClaimRepository,
+  EmailVerificationRepository,
   ExternalIdentityRepository,
+  InvitationRepository,
+  JoinRequestRepository,
   OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
+  readOrganizationActivation,
   scheduleInputHash,
   SqliteDelegationUse,
   SqliteOrganizationAccess,
@@ -32,8 +36,10 @@ import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { bearerContextIssuer, nativeCredentialSource } from '../runtime/bearer-context';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { delegationVerifier } from '../runtime/delegation';
+import { delegationIssuer } from '../runtime/delegation-issuer';
 import { AuthService } from '../service/auth.service';
 import { CalendarMarkerService } from '../service/calendar-marker.service';
 import { DirectoryService } from '../service/directory.service';
@@ -62,6 +68,19 @@ export interface Answer {
   body: unknown;
 }
 
+/** What {@link OrganizationHarness.open} wires beyond its defaults. */
+export interface OrganizationHarnessOptions {
+  readonly delegationKey?: CryptoKey;
+  readonly directSigningKey?: CryptoKey;
+  readonly policyDirectory?: string;
+}
+
+interface TestMail {
+  tokens: Map<string, string>;
+  fail: boolean;
+  beforeDelivery?: () => void | Promise<void>;
+}
+
 /**
  * be-01 over real SQLite with the production {@link SqliteOrganizationAccess},
  * for the organization boundary suites (tasks 3.x).
@@ -82,6 +101,7 @@ export class OrganizationHarness {
     /** A raw connection the app does not hold, as a second process would. */
     readonly sqlite: ReturnType<typeof openDatabase>,
     private readonly bound: Map<string, string>,
+    private readonly mail?: TestMail,
     private readonly retryHash?: (projectId: string) => Promise<string>,
     private readonly retryDecision?: (
       projectId: string,
@@ -94,15 +114,32 @@ export class OrganizationHarness {
   /**
    * `delegationKey`, when given, is the RS256 public key the app verifies
    * delegation tokens with (task 2.5); upstream identities resolve through the
-   * real `external_identity` mapping.
+   * real `external_identity` mapping. `directSigningKey` replaces the shared
+   * session key so direct sessions cannot be minted with it; `policyDirectory`
+   * points domain claims at a copied public-email policy.
    */
-  static open(delegationKey?: CryptoKey, policyDirectory?: string): OrganizationHarness {
+  static open({
+    delegationKey,
+    directSigningKey,
+    policyDirectory,
+  }: OrganizationHarnessOptions = {}): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
     const db = openDrizzle(path);
     const gate = new WriteCoordinator();
     const bound = new Map<string, string>();
+    const sessionKey =
+      directSigningKey === undefined ? TEST_JWT_KEY : crypto.randomUUID() + crypto.randomUUID();
+    const organizations = new SqliteOrganizationAccess(db, (userId) =>
+      Promise.resolve(bound.get(userId) ?? null),
+    );
+    const auth = new AuthService({
+      clock: testClock,
+      users: new UserRepository(db, OPEN),
+      tokens: joseTokenCodec(sessionKey),
+      passwords: bunPasswordHasher,
+    });
     const projects = new ProjectRepository(db, OPEN);
     const directoryStore = new DirectoryRepository(db, OPEN);
     const writing = {
@@ -151,18 +188,28 @@ export class OrganizationHarness {
         broadcast: recordingBroadcaster(),
       }),
     };
+    const mail: TestMail = { tokens: new Map<string, string>(), fail: false };
     const app = buildApp({
       loginThrottle: testLoginThrottle(),
       clock: testClock,
       appOrigin: 'http://localhost',
       savedPlans: testSavedPlanService(),
       ...writing,
-      organizations: new SqliteOrganizationAccess(db, (userId) =>
-        Promise.resolve(bound.get(userId) ?? null),
-      ),
+      organizations,
       memberships: new OrganizationRepository(db, OPEN),
       domains: new DomainClaimRepository(db, gate, policyDirectory),
       onboarding: new OnboardingRepository(db, OPEN),
+      emailVerification: new EmailVerificationRepository(db, OPEN),
+      invitations: new InvitationRepository(db, OPEN),
+      joinRequests: new JoinRequestRepository(db, OPEN),
+      emailDelivery: {
+        deliver: async (address, token) => {
+          await mail.beforeDelivery?.();
+          if (mail.fail) return Promise.reject(new Error('injected mail sink failure'));
+          mail.tokens.set(address, token);
+          return Promise.resolve();
+        },
+      },
       ...(delegationKey === undefined
         ? {}
         : {
@@ -175,22 +222,39 @@ export class OrganizationHarness {
               },
               (issuer, jti, expiresAt, now) =>
                 new SqliteDelegationUse(db, gate).consume(issuer, jti, expiresAt, now),
+              Date.now,
+              (userId) => new UserRepository(db, OPEN).findById(userId),
+            ),
+          }),
+      ...(directSigningKey === undefined
+        ? {}
+        : {
+            bearerContext: bearerContextIssuer(
+              nativeCredentialSource(auth, sessionKey),
+              organizations,
+              delegationIssuer(
+                directSigningKey,
+                nativeCredentialSource(auth, sessionKey),
+                async (userId, organizationId) => {
+                  const admitted = await organizations.resolve({
+                    id: userId,
+                    delegation: { organizationId, audience: 'wbs-be-01/direct' },
+                  });
+                  return admitted.ok && admitted.access.kind === 'scoped';
+                },
+              ),
+              () => readOrganizationActivation(db),
             ),
           }),
       history: testHistoryService(),
-      auth: new AuthService({
-        clock: testClock,
-        users: new UserRepository(db, OPEN),
-        tokens: joseTokenCodec(TEST_JWT_KEY),
-        passwords: bunPasswordHasher,
-      }),
+      auth,
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
       writes: testWrites(undefined, writing),
       migrationsApplied: true,
     });
-    return new OrganizationHarness(dir, app, openDatabase(path), bound);
+    return new OrganizationHarness(dir, app, openDatabase(path), bound, mail);
   }
 
   /**
@@ -242,6 +306,12 @@ export class OrganizationHarness {
       memberships: new OrganizationRepository(source.db, services.gate),
       domains: new DomainClaimRepository(source.db, services.gate),
       onboarding: new OnboardingRepository(source.db, services.gate),
+      emailVerification: new EmailVerificationRepository(source.db, services.gate),
+      invitations: new InvitationRepository(source.db, services.gate),
+      joinRequests: new JoinRequestRepository(source.db, services.gate),
+      emailDelivery: {
+        deliver: () => Promise.reject(new Error('composed harness mail sink refuses delivery')),
+      },
       steps: services.steps,
       calendarMarkers: services.calendarMarkers,
       workItems: services.workItems,
@@ -266,6 +336,7 @@ export class OrganizationHarness {
       app,
       openDatabase(path),
       bound,
+      undefined,
       async (projectId) => {
         const input = await services.workItems.scheduleInput(projectId);
         if (input === null) throw new Error(`project ${projectId} has no optimization input`);
@@ -286,6 +357,36 @@ export class OrganizationHarness {
         ).kind;
       },
     );
+  }
+
+  /** Token captured by the test-only injected sink; no message is sent. */
+  deliveredEmailToken(address: string): string {
+    const token = this.mail?.tokens.get(address);
+    if (token === undefined) throw new Error(`no challenge delivered to ${address}`);
+    return token;
+  }
+
+  /** Makes the injected test sink reject delivery. */
+  failEmailDelivery(beforeDelivery?: () => void | Promise<void>): void {
+    if (this.mail === undefined) throw new Error('no test mail sink');
+    this.mail.fail = true;
+    if (beforeDelivery !== undefined) this.mail.beforeDelivery = beforeDelivery;
+  }
+
+  /** Breaks the durable pending row after issue, before the sink reports success. */
+  removeChallengeBeforeDelivery(): void {
+    if (this.mail === undefined) throw new Error('no test mail sink');
+    this.mail.beforeDelivery = () => {
+      this.sqlite.run('DELETE FROM email_challenge');
+    };
+  }
+
+  /** Deletes a just-issued invitation before its sink reports delivery. */
+  removeInvitationBeforeDelivery(): void {
+    if (this.mail === undefined) throw new Error('no test mail sink');
+    this.mail.beforeDelivery = () => {
+      this.sqlite.run('DELETE FROM organization_invitation');
+    };
   }
 
   /** Hashes the same current schedule input the mounted Retry route rebuilds. */
