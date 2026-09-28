@@ -942,6 +942,212 @@ describe('a binding floor this build does not know', () => {
 });
 
 describe('dependency arrows', () => {
+  it('uses project step order for whole endpoints despite shuffled slices', () => {
+    const plan = planOf({
+      rows: [rowAt('A', 0, 4), rowAt('B', 4, 8)],
+      steps: [
+        { id: 'dev', name: 'Dev' },
+        { id: 'qa', name: 'QA' },
+      ],
+      slices: [
+        sliceAt('A-qa', 'A', 2, 4, { stepId: 'qa' }),
+        sliceAt('B-qa', 'B', 6, 8, { stepId: 'qa' }),
+        sliceAt('A-dev', 'A', 0, 2),
+        sliceAt('B-dev', 'B', 4, 6),
+      ],
+      typedDependencies: [
+        {
+          id: 'whole',
+          type: 'FS',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+      ],
+    });
+    expect(layOutGantt(plan).typedArrows).toMatchObject([
+      { predecessorSliceId: 'A-qa', successorSliceId: 'B-dev', fromFinish: 4, toStart: 4 },
+    ]);
+  });
+
+  it('expands a descendant step and keeps scope groups separate', () => {
+    const plan = planOf({
+      rows: [rowAt('P', 0, 2, { leaf: false }), rowAt('A', 0, 2, { depth: 1 }), rowAt('B', 2, 4)],
+      slices: [sliceAt('A-dev', 'A', 0, 2), sliceAt('B-dev', 'B', 2, 4)],
+      typedDependencies: [
+        {
+          id: 'descendant',
+          type: 'FS',
+          predecessor: { scope: 'descendant-step', workItemId: 'P', stepId: 'dev' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+        },
+        {
+          id: 'whole',
+          type: 'FS',
+          predecessor: { scope: 'whole', workItemId: 'P' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+        },
+      ],
+    });
+    const arrows = layOutGantt({ ...plan, rows: [plan.rows[0], plan.rows[2]] }).typedArrows;
+    expect(arrows).toHaveLength(2);
+    expect(arrows.map(({ scope, predecessorSliceId }) => [scope, predecessorSliceId])).toEqual([
+      ['descendant-step->node', 'A-dev'],
+      ['whole->node', 'A-dev'],
+    ]);
+  });
+
+  it('keeps each grouped relationship’s resolved slices', () => {
+    const plan = planOf({
+      rows: [rowAt('P', 0, 2, { leaf: false }), rowAt('A', 0, 2, { depth: 1 }), rowAt('B', 2, 6)],
+      steps: [
+        { id: 'dev', name: 'Dev' },
+        { id: 'qa', name: 'QA' },
+      ],
+      slices: [
+        sliceAt('A-dev', 'A', 0, 2),
+        sliceAt('B-dev', 'B', 2, 4),
+        sliceAt('B-qa', 'B', 4, 6, { stepId: 'qa' }),
+      ],
+      typedDependencies: [
+        {
+          id: 'dev',
+          type: 'FS',
+          predecessor: { scope: 'whole', workItemId: 'P' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+        },
+        {
+          id: 'qa',
+          type: 'FS',
+          predecessor: { scope: 'whole', workItemId: 'P' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'qa' },
+        },
+      ],
+    });
+    const arrows = layOutGantt({ ...plan, rows: [plan.rows[0], plan.rows[2]] }).typedArrows;
+    expect(arrows).toHaveLength(1);
+    expect(arrows[0].relationshipSlices).toEqual([
+      { relationshipId: 'dev', predecessorSliceId: 'A-dev', successorSliceId: 'B-dev' },
+      { relationshipId: 'qa', predecessorSliceId: 'A-dev', successorSliceId: 'B-qa' },
+    ]);
+  });
+
+  it('anchors typed node arrows at scheduled finish and start, including unknown placeholders', () => {
+    const plan = planOf({
+      rows: [rowAt('A', 0, 0), rowAt('B', 0, 2)],
+      slices: [sliceAt('A-dev', 'A', 0, 0, { estimated: false }), sliceAt('B-dev', 'B', 0, 2)],
+      typedDependencies: [
+        {
+          id: 'edge',
+          type: 'FS',
+          predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+        },
+      ],
+    });
+    const placed = placeOnWorkdays(layOutGantt(plan));
+    expect(placed.typedArrows).toMatchObject([
+      { fromX: 0, toX: 0, predecessorSliceId: 'A-dev', successorSliceId: 'B-dev' },
+    ]);
+    expect(placed.bars.find((bar) => bar.bar.sliceId === 'A-dev')?.width).toBe(
+      ASSUMED_SLICE_WORKDAYS,
+    );
+  });
+
+  it('expands parent endpoints and groups collapsed proxies and internal relationships', () => {
+    const dependencies = [
+      {
+        id: 'external',
+        type: 'FS',
+        predecessor: { scope: 'whole', workItemId: 'P' },
+        successor: { scope: 'whole', workItemId: 'Q' },
+      },
+      {
+        id: 'internal',
+        type: 'FS',
+        predecessor: { scope: 'whole', workItemId: 'A' },
+        successor: { scope: 'whole', workItemId: 'B' },
+      },
+    ] as const;
+    const base = planOf({
+      rows: [
+        rowAt('P', 0, 2, { leaf: false }),
+        rowAt('A', 0, 1, { depth: 1 }),
+        rowAt('B', 1, 2, { depth: 1 }),
+        rowAt('Q', 2, 3),
+      ],
+      tree: [
+        { id: 'P', parentId: null },
+        { id: 'A', parentId: 'P' },
+        { id: 'B', parentId: 'P' },
+        { id: 'Q', parentId: null },
+      ],
+      slices: [
+        sliceAt('A-dev', 'A', 0, 1),
+        sliceAt('B-dev', 'B', 1, 2),
+        sliceAt('Q-dev', 'Q', 2, 3),
+      ],
+      typedDependencies: dependencies,
+    });
+    expect(
+      layOutGantt(base).typedArrows.filter((arrow) => arrow.relationshipId === 'external'),
+    ).toHaveLength(2);
+    const collapsed = layOutGantt({ ...base, rows: [base.rows[0], base.rows[3]] });
+    expect(collapsed.typedArrows).toMatchObject([
+      { count: 2, proxy: true, predecessorId: 'P', successorId: 'Q' },
+    ]);
+    expect(collapsed.internalDependencies).toEqual([{ rowId: 'P', count: 1 }]);
+  });
+
+  it.each([
+    [
+      'unknown work item',
+      { scope: 'whole', workItemId: 'missing' },
+      [sliceAt('A-dev', 'A', 0, 1)],
+      'unknown chart work item',
+    ],
+    ['missing slices', { scope: 'whole', workItemId: 'A' }, [], 'missing chart slices'],
+    [
+      'node on parent',
+      { scope: 'node', workItemId: 'P', stepId: 'dev' },
+      [sliceAt('A-dev', 'A', 0, 1)],
+      'node endpoint is not a leaf',
+    ],
+    [
+      'descendant step on leaf',
+      { scope: 'descendant-step', workItemId: 'A', stepId: 'dev' },
+      [sliceAt('A-dev', 'A', 0, 1)],
+      'descendant-step endpoint is a leaf',
+    ],
+    [
+      'missing step',
+      { scope: 'node', workItemId: 'A', stepId: 'qa' },
+      [sliceAt('A-dev', 'A', 0, 1)],
+      'missing chart step',
+    ],
+  ] as const)(
+    'refuses %s in a typed chart endpoint',
+    (_case, predecessor, sourceSlices, message) => {
+      const plan = planOf({
+        rows: [rowAt('P', 0, 1, { leaf: false }), rowAt('A', 0, 1, { depth: 1 }), rowAt('B', 1, 2)],
+        tree: [
+          { id: 'P', parentId: null },
+          { id: 'A', parentId: 'P' },
+          { id: 'B', parentId: null },
+        ],
+        slices: [...sourceSlices, sliceAt('B-dev', 'B', 1, 2)],
+        typedDependencies: [
+          {
+            id: 'invalid',
+            type: 'FS',
+            predecessor,
+            successor: { scope: 'whole', workItemId: 'B' },
+          },
+        ],
+      });
+      expect(() => layOutGantt(plan)).toThrow(message);
+      expect(() => layOutGantt(plan)).toThrow(GanttDataError);
+    },
+  );
   const twoRowsOneEdge = (parts: Partial<GanttPlan> = {}): GanttPlan =>
     planOf({
       rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 5)],
@@ -1886,6 +2092,8 @@ describe('the shapes a real schedule makes', () => {
       bars: [],
       brackets: [],
       arrows: [],
+      typedArrows: [],
+      internalDependencies: [],
       personLinks: [],
       capacityLinks: [],
       notBeforeFlags: [],
@@ -2183,8 +2391,14 @@ describe('routing an arrow past the bars it does not join', () => {
   const rectOf = (placed: PlacedBar) => ({
     left: placed.x,
     right: placed.x + placed.width,
-    top: placed.bar.rowIndex + CLEARANCE.barInset,
-    bottom: placed.bar.rowIndex + 1 - CLEARANCE.barInset,
+    top:
+      placed.bar.rowIndex +
+      CLEARANCE.barInset +
+      (placed.bar.lane * (1 - 2 * CLEARANCE.barInset)) / placed.bar.lanes,
+    bottom:
+      placed.bar.rowIndex +
+      CLEARANCE.barInset +
+      ((placed.bar.lane + 1) * (1 - 2 * CLEARANCE.barInset)) / placed.bar.lanes,
   });
 
   /**
@@ -2221,6 +2435,120 @@ describe('routing an arrow past the bars it does not join', () => {
   type Router = (arrow: PlacedArrow, drawn: PlacedBar[]) => { x: number; y: number }[];
 
   const asItRoutes: Router = (arrow, drawn) => routeArrow(arrow, drawn, CLEARANCE);
+
+  it('routes a reversed typed lane below its contiguous next step', () => {
+    const placed = placeOnWorkdays(
+      layOutGantt(
+        planOf({
+          rows: [rowAt('B', 1, 3), rowAt('A', 0, 3)],
+          steps: [
+            { id: 'one', name: 'One' },
+            { id: 'two', name: 'Two' },
+            { id: 'dev', name: 'Dev' },
+            { id: 'qa', name: 'QA' },
+          ],
+          slices: [
+            sliceAt('A-one', 'A', 0, 0, { stepId: 'one', estimated: false }),
+            sliceAt('A-two', 'A', 0, 0, { stepId: 'two', estimated: false }),
+            sliceAt('A-dev', 'A', 0, 1),
+            sliceAt('A-qa', 'A', 1, 3, { stepId: 'qa' }),
+            sliceAt('B-dev', 'B', 1, 3),
+          ],
+          typedDependencies: [
+            {
+              id: 'edge',
+              type: 'FS',
+              predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+              successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+            },
+          ],
+        }),
+      ),
+    );
+    const route = routeArrow(placed.typedArrows[0], placed.bars, CLEARANCE, {
+      boundaryEntry: true,
+    });
+    expect(route).not.toBeNull();
+    if (route === null) throw new Error('expected the lower gap to be routable');
+    expect(route.some((corner) => corner.y > 1.5)).toBe(true);
+    for (const bar of placed.bars) {
+      expect(
+        route.slice(1).some((corner, index) => runsInside(route[index], corner, rectOf(bar))),
+        bar.bar.sliceId,
+      ).toBe(false);
+    }
+  });
+
+  it('enters a later contiguous target at its boundary without crossing either bar', () => {
+    const placed = placeOnWorkdays(
+      layOutGantt(
+        planOf({
+          rows: [rowAt('A', 0, 2), rowAt('B', 2, 6)],
+          steps: [
+            { id: 'dev', name: 'Dev' },
+            { id: 'qa', name: 'QA' },
+          ],
+          slices: [
+            sliceAt('A-dev', 'A', 0, 2),
+            sliceAt('B-dev', 'B', 2, 4),
+            sliceAt('B-qa', 'B', 4, 6, { stepId: 'qa' }),
+          ],
+          typedDependencies: [
+            {
+              id: 'qa',
+              type: 'FS',
+              predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+              successor: { scope: 'node', workItemId: 'B', stepId: 'qa' },
+            },
+          ],
+        }),
+      ),
+    );
+    const route = routeArrow(placed.typedArrows[0], placed.bars, CLEARANCE, {
+      boundaryEntry: true,
+    });
+    if (route === null) throw new Error('expected a clear boundary route');
+    const crossings = placed.bars.flatMap((bar) =>
+      route
+        .slice(1)
+        .flatMap((corner, index) =>
+          runsInside(route[index], corner, rectOf(bar)) ? [bar.bar.sliceId] : [],
+        ),
+    );
+    expect(crossings).toEqual([]);
+    expect(route.at(-1)).toEqual({ x: 4, y: 1.5 });
+  });
+
+  it('retains the origin placeholder as an obstacle and leaves along its boundary', () => {
+    const placed = placeOnWorkdays(
+      layOutGantt(
+        planOf({
+          rows: [rowAt('A', 0, 0), rowAt('B', 0, 2)],
+          slices: [sliceAt('A-dev', 'A', 0, 0, { estimated: false }), sliceAt('B-dev', 'B', 0, 2)],
+          typedDependencies: [
+            {
+              id: 'tick',
+              type: 'FS',
+              predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+              successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+            },
+          ],
+        }),
+      ),
+    );
+    const route = routeArrow(placed.typedArrows[0], placed.bars, CLEARANCE, {
+      boundaryEntry: true,
+    });
+    if (route === null) throw new Error('expected a clear origin route');
+    const crossings = placed.bars.flatMap((bar) =>
+      route
+        .slice(1)
+        .flatMap((corner, index) =>
+          runsInside(route[index], corner, rectOf(bar)) ? [bar.bar.sliceId] : [],
+        ),
+    );
+    expect(crossings).toEqual([]);
+  });
 
   /** Every (arrow, bar) pair the chart draws through, named the way a reader would find it. */
   const crossingsIn = (placed: PlacedGantt, route_: Router = asItRoutes): string[] => {

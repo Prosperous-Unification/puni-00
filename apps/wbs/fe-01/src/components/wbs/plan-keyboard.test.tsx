@@ -623,7 +623,11 @@ describe('Tab moves between the fields, from every cell', () => {
     fireEvent.change(box, { target: { value: '010' } });
     fireEvent.keyDown(box, { key: 'Enter' });
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Stop 030 waiting for 010' })).toBeDefined();
+      expect(
+        screen.getByRole('button', {
+          name: 'Stop 030 waiting for 010',
+        }),
+      ).toBeDefined();
     });
 
     // The chip sits before the input inside this one cell, so the browser's own

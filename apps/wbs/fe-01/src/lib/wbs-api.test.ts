@@ -127,7 +127,8 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
     ...tree,
     project: PROJECT,
     stepNodes: [],
-    document: { format: 'wbs-plan', version: 3, exportedAt: '2026-09-14T08:30:00.000Z' },
+    document: { format: 'wbs-plan', version: 4, exportedAt: '2026-09-14T08:30:00.000Z' },
+    typedDependencies: [],
     settings: {
       name: PROJECT.name,
       restricted: PROJECT.restricted,
@@ -148,7 +149,14 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
 };
 
 const importDocument = async (): Promise<PlanDocumentRequest> => {
-  const preflight = await preflightRequest(importProject, { body: PLAN_DOCUMENT() });
+  const legacyDocument = PLAN_DOCUMENT();
+  legacyDocument['document'] = {
+    format: 'wbs-plan',
+    version: 3,
+    exportedAt: '2026-09-14T08:30:00.000Z',
+  };
+  delete legacyDocument['typedDependencies'];
+  const preflight = await preflightRequest(importProject, { body: legacyDocument });
   if (preflight.kind === 'failure') throw new Error('the import fixture is not a valid request');
   return preflight.input.body;
 };
@@ -175,6 +183,21 @@ describe('plan JSON transfer', () => {
     expect(call?.[0]).toBe('/api/projects/p1/export?format=json');
     expect(call?.[1]?.method).toBe('GET');
     expect(new Headers(call?.[1]?.headers).get('x-wbs-token')).toBe('token');
+  });
+
+  it('downloads a version-4 JSON representation containing a typed dependency', async () => {
+    const document = PLAN_DOCUMENT(['first', 'second']);
+    document['typedDependencies'] = [
+      {
+        id: 'link',
+        predecessor: { scope: 'whole', workItem: 'first' },
+        successor: { scope: 'whole', workItem: 'second' },
+        type: 'FS',
+      },
+    ];
+    vi.stubGlobal('fetch', () => Promise.resolve(response(200, JSON.stringify(document))));
+
+    await expect(httpProjectApi('token').exportPlan('p1')).resolves.toEqual(document);
   });
 
   it('imports the archival request and returns its typed summary', async () => {
@@ -369,6 +392,16 @@ describe('adding and renaming a step', () => {
     );
     await expect(httpProjectApi('t').setStepAllowance('p1', 'r3', 30.001)).rejects.toMatchObject({
       message: 'invalid_allowance',
+    });
+  });
+
+  it('throws the calendar range refusal of an allowance past the calendar', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response(422, JSON.stringify({ error: 'calendar_range' })))),
+    );
+    await expect(httpProjectApi('t').setStepAllowance('p1', 'r3', 1000)).rejects.toMatchObject({
+      message: 'calendar_range',
     });
   });
   it('sends the name and answers with the step', async () => {
@@ -990,6 +1023,26 @@ describe('the browser writes through command batches (plan-commands)', () => {
       [() => api.clearEstimate('w1', 'r1'), 'clearEstimate'],
       [() => api.assignPerson('w1', 'r1', 'k'), 'setAssignee'],
       [() => api.addDependency('w2', 'w1'), 'addDependency'],
+      [
+        () =>
+          api.addTypedDependency(
+            'p1',
+            { scope: 'whole', workItemId: 'w1' },
+            { scope: 'whole', workItemId: 'w2' },
+          ),
+        'addTypedDependency',
+      ],
+      [
+        () =>
+          api.updateTypedDependency(
+            'p1',
+            'd1',
+            { scope: 'whole', workItemId: 'w1' },
+            { scope: 'whole', workItemId: 'w2' },
+          ),
+        'updateTypedDependency',
+      ],
+      [() => api.removeTypedDependency('p1', 'd1'), 'removeTypedDependency'],
       [() => api.removeDependency('w2', 'w1'), 'removeDependency'],
       [() => api.freezeProject('p1'), 'freezeProject'],
       [() => api.unfreezeProject('p1'), 'unfreezeProject'],
@@ -1010,6 +1063,18 @@ describe('the browser writes through command batches (plan-commands)', () => {
         body.commands.map((each) => each.kind),
         kind,
       ).toEqual([kind]);
+      if (kind === 'addTypedDependency' || kind === 'updateTypedDependency') {
+        expect(body.commands[0]).toMatchObject({
+          kind,
+          predecessor: { scope: 'whole', workItemId: 'w1' },
+          successor: { scope: 'whole', workItemId: 'w2' },
+          type: 'FS',
+          ...(kind === 'updateTypedDependency' ? { dependencyId: 'd1' } : {}),
+        });
+      }
+      if (kind === 'removeTypedDependency') {
+        expect(body.commands[0]).toEqual({ kind, dependencyId: 'd1' });
+      }
     }
     // And the create answers the id the batch minted, as the route did.
     await expect(

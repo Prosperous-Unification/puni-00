@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createDepLights } from './dep-light-store';
@@ -15,6 +15,116 @@ const rect = (left: number, top: number, right: number, bottom: number): Pointer
 });
 
 describe('the dependency-card pointer bridge', () => {
+  itDom('syncs typed entry hover and focus with the shared relationship light', () => {
+    const depLights = createDepLights();
+    depLights.setTypedDependencies([
+      { id: 'edge', predecessor: { workItemId: 'A' }, successor: { workItemId: 'B' } },
+    ]);
+    render(
+      <DependsCard
+        number="020"
+        entries={[]}
+        typedEntries={[
+          {
+            id: 'edge',
+            label: '010 Dev FS → 020 QA',
+            onEdit: () => undefined,
+            onRemove: () => undefined,
+          },
+        ]}
+        depLights={depLights}
+        rowId="B"
+        onPointEntry={() => undefined}
+        onPointerOutside={() => undefined}
+      />,
+    );
+    const entry = screen.getByText('010 Dev FS → 020 QA').parentElement;
+    expect(entry).not.toBeNull();
+    expect(entry?.getAttribute('data-dependency-lit')).toBeNull();
+    fireEvent.pointerEnter(entry!);
+    expect(depLights.activeTypedId()).toBe('edge');
+    fireEvent.pointerLeave(entry!);
+    expect(depLights.activeTypedId()).toBeNull();
+    fireEvent.focus(screen.getByRole('button', { name: 'Edit 010 Dev FS → 020 QA' }));
+    expect(depLights.activeTypedId()).toBe('edge');
+    fireEvent.blur(screen.getByRole('button', { name: 'Edit 010 Dev FS → 020 QA' }));
+    expect(depLights.activeTypedId()).toBeNull();
+    act(() => {
+      depLights.updateHover(() => ({ rowId: 'B', pillId: 'edge' }));
+    });
+    expect(entry?.getAttribute('data-dependency-lit')).toBe('true');
+  });
+  itDom('keeps a typed entry interactive and tracks a real pointer move through the card', () => {
+    const depLights = createDepLights();
+    depLights.setTypedDependencies([
+      { id: 'edge', predecessor: { workItemId: 'A' }, successor: { workItemId: 'B' } },
+    ]);
+    const onPointerOutside = vi.fn();
+    render(
+      <table>
+        <tbody>
+          <tr>
+            <td data-testid="typed-owner">
+              <DependsCard
+                number="020"
+                entries={[]}
+                typedEntries={[
+                  {
+                    id: 'edge',
+                    label: '010 Dev FS → 020 QA',
+                    onEdit: () => undefined,
+                    onRemove: () => undefined,
+                  },
+                ]}
+                depLights={depLights}
+                rowId="B"
+                onPointEntry={() => undefined}
+                onPointerOutside={onPointerOutside}
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>,
+    );
+    const entry = screen.getByRole('group', { name: '010 Dev FS → 020 QA' });
+    const tooltip = screen.getByRole('tooltip');
+    expect(entry.style.pointerEvents).toBe('auto');
+    expect(getComputedStyle(entry).pointerEvents).toBe('auto');
+    vi.spyOn(screen.getByTestId('typed-owner'), 'getBoundingClientRect').mockReturnValue({
+      ...rect(10, 10, 110, 40),
+      x: 10,
+      y: 10,
+      width: 100,
+      height: 30,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(tooltip, 'getBoundingClientRect').mockReturnValue({
+      ...rect(110, 10, 280, 90),
+      x: 110,
+      y: 10,
+      width: 170,
+      height: 80,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(entry, 'getBoundingClientRect').mockReturnValue({
+      ...rect(116, 16, 274, 36),
+      x: 116,
+      y: 16,
+      width: 158,
+      height: 20,
+      toJSON: () => ({}),
+    });
+    fireEvent.pointerEnter(entry);
+    expect(depLights.activeTypedId()).toBe('edge');
+    act(() => {
+      depLights.updateHover(() => null);
+    });
+    fireEvent.pointerMove(entry, { clientX: 150, clientY: 25 });
+    expect(depLights.activeTypedId()).toBe('edge');
+    expect(onPointerOutside).not.toHaveBeenCalled();
+    fireEvent.pointerMove(entry, { clientX: 400, clientY: 100 });
+    expect(onPointerOutside).toHaveBeenCalledTimes(1);
+  });
   // The sideways geometry the card has since 2026-09-09: the card's left edge
   // is its cell's right edge, its top is the cell's, and its lines sit inside
   // it with the card's own 6px padding around them.
@@ -153,6 +263,72 @@ describe('the dependency-card pointer bridge', () => {
     const targets = screen.getAllByTestId('depends-card-target');
     expect(targets.map((target) => target.style.pointerEvents)).toEqual(['auto', 'auto']);
     expect(targets.map((target) => target.getAttribute('tabindex'))).toEqual([null, null]);
+  });
+
+  itDom('keeps typed Edit and Remove clickable while the pointer crosses the card', () => {
+    const onEdit = vi.fn();
+    const onRemove = vi.fn();
+    const onPointEntry = vi.fn();
+    const onPointerOutside = vi.fn();
+    const depLights = createDepLights();
+    depLights.setTypedDependencies([
+      { id: 'typed', predecessor: { workItemId: 'w1' }, successor: { workItemId: 'row' } },
+    ]);
+    render(
+      <table>
+        <tbody>
+          <tr>
+            <td data-testid="owner">
+              <DependsCard
+                number="020"
+                entries={[{ id: 'w1', number: '010', name: 'Strip', status: 'unknown' }]}
+                typedEntries={[{ id: 'typed', label: '010 Strip', onEdit, onRemove }]}
+                depLights={depLights}
+                rowId="row"
+                onPointEntry={onPointEntry}
+                onPointerOutside={onPointerOutside}
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>,
+    );
+    const typed = screen.getByText('010 Strip').parentElement;
+    if (!(typed instanceof HTMLElement)) throw new Error('Missing typed entry');
+    vi.spyOn(screen.getByTestId('owner'), 'getBoundingClientRect').mockReturnValue({
+      ...rect(10, 10, 110, 40),
+      x: 10,
+      y: 10,
+      width: 100,
+      height: 30,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(typed, 'getBoundingClientRect').mockReturnValue({
+      ...rect(116, 16, 274, 36),
+      x: 116,
+      y: 16,
+      width: 158,
+      height: 20,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(screen.getByRole('tooltip'), 'getBoundingClientRect').mockReturnValue({
+      ...rect(110, 10, 280, 90),
+      x: 110,
+      y: 10,
+      width: 170,
+      height: 80,
+      toJSON: () => ({}),
+    });
+    expect(typed.style.pointerEvents).toBe('auto');
+    expect(typed.getAttribute('data-depends-card-target')).toBe('typed:typed');
+    fireEvent.pointerMove(typed, { clientX: 150, clientY: 26 });
+    expect(onPointEntry).toHaveBeenCalledWith(null);
+    expect(depLights.activeTypedId()).toBe('typed');
+    expect(onPointerOutside).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit 010 Strip' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove 010 Strip' }));
+    expect(onEdit).toHaveBeenCalledOnce();
+    expect(onRemove).toHaveBeenCalledOnce();
   });
 
   itDom('moves owner to row, widens on return and clears outside', () => {

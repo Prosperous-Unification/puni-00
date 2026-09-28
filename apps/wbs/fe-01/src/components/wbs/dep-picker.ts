@@ -51,8 +51,8 @@ export const REFUSAL_SUFFIX: Record<NonNullable<PickerEntry['refusal']>, string>
  * carrying the refusal be-01 would answer with if it were picked.
  *
  * The row picking its predecessors is never offered — a row cannot wait for
- * itself — and neither are the predecessors it already has: offering one would
- * be offering a click that be-01's unique pair turns into nothing.
+ * itself. Existing predecessors remain offered for Customize; the default
+ * add path separately refuses a duplicate whole relationship.
  *
  * Everything else **is** offered, including the rows be-01 would refuse as a
  * cycle or an ancestor, but marked with {@link PickerEntry.refusal} so the
@@ -76,11 +76,10 @@ export function pickerEntries(
   typed: string,
 ): PickerEntry[] {
   const wanted = typed.trim().toLowerCase();
-  const taken = new Set(forRow.dependsOn);
+  // Proof: restoring the dependsOn exclusion made `offers a legacy predecessor for another scoped relationship but never the row itself` omit `a`; watched 2026-09-28.
   const offered = rows.filter(
     (row) =>
       row.id !== forRow.id &&
-      !taken.has(row.id) &&
       (wanted === '' ||
         row.number.toLowerCase().includes(wanted) ||
         row.name.toLowerCase().includes(wanted)),

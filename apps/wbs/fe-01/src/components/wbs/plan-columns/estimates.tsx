@@ -707,6 +707,9 @@ export function createEstimatesColumns({
                   stepName={step.name}
                   projectId={live.current.projectId}
                   stepNode={readStepNode(row.original, step.id)}
+                  onAddDependency={() => {
+                    live.current.openStepDependency(row.original.id, step.id);
+                  }}
                   onPointerArrives={() => {
                     live.current.cellCards.arriveOnCard();
                   }}
