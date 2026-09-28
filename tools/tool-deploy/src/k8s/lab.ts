@@ -209,6 +209,8 @@ async function proveMissingMcpKeyExits(keys: McpLabKeys): Promise<void> {
     observed = `pod ${pod} exited ${exitCode}; log: ${logs}`;
     // Blank rather than delete: deleting the key from the Secret stops at kubelet
     // CreateContainerConfigError before the process runs (observed on the kept lab, 2026-09-27).
+    // Proof: expecting MCP_STORE_KEY_FAULT_INJECTED here failed run 36438630324 on the deadline
+    // with `last seen: pod … exited 1`, and this head passed k3s-rehearsal on #180.
     if (exitCode !== '0' && logs.includes('MCP_STORE_KEY_CURRENT is required')) break;
   }
   log(`MCP without a store key: ${observed}`);
