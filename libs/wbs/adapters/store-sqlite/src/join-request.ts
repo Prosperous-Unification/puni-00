@@ -1,5 +1,5 @@
 import type { JoinRequest, JoinRequestAnswer, JoinRequestSummary, WriteStamp } from '@wbs/core';
-import { JOIN_REQUEST_STATUSES, mayInvite } from '@wbs/domain';
+import { JOIN_REQUEST_STATUSES, mayInvite, ORGANIZATION_ROLES } from '@wbs/domain';
 import { and, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -35,7 +35,12 @@ function authorized(tx: Transaction, organizationId: string, actorId: string): b
       ),
     )
     .get();
-  return membership !== undefined && mayInvite(membership.role, 'viewer');
+  if (membership === undefined) return false;
+  const known: readonly string[] = ORGANIZATION_ROLES;
+  // Proof: 2026-09-28, bypassing this stored-role check made `throws for a malformed trusted administrator role` return 403 after the resolver had read a valid role.
+  if (!known.includes(membership.role))
+    throw new Error(`membership in organization ${organizationId} has malformed role`);
+  return mayInvite(membership.role, 'viewer');
 }
 
 /** A join request grants nothing until its generated invitation is accepted. */
@@ -64,6 +69,7 @@ export class JoinRequestRepository implements JoinRequest {
               createdAt: organizationJoinRequest.createdAt,
             })
             .from(organizationJoinRequest)
+            // Proof: 2026-09-28, removing this organization predicate failed `lists only requests in the active organization` by listing the foreign request.
             .where(eq(organizationJoinRequest.organizationId, organizationId))
             .all()
             .map((request) => {
@@ -92,7 +98,7 @@ export class JoinRequestRepository implements JoinRequest {
             // Proof: 2026-09-28, bypassing this read failed `rechecks activation during approve` after the marker table was dropped.
             if (readOrganizationActivation(tx) !== 'activated')
               return { ok: false, refusal: 'onboarding_inactive' };
-            // Proof: 2026-09-28, bypassing current-role validation failed `refuses a removed administrator`.
+            // Proof: 2026-09-28, bypassing current-role validation failed `rechecks administrator authority after active organization resolution`.
             if (!authorized(tx, organizationId, actorId))
               return { ok: false, refusal: 'forbidden' };
             const request = tx
@@ -137,7 +143,7 @@ export class JoinRequestRepository implements JoinRequest {
                 ),
               )
               .get();
-            // Proof: 2026-09-28, skipping this exact verified-domain predicate failed `refuses a suspended or changed domain at approval`.
+            // Proof: 2026-09-28, removing the organization, domain, and verified-status predicates separately failed `requires the exact verified claim in the active organization`.
             if (claim === undefined) return { ok: false, refusal: 'domain_changed' };
             const invitationId = crypto.randomUUID();
             tx.insert(organizationInvitation)
@@ -151,7 +157,7 @@ export class JoinRequestRepository implements JoinRequest {
                 ...auditOnCreate(stamp),
               })
               .run();
-            // Proof: 2026-09-28, an abort trigger on invitation insertion made `rolls resolution back when invitation insertion fails` observe HTTP 500 with a still-pending request.
+            // Proof: 2026-09-28, aborting this later update left no invitation in `rolls the invitation back when the subsequent resolution update fails`; removing the transaction made that test retain the inserted invitation.
             tx.update(organizationJoinRequest)
               .set({
                 status: 'approved',
@@ -219,7 +225,7 @@ export class JoinRequestRepository implements JoinRequest {
     );
   }
 
-  /** Invalidates a failed delivery and returns its request to pending. */
+  /** Revokes a failed offer; reopens its request only while the pending slot is free. */
   failDelivery(id: string, invitationId: string, stamp: WriteStamp): Promise<void> {
     return this.gate.enter(() => {
       this.db.transaction(
@@ -231,6 +237,35 @@ export class JoinRequestRepository implements JoinRequest {
             .run();
           if (invitation.changes !== 1)
             throw new Error(`approval invitation ${invitationId} disappeared`);
+          const original = tx
+            .select({
+              organizationId: organizationJoinRequest.organizationId,
+              userId: organizationJoinRequest.userId,
+            })
+            .from(organizationJoinRequest)
+            .where(
+              and(
+                eq(organizationJoinRequest.id, id),
+                eq(organizationJoinRequest.invitationId, invitationId),
+              ),
+            )
+            .get();
+          const competing =
+            original === undefined
+              ? undefined
+              : tx
+                  .select({ id: organizationJoinRequest.id })
+                  .from(organizationJoinRequest)
+                  .where(
+                    and(
+                      eq(organizationJoinRequest.organizationId, original.organizationId),
+                      eq(organizationJoinRequest.userId, original.userId),
+                      eq(organizationJoinRequest.status, 'pending'),
+                    ),
+                  )
+                  .get();
+          // Proof: 2026-09-28, bypassing this competing-request check made `revokes a failed offer when a new request arrives during delayed delivery` answer 500 and roll back revocation.
+          if (competing !== undefined) return;
           const request = tx
             .update(organizationJoinRequest)
             .set({

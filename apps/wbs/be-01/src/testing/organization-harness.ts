@@ -70,7 +70,7 @@ export interface Answer {
 interface TestMail {
   tokens: Map<string, string>;
   fail: boolean;
-  beforeDelivery?: () => void;
+  beforeDelivery?: () => void | Promise<void>;
 }
 
 /**
@@ -188,8 +188,8 @@ export class OrganizationHarness {
       invitations: new InvitationRepository(db, OPEN),
       joinRequests: new JoinRequestRepository(db, OPEN),
       emailDelivery: {
-        deliver: (address, token) => {
-          mail.beforeDelivery?.();
+        deliver: async (address, token) => {
+          await mail.beforeDelivery?.();
           if (mail.fail) return Promise.reject(new Error('injected mail sink failure'));
           mail.tokens.set(address, token);
           return Promise.resolve();
@@ -351,9 +351,10 @@ export class OrganizationHarness {
   }
 
   /** Makes the injected test sink reject delivery. */
-  failEmailDelivery(): void {
+  failEmailDelivery(beforeDelivery?: () => void | Promise<void>): void {
     if (this.mail === undefined) throw new Error('no test mail sink');
     this.mail.fail = true;
+    if (beforeDelivery !== undefined) this.mail.beforeDelivery = beforeDelivery;
   }
 
   /** Breaks the durable pending row after issue, before the sink reports success. */

@@ -34,6 +34,6 @@ export interface JoinRequest {
     id: string,
     stamp: WriteStamp,
   ): Promise<JoinRequestAnswer<null>>;
-  /** Reopens a request if the injected mail port rejects its newly created invitation. */
+  /** Revokes a failed offer and reopens its request unless a newer request is pending. */
   failDelivery(id: string, invitationId: string, stamp: WriteStamp): Promise<void>;
 }

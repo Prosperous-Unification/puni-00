@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 
+import { JoinRequestRepository } from '@wbs/store-sqlite';
+import { openConnection } from '@wbs/store-sqlite/db';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { OPEN } from '../repository/gate';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 describe('organization join request decisions', () => {
@@ -275,7 +278,7 @@ describe('organization join request decisions', () => {
     expect(absent).toEqual(foreign);
   });
 
-  it('serializes concurrent approve and deny', async () => {
+  it('resolves approve and deny calls on one connection once', async () => {
     harness.activate();
     const id = await submit();
     const decisions = await Promise.all([
@@ -292,7 +295,66 @@ describe('organization join request decisions', () => {
     );
   });
 
-  it('rolls resolution back when invitation insertion fails', async () => {
+  it('resolves competing decisions from independent SQLite connections once', async () => {
+    harness.activate();
+    const firstId = await submit();
+    const left = openConnection(harness.databasePath());
+    const right = openConnection(harness.databasePath());
+    const stamp = { at: Date.now(), by: harness.userId('owner') };
+    try {
+      const approving = new JoinRequestRepository(left.db, OPEN);
+      const denying = new JoinRequestRepository(right.db, OPEN);
+      const first = await Promise.all([
+        approving.approve(
+          'org',
+          stamp.by,
+          firstId,
+          'viewer',
+          'first-digest',
+          stamp.at + 1000,
+          stamp,
+        ),
+        denying.approve(
+          'org',
+          stamp.by,
+          firstId,
+          'viewer',
+          'second-digest',
+          stamp.at + 1000,
+          stamp,
+        ),
+      ]);
+      expect(first.filter((decision) => decision.ok)).toHaveLength(1);
+      expect(first.filter((decision) => !decision.ok)).toEqual([
+        { ok: false, refusal: 'request_resolved' },
+      ]);
+      const secondId = await submit();
+      const second = await Promise.all([
+        approving.approve(
+          'org',
+          stamp.by,
+          secondId,
+          'viewer',
+          'third-digest',
+          stamp.at + 1000,
+          stamp,
+        ),
+        denying.deny('org', stamp.by, secondId, stamp),
+      ]);
+      expect(second.filter((decision) => decision.ok)).toHaveLength(1);
+      expect(second.filter((decision) => !decision.ok)).toEqual([
+        { ok: false, refusal: 'request_resolved' },
+      ]);
+      expect(harness.sqlite.query('SELECT id FROM organization_invitation').all()).toHaveLength(
+        second[0].ok ? 2 : 1,
+      );
+    } finally {
+      left.close();
+      right.close();
+    }
+  });
+
+  it('leaves the request pending when invitation insertion aborts', async () => {
     harness.activate();
     const id = await submit();
     harness.sqlite.run(
@@ -309,6 +371,25 @@ describe('organization join request decisions', () => {
       harness.sqlite.query('SELECT status FROM organization_join_request WHERE id = ?').get(id),
     ).toEqual({ status: 'pending' });
     expect(harness.sqlite.query('SELECT id FROM organization_invitation').all()).toHaveLength(0);
+  });
+
+  it('rolls the invitation back when the subsequent resolution update fails', async () => {
+    harness.activate();
+    const id = await submit();
+    harness.sqlite.run(
+      "CREATE TRIGGER abort_join_resolution BEFORE UPDATE ON organization_join_request BEGIN SELECT RAISE(ABORT, 'injected resolution failure'); END",
+    );
+    expect(
+      (
+        await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
+          role: 'viewer',
+        })
+      ).status,
+    ).toBe(500);
+    expect(harness.sqlite.query('SELECT id FROM organization_invitation').all()).toHaveLength(0);
+    expect(
+      harness.sqlite.query('SELECT status FROM organization_join_request WHERE id = ?').get(id),
+    ).toEqual({ status: 'pending' });
   });
 
   it('denies without invitation or membership and refuses replay', async () => {
@@ -341,14 +422,73 @@ describe('organization join request decisions', () => {
   });
 
   it('throws for a malformed trusted administrator role', async () => {
+    harness.close();
+    let corruptAfterResolve = false;
+    harness = OrganizationHarness.openComposed(false, () => {
+      if (corruptAfterResolve) {
+        harness.sqlite.run('PRAGMA ignore_check_constraints = ON');
+        harness.sqlite.run("UPDATE organization_membership SET role = 'broken' WHERE user_id = ?", [
+          harness.userId('owner'),
+        ]);
+      }
+    });
+    await harness.register('owner');
+    harness.organization('org');
+    harness.member('org', 'owner', 'super_admin');
+    harness.bind('owner', 'org');
     harness.activate();
-    harness.sqlite.run('PRAGMA ignore_check_constraints = ON');
-    harness.sqlite.run("UPDATE organization_membership SET role = 'broken' WHERE user_id = ?", [
-      harness.userId('owner'),
-    ]);
+    corruptAfterResolve = true;
     expect((await harness.call('owner', 'GET', '/api/organization/join-requests')).status).toBe(
       500,
     );
+  });
+
+  it('lists only requests in the active organization', async () => {
+    harness.activate();
+    const ownId = await submit();
+    harness.organization('other');
+    harness.sqlite.run(
+      "INSERT INTO organization_join_request (id, organization_id, user_id, email, status, created_at) VALUES ('foreign-request', 'other', ?, 'applicant@example.org', 'pending', 1)",
+      [harness.userId('applicant')],
+    );
+    const listing = await harness.call('owner', 'GET', '/api/organization/join-requests');
+    expect(listing.status).toBe(200);
+    expect(listing.body).toMatchObject({
+      requests: [{ id: ownId, email: 'applicant@example.org', status: 'pending' }],
+    });
+    expect((listing.body as { requests: unknown[] }).requests).toHaveLength(1);
+  });
+
+  it('requires the exact verified claim in the active organization', async () => {
+    harness.activate();
+    const id = await submit();
+    harness.sqlite.run(
+      "UPDATE organization_domain_claim SET status = 'pending' WHERE id = 'claim'",
+    );
+    harness.organization('other');
+    harness.sqlite.run(
+      "INSERT INTO organization_domain_claim (id, organization_id, domain, status, proof_digest, last_success_at, created_at) VALUES ('foreign-claim', 'other', 'example.org', 'verified', 'proof', 1, 1)",
+    );
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
+        role: 'viewer',
+      }),
+    ).toEqual({
+      status: 409,
+      body: { error: 'domain_changed' },
+    });
+    harness.sqlite.run(
+      "UPDATE organization_domain_claim SET status = 'verified', domain = 'other.org' WHERE id = 'claim'",
+    );
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
+        role: 'viewer',
+      }),
+    ).toEqual({
+      status: 409,
+      body: { error: 'domain_changed' },
+    });
+    expect(harness.sqlite.query('SELECT id FROM organization_invitation').all()).toHaveLength(0);
   });
 
   it('throws for a malformed trusted request status', async () => {
@@ -405,5 +545,40 @@ describe('organization join request decisions', () => {
         .query('SELECT revoked_at IS NOT NULL AS revoked FROM organization_invitation')
         .get(),
     ).toEqual({ revoked: 1 });
+  });
+
+  it('revokes a failed offer when a new request arrives during delayed delivery', async () => {
+    harness.activate();
+    const id = await submit();
+    let replacementId: string | undefined;
+    harness.failEmailDelivery(async () => {
+      const submitted = await harness.call('applicant', 'POST', '/api/onboarding/join-requests', {
+        organizationId: 'org',
+      });
+      expect(submitted.status).toBe(201);
+      replacementId = (submitted.body as { request: { id: string } }).request.id;
+    });
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
+        role: 'viewer',
+      }),
+    ).toEqual({
+      status: 503,
+      body: { error: 'delivery_failed' },
+    });
+    expect(
+      harness.sqlite
+        .query('SELECT revoked_at IS NOT NULL AS revoked FROM organization_invitation')
+        .get(),
+    ).toEqual({ revoked: 1 });
+    expect(
+      harness.sqlite.query('SELECT status FROM organization_join_request WHERE id = ?').get(id),
+    ).toEqual({ status: 'approved' });
+    if (replacementId === undefined) throw new Error('the replacement was not submitted');
+    expect(
+      harness.sqlite
+        .query('SELECT status FROM organization_join_request WHERE id = ?')
+        .get(replacementId),
+    ).toEqual({ status: 'pending' });
   });
 });
