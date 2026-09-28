@@ -32,19 +32,21 @@ SHALL remain its progress.
 
 #### Scenario: nothing said is unknown
 
-- **GIVEN** a leaf with no progress, readiness, hold or held predecessor
+- **GIVEN** a leaf with no progress, readiness or hold, and no predecessor reading `on_hold`,
+  `blocked` or `blocked_by_proxy`
 - **WHEN** the plan is read
 - **THEN** it reports `unknown`
 
 ### Requirement: Blocked by proxy is derived from the full dependency graph
 
-A leaf SHALL read `blocked_by_proxy` when it reads neither `done`, a hold nor `in_progress` and
-at least one of its predecessor leaves reads `on_hold`, `blocked` or `blocked_by_proxy`.
+A leaf SHALL read `blocked_by_proxy` exactly when it reads neither `done`, a hold nor
+`in_progress`, and a chain of dependencies reaches it from a leaf holding `on_hold` or
+`blocked` through leaves each reading `unknown`, `draft` or `ready` apart from their hold.
 Predecessors SHALL come from every legacy and typed dependency, of every relationship type,
-expanded to leaves, whether or not the predecessor takes part in the schedule. The reading
-SHALL propagate through successive `blocked_by_proxy` leaves and SHALL stop at a leaf reading
-`done` or `in_progress`. A leaf-level cycle permitted by an acyclic step-node graph SHALL NOT
-prevent the derivation.
+expanded to leaves, whether or not the predecessor takes part in the schedule. A leaf reading
+`done` or `in_progress` SHALL stop the chain. No leaf SHALL read `blocked_by_proxy` without such
+a chain, so a cycle of unstarted leaves with no hold behind it reads as their own statuses. A
+leaf-level cycle permitted by an acyclic step-node graph SHALL NOT prevent the derivation.
 
 #### Scenario: a successor two edges behind a held leaf is blocked by proxy
 
@@ -63,6 +65,14 @@ prevent the derivation.
 - **GIVEN** a dependency from leaf A to a parent P with two leaves, A `blocked`
 - **WHEN** the plan is read
 - **THEN** both leaves under P report `blocked_by_proxy`
+
+#### Scenario: a cycle of work items reads a hold only from outside it
+
+- **GIVEN** leaves A and B with typed dependencies `A.dev → B.dev` and `B.qa → A.qa`, both with
+  nothing said
+- **WHEN** the plan is read
+- **THEN** A and B report `unknown`; with a `blocked` leaf C and `C → A`, both report
+  `blocked_by_proxy`
 
 ### Requirement: A parent folds its children's statuses the same way at every depth
 

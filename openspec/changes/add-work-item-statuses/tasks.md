@@ -1,6 +1,6 @@
 ## 0. Spec
 
-- [x] 0.1 Intent, delta specs, design, ADR 0033 and CONTEXT terms (Readiness, Hold, Held,
+- [x] 0.1 Intent, delta specs, design, ADR 0032 and CONTEXT terms (Readiness, Hold, Held,
       Blocked by proxy; Status widened). `openspec validate --all --json` green.
 
 ## 1. Vocabulary and folds in `@wbs/domain` (nothing produces the values yet)

@@ -1,7 +1,7 @@
 # design — `add-work-item-statuses`
 
 Rationale for storing holds beside readiness, removing held input and keeping blocked in the
-schedule lives in [ADR 0033](../../../docs/adr/0033-a-hold-leaves-the-plan-blocked-is-a-reading.md).
+schedule lives in [ADR 0032](../../../docs/adr/0032-a-hold-leaves-the-plan-blocked-is-a-reading.md).
 This file is the shape.
 
 ## Allocated numbers (checked 2026-09-28)
@@ -11,7 +11,7 @@ This file is the shape.
 | `PLAN_DOCUMENT_VERSION`                   | 6                                           | main and `batch-9/integration-25` hold 4; typed dependency stage B (`batch-9/010-4-7-step-deps-b-commands`, `-ui`, #183) takes 5                          |
 | `CANONICAL_PLAN_INPUT_SCHEMA_VERSION`     | 4                                           | 3 on main, `integration-25`, every stage B branch and `010-5-2-orgs-36`                                                                                   |
 | Migration stamp                           | `20260928200000_add_work_item_status_facts` | newest on main, `integration-25` and `010-5-2-orgs-36` is `20260928030000`; the orgs stack reserves `20260928040000` onward. Recheck the queue at slice 3 |
-| ADR                                       | 0033                                        | 0032 is taken on `feat/puni-website-funnel`                                                                                                               |
+| ADR                                       | 0032                                        | `adr-index.test.ts` requires contiguous numbers; `feat/puni-website-funnel` (unmerged) also holds a 0032, so whichever lands second renumbers             |
 | `SCHEDULER_CONTRACT_VERSION`, solver wire | unchanged                                   | the input is smaller, never differently shaped                                                                                                            |
 
 ## D1 — Vocabulary in `@wbs/domain/progress`

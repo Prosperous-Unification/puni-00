@@ -52,7 +52,7 @@ Status (widened), Readiness, Hold, Held, Blocked by proxy.
 
 ## Decisions Recorded
 
-[ADR 0033: A hold leaves the plan; blocked is a reading](../../../docs/adr/0033-a-hold-leaves-the-plan-blocked-is-a-reading.md).
+[ADR 0032: A hold leaves the plan; blocked is a reading](../../../docs/adr/0032-a-hold-leaves-the-plan-blocked-is-a-reading.md).
 
 ## Impact
 
