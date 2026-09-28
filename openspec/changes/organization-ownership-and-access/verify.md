@@ -671,6 +671,12 @@ The requested Astra consultation on source trust was attempted with `codex exec 
 
 The commit is blocked in this session: `git add -A` failed to create the worktree `index.lock` with `Read-only file system`, and a direct write probe at that Git metadata path failed the same way. Source changes remain in the worktree, unstaged. No push or full Nx gate was attempted.
 
+### Second review — 2026-09-28
+
+Astra's re-review found no remaining Critical, Important or Minor finding: consumption waits on the shared write coordinator and survives a concurrent rollback, the boot proof calls `running.delegationIssuer`, and the audience-array and gateway-cookie negatives exist.
+
+Full suites outside the sandbox, `env -u CLAUDECODE bun test`, after main round 20 was merged: be-01 1357 pass, 0 fail; gw-01 130 pass, 0 fail; core 715 pass, 1 fail (the known Playwright spec collected by Bun); store-sqlite 1087 pass, 0 fail; contracts 404 pass, 0 fail. The sandbox's broad-run failures recorded above do not reproduce outside it.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.
