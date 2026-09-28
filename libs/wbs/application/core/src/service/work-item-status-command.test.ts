@@ -328,6 +328,7 @@ describe('structural edits carry readiness and hold with the leaf', () => {
     expect(await rowOf('Branch')).toMatchObject({ readiness: 'draft', hold: 'blocked' });
     expect((await service.undo(projectId, OWNER)).ok).toBe(true);
     expect(await rowOf('Branch')).toMatchObject({ readiness: null, hold: null });
+    expect(await rowOf('Strip')).toMatchObject({ readiness: 'draft', hold: 'blocked' });
   });
 
   it('copies a readiness and never a hold', async () => {
@@ -350,6 +351,26 @@ describe('structural edits carry readiness and hold with the leaf', () => {
 });
 
 describe('review follow-ups', () => {
+  it('refuses an undo that would put a hold back on a row that has since gained a child', async () => {
+    const strip = await add('Strip');
+    await set(strip, 'on_hold');
+    await set(strip, 'unknown');
+    // Somebody else gives Strip its first child, so Strip is a parent now.
+    const peer = await service.create(projectId, 'peer-account', {
+      parentId: strip,
+      afterId: null,
+      name: 'Prime',
+    });
+    expect(peer.ok).toBe(true);
+
+    expect(await service.undo(projectId, OWNER)).toMatchObject({
+      ok: false,
+      detail: 'that work item has children now, so it takes no readiness or hold.',
+    });
+    // The plan still reads: no statement landed on the parent.
+    expect(await rowOf('Strip')).toMatchObject({ readiness: null, hold: null });
+  });
+
   it('gives the parent a moved last child leaves the statements it agreed on', async () => {
     const branch = await add('Branch');
     const strip = await add('Strip', branch);

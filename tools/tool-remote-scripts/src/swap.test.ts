@@ -696,7 +696,7 @@ it('startGreen admits merged backend config and writes the supervisor directory 
   expect(started).toBe(true);
 });
 
-describe('execute, relationship type rollback guard', () => {
+describe('execute, stored vocabulary rollback guard', () => {
   async function runGuard(
     types: string,
     stored: string,

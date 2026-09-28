@@ -416,6 +416,30 @@ describe('the team set beside the column', () => {
     expect([after?.readiness, after?.hold]).toEqual([null, null]);
   });
 
+  it('refuses a readiness or hold on a row that has children, in the write itself', async () => {
+    const parent = row(null, 10, 'Parent');
+    await repo.insert(parent, [], wrote());
+    const child = row(parent.id, 10, 'Child');
+    await repo.insert(child, [], wrote());
+
+    expect(await repo.patch(parent.id, { hold: 'on_hold' }, wrote())).toEqual({
+      ok: false,
+      reason: 'has_children',
+    });
+    expect(await repo.patch(parent.id, { readiness: 'ready', name: 'Renamed' }, wrote())).toEqual({
+      ok: false,
+      reason: 'has_children',
+    });
+    // Taking a statement off, and every other field, stays writable.
+    expect((await repo.patch(parent.id, { hold: null, name: 'Renamed' }, wrote())).ok).toBe(true);
+    const read = (await repo.listByProject(projectId)).find((each) => each.id === parent.id);
+    expect([read?.name, read?.readiness, read?.hold]).toEqual(['Renamed', null, null]);
+    expect(await repo.patch('no-such-row', { hold: 'on_hold' }, wrote())).toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
+  });
+
   it('writes both fact dates and reads them back, and clears them with nulls', async () => {
     // The deadline's contract two columns over, for two columns at once: a date
     // goes in, comes back off both reads — the patch's own `returning()` and a

@@ -541,7 +541,13 @@ export type WorkItemPatched =
         | 'unknown_service'
         | 'unknown_type'
         | 'unknown_system'
-        | 'not_before_reason_needs_a_date';
+        | 'not_before_reason_needs_a_date'
+        /**
+         * A readiness or hold written on a row that has children. Decided in
+         * the write itself, so a statement racing a first child cannot leave
+         * one on a parent, where the plan read refuses it.
+         */
+        | 'has_children';
     };
 
 /**

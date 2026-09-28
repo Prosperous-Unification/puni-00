@@ -497,6 +497,11 @@ export class WorkItemRepository implements WorkItemStore {
       } = patch;
       const written =
         maxParallel === undefined ? fields : { ...fields, maxParallel: maxParallel ?? 1 };
+      // A readiness or hold being set, rather than taken off: the one write a
+      // row with children must refuse.
+      const writesStatement =
+        (patch.readiness !== undefined && patch.readiness !== null) ||
+        (patch.hold !== undefined && patch.hold !== null);
       return this.db.transaction((tx) => {
         const normalizedTeams =
           wantedTeams === undefined ? undefined : [...new Set(wantedTeams)].sort();
@@ -653,7 +658,20 @@ export class WorkItemRepository implements WorkItemStore {
             revision: bumpedWorkItem,
             ...auditOnUpdate(stamp),
           })
-          .where(eq(workItem.id, id))
+          .where(
+            // A statement lands only on a row with no children, in this very
+            // statement, so no child inserted a moment earlier can leave one on
+            // a parent (`add-work-item-statuses`).
+            // Proof: this condition dropped made `refuses a readiness or hold on
+            // a row that has children, in the write itself` fail on `ok: true`
+            // with the parent holding `hold: "on_hold"`; watched 2026-09-29.
+            writesStatement
+              ? and(
+                  eq(workItem.id, id),
+                  sql`NOT EXISTS (SELECT 1 FROM work_item AS child WHERE child.parent_id = ${id})`,
+                )
+              : eq(workItem.id, id),
+          )
           // Named, like every read in this file and for the same reason: a bare
           // `.returning()` answers every column drizzle knows about, and this row
           // is handed back as `{ ok: true, workItem }` — so the audit columns
@@ -661,7 +679,14 @@ export class WorkItemRepository implements WorkItemStore {
           .returning(WORK_ITEM_COLUMNS)
           .all();
         const updated = rows.at(0);
-        if (updated === undefined) return { ok: false, reason: 'not_found' };
+        if (updated === undefined) {
+          const found = tx
+            .select({ id: workItem.id })
+            .from(workItem)
+            .where(eq(workItem.id, id))
+            .get();
+          return { ok: false, reason: found === undefined ? 'not_found' : 'has_children' };
+        }
         // The set, written in the same transaction as the column and only when
         // the patch names the label at all — a rename must not empty the join.
         // Replace rather than merge: the write path states the whole set, and it

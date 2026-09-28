@@ -65,17 +65,15 @@ its hold, a done leaf reopens its last step, and a project with no steps refuses
 no_steps` for `in_progress` and, new in slice 3, for `done`. On a parent reading done, the
 parent's own fact end (filled by today's `setStatus done`) is cleared with its first leaf's.
 
-## Open after the slice 3 review
+## Decided after the slice 3 review (Fable, 2026-09-29)
 
-All three findings trace to one rule: the tree read throws when a parent holds a readiness or hold. Two paths can still leave one there:
-
-- **Critical 1.** An undo can restore a statement on a row that has since gained a child.
-- **Important 3.** An older image can create or move a child under a ready leaf.
-
-The options, for the design authority:
-
-- **A. Keep the invariant strict.** The read refuses a parent with statements. Undo and redo validate the replayed tree and refuse `stale_undo`. The swap guard also compares stored readiness on parents.
-- **B. Make parent statements dormant.** The read ignores readiness and hold on a row with children. Writers still clear or hand them down, and they return when the row is a leaf again. An older writer and an undo can then no longer break a read. This loosens "never stored on a parent" into "never read on a parent".
-- **C. Render a query-failure state instead of throwing.** Parent statements stay invalid, but the plan cannot be opened until an operator repairs it.
-
-**Important 4** is separate. The post-stop recheck of every stored vocabulary refuses only after routing has moved to green; #179's relationship-type guard shares this limitation. Fencing writers across the final comparison would fix both.
+- **A parent never holds a statement, enforced at the write (option A).**
+  - `apply`'s `patch` arm refuses a non-null readiness or hold on a row that has children. A stale undo or redo is therefore refused, not replayed.
+  - `WorkItemRepository.patch` writes a statement only under `NOT EXISTS (child)` in the same `UPDATE`, and answers `has_children`. A live `setStatus` racing a first child cannot produce the state either.
+  - The plan read keeps throwing on a parent with a statement.
+- **A move's inverse moves back first, then restores the statements.** The row a moved row came from is a leaf again only after the move-back.
+- **Readiness joins the swap guard.** The swap compares readiness as it compares holds, through a `readiness-kinds-cli.ts` beside `hold-kinds-cli.ts`. The rollback save file carries both columns, so a code rollback with readiness stored saves and removes it first. `down.sql` still guards holds only; readiness is dropped as fact dates are.
+- **Accepted as is:**
+  - The post-stop recheck refuses only after routing has moved (#179's limitation, shared by every stored vocabulary).
+  - Holding a parent takes the hold off its done leaves.
+- **Delivery.** Slices 3 and 6 need not ship together. Slice 4 ships with the fe-01 reader of `schedule: null`.

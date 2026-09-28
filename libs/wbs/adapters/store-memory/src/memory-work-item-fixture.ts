@@ -191,6 +191,15 @@ export function inMemoryWorkItems(
           return { ok: false, reason: 'unknown_service' };
         }
       }
+      // The SQLite store's conditional write, mirrored: a statement never
+      // lands on a row that has children.
+      if (
+        ((patch.readiness !== undefined && patch.readiness !== null) ||
+          (patch.hold !== undefined && patch.hold !== null)) &&
+        [...byId.values()].some((row) => row.parentId === id)
+      ) {
+        return { ok: false, reason: 'has_children' };
+      }
       const updated: WorkItem = {
         ...existing,
         name: patch.name ?? existing.name,

@@ -99,11 +99,17 @@ Fixed, each with a test watched failing when the fix is removed:
 - **Important 6.** Moving a last child away hands the agreed statements up. Skipping that failed `gives the parent a moved last child leaves the statements it agreed on`, with `readiness: null`.
 - **Important 7.** Holding a branch takes the hold off its done leaves. Skipping done leaves failed `takes the hold off a done leaf when its branch is held`, with `hold: "on_hold"`.
 
-Open, and raised for the design review. See `design.md`, "Open after the slice 3 review":
+The three open findings were decided by Fable on 2026-09-29; see `design.md`, "Decided after the slice 3 review".
 
-- **Critical 1.** An undo can put a readiness or hold back on a row that has since become a parent. The tree read then throws.
-- **Important 3.** An older image can write a child under a leaf that holds a readiness. The swap guard compares holds only.
-- **Important 4.** The post-stop recheck refuses only after routing has moved. This is the same limitation #179's relationship-type guard has.
+### Fable review fixes (2026-09-29)
+
+Each fault was injected into the production code, the named test run, and the file restored.
+
+| Check                                              | Fault injected                                  | Test that observed it                                                                         | Observed                                                                         |
+| -------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `apply` refuses a statement on a row with children | check disabled                                  | `refuses an undo that would put a hold back on a row that has since gained a child`           | refused by the store's condition instead (`gained children as this was written`) |
+| the store writes a statement only on a leaf        | `NOT EXISTS (child)` condition dropped          | `refuses a readiness or hold on a row that has children, in the write itself`                 | `ok: true` with the parent holding `hold: "on_hold"`                             |
+| a move's inverse moves back first                  | statement inverses ordered before the move-back | `clears the readiness and hold of a leaf another row moves under, and one undo restores them` | `Expected: true, Received: false`: the undo was refused                          |
 
 ## Not run
 

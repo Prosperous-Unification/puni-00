@@ -2941,6 +2941,13 @@ export class WorkItemService {
         statementsCleared?.forward,
         'after',
       ),
+      // Back where it was first, and only then the statements: the row it came
+      // from is a leaf again only once it has moved back, and a statement
+      // restored before that would land on a parent, which the write refuses.
+      // Proof: the patches ordered before the move-back made `clears the
+      // readiness and hold of a leaf another row moves under, and one undo
+      // restores them` fail on `Expected: true, Received: false` — the undo was
+      // refused; watched 2026-09-29.
       inverse: withPatchStep(
         withPatchStep(
           {
@@ -2949,11 +2956,11 @@ export class WorkItemService {
             parentId: workItem.parentId,
             afterId: wasAfter?.id ?? null,
           },
-          statementsHandedUp?.inverse,
-          'before',
+          statementsCleared?.inverse,
+          'after',
         ),
-        statementsCleared?.inverse,
-        'before',
+        statementsHandedUp?.inverse,
+        'after',
       ),
       touched: [
         id,
@@ -5134,6 +5141,27 @@ export class WorkItemService {
   ): Promise<ApplyOutcome> {
     switch (command.do) {
       case 'patch': {
+        // A statement goes back only onto a row that is still a leaf: one that
+        // has gained a child since is a parent, and the plan read refuses a
+        // parent holding a readiness or hold (`add-work-item-statuses`, ADR
+        // 0032). The store refuses the same write again in its own statement.
+        // Proof: this check removed made `refuses an undo that would put a
+        // hold back on a row that has since gained a child` fail — the refusal
+        // came from the store's conditional write instead, `gained children as
+        // this was written`, so this is the check that answers first; watched
+        // 2026-09-29.
+        if (
+          (command.patch.readiness !== undefined && command.patch.readiness !== null) ||
+          (command.patch.hold !== undefined && command.patch.hold !== null)
+        ) {
+          const rows = await this.opts.workItems.listByProject(projectId);
+          if (rows.some((row) => row.parentId === command.workItemId)) {
+            return {
+              ok: false,
+              detail: 'that work item has children now, so it takes no readiness or hold.',
+            };
+          }
+        }
         // Straight to the store, never through the authored `patch`: restoration
         // puts back the exact prior type set, including a type conflict.
         //
@@ -5154,11 +5182,13 @@ export class WorkItemService {
           return {
             ok: false,
             detail:
-              written.reason === 'unknown_team'
-                ? 'that service team is no longer in the directory.'
-                : written.reason === 'unknown_service'
-                  ? 'that service is no longer in the directory.'
-                  : 'the work item is no longer there.',
+              written.reason === 'has_children'
+                ? 'that work item gained children as this was written, so it takes no readiness or hold.'
+                : written.reason === 'unknown_team'
+                  ? 'that service team is no longer in the directory.'
+                  : written.reason === 'unknown_service'
+                    ? 'that service is no longer in the directory.'
+                    : 'the work item is no longer there.',
           };
         }
         return { ok: true, detail: null };
