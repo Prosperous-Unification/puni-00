@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
-import type { DependencyEndpoint } from '@wbs/domain';
+import { type DependencyEndpoint, sliceKey } from '@wbs/domain';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
 
@@ -29,6 +29,8 @@ import { AuthService } from '../service/auth.service';
 import { DirectoryService } from '../service/directory.service';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { ProjectService } from '../service/project.service';
+import { evaluateSolverOutcome } from '../service/solver-exit-outcome';
+import { buildSolverRequestPair } from '../service/solver-request-pair';
 import { StepService } from '../service/step.service';
 import { WorkItemService } from '../service/work-item.service';
 import { buildStores } from '../services';
@@ -73,6 +75,7 @@ let dependencies: DependencyRepository;
 let estimates: EstimateRepository;
 let projects: ProjectRepository;
 let steps: StepRepository;
+let workItemService: WorkItemService;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-typed-graph-'));
@@ -135,6 +138,7 @@ beforeEach(() => {
       broadcast: recordingBroadcaster(),
     }),
   };
+  workItemService = writing.workItems;
   app = buildApp({
     loginThrottle: testLoginThrottle(),
     clock: testClock,
@@ -814,4 +818,96 @@ it('refuses redo when its relationship ID has been reused', async () => {
     error: 'stale_undo',
     detail: 'that relationship identity is already in use.',
   });
+});
+
+/**
+ * The commands path end to end, now that SS/FF writes are open: a plan whose
+ * relationships were written through `addTypedDependency` reaches the solver
+ * seam, and a solver answer that abuts on its own axis publishes rather than
+ * failing as `invalid-output`.
+ *
+ * X (1 day), then A (PERT 0.5/0.75/1.5 = 5/6 of a day, `exact` rounding), then B,
+ * with X→B SS so the weighted placement runs. The answer is the quantised Fast
+ * baseline itself, which pins A at unit 48 and B at unit 88: B starts exactly
+ * where A finishes on the solver axis, and 1 + 5/6 differs from 88/48 by one
+ * ulp in the real domain.
+ *
+ * Proof: with `schedule.ts` and `real-boundaries.ts` reverted to their state
+ * before batch-9/010-4-7-weighted-pin-drift (the strict `<` pinned-bound
+ * refusal), this test failed with `{ kind: 'failed', reason: 'invalid-output' }`
+ * where `ok` was expected; watched 2026-09-29.
+ */
+it('publishes a tight solver answer for an SS/FF plan written through the commands', async () => {
+  const at = await plan();
+  const exact = await send(`/api/projects/${at.projectId}`, at.token, {
+    method: 'PATCH',
+    body: JSON.stringify({ estimateRounding: 'exact' }),
+  });
+  expect(exact.status).toBe(200);
+  const created = await command(at.projectId, at.token, {
+    kind: 'createWorkItem',
+    parentId: null,
+    afterId: null,
+    name: 'X',
+  });
+  const x = ((await created.json()) as { results: { id?: string }[] }).results[0]?.id;
+  if (x === undefined) throw new Error('createWorkItem minted no id');
+  const estimate = (workItemId: string, days: number[]) => ({
+    kind: 'setEstimate',
+    workItemId,
+    stepId: at.devId,
+    days: { optimistic: days[0], realistic: days[1], pessimistic: days[2] },
+  });
+  const link = (predecessor: string, successor: string, type: 'FS' | 'SS') => ({
+    kind: 'addTypedDependency',
+    predecessor: whole(predecessor),
+    successor: whole(successor),
+    type,
+  });
+  const written = await send(`/api/projects/${at.projectId}/commands`, at.token, {
+    method: 'POST',
+    body: JSON.stringify({
+      commands: [
+        estimate(x, [1, 1, 1]),
+        estimate(at.a, [0.5, 0.75, 1.5]),
+        estimate(at.b, [1, 1, 1]),
+        link(x, at.a, 'FS'),
+        link(x, at.b, 'SS'),
+        link(at.a, at.b, 'FS'),
+      ],
+    }),
+  });
+  expect(written.status).toBe(200);
+
+  const input = await workItemService.scheduleInput(at.projectId);
+  if (input === null) throw new Error('the written project has no schedule input');
+  expect(input.typed.map((dependency) => dependency.type).sort()).toEqual(['FS', 'FS', 'SS']);
+  const pair = buildSolverRequestPair(input, '0.1.4', 60_000);
+  if (!pair.time.ok) throw new Error('the written plan was refused a solver request');
+  const request = pair.time.request;
+  const offsets = request.baselineOffsets;
+  const a = sliceKey(at.a, at.devId);
+  const b = sliceKey(at.b, at.devId);
+  expect([offsets[a], offsets[b]]).toEqual([48, 88]);
+
+  let makespan = 0;
+  let priority = 0;
+  for (const slice of request.slices) {
+    const finish = offsets[slice.key] + slice.durationUnits;
+    makespan = Math.max(makespan, finish);
+    priority += slice.priorityWeight * finish;
+  }
+  const term = (value: number) => ({ value, stageValue: value, bound: value, status: 'optimal' });
+  const stdout = `${JSON.stringify({
+    wireVersion: request.wireVersion,
+    status: 'feasible',
+    offsets,
+    objectiveValues: { makespan: term(makespan), priority: term(priority), movement: term(0) },
+  })}\n`;
+
+  const outcome = evaluateSolverOutcome(input, request, { kind: 'response', stdout });
+  expect(outcome).toMatchObject({ kind: 'ok' });
+  if (outcome.kind !== 'ok') return;
+  const placed = outcome.optimized.schedule.slices;
+  expect(placed.get(b)?.earliestStart).toBeGreaterThanOrEqual(placed.get(a)?.earliestFinish ?? NaN);
 });
