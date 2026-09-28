@@ -70,6 +70,42 @@ const MAX_PASSWORD = 200;
 export class AuthService {
   constructor(private readonly opts: AuthServiceOptions) {}
 
+  /** Verify a first-party password JWT and re-read its account; Auth0 tokens cannot pass. */
+  async passwordSessionUser(token: string | null): Promise<User | null> {
+    // The same policy `authenticate` applies: once OIDC is configured, a
+    // password session counts only when password sessions are explicitly on.
+    // Proof: 2026-09-28, removing this policy check made `refuses link start
+    // and callback after password sessions are disabled` receive 302 at start;
+    // checking only an explicit `false` made `admits a password session as
+    // link proof only when password sessions are explicitly enabled` in
+    // `auth-service-null-password.test.ts` fail (4 pass, 1 fail).
+    if (this.opts.oidc !== undefined && this.opts.passwordSessions !== true) return null;
+    if (token === null) return null;
+    const claims = await this.opts.tokens.verify(token);
+    if (claims === null) return null;
+    const user = await this.opts.account.readAccount(claims.subject);
+    return user?.passwordHash === null || user === null ? null : user;
+  }
+
+  /** Requires a fresh password as well as the initiating signed password session. */
+  async provePasswordSession(token: string | null, password: string): Promise<User | null> {
+    const user = await this.passwordSessionUser(token);
+    if (user === null || password.length > MAX_PASSWORD) return null;
+    return (await this.opts.passwords.verify(password, user.passwordHash ?? DUMMY_HASH))
+      ? user
+      : null;
+  }
+
+  /** Reads the durable activation marker; missing wiring throws. */
+  isLinkActive(): Promise<boolean> {
+    return this.opts.account.isLinkActive();
+  }
+
+  /** Commit an explicit verified link without calling normal OIDC login resolution. */
+  linkOidcIdentity(userId: string, identity: OidcIdentity) {
+    return this.opts.account.linkPasswordIdentity(userId, identity);
+  }
+
   async register(username: string, password: string): Promise<RegisterOutcome> {
     if (!USERNAME.test(username) || password.length < MIN_PASSWORD) {
       return { ok: false, reason: 'invalid' };

@@ -64,6 +64,8 @@ After sign-in, a user without membership SHALL establish a verified email before
 
 An existing first-party username/password account without verified email SHALL retain its local WBS user ID and password sign-in. Its authenticated owner SHALL be offered a rendered path to add an email, receive a single-use expiring verification challenge at that address, and confirm possession before any organization creation, invitation acceptance or join request. Alternatively, the owner MAY link an Auth0 identity through a fresh authenticated Auth0 flow whose verified email is established by Auth0; WBS SHALL bind its verified issuer/subject to the same local user ID only after proving control of both sessions. Matching email alone SHALL never merge accounts. Expired, replayed, mismatched or unverified proofs and issuer/subject collisions SHALL refuse linking and onboarding without changing the local ID or granting membership. Lost delivery, expired challenge, collision and query failure SHALL have distinct rendered recovery or support paths.
 
+After activation, `POST /api/auth/link/auth0` SHALL require an originating first-party password session that remains enabled and a freshly verified password admitted by the shared password throttle, and SHALL begin an Auth0 code flow with its own redirect URI, state, nonce and PKCE verifier. Exhausted throttle capacity SHALL answer 429 `invalid_credentials` and release every admitted attempt after success, refusal or verifier error. `GET /api/auth/link/auth0/callback` SHALL consume only the matching unexpired browser binding and original password session while password sessions remain enabled, require Auth0's verified email, and insert the issuer/subject mapping and verified email in one immediate transaction against current activation and ownership. The email SHALL use activated OIDC login's canonical domain validation before ownership checking or persistence. The link flow SHALL never create an account or issue a new session. Before activation, start SHALL answer 403 `onboarding_inactive`. A bad password SHALL answer 401 `invalid_credentials`; a missing, swapped or replayed callback proof SHALL answer a bodyless 401; malformed provider parameters SHALL answer a bodyless 400; identity or email ownership collision SHALL answer a bodyless 409. Trusted marker corruption SHALL throw.
+
 #### Scenario: Password account verifies an address
 
 - **GIVEN** a password-only account with local user ID U and no verified email
@@ -75,6 +77,12 @@ An existing first-party username/password account without verified email SHALL r
 - **GIVEN** a password-only account U and an Auth0 issuer/subject already mapped to V
 - **WHEN** U attempts to link that Auth0 identity, even if their emails match
 - **THEN** linking and onboarding are refused without merging U and V or changing either ID
+
+#### Scenario: Swapped or replayed Auth0 callback
+
+- **GIVEN** U began an explicit link with a current password session and fresh password proof
+- **WHEN** the callback arrives with another password session, a mismatched state, or an already consumed binding
+- **THEN** it is refused without changing either account; a mismatched arrival does not consume U's honest pending proof
 
 ### Requirement: Invitations are bound and single use
 
