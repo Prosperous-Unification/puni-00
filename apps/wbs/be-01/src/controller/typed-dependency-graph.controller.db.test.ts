@@ -383,7 +383,7 @@ describe('graph-changing writes on a legacy-only project', () => {
 describe('graph-changing writes against typed dependencies', () => {
   it('refuses a legacy link that closes a step-node cycle and writes nothing', async () => {
     const at = await plan();
-    await seedTyped(at, node(at.a, at.qaId), node(at.b, at.qaId));
+    await seedTyped(at, node(at.a, at.qaId), node(at.b, at.qaId), 'SS');
 
     // Legacy B → A under whole-item leaves B.qa and enters A.dev, and A.dev
     // reaches A.qa, which the typed relationship joins to B.qa.
@@ -500,7 +500,7 @@ describe('graph-changing writes against typed dependencies', () => {
   it('refuses an undo that would close a step-node cycle', async () => {
     const at = await plan();
     await anchoredAtBDev(at);
-    await seedTyped(at, node(at.a, at.qaId), node(at.b, at.qaId));
+    await seedTyped(at, node(at.a, at.qaId), node(at.b, at.qaId), 'SS');
     const removed = await command(at.projectId, at.token, {
       kind: 'removeDependency',
       workItemId: at.a,

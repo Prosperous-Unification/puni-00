@@ -294,6 +294,11 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       assertProject(requestedProjectId);
       // Proof: returning the pre-edit empty set made `sees the first typed relationship
       // when a later batch command closes a cycle` receive 200 instead of 409; watched 2026-09-27.
+      // Proof: returning stale FF after an SS update made `reads the committed SS
+      // type and endpoints after an FF edit` fail: expected SS, received FF.
+      // Returning stale FS after an FF update made `lets a later command read
+      // the committed FF type after an edit` receive the captured ID and endpoints
+      // with FS instead of FF (2026-09-28).
       return scope.stores.typedDependencies.listByProject(requestedProjectId);
     },
     add: async (row, stamp) => {

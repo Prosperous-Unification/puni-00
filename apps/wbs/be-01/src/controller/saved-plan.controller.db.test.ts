@@ -229,17 +229,32 @@ describe('the saved-plan routes', () => {
       const typed = new TypedDependencyRepository(writing.db, OPEN);
       writing.db.run(`UPDATE step SET code = 'captured-code' WHERE id = '${laterStep.id}'`);
       const relationship = {
-        id: 'captured-fs',
+        id: 'captured-ff',
         projectId,
         predecessor: { scope: 'node' as const, workItemId: 'A', stepId: firstStep.id },
         successor: { scope: 'node' as const, workItemId: 'B', stepId: laterStep.id },
-        type: 'FS' as const,
+        type: 'FF' as const,
       };
       await typed.add(relationship, stamp);
       const saveResponse = await save('ada');
       expect(saveResponse.status).toBe(201);
       const savedId = await savedIdOf(saveResponse);
       await new StepRepository(writing.db, OPEN).rename(projectId, laterStep.id, 'Renamed', stamp);
+      await typed.update({ ...relationship, type: 'FS' }, stamp);
+      const afterEdit = await as(tokens['ada'], `/api/saved-plans/${savedId}`);
+      expect(afterEdit.status).toBe(200);
+      const editedRead = (await afterEdit.json()) as { savedPlan: { input: { bytes: string } } };
+      const editedInput: unknown = JSON.parse(editedRead.savedPlan.input.bytes);
+      expect(editedInput).toMatchObject({
+        typedDependencies: [
+          {
+            id: relationship.id,
+            predecessor: relationship.predecessor,
+            successor: relationship.successor,
+            type: 'FF',
+          },
+        ],
+      });
       await typed.remove(relationship.id, stamp);
       writing.db.run(
         `UPDATE step SET code = 'live-code', position = 5 WHERE id = '${laterStep.id}'`,
@@ -259,13 +274,13 @@ describe('the saved-plan routes', () => {
       };
       // Proof: substituting live typed rows for stored body rows in SavedPlanResource.readPlan,
       // then separately omitting the capture read, made this mounted read receive []
-      // instead of the saved FS endpoints (2026-09-27).
+      // instead of the saved endpoints (2026-09-27).
       expect(body.typedDependencies).toEqual([
         {
           id: relationship.id,
           predecessor: relationship.predecessor,
           successor: relationship.successor,
-          type: 'FS',
+          type: 'FF',
         },
       ]);
       const capturedStep = body.steps.find((candidate) => candidate.id === laterStep.id);

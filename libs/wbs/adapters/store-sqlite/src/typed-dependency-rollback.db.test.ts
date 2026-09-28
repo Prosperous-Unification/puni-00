@@ -251,7 +251,7 @@ describe('typed dependency rollback', () => {
   it('refuses the whole restore when a saved row has an unreadable relationship', () => {
     const snapshot = saved();
     withConnection((db) => removeSavedTypedDependencies(db, snapshot));
-    const rows = [{ ...snapshot.rows[0], type: 'SS' }, snapshot.rows[1]];
+    const rows = [{ ...snapshot.rows[0], type: 'SF' }, snapshot.rows[1]];
     expect(() =>
       withConnection((db) => restoreTypedDependencies(db, { ...snapshot, rows })),
     ).toThrow('unknown relationship type');

@@ -30,6 +30,14 @@ test('generated project command tool exposes addTypedDependency with endpoints',
     expect(add?.required).toContain(field);
   expect(add?.properties.predecessor).toBeDefined();
   expect(add?.properties.successor).toBeDefined();
+  for (const kind of ['addTypedDependency', 'updateTypedDependency']) {
+    const typed = commands.items.anyOf.find((arm) => arm.properties.kind.const === kind);
+    expect((typed?.properties as { type?: { enum?: string[] } }).type?.enum).toEqual([
+      'FF',
+      'FS',
+      'SS',
+    ]);
+  }
 });
 
 test('required exclusion drift remains a failure when operational routes are absent', () => {

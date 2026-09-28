@@ -7,15 +7,15 @@ import { workItemTree } from './work-item-response';
 /**
  * The plan document version this release writes.
  *
- * `4` adds typed dependencies separately from legacy `dependsOn`; `3` added
- * step codes and `2` step allowances. The classifier converts versions 1–3
- * explicitly, preserving their legacy dependency interpretation.
+ * `5` extends typed dependencies to SS/FF; `4` added FS separately from
+ * legacy `dependsOn`; `3` added step codes and `2` step allowances. The
+ * classifier converts earlier versions explicitly.
  */
-export const PLAN_DOCUMENT_VERSION = 4;
+export const PLAN_DOCUMENT_VERSION = 5;
 
 const planHeader = type({
   format: "'wbs-plan'",
-  version: '4',
+  version: '5',
   exportedAt: 'string',
 });
 
@@ -63,13 +63,20 @@ export const documentTypedDependency = type({
   id: 'string',
   predecessor: documentEndpoint,
   successor: documentEndpoint,
-  type: "'FS'",
+  // Proof: making type optional let the mounted v5 import accept a missing
+  // type with HTTP 204 instead of refusing it with 400 (2026-09-28).
+  type: "'FS' | 'SS' | 'FF'",
 });
 export const documentTypedDependencyRequest = requestSchema(documentTypedDependency);
 export type DocumentTypedDependency = (typeof documentTypedDependency)['infer'];
 
+/** Version 4's converter accepts only the relationship type that release wrote. */
+export const documentV4TypedDependencyRequest = requestSchema(
+  documentTypedDependency.and({ type: "'FS'" }),
+);
+
 /**
- * Version 4 keeps the established export and adds typed relationships with
+ * Version 5 keeps the established export and carries all typed relationships with
  * file-local work-item and step references, distinct from legacy links.
  *
  * A step's `code` is optional and nullable on the work-item read (an older
@@ -180,7 +187,8 @@ export type PlanDocumentRequest = (typeof writablePlanDocument)['infer'];
  * A writable plan document once its version has been read: every step carries
  * the allowance it is imported with — the file's own from version 2, zero at
  * version 1 — and the code the file gives it from version 3, or `null` for an
- * earlier version. Versions 1–3 carry an empty typed set after conversion.
+ * earlier version. Versions 1–3 carry an empty typed set after conversion;
+ * version 4 converts its FS-only typed set explicitly.
  */
 export type PlanDocumentImport = Omit<PlanDocumentRequest, 'steps' | 'typedDependencies'> & {
   typedDependencies: DocumentTypedDependency[];

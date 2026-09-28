@@ -1170,7 +1170,7 @@ export function importServiceSourceContract(
           if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
           const exported = await exportDocument(source, imported.projectId);
 
-          expect(exported.document.version).toBe(4);
+          expect(exported.document.version).toBe(5);
           expect(exported.typedDependencies).toEqual([]);
           expect(exported.steps.map(({ name, code }) => [name, code])).toEqual([
             ['Discover', codes[0]],
@@ -1191,23 +1191,23 @@ export function importServiceSourceContract(
       },
     );
 
-    it('round trips multiple step links and a legacy link with fresh identities', async () => {
+    it('round trips SS and FF step links and a legacy link with fresh identities', async () => {
       const source = await ownedSource();
       try {
         const file = roundTripFixture();
-        file.document.version = 4;
+        file.document.version = 5;
         Reflect.set(file, 'typedDependencies', [
           {
             id: 'node-link',
             predecessor: { scope: 'node', workItem: 'row-build', step: 'step-build' },
             successor: { scope: 'node', workItem: 'row-verify', step: 'step-verify' },
-            type: 'FS',
+            type: 'SS',
           },
           {
             id: 'whole-link',
             predecessor: { scope: 'whole', workItem: 'row-build' },
             successor: { scope: 'whole', workItem: 'row-verify' },
-            type: 'FS',
+            type: 'FF',
           },
         ]);
         const classified = await classifyPlanDocument(file);
@@ -1226,7 +1226,7 @@ export function importServiceSourceContract(
           verifyStep === undefined
         )
           throw new Error('round-trip relationship references disappeared');
-        expect(exported.document.version).toBe(4);
+        expect(exported.document.version).toBe(5);
         expect(
           exported.typedDependencies.map(({ predecessor, successor, type }) => ({
             predecessor,
@@ -1237,12 +1237,12 @@ export function importServiceSourceContract(
           {
             predecessor: { scope: 'node', workItem: build.id, step: buildStep.id },
             successor: { scope: 'node', workItem: verify.id, step: verifyStep.id },
-            type: 'FS',
+            type: 'SS',
           },
           {
             predecessor: { scope: 'whole', workItem: build.id },
             successor: { scope: 'whole', workItem: verify.id },
-            type: 'FS',
+            type: 'FF',
           },
         ]);
         expect(new Set(exported.typedDependencies.map(({ id }) => id)).size).toBe(2);

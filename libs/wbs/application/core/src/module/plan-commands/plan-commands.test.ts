@@ -11,6 +11,7 @@ import { testClock } from '../../testing/clock-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { PlanCommandRunner } from './plan-commands.feature';
+import { createWorkingPlan } from './working-plan.resource';
 
 const OWNER = 'plan-command-owner';
 
@@ -581,6 +582,144 @@ describe('working plan directory mutations through runner commands', () => {
 });
 
 describe('working plan dependency mutations through runner commands', () => {
+  it('lets a later command read the committed FF type after an edit', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const createdProject = await publicGraph.projects.create('Typed working plan', OWNER);
+      const projectId = createdProject.project.id;
+      const predecessor = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Predecessor',
+      });
+      const successor = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Successor',
+      });
+      if (!predecessor.ok || !successor.ok) throw new Error('typed fixture creation refused');
+      const first = { scope: 'whole' as const, workItemId: predecessor.value.id };
+      const second = { scope: 'whole' as const, workItemId: successor.value.id };
+      const firstNode = {
+        scope: 'node' as const,
+        workItemId: predecessor.value.id,
+        stepId: createdProject.steps[0].id,
+      };
+      await source.stores.typedDependencies.add(
+        { id: 'typed-working', projectId, predecessor: first, successor: second, type: 'FS' },
+        { at: 1, by: OWNER },
+      );
+      let updates = 0;
+      const observedAfterEdit: Awaited<
+        ReturnType<PlanTransactionalStores['typedDependencies']['listByProject']>
+      >[number][] = [];
+      const observedLabels: string[][] = [];
+      const runner = runnerOver(source, publicGraph, source.uow, (scope, broadcast) => {
+        const workItems = {
+          ...scope.stores.workItems,
+          listByProject: async (requestedProjectId: string) => {
+            const rows = await scope.stores.workItems.listByProject(requestedProjectId);
+            if (updates === 1) observedLabels.push(rows.map((row) => row.name));
+            return rows;
+          },
+        };
+        const typedDependencies = {
+          ...scope.stores.typedDependencies,
+          listByProject: async (requestedProjectId: string) => {
+            const rows = await scope.stores.typedDependencies.listByProject(requestedProjectId);
+            if (updates === 1) observedAfterEdit.push(...rows);
+            return rows;
+          },
+          update: async (
+            ...parameters: Parameters<PlanTransactionalStores['typedDependencies']['update']>
+          ) => {
+            await scope.stores.typedDependencies.update(...parameters);
+            updates += 1;
+          },
+        };
+        return compose({ ...scope.stores, workItems, typedDependencies }, broadcast);
+      });
+      const committed = await runner.run(projectId, OWNER, [
+        {
+          kind: 'updateTypedDependency',
+          dependencyId: 'typed-working',
+          predecessor: firstNode,
+          successor: second,
+          type: 'FF',
+        },
+        {
+          kind: 'updateTypedDependency',
+          dependencyId: 'typed-working',
+          predecessor: firstNode,
+          successor: second,
+          type: 'SS',
+        },
+      ]);
+      expect(committed).toMatchObject({ ok: true });
+      expect(observedAfterEdit).toContainEqual({
+        id: 'typed-working',
+        projectId,
+        predecessor: firstNode,
+        successor: second,
+        type: 'FF',
+      });
+      expect(observedLabels).toContainEqual(['Predecessor', 'Successor']);
+      expect(await source.stores.typedDependencies.listByProject(projectId)).toMatchObject([
+        { id: 'typed-working', type: 'SS' },
+      ]);
+      const refused = await runner.run(projectId, OWNER, [
+        {
+          kind: 'addTypedDependency',
+          predecessor: second,
+          successor: first,
+          type: 'FS',
+        },
+      ]);
+      expect(refused).toMatchObject({ ok: false, at: 0, reason: 'cycle' });
+      expect(await source.stores.typedDependencies.listByProject(projectId)).toMatchObject([
+        { id: 'typed-working', predecessor: firstNode, successor: second, type: 'SS' },
+      ]);
+      await source.stores.estimates.set(
+        {
+          workItemId: successor.value.id,
+          stepId: createdProject.steps[0].id,
+          optimistic: 2,
+          realistic: 2,
+          pessimistic: 2,
+        },
+        { at: 2, by: OWNER },
+      );
+      await source.stores.typedDependencies.add(
+        { id: 'typed-fs', projectId, predecessor: first, successor: second, type: 'FS' },
+        { at: 2, by: OWNER },
+      );
+      const retained = createWorkingPlan({ stores: source.stores }, projectId);
+      try {
+        const beforeRefusal = await retained.stores.typedDependencies.listByProject(projectId);
+        const graph = compose(retained.stores, direct);
+        const refusedFinish = await graph.workItems.addTypedDependency(projectId, OWNER, {
+          predecessor: second,
+          successor: first,
+          type: 'FF',
+        });
+        expect(refusedFinish).toMatchObject({ ok: false, reason: 'cycle' });
+        expect(await retained.stores.typedDependencies.listByProject(projectId)).toEqual(
+          beforeRefusal,
+        );
+      } finally {
+        retained.close();
+      }
+    } finally {
+      await source.close();
+    }
+  });
+
   it('refuses a reversed edge through the dependency added earlier in the batch', async () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();

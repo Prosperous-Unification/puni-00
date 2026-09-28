@@ -12,39 +12,39 @@
 
 ## 3. Extend typed commands
 
-- [ ] 3.1 Red: mounted SS/FF mutations, uniqueness by type, unsupported type refusal and legacy command compatibility.
-- [ ] 3.2 Extend command schemas and generated HTTP/MCP contracts while preserving Stage A request shapes.
-- [ ] 3.3 Negative proof: bypass unsupported-type validation; watch mounted test fail, restore, add adjacent `Proof:`.
+- [x] 3.1 Red: mounted SS/FF mutations, uniqueness by type, unsupported type refusal and legacy command compatibility.
+- [x] 3.2 Extend command schemas and generated HTTP/MCP contracts while preserving Stage A request shapes.
+- [x] 3.3 Negative proof: bypass unsupported-type validation; watch mounted test fail, restore, add adjacent `Proof:`.
 
 ## 3a. Preserve history and batch atomicity
 
-- [ ] 3a.1 Red: SS/FF undo/redo identity, stale refusal and later-command cycle refusal in a batch.
-- [ ] 3a.2 Carry type through journal replay and validate the combined graph atomically.
-- [ ] 3a.3 Negative proof: bypass stale-history refusal; watch mounted test fail, restore, add adjacent `Proof:`.
+- [x] 3a.1 Red: SS/FF undo/redo identity, stale refusal and later-command cycle refusal in a batch.
+- [x] 3a.2 Carry type through journal replay and validate the combined graph atomically.
+- [x] 3a.3 Negative proof: bypass stale-history refusal; watch mounted test fail, restore, add adjacent `Proof:`.
 
 ## 4. Preserve types in import and export
 
-- [ ] 4.1 Red: SS/FF round-trip, missing/unsupported type and dangling/duplicate refusal.
-- [ ] 4.2 Allocate the next archive version and carry type through explicit converters.
-- [ ] 4.3 Negative proof: drop FF or accept a missing type; watch import test fail, restore, add adjacent `Proof:`.
+- [x] 4.1 Red: SS/FF round-trip, missing/unsupported type and dangling/duplicate refusal.
+- [x] 4.2 Allocate the next archive version and carry type through explicit converters.
+- [x] 4.3 Negative proof: drop FF or accept a missing type; watch import test fail, restore, add adjacent `Proof:`.
 
 ## 4a. Preserve type through copy
 
-- [ ] 4a.1 Red: copied relationships remap IDs and retain SS/FF type.
-- [ ] 4a.2 Extend project/subtree copy mapping.
-- [ ] 4a.3 Negative proof: retain a source endpoint ID; watch copy test fail, restore, add adjacent `Proof:`.
+- [x] 4a.1 Red: copied relationships remap IDs and retain SS/FF type.
+- [x] 4a.2 Extend project/subtree copy mapping.
+- [x] 4a.3 Negative proof: retain a source endpoint ID; watch copy test fail, restore, add adjacent `Proof:`.
 
 ## 4b. Preserve immutable saved-plan reads
 
-- [ ] 4b.1 Red: a later live type edit does not reinterpret historical SS/FF.
-- [ ] 4b.2 Capture type with saved-plan endpoint identities for read/display.
-- [ ] 4b.3 Negative proof: read live type for history; watch saved-plan test fail, restore, add adjacent `Proof:`.
+- [x] 4b.1 Red: a later live type edit does not reinterpret historical SS/FF.
+- [x] 4b.2 Capture type with saved-plan endpoint identities for read/display.
+- [x] 4b.3 Negative proof: read live type for history; watch saved-plan test fail, restore, add adjacent `Proof:`.
 
 ## 4c. Expose working-plan type edits
 
-- [ ] 4c.1 Red: a later command sees an SS/FF edit and refused edits leave retained state unchanged.
-- [ ] 4c.2 Publish committed type through the working-plan read.
-- [ ] 4c.3 Negative proof: return stale type after update; watch batch-read test fail, restore, add adjacent `Proof:`.
+- [x] 4c.1 Red: a later command sees an SS/FF edit and refused edits leave retained state unchanged.
+- [x] 4c.2 Publish committed type through the working-plan read.
+- [x] 4c.3 Negative proof: return stale type after update; watch batch-read test fail, restore, add adjacent `Proof:`.
 
 ## 5. Build weighted solver constraints
 

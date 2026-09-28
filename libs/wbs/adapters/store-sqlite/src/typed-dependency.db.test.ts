@@ -265,23 +265,25 @@ describe('TypedDependencyRepository', () => {
 
   /**
    * Proof: the `isRelationshipType` read check removed made this case fail on
-   * `Received: (resolved without throwing)` — an SS row came back as a link; watched
-   * 2026-09-27.
+   * `Received: (resolved without throwing)` — an SF row came back as a link; watched
+   * 2026-09-28. The fixture bypasses SQLite's known-type CHECK to model a
+   * future or corrupted database row.
    */
-  it('refuses an SS row admitted by storage but unknown to this release', async () => {
+  it('refuses an unsupported stored relationship type', async () => {
     const a = await addWorkItem('A');
     const b = await addWorkItem('B');
     const sqlite = openDatabase(path);
     try {
+      sqlite.run('PRAGMA ignore_check_constraints = ON');
       sqlite.run(
         'INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
-        [crypto.randomUUID(), projectId, a, 'whole', b, 'whole', 'SS'],
+        [crypto.randomUUID(), projectId, a, 'whole', b, 'whole', 'SF'],
       );
     } finally {
       sqlite.close();
     }
     expect(await rejection(repo.listByProject(projectId))).toContain(
-      'unknown relationship type SS',
+      'unknown relationship type SF',
     );
   });
 
@@ -290,15 +292,16 @@ describe('TypedDependencyRepository', () => {
     const b = await addWorkItem('B');
     const sqlite = openDatabase(path);
     try {
+      sqlite.run('PRAGMA ignore_check_constraints = ON');
       sqlite.run(
         'INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
-        ['future-type', projectId, a, 'whole', b, 'whole', 'SS'],
+        ['future-type', projectId, a, 'whole', b, 'whole', 'SF'],
       );
     } finally {
       sqlite.close();
     }
     expect(await rejection(repo.removeAllFor([a], wrote()))).toContain(
-      'unknown relationship type SS',
+      'unknown relationship type SF',
     );
     const stored = openDatabase(path);
     try {
@@ -308,7 +311,7 @@ describe('TypedDependencyRepository', () => {
     } finally {
       stored.close();
     }
-    // Proof: bypassing readTypedDependency in bulk removal returns the SS row
+    // Proof: bypassing readTypedDependency in bulk removal returns the SF row
     // and deletes it; the refusal fails. Watched 2026-09-27.
   });
 

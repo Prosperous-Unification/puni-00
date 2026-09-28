@@ -1,6 +1,7 @@
 import {
   type DocumentTypedDependency,
   documentTypedDependencyRequest,
+  documentV4TypedDependencyRequest,
   PLAN_DOCUMENT_VERSION,
   type PlanDocument,
   planDocumentHeaderRequest,
@@ -172,11 +173,14 @@ export class PlanDocumentService {
       typedDependencies: tree.typedDependencies.map(({ id, predecessor, successor, type }) => {
         // Proof (2026-09-28): omitting this guard let the unknown-type tree
         // export succeed; its trusted-relationship test failed.
-        if (type !== 'FS') throw new Error(`unknown typed dependency type ${type}`);
+        if (type !== 'FS' && type !== 'SS' && type !== 'FF')
+          throw new Error(`unknown typed dependency type ${type}`);
         return {
           id,
           predecessor: documentEndpoint(predecessor),
           successor: documentEndpoint(successor),
+          // Proof: forcing FF to FS here made the memory import/export round
+          // trip expect FF but receive FS (1 failing test, 2026-09-28).
           type,
         };
       }),
@@ -265,7 +269,8 @@ export type PlanDocumentClassification =
  * `prepareImport` codes by suggestion. Version 3 requires a string code on
  * every step; its grammar, reservation and uniqueness are checked by
  * `prepareImport`. Versions 1–3 ignore typed relationships, retaining their
- * legacy link semantics; version 4 requires and validates the typed list.
+ * legacy link semantics; version 4 requires an FS-only typed list, while
+ * version 5 accepts FS, SS and FF.
  */
 export async function classifyPlanDocument(input: unknown): Promise<PlanDocumentClassification> {
   const header = await validateSchema(planDocumentHeaderRequest, input);
@@ -276,7 +281,13 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
   // Proof: moving this after version validation made the mounted future-file
   // response invalid_body/workItems[3].priority instead of
   // unsupported_version/document.version.
-  if (version !== 1 && version !== 2 && version !== 3 && version !== PLAN_DOCUMENT_VERSION) {
+  if (
+    version !== 1 &&
+    version !== 2 &&
+    version !== 3 &&
+    version !== 4 &&
+    version !== PLAN_DOCUMENT_VERSION
+  ) {
     return { ok: false, code: 'unsupported_version', path: 'document.version' };
   }
   const checked = await validateSchema(planDocumentRequest, input);
@@ -284,7 +295,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     return { ok: false, code: 'invalid_body', path: pathOf(checked.issues[0]?.path) };
   }
   const typedDependencies: PlanDocumentImport['typedDependencies'] = [];
-  if (version === 4) {
+  if (version === 4 || version === 5) {
     // Proof (2026-09-28): removing this check made a missing version-4 list
     // throw from .entries instead of returning invalid_typed_dependency.
     if (!Array.isArray(checked.value.typedDependencies))
@@ -306,7 +317,13 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
             };
         }
       }
-      const parsed = await validateSchema(documentTypedDependencyRequest, entry);
+      // Proof: selecting the v5 schema for v4 made the explicit legacy
+      // conversion accept SS in "version 5 classifies SS and FF while version 4
+      // keeps its FS-only conversion" (2026-09-28).
+      const parsed = await validateSchema(
+        version === 4 ? documentV4TypedDependencyRequest : documentTypedDependencyRequest,
+        entry,
+      );
       // Proof (2026-09-28): bypassing schema refusal made the unknown-type
       // memory import throw on an undefined relationship in preparation.
       if (parsed.issues !== undefined)

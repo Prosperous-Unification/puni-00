@@ -404,10 +404,10 @@ it('refuses invalid typed endpoints, duplicate keys, unsupported types and absen
   }
   const unsupported = await command(at.projectId, at.token, {
     ...typedCommand(at, whole(at.a)),
-    type: 'SS',
+    type: 'SF',
   });
-  expect(unsupported.status).toBe(422);
-  expect(await unsupported.json()).toMatchObject({ error: 'unsupported_relationship_type' });
+  expect(unsupported.status).toBe(400);
+  expect(await unsupported.json()).toMatchObject({ error: 'invalid_body' });
   const first = await command(at.projectId, at.token, typedCommand(at, whole(at.a)));
   expect(first.status).toBe(200);
   const duplicate = await command(at.projectId, at.token, typedCommand(at, whole(at.a)));
@@ -419,6 +419,111 @@ it('refuses invalid typed endpoints, duplicate keys, unsupported types and absen
   });
   expect(absent.status).toBe(404);
   expect(await absent.json()).toMatchObject({ error: 'unknown_dependency' });
+});
+
+it('retains FS and SS on the same endpoints but refuses a duplicate SS', async () => {
+  const at = await plan();
+  const first = await command(at.projectId, at.token, typedCommand(at));
+  expect(first.status).toBe(200);
+  const second = await command(at.projectId, at.token, { ...typedCommand(at), type: 'SS' });
+  expect(second.status).toBe(200);
+  const duplicate = await command(at.projectId, at.token, { ...typedCommand(at), type: 'SS' });
+  expect(duplicate.status).toBe(409);
+  expect(await duplicate.json()).toMatchObject({ error: 'duplicate_dependency', at: 0 });
+  expect((await typed.listByProject(at.projectId)).map((row) => row.type).sort()).toEqual([
+    'FS',
+    'SS',
+  ]);
+});
+
+it('refuses an unsupported typed update at the HTTP boundary without changing the row', async () => {
+  const at = await plan();
+  const added = await command(at.projectId, at.token, typedCommand(at));
+  expect(added.status).toBe(200);
+  const id = ((await added.json()) as { results: { id: string }[] }).results[0]?.id;
+  const changed = await command(at.projectId, at.token, {
+    kind: 'updateTypedDependency',
+    dependencyId: id,
+    predecessor: node(at.a, at.qaId),
+    successor: whole(at.b),
+    type: 'SF',
+  });
+  expect(changed.status).toBe(400);
+  expect(await changed.json()).toMatchObject({ error: 'invalid_body' });
+  expect((await typed.listByProject(at.projectId))[0]).toMatchObject({
+    id,
+    predecessor: node(at.a, at.devId),
+    successor: node(at.b, at.devId),
+    type: 'FS',
+  });
+});
+
+it('undoes an FF to SS update to the exact FF relationship and redoes SS', async () => {
+  const at = await plan();
+  const added = await command(at.projectId, at.token, { ...typedCommand(at), type: 'FF' });
+  expect(added.status).toBe(200);
+  const id = ((await added.json()) as { results: { id: string }[] }).results[0]?.id;
+  const changed = await command(at.projectId, at.token, {
+    kind: 'updateTypedDependency',
+    dependencyId: id,
+    predecessor: node(at.a, at.qaId),
+    successor: whole(at.b),
+    type: 'SS',
+  });
+  expect(changed.status).toBe(200);
+  const undo = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+  expect(undo.status).toBe(200);
+  expect((await typed.listByProject(at.projectId))[0]).toMatchObject({
+    id,
+    predecessor: node(at.a, at.devId),
+    successor: node(at.b, at.devId),
+    type: 'FF',
+  });
+  const redo = await send(`/api/projects/${at.projectId}/redo`, at.token, { method: 'POST' });
+  expect(redo.status).toBe(200);
+  expect((await typed.listByProject(at.projectId))[0]).toMatchObject({
+    id,
+    predecessor: node(at.a, at.qaId),
+    successor: whole(at.b),
+    type: 'SS',
+  });
+});
+
+it('refuses a later cycle command after an SS add and rolls back the batch', async () => {
+  const at = await plan();
+  const response = await send(`/api/projects/${at.projectId}/commands`, at.token, {
+    method: 'POST',
+    body: JSON.stringify({
+      commands: [
+        { ...typedCommand(at, node(at.a, at.qaId), node(at.b, at.qaId)), type: 'SS' },
+        typedCommand(at, node(at.b, at.qaId), node(at.a, at.devId)),
+      ],
+    }),
+  });
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({
+    error: 'cycle',
+    at: 1,
+    kind: 'addTypedDependency',
+  });
+  expect(await typed.listByProject(at.projectId)).toEqual([]);
+});
+
+it('refuses a later legacy add that closes an SS cycle and rolls back the batch', async () => {
+  const at = await plan();
+  const response = await send(`/api/projects/${at.projectId}/commands`, at.token, {
+    method: 'POST',
+    body: JSON.stringify({
+      commands: [
+        { ...typedCommand(at, whole(at.a), whole(at.b)), type: 'SS' },
+        { kind: 'addDependency', workItemId: at.a, predecessorId: at.b },
+      ],
+    }),
+  });
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({ error: 'cycle', at: 1, kind: 'addDependency' });
+  expect(await typed.listByProject(at.projectId)).toEqual([]);
+  expect(await dependencies.listByProject(at.projectId)).toEqual([]);
 });
 
 it('refuses a self node and a step-node cycle before writing', async () => {
@@ -605,6 +710,32 @@ it('refuses undo of an update when the stored relationship changed outside the j
     detail: 'that relationship has changed since this command.',
   });
   expect((await typed.listByProject(at.projectId)).at(0)?.successor).toEqual(node(at.b, at.devId));
+});
+
+it('refuses undo when only a journalled relationship type changed outside history', async () => {
+  const at = await plan();
+  const added = await command(at.projectId, at.token, { ...typedCommand(at), type: 'FF' });
+  expect(added.status).toBe(200);
+  const stored = (await typed.listByProject(at.projectId)).at(0);
+  if (stored === undefined) throw new Error('typed add did not persist');
+  const updated = await command(at.projectId, at.token, {
+    kind: 'updateTypedDependency',
+    dependencyId: stored.id,
+    predecessor: stored.predecessor,
+    successor: stored.successor,
+    type: 'SS',
+  });
+  expect(updated.status).toBe(200);
+  const sqlite = openDatabase(join(dir, 'test.db'));
+  try {
+    sqlite.query('UPDATE typed_dependency SET type = ? WHERE id = ?').run('FS', stored.id);
+  } finally {
+    sqlite.close();
+  }
+  const undo = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+  expect(undo.status).toBe(409);
+  expect(await undo.json()).toMatchObject({ error: 'stale_undo' });
+  expect((await typed.listByProject(at.projectId)).at(0)?.type).toBe('FS');
 });
 
 it('rejects a cycle introduced by the second typed add', async () => {

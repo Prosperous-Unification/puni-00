@@ -101,7 +101,7 @@ const completeHost = () =>
     .buildContainer();
 
 describe('the Work item module', () => {
-  it('refuses an SS write at the application boundary while SS reads are supported', async () => {
+  it('refuses an SF write at the application boundary', async () => {
     const { requirements } = await seeded();
     const { workItems } = installWorkItem(requirements);
     const first = await workItems.create(PROJECT, OWNER, {
@@ -118,9 +118,34 @@ describe('the Work item module', () => {
     const proposed = await workItems.addTypedDependency(PROJECT, OWNER, {
       predecessor: { scope: 'whole', workItemId: first.value.id },
       successor: { scope: 'whole', workItemId: second.value.id },
-      type: 'SS',
+      type: 'SF',
     });
     expect(proposed).toEqual({ ok: false, reason: 'unsupported_relationship_type' });
+  });
+
+  it('refuses a direct legacy write that closes a typed SS cycle', async () => {
+    const { requirements } = await seeded();
+    const { workItems } = installWorkItem(requirements);
+    const first = await workItems.create(PROJECT, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'A',
+    });
+    const second = await workItems.create(PROJECT, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'B',
+    });
+    if (!first.ok || !second.ok) throw new Error('fixture work items were refused');
+    const typed = await workItems.addTypedDependency(PROJECT, OWNER, {
+      predecessor: { scope: 'whole', workItemId: first.value.id },
+      successor: { scope: 'whole', workItemId: second.value.id },
+      type: 'SS',
+    });
+    expect(typed.ok).toBe(true);
+    const legacy = await workItems.addDependency(first.value.id, OWNER, second.value.id);
+    expect(legacy).toEqual({ ok: false, reason: 'cycle' });
+    expect(await requirements.dependencies.listByProject(PROJECT)).toEqual([]);
   });
 
   it('announces a created work item through the broadcaster installWorkItem wires', async () => {
