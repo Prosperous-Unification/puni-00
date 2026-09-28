@@ -1193,6 +1193,32 @@ export class ProjectRepository implements ProjectStore {
 
 type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
 
+/** Classifies a dependent write from an already open SQLite write transaction. */
+export function classifyProjectWriteIn(
+  tx: Transaction,
+  projectId: string,
+  organizationId: string,
+  actorId: string,
+): 'ordinary' | 'recovery' | 'refused' | null {
+  // Proof: dropping the organization predicate made the store-path foreign
+  // Retry answer forbidden instead of not_found; watched 2026-09-28.
+  return classifyWithin(
+    tx,
+    and(
+      eq(project.id, projectId),
+      inArray(
+        project.id,
+        tx
+          .select({ id: projectOrganization.resourceId })
+          .from(projectOrganization)
+          .where(eq(projectOrganization.organizationId, organizationId)),
+      ),
+    ),
+    organizationId,
+    actorId,
+  );
+}
+
 /**
  * `actorId`'s write to the project `addressed` selects, classified from the
  * membership and project as `tx` reads them (see `classifyProjectEdit`):
@@ -1229,7 +1255,7 @@ function classifyWithin(
 }
 
 /** Appends one recovery record to `tx`, so it commits or rolls back with the write. */
-function recordRecovery(
+export function recordRecovery(
   tx: Transaction,
   record: {
     id: string;

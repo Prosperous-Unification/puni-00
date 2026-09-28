@@ -160,7 +160,7 @@ function coordinator(
 ): OptimizationCoordinator {
   let token = 0;
   return new OptimizationCoordinator({
-    repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+    repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
     hashInput: scheduleInputHash,
     contractVersion: CONTRACT,
     solverVersion: '0.1.0',
@@ -205,7 +205,7 @@ describe('OptimizationCoordinator read', () => {
     const spawned: ReservedSpawnRequest[] = [];
     const errors: unknown[] = [];
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -253,7 +253,7 @@ describe('OptimizationCoordinator read', () => {
     let inputReads = 0;
     let enabled = true;
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -610,7 +610,7 @@ describe('OptimizationCoordinator read', () => {
     let enabledReads = 0;
     let inputReads = 0;
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -677,7 +677,7 @@ describe('OptimizationCoordinator read', () => {
     const switcher = openDatabase(path);
     const calls: ReservedSpawnRequest[] = [];
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -1069,7 +1069,7 @@ describe('OptimizationCoordinator read', () => {
     clock = deadline - 1;
     expect(stateOf()).toBe('retrying');
     expect(
-      instance.retry({
+      await instance.retry({
         projectId: 'p-1',
         objective: 'pri',
         inputHash: key.inputHash,
@@ -1082,7 +1082,7 @@ describe('OptimizationCoordinator read', () => {
     // And the escape is reachable: Retry admits rather than refusing, which is
     // what puts a real solve back on the wire and sweeps the dead seat.
     expect(
-      instance.retry({
+      await instance.retry({
         projectId: 'p-1',
         objective: 'pri',
         inputHash: key.inputHash,
@@ -1395,12 +1395,12 @@ describe('OptimizationCoordinator Retry admission', () => {
     input,
   });
 
-  it('refuses a stale body before retryability and carries the current hash', () => {
+  it('refuses a stale body before retryability and carries the current hash', async () => {
     const { path, db } = database();
     generationWith(path, db, 'failed');
     const calls: ReservedSpawnRequest[] = [];
 
-    expect(coordinator(db, calls).retry(ask('stale-hash'))).toEqual({
+    expect(await coordinator(db, calls).retry(ask('stale-hash'))).toEqual({
       kind: 'stale-input-hash',
       currentInputHash: inputHash,
     });
@@ -1408,7 +1408,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     expect(db.select().from(solverSlot).all()).toEqual([]);
   });
 
-  it('names a live miss pending instead of reporting it already-running', () => {
+  it('names a live miss pending instead of reporting it already-running', async () => {
     const { path, db } = database();
     const generation = generationWith(path, db, 'none');
     expect(
@@ -1422,7 +1422,7 @@ describe('OptimizationCoordinator Retry admission', () => {
       }),
     ).toEqual({ kind: 'queued' });
 
-    expect(coordinator(db, []).retry(ask())).toEqual({
+    expect(await coordinator(db, []).retry(ask())).toEqual({
       kind: 'not-retryable',
       state: 'pending',
     });
@@ -1433,12 +1433,12 @@ describe('OptimizationCoordinator Retry admission', () => {
   it.each([
     { marker: 'none', state: 'idle' },
     { marker: 'plan-infeasible', state: 'plan-infeasible' },
-  ] as const)('names an unlaunchable $state variant not-retryable', ({ marker, state }) => {
+  ] as const)('names an unlaunchable $state variant not-retryable', async ({ marker, state }) => {
     const { path, db } = database();
     generationWith(path, db, marker);
     const calls: ReservedSpawnRequest[] = [];
 
-    expect(coordinator(db, calls).retry(ask())).toEqual({ kind: 'not-retryable', state });
+    expect(await coordinator(db, calls).retry(ask())).toEqual({ kind: 'not-retryable', state });
     // Both, because neither alone is "no solver process starts": `spawn` runs
     // **before** `bindSolverSlot`, so a regression that starts a child and then
     // fails to bind leaves this table empty and the process real. The spawn
@@ -1456,13 +1456,13 @@ describe('OptimizationCoordinator Retry admission', () => {
       const calls: ReservedSpawnRequest[] = [];
       const instance = coordinator(db, calls);
 
-      expect(instance.retry(ask())).toEqual({
+      expect(await instance.retry(ask())).toEqual({
         kind: 'accepted',
         state: 'retrying',
         generation,
         inputHash,
       });
-      expect(instance.retry(ask())).toEqual({ kind: 'already-running' });
+      expect(await instance.retry(ask())).toEqual({ kind: 'already-running' });
       await untilCalls(calls, 1);
 
       expect(calls.map((call) => call.objective)).toEqual(['pri']);
@@ -1471,7 +1471,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     },
   );
 
-  it('matches already-running on budget and admits beside a different-budget slot', () => {
+  it('matches already-running on budget and admits beside a different-budget slot', async () => {
     const { path, db } = database();
     const generation = generationWith(path, db, 'failed');
     expect(
@@ -1487,14 +1487,14 @@ describe('OptimizationCoordinator Retry admission', () => {
       }),
     ).toMatchObject({ kind: 'reserved' });
 
-    expect(coordinator(db, []).retry(ask())).toMatchObject({
+    expect(await coordinator(db, []).retry(ask())).toMatchObject({
       kind: 'accepted',
       state: 'retrying',
     });
     expect(db.select().from(solverSlot).all()).toHaveLength(2);
   });
 
-  it('queues a failed Retry behind project capacity without replacing its marker', () => {
+  it('queues a failed Retry behind project capacity without replacing its marker', async () => {
     const { path, db } = database();
     const generation = generationWith(path, db, 'failed');
     for (let index = 0; index < 4; index += 1) {
@@ -1513,7 +1513,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     }
     const calls: ReservedSpawnRequest[] = [];
 
-    expect(coordinator(db, calls).retry(ask())).toEqual({
+    expect(await coordinator(db, calls).retry(ask())).toEqual({
       kind: 'accepted',
       state: 'retrying',
       generation,
@@ -1534,7 +1534,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     // retained marker at admission changes its final kind away from `failed`.
   });
 
-  it('takes SQLite writer ownership before reading Retry eligibility', () => {
+  it('takes SQLite writer ownership before reading Retry eligibility', async () => {
     const { path, db } = database();
     const generation = generationWith(path, db, 'failed');
     const contender = openDatabase(path);
@@ -1542,7 +1542,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     const calls: ReservedSpawnRequest[] = [];
     let contention: unknown;
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -1577,7 +1577,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     });
 
     try {
-      expect(instance.retry(ask())).toMatchObject({ kind: 'accepted', generation });
+      expect(await instance.retry(ask())).toMatchObject({ kind: 'accepted', generation });
     } finally {
       contender.close();
     }
@@ -1588,7 +1588,7 @@ describe('OptimizationCoordinator Retry admission', () => {
 
   it.each(['OFF', 'draining'] as const)(
     'refuses a failed Retry while the project is %s',
-    (condition) => {
+    async (condition) => {
       const { path, db } = database();
       generationWith(path, db, 'failed');
       const write = openDatabase(path);
@@ -1604,7 +1604,7 @@ describe('OptimizationCoordinator Retry admission', () => {
         write.close();
       }
 
-      expect(coordinator(db, []).retry(ask())).toEqual({
+      expect(await coordinator(db, []).retry(ask())).toEqual({
         kind: 'not-retryable',
         state: 'failed',
       });
@@ -1642,7 +1642,7 @@ describe('OptimizationCoordinator Retry admission', () => {
     const errors: unknown[] = [];
     let token = 0;
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -1670,7 +1670,7 @@ describe('OptimizationCoordinator Retry admission', () => {
       clearInterval: () => undefined,
     });
 
-    expect(instance.retry(ask(refusedHash, refusedInput))).toMatchObject({
+    expect(await instance.retry(ask(refusedHash, refusedInput))).toMatchObject({
       kind: 'accepted',
       generation: refusedGeneration,
     });

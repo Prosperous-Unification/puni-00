@@ -89,7 +89,7 @@ describe('optimized outcome events', () => {
     let launches = 0;
     let token = 0;
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -141,7 +141,7 @@ describe('optimized outcome events', () => {
     const pushed: OptimizationOutcomeEvent[] = [];
     let token = 0;
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -222,7 +222,7 @@ describe('optimized outcome events', () => {
     // gave the refusal a route to be refused at.
     for (const objective of ['pri', 'time'] as const) {
       expect(
-        instance.retry({
+        await instance.retry({
           projectId: 'p-1',
           objective,
           inputHash: scheduleInputHash(DEADLINED_INPUT),
@@ -242,7 +242,7 @@ describe('optimized outcome events', () => {
     }[] = [];
     let token = 0;
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',

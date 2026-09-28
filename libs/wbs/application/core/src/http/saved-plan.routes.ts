@@ -105,8 +105,10 @@ function touchRefusal(outcome: Exclude<SavedPlanTouchResult['outcome'], 'touched
 }
 
 /**
- * Six saved-plan operations. Saves use project write access; rename/delete defer
- * to the service's creator-or-owner rule. Actor identity comes from policy admission.
+ * Six saved-plan operations. Saves use project write access; rename/delete use
+ * the creator-or-owner rule for ordinary edits and audited scoped recovery for
+ * a super-admin of another creator's restricted project. Actor identity comes
+ * from policy admission.
  * Successful mutations announce only after the service commits and releases its
  * turn, through the process's own broadcaster — a saved plan is never part of
  * a batch, so nothing collects its event. Refusals publish nothing.
@@ -294,7 +296,19 @@ export function savedPlanRoutes(
       async ({ params, body, principal }): Promise<HttpReply<typeof renameSavedPlan>> => {
         const refused = await refuseTouch(params.id, principal);
         if (refused !== null) return refused;
-        const called = await callSavedPlan(() => plans.rename(params.id, principal.id, body.name));
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        const scoped =
+          resolved.access.kind === 'scoped'
+            ? {
+                organizationId: resolved.access.scope.organizationId,
+                actorId: principal.id,
+                operation: 'rename' as const,
+              }
+            : undefined;
+        const called = await callSavedPlan(() =>
+          plans.rename(params.id, principal.id, body.name, scoped),
+        );
         if (!called.ok) return called;
         const outcome = called.value;
         if (outcome.outcome !== 'touched') return touchRefusal(outcome.outcome);
@@ -310,7 +324,17 @@ export function savedPlanRoutes(
       async ({ params, principal }): Promise<HttpReply<typeof deleteSavedPlan>> => {
         const refused = await refuseTouch(params.id, principal);
         if (refused !== null) return refused;
-        const called = await callSavedPlan(() => plans.delete(params.id, principal.id));
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        const scoped =
+          resolved.access.kind === 'scoped'
+            ? {
+                organizationId: resolved.access.scope.organizationId,
+                actorId: principal.id,
+                operation: 'delete' as const,
+              }
+            : undefined;
+        const called = await callSavedPlan(() => plans.delete(params.id, principal.id, scoped));
         if (!called.ok) return called;
         const outcome = called.value;
         if (outcome.outcome !== 'touched') return touchRefusal(outcome.outcome);

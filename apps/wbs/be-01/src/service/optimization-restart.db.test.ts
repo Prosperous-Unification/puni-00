@@ -106,7 +106,7 @@ function restarted(
 ): OptimizationCoordinator {
   let token = 0;
   return new OptimizationCoordinator({
-    repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+    repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
     hashInput: scheduleInputHash,
     contractVersion: CONTRACT,
     solverVersion: '0.1.0',

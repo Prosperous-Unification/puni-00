@@ -18,6 +18,7 @@ import type {
   SavedPlanBodyWrite,
   SavedPlanScheduleWrite,
   SavedPlanWrite,
+  ScopedSavedPlanWrite,
 } from '../../ports/saved-plan-values';
 import type { Scheduler } from '../../ports/scheduler';
 import { defaultSavedPlanName } from '../../service/saved-plan-default-name';
@@ -91,10 +92,12 @@ export interface SavedPlanSaveRequest {
    * that fallback silently. See {@link SavedPlanWrite.createdById}.
    */
   readonly createdById: string | null;
+  /** Reclassified by the writer on its separate connection, after capture. */
+  readonly scoped?: ScopedSavedPlanWrite;
 }
 
 /**
- * The four answers a save has, as a union.
+ * The save answers, including a scoped in-transaction permission refusal.
  *
  * `refused` carries the quota refusal rather than a boolean because the caller
  * has to say *which* limit was hit; `no_project` is separate from `refused`
@@ -109,6 +112,7 @@ export interface SavedPlanSaveRequest {
  */
 export type SavedPlanSaveOutcome =
   | { readonly outcome: 'saved'; readonly record: SavedPlanWrite }
+  | { readonly outcome: 'forbidden' }
   | { readonly outcome: 'refused'; readonly refusal: SavedPlanQuotaRefusal }
   | { readonly outcome: 'no_project' }
   /** Another connection held the write lock. Nothing was written; a retry may succeed. */
@@ -438,8 +442,13 @@ export class SavedPlanService {
    * permanent record. A saved plan is not an editable row of the plan; it is
    * somebody's record of it.
    */
-  async rename(savedPlanId: string, actorId: string, name: string): Promise<SavedPlanTouchResult> {
-    return this.opts.resource.renamePlan(savedPlanId, actorId, name);
+  async rename(
+    savedPlanId: string,
+    actorId: string,
+    name: string,
+    scoped?: ScopedSavedPlanWrite,
+  ): Promise<SavedPlanTouchResult> {
+    return this.opts.resource.renamePlan(savedPlanId, actorId, name, scoped);
   }
 
   /**
@@ -450,8 +459,12 @@ export class SavedPlanService {
    * the only way a saved plan leaves, so anybody who may relabel a record may
    * also destroy it and nobody else may do either.
    */
-  async delete(savedPlanId: string, actorId: string): Promise<SavedPlanTouchResult> {
-    return this.opts.resource.deletePlan(savedPlanId, actorId);
+  async delete(
+    savedPlanId: string,
+    actorId: string,
+    scoped?: ScopedSavedPlanWrite,
+  ): Promise<SavedPlanTouchResult> {
+    return this.opts.resource.deletePlan(savedPlanId, actorId, scoped);
   }
 
   async save(request: SavedPlanSaveRequest): Promise<SavedPlanSaveOutcome> {
@@ -500,7 +513,7 @@ export class SavedPlanService {
       input,
       schedule,
     };
-    const written = await this.opts.resource.writePlan(record, this.quota);
+    const written = await this.opts.resource.writePlan(record, this.quota, request.scoped);
     // Switched over rather than tested for `null`, so a fourth repository
     // outcome would stop compiling here instead of being read as a save.
     switch (written.outcome) {
@@ -510,6 +523,10 @@ export class SavedPlanService {
         return { outcome: 'refused', refusal: written.refusal };
       case 'snapshot_busy':
         return { outcome: 'snapshot_busy' };
+      case 'forbidden':
+        return { outcome: 'forbidden' };
+      case 'not_found':
+        return { outcome: 'no_project' };
     }
   }
 

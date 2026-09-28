@@ -40,10 +40,11 @@ afterEach(() => {
 interface Claims {
   readonly username?: string;
   readonly org?: string;
-  readonly aud?: string;
+  readonly aud?: string | string[];
   readonly upstream?: string;
   readonly lifetime?: number;
   readonly issuedAgo?: number;
+  readonly scope?: string;
   /** null leaves the grant claim out. */
   readonly grant?: string | null;
 }
@@ -62,7 +63,7 @@ async function delegation(
     org: claims.org ?? 'org-a',
     client: 'client-1',
     ...(claims.grant === null ? {} : { grant: claims.grant ?? 'family-1' }),
-    scope: 'read write',
+    scope: claims.scope ?? 'read write',
     upstream_iss: ISSUER,
     upstream_sub: claims.upstream ?? `sub-${username}`,
   })
@@ -97,6 +98,119 @@ describe('after activation', () => {
     bProject = await project('grace', 'B plan');
   });
 
+  it('admits one gateway project check with both credentials and refuses replay', async () => {
+    const projectId = await project('ada', 'Gateway plan');
+    const path = `/internal/gateway/projects/${projectId}/access`;
+    const token = await delegation({ aud: 'wbs-be-01/via-gw-01' });
+    const headers = { 'x-internal-auth': 'x'.repeat(32) };
+    expect((await h.callWith(token, 'POST', path, undefined, headers)).status).toBe(204);
+    // Proof: bypassing durable consumption answered 204 for this replay
+    // instead of 401; watched 2026-09-28.
+    expect((await h.callWith(token, 'POST', path, undefined, headers)).status).toBe(401);
+    expect(
+      (await h.callWith(await delegation({ aud: 'wbs-be-01/via-gw-01' }), 'POST', path)).body,
+    ).toEqual({ error: 'unauthorized' });
+    expect(
+      (
+        await h.callWith(await delegation(), 'POST', path, undefined, {
+          ...headers,
+          'x-wbs-audience': 'wbs-be-01/via-mcp-01',
+        })
+      ).status,
+    ).toBe(401);
+    const noRead = await delegation({ aud: 'wbs-be-01/via-gw-01', scope: 'write' });
+    expect((await h.callWith(noRead, 'POST', path, undefined, headers)).body).toEqual({
+      error: 'insufficient_scope',
+    });
+    expect((await h.callWith(noRead, 'POST', path, undefined, headers)).status).toBe(401);
+  });
+
+  it('checks gateway membership and returns identical foreign and absent project 404s', async () => {
+    const headers = { 'x-internal-auth': 'x'.repeat(32), 'x-wbs-organization': 'org-b' };
+    const token = () => delegation({ aud: 'wbs-be-01/via-gw-01' });
+    const foreign = await h.callWith(
+      await token(),
+      'POST',
+      `/internal/gateway/projects/${bProject}/access`,
+      undefined,
+      headers,
+    );
+    const absent = await h.callWith(
+      await token(),
+      'POST',
+      '/internal/gateway/projects/absent/access',
+      undefined,
+      headers,
+    );
+    expect(foreign).toEqual(absent);
+    expect(foreign.status).toBe(404);
+    h.sqlite.run('DELETE FROM organization_membership WHERE organization_id = ? AND user_id = ?', [
+      'org-a',
+      h.userId('ada'),
+    ]);
+    const removedMemberToken = await token();
+    expect(
+      (
+        await h.callWith(
+          removedMemberToken,
+          'POST',
+          '/internal/gateway/projects/absent/access',
+          undefined,
+          headers,
+        )
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await h.callWith(
+          removedMemberToken,
+          'POST',
+          '/internal/gateway/projects/absent/access',
+          undefined,
+          headers,
+        )
+      ).status,
+    ).toBe(401);
+  });
+
+  it('refuses delegated onboarding discovery and writes', async () => {
+    h.sqlite.run("UPDATE users SET email = 'ada@example.org', email_verified = 1 WHERE id = ?", [
+      h.userId('ada'),
+    ]);
+    const signed = await delegation();
+    expect(await h.callWith(signed, 'GET', '/api/onboarding')).toMatchObject({ status: 403 });
+
+    await h.register('newcomer');
+    h.sqlite.run(
+      "INSERT INTO external_identity (id, user_id, issuer, subject, created_at) VALUES ('map-newcomer', ?, ?, 'sub-newcomer', 1)",
+      [h.userId('newcomer'), ISSUER],
+    );
+    h.sqlite.run("UPDATE users SET email = 'newcomer@else.org', email_verified = 1 WHERE id = ?", [
+      h.userId('newcomer'),
+    ]);
+    // A delegation is single-use per request, so each call presents a fresh one.
+    const newcomer = () => delegation({ username: 'newcomer' });
+    expect(await h.callWith(await newcomer(), 'GET', '/api/onboarding')).toMatchObject({
+      status: 403,
+    });
+    expect(
+      await h.callWith(await newcomer(), 'POST', '/api/onboarding/organizations', {
+        name: 'Unexpected',
+      }),
+    ).toMatchObject({ status: 403 });
+    h.sqlite.run(
+      "INSERT INTO organization_domain_claim (id, organization_id, domain, status, proof_digest, last_success_at, created_at) VALUES ('claim-else', 'org-a', 'else.org', 'verified', 'proof', 1, 1)",
+    );
+    expect(
+      await h.callWith(await newcomer(), 'POST', '/api/onboarding/join-requests', {
+        organizationId: 'org-a',
+      }),
+    ).toMatchObject({ status: 403 });
+    expect(h.sqlite.query("SELECT id FROM organization WHERE name = 'Unexpected'").all()).toEqual(
+      [],
+    );
+  });
+
   it('lists only the delegated organization’s projects', async () => {
     const answer = await h.callWith(await delegation(), 'GET', '/api/projects');
 
@@ -106,12 +220,39 @@ describe('after activation', () => {
     expect(names(toB)).toEqual(['B plan']);
   });
 
+  it('consumes an MCP delegation once even when the project is missing', async () => {
+    const token = await delegation();
+    expect((await h.callWith(token, 'GET', '/api/projects/absent')).status).toBe(404);
+    expect((await h.callWith(token, 'GET', '/api/projects/absent')).status).toBe(401);
+  });
+
   it('refuses a gateway or unknown audience', async () => {
     for (const aud of ['wbs-be-01/via-gw-01', 'somewhere-else']) {
       expect(await h.callWith(await delegation({ aud }), 'GET', '/api/projects')).toMatchObject({
         status: 401,
       });
     }
+  });
+
+  it('refuses a signed array audience that includes the MCP route', async () => {
+    expect(
+      await h.callWith(
+        await delegation({ aud: ['wbs-be-01/via-mcp-01', 'wbs-be-01/via-gw-01'] }),
+        'GET',
+        '/api/projects',
+      ),
+    ).toMatchObject({ status: 401 });
+  });
+
+  it('refuses a gateway bearer beside a session cookie', async () => {
+    const projectId = await project('ada', 'Cookie check');
+    const token = await delegation({ aud: 'wbs-be-01/via-gw-01' });
+    expect(
+      await h.callWith(token, 'POST', `/internal/gateway/projects/${projectId}/access`, undefined, {
+        'x-internal-auth': 'x'.repeat(32),
+        cookie: `__Host-wbs_access=${h.token('ada')}`,
+      }),
+    ).toMatchObject({ status: 401 });
   });
 
   it('refuses an expired, re-signed or forged-organization delegation', async () => {

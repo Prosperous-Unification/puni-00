@@ -143,6 +143,7 @@ export function buildServices(options: ServicesOptions): BeServices {
       repository: createOptimizationRepository(
         source.db,
         new DrizzleEventLogStore(source.db, source.gate),
+        source.gate,
       ),
       contractVersion: contractVersionOf(optimizer.solverVersion),
       solverVersion: optimizer.solverVersion,

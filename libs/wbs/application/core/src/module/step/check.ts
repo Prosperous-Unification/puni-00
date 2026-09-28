@@ -27,6 +27,9 @@ export function installStep(requirements: StepRequirements): StepExports {
         factoryReturnKind: 'sync-value',
       }),
       clock: DiBag.createProvider(() => requirements.clock, { factoryReturnKind: 'sync-value' }),
+      recoveryAdmission: DiBag.createProvider(() => requirements.recoveryAdmission, {
+        factoryReturnKind: 'sync-value',
+      }),
       dependencyGraph: DiBag.createProvider(() => requirements.dependencyGraph, {
         factoryReturnKind: 'sync-value',
       }),

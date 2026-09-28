@@ -1,3 +1,4 @@
+import { contractVersionOf } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -47,6 +48,50 @@ async function create(username: string, name: string): Promise<string> {
   return (answer.body as { project: { id: string } }).project.id;
 }
 
+/** A failed exact-key objective that the mounted Retry route can admit. */
+async function retryFixture(): Promise<{ projectId: string; inputHash: string }> {
+  h.close();
+  h = OrganizationHarness.openComposed(true);
+  for (const username of ['ada', 'sam', 'nell', 'vic', 'grace']) await h.register(username);
+  h.organization('org-a');
+  h.organization('org-b');
+  h.member('org-a', 'ada', 'member');
+  h.member('org-a', 'sam', 'super_admin');
+  h.member('org-a', 'nell', 'member');
+  h.member('org-a', 'vic', 'viewer');
+  h.member('org-b', 'grace', 'member');
+  for (const username of ['ada', 'sam', 'nell', 'vic']) h.bind(username, 'org-a');
+  h.bind('grace', 'org-b');
+  h.activate();
+  const projectId = await create('ada', 'Retry plan');
+  const detail = await call('ada', 'GET', `/api/projects/${projectId}`);
+  const stepId = (detail.body as { steps: { id: string }[] }).steps.at(0)?.id;
+  if (stepId === undefined) throw new Error('retry project has no starting step');
+  h.sqlite.run(
+    "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-retry', ?, NULL, 0, 'Work')",
+    [projectId],
+  );
+  h.sqlite.run(
+    "INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES ('w-retry', ?, 1, 2, 3)",
+    [stepId],
+  );
+  const inputHash = await h.optimizationHash(projectId);
+  const contractVersion = contractVersionOf('0.1.0');
+  expect(
+    (await call('ada', 'PATCH', `/api/projects/${projectId}`, { restricted: true })).status,
+  ).toBe(200);
+  h.sqlite.run('UPDATE project SET optimization_enabled = 1 WHERE id = ?', [projectId]);
+  h.sqlite.run(
+    'INSERT INTO optimization_generation (project_id, contract_version, generation, input_hash, updated_at) VALUES (?, ?, 1, ?, 1)',
+    [projectId, contractVersion, inputHash],
+  );
+  h.sqlite.run(
+    "INSERT INTO optimized_schedule_cache (project_id, input_hash, objective, contract_version, budget_ms, generation, status, failure_reason, created_at) VALUES (?, ?, 'pri', ?, 60000, 1, 'failed', 'timeout', 2)",
+    [projectId, inputHash, contractVersion],
+  );
+  return { projectId, inputHash };
+}
+
 async function listedNames(username: string): Promise<string[]> {
   const answer = await call(username, 'GET', '/api/projects');
   expect(answer.status).toBe(200);
@@ -77,6 +122,85 @@ describe('before activation', () => {
 });
 
 describe('after activation', () => {
+  it('audits a super-admin optimization retry only when it is accepted', async () => {
+    const { projectId, inputHash } = await retryFixture();
+    expect(
+      await call('sam', 'POST', `/api/projects/${projectId}/optimization/retry`, {
+        objective: 'pri',
+        inputHash,
+      }),
+    ).toMatchObject({ status: 202 });
+    expect(
+      h.sqlite
+        .query('SELECT organization_id, actor_id, subject_id, detail FROM organization_audit')
+        .all(),
+    ).toEqual([
+      {
+        organization_id: 'org-a',
+        actor_id: h.userId('sam'),
+        subject_id: projectId,
+        detail: '{"optimizer":"retry"}',
+      },
+    ]);
+    expect(
+      h.sqlite
+        .query<{ owner_id: string }, [string]>('SELECT owner_id FROM project WHERE id = ?')
+        .get(projectId),
+    ).toEqual({ owner_id: h.userId('ada') });
+  });
+  it('refuses other retry writers, a foreign project and a removed super-admin without audit', async () => {
+    const { projectId, inputHash } = await retryFixture();
+    const path = `/api/projects/${projectId}/optimization/retry`;
+    for (const username of ['nell', 'vic']) {
+      expect((await call(username, 'POST', path, { objective: 'pri', inputHash })).status).toBe(
+        403,
+      );
+    }
+    h.sqlite.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = ?", [
+      h.userId('nell'),
+    ]);
+    expect((await call('nell', 'POST', path, { objective: 'pri', inputHash })).status).toBe(403);
+    const foreign = await create('grace', 'Foreign retry');
+    expect(
+      (
+        await call('sam', 'POST', `/api/projects/${foreign}/optimization/retry`, {
+          objective: 'pri',
+          inputHash,
+        })
+      ).status,
+    ).toBe(404);
+    expect(await h.retryAtStore(projectId, 'org-b', h.userId('grace'), inputHash)).toBe(
+      'not_found',
+    );
+    expect((await call('sam', 'POST', path, { objective: 'pri', inputHash: 'stale' })).status).toBe(
+      409,
+    );
+    h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('sam')]);
+    expect((await call('sam', 'POST', path, { objective: 'pri', inputHash })).status).toBe(403);
+    expect(await h.retryAtStore(projectId, 'org-a', h.userId('sam'), inputHash)).toBe('forbidden');
+    h.sqlite.run("UPDATE organization_membership SET role = 'viewer' WHERE user_id = ?", [
+      h.userId('ada'),
+    ]);
+    expect((await call('ada', 'POST', path, { objective: 'pri', inputHash })).status).toBe(403);
+    expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
+    expect(h.sqlite.query('SELECT project_id FROM solver_slot').all()).toEqual([]);
+  });
+  it('rolls a recovered Retry back if audit insertion fails and admits a creator without audit', async () => {
+    const { projectId, inputHash } = await retryFixture();
+    const path = `/api/projects/${projectId}/optimization/retry`;
+    const beforeEvents = h.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all();
+    h.sqlite.run(
+      "CREATE TRIGGER audit_refused BEFORE INSERT ON organization_audit BEGIN SELECT RAISE(ABORT, 'audit refused'); END",
+    );
+    expect((await call('sam', 'POST', path, { objective: 'pri', inputHash })).status).toBe(500);
+    expect(h.sqlite.query('SELECT project_id FROM solver_slot').all()).toEqual([]);
+    expect(h.sqlite.query('SELECT project_id FROM solver_queue').all()).toEqual([]);
+    expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
+    expect(h.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all()).toEqual(beforeEvents);
+    h.sqlite.run('DROP TRIGGER audit_refused');
+    expect((await call('ada', 'POST', path, { objective: 'pri', inputHash })).status).toBe(202);
+    expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
+  });
   it('scopes the same running app once another connection activates isolation', async () => {
     await create('ada', 'A plan');
     await create('grace', 'B plan');
@@ -189,12 +313,6 @@ describe('after activation', () => {
         detail: '{"fields":["name","restricted"]}',
       },
     ]);
-    // Only the project PATCH recovers so far; other write families still refuse.
-    await call('ada', 'PATCH', `/api/projects/${id}`, { restricted: true });
-    expect(
-      (await call('sam', 'POST', `/api/projects/${id}/steps`, { name: 'Review' })).status,
-    ).toBe(403);
-    expect(audits()).toHaveLength(1);
   });
 
   it('records nothing for a recovery that changes nothing, or an edit refused', async () => {

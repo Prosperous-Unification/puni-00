@@ -5,10 +5,12 @@ import type {
   HistoryService,
   ImportService,
   MembershipAdministration,
+  Onboarding,
   OrganizationAccess,
   ReplayOrchestrator,
   SavedPlanService,
 } from '@wbs/core';
+import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
@@ -21,7 +23,7 @@ import { directoryRoutes } from './controller/directory.routes';
 import { historyRoutes } from './controller/history.routes';
 import { importRoutes } from './controller/import.routes';
 import { infrastructureEndpoints } from './controller/infrastructure-endpoints';
-import { internalRoutes } from './controller/internal.routes';
+import { gatewayAccessRoutes, internalRoutes } from './controller/internal.routes';
 import type { OidcRouteOptions } from './controller/oidc-options';
 import { projectRoutes } from './controller/project.routes';
 import { savedPlanRoutes } from './controller/saved-plan.routes';
@@ -83,6 +85,8 @@ export interface AppOptions {
    * 404 on the membership routes, which reads as a release without them.
    */
   memberships: MembershipAdministration;
+  /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
+  onboarding: Onboarding;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
   /** The manual Retry admission seam; absent only in optimizer-less deployments and tests. */
@@ -138,7 +142,7 @@ export interface AppOptions {
   /**
    * Verifies WBS-signed delegation tokens (task 2.5). Absent, every delegation
    * is refused with 401 (`REFUSE_DELEGATIONS`): production issues none yet,
-   * so the path stays inert until the delegation key is configured.
+   * so the path stays inert. Configuring keys alone never activates it.
    */
   delegation?: DelegationVerifier;
   /**
@@ -220,7 +224,7 @@ export function mountedEndpoints(
     logger: createLogger({ service: 'be-01', version: opts.version }),
     scrapeMetrics: opts.metricsScrape ?? (() => scrapeMetrics('be-01')),
   },
-) {
+): readonly BoundEndpoint[] {
   const passwordThrottle = opts.loginThrottle;
   const commands = new PlanCommandRunner({
     batchServices: opts.writes.batch,
@@ -261,6 +265,7 @@ export function mountedEndpoints(
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
+    ...onboardingRoutes(opts.onboarding, opts.clock),
     ...stepRoutes(
       {
         addWithin: (...args) => opts.steps.addWithin(...args),
@@ -270,6 +275,7 @@ export function mountedEndpoints(
       },
       commands,
       opts.organizations,
+      opts.writes,
     ),
     ...directoryRoutes(opts.directory, opts.organizations),
     ...historyRoutes(opts.history, opts.projects, opts.organizations),
@@ -278,7 +284,7 @@ export function mountedEndpoints(
     ...importRoutes(opts.writes.imports, opts.organizations),
     ...projectRoutes(
       {
-        authorizeEdit: (...args) => opts.projects.authorizeEdit(...args),
+        authorizeRetry: (...args) => opts.projects.authorizeRetry(...args),
         createWithin: (...args) => opts.projects.createWithin(...args),
         listWithin: (...args) => opts.projects.listWithin(...args),
         openWithin: (...args) => opts.projects.openWithin(...args),
@@ -293,7 +299,7 @@ export function mountedEndpoints(
       opts.optimizer,
     ),
     ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),
-    ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations),
+    ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
     ...savedPlanRoutes(
       opts.savedPlans,
       opts.projects,
@@ -306,6 +312,7 @@ export function mountedEndpoints(
       onForward: () => Promise.resolve({ push_responses: [] }),
       onResume: (points) => opts.replay.replay(points),
     }),
+    ...gatewayAccessRoutes(opts.projects, opts.organizations),
   ] as const;
 }
 

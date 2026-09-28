@@ -33,6 +33,7 @@ try {
     jwtKey: cfg.JWT_SIGNING_KEY_CURRENT,
     gwUrl: cfg.GW_URL,
     internalAuthSecret: cfg.INTERNAL_AUTH_SECRET,
+    delegationKeys: cfg.delegationKeys,
     oidc: cfg.AUTH_MODE === 'oidc' ? oidcRouteOptionsFromEnv(process.env) : undefined,
     localIdentity:
       cfg.AUTH_MODE === 'local'

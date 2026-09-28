@@ -159,6 +159,7 @@ const ALSO_ROLLED_BACK = [
   'saved_plan_organization',
   'organization_audit',
   'project_solution',
+  'delegation_use',
   'service_organization',
   'service_team_organization',
   'tag_organization',
@@ -342,6 +343,8 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
         '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,

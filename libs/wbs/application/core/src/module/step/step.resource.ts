@@ -1,6 +1,7 @@
 import { type AllowancePercent, isReservedStepCode, isStepCode, stepIsInUse } from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
+import type { EditAdmission } from '../../ports/edit-admission';
 import {
   findProjectWithin,
   LEGACY_ACCESS,
@@ -8,13 +9,15 @@ import {
   type ResourceAccess,
 } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
-import type { ProjectStore } from '../../ports/project-store';
+import type { Project, ProjectStore } from '../../ports/project-store';
 import type { Step, StepStore, StepUsageRows } from '../../ports/step-store';
 import { type AssumedAssigneeFlip, assumedAssigneeFlips } from '../../service/assumed-assignee';
 import { cleanName } from '../../service/clean-name';
 import type { DependencyGraphGuard } from '../../service/dependency-graph';
 
 export interface StepServiceOptions {
+  /** A unit-of-work grant used only for scoped recovery. */
+  recoveryAdmission?: EditAdmission;
   projects: ProjectStore;
   steps: StepStore;
   /**
@@ -209,7 +212,7 @@ export class StepService {
     }
     const project = await findProjectWithin(this.opts.projects, projectId, access);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!mayEditProjectWithin(project, actorId, access)) return { ok: false, reason: 'forbidden' };
+    if (!this.mayWrite(project, actorId, access)) return { ok: false, reason: 'forbidden' };
 
     const written = await this.opts.steps.add(
       code === undefined
@@ -338,7 +341,7 @@ export class StepService {
 
   /**
    * The step as it is now, when it is this project's and the caller may edit
-   * the project — the reply a route owes after a write it delegated elsewhere.
+   * or recover it. The allowance command makes the final write decision.
    */
   find(projectId: string, stepId: string, actorId: string): Promise<StepOutcome> {
     return this.findWithin(projectId, stepId, actorId, LEGACY_ACCESS);
@@ -346,8 +349,10 @@ export class StepService {
 
   /**
    * {@link find} through the caller's access: a foreign project, or a step of
-   * another project, is `not_found`. It is also the check a route makes before
-   * delegating a step write elsewhere, such as the allowance command.
+   * another project, is `not_found`. The allowance route uses this read before
+   * its command. A scoped super-admin may pass this lookup for a restricted
+   * project; the command still reclassifies and audits its write inside its
+   * own transaction.
    */
   async findWithin(
     projectId: string,
@@ -355,7 +360,7 @@ export class StepService {
     actorId: string,
     access: ResourceAccess,
   ): Promise<StepOutcome> {
-    const gate = await this.gate(projectId, stepId, actorId, access);
+    const gate = await this.gate(projectId, stepId, actorId, access, true);
     if (!gate.ok) return gate;
     const found = await this.opts.steps.findById(stepId);
     if (found === null) return { ok: false, reason: 'not_found' };
@@ -364,6 +369,7 @@ export class StepService {
 
   /**
    * The project this step belongs to, and whether the caller may write to it.
+   * `recoveryLookup` admits only the precommand read; it grants no write.
    *
    * A step of another project is `not_found` rather than `forbidden`: it is not
    * this project's step, and saying "you may not" would tell the caller it is.
@@ -377,6 +383,7 @@ export class StepService {
     stepId: string,
     actorId: string,
     access: ResourceAccess,
+    recoveryLookup = false,
   ): Promise<{ ok: true } | { ok: false; reason: 'not_found' | 'forbidden' }> {
     // Proof: finding the project unscoped here, and separately in `addWithin`,
     // failed `answers 404 alike for a foreign and an absent project on every
@@ -384,9 +391,30 @@ export class StepService {
     // watched 2026-09-27.
     const project = await findProjectWithin(this.opts.projects, projectId, access);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!mayEditProjectWithin(project, actorId, access)) return { ok: false, reason: 'forbidden' };
+    if (
+      !this.mayWrite(project, actorId, access) &&
+      // Proof: disabling this read-only lookup exception made the mounted
+      // allowance recovery answer 403 instead of 200; watched 2026-09-28.
+      !(
+        recoveryLookup &&
+        access.kind === 'scoped' &&
+        access.scope.userId === actorId &&
+        access.scope.role === 'super_admin'
+      )
+    )
+      return { ok: false, reason: 'forbidden' };
     const step = await this.opts.steps.findById(stepId);
     if (step?.projectId !== projectId) return { ok: false, reason: 'not_found' };
     return { ok: true };
+  }
+
+  /** A scoped recovery uses only the admission this graph's unit of work granted. */
+  private mayWrite(project: Project, actorId: string, access: ResourceAccess): boolean {
+    return (
+      mayEditProjectWithin(project, actorId, access) ||
+      // Proof: disabling this grant made the mounted step recovery answer 403
+      // instead of 200 (0 pass, 1 fail); watched 2026-09-28.
+      (access.kind === 'scoped' && this.opts.recoveryAdmission?.admits(project, actorId) === true)
+    );
   }
 }

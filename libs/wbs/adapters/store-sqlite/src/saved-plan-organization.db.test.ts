@@ -109,4 +109,59 @@ describe('a saved plan belongs to its project’s organization', () => {
     });
     expect(rows('saved_plan_organization')).toEqual([]);
   });
+
+  it('reclassifies a removed actor inside the saved-plan save transaction', async () => {
+    const db = raw();
+    db.run(
+      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('sam', 'sam', 'x', 1)",
+    );
+    db.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+    db.run(
+      "INSERT INTO project_organization (resource_id, organization_id) VALUES ('p1', 'org-a')",
+    );
+    db.run(
+      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'sam', 'super_admin', 1)",
+    );
+    db.run('UPDATE project SET restricted = 1 WHERE id = ?', ['p1']);
+    db.run("DELETE FROM organization_membership WHERE user_id = 'sam'");
+    db.close();
+    activate();
+    expect(
+      await plans().write(record('sp-1'), () => Promise.resolve(null), {
+        organizationId: 'org-a',
+        actorId: 'sam',
+        operation: 'save',
+      }),
+    ).toEqual({ outcome: 'forbidden' });
+    expect(rows('saved_plan')).toEqual([]);
+    expect(rows('organization_audit')).toEqual([]);
+    expect(await plans().write(record('sp-0'), () => Promise.resolve(null))).toEqual({
+      outcome: 'written',
+    });
+    expect(
+      await plans().renameTo('sp-0', 'No', {
+        organizationId: 'org-a',
+        actorId: 'sam',
+        operation: 'rename',
+      }),
+    ).toBe('forbidden');
+    expect(rows('saved_plan')).toMatchObject([{ id: 'sp-0', name: 'sp-0' }]);
+  });
+
+  it('refuses a scoped touch whose operation disagrees with the write', async () => {
+    let failure: unknown;
+    try {
+      await plans().renameTo('sp-1', 'Renamed', {
+        organizationId: 'org-a',
+        actorId: 'owner',
+        operation: 'delete',
+      });
+    } catch (caught) {
+      failure = caught;
+    }
+    expect(String(failure)).toContain(
+      'saved-plan touch operation disagrees with its authorization',
+    );
+    expect(rows('saved_plan')).toEqual([]);
+  });
 });

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openDatabase, openDrizzle } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
+import { OnboardingRepository } from './onboarding';
 import { UserRepository } from './user';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
@@ -209,6 +210,95 @@ describe('UserRepository.resolveOidcIdentity after activation', () => {
     activate();
 
     expect(await resolve({ email: 'someone@else.show' })).toMatchObject({ id: 'existing' });
+    expect(rows("SELECT email, email_verified FROM users WHERE id = 'existing'")).toEqual([
+      { email: 'someone@else.show', email_verified: 1 },
+    ]);
+  });
+
+  it('stores activated OIDC domains in canonical ASCII IDNA form', async () => {
+    activate();
+    const account = await resolve({ email: 'Ada@Bücher.example' });
+    expect(account?.email).toBe('ada@xn--bcher-kva.example');
+    expect(rows("SELECT email_verified FROM users WHERE id = 'new'")).toEqual([
+      { email_verified: 1 },
+    ]);
+  });
+
+  it.each([
+    'person@victim.org/attacker.example',
+    'person@victim.org:443',
+    'person@victim.org?attacker.example',
+    'person@victim.org#attacker.example',
+    'person@victim.org\\attacker.example',
+  ])('does not route a URL-shaped callback email %s to a claimed organization', async (email) => {
+    activate();
+    raw("INSERT INTO organization (id, name, created_at) VALUES ('victim', 'Victim', 1)");
+    raw(
+      "INSERT INTO organization_domain_claim (id, organization_id, domain, status, proof_digest, last_success_at, created_at) VALUES ('claim', 'victim', 'victim.org', 'verified', 'proof', 1, 1)",
+    );
+    await resolve({ email });
+    expect(rows("SELECT email, email_verified FROM users WHERE id = 'new'")).toEqual([
+      { email: null, email_verified: 0 },
+    ]);
+    expect(
+      await new OnboardingRepository(openDrizzle(join(dir, 'test.db')), OPEN).discover('new'),
+    ).toEqual({ ok: false, refusal: 'email_verification_required' });
+  });
+
+  it('clears verification when a mapped callback lacks literal verified evidence', async () => {
+    await federated('existing', 'old@puni.show');
+    map('existing');
+    raw("UPDATE users SET email_verified = 1 WHERE id = 'existing'");
+    activate();
+    await resolve({ email: 'new@puni.show', emailVerified: false });
+    expect(rows("SELECT email, email_verified FROM users WHERE id = 'existing'")).toEqual([
+      { email: 'new@puni.show', email_verified: 0 },
+    ]);
+  });
+
+  it('refuses a mapped email collision without changing the old address or identity', async () => {
+    await federated('existing', 'old@puni.show');
+    map('existing');
+    await users.create(
+      {
+        id: 'holder',
+        username: 'holder',
+        passwordHash: 'x',
+        email: 'held@puni.show',
+        createdAt: 1,
+      },
+      selfMade('holder', 1),
+    );
+    activate();
+    expect(await resolve({ email: 'held@puni.show' })).toBeNull();
+    expect(rows("SELECT email, email_verified FROM users WHERE id = 'existing'")).toEqual([
+      { email: 'old@puni.show', email_verified: 0 },
+    ]);
+  });
+
+  it('revokes a verified mapped address after a colliding callback for an existing session', async () => {
+    await federated('existing', 'old@victim.org');
+    map('existing');
+    await users.create(
+      { id: 'holder', username: 'holder', passwordHash: 'x', email: 'held@else.org', createdAt: 1 },
+      selfMade('holder', 1),
+    );
+    raw("UPDATE users SET email_verified = 1 WHERE id = 'existing'");
+    activate();
+    raw("INSERT INTO organization (id, name, created_at) VALUES ('victim', 'Victim', 1)");
+    raw(
+      "INSERT INTO organization_domain_claim (id, organization_id, domain, status, proof_digest, last_success_at, created_at) VALUES ('claim', 'victim', 'victim.org', 'verified', 'proof', 1, 1)",
+    );
+    const onboarding = new OnboardingRepository(openDrizzle(join(dir, 'test.db')), OPEN);
+    expect((await onboarding.discover('existing')).ok).toBe(true);
+    expect(await resolve({ email: 'held@else.org', emailVerified: false })).toBeNull();
+    expect(rows("SELECT email, email_verified FROM users WHERE id = 'existing'")).toEqual([
+      { email: 'old@victim.org', email_verified: 0 },
+    ]);
+    expect(await onboarding.discover('existing')).toEqual({
+      ok: false,
+      refusal: 'email_verification_required',
+    });
   });
 
   it('refuses an unmapped identity whose verified email an account holds, changing nothing', async () => {

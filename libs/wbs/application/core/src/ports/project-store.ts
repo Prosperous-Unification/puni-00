@@ -36,12 +36,18 @@ export type ProjectCrossReferenceKind = (typeof PROJECT_CROSS_REFERENCE_KINDS)[n
 
 /**
  * What an audited recovery records about the edit: a project PATCH's fields,
- * sorted; a command batch's command kinds, in order; or which journal walk.
+ * sorted; a command batch's command kinds, in order; a journal direction; or
+ * the operation in a dependent write family. The detail always names one
+ * successful operation on one project.
  */
 export type RecoveryAuditDetail =
   | { readonly fields: readonly string[] }
   | { readonly commands: readonly string[] }
-  | { readonly journal: 'undo' | 'redo' };
+  | { readonly journal: 'undo' | 'redo' }
+  | { readonly step: 'add' | 'rename' | 'remove' }
+  | { readonly marker: 'create' | 'rename' | 'recolor' | 'remove' }
+  | { readonly savedPlan: 'save' | 'rename' | 'delete' }
+  | { readonly optimizer: 'retry' };
 
 /** One reference that leaves the project or its organization; see {@link ProjectStore.findCrossReferences}. */
 export interface ProjectCrossReference {

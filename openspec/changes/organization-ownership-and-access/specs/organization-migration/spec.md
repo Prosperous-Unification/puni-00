@@ -74,6 +74,13 @@ Each WBS and durable MCP-store schema migration SHALL be additive and ship a pai
 - **WHEN** a rollback reaches the migration that added it
 - **THEN** that reversal refuses and leaves the marker, its schema and its ledger entry unchanged
 
+#### Scenario: Delegation-use rollback preserves live replay evidence
+
+- **GIVEN** the delegation-use migration is applied
+- **WHEN** rollback is requested after activation or while any recorded use has not expired
+- **THEN** its paired down script refuses and preserves the table and migration ledger entry
+- **AND** before activation with no live uses, rollback may remove the table
+
 ### Requirement: External identity mapping is stable
 
 WBS SHALL map each supported verified issuer/subject pair to one stable local user ID under a uniqueness constraint. Backfill SHALL preserve current user IDs and refuse ambiguous identity collisions. Auth0 SHALL continue to prove identity, while WBS tables exclusively own organizations, memberships, roles, invitations and domains. A later provider change SHALL not require changing resource ownership or authorization rules.

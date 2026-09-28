@@ -46,7 +46,14 @@ export async function savePlan(
   // project; watched 2026-09-27.
   const found = await graph.projects.readWithin(input.projectId, input.access);
   if (found === null) return { outcome: 'not_found' };
-  if (!mayEditProjectWithin(found.project, input.actor.id, input.access)) {
+  if (
+    !mayEditProjectWithin(found.project, input.actor.id, input.access) &&
+    !(
+      input.access.kind === 'scoped' &&
+      input.access.scope.userId === input.actor.id &&
+      input.access.scope.role === 'super_admin'
+    )
+  ) {
     return { outcome: 'forbidden' };
   }
   const request: SavedPlanSaveRequest = {
@@ -54,6 +61,15 @@ export async function savePlan(
     ...(input.name === undefined ? {} : { name: input.name }),
     createdBy: input.actor.username,
     createdById: input.actor.id,
+    ...(input.access.kind === 'scoped'
+      ? {
+          scoped: {
+            organizationId: input.access.scope.organizationId,
+            actorId: input.actor.id,
+            operation: 'save' as const,
+          },
+        }
+      : {}),
   };
   let outcome: SavedPlanSaveOutcome;
   try {

@@ -37,6 +37,11 @@ function options(): AppOptions {
   return {
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    onboarding: {
+      discover: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
+      createOrganization: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
+      submitJoinRequest: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
+    },
     appOrigin: 'http://localhost',
     loginThrottle: testLoginThrottle(),
     clock: testClock,
@@ -120,6 +125,8 @@ const OIDC_SHAPES = new Set<(typeof httpShapes)[number]>([
 const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postApiAuthRegister: { username: 'route-probe', password: 'valid-password' },
   postApiAuthLogin: { username: 'route-probe', password: 'valid-password' },
+  postApiOnboardingOrganizations: { name: 'Reachable organization' },
+  postApiOnboardingJoinRequests: { organizationId: ROUTE_ID },
   postApiSmokeEcho: { text: 'reachable' },
   postApiProjectsByIdSteps: { name: 'Reachable step' },
   patchApiProjectsByIdStepsByStepId: { name: 'Renamed step' },
@@ -186,6 +193,7 @@ const PUBLIC_OPERATIONS = [
 ] as const;
 const SIGNED_IN_OPERATIONS = [
   'getApiExternal-systems',
+  'getApiOnboarding',
   'getApiPeople',
   'getApiProjects',
   'getApiProjectsById',
@@ -213,6 +221,8 @@ const WRITE_SCOPE_OPERATIONS = [
   'patchApiProjectsByIdStepsByStepId',
   'patchApiSaved-plansById',
   'postApiDirectoryCommands',
+  'postApiOnboardingJoinRequests',
+  'postApiOnboardingOrganizations',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -225,7 +235,13 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiProjectsImport',
 ] as const;
 const INTERNAL_OPERATIONS = ['postInternalForward', 'postInternalResume'] as const;
-const ALWAYS_ORIGIN_OPERATIONS = ['postApiAuthLogin', 'postApiAuthRegister'] as const;
+const GATEWAY_OPERATIONS = ['postInternalGatewayProjectAccess'] as const;
+const ALWAYS_ORIGIN_OPERATIONS = [
+  'postApiAuthLogin',
+  'postApiAuthRegister',
+  'postApiOnboardingJoinRequests',
+  'postApiOnboardingOrganizations',
+] as const;
 const COOKIE_ORIGIN_OPERATIONS = [
   'deleteApiOrganizationMembersByUserId',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
@@ -257,6 +273,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiAuthMe',
   'getApiAuthOktaCallback',
   'getApiExternal-systems',
+  'getApiOnboarding',
   'getApiPeople',
   'getApiProjects',
   'getApiProjectsById',
@@ -275,6 +292,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getMetrics',
   'getPlansBy-solutionBySlug',
   'postInternalForward',
+  'postInternalGatewayProjectAccess',
   'postInternalResume',
 ] as const;
 
@@ -359,6 +377,7 @@ function reachabilityOidcOptions(): NonNullable<AppOptions['oidc']> {
 
 function requestFor(shape: (typeof httpShapes)[number]): Request {
   const path = shape.path
+    .replace(':projectId', ROUTE_ID)
     .replace(':markerId', ROUTE_MARKER_ID)
     .replace(':stepId', ROUTE_ID)
     .replace(':slug', 'route-probe')
@@ -431,6 +450,8 @@ function expectedPolicies(operationId: string): RequestPolicy[] {
     policies.push({ kind: 'identity', require: 'write-scope' });
   if (includesOperation(INTERNAL_OPERATIONS, operationId))
     policies.push({ kind: 'identity', require: 'internal' });
+  if (includesOperation(GATEWAY_OPERATIONS, operationId))
+    policies.push({ kind: 'identity', require: 'gateway-delegation' });
   return policies;
 }
 
@@ -494,6 +515,7 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
     ...READ_SCOPE_OPERATIONS,
     ...WRITE_SCOPE_OPERATIONS,
     ...INTERNAL_OPERATIONS,
+    ...GATEWAY_OPERATIONS,
   ]) {
     const shape = httpShapes.find((candidate) => candidate.operationId === operationId);
     if (shape === undefined) throw new Error(`missing policy fixture: ${operationId}`);
@@ -524,6 +546,7 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
   expect(policyOperations('identity', 'read-scope')).toEqual([...READ_SCOPE_OPERATIONS]);
   expect(policyOperations('identity', 'write-scope')).toEqual([...WRITE_SCOPE_OPERATIONS]);
   expect(policyOperations('identity', 'internal')).toEqual([...INTERNAL_OPERATIONS]);
+  expect(policyOperations('identity', 'gateway-delegation')).toEqual([...GATEWAY_OPERATIONS]);
   expect(policyOperations('origin', 'always')).toEqual([...ALWAYS_ORIGIN_OPERATIONS]);
   expect(policyOperations('origin', 'always-unsafe-with-session-cookie')).toEqual([
     ...COOKIE_ORIGIN_OPERATIONS,
@@ -536,6 +559,7 @@ it('enforces the complete pinned identity and origin policy inventory on the pro
       ...READ_SCOPE_OPERATIONS,
       ...WRITE_SCOPE_OPERATIONS,
       ...INTERNAL_OPERATIONS,
+      ...GATEWAY_OPERATIONS,
     ].sort(),
   ).toEqual(everyOperation);
   expect(
@@ -630,7 +654,11 @@ describe('shared HTTP shape reachability through the production app', () => {
           operationId: shape.operationId,
           boundaryError:
             refusal !== undefined && REQUEST_BOUNDARY_ERRORS.has(refusal) ? refusal : null,
-        }).toEqual({ operationId: shape.operationId, boundaryError: null });
+        }).toEqual({
+          operationId: shape.operationId,
+          boundaryError:
+            shape.operationId === 'postInternalGatewayProjectAccess' ? 'unauthenticated' : null,
+        });
         expect({ operationId: shape.operationId, reply }).not.toEqual({
           operationId: shape.operationId,
           reply: routerMiss,
