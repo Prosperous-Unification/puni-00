@@ -13,6 +13,7 @@ import {
 import type { PriorityBandView } from '@/lib/wbs-api';
 
 import { shortIsoDate } from './short-date';
+import { resolveTypedGanttArrows } from './typed-gantt-arrows';
 
 /**
  * The payload promised something the drawing needs and did not keep it.
@@ -558,6 +559,8 @@ export interface GanttPlan {
    * the edge, and so without anything to count (F3).
    */
   dependencies: readonly DependencyEdge[];
+  /** Authored FS relationships, resolved against the full tree and scheduled slices. */
+  typedDependencies?: readonly TypedChartDependency[];
   /**
    * Every work item of the plan with its parent — the full tree the shown
    * rows were cut from, in tree order.
@@ -617,6 +620,37 @@ export interface GanttPlan {
    * later and reads as slack that is not there.
    */
   depReach: DependencyReach;
+}
+
+/** The endpoint shape the tree read carries into the chart. */
+export interface TypedChartEndpoint {
+  scope: 'whole' | 'node' | 'descendant-step';
+  workItemId: string;
+  stepId?: string;
+}
+
+export interface TypedChartDependency {
+  id: string;
+  type: 'FS';
+  predecessor: TypedChartEndpoint;
+  successor: TypedChartEndpoint;
+}
+
+/** One expanded or grouped authored FS connector. */
+export interface TypedGanttArrow extends GanttDependencyArrow {
+  relationshipId: string;
+  relationshipIds: string[];
+  /** Every authored pair in this connector; highlight membership is independent of its first anchor. */
+  relationshipSlices: {
+    relationshipId: string;
+    predecessorSliceId: string;
+    successorSliceId: string;
+  }[];
+  predecessorSliceId: string;
+  successorSliceId: string;
+  count: number;
+  proxy: boolean;
+  scope: string;
 }
 
 /** A row's label: what the sticky-left column prints, and which row of the chart it belongs to. */
@@ -929,6 +963,8 @@ export interface GanttGeometry {
   bars: GanttBar[];
   brackets: GanttSummaryBracket[];
   arrows: GanttDependencyArrow[];
+  typedArrows: TypedGanttArrow[];
+  internalDependencies: { rowId: string; count: number }[];
   personLinks: GanttPersonLink[];
   capacityLinks: GanttCapacityLink[];
   notBeforeFlags: GanttNotBeforeFlag[];
@@ -1103,6 +1139,9 @@ export interface PlacedArrow {
   fromX: number;
   toRowIndex: number;
   toX: number;
+  /** Slice lane centres, when the endpoints are authored step slices. */
+  fromY?: number;
+  toY?: number;
 }
 
 /** One person's hand-off as it is drawn, in the colour of whoever made it. */
@@ -1157,6 +1196,19 @@ export interface PlacedGantt {
   bars: PlacedBar[];
   brackets: PlacedBracket[];
   arrows: PlacedArrow[];
+  typedArrows: (PlacedArrow &
+    Pick<
+      TypedGanttArrow,
+      | 'relationshipId'
+      | 'relationshipIds'
+      | 'relationshipSlices'
+      | 'predecessorSliceId'
+      | 'successorSliceId'
+      | 'count'
+      | 'proxy'
+      | 'scope'
+    >)[];
+  internalDependencies: { rowId: string; count: number }[];
   personLinks: PlacedPersonLink[];
   capacityLinks: PlacedCapacityLink[];
   notBeforeFlags: PlacedFlag[];
@@ -1205,6 +1257,31 @@ function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset
     toRowIndex: arrow.toRowIndex,
     toX: startOf(arrow.toStart),
   }));
+  const barBySlice = new Map(bars.map((placed) => [placed.bar.sliceId, placed.bar]));
+  const laneMiddle = (sliceId: string): number | undefined => {
+    const bar = barBySlice.get(sliceId);
+    return bar === undefined
+      ? undefined
+      : bar.rowIndex + BAR_INSET + ((bar.lane + 0.5) * BAR_HEIGHT) / bar.lanes;
+  };
+  const typedArrows = chart.typedArrows.map((arrow) => ({
+    predecessorId: arrow.predecessorId,
+    successorId: arrow.successorId,
+    fromRowIndex: arrow.fromRowIndex,
+    fromX: stopOf(arrow.fromStart, arrow.fromFinish),
+    toRowIndex: arrow.toRowIndex,
+    toX: startOf(arrow.toStart),
+    fromY: laneMiddle(arrow.predecessorSliceId),
+    toY: laneMiddle(arrow.successorSliceId),
+    relationshipId: arrow.relationshipId,
+    relationshipIds: arrow.relationshipIds,
+    relationshipSlices: arrow.relationshipSlices,
+    predecessorSliceId: arrow.predecessorSliceId,
+    successorSliceId: arrow.successorSliceId,
+    count: arrow.count,
+    proxy: arrow.proxy,
+    scope: arrow.scope,
+  }));
   const personLinks = chart.personLinks.map((link) => ({
     fromSliceId: link.fromSliceId,
     toSliceId: link.toSliceId,
@@ -1236,6 +1313,7 @@ function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset
   for (const placed of bars) horizon = Math.max(horizon, placed.x + placed.width);
   for (const bracket of brackets) horizon = Math.max(horizon, bracket.to);
   for (const arrow of arrows) horizon = Math.max(horizon, arrow.fromX, arrow.toX);
+  for (const arrow of typedArrows) horizon = Math.max(horizon, arrow.fromX, arrow.toX);
   for (const flag of notBeforeFlags) horizon = Math.max(horizon, flag.x);
 
   return {
@@ -1243,6 +1321,8 @@ function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset
     bars,
     brackets,
     arrows,
+    typedArrows,
+    internalDependencies: chart.internalDependencies,
     personLinks,
     capacityLinks,
     notBeforeFlags,
@@ -1290,6 +1370,9 @@ export function placeOnWorkdays(chart: GanttGeometry): PlacedGantt {
  * up on different heights.
  */
 export const ROW_MIDDLE = 0.5;
+/** Vertical inset shared by painted bars and their routing rectangles. */
+export const BAR_INSET = 0.18;
+const BAR_HEIGHT = 1 - 2 * BAR_INSET;
 
 /** A corner of a dependency arrow's route: `x` in the placed unit, `y` in rows. */
 export interface ArrowPoint {
@@ -1327,8 +1410,13 @@ interface BarRect {
 const rectOf = (placed: PlacedBar, barInset: number): BarRect => ({
   left: placed.x,
   right: placed.x + placed.width,
-  top: placed.bar.rowIndex + barInset,
-  bottom: placed.bar.rowIndex + 1 - barInset,
+  // Proof: a full-row obstacle made `routes from a lane without crossing the
+  // middle unknown placeholder` report a crossing through A-two. Watched 2026-09-28.
+  top: placed.bar.rowIndex + barInset + (placed.bar.lane * (1 - 2 * barInset)) / placed.bar.lanes,
+  bottom:
+    placed.bar.rowIndex +
+    barInset +
+    ((placed.bar.lane + 1) * (1 - 2 * barInset)) / placed.bar.lanes,
 });
 
 /**
@@ -1385,9 +1473,9 @@ const frameOf = (arrow: PlacedArrow, clearance: ArrowClearance): ArrowFrame => {
   const bandFrom = descending ? arrow.fromRowIndex + 1 - band : arrow.fromRowIndex + band;
   return {
     fromX: arrow.fromX,
-    fromY: arrow.fromRowIndex + ROW_MIDDLE,
+    fromY: arrow.fromY ?? arrow.fromRowIndex + ROW_MIDDLE,
     toX: arrow.toX,
-    toY: arrow.toRowIndex + ROW_MIDDLE,
+    toY: arrow.toY ?? arrow.toRowIndex + ROW_MIDDLE,
     turn: arrow.toX - clearance.approach,
     bandFrom,
     bandTo:
@@ -1437,13 +1525,25 @@ const bandedThrough = (frame: ArrowFrame, exit: number, column: number): ArrowPo
     { x: frame.toX, y: frame.toY },
   ]);
 
+/** Enter a later step down its left boundary, where the row gap is still clear. */
+const bandedToBoundary = (frame: ArrowFrame, exit: number, column: number): ArrowPoint[] =>
+  trimmed([
+    { x: frame.fromX, y: frame.fromY },
+    { x: exit, y: frame.fromY },
+    { x: exit, y: frame.bandFrom },
+    { x: column, y: frame.bandFrom },
+    { x: column, y: frame.bandTo },
+    { x: frame.toX, y: frame.bandTo },
+    { x: frame.toX, y: frame.toY },
+  ]);
+
 /**
  * The corners one dependency arrow is drawn through: out of the predecessor's
- * anchor, across, and into the successor's left edge from outside it — through
- * the inside of no bar on the way.
+ * anchor, across, and into the successor's left edge from outside it. Checked
+ * candidates pass through the inside of no bar on the way.
  *
- * **The invariant.** No run of the returned route passes through the interior
- * of any bar in `bars`, the two the arrow joins included; it touches those two
+ * **The candidate invariant.** No run of a checked route passes through the
+ * interior of any bar in `bars`, the two the arrow joins included; it touches those two
  * only on the edge it leaves and the edge it arrives at. That is the whole of
  * this function: the route it hands back was drawn by the panel in three points
  * for years, and three points is only clear when nothing happens to stand under
@@ -1456,29 +1556,38 @@ const bandedThrough = (frame: ArrowFrame, exit: number, column: number): ArrowPo
  * **How.** Candidate columns, nearest the ideal turn first: the turn itself,
  * and one approach clear of either edge of every bar on the rows the route may
  * cross. Each is tried as a plain elbow (when there is room to turn at it),
- * then as a banded route stepping out past the predecessor, then as a banded
- * route leaving on the predecessor's own edge — the last for a predecessor
- * whose row holds another bar right against it, which is a real shape since
- * `dep-waits-on-first-role` made the arrow leave a **middle** slice.
+ * then as a banded route stepping out past the predecessor, leaving on its own
+ * edge, or leaving beyond a bar on its row. Typed arrows try both bands beside
+ * the source row; legacy arrows keep their original source-side band.
  *
- * **Why it always has an answer.** The last candidate is a column left of every
- * bar on those rows, and the banded route through it crosses bars nowhere: the
- * bands are air by construction, the column is clear of every rectangle, the
- * run into the successor's row descends at one approach left of its start, and
- * no bar on a row starts before that row's own earliest start. The one shape
- * that defeats it is an arrow whose **start** is already strictly inside
- * another bar of its own row — two slices of one row overlapping — which no
- * route can leave without crossing; the banded fallback is returned as it
- * stands rather than a route being searched for that cannot exist.
+ * A legacy arrow with no clear candidate retains the older banded route from
+ * its source edge around the leftmost column. A typed arrow has no such
+ * unchecked fallback: impossible overlapping drawings return `null` so the
+ * chart can disclose an undrawn dependency without losing the rest of the chart.
  *
- * `bars` is what the panel actually paints, which since `gantt-declutter` is
- * the estimated ones: a bar nothing draws is not something to dodge.
+ * `boundaryEntry` adds an arrival down the target's left edge from the row
+ * gap. Typed arrows use it when a preceding contiguous step fills the normal
+ * horizontal approach. `bars` is what the panel actually paints, including
+ * visible unknown placeholders when detail is open.
  */
 export function routeArrow(
   arrow: PlacedArrow,
   bars: readonly PlacedBar[],
   clearance: ArrowClearance,
-): ArrowPoint[] {
+  options: { boundaryEntry: true },
+): ArrowPoint[] | null;
+export function routeArrow(
+  arrow: PlacedArrow,
+  bars: readonly PlacedBar[],
+  clearance: ArrowClearance,
+  options?: { boundaryEntry?: false },
+): ArrowPoint[];
+export function routeArrow(
+  arrow: PlacedArrow,
+  bars: readonly PlacedBar[],
+  clearance: ArrowClearance,
+  options: { boundaryEntry?: boolean } = {},
+): ArrowPoint[] | null {
   const frame = frameOf(arrow, clearance);
   const firstRow = Math.min(arrow.fromRowIndex, arrow.toRowIndex);
   const lastRow = Math.max(arrow.fromRowIndex, arrow.toRowIndex);
@@ -1510,6 +1619,12 @@ export function routeArrow(
   const ordered = [...new Set(columns)].sort(
     (one, other) => Math.abs(one - frame.turn) - Math.abs(other - frame.turn),
   );
+  const exits = [arrow.fromX + clearance.approach, arrow.fromX];
+  for (const placed of bars) {
+    if (placed.bar.rowIndex === arrow.fromRowIndex) {
+      exits.push(placed.x + placed.width + clearance.approach);
+    }
+  }
 
   for (const column of ordered) {
     // Room to turn at this column: one approach out of the predecessor and one
@@ -1520,13 +1635,38 @@ export function routeArrow(
       const elbow = elbowThrough(frame, column);
       if (isClear(elbow)) return elbow;
     }
-    for (const exit of [arrow.fromX + clearance.approach, arrow.fromX]) {
-      const banded = bandedThrough(frame, exit, column);
-      if (isClear(banded)) return banded;
+    // Proof: removing the opposite source band made `routes a reversed typed
+    // lane below its contiguous next step` receive null. Watched 2026-09-28.
+    const sourceBands = options.boundaryEntry
+      ? [
+          frame.bandFrom,
+          arrow.fromRowIndex +
+            (frame.bandFrom < arrow.fromRowIndex + ROW_MIDDLE
+              ? 1 - clearance.barInset / 2
+              : clearance.barInset / 2),
+        ]
+      : [frame.bandFrom];
+    for (const bandFrom of [...new Set(sourceBands)]) {
+      for (const exit of [...new Set(exits)]) {
+        const candidateFrame = { ...frame, bandFrom };
+        const banded = bandedThrough(candidateFrame, exit, column);
+        if (isClear(banded)) return banded;
+        // Proof: without this candidate, `enters a later contiguous target at
+        // its boundary without crossing either bar` found two segments inside
+        // B-dev. Watched 2026-09-28.
+        if (options.boundaryEntry) {
+          const boundary = bandedToBoundary(candidateFrame, exit, column);
+          if (isClear(boundary)) return boundary;
+        }
+      }
     }
   }
 
-  return bandedThrough(frame, arrow.fromX, clearOfEverything);
+  const legacyRoute = bandedThrough(frame, arrow.fromX, clearOfEverything);
+  if (isClear(legacyRoute) || !options.boundaryEntry) return legacyRoute;
+  // Proof: restoring the unchecked fallback made the reversed-row rendered
+  // lane test cross A-one. Watched 2026-09-28.
+  return null;
 }
 
 /**
@@ -2226,6 +2366,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
     });
   }
 
+  const typed = resolveTypedGanttArrows(plan);
   let horizon = 1;
   // Both ends of every bar: where the engine finishes it, and where the drawing
   // does. They differ on an unestimated slice, which finishes where it starts
@@ -2236,6 +2377,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
   for (const bar of bars) horizon = Math.max(horizon, bar.finish, bar.start + bar.drawnSpan);
   for (const bracket of brackets) horizon = Math.max(horizon, bracket.finish);
   for (const arrow of arrows) horizon = Math.max(horizon, arrow.fromFinish, arrow.toStart);
+  for (const arrow of typed.arrows) horizon = Math.max(horizon, arrow.fromFinish, arrow.toStart);
   for (const flag of notBeforeFlags) horizon = Math.max(horizon, flag.offset);
 
   return {
@@ -2243,6 +2385,8 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
     bars: withPlaceholderLanes(bars),
     brackets,
     arrows,
+    typedArrows: typed.arrows,
+    internalDependencies: typed.internalDependencies,
     personLinks,
     capacityLinks,
     notBeforeFlags,

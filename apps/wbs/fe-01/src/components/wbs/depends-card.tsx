@@ -103,6 +103,8 @@ export interface DependsCardProps {
   number: string;
   /** At least one: a cell with nothing in it opens no card. */
   entries: readonly DependsEntry[];
+  /** Authored relationships remain inspectable and editable without hovering their clipped chips. */
+  typedEntries?: readonly { id: string; label: string; onEdit: () => void; onRemove: () => void }[];
   /**
    * The entry whose pill the pointer is on, or null while the pointer is on
    * the cell's input area — where the whole list is the answer and no line is
@@ -152,12 +154,14 @@ export interface DependsCardProps {
 export function DependsCard({
   number,
   entries,
+  typedEntries = [],
   depLights,
   rowId,
   onPointEntry,
   onPointerOutside,
 }: DependsCardProps) {
   const emphasisedId = useSyncExternalStore(depLights.subscribe, () => depLights.pillFor(rowId));
+  const activeTypedId = useSyncExternalStore(depLights.subscribe, depLights.activeTypedId);
   const targets = useRef(new Map<string, HTMLDivElement>());
 
   useEffect(() => {
@@ -220,15 +224,32 @@ export function DependsCard({
         const target = targets.current.get(entry.id);
         return target === undefined ? [] : [{ id: entry.id, rect: target.getBoundingClientRect() }];
       });
+      // Proof: removing typed-row registration made `keeps typed Edit and Remove
+      // clickable while the pointer crosses the card` miss onPointEntry(null),
+      // and `keeps a typed entry interactive and tracks a real pointer move
+      // through the card` read null instead of edge; watched 2026-09-28.
+      const typedRows = typedEntries.flatMap((dependency) => {
+        const target = targets.current.get(`typed:${dependency.id}`);
+        return target === undefined
+          ? []
+          : [{ id: `typed:${dependency.id}`, rect: target.getBoundingClientRect() }];
+      });
       const region = dependencyPointerRegion(
         { x: event.clientX, y: event.clientY },
         owner.getBoundingClientRect(),
-        rows,
+        [...rows, ...typedRows],
         cardRectOf(first),
       );
       if (region.kind === 'owner') onPointEntry(null);
-      else if (region.kind === 'row') onPointEntry(region.id);
-      else if (region.kind === 'outside') onPointerOutside();
+      else if (region.kind === 'row') {
+        if (region.id.startsWith('typed:')) {
+          onPointEntry(null);
+          // Proof: disabling this publication made `keeps typed Edit and Remove
+          // clickable while the pointer crosses the card` receive null instead
+          // of `typed` from activeTypedId(); watched 2026-09-28.
+          depLights.updateHover(() => ({ rowId, pillId: region.id.slice('typed:'.length) }));
+        } else onPointEntry(region.id);
+      } else if (region.kind === 'outside') onPointerOutside();
     };
     document.addEventListener('pointermove', move, { passive: true });
     document.addEventListener('pointercancel', clear, { passive: true });
@@ -240,7 +261,7 @@ export function DependsCard({
       window.removeEventListener('scroll', clear, true);
       window.removeEventListener('resize', clear);
     };
-  }, [entries, onPointEntry, onPointerOutside]);
+  }, [entries, typedEntries, depLights, rowId, onPointEntry, onPointerOutside]);
 
   return (
     // **Beside its cell, not under it**, which is the links card's scheme and
@@ -260,6 +281,67 @@ export function DependsCard({
     // (no Depends on cell but this card's own is under it now), and the
     // corridor's bounding box (see {@link dependencyPointerRegion}).
     <HoverCard label={`What ${number} waits for`}>
+      {typedEntries.map((dependency) => (
+        <div
+          key={dependency.id}
+          ref={(target) => {
+            if (target === null) targets.current.delete(`typed:${dependency.id}`);
+            else targets.current.set(`typed:${dependency.id}`, target);
+          }}
+          className="typed-dependency-card-entry"
+          // One line of the card like a legacy entry, so a count of the card's
+          // lines reads both kinds.
+          // Proof: removing it made `keeps typed Edit and Remove clickable while
+          // the pointer crosses the card` read null. Watched 2026-09-28.
+          data-depends-card-target={`typed:${dependency.id}`}
+          role="group"
+          aria-label={dependency.label}
+          // Proof: disconnecting this read made `syncs typed entry hover and
+          // focus with the shared relationship light` receive null instead
+          // of "true" after an external light update. Watched 2026-09-28.
+          data-dependency-lit={activeTypedId === dependency.id ? 'true' : undefined}
+          // Proof: without pointerEvents auto, `keeps a typed entry interactive
+          // and tracks a real pointer move through the card` received an empty
+          // computed style, and `keeps typed Edit and Remove clickable while the
+          // pointer crosses the card` read an empty inline style. Watched 2026-09-28.
+          style={{
+            pointerEvents: 'auto',
+            ...(activeTypedId === dependency.id ? { background: 'var(--card-dep-lit)' } : {}),
+          }}
+          // Proof: without this publication, `syncs typed entry hover and focus
+          // with the shared relationship light` read null after pointer enter.
+          // Watched 2026-09-28.
+          onPointerEnter={() => {
+            depLights.updateHover(() => ({ rowId, pillId: dependency.id }));
+          }}
+          onPointerLeave={() => {
+            depLights.updateHover((current) =>
+              current?.pillId === dependency.id ? null : current,
+            );
+          }}
+          onFocus={() => {
+            depLights.updateFocus(() => ({ rowId, pillId: dependency.id }));
+          }}
+          onBlur={(event) => {
+            if (event.currentTarget.contains(event.relatedTarget)) return;
+            depLights.updateFocus((current) =>
+              current?.pillId === dependency.id ? null : current,
+            );
+          }}
+        >
+          <span>{dependency.label}</span>
+          <button type="button" onClick={dependency.onEdit} aria-label={`Edit ${dependency.label}`}>
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={dependency.onRemove}
+            aria-label={`Remove ${dependency.label}`}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
       {entries.map((entry) => (
         <div
           key={entry.id}

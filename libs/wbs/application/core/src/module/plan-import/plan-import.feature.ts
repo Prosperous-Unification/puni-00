@@ -472,6 +472,37 @@ export class ImportService {
         removedMeasures: [],
       };
       await scope.stores.subtrees.insertSubtree(subtree, stamp);
+      for (const relationship of prepared.typedDependencies) {
+        const remapEndpoint = (endpoint: typeof relationship.predecessor) =>
+          endpoint.scope === 'whole'
+            ? {
+                scope: 'whole' as const,
+                workItemId: resolvedId(
+                  rowsByFileId,
+                  endpoint.workItemId,
+                  'typed dependency work item',
+                ),
+              }
+            : {
+                scope: endpoint.scope,
+                workItemId: resolvedId(
+                  rowsByFileId,
+                  endpoint.workItemId,
+                  'typed dependency work item',
+                ),
+                stepId: resolvedId(stepsByFileId, endpoint.stepId, 'typed dependency step'),
+              };
+        await scope.stores.typedDependencies.add(
+          {
+            id: this.opts.clock.newId(),
+            projectId,
+            predecessor: remapEndpoint(relationship.predecessor),
+            successor: remapEndpoint(relationship.successor),
+            type: relationship.type,
+          },
+          stamp,
+        );
+      }
       for (const [at, row] of prepared.workItems.entries()) {
         const written = await scope.stores.workItems.patch(
           resolvedId(rowsByFileId, row.fileId, 'labelled work item'),

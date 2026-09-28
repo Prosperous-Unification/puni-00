@@ -29,6 +29,7 @@ const PROJECT: Project = {
 };
 
 const TREE: WorkItemTree = {
+  typedDependencies: [],
   workItems: [
     {
       id: 'row-1',
@@ -229,6 +230,14 @@ async function exportDocument(tree: WorkItemTree = TREE): Promise<PlanDocument> 
   return exported.value;
 }
 
+async function exportError(tree: WorkItemTree): Promise<string> {
+  const outcome = await service()
+    .export(PROJECT, tree, LEGACY_ACCESS)
+    .catch((caught: unknown) => caught);
+  if (!(outcome instanceof Error)) throw new Error('malformed tree did not throw');
+  return outcome.message;
+}
+
 test('preserves the existing JSON export fields', async () => {
   const exported = await exportDocument();
   const {
@@ -251,7 +260,7 @@ test('JSON export is a versioned plan document and settings says what project sa
   expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
   expect(exported.document).toEqual({
     format: 'wbs-plan',
-    version: 3,
+    version: 4,
     exportedAt: '2026-09-13T12:30:00.000Z',
   });
   expect(exported.settings).toEqual({
@@ -320,7 +329,7 @@ test('malformed priority names workItems[3].priority', async () => {
 
 test('unknown version precedes version-specific validation', async () => {
   const future = structuredClone(await exportDocument());
-  Reflect.set(future.document, 'version', 4);
+  Reflect.set(future.document, 'version', 5);
   const row = future.workItems[0];
   future.workItems = Array.from({ length: 4 }, () => structuredClone(row));
   Reflect.set(future.workItems[3] ?? {}, 'priority', 'high');
@@ -328,6 +337,16 @@ test('unknown version precedes version-specific validation', async () => {
     ok: false,
     code: 'unsupported_version',
     path: 'document.version',
+  });
+});
+
+test('refuses a version-4 document without its typed dependency list', async () => {
+  const missing = structuredClone(await exportDocument());
+  Reflect.deleteProperty(missing, 'typedDependencies');
+  expect(await classifyPlanDocument(missing)).toEqual({
+    ok: false,
+    code: 'invalid_typed_dependency',
+    path: 'typedDependencies',
   });
 });
 
@@ -424,6 +443,38 @@ test('throws on a step read without a code key', async () => {
     .catch((caught: unknown) => caught);
   expect(cause).toBeInstanceOf(Error);
   expect((cause as Error).message).toContain('was read without a code');
+});
+
+test('throws when the trusted tree omits typed dependencies', async () => {
+  const missing = structuredClone(TREE);
+  Reflect.deleteProperty(missing, 'typedDependencies');
+  expect(await exportError(missing)).toContain('without typed dependencies');
+});
+
+test('throws when a trusted typed endpoint has no step', async () => {
+  const incomplete = structuredClone(TREE);
+  incomplete.typedDependencies = [
+    {
+      id: 'link',
+      predecessor: { scope: 'node', workItemId: 'row-1' },
+      successor: { scope: 'whole', workItemId: 'row-1' },
+      type: 'FS',
+    },
+  ];
+  expect(await exportError(incomplete)).toContain('has no step');
+});
+
+test('throws when a trusted typed relationship has an unknown type', async () => {
+  const malformed = structuredClone(TREE);
+  malformed.typedDependencies = [
+    {
+      id: 'link',
+      predecessor: { scope: 'whole', workItemId: 'row-1' },
+      successor: { scope: 'whole', workItemId: 'row-1' },
+      type: 'SS',
+    },
+  ];
+  expect(await exportError(malformed)).toContain('unknown typed dependency type');
 });
 
 /** Proof: see `classifyPlanDocument`. */

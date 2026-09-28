@@ -508,6 +508,30 @@ export interface StepView {
   allowancePercent: number;
 }
 
+/** A scope chosen for one end of an authored FS relationship. */
+export type TypedDependencyEndpoint =
+  | { scope: 'whole'; workItemId: string }
+  | { scope: 'node'; stepNodeId: string }
+  | { scope: 'descendant-step'; workItemId: string; stepId: string };
+
+/** The explicit relationship returned by a project tree read. */
+export interface TypedDependencyView {
+  id: string;
+  predecessor: {
+    scope: 'whole' | 'node' | 'descendant-step';
+    workItemId: string;
+    stepId?: string;
+    stepNodeId?: string;
+  };
+  successor: {
+    scope: 'whole' | 'node' | 'descendant-step';
+    workItemId: string;
+    stepId?: string;
+    stepNodeId?: string;
+  };
+  type: string;
+}
+
 /**
  * One step as be-01 sent it, read into a {@link StepView}.
  *
@@ -1319,6 +1343,7 @@ export interface PlanRead extends Omit<
   'workItems' | 'slices' | 'steps' | 'waitingForPerson' | 'waitingForCapacity'
 > {
   workItems: WorkItemView[];
+  typedDependencies?: TypedDependencyView[];
   slices: SliceView[];
   /**
    * The steps the slices above were placed under, in the engine's own order.
@@ -1770,6 +1795,18 @@ export interface ProjectApi {
    */
   addDependency(id: string, predecessorId: string): Promise<void>;
   removeDependency(id: string, predecessorId: string): Promise<void>;
+  addTypedDependency(
+    projectId: string,
+    predecessor: TypedDependencyEndpoint,
+    successor: TypedDependencyEndpoint,
+  ): Promise<void>;
+  updateTypedDependency(
+    projectId: string,
+    dependencyId: string,
+    predecessor: TypedDependencyEndpoint,
+    successor: TypedDependencyEndpoint,
+  ): Promise<void>;
+  removeTypedDependency(projectId: string, dependencyId: string): Promise<void>;
 }
 
 const WBS_SHAPES = [
@@ -1922,6 +1959,9 @@ export const STEP_REFUSALS: RefusalWords = {
     taken: 'That name is already a step on this plan.',
     name_required: 'A step needs a name.',
     invalid_allowance: 'Invalid allowance. Enter 0–1000 with at most two decimal places.',
+    // Proof: without this sentence, `says why an allowance past the calendar was
+    // refused` (steps-panel.test.tsx) found no sentence; watched 2026-09-28.
+    calendar_range: 'That allowance would push the plan past the last date the calendar supports.',
     in_use: 'That step still holds estimates or assignments on this plan.',
     unknown_step: 'That step is no longer on this plan — somebody else removed it.',
     not_found: 'That step is no longer on this plan.',
@@ -2477,6 +2517,7 @@ export function httpProjectApi(token: string): ProjectApi {
       );
       const plan: PlanRead = {
         ...tree,
+        typedDependencies: tree.typedDependencies ?? [],
         steps: tree.steps.map(stepViewOf),
         workItems: tree.workItems.map((row) => ({
           ...row,
@@ -2770,6 +2811,21 @@ export function httpProjectApi(token: string): ProjectApi {
     },
     async removeDependency(id, predecessorId) {
       await onRow(id, { kind: 'removeDependency', workItemId: id, predecessorId });
+    },
+    async addTypedDependency(projectId, predecessor, successor) {
+      await command(projectId, { kind: 'addTypedDependency', predecessor, successor, type: 'FS' });
+    },
+    async updateTypedDependency(projectId, dependencyId, predecessor, successor) {
+      await command(projectId, {
+        kind: 'updateTypedDependency',
+        dependencyId,
+        predecessor,
+        successor,
+        type: 'FS',
+      });
+    },
+    async removeTypedDependency(projectId, dependencyId) {
+      await command(projectId, { kind: 'removeTypedDependency', dependencyId });
     },
   };
 }

@@ -226,6 +226,7 @@ export function mountedEndpoints(
     batchServices: opts.writes.batch,
     publicServices: {
       workItems: opts.workItems,
+      steps: opts.steps,
       directory: opts.directory,
       capacity: opts.capacity,
       priorityBands: opts.priorityBands,

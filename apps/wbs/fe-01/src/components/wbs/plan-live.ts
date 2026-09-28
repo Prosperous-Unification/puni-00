@@ -43,8 +43,14 @@ export interface PlanLiveValues {
   setDropHint: React.Dispatch<React.SetStateAction<DropHint | null>>;
   dependOn: (successorId: string, typed: string) => void;
   setDepPicker: React.Dispatch<
-    React.SetStateAction<{ rowId: string; typed: string; highlightId: string | null } | null>
+    React.SetStateAction<{
+      rowId: string;
+      typed: string;
+      highlightId: string | null;
+      stepId?: string;
+    } | null>
   >;
+  openStepDependency: (rowId: string, stepId: string) => void;
   depLights: DepLights;
   setOpenMenuRowId: React.Dispatch<React.SetStateAction<string | null>>;
   depEntriesFor: (

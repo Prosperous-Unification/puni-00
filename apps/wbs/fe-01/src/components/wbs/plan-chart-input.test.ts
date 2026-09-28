@@ -1,7 +1,21 @@
 import { addWorkdays } from '@wbs/domain/workday';
 import { describe, expect, it } from 'vitest';
 
-import { factEndStopOf, notBeforeOffsetOf } from './plan-chart-input';
+import { GanttDataError } from './gantt-geometry';
+import { chartTypedDependencies, factEndStopOf, notBeforeOffsetOf } from './plan-chart-input';
+
+it('refuses an unknown typed chart relationship', () => {
+  expect(() =>
+    chartTypedDependencies([
+      {
+        id: 'future',
+        type: 'SS',
+        predecessor: { scope: 'whole', workItemId: 'A' },
+        successor: { scope: 'whole', workItemId: 'B' },
+      },
+    ]),
+  ).toThrow(GanttDataError);
+});
 
 /** A Monday, so the weekend cases below have one to roll over. */
 const START = '2026-08-10';

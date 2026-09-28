@@ -2,21 +2,23 @@ import { addStep, removeStep, renameStep } from '@wbs/contracts';
 import { allowancePercentOf, NO_ALLOWANCE } from '@wbs/domain';
 
 import type { PlanCommandRunner } from '../module/plan-commands/plan-commands.feature';
-import { runCommandBatch } from '../module/plan-commands/run-command-batch';
-import type { OrganizationAccess } from '../ports/organization-access';
-import type { ResourceAccess } from '../ports/organization-access';
+import { runCommandBatchAfter } from '../module/plan-commands/run-command-batch';
+import type { OrganizationAccess, ResourceAccess } from '../ports/organization-access';
 import type { Step } from '../ports/step-store';
 import type { StepOutcome, StepService } from '../service/step.service';
 import { bind, EMPTY, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 import { type RecoveryWriteBoundary, runRecoveryWrite } from './recovery-write';
 
+/** The replies an add and a rename both declare. */
+type NamedReply = Extract<HttpReply<typeof renameStep>, HttpReply<typeof addStep>>;
+
 /** Keeps each named-step domain refusal paired with its existing wire status. */
 function namedReply(
   outcome:
     | { ok: true; value: Step }
     | { ok: false; reason: 'not_found' | 'forbidden' | 'taken' | 'name_required' },
-): HttpReply<typeof renameStep> {
+): NamedReply {
   if (outcome.ok) return { ok: true, status: 200, body: { step: outcome.value } };
   switch (outcome.reason) {
     case 'not_found':
@@ -67,14 +69,14 @@ function renamedReply(outcome: StepOutcome): HttpReply<typeof renameStep> {
  * `refuses an unbound session and a removed member before any lookup` in
  * `step-marker-organization.controller.db.test.ts`; watched 2026-09-27.
  *
- * An allowance-only edit runs the `setStepAllowance` command through `commands`.
- * A combined name and allowance edit invokes the same WorkItemService operation
- * inside its shared step unit of work, preserving the allowance's journal entry
- * and one undo while settling the rename and allowance together.
+ * An allowance edit is not StepService's: it runs as the `setStepAllowance`
+ * command through `commands`, so HTTP, a command batch and MCP share one
+ * journalled mutation and one undo. A rename sent with it is that batch's
+ * prelude and settles with it; the rename itself is not journalled.
  */
 export function stepRoutes(
   steps: Pick<StepService, 'addWithin' | 'findWithin' | 'removeWithin' | 'renameWithin'>,
-  commands: Pick<PlanCommandRunner, 'runWithin' | 'runDirectoryWithin'>,
+  commands: Pick<PlanCommandRunner, 'runAfterWithin'>,
   organizations: OrganizationAccess,
   recovery?: RecoveryWriteBoundary,
 ) {
@@ -159,98 +161,51 @@ export function stepRoutes(
           ),
         );
       }
-      // Proof (2026-09-28): bypassing this combined branch made scoped recovery
-      // answer 403; the legacy failure kept its rename after the allowance
-      // abort. Both focused mounted tests failed, then passed on restore.
-      if (body.name !== undefined) {
-        // Proof (2026-09-28): bypassing this dependency check made `combined
-        // step patch refuses a missing unit of work boundary` throw an
-        // untyped nullish error instead of naming the missing boundary.
-        if (recovery === undefined) throw new Error('combined step write has no recovery boundary');
-        const name = body.name;
-        const patched = await runRecoveryWrite(
-          recovery,
-          resolved.access,
-          params.id,
-          principal.id,
-          { step: 'rename' },
-          async (services): Promise<StepOutcome> => {
-            const renamed = await services.steps.renameWithin(
-              params.id,
-              params.stepId,
-              principal.id,
-              name,
-              resolved.access,
-            );
-            // Proof (2026-09-28): continuing after a duplicate-name refusal
-            // made the mounted combined PATCH answer 200 instead of 409.
-            if (!renamed.ok) return renamed;
-            const allowed = await services.workItems.setStepAllowance(
-              params.id,
-              principal.id,
-              params.stepId,
-              allowance,
-            );
-            // Proof (2026-09-28): ignoring a modeled allowance refusal made
-            // `combined step patch refuses a modeled allowance failure after
-            // rename and discards its event` answer 200 instead of 403.
-            if (!allowed.ok) {
-              // Proof (2026-09-28): accepting an injected unmodelled reason
-              // made that test resolve instead of rejecting with the reason.
-              if (allowed.reason === 'not_found' || allowed.reason === 'forbidden')
-                return { ok: false, reason: allowed.reason };
-              throw new Error(
-                `setStepAllowance refused with an unmodelled reason: ${allowed.reason}`,
-              );
-            }
-            // The same calendar preflight the command batch runs after a
-            // `setStepAllowance`: a plan pushed past the calendar is refused
-            // as the allowance-only path refuses it, rolling back the rename
-            // and the allowance with the unit of work.
-            // Proof (2026-09-28): skipping this preflight made `combined step
-            // patch refuses an allowance that pushes the plan past the
-            // calendar` resolve instead of rejecting with `calendar_range`.
-            const tree = await services.workItems.tree(params.id);
-            if (tree === null)
-              throw new Error(`Project ${params.id} disappeared inside its step write`);
-            if (!('kind' in tree) && tree.scheduleError === 'calendar_range')
-              throw new Error('setStepAllowance refused with an unmodelled reason: calendar_range');
-            return services.steps.findWithin(
-              params.id,
-              params.stepId,
-              principal.id,
-              resolved.access,
-            );
-          },
-          (reason): StepOutcome => ({ ok: false, reason }),
-        );
-        return renamedReply(patched);
-      }
-      // The project, the step and the caller's role are checked here first,
-      // through the caller's access, before the rename or the command writes
-      // anything; the command batch then holds itself to the same access.
-      // Proof: skipping this check made `refuses an allowance edit of a foreign
-      // step or project, changing nothing` in
-      // `step-marker-organization.controller.db.test.ts` change B's step
-      // allowance from 0 to 25 before the command batch was scoped; since it
-      // is, the same fault answers 500 instead of 404 for B's step under A's
-      // project, the batch's `unknown_step` being no reply this route models;
-      // watched 2026-09-27.
-      const admitted = await steps.findWithin(
-        params.id,
-        params.stepId,
-        principal.id,
-        resolved.access,
+      const { name } = body;
+      // The rename is the batch's prelude, so a refused allowance takes it back
+      // and a refused rename writes no allowance: one edit, all or nothing.
+      // Proof: renaming through `steps` before the batch, as this route did,
+      // kept the name `Review` in `takes back the rename sent in the same edit`
+      // (step-allowance-edit.controller.db.test.ts); watched 2026-09-28.
+      const outcome = await runCommandBatchAfter(
+        commands,
+        {
+          projectId: params.id,
+          actor: principal,
+          commands: [
+            { kind: 'setStepAllowance', stepId: params.stepId, allowancePercent: allowance },
+          ],
+          access: resolved.access,
+        },
+        async (graph) => {
+          // The step is checked through the batch's own graph, inside its unit
+          // of work: after activation that graph carries the grant the unit of
+          // work admitted, so a super-admin's audited recovery reaches the step
+          // as the batch does, and a step of another project is `not_found`
+          // before anything is written.
+          // Proof: skipping this check made `refuses an allowance edit of a
+          // foreign step or project, changing nothing` in
+          // `step-marker-organization.controller.db.test.ts` fail (16 pass,
+          // 1 fail); watched 2026-09-28 after the check moved into the prelude.
+          const found = await graph.steps.findWithin(
+            params.id,
+            params.stepId,
+            principal.id,
+            resolved.access,
+          );
+          if (!found.ok) return found;
+          if (name === undefined) return null;
+          const renamed = await graph.steps.renameWithin(
+            params.id,
+            params.stepId,
+            principal.id,
+            name,
+            resolved.access,
+          );
+          return renamed.ok ? null : renamed;
+        },
       );
-      if (!admitted.ok) return renamedReply(admitted);
-      const outcome = await runCommandBatch(commands, {
-        projectId: params.id,
-        actor: principal,
-        commands: [
-          { kind: 'setStepAllowance', stepId: params.stepId, allowancePercent: allowance },
-        ],
-        access: resolved.access,
-      });
+      if ('prelude' in outcome) return renamedReply(outcome.prelude);
       // The shape's write-scope policy refused this before the handler ran.
       if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
       if ('refusal' in outcome) {
@@ -259,11 +214,21 @@ export function stepRoutes(
           : { ok: false, status: 403, body: { error: 'forbidden' } };
       }
       if (!outcome.ok) {
-        if (outcome.reason === 'forbidden')
-          return { ok: false, status: 403, body: { error: 'forbidden' } };
-        if (outcome.reason === 'not_found')
-          return { ok: false, status: 404, body: { error: 'not_found' } };
-        throw new Error(`setStepAllowance refused with an unmodelled reason: ${outcome.reason}`);
+        switch (outcome.reason) {
+          case 'forbidden':
+            return { ok: false, status: 403, body: { error: 'forbidden' } };
+          case 'not_found':
+            return { ok: false, status: 404, body: { error: 'not_found' } };
+          // Proof: with this case removed, `is a typed 422 over HTTP and in a
+          // batch, and changes nothing` (step-allowance-edit.controller.db.test.ts)
+          // answered 500 instead of 422; watched 2026-09-28.
+          case 'calendar_range':
+            return { ok: false, status: 422, body: { error: 'calendar_range' } };
+          default:
+            throw new Error(
+              `setStepAllowance refused with an unmodelled reason: ${outcome.reason}`,
+            );
+        }
       }
       return renamedReply(
         await steps.findWithin(params.id, params.stepId, principal.id, resolved.access),

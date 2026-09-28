@@ -226,6 +226,9 @@ const PROJECT_API_OPERATIONS = {
   unfreezeWorkItem: 'postApiProjectsByIdCommands',
   addDependency: 'postApiProjectsByIdCommands',
   removeDependency: 'postApiProjectsByIdCommands',
+  addTypedDependency: 'postApiProjectsByIdCommands',
+  updateTypedDependency: 'postApiProjectsByIdCommands',
+  removeTypedDependency: 'postApiProjectsByIdCommands',
 } as const satisfies Record<keyof ProjectApi, WbsOperationId>;
 
 function isProjectApiMethod(key: string): key is keyof ProjectApi {
@@ -1390,6 +1393,49 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
         { kind: 'removeDependency', workItemId, predecessorId },
         (_normalizedProjectId, normalized) =>
           removeDependencyAnswer(normalized.workItemId, normalized.predecessorId),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+
+  const addTypedDependencyAnswer = answers.addTypedDependency;
+  if (addTypedDependencyAnswer !== undefined) {
+    checked.addTypedDependency = (projectId, predecessor, successor) =>
+      throughProjectCommand(
+        projectId,
+        { kind: 'addTypedDependency', predecessor, successor, type: 'FS' },
+        (normalizedProjectId, normalized) =>
+          addTypedDependencyAnswer(
+            normalizedProjectId,
+            normalized.predecessor,
+            normalized.successor,
+          ),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+  const updateTypedDependencyAnswer = answers.updateTypedDependency;
+  if (updateTypedDependencyAnswer !== undefined) {
+    checked.updateTypedDependency = (projectId, dependencyId, predecessor, successor) =>
+      throughProjectCommand(
+        projectId,
+        { kind: 'updateTypedDependency', dependencyId, predecessor, successor, type: 'FS' },
+        (normalizedProjectId, normalized) =>
+          updateTypedDependencyAnswer(
+            normalizedProjectId,
+            normalized.dependencyId,
+            normalized.predecessor,
+            normalized.successor,
+          ),
+        () => VOID_COMMAND_RESULT,
+      );
+  }
+  const removeTypedDependencyAnswer = answers.removeTypedDependency;
+  if (removeTypedDependencyAnswer !== undefined) {
+    checked.removeTypedDependency = (projectId, dependencyId) =>
+      throughProjectCommand(
+        projectId,
+        { kind: 'removeTypedDependency', dependencyId },
+        (normalizedProjectId, normalized) =>
+          removeTypedDependencyAnswer(normalizedProjectId, normalized.dependencyId),
         () => VOID_COMMAND_RESULT,
       );
   }
