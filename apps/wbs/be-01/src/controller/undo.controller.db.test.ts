@@ -36,6 +36,7 @@ import { testClock } from '../testing/clock-fixture';
 import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import {
   refusingEmailVerification,
+  refusingInvitations,
   refusingTestEmailDelivery,
 } from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
@@ -135,6 +136,7 @@ beforeEach(() => {
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     emailVerification: refusingEmailVerification,
+    invitations: refusingInvitations,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),

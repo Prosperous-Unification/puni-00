@@ -13,6 +13,7 @@ import { testClock } from './testing/clock-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
 import {
   refusingEmailVerification,
+  refusingInvitations,
   refusingTestEmailDelivery,
 } from './testing/email-verification-fixture';
 import { testHistoryService } from './testing/history-fixture';
@@ -76,6 +77,7 @@ function optionsFor(auth: AuthService, internalAuthSecret = TEST_SECRET): AppOpt
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     emailVerification: refusingEmailVerification,
+    invitations: refusingInvitations,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     clock: testClock,

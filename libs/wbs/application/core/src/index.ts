@@ -74,6 +74,7 @@ export * from './ports/typed-dependency-store';
 // The neutral project-event port: `Broadcaster`, `ProjectEvent` and `subscriptionFor`.
 export * from './ports/email-delivery';
 export * from './ports/email-verification';
+export * from './ports/invitation';
 export * from './ports/membership-administration';
 export * from './ports/onboarding';
 export * from './ports/organization-access';

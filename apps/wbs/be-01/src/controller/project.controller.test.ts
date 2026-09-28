@@ -20,6 +20,7 @@ import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
+  refusingInvitations,
   refusingTestEmailDelivery,
 } from '../testing/email-verification-fixture';
 import { inMemoryServices } from '../testing/harness';
@@ -117,6 +118,7 @@ function buildHarness(
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     emailVerification: refusingEmailVerification,
+    invitations: refusingInvitations,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),

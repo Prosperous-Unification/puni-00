@@ -14,6 +14,7 @@ export * from './http/history-shapes';
 export * from './http/import-shapes';
 export * from './http/infrastructure-shapes';
 export * from './http/internal-http-shapes';
+export * from './http/invitation-shapes';
 export * from './http/onboarding-shapes';
 export * from './http/organization-shapes';
 export * from './http/plan-document-shapes';

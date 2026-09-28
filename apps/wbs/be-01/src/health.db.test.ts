@@ -15,6 +15,7 @@ import { testClock } from './testing/clock-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
 import {
   refusingEmailVerification,
+  refusingInvitations,
   refusingTestEmailDelivery,
 } from './testing/email-verification-fixture';
 import { testHistoryService } from './testing/history-fixture';
@@ -40,6 +41,7 @@ describe('GET /health', () => {
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       emailVerification: refusingEmailVerification,
+      invitations: refusingInvitations,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       clock: testClock,
@@ -72,6 +74,7 @@ describe('GET /health', () => {
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       emailVerification: refusingEmailVerification,
+      invitations: refusingInvitations,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       clock: testClock,
@@ -115,6 +118,7 @@ describe('/health tells the truth about the database', () => {
         organizations: legacyOrganizationAccess,
         memberships: refusingMemberships,
         emailVerification: refusingEmailVerification,
+        invitations: refusingInvitations,
         emailDelivery: refusingTestEmailDelivery,
         onboarding: refusingOnboarding,
         clock: testClock,
@@ -161,6 +165,7 @@ describe('/health tells the truth about the database', () => {
         organizations: legacyOrganizationAccess,
         memberships: refusingMemberships,
         emailVerification: refusingEmailVerification,
+        invitations: refusingInvitations,
         emailDelivery: refusingTestEmailDelivery,
         onboarding: refusingOnboarding,
         clock: testClock,
@@ -197,6 +202,7 @@ describe('/health tells the truth about the database', () => {
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       emailVerification: refusingEmailVerification,
+      invitations: refusingInvitations,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       clock: testClock,

@@ -237,6 +237,8 @@ type BareRefusalCode =
   | 'password_account_required'
   | 'address_conflict'
   | 'challenge_invalid'
+  | 'invitation_invalid'
+  | 'recipient_mismatch'
   | 'delivery_failed'
   | 'already_member'
   | 'domain_matched'

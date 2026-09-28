@@ -7,6 +7,7 @@ import { createLogger } from '@wbs/observability';
 import {
   EmailVerificationRepository,
   ExternalIdentityRepository,
+  InvitationRepository,
   OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
@@ -171,10 +172,11 @@ export class OrganizationHarness {
       memberships: new OrganizationRepository(db, OPEN),
       onboarding: new OnboardingRepository(db, OPEN),
       emailVerification: new EmailVerificationRepository(db, OPEN),
+      invitations: new InvitationRepository(db, OPEN),
       emailDelivery: {
         deliver: (address, token) => {
-          if (mail.fail) return Promise.reject(new Error('injected mail sink failure'));
           mail.beforeDelivery?.();
+          if (mail.fail) return Promise.reject(new Error('injected mail sink failure'));
           mail.tokens.set(address, token);
           return Promise.resolve();
         },
@@ -258,6 +260,7 @@ export class OrganizationHarness {
       memberships: new OrganizationRepository(source.db, services.gate),
       onboarding: new OnboardingRepository(source.db, services.gate),
       emailVerification: new EmailVerificationRepository(source.db, services.gate),
+      invitations: new InvitationRepository(source.db, services.gate),
       emailDelivery: {
         deliver: () => Promise.reject(new Error('composed harness mail sink refuses delivery')),
       },
@@ -326,6 +329,14 @@ export class OrganizationHarness {
     if (this.mail === undefined) throw new Error('no test mail sink');
     this.mail.beforeDelivery = () => {
       this.sqlite.run('DELETE FROM email_challenge');
+    };
+  }
+
+  /** Deletes a just-issued invitation before its sink reports delivery. */
+  removeInvitationBeforeDelivery(): void {
+    if (this.mail === undefined) throw new Error('no test mail sink');
+    this.mail.beforeDelivery = () => {
+      this.sqlite.run('DELETE FROM organization_invitation');
     };
   }
 

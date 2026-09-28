@@ -179,6 +179,24 @@ describe('after activation', () => {
     ]);
     const signed = await delegation();
     expect(await h.callWith(signed, 'GET', '/api/onboarding')).toMatchObject({ status: 403 });
+    expect(await h.callWith(await delegation(), 'GET', '/api/organization/invitations')).toEqual({
+      status: 403,
+      body: { error: 'insufficient_scope' },
+    });
+    expect(
+      await h.callWith(await delegation(), 'POST', '/api/organization/invitations', {
+        email: 'recipient@example.org',
+        role: 'viewer',
+      }),
+    ).toEqual({ status: 403, body: { error: 'insufficient_scope' } });
+    expect(
+      await h.callWith(await delegation(), 'DELETE', '/api/organization/invitations/missing'),
+    ).toEqual({ status: 403, body: { error: 'insufficient_scope' } });
+    expect(
+      await h.callWith(await delegation(), 'POST', '/api/onboarding/invitations/accept', {
+        token: 'unknown',
+      }),
+    ).toEqual({ status: 403, body: { error: 'insufficient_scope' } });
 
     await h.register('newcomer');
     h.sqlite.run(

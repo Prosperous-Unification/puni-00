@@ -39,6 +39,7 @@ import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
+  refusingInvitations,
   refusingTestEmailDelivery,
 } from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
@@ -187,6 +188,7 @@ beforeEach(async () => {
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     emailVerification: refusingEmailVerification,
+    invitations: refusingInvitations,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),

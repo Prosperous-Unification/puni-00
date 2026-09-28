@@ -89,6 +89,8 @@ An existing first-party username/password account without verified email SHALL r
 
 An authorized administrator SHALL create a revocable invitation for one normalized verified recipient email, organization and permitted role with an expiry. Only the matching currently verified email SHALL accept it. Acceptance SHALL consume the invitation and create or retain one membership atomically; expiry, revocation, concurrent acceptance and replay MUST be refused. Admins SHALL only invite viewer or member; super-admins SHALL also invite admin. An invitation SHALL NOT directly grant super-admin.
 
+The active-organization GET/POST `/api/organization/invitations` and DELETE `/api/organization/invitations/:id` SHALL recheck administrator authority in their store transaction. An admin SHALL NOT revoke an admin offer. A foreign or missing invitation id SHALL have the same 404. POST `/api/onboarding/invitations/accept` SHALL require a session with write scope, read the current durable verified email, and answer 403 for a recipient mismatch or missing verification, 404 for an unknown token, and 409 for an expired, revoked or consumed offer. Acceptance SHALL retain an existing membership's role without upgrading it. Issuance SHALL use the injected mail port, store only a token digest, and answer 503 while delivery fails. All four routes SHALL refuse before activation; delegated callers SHALL receive 403.
+
 #### Scenario: Invitation replay
 
 - **GIVEN** an invitation has been accepted once

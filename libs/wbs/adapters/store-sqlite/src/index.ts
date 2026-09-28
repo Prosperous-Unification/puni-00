@@ -19,6 +19,7 @@ export * from './external-identity';
 export * from './external-identity';
 export * from './gate';
 export * from './health-probe';
+export * from './invitation';
 export * from './migrate';
 export * from './migrate-down';
 export * from './onboarding';
