@@ -15,6 +15,14 @@ const scheduled = type({
 const triple = type({ optimistic: 'number', realistic: 'number', pessimistic: 'number' });
 const numbers = type({ '[string]': 'number' });
 const named = type({ id: 'string', name: 'string' });
+const typedEndpoint = type({
+  scope: "'whole' | 'node' | 'descendant-step'",
+  workItemId: 'string',
+  'stepId?': 'string',
+  // Proof: widening this to unknown made `tree boundary refuses missing core producer
+  // fields while allowing additive metadata` accept a numeric node ID; watched 2026-09-27.
+  'stepNodeId?': 'string',
+});
 const numberedWorkItem = type({
   id: 'string',
   projectId: 'string',
@@ -126,6 +134,12 @@ const optimization = type({
  */
 export const workItemTree = type({
   workItems: numberedWorkItem.array(),
+  'typedDependencies?': type({
+    id: 'string',
+    predecessor: typedEndpoint,
+    successor: typedEndpoint,
+    type: 'string',
+  }).array(),
   seq: 'number',
   scheduleError: "'calendar_range' | 'cycle' | null",
   waitingForPerson: 'number',

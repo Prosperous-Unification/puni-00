@@ -47,7 +47,14 @@ const wire = (edges: readonly { predecessorKey: string; successorKey: string }[]
 describe('buildSolverEdges', () => {
   it('keys the chain and the join the domain derived, and nothing else', () => {
     const edges: readonly LeafEdge[] = [{ predecessorId: 'A', successorId: 'B' }];
-    expect(wire(buildSolverEdges(leafIds, slicesOf, edges, 'whole-item'))).toEqual([
+    expect(
+      wire(
+        buildSolverEdges(leafIds, slicesOf, edges, 'whole-item', {
+          dependencies: [],
+          leavesUnder: (id) => [id],
+        }),
+      ),
+    ).toEqual([
       'A/design→A/dev',
       'A/dev→A/qa',
       'B/dev→B/qa',
@@ -61,14 +68,26 @@ describe('buildSolverEdges', () => {
     // anchor-slice steps over A's two blank steps to `qa`, which is also its
     // last, so this pair cannot tell the arms apart — B→A can.
     const back: readonly LeafEdge[] = [{ predecessorId: 'B', successorId: 'A' }];
-    expect(wire(buildSolverEdges(leafIds, slicesOf, back, 'anchor-slice'))).toContain(
+    expect(
+      wire(
+        buildSolverEdges(leafIds, slicesOf, back, 'anchor-slice', {
+          dependencies: [],
+          leavesUnder: (id) => [id],
+        }),
+      ),
+    ).toContain(
       // B's first ESTIMATED step is its first; A's first step plain, not its
       // first estimated one — the successor side never reads the reach.
       'B/dev→A/design',
     );
-    expect(wire(buildSolverEdges(leafIds, slicesOf, edges, 'anchor-slice'))).toContain(
-      'A/qa→B/dev',
-    );
+    expect(
+      wire(
+        buildSolverEdges(leafIds, slicesOf, edges, 'anchor-slice', {
+          dependencies: [],
+          leavesUnder: (id) => [id],
+        }),
+      ),
+    ).toContain('A/qa→B/dev');
   });
 
   it('emits keys buildSolverSlices emits, for the same slices — an oracle, not an assumption', () => {
@@ -86,6 +105,7 @@ describe('buildSolverEdges', () => {
         { predecessorId: 'A', successorId: 'B' },
       ],
       'anchor-slice',
+      { dependencies: [], leavesUnder: (id) => [id] },
     );
     expect(edges.length).toBeGreaterThan(0);
     for (const edge of edges) {
@@ -97,7 +117,10 @@ describe('buildSolverEdges', () => {
   it('names both endpoints, never a positional pair', () => {
     // The schema's own reason: the two ends are chosen by different rules, and
     // a 2-array hides which is which at every call site.
-    const [edge] = buildSolverEdges(['A'], slicesOf, [], 'whole-item');
+    const [edge] = buildSolverEdges(['A'], slicesOf, [], 'whole-item', {
+      dependencies: [],
+      leavesUnder: (id) => [id],
+    });
     expect(Object.keys(edge).sort()).toEqual(['predecessorKey', 'successorKey']);
     expect(edge.predecessorKey).toBe(sliceKey('A', 'design'));
     expect(edge.successorKey).toBe(sliceKey('A', 'dev'));
@@ -110,7 +133,13 @@ describe('buildSolverEdges', () => {
     // Bun's own malformed request as a missing slice from Python.
     const empty = (leafId: string): readonly Slice[] => (leafId === 'E' ? [] : slicesOf(leafId));
     expect(() =>
-      buildSolverEdges(['E', 'A'], empty, [{ predecessorId: 'E', successorId: 'A' }], 'whole-item'),
+      buildSolverEdges(
+        ['E', 'A'],
+        empty,
+        [{ predecessorId: 'E', successorId: 'A' }],
+        'whole-item',
+        { dependencies: [], leavesUnder: (id) => [id] },
+      ),
     ).toThrow('no slice -1 for work item E');
   });
 });

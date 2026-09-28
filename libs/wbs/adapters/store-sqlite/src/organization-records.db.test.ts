@@ -41,6 +41,7 @@ const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
  * {@link ORGANIZATION_BRIDGE} and reversed before it.
  */
 const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 /** The newest folder before this one; named so a later folder is a red test here. */
 const WORK_ITEM_FACTS = '20260912120000_add_work_item_facts';
 const ORGANIZATION_TABLES = [
@@ -477,6 +478,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
@@ -486,7 +488,11 @@ describe('20260927120000_add_organization_records', () => {
       ORGANIZATION_RECORDS,
     ]);
 
-    expect(tableNames()).toEqual(withTables.filter((name) => !ORGANIZATION_TABLES.includes(name)));
+    expect(tableNames()).toEqual(
+      withTables.filter(
+        (name) => name !== 'typed_dependency' && !ORGANIZATION_TABLES.includes(name),
+      ),
+    );
     const db = openDatabase(path);
     try {
       expect(db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM users').get()?.n).toBe(3);

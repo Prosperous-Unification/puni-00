@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -31,6 +32,7 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import {
@@ -87,8 +89,14 @@ beforeEach(async () => {
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
     calendarMarkers: testCalendarMarkerService(),
-    projects: new ProjectService({ clock: testClock, projects, broadcast: recordingBroadcaster() }),
+    projects: new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(db, projects),
+      clock: testClock,
+      projects,
+      broadcast: recordingBroadcaster(),
+    }),
     steps: new StepService({
+      dependencyGraph: sqliteDependencyGraph(db, projects),
       clock: testClock,
       projects,
       steps: stepStore,
@@ -104,6 +112,7 @@ beforeEach(async () => {
       measures: new StepMeasureRepository(db, OPEN),
       progress: new StepProgressRepository(db, OPEN),
       dependencies: new DependencyRepository(db, OPEN),
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
       directory: store,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),

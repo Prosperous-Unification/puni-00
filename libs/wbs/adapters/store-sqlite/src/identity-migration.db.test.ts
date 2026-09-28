@@ -116,6 +116,7 @@ const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
  * {@link ORGANIZATION_BRIDGE} and reversed before it.
  */
 const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -131,6 +132,7 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    TYPED_DEPENDENCY,
     ORGANIZATION_FROZEN,
     ORGANIZATION_BRIDGE,
     ORGANIZATION_ACTIVATION,
@@ -239,6 +241,7 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -312,6 +315,7 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
