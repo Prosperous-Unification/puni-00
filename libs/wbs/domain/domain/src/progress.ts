@@ -38,18 +38,58 @@
 export type StepState = 'in_progress' | 'done';
 
 /**
- * What a **work item** reads as — its **status**. Derived from its steps on
- * every read and never stored, for the reason every derived figure in this tool
- * is: two spellings of one fact is how "the item says done and a step has no
- * actual" happens. The row's cell that sets it writes every step instead
- * (`WorkItemService.setStatus`, ADR 0024), so the fold and the cell cannot
- * disagree.
- *
- * `unknown` was spelled `not_started` until 2026-09-12, when the status got a
- * face: nothing had ever stored the value, and "not started" claims to know
- * something about work nobody has spoken about. Dany's word, and the honest one.
+ * What a work item's step progress folds to: nothing said, part-way through,
+ * or finished. {@link agree} and {@link statusOf} compute it; it is one input
+ * to a leaf's {@link WorkItemStatus}, never the whole of it.
  */
-export type WorkItemStatus = 'unknown' | StepState;
+export type ProgressStatus = 'unknown' | StepState;
+
+/**
+ * What the planner has said about whether a leaf is defined well enough to
+ * start. Stored once per leaf, null when unsaid; a parent holds none. It has no
+ * per-step source, which is why a column is its single source where ADR 0024
+ * refused a stored row status.
+ */
+export const READINESSES = ['draft', 'ready'] as const;
+export type Readiness = (typeof READINESSES)[number];
+
+/**
+ * The planner's statement that work on a leaf is stopped. `on_hold` takes the
+ * leaf out of the schedule ({@link withoutHeldSubtrees}); `blocked` leaves the
+ * schedule alone. Stored beside readiness and progress, never instead of them,
+ * so clearing it returns the leaf to what it read before. See
+ * `docs/adr/0032-a-hold-leaves-the-plan-blocked-is-a-reading.md`.
+ */
+export const HOLDS = ['on_hold', 'blocked'] as const;
+export type Hold = (typeof HOLDS)[number];
+
+/**
+ * What a **work item** reads as — its **status**. Derived on every read and
+ * never stored: a leaf from its progress, hold, readiness and predecessors
+ * ({@link leafStatusOf}, then {@link blockedByProxyOf}); a parent from its
+ * children ({@link foldStatuses}).
+ *
+ * `unknown` was spelled `not_started` until 2026-09-12: "not started" claims to
+ * know something about work nobody has spoken about. `blocked_by_proxy` is said
+ * by the dependency graph and never by anyone, so nothing may set it.
+ */
+export const WORK_ITEM_STATUSES = [
+  'unknown',
+  'draft',
+  'ready',
+  'in_progress',
+  'blocked_by_proxy',
+  'on_hold',
+  'blocked',
+  'done',
+] as const;
+export type WorkItemStatus = (typeof WORK_ITEM_STATUSES)[number];
+
+/** A leaf's status before its predecessors are read: every status but `blocked_by_proxy`. */
+export type LeafStatus = Exclude<WorkItemStatus, 'blocked_by_proxy'>;
+export const LEAF_STATUSES: readonly LeafStatus[] = WORK_ITEM_STATUSES.filter(
+  (status): status is LeafStatus => status !== 'blocked_by_proxy',
+);
 
 /** The two states a step may be stored in, in the order a face should offer them. */
 export const STEP_STATES: readonly StepState[] = ['in_progress', 'done'];
@@ -68,6 +108,22 @@ export type SettableStatus = (typeof SETTABLE_STATUSES)[number];
 /** Whether a value off the wire is one of the two states a step may be put in. */
 export function isStepState(value: unknown): value is StepState {
   return value === 'in_progress' || value === 'done';
+}
+
+/** Whether a stored or posted value is one of the two readinesses. */
+export function isReadiness(value: unknown): value is Readiness {
+  // Proof: reduced to `typeof value === 'string'` and `admit exactly their own
+  // closed sets` failed with `Expected: false, Received: true`; watched
+  // 2026-09-28. Slice 3 proves it again through the routes that call it.
+  return typeof value === 'string' && (READINESSES as readonly string[]).includes(value);
+}
+
+/** Whether a stored or posted value is one of the two holds. */
+export function isHold(value: unknown): value is Hold {
+  // Proof: reduced to `typeof value === 'string'` and `admit exactly their own
+  // closed sets` failed with `Expected: false, Received: true`; watched
+  // 2026-09-28.
+  return typeof value === 'string' && (HOLDS as readonly string[]).includes(value);
 }
 
 /** Whether a value off the wire is a status a row's cell may set. */
@@ -95,7 +151,7 @@ export function isSettableStatus(value: unknown): value is SettableStatus {
  * it: both routes reach the same answer, so there is no ordering of the tree
  * that changes what a branch reads as.
  */
-export function agree(a: WorkItemStatus, b: WorkItemStatus): WorkItemStatus {
+export function agree(a: ProgressStatus, b: ProgressStatus): ProgressStatus {
   return a === b ? a : 'in_progress';
 }
 
@@ -109,8 +165,77 @@ export function agree(a: WorkItemStatus, b: WorkItemStatus): WorkItemStatus {
  * unestimated step absent instead of zero: an empty statement is not a
  * statement.
  */
-export function statusOf(statuses: Iterable<WorkItemStatus>): WorkItemStatus {
-  let answer: WorkItemStatus | null = null;
+export function statusOf(statuses: Iterable<ProgressStatus>): ProgressStatus {
+  let answer: ProgressStatus | null = null;
   for (const status of statuses) answer = answer === null ? status : agree(answer, status);
   return answer ?? UNKNOWN;
+}
+
+/** The three facts a leaf's own status is read from; its predecessors come after. */
+export interface LeafFacts {
+  readonly progress: ProgressStatus;
+  readonly hold: Hold | null;
+  readonly readiness: Readiness | null;
+}
+
+/**
+ * A leaf's status from its own facts, first match winning: finished work,
+ * then a hold, then running work, then readiness, else unknown.
+ *
+ * **Done outranks a hold** because a hold on finished work stops nothing, and
+ * the command refuses to set one. **A hold outranks running work** because it
+ * is the planner's later word about work the steps said had started; clearing
+ * it returns the leaf to `in_progress`. **Running work outranks readiness**:
+ * once a step has spoken, whether the item was ready is history.
+ * `blocked_by_proxy` ranks between running work and readiness and is applied
+ * afterwards, from the graph, by {@link blockedByProxyOf}.
+ */
+export function leafStatusOf({ progress, hold, readiness }: LeafFacts): LeafStatus {
+  if (progress === 'done') return 'done';
+  if (hold !== null) return hold;
+  if (progress === 'in_progress') return 'in_progress';
+  return readiness ?? UNKNOWN;
+}
+
+/**
+ * The statuses that say a work item is not moving: held, blocked, or behind
+ * either.
+ *
+ * Proof: `blocked_by_proxy` dropped from this set and the partition property in
+ * `progress.property.test.ts` failed on counterexample `["blocked_by_proxy"]`
+ * (a lone proxy leaf folding to `ready`), as did `is blocked by proxy when
+ * every child is stopped…`; watched 2026-09-28.
+ */
+export const STOPPED_STATUSES: ReadonlySet<WorkItemStatus> = new Set([
+  'on_hold',
+  'blocked',
+  'blocked_by_proxy',
+]);
+
+/**
+ * A parent's status from its children's, in order: all done, all on hold or
+ * all blocked read as that; any done or in progress reads `in_progress`; all
+ * {@link STOPPED_STATUSES} reads `blocked_by_proxy`; otherwise the children
+ * that are not stopped decide — any `unknown`, else any `draft`, else `ready`.
+ * No children reads `unknown`, for {@link statusOf}'s reason.
+ *
+ * Every clause is an all-or-any predicate over a class of statuses that a
+ * child's own fold stays inside, so folding a parent from its children and
+ * from every leaf beneath it give the same answer for any partition of the
+ * leaves (`progress.property.test.ts`). That is what lets be-01 fold the tree
+ * level by level while fe-01 folds whatever subset a filter leaves.
+ */
+export function foldStatuses(children: Iterable<WorkItemStatus>): WorkItemStatus {
+  const seen = [...children];
+  if (seen.length === 0) return UNKNOWN;
+  const everyChild = (status: WorkItemStatus) => seen.every((child) => child === status);
+  if (everyChild('done')) return 'done';
+  if (everyChild('on_hold')) return 'on_hold';
+  if (everyChild('blocked')) return 'blocked';
+  if (seen.some((child) => child === 'done' || child === 'in_progress')) return 'in_progress';
+  const moving = seen.filter((child) => !STOPPED_STATUSES.has(child));
+  if (moving.length === 0) return 'blocked_by_proxy';
+  if (moving.includes(UNKNOWN)) return UNKNOWN;
+  if (moving.includes('draft')) return 'draft';
+  return 'ready';
 }

@@ -1,5 +1,5 @@
 import { type Cell as TableCell, flexRender, type Header, useTable } from '@tanstack/react-table';
-import type { WorkItemStatus } from '@wbs/domain/progress';
+import type { ProgressStatus } from '@wbs/domain/progress';
 import { parseStepNodeId } from '@wbs/domain/step-node';
 import {
   type ChangeEventHandler,
@@ -125,7 +125,7 @@ interface PlanRowProps {
    * `styles.css` can paint off it. Pure row data off the read, like `frozen`:
    * it changes only when the plan does, never with the pointer.
    */
-  status: WorkItemStatus;
+  status: ProgressStatus;
   /**
    * Where this row's **dependency** light is read from.
    *

@@ -1,4 +1,4 @@
-import type { WorkItemStatus } from '@wbs/domain/progress';
+import type { ProgressStatus } from '@wbs/domain/progress';
 import { type CSSProperties, useEffect, useRef, useSyncExternalStore } from 'react';
 
 import type { DepLights } from './dep-light-store';
@@ -11,7 +11,7 @@ export interface DependsEntry {
   number: string;
   name: string;
   /** The predecessor's status: a done one wears the status strip on its line. */
-  status: WorkItemStatus;
+  status: ProgressStatus;
 }
 
 /**
@@ -21,7 +21,7 @@ export interface DependsEntry {
  * a green strip before the item"). Every line carries the border so the text
  * lines up; only a done one colours it.
  */
-export const statusStripStyle = (status: WorkItemStatus): CSSProperties => ({
+export const statusStripStyle = (status: ProgressStatus): CSSProperties => ({
   borderLeft: `3px solid ${status === 'done' ? 'var(--status-done)' : 'transparent'}`,
   paddingLeft: 5,
 });

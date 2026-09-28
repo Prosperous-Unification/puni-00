@@ -4,10 +4,10 @@ import {
   allowanceOf,
   chargedDays,
   type EstimateRule,
+  type ProgressStatus,
   statusOf,
   type StepAllowances,
   UNKNOWN,
-  type WorkItemStatus,
 } from '@wbs/domain';
 
 import type { StoredActual } from '../ports/actual-store';
@@ -272,10 +272,10 @@ export function rollUpProgress(
   rows: readonly WorkItem[],
   stated: readonly StoredProgress[],
   worked: ReadonlyMap<string, ReadonlySet<string>>,
-): Map<string, Map<string, WorkItemStatus>> {
-  const ownOf = new Map<string, Map<string, WorkItemStatus>>();
+): Map<string, Map<string, ProgressStatus>> {
+  const ownOf = new Map<string, Map<string, ProgressStatus>>();
   for (const [workItemId, stepIds] of worked) {
-    const byStep = new Map<string, WorkItemStatus>();
+    const byStep = new Map<string, ProgressStatus>();
     for (const stepId of stepIds) byStep.set(stepId, UNKNOWN);
     ownOf.set(workItemId, byStep);
   }
@@ -285,7 +285,7 @@ export function rollUpProgress(
     // never invents an entry. Written defensively anyway: a stale read that
     // dropped one would otherwise silently lose the statement rather than the
     // row, and losing a `done` is the direction that lies.
-    const byStep = ownOf.get(said.workItemId) ?? new Map<string, WorkItemStatus>();
+    const byStep = ownOf.get(said.workItemId) ?? new Map<string, ProgressStatus>();
     byStep.set(said.stepId, said.state);
     ownOf.set(said.workItemId, byStep);
   }
@@ -322,16 +322,16 @@ export function rollUpProgress(
  */
 export function rollUpWorkItemStatuses(
   rows: readonly WorkItem[],
-  byStep: ReadonlyMap<string, ReadonlyMap<string, WorkItemStatus>>,
-): Map<string, WorkItemStatus> {
+  byStep: ReadonlyMap<string, ReadonlyMap<string, ProgressStatus>>,
+): Map<string, ProgressStatus> {
   const childrenOf = new Map<string | null, WorkItem[]>();
   for (const row of rows) {
     const group = childrenOf.get(row.parentId) ?? [];
     group.push(row);
     childrenOf.set(row.parentId, group);
   }
-  const answers = new Map<string, WorkItemStatus>();
-  const statusFor = (id: string): WorkItemStatus => {
+  const answers = new Map<string, ProgressStatus>();
+  const statusFor = (id: string): ProgressStatus => {
     const cached = answers.get(id);
     if (cached !== undefined) return cached;
     const children = childrenOf.get(id) ?? [];

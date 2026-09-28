@@ -2,7 +2,7 @@ import { type EffectiveServices, effectiveServicesOf } from '@wbs/domain/effecti
 import { type EffectiveTags, effectiveTagsOf } from '@wbs/domain/effective-tag';
 import { type EffectiveTeams, effectiveTeamsOf } from '@wbs/domain/effective-team';
 import { priorityBandOf } from '@wbs/domain/priority-band';
-import type { WorkItemStatus } from '@wbs/domain/progress';
+import type { ProgressStatus } from '@wbs/domain/progress';
 
 import type { EstimateMethod, PriorityBandView, SliceView } from '@/lib/wbs-api';
 
@@ -105,7 +105,7 @@ export interface ExportRow {
    */
   deadline: string | null;
   /** What the row reads as — `unknown`, `in_progress`, `done` — be-01's fold. */
-  status: WorkItemStatus;
+  status: ProgressStatus;
   /** The day work actually began, or null where nobody has said. */
   factStart: string | null;
   /** The day work actually finished, or null where nobody has said. */
