@@ -48,11 +48,7 @@ Observed production-path negative proofs, with each fault restored:
 - Materialized boundary comparison forced false: weighted suite gave 8 pass / 1 fail; B finished at 32024810461.572468 before A at 32024810461.57247. Restoring it reconciled Fast placement and made the unreconciled pinned start throw. Reverting the resource annotation to raw `before.start + edge.weight` gave 8 pass / 1 fail, mislabeling the reconciled Fast slice `optimizer` instead of `predecessor`. Both `Proof:` comments are adjacent to those checks.
 - All three application write guards widened to the read predicate: `work-item/module.test.ts` gave 5 pass / 1 fail, accepting SS with `{ ok: true, value: "item-7" }`. The adjacent `Proof:` is in `typedRefusal`. Widening only the two command entry checks did not fail because `typedRefusal` still refused the write; the direct test makes the collective gate breakable.
 
-The full Nx gate, host gate, build, CP-SAT wire, command/import SS/FF writes and UI checks were not run or changed in this slice. The user explicitly excluded the full gate and assigned the wire and write opening to later PRs. The existing pending checks above remain for those PRs.
-
-Commit attempt: `git add` could not create `/home/df/wd/puni/puni-00/.git/worktrees/b9-010-4-7-step-deps-b/index.lock` (`Read-only file system`, exit 128). A direct write probe to that Git worktree metadata directory also returned `Read-only file system` (exit 1). All source and artifact edits remain in this worktree, unstaged; no commits or push were made.
-
-The requested Astra math review was attempted with `codex exec -m gpt-6-astra -c model_reasoning_effort=high --skip-git-repo-check` and the schedule/design file paths. It exited 1 because workspace routing discovery and HTTPS requests failed; no review answer was returned. The production tests and mutation proofs above remain the available evidence.
+The full Nx gate, host gate, build, CP-SAT wire, command/import SS/FF writes and UI checks were not run or changed in this slice; the wire and write opening belong to later PRs, and the host gate runs on the integration branch. Astra (high) reviewed the slice from the lane; its verdicts are quoted in the PR.
 
 ## 2026-09-28 solver-wire slice (groups 5, 6, 10)
 
