@@ -29,6 +29,7 @@ import {
 import {
   createDomainChallenge,
   listOrganizationDomains,
+  releaseDomainClaim,
   rotateDomainProof,
   verifyDomainClaim,
 } from './domain-shapes';
@@ -101,6 +102,7 @@ export const httpShapes = [
   changeMemberRole,
   removeMember,
   listOrganizationDomains,
+  releaseDomainClaim,
   createDomainChallenge,
   verifyDomainClaim,
   rotateDomainProof,

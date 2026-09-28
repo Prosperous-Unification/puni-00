@@ -5,7 +5,7 @@ import type {
   DomainClaimSummary,
   DomainProofChecks,
   DomainResolver,
-  PendingDomainClaim,
+  DomainVerificationSnapshot,
   RetainedDomainProof,
   WriteStamp,
 } from '@wbs/core';
@@ -146,7 +146,10 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
               lastCheckedAt: at,
               ...(accepted
                 ? { lastSuccessAt: at }
-                : // Proof: 2026-09-28, leaving status verified made mounted `suspends
+                : // Proof: 2026-09-28, setting pending here made mounted
+                  // `retains a suspended owner until release and refuses a stale recovery after release`
+                  // let the contender verify instead of returning domain_taken.
+                  // Proof: 2026-09-28, leaving status verified made mounted `suspends
                   // without releasing domain ownership or memberships` fail on day 14.
                   at - current.lastSuccessAt >= 14 * 86_400_000
                   ? { status: 'suspended' as const }
@@ -211,7 +214,8 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
             )
             .get();
           if (claim === undefined) return { kind: 'not_found' } as const;
-          if (claim.status !== 'verified') return { kind: 'stale' } as const;
+          if (claim.status !== 'verified' && claim.status !== 'suspended')
+            return { kind: 'stale' } as const;
           // Proof: 2026-09-28, treating this trusted corruption as stale made
           // mounted `throws for a verified claim with a missing retained proof
           // digest on rotation` return 409 after the stored digest was forced NULL.
@@ -262,12 +266,12 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
     });
   }
 
-  /** Reads the current initial or replacement proof after role and marker checks. */
-  async readPendingClaim(
+  /** Reads the current organization's verifiable claim after role and marker checks. */
+  async readClaimForVerification(
     organizationId: string,
     actorId: string,
     claimId: string,
-  ): Promise<PendingDomainClaim | 'forbidden' | 'not_found' | 'stale' | 'inactive'> {
+  ): Promise<DomainVerificationSnapshot | 'forbidden' | 'not_found' | 'stale' | 'inactive'> {
     await Promise.resolve();
     return this.db.transaction((tx) => {
       // Proof: 2026-09-28, bypassing this marker read made store
@@ -296,33 +300,59 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
         .get();
       if (claim === undefined) return 'not_found';
       const isRotation = claim.status === 'verified' && claim.previousProofDigest !== null;
-      if (!isRotation && claim.status !== 'pending') return 'stale';
+      // Proof: 2026-09-28, excluding suspended claims made mounted
+      // `restores a suspended claim through retained TXT proof without changing owner`
+      // return stale 409 rather than verify the retained digest.
+      const isRecovery = claim.status === 'suspended';
+      if (!isRotation && !isRecovery && claim.status !== 'pending') return 'stale';
       // Proof: 2026-09-28, returning stale here made mounted `surfaces corrupt
       // pending proof fields as a server error` answer 409 for a pending row
       // with both required fields null.
-      if (!isRotation && (claim.challengeDigest === null || claim.challengeExpiresAt === null))
+      if (
+        claim.status === 'pending' &&
+        (claim.challengeDigest === null || claim.challengeExpiresAt === null)
+      )
         throw new Error(`pending domain claim ${claim.id} lacks challenge proof`);
       if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
         return 'stale';
-      if (isRotation) {
-        if (claim.proofDigest === null || claim.previousProofValidUntil === null)
+      if (isRotation || isRecovery) {
+        // Proof: 2026-09-29, removing the timestamp validation here made mounted
+        // `throws when a suspended claim lacks retained timestamps at capture`
+        // (NULL last_checked_at on a suspended owner) reach DNS lookup once; the
+        // commit guard then threw, so the test pins capture by counting zero lookups.
+        if (
+          claim.proofDigest === null ||
+          claim.lastSuccessAt === null ||
+          claim.lastCheckedAt === null
+        )
           throw new Error(`rotating domain ${claim.id} lacks retained proof`);
-        return {
-          kind: 'rotation',
+        const retained = {
           id: claim.id,
           domain: claim.domain,
           challengeDigest: claim.proofDigest,
+          previousProofDigest: claim.previousProofDigest,
           previousProofValidUntil: claim.previousProofValidUntil,
         };
+        if (isRotation) {
+          if (claim.previousProofDigest === null || claim.previousProofValidUntil === null)
+            throw new Error(`rotating domain ${claim.id} lacks previous proof`);
+          return {
+            ...retained,
+            phase: 'rotation',
+            previousProofDigest: claim.previousProofDigest,
+            previousProofValidUntil: claim.previousProofValidUntil,
+          };
+        }
+        return { ...retained, phase: 'recovery' };
       }
       if (claim.challengeDigest === null || claim.challengeExpiresAt === null)
         throw new Error(`pending domain ${claim.id} lacks challenge`);
       return {
-        kind: 'initial',
         id: claim.id,
         domain: claim.domain,
         challengeDigest: claim.challengeDigest,
         challengeExpiresAt: claim.challengeExpiresAt,
+        phase: 'pending',
       };
     });
   }
@@ -331,7 +361,7 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
   async verifyClaim(
     organizationId: string,
     actorId: string,
-    claim: PendingDomainClaim,
+    claim: DomainVerificationSnapshot,
     observedDigest: string,
     stamp: WriteStamp,
     now: () => number,
@@ -366,6 +396,9 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
                 ),
               )
               .get();
+            // Proof: 2026-09-28, replacing this missing-row answer with stale made mounted
+            // `retains a suspended owner until release and refuses a stale recovery after release`
+            // return 409 rather than 404 after release during DNS lookup.
             if (current === undefined) return 'not_found' as const;
             // Proof: 2026-09-28, removing this check made mounted `surfaces pending
             // proof fields corrupted during DNS lookup as a server error` answer
@@ -375,16 +408,39 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
               (current.challengeDigest === null || current.challengeExpiresAt === null)
             )
               throw new Error(`pending domain claim ${current.id} lacks challenge proof`);
-            if (current.status === 'verified' && current.previousProofDigest !== null) {
+            if (claim.phase === 'rotation' || claim.phase === 'recovery') {
+              // Proof: 2026-09-28, clearing a suspended owner's retained digest
+              // during DNS lookup made mounted `throws when a suspended claim loses
+              // its retained digest during DNS lookup` answer stale 409 without this guard.
+              // Both previous fields null is the normal state after a competing
+              // verify or a worker's current match ends the overlap during this
+              // lookup; the snapshot comparison below answers stale. Only a split
+              // pair is corrupt.
+              // Proof: 2026-09-29, requiring both previous fields for a rotation
+              // snapshot made mounted `answers stale when a concurrent verify
+              // completes the rotation during DNS lookup` answer [200, 500].
+              // Proof: 2026-09-29, removing the split-pair clause made mounted
+              // `throws when a rotation overlap pair splits during DNS lookup`
+              // answer stale 409 after previous_proof_valid_until was forced NULL.
+              if (
+                (current.status === 'verified' || current.status === 'suspended') &&
+                (current.proofDigest === null ||
+                  current.lastSuccessAt === null ||
+                  current.lastCheckedAt === null ||
+                  (current.previousProofDigest === null) !==
+                    (current.previousProofValidUntil === null))
+              )
+                throw new Error(`owned domain ${current.id} lacks retained proof state`);
               // Proof: 2026-09-28, omitting this branch made mounted `confirms a
               // rotated proof through verify before the overlap ends` answer stale.
               // Proof: 2026-09-28, bypassing the overlap-deadline snapshot
               // comparison made mounted `rechecks rotation snapshot after DNS
               // lookup` return 200 after the stored deadline changed during DNS.
               if (
+                current.status !== (claim.phase === 'rotation' ? 'verified' : 'suspended') ||
                 current.domain !== claim.domain ||
-                claim.kind !== 'rotation' ||
                 current.proofDigest !== claim.challengeDigest ||
+                current.previousProofDigest !== claim.previousProofDigest ||
                 current.previousProofValidUntil !== claim.previousProofValidUntil ||
                 observedDigest !== claim.challengeDigest
               )
@@ -393,6 +449,9 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
                 return 'stale' as const;
               tx.update(organizationDomainClaim)
                 .set({
+                  // Proof: 2026-09-28, retaining `suspended` made mounted
+                  // `restores a suspended claim through retained TXT proof without changing owner` observe false onboarding status.
+                  status: 'verified',
                   previousProofDigest: null,
                   previousProofValidUntil: null,
                   lastSuccessAt: stamp.at,
@@ -408,10 +467,11 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
             // Proof: 2026-09-28, omitting the digest snapshot comparison let the mounted reissue-during-lookup test promote the old challenge.
             if (
               current.status !== 'pending' ||
-              claim.kind !== 'initial' ||
               current.domain !== claim.domain ||
               current.challengeDigest !== claim.challengeDigest ||
               current.challengeExpiresAt !== claim.challengeExpiresAt ||
+              // Proof: 2026-09-28, bypassing this expiry recheck made mounted
+              // `rechecks challenge expiry and maintained policy after DNS lookup` promote after a 1.2-second lookup crossed expiry (200 instead of 409).
               // Proof: 2026-09-28, replacing this transaction-time read with
               // stamp.at made `refuses a challenge that expires while verification
               // waits for the write gate` promote the expired claim.
@@ -446,6 +506,77 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
         if (isUniqueViolation(error, UNIQUE_INDEXES.verifiedDomainOwner)) return 'taken';
         throw error;
       }
+    });
+  }
+
+  /** Deletes one current organization's claim and invalidates older pending proofs for transfer. */
+  async releaseClaim(
+    organizationId: string,
+    actorId: string,
+    claimId: string,
+  ): Promise<'released' | 'forbidden' | 'not_found' | 'stale' | 'inactive'> {
+    return this.gate.enter(async () => {
+      await Promise.resolve();
+      // Proof: 2026-09-28, removing this transaction and injecting an
+      // owner-delete abort made mounted `rolls back pending proof deletion
+      // when owner deletion fails` lose the pending claim.
+      return this.db.transaction(
+        (tx) => {
+          // Proof: 2026-09-28, bypassing this marker made mounted
+          // `refuses release before activation, after demotion, and for a foreign claim`
+          // return not_found instead of inactive through the production store.
+          if (readOrganizationActivation(tx) !== 'activated') return 'inactive' as const;
+          const member = tx
+            .select({ role: organizationMembership.role })
+            .from(organizationMembership)
+            .where(
+              and(
+                eq(organizationMembership.organizationId, organizationId),
+                eq(organizationMembership.userId, actorId),
+              ),
+            )
+            .get();
+          // Proof: 2026-09-28, allowing a current non-super-admin made mounted
+          // `refuses release before activation, after demotion, and for a foreign claim`
+          // release the owned row after demotion instead of returning 403.
+          if (member?.role !== 'super_admin') return 'forbidden' as const;
+          const claim = tx
+            .select()
+            .from(organizationDomainClaim)
+            .where(
+              and(
+                eq(organizationDomainClaim.id, claimId),
+                // Proof: 2026-09-28, omitting this organization predicate made mounted
+                // `refuses release before activation, after demotion, and for a foreign claim`
+                // delete the foreign claim instead of returning 404.
+                eq(organizationDomainClaim.organizationId, organizationId),
+              ),
+            )
+            .get();
+          if (claim === undefined) return 'not_found' as const;
+          // Proof: 2026-09-28, admitting pending claims made mounted
+          // `releases ownership and requires a fresh claim before another organization can verify`
+          // return 204 instead of stale 409 before initial proof.
+          if (claim.status !== 'verified' && claim.status !== 'suspended') return 'stale' as const;
+          // Proof: 2026-09-28, keeping pre-release pending rows made mounted
+          // `releases ownership and requires a fresh claim before another organization can verify`
+          // accept B's old proof instead of returning 404.
+          // Proof: 2026-09-28, removing the domain predicate made mounted
+          // `keeps unrelated pending claims when an owner releases its domain`
+          // delete org-b's example.net claim.
+          tx.delete(organizationDomainClaim)
+            .where(
+              and(
+                eq(organizationDomainClaim.domain, claim.domain),
+                eq(organizationDomainClaim.status, 'pending'),
+              ),
+            )
+            .run();
+          tx.delete(organizationDomainClaim).where(eq(organizationDomainClaim.id, claimId)).run();
+          return 'released' as const;
+        },
+        { behavior: 'immediate' },
+      );
     });
   }
 

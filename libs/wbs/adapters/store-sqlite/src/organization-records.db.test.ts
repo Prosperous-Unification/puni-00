@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { WriteStamp } from '@wbs/core';
+import type { DomainVerificationSnapshot, WriteStamp } from '@wbs/core';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
@@ -331,6 +331,35 @@ describe('OrganizationRepository.administer', () => {
 });
 
 describe('DomainClaimRepository', () => {
+  it('types pending snapshots with a required expiry and rotation snapshots with a previous deadline', () => {
+    type PendingWithoutExpiry = {
+      kind: 'initial';
+      phase: 'pending';
+      id: string;
+      domain: string;
+      challengeDigest: string;
+      challengeExpiresAt: null;
+      previousProofDigest: null;
+      previousProofValidUntil: null;
+    } extends DomainVerificationSnapshot
+      ? true
+      : false;
+    type RotationWithoutDeadline = {
+      kind: 'rotation';
+      phase: 'rotation';
+      id: string;
+      domain: string;
+      challengeDigest: string;
+      challengeExpiresAt: null;
+      previousProofDigest: string;
+      previousProofValidUntil: null;
+    } extends DomainVerificationSnapshot
+      ? true
+      : false;
+    const acceptsPendingWithoutExpiry: PendingWithoutExpiry = false;
+    const acceptsRotationWithoutDeadline: RotationWithoutDeadline = false;
+    expect([acceptsPendingWithoutExpiry, acceptsRotationWithoutDeadline]).toEqual([false, false]);
+  });
   it('refuses a challenge that expires while verification waits for the write gate', async () => {
     await twoOrganizationsClaiming('example.org');
     connection.db.run(
@@ -350,11 +379,11 @@ describe('DomainClaimRepository', () => {
       'org-a',
       'u-a',
       {
-        kind: 'initial',
         id: 'c-a',
         domain: 'example.org',
         challengeDigest: 'digest-c-a',
         challengeExpiresAt: 1000,
+        phase: 'pending',
       },
       'digest-c-a',
       stamp('u-a', now),
@@ -384,17 +413,17 @@ describe('DomainClaimRepository', () => {
       },
       stamp('u-a'),
     );
-    expect(await claims.readPendingClaim('org-a', 'u-a', 'c-a')).toBe('inactive');
+    expect(await claims.readClaimForVerification('org-a', 'u-a', 'c-a')).toBe('inactive');
     expect(
       await claims.verifyClaim(
         'org-a',
         'u-a',
         {
-          kind: 'initial',
           id: 'c-a',
           domain: 'example.org',
           challengeDigest: 'digest-c-a',
           challengeExpiresAt: 1000,
+          phase: 'pending',
         },
         'digest-c-a',
         stamp('u-a', 20),

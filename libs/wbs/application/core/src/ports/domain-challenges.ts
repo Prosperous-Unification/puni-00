@@ -11,17 +11,28 @@ export interface DomainClaimSummary {
   readonly proofWarning: boolean;
 }
 
-/** An authorized proof captured before an external DNS lookup. */
-interface CapturedDomainClaim {
+/** An authorized claim snapshot captured before an external DNS lookup. */
+interface DomainVerificationBase {
   readonly id: string;
   readonly domain: string;
   readonly challengeDigest: string;
 }
 
-/** Initial proof expires after 24 hours; a replacement carries only the old proof's overlap deadline. */
-export type PendingDomainClaim =
-  | (CapturedDomainClaim & { readonly kind: 'initial'; readonly challengeExpiresAt: number })
-  | (CapturedDomainClaim & { readonly kind: 'rotation'; readonly previousProofValidUntil: number });
+/** Phase determines which captured proof fields exist at commit. */
+export type DomainVerificationSnapshot = DomainVerificationBase &
+  (
+    | { readonly phase: 'pending'; readonly challengeExpiresAt: number }
+    | {
+        readonly phase: 'rotation';
+        readonly previousProofDigest: string;
+        readonly previousProofValidUntil: number;
+      }
+    | {
+        readonly phase: 'recovery';
+        readonly previousProofDigest: string | null;
+        readonly previousProofValidUntil: number | null;
+      }
+  );
 
 /** Authoritative TXT records, one DNS TXT record per string; failure throws. */
 export interface DomainResolver {
@@ -70,15 +81,15 @@ export interface DomainChallenges {
     | { kind: 'issued'; id: string }
     | { kind: 'forbidden' | 'unclaimable' | 'already_claimed' | 'inactive' }
   >;
-  readPendingClaim(
+  readClaimForVerification(
     organizationId: string,
     actorId: string,
     claimId: string,
-  ): Promise<PendingDomainClaim | 'forbidden' | 'not_found' | 'stale' | 'inactive'>;
+  ): Promise<DomainVerificationSnapshot | 'forbidden' | 'not_found' | 'stale' | 'inactive'>;
   verifyClaim(
     organizationId: string,
     actorId: string,
-    claim: PendingDomainClaim,
+    claim: DomainVerificationSnapshot,
     observedDigest: string,
     stamp: WriteStamp,
     now: () => number,
@@ -93,6 +104,11 @@ export interface DomainChallenges {
     | { kind: 'issued'; domain: string; dnsValue: string }
     | { kind: 'forbidden' | 'not_found' | 'stale' | 'inactive' }
   >;
+  releaseClaim(
+    organizationId: string,
+    actorId: string,
+    claimId: string,
+  ): Promise<'released' | 'forbidden' | 'not_found' | 'stale' | 'inactive'>;
   /** Reads current claim status; approval must still recheck in its own write transaction. */
   isVerifiedDomain(organizationId: string, domain: string): Promise<boolean>;
 }

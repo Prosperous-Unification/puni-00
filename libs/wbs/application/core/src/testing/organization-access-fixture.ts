@@ -32,12 +32,14 @@ export const refusingDomains: DomainChallenges = {
     Promise.reject(new Error('domain claims were reached in a pre-activation suite')),
   reissueClaim: () =>
     Promise.reject(new Error('domain challenges were reached in a pre-activation suite')),
-  readPendingClaim: () =>
+  readClaimForVerification: () =>
     Promise.reject(new Error('domain verification was reached in a pre-activation suite')),
   verifyClaim: () =>
     Promise.reject(new Error('domain promotion was reached in a pre-activation suite')),
   rotateClaim: () =>
     Promise.reject(new Error('domain rotation was reached in a pre-activation suite')),
+  releaseClaim: () =>
+    Promise.reject(new Error('domain release was reached in a pre-activation suite')),
   isVerifiedDomain: () =>
     Promise.reject(new Error('domain approval status was reached in a pre-activation suite')),
 };
