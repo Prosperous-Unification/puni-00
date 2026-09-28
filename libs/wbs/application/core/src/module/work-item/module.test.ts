@@ -106,6 +106,28 @@ const completeHost = () =>
     .buildContainer();
 
 describe('the Work item module', () => {
+  it('refuses an SS write at the application boundary while SS reads are supported', async () => {
+    const { requirements } = await seeded();
+    const { workItems } = installWorkItem(requirements);
+    const first = await workItems.create(PROJECT, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'A',
+    });
+    const second = await workItems.create(PROJECT, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'B',
+    });
+    if (!first.ok || !second.ok) throw new Error('fixture work items were refused');
+    const proposed = await workItems.addTypedDependency(PROJECT, OWNER, {
+      predecessor: { scope: 'whole', workItemId: first.value.id },
+      successor: { scope: 'whole', workItemId: second.value.id },
+      type: 'SS',
+    });
+    expect(proposed).toEqual({ ok: false, reason: 'unsupported_relationship_type' });
+  });
+
   it('announces a created work item through the broadcaster installWorkItem wires', async () => {
     const { broadcast, requirements } = await seeded();
     const { workItems } = installWorkItem(requirements);

@@ -211,7 +211,7 @@ export function buildSolverRequest(
 
   // Last, because it needs the projected slices, and it is what decides whether
   // a process starts at all. The missing-baseline direction throws inside it.
-  const preflight = preflightSolverRequest(slices, spawn.baselineOffsets);
+  const preflight = preflightSolverRequest(slices, spawn.baselineOffsets, edges);
   if (!preflight.ok) return preflight;
 
   return {

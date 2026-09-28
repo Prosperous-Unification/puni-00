@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 
+import { type Slice, sliceKey } from '@wbs/domain';
+import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { describe, expect, it } from 'bun:test';
 
 import { revalidateOptimizedDeadlines, revalidateSolverResult } from './revalidate-solver-result';
@@ -33,7 +35,7 @@ const slice = (over: Partial<SolverSlice> & { key: string }): SolverSlice => ({
 });
 
 const request = (over: Partial<SolverRequest> = {}): SolverRequest => ({
-  wireVersion: 1,
+  wireVersion: 2,
   contractVersion: '7+0.1.0',
   solverVersion: '0.1.0',
   objective: 'pri',
@@ -77,10 +79,34 @@ const feasible = (
   offsets: Record<string, number>,
   over: Partial<SolverObjectiveValues> = {},
 ): SolverResponse => ({
-  wireVersion: 1,
+  wireVersion: 2,
   status: 'feasible',
   offsets,
   objectiveValues: valuesFor(offsets, over),
+});
+
+const canonicalPair = (slices: readonly Slice[], type: 'SS' | 'FF'): ScheduleInput => ({
+  rows: ['A', 'B'].map((id, position) => ({
+    id,
+    parentId: null,
+    position,
+    frozenNumber: null,
+    priority: null,
+  })),
+  edges: [],
+  slices,
+  notBefore: new Map(),
+  poolSizes: new Map(),
+  reach: 'whole-item',
+  deadlines: new Map(),
+  typed: [
+    {
+      id: 'pair',
+      predecessor: { scope: 'whole', workItemId: 'A' },
+      successor: { scope: 'whole', workItemId: 'B' },
+      type,
+    },
+  ],
 });
 
 const rejects = (result: ReturnType<typeof revalidateSolverResult>, failure: string): void => {
@@ -96,7 +122,7 @@ describe('revalidateSolverResult accepts', () => {
 
   it('a non-publishing response with nothing checked', () => {
     for (const status of ['infeasible', 'unknown'] as const) {
-      const result = revalidateSolverResult(request(), { wireVersion: 1, status });
+      const result = revalidateSolverResult(request(), { wireVersion: 2, status });
       // `published: false` is the point: the response is acceptable AND there is
       // no plan, and a caller that reads `ok` alone would publish nothing at all.
       expect(result).toEqual({ ok: true, published: false });
@@ -105,13 +131,108 @@ describe('revalidateSolverResult accepts', () => {
 });
 
 describe('revalidateSolverResult refuses the request it cannot judge', () => {
+  it('refuses a wire request that omits the canonical SS edge', () => {
+    const real: Slice[] = [
+      { workItemId: 'A', stepId: null, days: 1, width: 1, personId: null, poolIds: [] },
+      { workItemId: 'B', stepId: null, days: 1, width: 1, personId: null, poolIds: [] },
+    ];
+    const a = sliceKey('A', null);
+    const b = sliceKey('B', null);
+    const omitted = request({
+      slices: [slice({ key: a, durationUnits: 48 }), slice({ key: b, durationUnits: 48 })],
+      edges: [],
+      baselineOffsets: { [a]: 0, [b]: 0 },
+      fastHint: { [a]: 0, [b]: 0 },
+    });
+    // Proof: bypassing the canonical edge-set comparison accepted this omitted
+    // SS edge on an unknown response; the focused negative observed true.
+    rejects(
+      revalidateSolverResult(
+        omitted,
+        { wireVersion: 2, status: 'unknown' },
+        real,
+        canonicalPair(real, 'SS'),
+      ),
+      'malformed-request',
+    );
+  });
+  it('refuses a forged FF start weight before accepting unknown', () => {
+    const a = sliceKey('A', null);
+    const b = sliceKey('B', null);
+    const real: Slice[] = [
+      { workItemId: 'A', stepId: null, days: 0.03, width: 1, personId: null, poolIds: [] },
+      { workItemId: 'B', stepId: null, days: 0.021, width: 1, personId: null, poolIds: [] },
+    ];
+    const forged = request({
+      slices: [slice({ key: a, durationUnits: 2 }), slice({ key: b, durationUnits: 2 })],
+      edges: [{ predecessorKey: a, successorKey: b, type: 'FF', startWeightUnits: 0 }],
+      baselineOffsets: { [a]: 0, [b]: 0 },
+      fastHint: { [a]: 0, [b]: 0 },
+    });
+    // Proof: with both the direct weight comparison and the canonical edge
+    // signature's weight removed, this production-shaped call accepted forged
+    // zero (expected false, received true); either protection alone rejects it.
+    rejects(
+      revalidateSolverResult(
+        forged,
+        { wireVersion: 2, status: 'unknown' },
+        real,
+        canonicalPair(real, 'FF'),
+      ),
+      'malformed-request',
+    );
+  });
+
+  it('refuses equal integer starts when FF real durations need one unit', () => {
+    const a = sliceKey('A', null);
+    const b = sliceKey('B', null);
+    const real: Slice[] = [
+      { workItemId: 'A', stepId: null, days: 0.03, width: 1, personId: null, poolIds: [] },
+      { workItemId: 'B', stepId: null, days: 0.021, width: 1, personId: null, poolIds: [] },
+    ];
+    const ff = request({
+      slices: [slice({ key: a, durationUnits: 2 }), slice({ key: b, durationUnits: 2 })],
+      edges: [{ predecessorKey: a, successorKey: b, type: 'FF', startWeightUnits: 1 }],
+      baselineOffsets: { [a]: 0, [b]: 0 },
+      fastHint: { [a]: 0, [b]: 0 },
+    });
+    rejects(revalidateSolverResult(ff, feasible({ [a]: 0, [b]: 0 }), real), 'edge-violated');
+  });
+
+  it('refuses a response that omits the SS start boundary', () => {
+    const withSS = request({ edges: [{ predecessorKey: 'a', successorKey: 'b', type: 'SS' }] });
+    // Proof: dispatching SS as a no-op made this case return published:true.
+    rejects(revalidateSolverResult(withSS, feasible({ a: 1, b: 0 })), 'edge-violated');
+  });
+
+  it('refuses unsupported edge types at the request boundary', () => {
+    const unsupported = request({
+      edges: [{ predecessorKey: 'a', successorKey: 'b', type: 'SF' as 'FS' }],
+    });
+    rejects(
+      revalidateSolverResult(unsupported, { wireVersion: 2, status: 'unknown' }),
+      'malformed-request',
+    );
+  });
+
+  it('refuses a misplaced FF weight at the request boundary', () => {
+    const misplaced = request({
+      edges: [{ predecessorKey: 'a', successorKey: 'b', type: 'SS', startWeightUnits: 1 } as never],
+    });
+    rejects(
+      revalidateSolverResult(misplaced, { wireVersion: 2, status: 'unknown' }),
+      'malformed-request',
+    );
+  });
   it('a duplicate slice key', () => {
     const twice = request({ slices: [slice({ key: 'a' }), slice({ key: 'a' })] });
     rejects(revalidateSolverResult(twice, feasible({ a: 0 })), 'malformed-request');
   });
 
   it('an edge naming a slice that does not exist', () => {
-    const dangling = request({ edges: [{ predecessorKey: 'a', successorKey: 'ghost' }] });
+    const dangling = request({
+      edges: [{ predecessorKey: 'a', successorKey: 'ghost', type: 'FS' }],
+    });
     rejects(revalidateSolverResult(dangling, feasible({ a: 0, b: 0 })), 'malformed-request');
   });
 
@@ -127,7 +248,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       fastHint: { a: 0 },
     });
     rejects(
-      revalidateSolverResult(malformed, { wireVersion: 1, status: 'unknown' }),
+      revalidateSolverResult(malformed, { wireVersion: 2, status: 'unknown' }),
       'malformed-request',
     );
   });
@@ -139,7 +260,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       fastHint: { 'opaque-a': 0 },
     });
     rejects(
-      revalidateSolverResult(malformed, { wireVersion: 1, status: 'unknown' }),
+      revalidateSolverResult(malformed, { wireVersion: 2, status: 'unknown' }),
       'malformed-request',
     );
   });
@@ -155,7 +276,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
         fastHint: { [key]: 0 },
       });
       rejects(
-        revalidateSolverResult(malformed, { wireVersion: 1, status: 'unknown' }),
+        revalidateSolverResult(malformed, { wireVersion: 2, status: 'unknown' }),
         'malformed-request',
       );
     }
@@ -170,7 +291,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       baselineOffsets: { 'opaque-a': 0, 'opaque-b': 10 },
       fastHint: { 'opaque-a': 0, 'opaque-b': 10 },
     });
-    expect(revalidateSolverResult(legal, { wireVersion: 1, status: 'unknown' })).toEqual({
+    expect(revalidateSolverResult(legal, { wireVersion: 2, status: 'unknown' })).toEqual({
       ok: true,
       published: false,
     });
@@ -192,7 +313,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       fastHint: { a: 0 },
     });
     for (const status of ['infeasible', 'unknown'] as const) {
-      rejects(revalidateSolverResult(malformed, { wireVersion: 1, status }), 'malformed-request');
+      rejects(revalidateSolverResult(malformed, { wireVersion: 2, status }), 'malformed-request');
     }
     rejects(revalidateSolverResult(malformed, feasible({ a: 1 })), 'malformed-request');
   });
@@ -211,7 +332,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
         baselineOffsets: { a: 0 },
         fastHint: { a: 0 },
       });
-      expect(revalidateSolverResult(legal, { wireVersion: 1, status: 'infeasible' })).toEqual({
+      expect(revalidateSolverResult(legal, { wireVersion: 2, status: 'infeasible' })).toEqual({
         ok: true,
         published: false,
       });
@@ -252,7 +373,7 @@ describe('revalidateSolverResult checks floors and edges', () => {
   });
 
   it('rejects a successor starting before its predecessor finishes', () => {
-    const chained = request({ edges: [{ predecessorKey: 'a', successorKey: 'b' }] });
+    const chained = request({ edges: [{ predecessorKey: 'a', successorKey: 'b', type: 'FS' }] });
     rejects(revalidateSolverResult(chained, feasible({ a: 0, b: 9 })), 'edge-violated');
     // The hand-off instant belongs to the successor: occupancy is half-open, so
     // finish == start is met exactly and not a violation by one unit.
@@ -311,7 +432,7 @@ describe('revalidateSolverResult recomputes the objective', () => {
     movement: term(27),
   };
   const answer = (values: SolverObjectiveValues): SolverResponse => ({
-    wireVersion: 1,
+    wireVersion: 2,
     status: 'feasible',
     offsets: { a: 0, b: 20 },
     objectiveValues: values,
@@ -375,7 +496,7 @@ describe('revalidateSolverResult recomputes the objective', () => {
       fastHint: { a: 0 },
     });
     const response: SolverResponse = {
-      wireVersion: 1,
+      wireVersion: 2,
       status: 'feasible',
       offsets: { a: 2_147_483_646 },
       objectiveValues: {

@@ -729,6 +729,20 @@ describe('typed dependencies in the canonical input', () => {
     expect(new Set([canonicalScheduleInput(plan([])), byWhole, byNode, renamed]).size).toBe(4);
   });
 
+  it('changes the cache input when an authored FS relationship becomes FF', () => {
+    const relationship = {
+      id: 'r1',
+      predecessor: whole('x'),
+      successor: whole('y'),
+    };
+    const fs = canonicalScheduleInput(plan([{ ...relationship, type: 'FS' }]));
+    const ff = canonicalScheduleInput(plan([{ ...relationship, type: 'FF' }]));
+
+    expect(fs).not.toBe(ff);
+    expect(fs).toContain('"type":"FS"');
+    expect(ff).toContain('"type":"FF"');
+  });
+
   it('orders typed dependencies by id, so arrival order does not move the hash', () => {
     const first = { id: 'a', predecessor: whole('x'), successor: whole('y'), type: 'FS' as const };
     const second = { id: 'b', predecessor: node('x'), successor: whole('y'), type: 'FS' as const };

@@ -132,8 +132,8 @@ describe('buildSolverRequest', () => {
     ]);
     // The chain first, then the join: A's LAST slice to B's FIRST, whole-item.
     expect(request.edges).toEqual([
-      { predecessorKey: sliceKey('A', 'design'), successorKey: sliceKey('A', 'dev') },
-      { predecessorKey: sliceKey('A', 'dev'), successorKey: sliceKey('B', 'dev') },
+      { predecessorKey: sliceKey('A', 'design'), successorKey: sliceKey('A', 'dev'), type: 'FS' },
+      { predecessorKey: sliceKey('A', 'dev'), successorKey: sliceKey('B', 'dev'), type: 'FS' },
     ]);
     expect(request.pools).toEqual({ 'team-x': 2 });
     // `team-y` is sized in the project and named by no slice, so it stays out:
@@ -166,6 +166,50 @@ describe('buildSolverRequest', () => {
     expect(Object.keys(request.baselineOffsets).sort()).toEqual(
       request.slices.map((slice) => slice.key).sort(),
     );
+  });
+
+  it('keeps a weighted FF fallback and each finish inside the request horizon', () => {
+    const typed = [
+      {
+        id: 'ff',
+        predecessor: { scope: 'whole' as const, workItemId: 'A' },
+        successor: { scope: 'whole' as const, workItemId: 'B' },
+        type: 'FF' as const,
+      },
+    ];
+    const plan = planOf({
+      rows: [rowOf('A', null, null), rowOf('B', null, null)],
+      edges: [],
+      slices: [sliceOf('A', null, 1 / 48 + 1e-12), sliceOf('B', null, 0)],
+      notBefore: new Map(),
+      poolSizes: new Map(),
+      typed,
+    });
+    const baselineOffsets = quantisedFastBaseline(
+      plan.rows,
+      plan.edges,
+      plan.slices,
+      plan.notBefore,
+      plan.poolSizes,
+      plan.reach,
+      typed,
+    );
+    const request = requestOf(plan, spawnOf(plan, { baselineOffsets }));
+    expect(request.edges).toEqual([
+      {
+        predecessorKey: sliceKey('A', null),
+        successorKey: sliceKey('B', null),
+        type: 'FF',
+        startWeightUnits: 2,
+      },
+    ]);
+    expect(request.baselineOffsets[sliceKey('B', null)]).toBe(2);
+    expect(request.horizonUnits).toBe(2);
+    for (const slice of request.slices) {
+      expect(request.baselineOffsets[slice.key] + slice.durationUnits).toBeLessThanOrEqual(
+        request.horizonUnits,
+      );
+    }
   });
 
   it('changes exactly one field between the two objectives', () => {

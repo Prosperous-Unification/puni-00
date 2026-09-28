@@ -2,19 +2,30 @@ import {
   type DependencyEdge,
   type DependencyReach,
   durationUnits,
+  expandToLeaves,
+  groupSlicesByLeaf,
+  indexTree,
+  leafFloorsOf,
+  leavesUnderOf,
   type PlannedRow,
   type PoolSizes,
   schedule,
   type Slice,
+  sliceKey,
   SOLVER_QUANTUM,
   type TypedDependency,
 } from '@wbs/domain';
 
+import { buildSolverEdges } from './build-solver-edges';
+import { notBeforeUnitsOf } from './solver-units';
 import type { SolverOffsetMap } from './wire-types';
 
 /**
- * Fast's own placement re-run over the **rounded** durations, in integer solver
- * units — the request's `baselineOffsets`, and the same map again as `fastHint`.
+ * Fast's placement re-run over rounded durations, in integer solver units.
+ * An FF edge whose real-materialization bound exceeds the integer finish bound
+ * can invalidate that pass. In that case a serial topological placement supplies
+ * a feasible integer reference; Python checks it against deadlines before it
+ * installs any hint or objective bound.
  *
  * **Real Fast's answer is not a legal answer to the question the solver is
  * asked**, and that is the whole reason this exists. Three serial slices at
@@ -26,11 +37,9 @@ import type { SolverOffsetMap } from './wire-types';
  * very model it hints. So the baseline is re-derived in the quantised model
  * rather than converted from the real one.
  *
- * **It re-runs `schedule()` rather than reimplementing the placement.** The
- * baseline has to be Fast's answer — same eligibility ranking, same person
- * queues, same pool windows, same tie-breaks — and a second placement written
- * to agree with that one is a divergence waiting for either to be edited. What
- * is rescaled is the *input*, so the pass itself is untouched and unaware.
+ * The common path re-runs `schedule()` with rescaled input, preserving Fast's
+ * placement rules. The exceptional serial path exists only when that schedule
+ * violates the extra FF weight that real durations require.
  *
  * ## The rescale, and why it is exact
  *
@@ -59,24 +68,11 @@ import type { SolverOffsetMap } from './wire-types';
  * fold and scaling the fold's answer are the same number. One walk, still the
  * domain's.
  *
- * Deadlines are deliberately absent, and TASK-280 amended the reason rather
- * than the decision. The old wording said they "constrain the solver, not
- * Fast", which stopped being true at `work-item-deadline` slice 5: a deadline
- * reorders Fast's ready set by minimum slack. What still holds is the second
- * half — a plan whose quantised baseline misses a deadline is a plan whose
- * real-domain baseline missed it too, which is 4.11b's comparison and 3.1's
- * `plan-infeasible`, not this function's to decide.
- *
- * **Two things are now open here, and both belong to slice 8 rather than to
- * this file.** TASK-280 made `guardRealPublication` pass `input.deadlines`, so
- * the guard's real-domain baseline is deadline-ordered while this one is not:
- * the movement reference is measured against a different order than the
- * schedule it is compared with. That decides nothing — movement is never the
- * primary term — but it is the divergence the sentence above warns about,
- * reached from the other side. And CONTEXT.md allows this map to bound stage 1
- * "because it is feasible in the model the solver actually gets"; whether an
- * undeadlined placement is still feasible in a model carrying hard deadline
- * constraints is exactly what slice 8 answers.
+ * Deadlines do not enter this placement call. Rounding can make a real plan
+ * miss a deadline only in the integer model (49 slices of 0.02 day need 49
+ * units, though real Fast finishes before day 1). Python probes the complete
+ * model before installing this map as a hint or objective bound. A missed
+ * deadline here is never a certificate that the real plan is infeasible.
  *
  * ## What the caller gets
  *
@@ -108,7 +104,7 @@ export function quantisedFastBaseline(
     poolSizes,
     reach,
     // No deadlines, as before typed dependencies took the eighth slot: the
-    // baseline is the unit-axis Fast placement the solver starts from.
+    // The common-path baseline is the unit-axis Fast placement.
     new Map(),
     typed,
   );
@@ -138,7 +134,80 @@ export function quantisedFastBaseline(
     }
     offsets[key] = earliestStart;
   }
-  return offsets;
+  const index = indexTree(rows);
+  const grouped = groupSlicesByLeaf(index.leafIds, slices);
+  const slicesOf = (leafId: string): readonly Slice[] => {
+    const own = grouped.get(leafId);
+    if (own === undefined) throw new Error(`no slice for work item ${leafId}`);
+    return own;
+  };
+  const wireEdges = buildSolverEdges(index.leafIds, slicesOf, expandToLeaves(index, edges), reach, {
+    dependencies: typed,
+    leavesUnder: leavesUnderOf(index),
+  });
+  const durationByKey = new Map(
+    slices.map((slice) => [sliceKey(slice.workItemId, slice.stepId), durationUnits(slice)]),
+  );
+  const violatesFF = wireEdges.some(
+    (edge) =>
+      edge.type === 'FF' &&
+      offsets[edge.successorKey] < offsets[edge.predecessorKey] + edge.startWeightUnits,
+  );
+  // Proof: returning the raw rounded Fast offsets here put the 0.030/0.021
+  // FF successor at unit 0; the focused baseline test observed 12 pass / 1 fail.
+  if (!violatesFF) return offsets;
+
+  // The rounded Fast pass can miss the extra FF unit. A serial topological
+  // placement is a conservative feasible hint: it satisfies every typed edge,
+  // person and pool capacity, including zero-duration precedence nodes.
+  // Python separately checks deadlines before installing the hint or bound.
+  const pending = new Map<string, number>(Object.keys(offsets).map((key) => [key, 0]));
+  const outgoing = new Map<string, (typeof wireEdges)[number][]>();
+  for (const edge of wireEdges) {
+    pending.set(edge.successorKey, (pending.get(edge.successorKey) ?? 0) + 1);
+    const own = outgoing.get(edge.predecessorKey) ?? [];
+    own.push(edge);
+    outgoing.set(edge.predecessorKey, own);
+  }
+  const floors = leafFloorsOf(notBefore, index);
+  const byKey = new Map(slices.map((slice) => [sliceKey(slice.workItemId, slice.stepId), slice]));
+  const ready = [...pending]
+    .filter(([, count]) => count === 0)
+    .map(([key]) => key)
+    .sort();
+  const serial: Record<string, number> = {};
+  const predecessorBounds = new Map<string, number>();
+  let cursor = 0;
+  while (ready.length > 0) {
+    const key = ready.shift();
+    if (key === undefined) throw new Error('ready slice disappeared');
+    const slice = byKey.get(key);
+    const duration = durationByKey.get(key);
+    if (slice === undefined || duration === undefined) throw new Error(`no canonical slice ${key}`);
+    // Proof: omitting the predecessor bound left the 5e-10-day FF predecessor
+    // and unknown successor at the same unit; the focused baseline test failed.
+    const start = Math.max(
+      cursor,
+      notBeforeUnitsOf(floors, slice.workItemId),
+      predecessorBounds.get(key) ?? 0,
+    );
+    serial[key] = start;
+    cursor = start + duration;
+    for (const edge of outgoing.get(key) ?? []) {
+      const weight = edge.type === 'FF' ? edge.startWeightUnits : edge.type === 'FS' ? duration : 0;
+      predecessorBounds.set(
+        edge.successorKey,
+        Math.max(predecessorBounds.get(edge.successorKey) ?? 0, start + weight),
+      );
+      const remaining = pending.get(edge.successorKey);
+      if (remaining === undefined) throw new Error(`no successor slice ${edge.successorKey}`);
+      pending.set(edge.successorKey, remaining - 1);
+      if (remaining === 1) ready.push(edge.successorKey);
+    }
+    ready.sort();
+  }
+  if (Object.keys(serial).length !== slices.length) throw new Error('cyclic solver slice graph');
+  return serial;
 }
 
 /**

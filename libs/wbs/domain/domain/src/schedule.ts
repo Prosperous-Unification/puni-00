@@ -2,7 +2,8 @@ import type { DependencyReach } from './dependency-reach';
 import type { PlannedRow } from './derive-numbers';
 import { leafDeadlinesOf, leafFloorsOf } from './leaf-constraints';
 import { WORK_ITEM_PROJECTION_START, workdaysLateBy } from './on-time';
-import { resolveStepNodeGraph } from './slice-edges';
+import { validateRealBoundaries } from './real-boundaries';
+import { resolveStepNodeGraph, type StepNodeGraphEdge } from './slice-edges';
 import { groupSlicesByLeaf } from './slice-groups';
 import { treeOrder } from './tree-order';
 import type { TypedDependency } from './typed-dependency';
@@ -651,6 +652,15 @@ interface SliceGraph {
   nodes: readonly SliceNode[];
   /** How many work items the nodes belong to — the width of the anchor arrays. */
   items: number;
+}
+
+/** A real start inequality, `start[after] >= start[before] + weight`. */
+interface WeightedEdge {
+  before: number;
+  after: number;
+  type: StepNodeGraphEdge['type'];
+  weight: number;
+  provenance: StepNodeGraphEdge['provenance'] | 'resource';
 }
 
 /**
@@ -1651,6 +1661,7 @@ function placeSlices(
   order: number[];
   placed: Placed[];
   resourceSuccessors: number[][];
+  resourceEdges: WeightedEdge[];
   eventsVisited: number;
 } {
   const { nodes } = graph;
@@ -1827,7 +1838,469 @@ function placeSlices(
   // `tree` turns into the banner saying why the plan has no dates; watched
   // 2026-08-09.
   if (order.length !== nodes.length) throw new ScheduleCycleError();
-  return { order, placed, resourceSuccessors, eventsVisited: profile.eventsVisited() };
+  return {
+    order,
+    placed,
+    resourceSuccessors,
+    resourceEdges: [],
+    eventsVisited: profile.eventsVisited(),
+  };
+}
+
+/** Earliest nonoverlapping person interval at or after a weighted floor. */
+function findPersonWindow(
+  intervals: readonly { node: number; start: number; finish: number }[],
+  floor: number,
+  duration: number,
+): { start: number; blocking: number[] } {
+  // Proof: replacing this gap scan's initial start with the last interval's
+  // finish made `places a longer FF successor earlier, in a person gap` fail:
+  // B moved from day 0 to day 11; watched 2026-09-28.
+  let start = floor;
+  const blocking: number[] = [];
+  if (duration === 0) return { start, blocking };
+  for (const interval of intervals) {
+    if (interval.finish <= start) continue;
+    if (interval.start >= start + duration) break;
+    blocking.push(interval.node);
+    start = interval.finish;
+  }
+  return { start, blocking };
+}
+
+/** Revisit person and pool windows until both accept the same interval. */
+function findResourceWindow(
+  intervals: readonly { node: number; start: number; finish: number }[],
+  profile: ReturnType<typeof capacityProfile>,
+  poolIds: readonly string[],
+  width: number,
+  floor: number,
+  duration: number,
+): { start: number; person: ReturnType<typeof findPersonWindow>; pool: JointWindow } {
+  let start = floor;
+  let person = findPersonWindow(intervals, start, duration);
+  let pool = profile.jointWindowFor(poolIds, width, duration, start);
+  let personEvidence = person;
+  let poolEvidence = pool;
+  for (;;) {
+    if (person.start > start) personEvidence = person;
+    if (pool.start > start) poolEvidence = pool;
+    const next = Math.max(person.start, pool.start);
+    // Proof: returning after one pass made `explains a person delay after a
+    // pool delay` label C at day 5 `optimizer` with no person predecessor;
+    // watched 2026-09-28 (13 pass / 1 fail).
+    if (next === start) return { start, person: personEvidence, pool: poolEvidence };
+    start = next;
+    person = findPersonWindow(intervals, start, duration);
+    pool = profile.jointWindowFor(poolIds, width, duration, start);
+  }
+}
+
+/** Rebuild actual chronological resource edges, independent of Kahn placement order. */
+function rebuildResourceOrder(
+  graph: SliceGraph,
+  placed: readonly Placed[],
+  sizes: PoolSizes,
+): WeightedEdge[] {
+  const edges: WeightedEdge[] = [];
+  const seen = new Set<string>();
+  const add = (before: number, after: number): void => {
+    if (before === after) return;
+    const key = `${String(before)}:${String(after)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    edges.push({
+      before,
+      after,
+      type: 'FS',
+      weight: durationOf(graph.nodes[before].slice),
+      provenance: 'resource',
+    });
+  };
+  const byPerson = new Map<string, number[]>();
+  const byPool = new Map<string, number[]>();
+  graph.nodes.forEach((node, at) => {
+    if (placed[at].finish <= placed[at].start) return;
+    if (node.slice.personId !== null) {
+      const assigned = byPerson.get(node.slice.personId) ?? [];
+      assigned.push(at);
+      byPerson.set(node.slice.personId, assigned);
+    }
+    for (const poolId of node.slice.poolIds) {
+      const reserved = byPool.get(poolId) ?? [];
+      reserved.push(at);
+      byPool.set(poolId, reserved);
+    }
+  });
+  const chronological = (left: number, right: number): number =>
+    placed[left].start - placed[right].start || left - right;
+  for (const assigned of byPerson.values()) {
+    // Proof: leaving these in node/plan order instead of sorting by actual
+    // start made `computes float through a feasible augmented cycle` report
+    // latest starts 9/0/10 rather than 10/0/9; watched 2026-09-28.
+    assigned.sort(chronological);
+    // Proof: omitting these actual-order person edges made `computes float
+    // through a feasible augmented cycle` report C latest start 10 instead
+    // of 9, and the longer cycle report 20 instead of 9; watched 2026-09-28.
+    for (let at = 1; at < assigned.length; at += 1) add(assigned[at - 1], assigned[at]);
+  }
+  for (const [poolId, reserved] of byPool) {
+    const size = sizes.get(poolId);
+    if (size === undefined) throw new Error(`no size for pool ${poolId}`);
+    const slots = Array.from(
+      { length: size },
+      (): { owner: number; finish: number } | null => null,
+    );
+    reserved.sort(chronological);
+    for (const at of reserved) {
+      let taken = 0;
+      for (let slot = 0; slot < size && taken < graph.nodes[at].slice.width; slot += 1) {
+        const previous = slots[slot];
+        if (previous !== null && previous.finish > placed[at].start) continue;
+        if (previous !== null) add(previous.owner, at);
+        slots[slot] = { owner: at, finish: placed[at].finish };
+        taken += 1;
+      }
+      if (taken !== graph.nodes[at].slice.width) {
+        // Proof: deleting this refusal made `rejects a pinned pool overlap in
+        // resource-order replay` return A [5,7) and B [6,7) on a size-1
+        // pool; watched 2026-09-28 (12 pass / 1 fail).
+        throw new ScheduleInvalidOptimizedStartError(
+          graph.nodes[at].key,
+          `overlaps pool ${poolId}`,
+        );
+      }
+    }
+  }
+  return edges;
+}
+
+/**
+ * Place weighted DAG nodes; pins materialize in plan order, then resources replay in actual time.
+ * A pin must meet its explicit floor and the dependency's materialized boundary;
+ * nominal weighted sums can round above a valid fractional FF pin.
+ */
+function placeWeightedSlices(
+  graph: SliceGraph,
+  edges: readonly WeightedEdge[],
+  goesFirst: (left: number, right: number) => boolean,
+  withResources: boolean,
+  sizes: PoolSizes,
+  pinned?: readonly number[],
+): {
+  order: number[];
+  placed: Placed[];
+  resourceSuccessors: number[][];
+  resourceEdges: WeightedEdge[];
+  eventsVisited: number;
+} {
+  const { nodes } = graph;
+  const incoming = nodes.map((): WeightedEdge[] => []);
+  for (const edge of edges) incoming[edge.after].push(edge);
+  const waitingOn = nodes.map((node) => node.predecessors.length);
+  const eligible = eligibleSet(goesFirst);
+  nodes.forEach((_, at) => {
+    if (waitingOn[at] === 0) eligible.push(at);
+  });
+  const placed: Placed[] = [];
+  const order: number[] = [];
+  const anchors = new Array<SpanAnchor | undefined>(graph.items);
+  const profile = capacityProfile(sizes);
+  const people = new Map<string, { node: number; start: number; finish: number }[]>();
+  for (let taken = eligible.take(); taken !== undefined; taken = eligible.take()) {
+    const node = nodes[taken];
+    const duration = durationOf(node.slice);
+    const explicitFloor = Math.max(0, node.notBefore);
+    let floor = explicitFloor;
+    for (const edge of incoming[taken])
+      floor = Math.max(floor, placed[edge.before].start + edge.weight);
+    let start = pinned === undefined ? floor : pinned[taken];
+    // Proof: removing the finite check let an Infinity pin return a plan and
+    // made a NaN pin throw `weighted boundary did not converge` instead of the
+    // named refusal (1 pass / 2 fail); removing the explicit-floor check accepted B at 1
+    // despite its floor at 2 (0 pass / 1 fail). Restoring the nominal weighted
+    // comparison refused a valid FF replay at 1.6666666666666665 (0 pass / 1
+    // fail); both materialized finishes were 2.6666666666666665. Watched
+    // 2026-09-28 through schedule().
+    if (pinned !== undefined && (!Number.isFinite(start) || start < explicitFloor)) {
+      throw new ScheduleInvalidOptimizedStartError(
+        node.key,
+        'violates a weighted floor or has a non-finite start',
+      );
+    }
+    let tiled: ReturnType<typeof tileFinish> | undefined;
+    for (let attempt = 0; attempt < 16; attempt += 1) {
+      if (pinned === undefined && withResources) {
+        const personId = duration > 0 ? node.slice.personId : null;
+        const intervals = personId === null ? [] : (people.get(personId) ?? []);
+        start = findResourceWindow(
+          intervals,
+          profile,
+          node.slice.poolIds,
+          node.slice.width,
+          start,
+          duration,
+        ).start;
+      }
+      const candidate = tileFinish(anchors[node.item], start, node.at, node.offsets);
+      let required = start;
+      // Proof: deleting this materialized-window search made `reconciles a
+      // tiled fractional interval before reserving a pool` throw `C waited
+      // for capacity with nothing holding the pool` during replay; watched
+      // 2026-09-28 (13 pass / 1 fail).
+      if (pinned === undefined && withResources && candidate.finish > start) {
+        const intervals =
+          node.slice.personId === null ? [] : (people.get(node.slice.personId) ?? []);
+        required = findResourceWindow(
+          intervals,
+          profile,
+          node.slice.poolIds,
+          node.slice.width,
+          start,
+          candidate.finish - start,
+        ).start;
+      }
+      for (const edge of incoming[taken]) {
+        const before = placed[edge.before];
+        const boundary = edge.type === 'SS' ? before.start : before.finish;
+        // Proof: forcing this comparison false made `reconciles an FF
+        // successor against the materialized predecessor finish` fail:
+        // B finished at 32024810461.572468 before A at
+        // 32024810461.57247; watched 2026-09-28.
+        const violates = edge.type === 'FF' ? candidate.finish < boundary : start < boundary;
+        if (!violates) continue;
+        if (pinned !== undefined) {
+          throw new ScheduleInvalidOptimizedStartError(
+            node.key,
+            `violates ${edge.type} materialized boundary`,
+          );
+        }
+        required = Math.max(required, edge.type === 'FF' ? boundary - duration : boundary);
+        if (required <= start) required = start + Number.EPSILON * Math.max(1, Math.abs(start));
+      }
+      if (required === start) {
+        tiled = candidate;
+        break;
+      }
+      start = required;
+    }
+    if (tiled === undefined) throw new Error(`weighted boundary did not converge for ${node.key}`);
+    anchors[node.item] = tiled.held;
+    placed[taken] = {
+      start,
+      finish: tiled.finish,
+      boundBy: 'projectStart',
+      resourcePredecessor: NOBODY,
+      capacityPredecessors: [],
+      capacityTeamId: null,
+    };
+    order.push(taken);
+    if (pinned === undefined && withResources && duration > 0) {
+      if (node.slice.personId !== null) {
+        const intervals = people.get(node.slice.personId) ?? [];
+        intervals.push({ node: taken, start, finish: tiled.finish });
+        intervals.sort((left, right) => left.start - right.start);
+        people.set(node.slice.personId, intervals);
+      }
+      profile.reserve(node.slice.poolIds, taken, node.slice.width, start, tiled.finish);
+    }
+    for (const next of node.successors) {
+      waitingOn[next] -= 1;
+      if (waitingOn[next] === 0) eligible.push(next);
+    }
+  }
+  if (order.length !== nodes.length) throw new ScheduleCycleError();
+
+  if (withResources) {
+    // Traverse actual intervals rather than Kahn order: a long FF successor
+    // may begin before the predecessor that made it eligible.
+    // Actual starts decide resource order; plan order only materializes pins.
+    const replayProfile = capacityProfile(sizes);
+    const replayPeople = new Map<string, { node: number; start: number; finish: number }[]>();
+    const chronology = [...order].sort(
+      (left, right) => placed[left].start - placed[right].start || left - right,
+    );
+    const chronologicalAt = new Array<number>(nodes.length);
+    chronology.forEach((node, at) => {
+      chronologicalAt[node] = at;
+    });
+    for (const taken of chronology) {
+      const node = nodes[taken];
+      const duration = durationOf(node.slice);
+      const start = placed[taken].start;
+      let planFloor = node.notBefore;
+      let planKind: ScheduleFloor = node.notBefore > 0 ? 'notBefore' : 'projectStart';
+      for (const edge of incoming[taken]) {
+        const before = placed[edge.before];
+        // The reported floor follows actual boundaries after numerical
+        // reconciliation. An exactly tiled FF finish is predecessor-bound,
+        // even when its raw start weight differs by one or two ulps.
+        // Proof: reverting to `before.start + edge.weight` made `reconciles an
+        // FF successor against the materialized predecessor finish` report
+        // `optimizer` instead of `predecessor`; watched 2026-09-28.
+        const bound =
+          edge.type === 'SS'
+            ? before.start
+            : edge.type === 'FS'
+              ? before.finish
+              : placed[taken].finish === before.finish
+                ? start
+                : before.finish - duration;
+        if (bound > planFloor) {
+          planFloor = bound;
+          planKind = edge.provenance === 'workflow' ? 'stepOrder' : 'predecessor';
+        }
+      }
+      planFloor = Math.max(0, planFloor);
+      const personId = duration > 0 ? node.slice.personId : null;
+      const intervals = personId === null ? [] : (replayPeople.get(personId) ?? []);
+      const actualDuration = placed[taken].finish - start;
+      const { person, pool } = findResourceWindow(
+        intervals,
+        replayProfile,
+        node.slice.poolIds,
+        node.slice.width,
+        planFloor,
+        actualDuration,
+      );
+      // Proof: deleting this exact pinned-person refusal made `rejects a
+      // pinned person overlap even when an earlier gap is free` return A
+      // [5,7) and B [6,7), with A float -1; watched 2026-09-28
+      // (13 pass / 1 fail).
+      if (findPersonWindow(intervals, start, actualDuration).start !== start) {
+        throw new ScheduleInvalidOptimizedStartError(node.key, 'overlaps a resource reservation');
+      }
+      const candidates: FloorCandidate[] = [{ at: planFloor, kind: planKind }];
+      if (person.start > planFloor) candidates.push({ at: person.start, kind: 'person' });
+      if (pool.start > Math.max(planFloor, person.start))
+        candidates.push({ at: pool.start, kind: 'capacity' });
+      const resolved = resolveFloor(candidates);
+      const boundBy =
+        start > resolved.start && !withinDrift(start, resolved.start)
+          ? 'optimizer'
+          : resolved.boundBy;
+      placed[taken].boundBy = boundBy;
+      if (boundBy === 'person')
+        placed[taken].resourcePredecessor = person.blocking.at(-1) ?? NOBODY;
+      if (boundBy === 'capacity') {
+        const annotation = annotateCapacity(
+          node.key,
+          boundBy,
+          start,
+          pool,
+          (at) => placed[at].finish,
+          (at) => chronologicalAt[at],
+        );
+        placed[taken].capacityPredecessors = annotation.capacityPredecessors;
+        placed[taken].capacityTeamId = annotation.capacityTeamId;
+        placed[taken].resourcePredecessor = annotation.referent;
+      }
+      if (duration > 0) {
+        if (personId !== null) {
+          const assigned = replayPeople.get(personId) ?? [];
+          assigned.push({ node: taken, start, finish: placed[taken].finish });
+          replayPeople.set(personId, assigned);
+        }
+        replayProfile.reserve(
+          node.slice.poolIds,
+          taken,
+          node.slice.width,
+          start,
+          placed[taken].finish,
+        );
+      }
+    }
+    const resourceEdges = rebuildResourceOrder(graph, placed, sizes);
+    const resourceSuccessors = nodes.map((): number[] => []);
+    for (const edge of resourceEdges) resourceSuccessors[edge.before].push(edge.after);
+    return {
+      order,
+      placed,
+      resourceSuccessors,
+      resourceEdges,
+      eventsVisited: replayProfile.eventsVisited(),
+    };
+  }
+  return {
+    order,
+    placed,
+    resourceSuccessors: nodes.map((): number[] => []),
+    resourceEdges: [],
+    eventsVisited: 0,
+  };
+}
+
+/** Relax a cyclic weighted graph to its latest starts, refusing positive cycles. */
+export function relaxWeightedStarts(
+  starts: number[],
+  edges: readonly { before: number; after: number; weight: number }[],
+): void {
+  // Upper-bound relaxation handles non-positive augmented cycles that Kahn
+  // cannot order. A positive-weight cycle changes on the final pass.
+  // Proof: limiting this to one pass made `relaxes latest dates beyond a
+  // reverse placement pass` fail: A/C latest starts became 20/19, expected
+  // 10/9; watched 2026-09-28.
+  for (let pass = 0; pass < starts.length; pass += 1) {
+    let changed = false;
+    for (const edge of edges) {
+      const bound = starts[edge.after] - edge.weight;
+      if (bound < starts[edge.before] && !withinDrift(bound, starts[edge.before])) {
+        starts[edge.before] = bound;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+    // Proof: deleting this refusal made `refuses a positive cycle in the
+    // production backward relaxation` return undefined for the two-node
+    // positive cycle; watched 2026-09-28 (13 pass / 1 fail).
+    if (pass === starts.length - 1) throw new Error('positive-weight resource constraint cycle');
+  }
+}
+
+/** Latest starts under weighted plan and selected resource constraints, including feasible cycles. */
+function weightedLateTimes(
+  graph: SliceGraph,
+  edges: readonly WeightedEdge[],
+  finish: number,
+  placed: readonly Placed[],
+): Late[] {
+  const starts = graph.nodes.map((node) => finish - durationOf(node.slice));
+  const outgoing = graph.nodes.map((): WeightedEdge[] => []);
+  const incoming = graph.nodes.map(() => 0);
+  for (const edge of edges) {
+    outgoing[edge.before].push(edge);
+    incoming[edge.after] += 1;
+  }
+  const ready = incoming.flatMap((count, at) => (count === 0 ? [at] : []));
+  const topology: number[] = [];
+  let at = 0;
+  while (at < ready.length) {
+    const before = ready[at];
+    topology.push(before);
+    for (const edge of outgoing[before]) {
+      incoming[edge.after] -= 1;
+      if (incoming[edge.after] === 0) ready.push(edge.after);
+    }
+    at += 1;
+  }
+  if (topology.length === graph.nodes.length) {
+    for (let at = topology.length - 1; at >= 0; at -= 1) {
+      const before = topology[at];
+      for (const edge of outgoing[before]) {
+        starts[before] = Math.min(starts[before], starts[edge.after] - edge.weight);
+      }
+    }
+  } else {
+    relaxWeightedStarts(starts, edges);
+  }
+  return graph.nodes.map((node, at) => {
+    const latestStart = withinDrift(starts[at], placed[at].start) ? placed[at].start : starts[at];
+    return {
+      latestStart,
+      latestFinish:
+        latestStart === placed[at].start ? placed[at].finish : latestStart + durationOf(node.slice),
+    };
+  });
 }
 
 /**
@@ -2092,8 +2565,11 @@ function slackOf(latestStart: number, earliestStart: number): number {
  * `unestimated-steps-take-no-schedule-time`). A `v2` plan gave it the assumed
  * two workdays, so its successors, people and pools moved with a length nobody
  * estimated.
+ *
+ * **`v4` adds weighted SS/FF placement, replay and float.** FS-only graphs
+ * still dispatch to the v3 passes and retain their measured digest.
  */
-export const SCHEDULE_ALGORITHM_ID = 'slice-leveling-v3';
+export const SCHEDULE_ALGORITHM_ID = 'slice-leveling-v4';
 
 /**
  * The schedule for a project: computed in slices, and levelled so that one
@@ -2413,19 +2889,34 @@ export function schedule(
   // Proof: the typed list replaced by `[]` at this call made four of the five
   // `schedule-typed-dependency.test.ts` cases fail — `holds a later successor
   // step` on `Expected: 3, Received: 1` among them; watched 2026-09-27.
-  for (const { predecessor, successor } of resolveStepNodeGraph(
+  const resolvedEdges = resolveStepNodeGraph(
     leafIds,
     (id) => slicesOf(id).slices,
     leafEdges,
     reach,
     { dependencies: typed, leavesUnder: leavesUnderOf(index) },
-  ).edges) {
+  ).edges;
+  const weightedEdges: WeightedEdge[] = [];
+  for (const { predecessor, successor, type, provenance } of resolvedEdges) {
     const before = firstNodeOf(predecessor.leafId) + predecessor.at;
     const after = firstNodeOf(successor.leafId) + successor.at;
     nodes[before].successors.push(after);
     nodes[after].predecessors.push(before);
+    const beforeDuration = durationOf(nodes[before].slice);
+    const afterDuration = durationOf(nodes[after].slice);
+    weightedEdges.push({
+      before,
+      after,
+      type,
+      provenance,
+      // Proof: clamping FF to zero made `keeps a negative FF weight in latest
+      // dates and critical path` fail with B at day 4 instead of day 0;
+      // watched 2026-09-28.
+      weight: type === 'FS' ? beforeDuration : type === 'SS' ? 0 : beforeDuration - afterDuration,
+    });
   }
   const graph: SliceGraph = { nodes, items };
+  const isWeighted = resolvedEdges.some((edge) => edge.type !== 'FS');
 
   // The same plan with nobody's calendar in it — the critical path, computed by
   // the pass above with the people taken out rather than by a second copy of
@@ -2433,17 +2924,26 @@ export function schedule(
   // exactly what this engine answers when nobody is assigned. The order it is
   // computed in is the order the nodes were built in, which is all a plan with
   // no queues in it needs.
-  const unleveled = placeSlices(graph, (left, right) => left < right, false, poolSizes);
-  const criticalPath = lateTimes(
-    graph,
-    unleveled.order,
-    nodes.map((node) => node.successors),
-    Math.max(0, ...unleveled.placed.map((each) => each.finish)),
-    unleveled.placed,
-    // The critical path is a ranking, not an answer, and it is the plan with
-    // nobody in it by construction — there are no queues here to be tight about.
-    false,
-  );
+  const unleveled = isWeighted
+    ? placeWeightedSlices(graph, weightedEdges, (left, right) => left < right, false, poolSizes)
+    : placeSlices(graph, (left, right) => left < right, false, poolSizes);
+  const criticalPath = isWeighted
+    ? weightedLateTimes(
+        graph,
+        weightedEdges,
+        Math.max(0, ...unleveled.placed.map((each) => each.finish)),
+        unleveled.placed,
+      )
+    : lateTimes(
+        graph,
+        unleveled.order,
+        nodes.map((node) => node.successors),
+        Math.max(0, ...unleveled.placed.map((each) => each.finish)),
+        unleveled.placed,
+        // The critical path is a ranking, not an answer, and it is the plan with
+        // nobody in it by construction — there are no queues here to be tight about.
+        false,
+      );
 
   const places = treeOrder(rows);
   const leafPriorities = priorityByLeaf(rows, index);
@@ -2585,7 +3085,9 @@ export function schedule(
             ? left < right
             : pinnedByNode[left] < pinnedByNode[right];
 
-  const leveled = placeSlices(graph, levelOrder, true, poolSizes, pinnedByNode);
+  const leveled = isWeighted
+    ? placeWeightedSlices(graph, weightedEdges, levelOrder, true, poolSizes, pinnedByNode)
+    : placeSlices(graph, levelOrder, true, poolSizes, pinnedByNode);
   const projectFinish = Math.max(0, ...leveled.placed.map((each) => each.finish));
   // The augmented graph: the plan's edges and the ones the placement chose. A
   // slice held off by a person cannot slip without moving what that person does
@@ -2600,14 +3102,21 @@ export function schedule(
   const augmented = nodes.map((node, at) =>
     queues[at].length === 0 ? node.successors : [...node.successors, ...queues[at]],
   );
-  const late = lateTimes(
-    graph,
-    leveled.order,
-    augmented,
-    projectFinish,
-    leveled.placed,
-    queues.some((next) => next.length > 0),
-  );
+  const late = isWeighted
+    ? weightedLateTimes(
+        graph,
+        [...weightedEdges, ...leveled.resourceEdges],
+        projectFinish,
+        leveled.placed,
+      )
+    : lateTimes(
+        graph,
+        leveled.order,
+        augmented,
+        projectFinish,
+        leveled.placed,
+        queues.some((next) => next.length > 0),
+      );
 
   const scheduledSlices = new Map<string, ScheduledSlice>();
   const waiting = new Set<string>();
@@ -2690,13 +3199,18 @@ export function schedule(
     if (found === undefined) throw new Error(`no schedule for slice ${key}`);
     return found;
   };
-  return {
+  const plan: Schedule = {
     slices: scheduledSlices,
     workItems: projectOntoWorkItems(rows, index, slicesOf, scheduleOf),
     waitingForPerson: waiting.size,
     waitingForCapacity: waitingOnSlots.size,
     eventsVisited: leveled.eventsVisited,
   };
+  validateRealBoundaries(
+    { rows, edges, slices, notBefore, poolSizes, reach, deadlines, typed },
+    plan,
+  );
+  return plan;
 }
 
 /**

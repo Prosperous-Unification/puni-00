@@ -45,6 +45,73 @@ const wire = (edges: readonly { predecessorKey: string; successorKey: string }[]
   );
 
 describe('buildSolverEdges', () => {
+  it('retains a negative FF weight and zero-duration unknown endpoints', () => {
+    const groups: Record<string, readonly Slice[] | undefined> = {
+      A: [sliceOf('A', null, null)],
+      B: [sliceOf('B', null, 0.021)],
+      C: [sliceOf('C', null, 0.03)],
+    };
+    const own = (leafId: string): readonly Slice[] => {
+      const found = groups[leafId];
+      if (found === undefined) throw new Error(`no slice for ${leafId}`);
+      return found;
+    };
+    const dependencies = [
+      {
+        id: 'negative',
+        predecessor: { scope: 'whole' as const, workItemId: 'A' },
+        successor: { scope: 'whole' as const, workItemId: 'B' },
+        type: 'FF' as const,
+      },
+      {
+        id: 'positive',
+        predecessor: { scope: 'whole' as const, workItemId: 'C' },
+        successor: { scope: 'whole' as const, workItemId: 'A' },
+        type: 'FF' as const,
+      },
+    ];
+    const edges = buildSolverEdges(['A', 'B', 'C'], own, [], 'whole-item', {
+      dependencies,
+      leavesUnder: (id) => [id],
+    });
+    expect(edges).toContainEqual({
+      predecessorKey: sliceKey('A', null),
+      successorKey: sliceKey('B', null),
+      type: 'FF',
+      startWeightUnits: -1,
+    });
+    expect(edges).toContainEqual({
+      predecessorKey: sliceKey('C', null),
+      successorKey: sliceKey('A', null),
+      type: 'FF',
+      startWeightUnits: 2,
+    });
+  });
+  it('carries SS and FF authored edges with their typed bounds', () => {
+    for (const type of ['SS', 'FF'] as const) {
+      const edges = buildSolverEdges(['A', 'B'], slicesOf, [], 'whole-item', {
+        dependencies: [
+          {
+            id: 'weighted',
+            predecessor: { scope: 'whole', workItemId: 'A' },
+            successor: { scope: 'whole', workItemId: 'B' },
+            type,
+          },
+        ],
+        leavesUnder: (id) => [id],
+      });
+      expect(edges).toContainEqual(
+        type === 'SS'
+          ? { predecessorKey: sliceKey('A', 'design'), successorKey: sliceKey('B', 'dev'), type }
+          : {
+              predecessorKey: sliceKey('A', 'qa'),
+              successorKey: sliceKey('B', 'qa'),
+              type,
+              startWeightUnits: 96,
+            },
+      );
+    }
+  });
   it('keys the chain and the join the domain derived, and nothing else', () => {
     const edges: readonly LeafEdge[] = [{ predecessorId: 'A', successorId: 'B' }];
     expect(
@@ -121,7 +188,7 @@ describe('buildSolverEdges', () => {
       dependencies: [],
       leavesUnder: (id) => [id],
     });
-    expect(Object.keys(edge).sort()).toEqual(['predecessorKey', 'successorKey']);
+    expect(Object.keys(edge).sort()).toEqual(['predecessorKey', 'successorKey', 'type']);
     expect(edge.predecessorKey).toBe(sliceKey('A', 'design'));
     expect(edge.successorKey).toBe(sliceKey('A', 'dev'));
   });

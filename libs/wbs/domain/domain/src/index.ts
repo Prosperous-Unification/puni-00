@@ -90,6 +90,7 @@ export * from './score-real';
 // computing the Baseline anywhere else would mean a caller could satisfy the
 // type while comparing against another plan's answer.
 export * from './publication-guard';
+export * from './real-boundaries';
 // The cache payload's own seam (tasks.md 4.12), beside `schedule` because it is
 // the inverse of what `schedule()` returns and nothing else may encode one: a
 // `Map` renders as `{}` under `JSON.stringify`, so a second implementation would

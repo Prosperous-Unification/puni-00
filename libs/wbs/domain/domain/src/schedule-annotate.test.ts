@@ -76,6 +76,8 @@ describe('the optimized materialiser is Fast with its starts pinned', () => {
         notBefore,
         poolSizes,
         reach,
+        new Map(),
+        [],
         startsOf(fast),
       );
 

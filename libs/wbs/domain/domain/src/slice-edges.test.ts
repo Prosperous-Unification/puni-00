@@ -61,6 +61,55 @@ describe('reachedSliceOf', () => {
 });
 
 describe('resolveStepNodeGraph', () => {
+  it('selects the whole leaf boundary named by each relationship type', () => {
+    const dependencies: TypedDependency[] = (['FS', 'SS', 'FF'] as const).map((type) => ({
+      id: type,
+      predecessor: { scope: 'whole', workItemId: 'A' },
+      successor: { scope: 'whole', workItemId: 'B' },
+      type,
+    }));
+    const authored = resolveStepNodeGraph(['A', 'B'], slicesOf, [], 'whole-item', {
+      dependencies,
+      leavesUnder: (id) => [id],
+    }).edges.filter((edge) => edge.provenance === 'authored');
+    expect(wire(authored)).toEqual(['A2→B0', 'A0→B0', 'A2→B1']);
+    expect(authored.map((edge) => edge.type)).toEqual(['FS', 'SS', 'FF']);
+  });
+
+  it('expands SS and FF parent endpoints to every leaf pair', () => {
+    const family: Record<string, readonly string[]> = {
+      P: ['P1', 'P2'],
+      P1: ['P1'],
+      P2: ['P2'],
+      Q: ['A', 'B'],
+      A: ['A'],
+      B: ['B'],
+    };
+    for (const type of ['SS', 'FF'] as const) {
+      const authored = resolveStepNodeGraph(
+        ['P1', 'P2', 'A', 'B'],
+        () => slicesOf('B'),
+        [],
+        'whole-item',
+        {
+          dependencies: [
+            {
+              id: type,
+              predecessor: { scope: 'whole', workItemId: 'P' },
+              successor: { scope: 'whole', workItemId: 'Q' },
+              type,
+            },
+          ],
+          leavesUnder: (id) => family[id] ?? [id],
+        },
+      ).edges.filter((edge) => edge.provenance === 'authored');
+      expect(wire(authored)).toEqual(
+        type === 'SS'
+          ? ['P10→A0', 'P10→B0', 'P20→A0', 'P20→B0']
+          : ['P11→A1', 'P11→B1', 'P21→A1', 'P21→B1'],
+      );
+    }
+  });
   it('lists every node, isolated and unestimated ones included, and a stepless boundary', () => {
     expect(resolveStepNodeGraph(['C', 'A', 'D'], slicesOf, [], 'whole-item').nodes).toEqual([
       { kind: 'step', ref: { workItemId: 'C', stepId: 'dev' }, at: 0 },
@@ -414,6 +463,15 @@ describe('findStepNodeCycle', () => {
         fs('r2', node('B', 'qa'), node('A', 'dev')),
       ]),
     ).toEqual({ kind: 'cycle', relationshipIds: ['r1', 'r2'] });
+  });
+
+  it('refuses a directed SS cycle even when equal starts could satisfy it', () => {
+    expect(
+      cycleOf([
+        { ...fs('ss-a', node('A', 'dev'), node('B', 'dev')), type: 'SS' },
+        { ...fs('ss-b', node('B', 'dev'), node('A', 'dev')), type: 'SS' },
+      ]),
+    ).toEqual({ kind: 'cycle', relationshipIds: ['ss-a', 'ss-b'] });
   });
 
   it('refuses a self-node pair', () => {

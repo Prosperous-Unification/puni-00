@@ -1,4 +1,5 @@
 import { buildSolverRequest } from '@wbs/contracts/solver/build-request';
+import { schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { describe, expect, it } from 'bun:test';
 
@@ -45,7 +46,7 @@ if (!deadlined.ok) throw new Error('fixture deadline request refused');
 
 const response = (offset = 0, reportedOffset = offset): string =>
   `${JSON.stringify({
-    wireVersion: 1,
+    wireVersion: 2,
     status: 'feasible',
     offsets: { 'w-1\u0000dev': offset },
     objectiveValues: {
@@ -106,19 +107,19 @@ describe('evaluateSolverOutcome', () => {
     expect(
       evaluateSolverOutcome(INPUT, REQUEST, {
         kind: 'response',
-        stdout: '{"wireVersion":1,"status":"unknown"}\n',
+        stdout: '{"wireVersion":2,"status":"unknown"}\n',
       }),
     ).toEqual({ kind: 'failed', reason: 'no-solution' });
     expect(
       evaluateSolverOutcome(INPUT, REQUEST, {
         kind: 'response',
-        stdout: '{"wireVersion":1,"status":"infeasible"}\n',
+        stdout: '{"wireVersion":2,"status":"infeasible"}\n',
       }),
     ).toEqual({ kind: 'failed', reason: 'invalid-output' });
     expect(
       evaluateSolverOutcome(DEADLINED_INPUT, deadlined.request, {
         kind: 'response',
-        stdout: '{"wireVersion":1,"status":"infeasible"}\n',
+        stdout: '{"wireVersion":2,"status":"infeasible"}\n',
       }),
     ).toEqual({
       kind: 'plan-infeasible',
@@ -170,7 +171,7 @@ describe('evaluateSolverOutcome', () => {
     expect(
       evaluateSolverOutcome(DEADLINED_INPUT, withDeadline(1), {
         kind: 'response',
-        stdout: '{"wireVersion":1,"status":"infeasible"}\n',
+        stdout: '{"wireVersion":2,"status":"infeasible"}\n',
       }),
     ).toEqual({ kind: 'failed', reason: 'internal-error' });
 
@@ -190,7 +191,7 @@ describe('evaluateSolverOutcome', () => {
     expect(
       evaluateSolverOutcome(DEADLINED_INPUT, withDeadline(48), {
         kind: 'response',
-        stdout: '{"wireVersion":1,"status":"infeasible"}\n',
+        stdout: '{"wireVersion":2,"status":"infeasible"}\n',
       }).kind,
     ).toBe('plan-infeasible');
 
@@ -199,8 +200,77 @@ describe('evaluateSolverOutcome', () => {
     expect(
       evaluateSolverOutcome(DEADLINED_INPUT, withDeadline(1), {
         kind: 'response',
-        stdout: '{"wireVersion":1,"status":"unknown"}\n',
+        stdout: '{"wireVersion":2,"status":"unknown"}\n',
       }),
     ).toEqual({ kind: 'failed', reason: 'internal-error' });
+  });
+
+  it('publishes a feasible resource order even when Fast missed a deadline', () => {
+    const input: ScheduleInput = {
+      rows: ['a', 'b', 'c'].map((id, position) => ({
+        id,
+        parentId: null,
+        position,
+        frozenNumber: null,
+        priority: null,
+      })),
+      edges: [],
+      slices: [
+        { workItemId: 'a', stepId: null, days: 2, personId: 'kat', width: 1, poolIds: [] },
+        { workItemId: 'b', stepId: null, days: 0.25, personId: 'kat', width: 1, poolIds: [] },
+        { workItemId: 'c', stepId: null, days: 0.5, personId: 'kat', width: 1, poolIds: [] },
+      ],
+      notBefore: new Map([
+        ['a', 0.5],
+        ['b', 1],
+        ['c', 1.5],
+      ]),
+      poolSizes: new Map(),
+      reach: 'whole-item',
+      typed: [],
+      deadlines: new Map([
+        ['a', 3],
+        ['b', 2],
+        ['c', 1],
+      ]),
+    };
+    const fast = schedule(
+      input.rows,
+      input.edges,
+      input.slices,
+      input.notBefore,
+      input.poolSizes,
+      input.reach,
+      input.deadlines,
+      input.typed,
+    );
+    expect(fast.slices.get('a\u0000')?.lateBy).toBe(1);
+    const baselineOffsets = Object.fromEntries(
+      [...fast.slices].map(([key, slice]) => [key, slice.earliestStart * 48]),
+    );
+    const built = buildSolverRequest(input, 'time', {
+      baselineOffsets,
+      solverVersion: '0.1.0',
+      budgetMs: 60_000,
+    });
+    if (!built.ok) throw new Error('feasible-order fixture request refused');
+    const offsets = { 'a\u0000': 96, 'b\u0000': 48, 'c\u0000': 72 };
+    const term = (value: number) => ({
+      value,
+      stageValue: value,
+      bound: value,
+      status: 'feasible',
+    });
+    const stdout = `${JSON.stringify({
+      wireVersion: built.request.wireVersion,
+      status: 'feasible',
+      offsets,
+      objectiveValues: { makespan: term(192), priority: term(0), movement: term(60) },
+    })}\n`;
+    const outcome = evaluateSolverOutcome(input, built.request, { kind: 'response', stdout });
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind !== 'ok') return;
+    expect(outcome.optimized.schedule.slices.get('a\u0000')?.earliestStart).toBe(2);
+    expect(outcome.optimized.schedule.slices.get('a\u0000')?.lateBy).toBeNull();
   });
 });

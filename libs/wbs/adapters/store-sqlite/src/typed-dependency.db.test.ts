@@ -263,42 +263,58 @@ describe('TypedDependencyRepository', () => {
     expect([revision(a), revision(b)]).toEqual(revisions);
   });
 
-  /**
-   * Proof: the `isRelationshipType` read check removed made this case fail on
-   * `Received: (resolved without throwing)` — an SS row came back as a link; watched
-   * 2026-09-27.
-   */
-  it('refuses an SS row admitted by storage but unknown to this release', async () => {
+  it('reads stored SS and FF relationships', async () => {
     const a = await addWorkItem('A');
     const b = await addWorkItem('B');
     const sqlite = openDatabase(path);
     try {
+      for (const type of ['SS', 'FF'])
+        sqlite.run(
+          'INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
+          [type, projectId, a, 'whole', b, 'whole', type],
+        );
+    } finally {
+      sqlite.close();
+    }
+    expect((await repo.listByProject(projectId)).map(({ type }) => type).sort()).toEqual([
+      'FF',
+      'SS',
+    ]);
+  });
+
+  it('refuses an unsupported stored relationship type on read', async () => {
+    const a = await addWorkItem('A');
+    const b = await addWorkItem('B');
+    const sqlite = openDatabase(path);
+    try {
+      sqlite.run('PRAGMA ignore_check_constraints = ON');
       sqlite.run(
         'INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
-        [crypto.randomUUID(), projectId, a, 'whole', b, 'whole', 'SS'],
+        ['future-type', projectId, a, 'whole', b, 'whole', 'SF'],
       );
     } finally {
       sqlite.close();
     }
     expect(await rejection(repo.listByProject(projectId))).toContain(
-      'unknown relationship type SS',
+      'unknown relationship type SF',
     );
   });
 
-  it('refuses malformed rows during bulk removal before deleting them', async () => {
+  it('refuses unsupported rows during bulk removal before deleting them', async () => {
     const a = await addWorkItem('A');
     const b = await addWorkItem('B');
     const sqlite = openDatabase(path);
     try {
+      sqlite.run('PRAGMA ignore_check_constraints = ON');
       sqlite.run(
         'INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES (?,?,?,?,?,?,?)',
-        ['future-type', projectId, a, 'whole', b, 'whole', 'SS'],
+        ['future-type', projectId, a, 'whole', b, 'whole', 'SF'],
       );
     } finally {
       sqlite.close();
     }
     expect(await rejection(repo.removeAllFor([a], wrote()))).toContain(
-      'unknown relationship type SS',
+      'unknown relationship type SF',
     );
     const stored = openDatabase(path);
     try {
@@ -308,8 +324,6 @@ describe('TypedDependencyRepository', () => {
     } finally {
       stored.close();
     }
-    // Proof: bypassing readTypedDependency in bulk removal returns the SS row
-    // and deletes it; the refusal fails. Watched 2026-09-27.
   });
 
   it('refuses unknown scopes and scope/step mismatches on read', async () => {
