@@ -1539,11 +1539,11 @@ const bandedToBoundary = (frame: ArrowFrame, exit: number, column: number): Arro
 
 /**
  * The corners one dependency arrow is drawn through: out of the predecessor's
- * anchor, across, and into the successor's left edge from outside it — through
- * the inside of no bar on the way.
+ * anchor, across, and into the successor's left edge from outside it. Checked
+ * candidates pass through the inside of no bar on the way.
  *
- * **The invariant.** No run of the returned route passes through the interior
- * of any bar in `bars`, the two the arrow joins included; it touches those two
+ * **The candidate invariant.** No run of a checked route passes through the
+ * interior of any bar in `bars`, the two the arrow joins included; it touches those two
  * only on the edge it leaves and the edge it arrives at. That is the whole of
  * this function: the route it hands back was drawn by the panel in three points
  * for years, and three points is only clear when nothing happens to stand under
@@ -1556,20 +1556,14 @@ const bandedToBoundary = (frame: ArrowFrame, exit: number, column: number): Arro
  * **How.** Candidate columns, nearest the ideal turn first: the turn itself,
  * and one approach clear of either edge of every bar on the rows the route may
  * cross. Each is tried as a plain elbow (when there is room to turn at it),
- * then as a banded route stepping out past the predecessor, then as a banded
- * route leaving on the predecessor's own edge — the last for a predecessor
- * whose row holds another bar right against it, which is a real shape since
- * `dep-waits-on-first-role` made the arrow leave a **middle** slice.
+ * then as a banded route stepping out past the predecessor, leaving on its own
+ * edge, or leaving beyond a bar on its row. The last exit lets a lower slice
+ * route above its row's other lanes without ascending through their drawings.
  *
- * **Why it always has an answer.** The last candidate is a column left of every
- * bar on those rows, and the banded route through it crosses bars nowhere: the
- * bands are air by construction, the column is clear of every rectangle, the
- * run into the successor's row descends at one approach left of its start, and
- * no bar on a row starts before that row's own earliest start. The one shape
- * that defeats it is an arrow whose **start** is already strictly inside
- * another bar of its own row — two slices of one row overlapping — which no
- * route can leave without crossing; the banded fallback is returned as it
- * stands rather than a route being searched for that cannot exist.
+ * A legacy arrow with no clear candidate retains the older banded route from
+ * its source edge around the leftmost column. A typed arrow has no such
+ * unchecked fallback: impossible overlapping drawings are reported instead
+ * of rendering a line through a bar.
  *
  * `boundaryEntry` adds an arrival down the target's left edge from the row
  * gap. Typed arrows use it when a preceding contiguous step fills the normal
@@ -1613,6 +1607,12 @@ export function routeArrow(
   const ordered = [...new Set(columns)].sort(
     (one, other) => Math.abs(one - frame.turn) - Math.abs(other - frame.turn),
   );
+  const exits = [arrow.fromX + clearance.approach, arrow.fromX];
+  for (const placed of bars) {
+    if (placed.bar.rowIndex === arrow.fromRowIndex) {
+      exits.push(placed.x + placed.width + clearance.approach);
+    }
+  }
 
   for (const column of ordered) {
     // Room to turn at this column: one approach out of the predecessor and one
@@ -1623,7 +1623,7 @@ export function routeArrow(
       const elbow = elbowThrough(frame, column);
       if (isClear(elbow)) return elbow;
     }
-    for (const exit of [arrow.fromX + clearance.approach, arrow.fromX]) {
+    for (const exit of [...new Set(exits)]) {
       const banded = bandedThrough(frame, exit, column);
       if (isClear(banded)) return banded;
       // Proof: without this candidate, `enters a later contiguous target at
@@ -1636,7 +1636,11 @@ export function routeArrow(
     }
   }
 
-  return bandedThrough(frame, arrow.fromX, clearOfEverything);
+  const legacyRoute = bandedThrough(frame, arrow.fromX, clearOfEverything);
+  if (isClear(legacyRoute) || !options.boundaryEntry) return legacyRoute;
+  // Proof: restoring the unchecked fallback made the reversed-row rendered
+  // lane test cross A-one. Watched 2026-09-28.
+  throw new GanttDataError('No clear route for typed Gantt dependency');
 }
 
 /**

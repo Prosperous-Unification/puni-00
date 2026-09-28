@@ -253,3 +253,10 @@ Repository-root `bunx @fission-ai/openspec@1.12.0 validate --all --json` exited 
 
 - The card bridge uses `typed:<id>` pointer targets. A typed row reports `onPointEntry(null)` to the legacy bridge, then publishes its relationship to the shared light store. The merged component test checks both outcomes on one pointer move. Disabling typed publication made that test receive `null` instead of `typed`; restored with an adjacent `Proof:` comment.
 - The requested four-file Vitest command passed **357/357**. The other six test files changed between the branches passed **323/323**. Direct `bunx tsc --build apps/wbs/fe-01/tsconfig.json`, touched-file ESLint and Prettier checks passed. Git reported no unmerged paths after staging.
+
+## Typed arrow lane routing, round 3 review (2026-09-28)
+
+- The rendered lane fixture now runs with the successor both below and above the predecessor. Each rendered path segment is checked against the painted rectangles of both `A-one` and `A-two`. Before the fix, the successor-above case failed on `A-one: expected true to be false`.
+- `routeArrow` considers exits beyond the right edges of bars on the source row. Every candidate remains collision checked. If none clears, typed arrows report `GanttDataError`; legacy arrows retain their documented older banded fallback.
+- R5 proof: after the fix, removing the extra exits and restoring the unchecked fallback made the successor-above rendered test fail again on `A-one: expected true to be false` (2026-09-28). Both changes were restored; the adjacent `Proof:` comment is on the typed fallback guard.
+- `cd apps/wbs/fe-01 && bunx vitest run src/components/wbs/gantt-geometry.test.ts src/components/wbs/gantt-panel.test.tsx --maxWorkers=1 --no-file-parallelism`: **404 passed across 2 files**. Direct `bunx tsc --build apps/wbs/fe-01/tsconfig.json`, touched-file ESLint, and touched-file Prettier check exited 0.

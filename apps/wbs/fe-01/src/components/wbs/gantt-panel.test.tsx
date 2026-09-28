@@ -600,9 +600,12 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
     expect(headCorners[1].y).toBeLessThan(headCorners[0].y);
     expect(headCorners[2].y).toBeLessThan(headCorners[0].y);
   });
-  itDom('routes from a lane without crossing the middle unknown placeholder', () => {
+  itDom.each([
+    ['successor below', false],
+    ['successor above', true],
+  ])('routes from a lane without crossing unknown placeholders, %s', (_direction, reversed) => {
     const chart = planOf({
-      rows: [rowAt('A', 0, 1), rowAt('B', 1, 3)],
+      rows: reversed ? [rowAt('B', 1, 3), rowAt('A', 0, 1)] : [rowAt('A', 0, 1), rowAt('B', 1, 3)],
       steps: [
         { id: 'one', name: 'One' },
         { id: 'two', name: 'Two' },
@@ -641,26 +644,29 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
       x: Number(match[1]),
       y: Number(match[2]),
     }));
-    const placeholder = document.querySelector('[data-gantt-bar="A-two"]');
     const origin = document.querySelector('[data-gantt-bar="A-dev"]');
     expect(corners[0].y).toBe(
       Number(origin?.getAttribute('y')) + Number(origin?.getAttribute('height')) / 2,
     );
-    const left = Number(placeholder?.getAttribute('x'));
-    const right = left + Number(placeholder?.getAttribute('width'));
-    const top = Number(placeholder?.getAttribute('y'));
-    const bottom = top + Number(placeholder?.getAttribute('height'));
-    expect(
-      corners.slice(1).some((corner, index) => {
-        const before = corners[index];
-        return (
-          Math.max(before.x, corner.x) > left &&
-          Math.min(before.x, corner.x) < right &&
-          Math.max(before.y, corner.y) > top &&
-          Math.min(before.y, corner.y) < bottom
-        );
-      }),
-    ).toBe(false);
+    for (const sliceId of ['A-one', 'A-two']) {
+      const placeholder = document.querySelector(`[data-gantt-bar="${sliceId}"]`);
+      const left = Number(placeholder?.getAttribute('x'));
+      const right = left + Number(placeholder?.getAttribute('width'));
+      const top = Number(placeholder?.getAttribute('y'));
+      const bottom = top + Number(placeholder?.getAttribute('height'));
+      expect(
+        corners.slice(1).some((corner, index) => {
+          const before = corners[index];
+          return (
+            Math.max(before.x, corner.x) > left &&
+            Math.min(before.x, corner.x) < right &&
+            Math.max(before.y, corner.y) > top &&
+            Math.min(before.y, corner.y) < bottom
+          );
+        }),
+        sliceId,
+      ).toBe(false);
+    }
   });
   itDom('routes out of an unknown origin without crossing its placeholder', () => {
     const chart = planOf({
