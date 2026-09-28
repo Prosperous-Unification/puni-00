@@ -194,7 +194,12 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               // block above: an empty cell has nothing to wrap, and the
               // wrap is what made it two lines tall the moment it was
               // clicked into.
-              flexWrap: picker !== null && waitingFor.length > 0 ? 'wrap' : 'nowrap',
+              // Proof: excluding typed chips made `wraps a typed-only dependency
+              // chip while its picker is open` receive `nowrap`. Watched, 2026-09-28.
+              flexWrap:
+                picker !== null && (waitingFor.length > 0 || typedDependencies.length > 0)
+                  ? 'wrap'
+                  : 'nowrap',
               gap: 2,
               whiteSpace: 'nowrap',
               overflow: 'hidden',

@@ -144,7 +144,55 @@ async function threeRoots() {
   return api;
 }
 
+async function typedOnlyRows() {
+  const api = fakeApi();
+  const predecessor = await api.createWorkItem('p1', {
+    parentId: null,
+    afterId: null,
+    name: 'Strip',
+  });
+  const successor = await api.createWorkItem('p1', {
+    parentId: null,
+    afterId: predecessor.id,
+    name: 'Sand',
+  });
+  await api.addTypedDependency(
+    'p1',
+    { scope: 'whole', workItemId: predecessor.id },
+    { scope: 'whole', workItemId: successor.id },
+  );
+  render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+  await screen.findByRole('button', { name: /Edit dependency: whole work item 010 Strip/ });
+}
+
 describe('dependencies in the table', () => {
+  itDom(
+    'opens a typed-only dependency card from the cell and keeps it across the cell leave',
+    async () => {
+      await typedOnlyRows();
+      const cell = screen.getByLabelText('Add a dependency to 020').closest('td');
+      if (!(cell instanceof HTMLElement)) throw new Error('Missing Depends cell for 020');
+
+      fireEvent.mouseEnter(cell);
+      expect(screen.getByRole('tooltip').textContent).toContain('Strip');
+      fireEvent.mouseLeave(cell);
+      expect(screen.getByRole('tooltip').textContent).toContain('Strip');
+    },
+  );
+
+  itDom('wraps a typed-only dependency chip while its picker is open', async () => {
+    await typedOnlyRows();
+    const strip = screen
+      .getByLabelText('Add a dependency to 020')
+      .closest('td')
+      ?.querySelector('[data-depends-strip]');
+    if (!(strip instanceof HTMLElement)) throw new Error('Missing Depends strip for 020');
+    expect(strip.style.flexWrap).toBe('nowrap');
+
+    fireEvent.focus(screen.getByLabelText('Add a dependency to 020'));
+    expect(strip.style.flexWrap).toBe('wrap');
+  });
+
   itDom('commits one whole FS relationship when a search result is clicked', async () => {
     const api = await threeRoots();
     const added = recordCalls(api, 'addTypedDependency');

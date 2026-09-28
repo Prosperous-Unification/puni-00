@@ -1764,6 +1764,8 @@ export function WbsTable({
   );
   const { dependsCellHoverProps, startCellProps } = createPlanCellProps({
     dependenciesOf,
+    hasTypedDependencies: (rowId) =>
+      typedDependencies.some((dependency) => dependency.successor.workItemId === rowId),
     depLights,
     depPicker,
     cellCards,
