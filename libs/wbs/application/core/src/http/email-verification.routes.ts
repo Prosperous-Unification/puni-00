@@ -27,15 +27,16 @@ export function emailVerificationRoutes(
         // Proof: 2026-09-28, bypassing this guard failed `refuses delegated onboarding discovery and writes` on challenge issuance.
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
-        const email = body.email.trim().toLowerCase();
-        // Proof: 2026-09-28, bypassing syntax and ASCII checks separately failed
-        // `rejects malformed addresses at both HTTP boundaries` on issuance.
+        const address = body.email.trim();
+        // Proof: 2026-09-28, `rejects malformed addresses at both HTTP boundaries`
+        // received 201 when K was lowercased before this ASCII check.
         if (
-          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-          !/^[\x21-\x7e]+$/.test(email) ||
-          email.length > 254
+          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address) ||
+          !/^[\x21-\x7e]+$/.test(address) ||
+          address.length > 254
         )
           return { ok: false, status: 400, body: { error: 'invalid_body' } };
+        const email = address.toLowerCase();
         const token = createToken();
         // Proof: 2026-09-28, storing the raw token failed `keeps the password account ID after a delivered single-use challenge`.
         const answer = await verification.issue(
@@ -73,20 +74,21 @@ export function emailVerificationRoutes(
         // Proof: 2026-09-28, bypassing this guard failed `refuses delegated onboarding discovery and writes` on confirmation.
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
-        const email = body.email.trim().toLowerCase();
-        // Proof: 2026-09-28, bypassing syntax and ASCII checks separately failed
-        // `rejects malformed addresses at both HTTP boundaries` on confirmation.
+        const address = body.email.trim();
+        // Proof: 2026-09-28, `rejects malformed addresses at both HTTP boundaries`
+        // failed with 409 rather than 400 when the ASCII check was removed.
         if (
-          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-          !/^[\x21-\x7e]+$/.test(email) ||
-          email.length > 254
+          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address) ||
+          !/^[\x21-\x7e]+$/.test(address) ||
+          address.length > 254
         )
           return { ok: false, status: 400, body: { error: 'invalid_body' } };
+        const email = address.toLowerCase();
         const answer = await verification.confirm(
           principal.id,
           email,
           await digest.sha256(body.token),
-          clock.now(),
+          () => clock.now(),
         );
         if (!answer.ok) {
           switch (answer.refusal) {

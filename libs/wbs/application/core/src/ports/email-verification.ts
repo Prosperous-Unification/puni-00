@@ -13,10 +13,11 @@ export interface EmailVerification {
     now: number,
   ): Promise<EmailChallengeAnswer<{ id: string; expiresAt: number }>>;
   recordDelivery(id: string, delivered: boolean): Promise<void>;
+  /** Samples `now` only after the store acquires its write transaction. */
   confirm(
     userId: string,
     email: string,
     digest: string,
-    now: number,
+    now: () => number,
   ): Promise<EmailChallengeAnswer<{ email: string; verified: true }>>;
 }
