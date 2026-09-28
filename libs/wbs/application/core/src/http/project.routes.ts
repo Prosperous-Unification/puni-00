@@ -128,7 +128,7 @@ export function projectRoutes(
     bind(
       createProject,
       async ({ body, principal }): Promise<HttpReply<typeof createProject>> => {
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const outcome = await projects.createWithin(body.name, principal.id, resolved.access);
         return outcome.ok
@@ -138,7 +138,7 @@ export function projectRoutes(
       { classifyRequestFailure: classifyBodyFailure },
     ),
     bind(listProjects, async ({ principal }): Promise<HttpReply<typeof listProjects>> => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       return {
         ok: true,
@@ -150,7 +150,7 @@ export function projectRoutes(
     bind(
       recordProjectOpen,
       async ({ params, principal }): Promise<HttpReply<typeof recordProjectOpen>> => {
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         return (await projects.openWithin(params.id, principal.id, resolved.access))
           ? { ok: true, status: 204, body: EMPTY }
@@ -160,7 +160,7 @@ export function projectRoutes(
     bind(
       exportProject,
       async ({ params, query, principal }): Promise<HttpReply<typeof exportProject>> => {
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         // Proof: reading through `projects.read` instead made `answers 404 alike
         // for a foreign and an absent project, and changes nothing` in
@@ -205,7 +205,7 @@ export function projectRoutes(
       { classifyRequestFailure: classifyExportFailure },
     ),
     bind(readProject, async ({ params, principal }): Promise<HttpReply<typeof readProject>> => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       const found = await projects.readWithin(params.id, resolved.access);
       return found === null
@@ -215,7 +215,7 @@ export function projectRoutes(
     bind(
       patchProject,
       async ({ params, body, principal }): Promise<HttpReply<typeof patchProject>> => {
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const outcome = await projects.updateWithin(params.id, principal.id, body, resolved.access);
         if (outcome.ok) return { ok: true, status: 200, body: { project: outcome.value } };
@@ -229,6 +229,7 @@ export function projectRoutes(
             return { ok: false, status: 422, body: { error: outcome.reason } };
           // Proof: mapping this to 422 made the mounted unavailable-optimizer test receive 500 instead of 409.
           case 'optimizer_unavailable':
+          case 'solution_taken':
             return { ok: false, status: 409, body: { error: outcome.reason } };
           case 'dependency_cycle':
             return { ok: false, status: 409, body: { error: outcome.reason } };
@@ -239,7 +240,7 @@ export function projectRoutes(
     bind(
       retryProjectOptimization,
       async ({ params, body, principal }): Promise<HttpReply<typeof retryProjectOptimization>> => {
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const authorization = await projects.authorizeEdit(
           params.id,

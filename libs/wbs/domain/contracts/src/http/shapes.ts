@@ -23,6 +23,7 @@ import { readHistory } from './history-shapes';
 import { importProject } from './import-shapes';
 import { health, metrics } from './infrastructure-shapes';
 import { forwardInternal, resumeInternal } from './internal-http-shapes';
+import { changeMemberRole, removeMember } from './organization-shapes';
 import {
   createProject,
   exportProject,
@@ -67,6 +68,8 @@ export const httpShapes = [
   addStep,
   renameStep,
   removeStep,
+  changeMemberRole,
+  removeMember,
   listTeams,
   listPeople,
   listTags,

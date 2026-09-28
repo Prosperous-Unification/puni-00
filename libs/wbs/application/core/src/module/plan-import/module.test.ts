@@ -4,6 +4,7 @@ import { DiBag } from 'di-bag';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scope } from '../../ports/unit-of-work';
@@ -26,7 +27,12 @@ const requirements = () => {
     uow: source.uow,
     announcements: recordingBroadcaster(),
     batchServices: (scope: Scope, broadcast: Broadcaster) =>
-      servicesOver(scope.stores, { clock, broadcast, scheduler: fastScheduler }),
+      servicesOver(scope.stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      }),
   };
 };
 
@@ -53,6 +59,7 @@ const completeHost = () =>
       batchServices: DiBag.createProvider(
         () => (scope: Scope, broadcast: Broadcaster) =>
           servicesOver(scope.stores, {
+            admission: CREATOR_ADMISSION,
             clock: clockOf({ now: () => STAMP_AT, newId: () => 'id' }),
             broadcast,
             scheduler: fastScheduler,

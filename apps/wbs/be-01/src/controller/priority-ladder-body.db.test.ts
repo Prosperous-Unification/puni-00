@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -24,7 +25,10 @@ import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
-import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingMemberships,
+} from '../testing/organization-access-fixture';
 import { projectRow } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
@@ -112,6 +116,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       directory: testDirectoryService(),
       capacity: testCapacityService(),
       priorityBands: new PriorityBandService({
+        admission: CREATOR_ADMISSION,
         clock: testClock,
         projects: projectStore,
         bands,
@@ -123,6 +128,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
     };
     app = buildApp({
       organizations: legacyOrganizationAccess,
+      memberships: refusingMemberships,
       loginThrottle: testLoginThrottle(),
       clock: testClock,
       ...writing,

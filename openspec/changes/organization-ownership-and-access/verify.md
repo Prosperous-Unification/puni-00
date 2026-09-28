@@ -413,6 +413,217 @@ Branch `batch-9/010-5-2-orgs-13`, stacked on slice 13.
 | Access resolved first              | save route skips resolution     | `refuses an unbound session and a removed member before any lookup`: 201                                 |
 | Saved plan mapped                  | mapping insert selects nothing  | `maps a plan saved after activation to its project's organization`: no mapping                           |
 
+## Slice 15 — membership administration (task 3.7, part 1)
+
+Branch `batch-9/010-5-2-orgs-14`, stacked on slice 14.
+
+| Check                                  | Injected fault                                          | Observed failure (`membership-organization.controller.db.test.ts` unless named, 2026-09-27)                       |
+| -------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Admin limited to viewer and member     | `mayAdministerMembership` lets an admin change any role | `refuses an admin promoting a member to admin, or changing or removing an admin`: 200 with the promoted admin     |
+| Members and viewers administer nothing | actor role only checked for viewers                     | `refuses a member and a viewer every membership change`: 200                                                      |
+| Final super-admin                      | guard result ignored                                    | `refuses demoting or removing the last super-admin`: 200                                                          |
+| Absent or foreign target               | an absent target answered as removed                    | `answers a foreign or absent member as not found, changing nothing`: 500 instead of 404                           |
+| Access resolved first                  | resolution failure ignored                              | `refuses an unbound session and a removed member`: `forbidden` instead of `no_active_organization`                |
+| No administration before activation    | legacy access administered                              | `has no organization to administer`: 200                                                                          |
+| Invitation authority                   | `mayInvite` lets an admin invite any role               | `organization-access.test.ts` `lets an admin invite viewers and members, a super-admin any role, and nobody else` |
+
+## Slice 16 — audited recovery through the project PATCH (task 3.7, part 2a)
+
+Branch `batch-9/010-5-2-orgs-15`, stacked on slice 15. Migration `20260927220000_add_organization_audit` sorts after every migration on main and in the queue (newest queued: `20260927213000_add_typed_dependency`).
+
+| Check                                    | Injected fault                           | Observed failure (2026-09-27)                                                                                            |
+| ---------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Audit action vocabulary                  | `action` CHECK dropped                   | `organization-audit.db.test.ts` `refuses an unknown action or subject kind`                                              |
+| Audit subject vocabulary                 | `subject_kind` CHECK dropped             | same case                                                                                                                |
+| Audit organization reference             | `organization_id` REFERENCES dropped     | `refuses a record of no organization`                                                                                    |
+| Rollback keeps evidence                  | `down.sql` CHECK made `CHECK (1)`        | `refuses to roll back over a recorded act`: the migration reversed                                                       |
+| Classified in the write's transaction    | classification forced to `ordinary`      | `organization-audit.db.test.ts` `audits a recovery the project became after the request read it`: written with no record |
+| Refused edits write nothing              | refusal skipped                          | `refuses an actor who is no longer a writing member`: the project written                                                |
+| A removed member is refused              | missing membership answered as absent    | same case: null instead of `forbidden`                                                                                   |
+| Foreign project absent before permission | absent project refused                   | `answers a project of another organization as absent, before any permission`: `forbidden`                                |
+| Audit failure rolls the edit back        | audit insert errors swallowed            | `rolls the edit back when its audit record cannot be written`: no failure, rename kept                                   |
+| Audit record written                     | audit insert skipped                     | `project-organization.controller.db.test.ts` `recovers a restricted project as an audited super-admin edit`: no record   |
+| Recovery classified                      | `classifyProjectEdit` answers `ordinary` | `organization-access.test.ts` `calls a super-admin's edit … a recovery`                                                  |
+| Recovery admitted                        | service refuses `recovery`               | the mounted recovery case: 403 instead of 200                                                                            |
+
+Astra review 1 raised 2 Important and 4 Minor findings, all fixed:
+
+- **Important:** classification now happens inside the write's own transaction, which closes the restriction race.
+- **Important:** the audit-failure rollback is now proven.
+- **Minor:** an absent or foreign project answers null.
+- **Minor:** the spec scenario is updated.
+- **Minor:** the detail is typed as `RecoveryAuditDetail`.
+- **Minor:** the classifier is renamed `classifyProjectEdit`.
+
+## Slice 17 — organization selection preview (task 2.4 groundwork)
+
+Branch `batch-9/010-5-2-orgs-15` (same PR as slice 16), a read-only dry run with no production access.
+
+| Check                          | Injected fault            | Observed failure (`organization-selection-preview.db.test.ts`, 2026-09-28)                                |
+| ------------------------------ | ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Stored roles validated         | every role accepted       | `fails on a malformed membership role`: no throw                                                          |
+| No membership means onboarding | onboarding never answered | `reports zero, one and several memberships, choosing for nobody`: `selection_required` with no candidates |
+| Membership references checked  | reference check skipped   | `fails on a membership of a missing user or organization`: reported                                       |
+| Read-only connection           | `readonly` dropped        | `refuses every write through the read-only connection`: the DELETE ran                                    |
+
+The file is left byte for byte as it was (`leaves the database file byte for byte as it was`), and the CLI fails without a database (`migration-cli.db.test.ts`).
+
+Astra review 1 raised 2 Important findings, both fixed: the references are now checked, and the read-only refusal is proven. Its 2 Minor findings were handled as follows:
+
+- The spec scenario is added.
+- The CLI header is kept. It follows the invocation comment on every sibling deploy CLI (`migrate-status-cli.ts`, `migrate-down-cli.ts`, `backfill-step-codes-cli.ts`), and a runbook entry belongs with the task 1.1 dry run.
+
+## Slice 18 — solution slugs per organization (task 3.5, part 2)
+
+Branch `batch-9/010-5-2-orgs-16`, stacked on slice 16/17 (#157). Design call: Astra, 2026-09-28.
+
+- The additive migration `20260928010000_add_project_solution` adds:
+  - a `project_solution` table, keyed by project and unique on (organization, slug);
+  - a composite reference to `project_organization`, so a link's organization is always its project's owner;
+  - a `down.sql` that refuses while any link exists or the marker is not one well-formed `pre_activation` row.
+- A scoped PATCH or import writes the link there and clears any legacy pair. The legacy `project.solution_slug` keeps serving links made before activation, and a project holding both fails its read.
+- Collisions are judged only among the organization's own projects, and only after authorization:
+  - PATCH answers `409 solution_taken`, inside one `BEGIN IMMEDIATE` transaction;
+  - import answers `left-off`.
+- The scoped lookup matches both representations within the organization.
+- Every project read joins the link, so capture, export and the project DTO carry the local slug.
+
+| Check                                 | Injected fault                           | Observed failure (2026-09-28)                                                                                                     |
+| ------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Link organization is the owner        | composite reference dropped              | `refuses a link naming an organization other than its project's owner`: no throw                                                  |
+| Rollback keeps links                  | emptiness predicate dropped              | `refuses while a link is recorded`: rolled back                                                                                   |
+| Rollback refused after activation     | marker predicates dropped                | `refuses after activation even with no link`: rolled back                                                                         |
+| Collision answered, nothing written   | in-transaction check skipped             | `refuses a slug another project of the organization holds, writing nothing`: SQLite uniqueness error                              |
+| Legacy slugs collide within the org   | legacy arm of the check dropped          | `refuses a slug a project of the organization kept from before activation`: linked                                                |
+| One representation per project        | both-present refusal dropped             | `refuses a project holding both a legacy and a scoped reference`: read succeeded                                                  |
+| Legacy pair cleared on a scoped link  | legacy columns left as they were         | `moves a legacy pair into the organization link, relinks and unlinks`: read threw                                                 |
+| Scoped lookup sees scoped links       | lookup on the legacy column alone        | `links a slug only another organization holds`: nothing found                                                                     |
+| Scoped import judges its own org only | import looks the slug up deployment-wide | `keeps a slug only another organization holds` (`import-export-organization.controller.db.test.ts`): `left-off` instead of `kept` |
+
+Store tests are in `project-solution.db.test.ts`. The mounted PATCH test in `project-organization.controller.db.test.ts` covers four cases: a viewer gets 403 and a foreign project gets 404, each before any collision is judged; a same-organization collision gets 409; and a slug held only in another organization links normally.
+
+Astra review 1 raised 3 Important findings, all fixed with new negatives, each faulted and seen failing on 2026-09-28:
+
+| Check                               | Injected fault                        | Observed failure                                                                            |
+| ----------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Cross-process collision is modeled  | deferred instead of `BEGIN IMMEDIATE` | `answers solution_taken to a link racing another process, writing nothing`: busy error      |
+| Link has a project                  | `NOT NULL` dropped from `project_id`  | `refuses a link of no project`: inserted                                                    |
+| Ambiguous lookup refused            | two matches let through               | `refuses a lookup two of the organization's projects answer`: one returned                  |
+| Slug unique in the organization     | plain index                           | `refuses a slug twice in one organization and allows it in two`: inserted                   |
+| Non-empty slug and url              | either length check dropped           | `refuses an empty slug or url`: inserted                                                    |
+| Rollback needs a well-formed marker | only an activated row checked         | `refuses with a missing or malformed marker, keeping the table and the ledger`: rolled back |
+| Marker time must be empty           | `activated_at IS NULL` dropped        | same case: rolled back                                                                      |
+
+Astra review 2 raised 1 Important finding, fixed: an empty solution slug or url in an imported document reached `project_solution`'s length checks as a 500. The plan-document schema now requires both to be non-empty, as a PATCH already did. Removing that made `refuses an empty solution slug or url as input, importing nothing` (`import-export-organization.controller.db.test.ts`) answer 500 instead of 400.
+
+The race holder is a second `bun` process holding `BEGIN IMMEDIATE` while it inserts the competing link. The row-count predicate of the down check is shadowed by the marker's single-row trigger.
+
+## Slice 19 — edit-admission seam (task 3.7, part 2b, mechanical)
+
+Branch `batch-9/010-5-2-orgs-17` (#164), stacked on slice 18. `WorkItemService`, `CapacityService` and `PriorityBandService` ask an injected `EditAdmission` at their nine former `canEditProject` sites, and every graph passes `CREATOR_ADMISSION`. There is no behaviour change and no migration.
+
+| Check                                     | Injected fault                                          | Observed failure (2026-09-28)                                                                  |
+| ----------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Each module wires the supplied admission  | the resource handed `{ admits: () => true }`            | each module's `asks the admission install… wires before a … write`: `ok: true`                 |
+| `servicesOver` forwards its admission     | one installer handed `CREATOR_ADMISSION`, one at a time | `compose.test.ts` `hands its admission to every gated writing service it installs`: `ok: true` |
+| A graph without an admission fails closed | `shared.admission ?? CREATOR_ADMISSION`                 | `fails closed on a write through a graph built without an admission`: resolved                 |
+
+## Slice 20 — audited recovery through command batches, undo and redo (task 3.7, part 2b)
+
+Branch `batch-9/010-5-2-orgs-18`, stacked on slice 19. There is no migration, because slice 16's `organization_audit` table holds the records.
+
+| Check                                      | Injected fault                                        | Observed failure (2026-09-28)                                                                                                                            |
+| ------------------------------------------ | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recovery recorded in the unit of work      | `recordRecovery` skipped in `admitEditInOrganization` | `organization-audit.db.test.ts` `records one recovery …` and `fails when its audit record cannot be written`; the mounted recovery case found no record  |
+| Scoped graph uses the unit of work's grant | `admissionOf` answers `CREATOR_ADMISSION` when scoped | mounted `recovers a restricted project through a batch, undo and redo, one record each`: 403; `never falls back to the creator rule under scoped access` |
+| Refused writers stay refused               | `forbidden` from the admission ignored                | `refuses a viewer every batch, undo and redo`, `refuses a super-admin removed or demoted before the batch`, `keeps no record of a refused batch …`: 200  |
+| The grant ends with its batch              | `expire` skipped in `execute`                         | `plan-command-admission.test.ts` `admits the granted actor on the granted project only while its unit of work runs`: still admitted                      |
+| The grant ends with its journal walk       | `expire` skipped in `walk`                            | `grants a journal walk until it settles, and its repair nothing`: still admitted                                                                         |
+| A journal repair is granted nothing        | the repair graph built with the walk's grant          | same case                                                                                                                                                |
+
+The grant is refused for another actor or another project: dropping the project equality or the actor equality in `grantAdmission`, each alone, failed `admits the granted actor on the granted project only while its unit of work runs` (Astra review 1, Important; watched 2026-09-28). The mounted cases show three more things: a batch that fails at its second command, a refused batch and a failed undo each leave no record, and a creator's ordinary batch leaves none.
+
+## Slice 21 — identity resolution after activation (task 2.3)
+
+Branch `batch-9/010-5-2-orgs-19`, stacked on slice 20. There is no migration.
+
+| Check                                        | Injected fault                            | Observed failure (2026-09-28)                                                                                                                                                      |
+| -------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Activated logins resolve through the mapping | marker branch skipped (legacy email link) | `oidc-identity.controller.db.test.ts` `refuses an unmapped identity whose verified email an account holds, issuing no session`: 302 as `legacy`; five `user-oidc.db.test.ts` cases |
+| Email never selects an account               | email-holder refusal skipped              | the same mounted case: 302 with a new account; `user-oidc.db.test.ts` store case                                                                                                   |
+| Legacy pair mapped at activation             | unmapped-legacy throw skipped             | `throws on a legacy pair activation never mapped`: a second account                                                                                                                |
+| Mapping names a user                         | dangling-owner throw skipped              | `throws on a mapping to no user and on one its user disagrees with`                                                                                                                |
+| Mapping agrees with the user's pair          | disagreement throw skipped                | same case                                                                                                                                                                          |
+| Issuer and subject non-empty                 | empty check skipped                       | `throws on an empty issuer or subject`: an account created                                                                                                                         |
+| Backfill refuses half or empty pairs         | check skipped                             | `external-identity.db.test.ts` `refuses a half or empty legacy pair, mapping nothing`                                                                                              |
+| Backfill refuses a pair owned by another     | owner check skipped                       | `refuses a pair already mapped to another user, mapping nothing`                                                                                                                   |
+
+Astra review 1 raised 3 Important findings, all fixed. Each fault below was watched failing on 2026-09-28:
+
+| Check                                  | Injected fault                      | Observed failure                                                     |
+| -------------------------------------- | ----------------------------------- | -------------------------------------------------------------------- |
+| One mapping per pair                   | duplicate check skipped             | `throws on a duplicate or malformed mapping`                         |
+| Mapping user id is text                | type check skipped                  | same case                                                            |
+| Pair is not another user's legacy pair | legacy-owner check skipped          | `throws when the pair maps to one user and is another's legacy pair` |
+| A user's own pair is whole or absent   | only the issuer compared with null  | `throws on a user whose own pair is half present`                    |
+| Backfill reads text pairs only         | values stringified before the check | `refuses a half, empty or non-text legacy pair, mapping nothing`     |
+
+Three more cases have no dedicated guard, because SQLite already refuses them:
+
+- a missing mapping table throws;
+- a failed mapping insert keeps no account (`keeps no account when its mapping cannot be written`);
+- two concurrent first logins of one pair create one account and one mapping.
+
+A broken marker throws before any resolution (`throws on a broken marker instead of resolving as before activation`). The marker is read on every call (`reads the marker on every call, so activation needs no restart`).
+
+## Slice 22 — delegation verifier (task 2.5, first slice)
+
+Branch `batch-9/010-5-2-orgs-20`, stacked on slice 21. There is no migration and no configuration change. Production wires `REFUSE_DELEGATIONS`.
+
+All faults were watched failing in `delegation.controller.db.test.ts` on 2026-09-28:
+
+| Check                                        | Injected fault                                              | Observed failure                                                                                                |
+| -------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Audience fixed by the route policy           | `audience` dropped from `jwtVerify`                         | `refuses a gateway or unknown audience`                                                                         |
+| A refused delegation stays refused           | JOSE refusal answered `not_delegation`                      | the audience case and `refuses an expired, re-signed or forged-organization delegation`                         |
+| No fallback to the session                   | identity resolver falls through on `refused`                | five cases, the session-key-signed delegation among them                                                        |
+| Upstream identity binds the user             | any mapped upstream identity accepted                       | `refuses a delegation whose upstream identity maps to someone else`                                             |
+| Lifetime capped at five minutes              | cap skipped                                                 | `refuses a delegation longer than five minutes`                                                                 |
+| No key, no delegation                        | `REFUSE_DELEGATIONS` answers `not_delegation`               | `refuses every delegation when no delegation key is configured`: 200                                            |
+| Delegation's organization is the one checked | session binding used instead                                | `lists only the delegated organization’s projects`; `refuses a delegation to an organization the user has left` |
+| No header selects authority                  | `x-wbs-organization` replaces the delegation's organization | `lets no header select the organization`: B's project read                                                      |
+
+Astra review 1 raised 4 Important and 2 Minor findings, all fixed. Each fault below was watched failing on 2026-09-28:
+
+| Check                                 | Injected fault                              | Observed failure                                                              |
+| ------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------- |
+| No legacy access through a delegation | pre-activation delegation answered `legacy` | `refuses a verified delegation before activation`                             |
+| Not issued in the future              | `iat` check skipped                         | `refuses a delegation issued in the future, of no lifetime, or with no grant` |
+| Grant or family bound                 | `grant` claim check skipped                 | same case                                                                     |
+| No delegation in the session cookie   | cookie-carrier refusal skipped              | `refuses a delegation carried in the session cookie, or beside one`           |
+| No delegation beside a session cookie | ambiguity refusal skipped                   | same case                                                                     |
+
+A lifetime of zero or less is refused by JOSE's `exp` check combined with the `iat` check, so it has no guard of its own. The `jti` must be non-empty text. The Minor findings are also fixed: `lets no header select the organization` now covers an unbound session with forged headers (403), and the verifier's JSDoc now sits on `delegationVerifier`.
+
+## Slice 23 — public domains are never claimable (task 5.1, first part)
+
+Branch `batch-9/010-5-2-orgs-21`, stacked on slice 22. There is no migration.
+
+| Check                              | Injected fault                      | Observed failure (2026-09-28)                                                          |
+| ---------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------- |
+| Public mailbox providers refused   | provider check dropped              | `public-email-domain.test.ts` `never lets a public mailbox provider be claimed`        |
+| Public suffixes refused            | suffix check dropped                | `never lets a public suffix or a top-level domain be claimed`                          |
+| Top-level domains refused          | single-label check dropped          | same case                                                                              |
+| Canonical input required           | canonical check skipped             | `throws on a domain that is not canonical`                                             |
+| No claim opened on a public domain | `openClaim` policy check skipped    | `organization-records.db.test.ts` `never opens or promotes a claim on a public domain` |
+| No planted public claim promoted   | `promoteClaim` policy check skipped | same case                                                                              |
+
+Astra review 1 raised 2 Important findings and 1 Minor:
+
+- **Important, malformed A-labels such as `xn--a.com` passed as canonical:** fixed. A WHATWG URL host round trip now refuses them, and removing it made `throws on a domain that is not canonical` accept `xn--a.com`.
+- **Important, a trailing newline passed:** rejected with a probe. JavaScript's `$` does not match before a final newline without the `m` flag (`/^a$/.test('a\n')` is false), and `gmail.com\n` is now a case of that test.
+- **Minor, stale `promoteClaim` JSDoc:** fixed.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

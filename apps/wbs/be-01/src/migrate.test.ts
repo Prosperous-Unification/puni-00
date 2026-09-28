@@ -8,7 +8,10 @@ import { testClock } from './testing/clock-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
 import { testHistoryService } from './testing/history-fixture';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
-import { legacyOrganizationAccess } from './testing/organization-access-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingMemberships,
+} from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { testProjectService } from './testing/project-fixture';
 import { testReplay } from './testing/replay-fixture';
@@ -22,6 +25,7 @@ describe('migrate lifecycle', () => {
     const state = { migrationsApplied: false };
     const app = buildApp({
       organizations: legacyOrganizationAccess,
+      memberships: refusingMemberships,
       clock: testClock,
       loginThrottle: testLoginThrottle(),
       appOrigin: 'http://localhost',

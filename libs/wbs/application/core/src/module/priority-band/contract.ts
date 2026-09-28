@@ -5,7 +5,7 @@ import type { PriorityBandService, PriorityBandServiceOptions } from './priority
  *
  * Exactly {@link PriorityBandServiceOptions}, unchanged by the move: the
  * project and ladder stores of the one scope being installed over, the
- * broadcaster and the clock. `servicesOver` supplies the stores of each
+ * broadcaster, the edit admission and the clock. `servicesOver` supplies the stores of each
  * admitted scope, so one installation never outlives the scope it was built
  * over.
  *

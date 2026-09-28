@@ -5,6 +5,7 @@ import { Elysia } from 'elysia';
 import { jwtVerify, SignJWT } from 'jose';
 
 import { bunPasswordHasher, joseTokenCodec } from '../../runtime/bun-runtime';
+import { REFUSE_DELEGATIONS } from '../../runtime/delegation';
 import { AuthService } from '../../service/auth.service';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../../testing/auth-fixture';
 import { testClock } from '../../testing/clock-fixture';
@@ -48,7 +49,7 @@ function userApp(auth: AuthService, requirement: 'signed-in' | 'read-scope' | 'w
       {
         appOrigin: 'https://app.example',
         reportUnexpectedFailure: () => undefined,
-        resolveIdentity: identityResolver(auth, internalSecret),
+        resolveIdentity: identityResolver(auth, internalSecret, REFUSE_DELEGATIONS),
       },
     ),
   );
@@ -72,7 +73,7 @@ function internalApp(auth: AuthService) {
       {
         appOrigin: 'https://app.example',
         reportUnexpectedFailure: () => undefined,
-        resolveIdentity: identityResolver(auth, internalSecret),
+        resolveIdentity: identityResolver(auth, internalSecret, REFUSE_DELEGATIONS),
       },
     ),
   );

@@ -11,9 +11,38 @@
 
 - [x] 2.1 Bridge new legacy-era writes for projects and directory roots, then idempotently backfill them. Red: mixed-version writes and preserved references. Fault: omit a bridge write; observe zero-unmapped reconciliation fail, restore and add `Proof:`. Done as SQLite triggers switched off by the activation marker (Astra, 2026-09-27), covering all eight root kinds including saved plans; `findCatalogNameDrift` adds name-equality reconciliation.
 - [x] 2.2 Bridge saved plans, allowances, dependencies, imports, journal/history, schedule snapshots and events; reconcile after old writers drain. Red: late writes in each family map to the legacy organization without losing effective rights. Fault: inject a late unbound dependency or history record; observe activation refusal, restore and add `Proof:`. Done as `findOwnershipConflicts`: dependents derive their owner from their root, so the triggers of 2.1 already cover late writes and 21 queries report dependents whose ends disagree, plus event streams that resolve to no mapped project. No allowance table exists. Command-journal payloads and captured schedule bodies are not parsed; 7.1 preflight owns them.
-- [ ] 2.3 Resolve Auth0 issuer/subject and first-party identity to stable local IDs. Red: collision, absent and malformed trusted identity mapping. Fault: replace mapping with an email match; observe mounted collision refusal fail, restore and add `Proof:`.
+- [x] 2.3 Resolve Auth0 issuer/subject and first-party identity to stable local IDs. Red: collision, absent and malformed trusted identity mapping. Fault: replace mapping with an email match; observe mounted collision refusal fail, restore and add `Proof:`.
+  - Slice 21 (Astra design call, 2026-09-28):
+    - `UserRepository.resolveOidcIdentity` reads the activation marker inside its own immediate transaction, on every call.
+    - Before activation, resolution is unchanged, including the legacy email-shaped username link.
+    - After activation a pair resolves through `external_identity` alone:
+      - a mapped pair answers its user;
+      - an unmapped pair whose verified email an account holds is a collision, and the callback answers 409;
+      - any other unmapped pair creates a user and its mapping together;
+      - an unmapped legacy pair, a dangling or disagreeing mapping, and an empty issuer or subject each throw.
+    - `backfillExternalIdentities` copies every legacy pair and keeps its local ID. Task 7.1 owes running it in the activation transaction.
+    - First-party password identity needs no mapping: a password login and a signed session already resolve to the same `users.id`.
+    - No migration: the table and its unique index exist since `20260927120000_add_organization_records`.
 - [ ] 2.4 Bind browser active organization to WBS session and current membership. Red: zero/one/multiple memberships, forged header, and revoked live session. Fault: bypass membership recheck; observe mounted protected-route test fail, restore and add `Proof:`.
+  - Groundwork, slice 17 (Astra design call, 2026-09-28): a read-only selection preview over an explicit database copy. It is `previewOrganizationSelection` and `organization-selection-preview-cli.ts` on `openReadOnlyConnection`. For each local user it reports `onboarding_required` or `selection_required` with the candidates, and never chooses one. It fails on a missing file, a broken marker or a malformed role, and leaves the file byte for byte as it was. Production still wires `NO_BOUND_ORGANIZATION`.
+  - Open, per the design call:
+    - a separate signed `__Host-wbs_organization` cookie, bound to the user and a digest of the verified access token and capped at its expiry (password tokens need a fresh `jti`);
+    - `OrganizationAccess.resolve(principal)` carrying the verified binding;
+    - `GET /api/organization/memberships` and `POST /api/organization/active`, with explicit selection even for one membership;
+    - the mounted negatives: tampering, cross-user or cross-session substitution, expiry, refresh, forged headers and membership removal.
 - [ ] 2.5 Issue and verify audience-specific signed bearer, gateway and MCP delegation. Red: wrong audience, forged organization and expired signature. Fault: trust caller header; observe mounted route refusal fail, restore and add `Proof:`.
+  - Slice 22, the verifier (Astra design call, 2026-09-28):
+    - be-01's `delegationVerifier` checks a WBS-signed `wbs-delegation+jwt`. It must be RS256 under a dedicated public key, never the session or internal secret.
+    - Its issuer must be `wbs`, its audience the one the server's route policy names (`wbs-be-01/via-mcp-01` on resource routes), and its lifetime at most five minutes.
+    - It must carry a local user, an organization, a client, a `jti` and known scopes, and its upstream `(issuer, subject)` must map to that same user through `external_identity`.
+    - A refused delegation answers 401 and never falls back to session authentication. After activation `OrganizationAccess.resolve(principal)` takes the delegation's organization and rechecks membership.
+    - Production wires `REFUSE_DELEGATIONS`, so every delegation is refused until WBS issues them.
+  - Open:
+    - issuance and its signing key (`WBS_DELEGATION_SIGNING_KEY`, `WBS_DELEGATION_VERIFY_KEY` configuration);
+    - the gateway audience's consumer (6.1–6.3);
+    - bearer clients' own WBS context;
+    - replay prevention by `jti`;
+    - MCP consent binding and epoch (6.4–6.6).
 - [x] 2.6 Make activation marker durable and validate absent, unreadable and malformed trusted marker states separately. Red: each state is refused with its own explicit error and an activated or broken marker refuses the marker migration's reversal. Fault: default one broken state to inactive; observe the reader test fail, restore and add `Proof:`. The swap preflight that reads the marker moves to 7.3 (Astra, 2026-09-27): a target image's missing CLI proves nothing about database state.
 
 ## 3. Resource authorization, one boundary at a time
@@ -30,13 +59,16 @@
     - A rename moves only the side name.
     - A foreign or absent target answers the same 404. Membership and ownership links must stay inside the organization.
     - Removal usage shows only the organization's projects under local names, and fails closed on a foreign project naming the entry.
-- [ ] 3.5 Scope project copy, import/export and external references. Red: cross-organization import/duplicate/reference refusal. Fault: remove import reference check; observe mounted foreign import test fail, restore and add `Proof:`.
+- [x] 3.5 Scope project copy, import/export and external references. Red: cross-organization import/duplicate/reference refusal. Fault: remove import reference check; observe mounted foreign import test fail, restore and add `Proof:`.
   - Part 1, slice 13, covers the following:
     - The JSON export reads the organization's own catalogs under local names. It fails closed on a person's or team's link into another organization, which is the assignee→team→service closure.
     - Import creates the project in the organization. It resolves and creates directory names among the organization's entries and leaves a solution reference off. Only the organization's projects hear `directory_changed`, and a viewer is refused.
     - The solution lookup answers a foreign slug as an absent one.
     - Copies (`duplicateWorkItem`) and external references are held by 3.4's per-command checks.
-  - Part 2 (open): solution slugs scoped by organization. It needs an additive migration, because `project_solution_slug` is unique across the deployment. Until then, a scoped link is refused and a scoped import leaves the slug off.
+  - Part 2, slice 18 (Astra design call, 2026-09-28): solution slugs scoped by organization.
+    - The additive `20260928010000_add_project_solution` adds `project_solution`, unique on (organization, slug), whose composite reference to `project_organization` holds the link's organization equal to the project's owner. Its `down.sql` refuses while any link exists or after activation.
+    - A scoped PATCH or import writes the link there and clears any legacy pair. Collisions are judged only among the organization's projects, after authorization: PATCH answers `409 solution_taken` and import `left-off`. The scoped lookup matches both representations within the organization.
+    - Owed by 7.1: backfill legacy pairs into `project_solution` in the activation transaction, so a single representation remains after activation.
 - [x] 3.6 Scope saved plans, journal, history and generated events. Red: foreign detail and historical reads return 404 without revealing existence. Fault: omit saved-plan owner predicate; observe mounted history test fail, restore and add `Proof:`.
   - Done as slice 14. Every saved-plan route and the history read resolve organization access first.
     - Routes addressed by a project read it through the caller's access.
@@ -46,6 +78,18 @@
   - The journal (undo and redo) was scoped in 3.4. Generated events are published only to the acting project, and to the organization's projects for an import's `directory_changed`. Gateway subscribe and replay authorization is 6.1–6.2.
   - Not applicable here: history labels and saved snapshots written after activation carry directory names as the writer read them. Those can be opaque root names for entries created after activation, which is a display concern for the switch to local names, not an isolation one.
 - [ ] 3.7 Enforce role changes, invitations authority, recovery audit and last-super-admin protection at the service boundary. Red: admin promotion, viewer mutation, recovery and final-owner matrix. Fault: bypass role guard; observe mounted unauthorized mutation test fail, restore and add `Proof:`.
+  - Part 1, slice 15 (Astra design call, 2026-09-27):
+    - `PATCH` and `DELETE /api/organization/members/:userId` act in the active organization from the session alone. Before activation they answer `no_active_organization`.
+    - `mayAdministerMembership` implements the role matrix. `OrganizationRepository.administer` reads the actor's role, the target's role and the final-super-admin count in the write's own immediate transaction.
+    - `mayInvite` defines invitation authority: an admin invites viewers and members, a super-admin also admins, and no invitation grants super-admin. Issuing and accepting invitations stays with 4.4.
+  - Part 2a, slice 16 (audited super-admin recovery through the project PATCH):
+    - The additive migration `20260927220000_add_organization_audit` has a `down.sql` that refuses while any record exists.
+    - `projectEditIn` classifies a write as ordinary, recovery or refused.
+    - `ProjectStore.recoverInOrganization` rechecks, in the write's own transaction, that the actor is still a super-admin and the project still restricted and someone else's. It then writes the patch and one audit record. The creator stays recorded.
+  - Part 2b, slices 19 and 20 (Astra design call option C, 2026-09-28):
+    - Slice 19 (mechanical): the gated writing services ask an injected `EditAdmission` rather than `canEditProject`. Every graph passed `CREATOR_ADMISSION`, so behaviour did not change.
+    - Slice 20: command batches, undo and redo. `ProjectStore.admitEditInOrganization` classifies the write in the unit of work's own transaction and appends the audit record there. The batch graph is then built with `grantAdmission(project, actor)`, which expires when the unit of work settles. Scoped access never falls back to the creator rule.
+  - Part 2c (open): steps, markers, saved plans and optimizer retry. Until then they refuse a non-creator super-admin.
 
 ## 4. Onboarding state transitions
 
@@ -59,6 +103,10 @@
 ## 5. Domain ownership lifecycle
 
 - [ ] 5.1 Validate domain and versioned public-domain policy before issuing a 24-hour challenge. Red: public/relay domain and absent, unreadable and malformed policy separately. Fault: default a broken policy to empty; observe mounted claim test fail, restore and add `Proof:`.
+  - Slice 23, public domains never claimable (Astra design call, 2026-09-28):
+    - `isClaimableDomain` in `@wbs/domain` refuses public mailbox providers, multi-label public suffixes and top-level domains, and throws on a non-canonical domain. Its reviewed snapshot is compiled in, so the policy has no absent or unreadable state.
+    - `DomainClaimRepository.openClaim` answers `unclaimable` and writes nothing. `promoteClaim` refuses to promote a planted public-domain claim.
+  - Open: importing a maintained list with its revision, checksum and licence, and adding relay domains; the challenge and its route; the malformed-policy states.
 - [ ] 5.2 Verify exact authoritative TXT with bounded timeout and transactional unique ownership. Red: old challenge, malformed response, timeout and concurrent claims. Fault: skip exact-token or unique-owner check; observe DNS test fail, restore and add `Proof:`.
 - [ ] 5.3 Retain ownership proof beyond challenge expiry and recheck on day 7. Red: expired initial challenge with valid retained proof stays verified. Fault: use initial expiry for recheck; observe day-7 test fail, restore and add `Proof:`.
 - [ ] 5.4 Rotate proof with bounded overlap; suspend after 14 days without success while retaining owner, members and content. Red: day-14 loss, old proof after rotation and no signup routing. Fault: release owner on suspension; observe lifecycle test fail, restore and add `Proof:`.
@@ -75,7 +123,7 @@
 
 ## 7. Activation, rollback and verification
 
-- [ ] 7.1 Preflight inventory, bridge reconciliation, old-process drain, MCP epoch and trusted policy/marker state; activate only after all pass. Fault: omit one reconciliation family; observe activation test fail, restore and add `Proof:`.
+- [ ] 7.1 Preflight inventory, bridge reconciliation, old-process drain, MCP epoch and trusted policy/marker state; activate only after all pass. In the activation transaction, move every legacy `project.solution_slug` pair into `project_solution` (task 3.5 part 2) and fence releases older than that table. Fault: omit one reconciliation family; observe activation test fail, restore and add `Proof:`.
 - [ ] 7.2 Before activation, execute paired WBS and MCP down migrations in dependency order on production-shaped fixture after preflight. Fault: make reversal drop a legacy relation or live new MCP credential; observe rollback test fail, restore and add `Proof:`.
 - [ ] 7.3 After activation, refuse organization-unaware code routing and WBS/MCP schema reversal even after second-tenant deletion. Test the actual swap abort path and manual completion command on failure. Fault: bypass durable marker; observe swap test fail, restore and add `Proof:`. Read the marker with a deploy-side checker independent of the target image, before routing and during `abortSwap`; absent, unreadable or malformed state refuses.
 - [ ] 7.4 Run targeted unit, mounted API, socket, MCP, migration and browser tests. Record observed faults and adjacent `Proof:` comments in `verify.md`; run migration lint, OpenSpec validation, formatting and `bin/h2puni-gate.sh <sha>` on the committed implementation SHA.

@@ -118,6 +118,12 @@ const EXEMPT = new Set([
   // creation audit, and the bridge triggers write the same tables without one.
   'projectOrganization',
   'savedPlanOrganization',
+  // A project's solution link, part of its settings: the project row's own
+  // audit columns and revision move with every write of it.
+  'projectSolution',
+  // An audit record is its own authorship: `actor_id` and `created_at` are
+  // the act it records, not audit columns about the row.
+  'organizationAudit',
 ]);
 
 /**

@@ -62,6 +62,7 @@ export * from './progress';
 // sibling resource for it is the sideways edge K6 forbids.
 export * from './organization-access';
 export * from './project-ownership';
+export * from './public-email-domain';
 // The value a Saved plan's input body is, and the pure fold that produces it.
 // Types and one pure function: the reads it is folded from live in be-01, and
 // the hash is taken over this module's serialization.

@@ -243,6 +243,8 @@ type BareRefusalCode =
   | 'bad_start_date'
   | 'bad_pert_weights'
   | 'optimizer_unavailable'
+  /** Another of the organization's projects holds the requested solution slug. */
+  | 'solution_taken'
   | 'engine_unavailable'
   | 'snapshot_busy'
   | 'invalid_client'
@@ -270,6 +272,9 @@ type BareRefusalCode =
   | 'parent_work_item'
   | 'unknown_code'
   | 'alias_mismatch'
+  // A membership change that would leave the organization without a
+  // super-admin (task 3.7).
+  | 'last_super_admin'
   // A project reach change or a step removal that would close a step-node
   // dependency cycle. Outside a batch, so it carries no command position.
   | 'dependency_cycle';

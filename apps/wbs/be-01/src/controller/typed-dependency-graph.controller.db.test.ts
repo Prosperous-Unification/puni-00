@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { UnitOfWork } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import type { DependencyEndpoint } from '@wbs/domain';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
@@ -39,7 +40,10 @@ import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixtu
 import { testClock } from '../testing/clock-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
-import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingMemberships,
+} from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
@@ -110,6 +114,7 @@ beforeEach(() => {
       dependencyGraph,
     }),
     workItems: new WorkItemService({
+      admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems,
@@ -134,6 +139,7 @@ beforeEach(() => {
     appOrigin: 'http://localhost',
     savedPlans: testSavedPlanService(),
     organizations: legacyOrganizationAccess,
+    memberships: refusingMemberships,
     history: testHistoryService(),
     auth: new AuthService({
       clock: testClock,
