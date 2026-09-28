@@ -1,7 +1,9 @@
+import { inMemoryStores } from '@wbs/store-memory/in-memory-source';
 import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { inMemorySteps, stepRow } from '@wbs/store-memory/step-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
+import { DependencyGraphGuard } from '../service/dependency-graph';
 import type { PlanCommand } from '../service/plan-command';
 import { StepService } from '../service/step.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -27,7 +29,13 @@ async function fixture(restricted = false) {
   ]);
   const addWrite = spyOn(stored, 'add');
   const broadcast = recordingBroadcaster();
-  const service = new StepService({ clock: testClock, projects, steps: stored, broadcast });
+  const service = new StepService({
+    dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects: projects }),
+    clock: testClock,
+    projects,
+    steps: stored,
+    broadcast,
+  });
   const commandsRun: unknown[] = [];
   const commands = {
     runWithin: (projectId: string, actorId: string, batch: readonly PlanCommand[]) => {
@@ -140,6 +148,7 @@ test('typed name bindings preserve every modeled service refusal without a statu
 test('typed removal carries every usage field and only literal true confirms cascade', async () => {
   const { projects, stored, broadcast } = await fixture();
   const service = new StepService({
+    dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects: projects }),
     clock: testClock,
     projects,
     broadcast,

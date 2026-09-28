@@ -68,6 +68,7 @@ const planOf = (over: Partial<SolverRequestPlan> = {}): SolverRequestPlan => ({
   notBefore: new Map([['P', 3]]),
   poolSizes: new Map([['team-x', 2]]),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
   ...over,
 });
@@ -87,6 +88,7 @@ const baselineOf = (plan: SolverRequestPlan) =>
     plan.notBefore,
     plan.poolSizes,
     plan.reach,
+    [],
   );
 
 const spawnOf = (plan: SolverRequestPlan, over: Partial<SolverSpawn> = {}): SolverSpawn => ({
