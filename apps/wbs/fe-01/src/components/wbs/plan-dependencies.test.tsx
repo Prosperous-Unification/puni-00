@@ -195,6 +195,91 @@ describe('dependencies in the table', () => {
       stepNodeId: `sn1.${api.rows[0]?.id}.${DEV.id}`,
     });
   });
+  itDom(
+    'Home reaches typed chips for Enter edit and Delete removal while Tab stays in the grid',
+    async () => {
+      const api = fakeApi();
+      const source = await api.createWorkItem('p1', {
+        parentId: null,
+        afterId: null,
+        name: 'Strip',
+      });
+      const target = await api.createWorkItem('p1', {
+        parentId: null,
+        afterId: source.id,
+        name: 'Sand',
+      });
+      await api.addTypedDependency(
+        'p1',
+        { scope: 'whole', workItemId: source.id },
+        { scope: 'whole', workItemId: target.id },
+      );
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      const input = await screen.findByLabelText<HTMLInputElement>('Add a dependency to 020');
+      fireEvent.focus(input);
+      fireEvent.keyDown(input, { key: 'Home' });
+      const chip = await screen.findByRole('button', {
+        name: /Edit dependency: whole work item 010 Strip/,
+      });
+      expect(chip.getAttribute('aria-label')).toContain('Enter to edit. Delete to remove.');
+      expect(document.activeElement).toBe(chip);
+      fireEvent.keyDown(chip, { key: 'Enter' });
+      expect(
+        within(screen.getByRole('dialog', { name: 'Customize dependency' })).getByRole('button', {
+          name: 'Save',
+        }),
+      ).toBeDefined();
+      fireEvent.keyDown(screen.getByRole('dialog', { name: 'Customize dependency' }), {
+        key: 'Escape',
+      });
+      expect(document.activeElement).toBe(input);
+      fireEvent.keyDown(input, { key: 'Home' });
+      fireEvent.keyDown(chip, { key: 'Delete' });
+      await waitFor(() => {
+        expect(screen.getByText('Dependency removed.')).toBeDefined();
+      });
+      expect(
+        screen.queryByRole('button', { name: /Edit dependency: whole work item 010 Strip/ }),
+      ).toBeNull();
+      fireEvent.keyDown(input, { key: 'Tab' });
+      expect(document.activeElement).not.toBe(chip);
+    },
+  );
+
+  itDom('switching edit targets shows the newly selected relationship scopes', async () => {
+    const api = fakeApi();
+    const source = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const target = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: source.id,
+      name: 'Sand',
+    });
+    const other = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: target.id,
+      name: 'Paint',
+    });
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'whole', workItemId: source.id },
+      { scope: 'whole', workItemId: target.id },
+    );
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'node', stepNodeId: `sn1.${other.id}.${DEV.id}` },
+      { scope: 'node', stepNodeId: `sn1.${target.id}.${QA.id}` },
+    );
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    const input = await screen.findByLabelText('Add a dependency to 020');
+    fireEvent.focus(input);
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Edit dependency: whole work item 010 Strip/ }),
+    );
+    expect(screen.getByLabelText('Predecessor')).toHaveProperty('value', 'whole');
+    fireEvent.click(screen.getByRole('button', { name: /Edit dependency: Dev step of 030 Paint/ }));
+    expect(screen.getByLabelText('Predecessor')).toHaveProperty('value', DEV.id);
+    expect(screen.getByLabelText('This work item')).toHaveProperty('value', QA.id);
+  });
   itDom('refuses to recreate an edited relationship removed before Save', async () => {
     const api = fakeApi();
     const source = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
@@ -225,6 +310,77 @@ describe('dependencies in the table', () => {
     expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
     expect(added).toEqual([]);
   });
+  itDom(
+    'shows a stale edit when deleting its predecessor also removes the relationship',
+    async () => {
+      const api = fakeApi();
+      const source = await api.createWorkItem('p1', {
+        parentId: null,
+        afterId: null,
+        name: 'Strip',
+      });
+      const target = await api.createWorkItem('p1', {
+        parentId: null,
+        afterId: source.id,
+        name: 'Sand',
+      });
+      await api.addTypedDependency(
+        'p1',
+        { scope: 'whole', workItemId: source.id },
+        { scope: 'whole', workItemId: target.id },
+      );
+      const readPlan = api.tree.bind(api);
+      let predecessorDeleted = false;
+      api.tree = async (projectId) => {
+        const plan = await readPlan(projectId);
+        return predecessorDeleted
+          ? {
+              ...plan,
+              workItems: plan.workItems.filter((row) => row.id !== source.id),
+              typedDependencies: [],
+            }
+          : plan;
+      };
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      fireEvent.click(
+        await screen.findByRole('button', { name: /Edit dependency: whole work item 010 Strip/ }),
+      );
+      predecessorDeleted = true;
+      const name = screen.getByLabelText('Name of 020');
+      fireEvent.change(name, { target: { value: 'Sand again' } });
+      fireEvent.blur(name);
+      expect(await screen.findByRole('alert')).toHaveTextContent('This dependency was removed');
+      expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
+    },
+  );
+
+  itDom(
+    'offers Customize on an existing legacy predecessor and refuses its default duplicate',
+    async () => {
+      const api = fakeApi();
+      const source = await api.createWorkItem('p1', {
+        parentId: null,
+        afterId: null,
+        name: 'Strip',
+      });
+      const target = await api.createWorkItem('p1', {
+        parentId: null,
+        afterId: source.id,
+        name: 'Sand',
+      });
+      await api.addDependency(target.id, source.id);
+      const added = recordCalls(api, 'addTypedDependency');
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+      const input = await screen.findByLabelText('Add a dependency to 020');
+      fireEvent.focus(input);
+      expect(screen.getByRole('button', { name: 'Customize 010 - Strip' })).toBeDefined();
+      fireEvent.click(screen.getByRole('option', { name: '010 - Strip' }));
+      await waitFor(() => {
+        expect(screen.getByText('Dependency refused.')).toBeDefined();
+      });
+      expect(added).toEqual([]);
+    },
+  );
 
   itDom('opens Customize without writing a dependency', async () => {
     const api = await threeRoots();

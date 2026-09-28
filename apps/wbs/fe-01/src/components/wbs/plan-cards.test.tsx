@@ -3801,6 +3801,39 @@ describe('setting what a card waits for', () => {
       expect(removed).toHaveLength(1);
     });
   });
+  itDom('switches phone edit scope state when a second relationship is selected', async () => {
+    const api = dependencyApi();
+    const first = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const target = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: first.id,
+      name: 'Sand',
+    });
+    const second = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: target.id,
+      name: 'Paint',
+    });
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'whole', workItemId: first.id },
+      { scope: 'whole', workItemId: target.id },
+    );
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'node', stepNodeId: `sn1.${second.id}.${DEV.id}` },
+      { scope: 'node', stepNodeId: `sn1.${target.id}.${QA.id}` },
+    );
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    await openTheSheetOn('020');
+    fireEvent.click(screen.getByRole('button', { name: /Edit .*010 Strip.*020 Sand/ }));
+    expect(screen.getByLabelText('Predecessor')).toHaveProperty('value', 'whole');
+    fireEvent.click(screen.getByRole('button', { name: /Edit .*030 Paint.*020 Sand/ }));
+    expect(screen.getByLabelText('Predecessor')).toHaveProperty('value', DEV.id);
+    expect(screen.getByLabelText('This work item')).toHaveProperty('value', QA.id);
+  });
   itDom('uses server step-node references for phone typed chips', async () => {
     const api = dependencyApi();
     const source = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });

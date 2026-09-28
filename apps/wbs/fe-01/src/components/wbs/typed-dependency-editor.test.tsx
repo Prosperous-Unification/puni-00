@@ -168,4 +168,39 @@ describe('typed dependency editor', () => {
     });
     expect(screen.getByRole('dialog', { name: 'Customize dependency' })).toBeDefined();
   });
+
+  it('uses work-item and step words when a server node has no reference', () => {
+    const words = dependencyWords(
+      {
+        id: 'd-null',
+        type: 'FS',
+        predecessor: { scope: 'node', workItemId: 'a', stepId: 'dev', stepNodeId: 'sn1.a.dev' },
+        successor: { scope: 'node', workItemId: 'b', stepId: 'dev', stepNodeId: 'sn1.b.dev' },
+      },
+      rows,
+      steps,
+      [
+        { id: 'sn1.a.dev', workItemId: 'a', stepId: 'dev', reference: null },
+        { id: 'sn1.b.dev', workItemId: 'b', stepId: 'dev', reference: null },
+      ],
+    );
+    expect(words.chip).toBe('010 · Dev step FS → 020 · Dev step');
+  });
+
+  it('keeps ArrowLeft inside a scope selector', () => {
+    const onCancel = vi.fn();
+    render(
+      <TypedDependencyEditor
+        predecessor={predecessor}
+        successor={successor}
+        rows={rows}
+        steps={steps}
+        onCancel={onCancel}
+        onSave={vi.fn().mockResolvedValue('landed')}
+      />,
+    );
+    fireEvent.keyDown(screen.getByLabelText('Predecessor'), { key: 'ArrowLeft' });
+    expect(screen.getByRole('dialog', { name: 'Customize dependency' })).toBeDefined();
+    expect(onCancel).not.toHaveBeenCalled();
+  });
 });

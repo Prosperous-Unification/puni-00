@@ -2219,6 +2219,8 @@ function CardDependsField({
                 throw new Error('Missing typed dependency card commands');
               return (
                 <TypedDependencyEditor
+                  // Proof: removing this key made `switches phone edit scope state when a second relationship is selected` keep Whole instead of Dev; watched 2026-09-28.
+                  key={editing.dependencyId ?? `add:${editing.predecessorId}`}
                   predecessor={predecessor}
                   successor={row}
                   rows={dependencyRows}
