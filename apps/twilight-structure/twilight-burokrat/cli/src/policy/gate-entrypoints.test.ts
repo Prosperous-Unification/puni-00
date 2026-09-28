@@ -1821,7 +1821,9 @@ await import(${JSON.stringify(productionSnapshotter)});
     // `Expected: 45 · Received: 20` after CI canceled required Tool Wiki work at 20m11s.
     // Proof: the 45-minute value failed here on `Expected: 60 · Received: 45` after run
     // 35337661318 was canceled at 45m with every project affected and the packed suite in scope.
-    expect(Number(gate[1])).toBe(60);
+    // Proof: restoring the obsolete 60-minute production workflow limit failed this test
+    // with `Expected: 90 · Received: 60`; run 36330096979 had exhausted that old limit.
+    expect(Number(gate[1])).toBe(90);
   });
 
   test('committed entrypoint certifies the exact external-trust fixture', () => {
