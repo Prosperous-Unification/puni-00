@@ -41,14 +41,23 @@
 
 ## 3. Storage and command
 
-- [ ] 3.1 Red: migrate/down walk; `setStatus` for each status on leaf and parent, refusals,
-      journal inverse, hand-down, last-child fold, duplicate; read shape.
-- [ ] 3.2 Green: migration (stamp rechecked against main and the queue), guarded `down.sql`,
-      `work-item-hold-rollback-cli.ts`, widened command and `SETTABLE_STATUSES`, CLI prints both
-      kinds; the three `in_progress` cases (parent, reopen, `409 no_steps`, which `done` gains
-      too).
-- [ ] 3.3 Negatives: guard deleted → down succeeds over held rows; inverse omitting `hold` →
-      undo leaves the row held; `invalid_status` guard removed → 500 instead of 400.
+- [x] 3.1 Red: migration walk (`work-item-status-facts-migration.db.test.ts`), store round
+      trip, rollback save/remove/restore and CLI, `workItemStatusesOf`, `setStatus` for every
+      status on leaf and parent with its refusals and one-undo inverse
+      (`work-item-status-command.test.ts`), hand-down, move under a leaf, last-child fold,
+      duplicate; route refusal for `blocked_by_proxy`.
+- [x] 3.2 Green: migration `20260928200000_add_work_item_status_facts` (after
+      `20260928040000` on the orgs stack, rechecked 2026-09-29), guarded `down.sql`,
+      `work-item-hold-rollback-cli.ts`, `hold-kinds-cli.ts` printing `HOLDS`, widened
+      `setStatus`, `SETTABLE_STATUSES` and contract, the three `in_progress` cases and
+      `409 no_steps` for `done` too. fe-01 reads every status and still offers only Unknown and
+      Done (`OFFERED_STATUSES`) until slice 6. Moving a row under a leaf clears that leaf's
+      readiness and hold (it becomes a parent; the moved row is other work).
+- [x] 3.3 Negatives, each watched: down guard removed, patch no-field guard lines removed,
+      rollback version/comparison/leaf checks disabled, CLI usage guard bypassed, parent
+      statement guard removed in the read, each `setStatus` refusal removed, the hold inverse
+      dropped, `parseStatus` cast, `isSettableStatus` admitting `blocked_by_proxy`, each
+      structural write skipped, the copy keeping its hold. See `verify.md`.
 
 ## 4. Engine reduction
 

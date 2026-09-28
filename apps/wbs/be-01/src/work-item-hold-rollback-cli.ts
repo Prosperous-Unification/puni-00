@@ -31,8 +31,8 @@ try {
     const saved: unknown = await Bun.file(file).json();
     const count =
       command === 'remove'
-        ? removeSavedWorkItemHolds(connection.db, saved)
-        : restoreWorkItemHolds(connection.db, saved);
+        ? removeSavedWorkItemHolds(connection.db, saved, Date.now())
+        : restoreWorkItemHolds(connection.db, saved, Date.now());
     console.log(
       `work item holds ${command === 'remove' ? 'removed' : 'restored'}: ${String(count)}`,
     );

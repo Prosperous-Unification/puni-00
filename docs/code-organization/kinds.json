@@ -332,6 +332,12 @@
       "rationale": "WorkItemService calls its estimate, actual, measure and progress folds as pure transformations over work-item and step values with no store or clock access"
     },
     {
+      "path": "libs/wbs/application/core/src/service/work-item-statuses.ts",
+      "kind": "support",
+      "disposition": "pure domain code; move to the domain library",
+      "rationale": "WorkItemService folds each row's status from its progress reading, hold, readiness and the dependency graph with the @wbs/domain folds, with no store or clock access"
+    },
+    {
       "path": "libs/wbs/application/core/src/service/saved-plan-default-name.ts",
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",

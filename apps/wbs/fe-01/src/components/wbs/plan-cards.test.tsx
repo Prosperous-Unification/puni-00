@@ -2509,6 +2509,8 @@ function aTreeRow(overrides: Partial<TreeRow> = {}): TreeRow {
       deadline: null,
       factStart: null,
       factEnd: null,
+      readiness: null,
+      hold: null,
       status: 'unknown',
       priority: null,
       maxParallel: 1,

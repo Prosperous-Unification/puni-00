@@ -156,13 +156,13 @@ export const commandDefinitions = {
     schema: type({
       kind: "'setStatus'",
       ...target,
-      status: "'unknown' | 'done'",
+      status: "'draft' | 'ready' | 'in_progress' | 'on_hold' | 'blocked' | 'done' | 'unknown'",
       'on?': 'string',
       'factStart?': 'string',
     }),
     scope: 'project',
     description:
-      'Mark a work item done, or take every progress statement back to unknown. `on` is the day it finished (YYYY-MM-DD); absent means today. `factStart` is the day it began, filled where the row holds none. Unknown clears both facts of a row that read done.',
+      'Set a work item status; on a parent it acts on the leaves beneath. done marks every step done (on = the day it finished, YYYY-MM-DD, absent means today; factStart fills an empty fact start). unknown takes every statement, readiness and hold back and clears both facts of a row that read done. ready/draft set readiness (refused readiness_after_progress once a step has spoken). on_hold/blocked set a hold (refused cannot_hold_done on a done row); on_hold takes the work out of the schedule. in_progress starts the first silent step (on a parent, one leaf), or reopens a done row. blocked_by_proxy is derived and cannot be set.',
   }),
   setMeasure: defineCommand('setMeasure', {
     schema: type({ kind: "'setMeasure'", ...step, metric: 'string', value: 'number' }),

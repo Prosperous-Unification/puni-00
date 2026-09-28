@@ -53,6 +53,32 @@ Each fault was injected into the production function, the named test run, and th
 | the swap compares stored holds                                | `HOLD_KINDS_VOCABULARY` left out of `STORED_VOCABULARIES` | `refuses an image that reads no holds while holds are stored, and stops green`, three more | 62 pass, 4 fail             |
 | only an absent hold CLI under a readable `src` means no holds | the directory check replaced by an unconditional `[]`     | `does not treat a missing source directory as an older release` (hold kind commands)       | `Expected: 74, Received: 0` |
 
+## Slice 3 — storage and command
+
+Migration stamp rechecked 2026-09-29: newest on main is `20260928030000`; the orgs stack adds
+`20260928040000` (#191); this change takes `20260928200000`. Every migration-enumerating db test
+in `store-sqlite` was extended with it (merging the orgs stack will need both names).
+
+| Check                                        | Fault injected                                  | Test that observed it                                                             | Observed                               |
+| -------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------- |
+| rollback refuses stored holds                | three guard statements removed from `down.sql`  | `refuses rollback over a hold and keeps the hold and the migration record`        | `Received function did not throw`      |
+| a patch naming only readiness or hold writes | the two no-field guard lines removed            | `writes a readiness and a hold and reads them back…`                              | `[readiness, hold]` read back as nulls |
+| hold save version                            | version check disabled                          | `refuses a malformed save`                                                        | `Received function did not throw`      |
+| hold remove matches the table                | row comparison reduced to lengths               | `refuses to remove a save that no longer matches the table`                       | `Received function did not throw`      |
+| hold restore only on leaves                  | leaf check disabled                             | `refuses the whole restore when a saved work item is gone or has become a parent` | `Received function did not throw`      |
+| rollback CLI usage                           | usage guard bypassed                            | `saves, removes and restores holds through the rollback CLI`                      | `Expected: not 0` for `erase`          |
+| no statement on a parent                     | parent check in `workItemStatusesOf` removed    | `refuses a readiness or hold stored on a parent`                                  | `Received function did not throw`      |
+| `no_steps`                                   | refusal removed                                 | `refuses in progress and done with no_steps`                                      | 12 pass, 1 fail                        |
+| `readiness_after_progress`                   | refusal removed                                 | `refuses readiness once a step has spoken, and writes nothing`                    | 12 pass, 1 fail                        |
+| `cannot_hold_done`                           | refusal removed                                 | `refuses a hold on a leaf reading done`                                           | 12 pass, 1 fail                        |
+| hold inverse                                 | `inverse.hold` line removed                     | `holds every leaf beneath a parent, and one undo restores each prior hold`        | 12 pass, 1 fail                        |
+| settable vocabulary                          | `isSettableStatus` admitting `blocked_by_proxy` | `admits the seven statuses a row may be set to…`                                  | `Expected: false, Received: true`      |
+| route guard                                  | `parseStatus` replaced by a cast                | be-01 `refuses a status nobody may set…`                                          | `invalid_body` without `at` and `kind` |
+| hand-down                                    | parent patch skipped on create                  | `hands a leaf’s readiness and hold down to its first child…`                      | `parent … holds a readiness or a hold` |
+| move under a leaf                            | parent patch skipped on move                    | `clears the readiness and hold of a leaf another row moves under…`                | `parent … holds a readiness or a hold` |
+| last-child fold                              | parent patch skipped on delete                  | `gives a parent losing its last child the readiness and hold…`                    | `readiness: null` where `draft` owed   |
+| copy never holds                             | `hold: null` removed from the copy              | `copies a readiness and never a hold`                                             | `hold: "on_hold"`                      |
+
 ## Astra review (2026-09-28)
 
 No Critical. Important 1 (spec must require the least fixed point; the unknown scenario must

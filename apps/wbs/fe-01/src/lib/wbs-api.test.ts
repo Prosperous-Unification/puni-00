@@ -40,6 +40,8 @@ const TREE = (projectId: string, ids: string[]): string =>
       deadline: null,
       factStart: null,
       factEnd: null,
+      readiness: null,
+      hold: null,
       priority: null,
       serviceTeamId: null,
       serviceId: null,

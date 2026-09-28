@@ -1,6 +1,7 @@
 import { type Hold, isHold } from '@wbs/domain';
 import { eq, isNotNull } from 'drizzle-orm';
 
+import { auditOnUpdate } from './audit';
 import type { Drizzle } from './db';
 import { workItem } from './schema';
 
@@ -79,7 +80,7 @@ export function saveWorkItemHolds(db: Drizzle): SavedWorkItemHolds {
  * still matches every hold stored: a hold written after the save would
  * otherwise be dropped with no copy anywhere.
  */
-export function removeSavedWorkItemHolds(db: Drizzle, saved: unknown): number {
+export function removeSavedWorkItemHolds(db: Drizzle, saved: unknown, at: number): number {
   const { rows } = readSavedWorkItemHolds(saved);
   return db.transaction((tx) => {
     const current = currentHolds(tx);
@@ -99,7 +100,10 @@ export function removeSavedWorkItemHolds(db: Drizzle, saved: unknown): number {
       throw new Error('work item hold save does not match current holds');
     }
     for (const row of current) {
-      tx.update(workItem).set({ hold: null }).where(eq(workItem.id, row.workItemId)).run();
+      tx.update(workItem)
+        .set({ hold: null, ...auditOnUpdate({ at }) })
+        .where(eq(workItem.id, row.workItemId))
+        .run();
     }
     return current.length;
   });
@@ -108,9 +112,9 @@ export function removeSavedWorkItemHolds(db: Drizzle, saved: unknown): number {
 /**
  * Writes the saved holds back after a later forward migration, all or none.
  * A saved work item that is gone, or has gained a child since, refuses the
- * whole restore: holds are stored on leaves only.
+ * whole restore: holds are stored on leaves only. `at` stamps `updated_at`.
  */
-export function restoreWorkItemHolds(db: Drizzle, saved: unknown): number {
+export function restoreWorkItemHolds(db: Drizzle, saved: unknown, at: number): number {
   const { rows } = readSavedWorkItemHolds(saved);
   return db.transaction((tx) => {
     for (const { workItemId } of rows) {
@@ -135,7 +139,10 @@ export function restoreWorkItemHolds(db: Drizzle, saved: unknown): number {
       }
     }
     for (const { workItemId, hold } of rows) {
-      tx.update(workItem).set({ hold }).where(eq(workItem.id, workItemId)).run();
+      tx.update(workItem)
+        .set({ hold, ...auditOnUpdate({ at }) })
+        .where(eq(workItem.id, workItemId))
+        .run();
     }
     return rows.length;
   });

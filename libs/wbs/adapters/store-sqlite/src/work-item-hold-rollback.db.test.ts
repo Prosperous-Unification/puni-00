@@ -82,11 +82,11 @@ describe('work item hold rollback', () => {
         { workItemId: 'b', hold: 'blocked' },
       ],
     });
-    expect(withConnection((db) => removeSavedWorkItemHolds(db, saved))).toBe(2);
+    expect(withConnection((db) => removeSavedWorkItemHolds(db, saved, 5))).toBe(2);
     if (BASELINE === undefined) throw new Error('no migration below the status facts');
     expect(rollbackTo(path, FOLDER, BASELINE)).toContain(STATUS_FACTS);
     runMigrations(path, FOLDER);
-    expect(withConnection((db) => restoreWorkItemHolds(db, saved))).toBe(2);
+    expect(withConnection((db) => restoreWorkItemHolds(db, saved, 6))).toBe(2);
     expect(holds()).toEqual([
       { id: 'a', hold: 'on_hold' },
       { id: 'b', hold: 'blocked' },
@@ -101,7 +101,7 @@ describe('work item hold rollback', () => {
   it('refuses to remove a save that no longer matches the table', () => {
     const saved = withConnection(saveWorkItemHolds);
     withSqlite((sqlite) => sqlite.run("UPDATE work_item SET hold = 'blocked' WHERE id = 'a'"));
-    expect(() => withConnection((db) => removeSavedWorkItemHolds(db, saved))).toThrow(
+    expect(() => withConnection((db) => removeSavedWorkItemHolds(db, saved, 5))).toThrow(
       'work item hold save does not match current holds',
     );
     expect(holds().map(({ hold }) => hold)).toEqual(['blocked', 'blocked', null]);
@@ -109,17 +109,17 @@ describe('work item hold rollback', () => {
 
   it('refuses the whole restore when a saved work item is gone or has become a parent', () => {
     const saved = withConnection(saveWorkItemHolds);
-    withConnection((db) => removeSavedWorkItemHolds(db, saved));
+    withConnection((db) => removeSavedWorkItemHolds(db, saved, 5));
     withSqlite((sqlite) =>
       sqlite.run(
         "INSERT INTO work_item (id,project_id,parent_id,position,name,revision) VALUES ('a1','p','a',1,'A1',0)",
       ),
     );
-    expect(() => withConnection((db) => restoreWorkItemHolds(db, saved))).toThrow(
+    expect(() => withConnection((db) => restoreWorkItemHolds(db, saved, 6))).toThrow(
       'saved hold on a, which is no longer a leaf',
     );
     withSqlite((sqlite) => sqlite.run("DELETE FROM work_item WHERE id IN ('a1','b')"));
-    expect(() => withConnection((db) => restoreWorkItemHolds(db, saved))).toThrow(
+    expect(() => withConnection((db) => restoreWorkItemHolds(db, saved, 6))).toThrow(
       'saved hold on b, which is no longer a work item',
     );
     expect(holds().map(({ hold }) => hold)).toEqual([null, null]);
@@ -138,7 +138,7 @@ describe('work item hold rollback', () => {
         rows: [{ workItemId: 'a', hold: 'on_hold', extra: 1 }],
       },
     ]) {
-      expect(() => withConnection((db) => restoreWorkItemHolds(db, saved))).toThrow(
+      expect(() => withConnection((db) => restoreWorkItemHolds(db, saved, 6))).toThrow(
         /invalid work item hold save/,
       );
     }

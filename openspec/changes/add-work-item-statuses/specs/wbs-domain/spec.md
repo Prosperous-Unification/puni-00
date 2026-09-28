@@ -162,7 +162,8 @@ own fact end SHALL be cleared too. In a project with no steps `in_progress` and 
 refused `409 no_steps`, and the menu SHALL NOT offer `in_progress` there. `ready` and `draft` SHALL set readiness and clear the hold, and SHALL
 be refused `409 readiness_after_progress` when a leaf holds any progress statement. `on_hold`
 and `blocked` SHALL set the hold and leave progress, readiness and facts untouched, and SHALL
-be refused `409 cannot_hold_done` on a leaf reading `done`. `unknown` SHALL clear progress,
+be refused `409 cannot_hold_done` on a row reading `done`; beneath a parent, a leaf reading
+`done` SHALL keep no hold. `unknown` SHALL clear progress,
 readiness and hold. Any status other than a hold SHALL clear the hold of every leaf it acts on.
 When nothing would
 change, nothing SHALL be written, journalled or announced.
@@ -211,7 +212,9 @@ change, nothing SHALL be written, journalled or announced.
 ### Requirement: Structural edits carry readiness and hold with the leaf
 
 Duplicating a leaf SHALL copy its readiness and never its hold. When a leaf gains its first
-child, its readiness and hold SHALL move to that child with its progress. When a parent loses
+child, its readiness and hold SHALL move to that child with its progress. When another row
+moves under a leaf, that leaf's readiness and hold SHALL be cleared in the same journal entry,
+since the moved row is other work. When a parent loses
 its last child, the parent SHALL take a readiness or hold only when every former leaf agreed
 on it, else none.
 

@@ -658,6 +658,8 @@ describe('opening an imported project', () => {
           deadline: null,
           factStart: null,
           factEnd: null,
+          readiness: null,
+          hold: null,
           priority: 'high',
           serviceTeamId: null,
           serviceId: null,
