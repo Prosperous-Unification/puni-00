@@ -43,6 +43,15 @@ export interface DepLights {
   subscribe: (onChange: () => void) => () => void;
   /** Whether a hovered Depends on cell names this row. */
   isLit: (rowId: string) => boolean;
+  /** Active authored relationship shared by chips, cards and Gantt arrows. */
+  activeTypedId: () => string | null;
+  setTypedDependencies: (
+    dependencies: readonly {
+      id: string;
+      predecessor: { workItemId: string };
+      successor: { workItemId: string };
+    }[],
+  ) => void;
   /**
    * The entry an open card on `rowId` should emphasise, or null.
    *
@@ -69,6 +78,11 @@ export function createDepLights(): DepLights {
   let hover: DepReading | null = null;
   let focus: DepReading | null = null;
   let dependsOnOf: (rowId: string) => readonly string[] | undefined = () => undefined;
+  let typedDependencies: readonly {
+    id: string;
+    predecessor: { workItemId: string };
+    successor: { workItemId: string };
+  }[] = [];
   let lit: ReadonlySet<string> = new Set();
   const listeners = new Set<() => void>();
 
@@ -98,6 +112,12 @@ export function createDepLights(): DepLights {
   const resolve = (): ReadonlySet<string> => {
     const read = hover ?? focus;
     if (read === null) return new Set();
+    const authored = typedDependencies.find(
+      (dependency) =>
+        dependency.id === read.pillId && dependency.successor.workItemId === read.rowId,
+    );
+    if (authored !== undefined)
+      return new Set([authored.predecessor.workItemId, authored.successor.workItemId]);
     const dependsOn = dependsOnOf(read.rowId);
     if (dependsOn === undefined) return new Set();
     if (read.pillId === null) return new Set(dependsOn);
@@ -106,6 +126,7 @@ export function createDepLights(): DepLights {
 
   /** The pointer's reading as the last notification left it — see {@link settle}. */
   let toldHover: DepReading | null = null;
+  let toldFocus: DepReading | null = null;
 
   const settle = (): void => {
     const next = resolve();
@@ -117,12 +138,14 @@ export function createDepLights(): DepLights {
     // that. Comparing the set alone left the emphasis on a one-entry card
     // stuck at whatever it was when the card opened.
     const samePill = toldHover?.rowId === hover?.rowId && toldHover?.pillId === hover?.pillId;
+    const sameFocus = toldFocus?.rowId === focus?.rowId && toldFocus?.pillId === focus?.pillId;
     // A push or a write that moves neither tells nobody: every shown row is a
     // subscriber, and waking them all to answer "still not lit" is the render
     // this store exists to stop.
-    if (sameLit && samePill) return;
+    if (sameLit && samePill && sameFocus) return;
     lit = next;
     toldHover = hover === null ? null : { ...hover };
+    toldFocus = focus === null ? null : { ...focus };
     for (const listener of listeners) listener();
   };
 
@@ -132,6 +155,20 @@ export function createDepLights(): DepLights {
       return () => listeners.delete(onChange);
     },
     isLit: (rowId) => lit.has(rowId),
+    activeTypedId: () => {
+      const read = hover ?? focus;
+      return read !== null &&
+        typedDependencies.some(
+          (dependency) =>
+            dependency.id === read.pillId && dependency.successor.workItemId === read.rowId,
+        )
+        ? read.pillId
+        : null;
+    },
+    setTypedDependencies: (dependencies) => {
+      typedDependencies = dependencies;
+      settle();
+    },
     pillFor: (rowId) => (hover?.rowId === rowId ? hover.pillId : null),
     updateHover: (next) => {
       hover = next(hover);

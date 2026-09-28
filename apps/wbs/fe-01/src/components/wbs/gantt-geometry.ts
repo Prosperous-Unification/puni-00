@@ -13,6 +13,7 @@ import {
 import type { PriorityBandView } from '@/lib/wbs-api';
 
 import { shortIsoDate } from './short-date';
+import { resolveTypedGanttArrows } from './typed-gantt-arrows';
 
 /**
  * The payload promised something the drawing needs and did not keep it.
@@ -558,6 +559,8 @@ export interface GanttPlan {
    * the edge, and so without anything to count (F3).
    */
   dependencies: readonly DependencyEdge[];
+  /** Authored FS relationships, resolved against the full tree and scheduled slices. */
+  typedDependencies?: readonly TypedChartDependency[];
   /**
    * Every work item of the plan with its parent — the full tree the shown
    * rows were cut from, in tree order.
@@ -617,6 +620,31 @@ export interface GanttPlan {
    * later and reads as slack that is not there.
    */
   depReach: DependencyReach;
+}
+
+/** The endpoint shape the tree read carries into the chart. */
+export interface TypedChartEndpoint {
+  scope: 'whole' | 'node' | 'descendant-step';
+  workItemId: string;
+  stepId?: string;
+}
+
+export interface TypedChartDependency {
+  id: string;
+  type: 'FS';
+  predecessor: TypedChartEndpoint;
+  successor: TypedChartEndpoint;
+}
+
+/** One expanded or grouped authored FS connector. */
+export interface TypedGanttArrow extends GanttDependencyArrow {
+  relationshipId: string;
+  relationshipIds: string[];
+  predecessorSliceId: string;
+  successorSliceId: string;
+  count: number;
+  proxy: boolean;
+  scope: string;
 }
 
 /** A row's label: what the sticky-left column prints, and which row of the chart it belongs to. */
@@ -929,6 +957,8 @@ export interface GanttGeometry {
   bars: GanttBar[];
   brackets: GanttSummaryBracket[];
   arrows: GanttDependencyArrow[];
+  typedArrows: TypedGanttArrow[];
+  internalDependencies: { rowId: string; count: number }[];
   personLinks: GanttPersonLink[];
   capacityLinks: GanttCapacityLink[];
   notBeforeFlags: GanttNotBeforeFlag[];
@@ -1157,6 +1187,18 @@ export interface PlacedGantt {
   bars: PlacedBar[];
   brackets: PlacedBracket[];
   arrows: PlacedArrow[];
+  typedArrows: (PlacedArrow &
+    Pick<
+      TypedGanttArrow,
+      | 'relationshipId'
+      | 'relationshipIds'
+      | 'predecessorSliceId'
+      | 'successorSliceId'
+      | 'count'
+      | 'proxy'
+      | 'scope'
+    >)[];
+  internalDependencies: { rowId: string; count: number }[];
   personLinks: PlacedPersonLink[];
   capacityLinks: PlacedCapacityLink[];
   notBeforeFlags: PlacedFlag[];
@@ -1205,6 +1247,21 @@ function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset
     toRowIndex: arrow.toRowIndex,
     toX: startOf(arrow.toStart),
   }));
+  const typedArrows = chart.typedArrows.map((arrow) => ({
+    predecessorId: arrow.predecessorId,
+    successorId: arrow.successorId,
+    fromRowIndex: arrow.fromRowIndex,
+    fromX: stopOf(arrow.fromStart, arrow.fromFinish),
+    toRowIndex: arrow.toRowIndex,
+    toX: startOf(arrow.toStart),
+    relationshipId: arrow.relationshipId,
+    relationshipIds: arrow.relationshipIds,
+    predecessorSliceId: arrow.predecessorSliceId,
+    successorSliceId: arrow.successorSliceId,
+    count: arrow.count,
+    proxy: arrow.proxy,
+    scope: arrow.scope,
+  }));
   const personLinks = chart.personLinks.map((link) => ({
     fromSliceId: link.fromSliceId,
     toSliceId: link.toSliceId,
@@ -1236,6 +1293,7 @@ function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset
   for (const placed of bars) horizon = Math.max(horizon, placed.x + placed.width);
   for (const bracket of brackets) horizon = Math.max(horizon, bracket.to);
   for (const arrow of arrows) horizon = Math.max(horizon, arrow.fromX, arrow.toX);
+  for (const arrow of typedArrows) horizon = Math.max(horizon, arrow.fromX, arrow.toX);
   for (const flag of notBeforeFlags) horizon = Math.max(horizon, flag.x);
 
   return {
@@ -1243,6 +1301,8 @@ function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset
     bars,
     brackets,
     arrows,
+    typedArrows,
+    internalDependencies: chart.internalDependencies,
     personLinks,
     capacityLinks,
     notBeforeFlags,
@@ -2226,6 +2286,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
     });
   }
 
+  const typed = resolveTypedGanttArrows(plan);
   let horizon = 1;
   // Both ends of every bar: where the engine finishes it, and where the drawing
   // does. They differ on an unestimated slice, which finishes where it starts
@@ -2236,6 +2297,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
   for (const bar of bars) horizon = Math.max(horizon, bar.finish, bar.start + bar.drawnSpan);
   for (const bracket of brackets) horizon = Math.max(horizon, bracket.finish);
   for (const arrow of arrows) horizon = Math.max(horizon, arrow.fromFinish, arrow.toStart);
+  for (const arrow of typed.arrows) horizon = Math.max(horizon, arrow.fromFinish, arrow.toStart);
   for (const flag of notBeforeFlags) horizon = Math.max(horizon, flag.offset);
 
   return {
@@ -2243,6 +2305,8 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
     bars: withPlaceholderLanes(bars),
     brackets,
     arrows,
+    typedArrows: typed.arrows,
+    internalDependencies: typed.internalDependencies,
     personLinks,
     capacityLinks,
     notBeforeFlags,

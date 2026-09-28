@@ -26,6 +26,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { CalendarMarkerView, NewCalendarMarkerView, PriorityBandView } from '@/lib/wbs-api';
 
+import type { DepLights } from './dep-light-store';
 import { useGanttDetail } from './gantt-detail';
 import {
   CAPACITY_LINK_COLOR,
@@ -681,6 +682,7 @@ function arrowRoute(
   arrow: PlacedArrow,
   barsByRow: ReadonlyMap<number, PlacedBar[]>,
   dayPx: number,
+  originSliceId?: string,
 ): { elbow: string; head: string } {
   const at = (x: number, y: number): string => `${String(x)} ${String(y)}`;
   const toY = arrow.toRowIndex + ROW_MIDDLE;
@@ -700,7 +702,13 @@ function arrowRoute(
     row <= Math.max(arrow.fromRowIndex, arrow.toRowIndex);
     row += 1
   ) {
-    obstacles.push(...(barsByRow.get(row) ?? []));
+    // A zero-time anchor sits on the left edge of its own two-day placeholder.
+    // Exclude only that placeholder; every other visible bar remains an obstacle.
+    obstacles.push(
+      ...(barsByRow.get(row) ?? []).filter(
+        ({ bar }) => bar.sliceId !== originSliceId || bar.estimated,
+      ),
+    );
   }
   const route = routeArrow(arrow, obstacles, {
     approach: ARROW_APPROACH_PX / dayPx,
@@ -2768,6 +2776,7 @@ export const GanttPanel = memo(
 
 function GanttPanelContent({
   plan,
+  depLights,
   startDate,
   scheduleError,
   generation,
@@ -2818,6 +2827,7 @@ function GanttPanelContent({
   return (
     <GanttChart
       plan={plan}
+      depLights={depLights}
       startDate={startDate}
       generation={generation}
       heightPx={heightPx}
@@ -2843,6 +2853,7 @@ function GanttPanelContent({
 /** What the panel is given: one chart read, and what to do with a click on it. */
 interface GanttProps {
   plan: GanttPlan;
+  depLights?: DepLights;
   /** The day the plan begins, or null while it is not on a calendar. */
   startDate: IsoDate | null;
   /** be-01's answer when no dates could be worked out at all. */
@@ -3100,6 +3111,7 @@ interface OpenSurface {
  */
 function GanttChart({
   plan,
+  depLights,
   startDate,
   generation,
   heightPx,
@@ -3144,6 +3156,10 @@ function GanttChart({
   onCreateMarker: (marker: NewCalendarMarkerView) => void;
   newMarkerId: () => string;
 }) {
+  const activeTypedId = useSyncExternalStore(
+    depLights?.subscribe ?? (() => () => undefined),
+    depLights?.activeTypedId ?? (() => null),
+  );
   // How far the chart is scrolled, in CSS pixels. Held only so the caption can
   // name the month actually on screen.
   const [scrolledPx, setScrolledPx] = useState(0);
@@ -4647,6 +4663,115 @@ function GanttChart({
               </g>
             );
           })}
+        {detailShown &&
+          placed.typedArrows.map((arrow, index) => {
+            const route = arrowRoute(arrow, drawn.barsByRow, dayPx, arrow.predecessorSliceId);
+            const markId = `${arrow.relationshipId}-${String(index)}`;
+            const relationship = plan.typedDependencies?.find(
+              (dependency) => dependency.id === arrow.relationshipId,
+            );
+            if (relationship === undefined)
+              throw new Error(`missing chart relationship ${arrow.relationshipId}`);
+            return (
+              <g key={markId}>
+                <path
+                  data-gantt-typed-arrow={arrow.relationshipId}
+                  data-gantt-proxy={arrow.proxy ? 'true' : undefined}
+                  data-dependency-lit={
+                    activeTypedId !== null && arrow.relationshipIds.includes(activeTypedId)
+                      ? 'true'
+                      : undefined
+                  }
+                  d={route.elbow}
+                  className={cn(
+                    'stroke-foreground/70 fill-none',
+                    arrow.proxy && '[stroke-dasharray:3_2]',
+                    activeTypedId !== null && arrow.relationshipIds.includes(activeTypedId)
+                      ? '[stroke-width:2]'
+                      : '[stroke-width:1.25] hover:[stroke-width:2] focus:[stroke-width:2]',
+                  )}
+                  vectorEffect="non-scaling-stroke"
+                  tabIndex={0}
+                  onPointerEnter={() =>
+                    depLights?.updateHover(() => ({
+                      rowId: relationship.successor.workItemId,
+                      pillId: arrow.relationshipId,
+                    }))
+                  }
+                  onPointerLeave={() =>
+                    depLights?.updateHover((current) =>
+                      current?.pillId === arrow.relationshipId ? null : current,
+                    )
+                  }
+                  onFocus={() =>
+                    depLights?.updateFocus(() => ({
+                      rowId: relationship.successor.workItemId,
+                      pillId: arrow.relationshipId,
+                    }))
+                  }
+                  onBlur={() =>
+                    depLights?.updateFocus((current) =>
+                      current?.pillId === arrow.relationshipId ? null : current,
+                    )
+                  }
+                  aria-label={`FS dependency from ${arrow.predecessorId} to ${arrow.successorId}${arrow.count > 1 ? `, ${String(arrow.count)} links` : ''}`}
+                />
+                <path
+                  d={route.elbow}
+                  className="fill-none stroke-transparent [stroke-width:10]"
+                  vectorEffect="non-scaling-stroke"
+                  pointerEvents="stroke"
+                  onPointerEnter={() =>
+                    depLights?.updateHover(() => ({
+                      rowId: relationship.successor.workItemId,
+                      pillId: arrow.relationshipId,
+                    }))
+                  }
+                  onPointerLeave={() =>
+                    depLights?.updateHover((current) =>
+                      current?.pillId === arrow.relationshipId ? null : current,
+                    )
+                  }
+                />
+                <path d={route.head} className="fill-foreground/70" />
+                {activeTypedId !== null && arrow.relationshipIds.includes(activeTypedId) && (
+                  <text
+                    x={(arrow.fromX + arrow.toX) / 2}
+                    y={Math.min(arrow.fromRowIndex, arrow.toRowIndex) + 0.18}
+                    className="fill-foreground text-[0.35px]"
+                  >
+                    FS
+                  </text>
+                )}
+                {arrow.proxy && (
+                  <text
+                    data-gantt-proxy-count={arrow.relationshipId}
+                    x={(arrow.fromX + arrow.toX) / 2}
+                    y={Math.min(arrow.fromRowIndex, arrow.toRowIndex) + 0.3}
+                    className="fill-foreground text-[0.35px]"
+                  >
+                    {arrow.count}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        {detailShown &&
+          placed.internalDependencies.map(({ rowId, count }) => {
+            const row = chart.labels.find((label) => label.id === rowId);
+            if (row === undefined) throw new Error(`missing visible row ${rowId}`);
+            return (
+              <text
+                key={rowId}
+                data-gantt-internal-dependencies={rowId}
+                x={0}
+                y={row.rowIndex + 0.3}
+                className="fill-foreground text-[0.35px]"
+              >
+                {count} internal dependencies
+              </text>
+            );
+          })}
 
         {/*
               Drawn unlike a dependency, because it is not one: nobody wrote this
@@ -4727,6 +4852,17 @@ function GanttChart({
           <rect
             key={bar.sliceId}
             data-gantt-bar={bar.sliceId}
+            data-dependency-lit={
+              activeTypedId !== null &&
+              placed.typedArrows.some(
+                (arrow) =>
+                  arrow.relationshipIds.includes(activeTypedId) &&
+                  (arrow.predecessorSliceId === bar.sliceId ||
+                    arrow.successorSliceId === bar.sliceId),
+              )
+                ? 'true'
+                : undefined
+            }
             // The engine's own **workday** numbers, and the geometry
             // beside them is the calendar's: the two are allowed to
             // disagree, and the difference between them is exactly what a
@@ -4788,7 +4924,10 @@ function GanttChart({
             // (`status-polish`; Dany: "add smth like a green outline to the
             // gantt chart slices").
             stroke={bar.done ? DONE_BAR_STROKE : bar.critical ? undefined : bar.personColor}
-            className={barClasses(bar.critical, bar.estimated, bar.done)}
+            className={cn(
+              barClasses(bar.critical, bar.estimated, bar.done),
+              'data-[dependency-lit=true]:stroke-foreground data-[dependency-lit=true]:[stroke-width:2]',
+            )}
             vectorEffect="non-scaling-stroke"
             // A control, because it is one: it takes the keyboard, it has
             // a name, and Enter and Space act on it. The step is what
@@ -5029,6 +5168,8 @@ function GanttChart({
       pad,
       placed,
       plan,
+      depLights,
+      activeTypedId,
       onPointRow,
       pointRow,
       rowCount,

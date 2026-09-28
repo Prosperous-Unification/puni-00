@@ -3,13 +3,14 @@ import { deadlineOffsetOf, workdaysBetween } from '@wbs/domain/workday';
 import type * as React from 'react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
-import type { PriorityBandView, TeamView } from '@/lib/wbs-api';
+import type { PriorityBandView, TeamView, TypedDependencyView } from '@/lib/wbs-api';
 
 import {
   type GanttPlan,
   type ServiceTeamLabel,
   startFloorByRow,
   type TagLabel,
+  type TypedChartDependency,
 } from './gantt-geometry';
 import type { PlanTableFeatures } from './plan-columns/column';
 import { showDay } from './plan-number-format';
@@ -22,6 +23,19 @@ interface ShownPlanRow {
   source: TreeRow;
   depth: number;
   leaf: boolean;
+}
+
+/** Keep an unknown wire relationship type from being drawn as FS. */
+export function chartTypedDependencies(
+  dependencies: readonly TypedDependencyView[],
+): TypedChartDependency[] {
+  return dependencies.map((dependency) => {
+    // Proof: bypassing this check made `refuses an unknown typed chart
+    // relationship` stop throwing. Watched 2026-09-28.
+    if (dependency.type !== 'FS')
+      throw new Error(`unsupported chart dependency ${dependency.type}`);
+    return { ...dependency, type: 'FS' };
+  });
 }
 
 /**
@@ -79,6 +93,7 @@ export function usePlanChartInput({
   filtering,
   teams,
   priorityBands,
+  typedDependencies,
   startFloor,
 }: {
   shownRows: Row<PlanTableFeatures, PlanRenderRow>[];
@@ -91,6 +106,7 @@ export function usePlanChartInput({
   filtering: boolean;
   teams: TeamView[];
   priorityBands: PriorityBandView[];
+  typedDependencies: readonly TypedDependencyView[];
   startFloor: React.RefObject<ReadonlyMap<string, string>>;
 }) {
   const structuralRows = useShownPlanRows(shownRows);
@@ -192,6 +208,7 @@ export function usePlanChartInput({
       dependencies: flat.flatMap((row) =>
         row.dependsOn.map((predecessorId) => ({ predecessorId, successorId: row.id })),
       ),
+      typedDependencies: chartTypedDependencies(typedDependencies),
       // All three off {@link chartRead}, which is one payload. **Not** `steps`
       // and `people`: those are the separate reads the pickers and the steps
       // dialog are about, and a slice checked against a step list from another
@@ -218,6 +235,7 @@ export function usePlanChartInput({
       startDate,
       teams,
       priorityBands,
+      typedDependencies,
       filtering,
       namedInTheTree,
       effectiveTeamLabelOf,

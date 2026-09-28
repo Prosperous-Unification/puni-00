@@ -22,6 +22,7 @@ import { projectServicesOf } from '@/testing/project-services-of';
 import { recordCalls } from '@/testing/record-calls';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
+import { createDepLights } from './dep-light-store';
 import { MONDAY_START, planOf, pointedAtRow, rowAt, sliceAt } from './gantt-fixtures';
 import type { GanttPlan } from './gantt-geometry';
 import { DONE_BAR_STROKE } from './gantt-geometry';
@@ -372,6 +373,57 @@ describe('the chart’s row labels read a name as the plan reads it', () => {
 });
 
 describe('every mark on the chart lands on the calendar day its workday is', () => {
+  itDom(
+    'draws an authored FS arrow from an unknown node tick and names a collapsed proxy count',
+    () => {
+      const depLights = createDepLights();
+      depLights.setTypedDependencies([
+        { id: 'dep', predecessor: { workItemId: 'P' }, successor: { workItemId: 'B' } },
+      ]);
+      const chart = planOf({
+        rows: [rowAt('P', 0, 0, { leaf: false }), rowAt('B', 0, 2)],
+        tree: [
+          { id: 'P', parentId: null },
+          { id: 'A', parentId: 'P' },
+          { id: 'B', parentId: null },
+        ],
+        slices: [sliceAt('A-dev', 'A', 0, 0, { estimated: false }), sliceAt('B-dev', 'B', 0, 2)],
+        typedDependencies: [
+          {
+            id: 'dep',
+            type: 'FS',
+            predecessor: { scope: 'whole', workItemId: 'P' },
+            successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+          },
+        ],
+      });
+      render(
+        <GanttPanel
+          plan={chart}
+          depLights={depLights}
+          startDate={null}
+          scheduleError={null}
+          generation={0}
+          heightPx={null}
+          onPickRow={() => undefined}
+          onPointRow={() => undefined}
+          pointed={pointedAtRow(null)}
+        />,
+      );
+      pressTheDetail();
+      expect(markAttribute('[data-gantt-typed-arrow="dep"]', 'd')).toMatch(/^M 0 /);
+      expect(document.querySelector('[data-gantt-proxy-count="dep"]')?.textContent).toBe('1');
+      fireEvent.focus(document.querySelector('[data-gantt-typed-arrow="dep"]')!);
+      expect(
+        document
+          .querySelector('[data-gantt-typed-arrow="dep"]')
+          ?.getAttribute('data-dependency-lit'),
+      ).toBe('true');
+      expect(
+        document.querySelector('[data-gantt-bar="B-dev"]')?.getAttribute('data-dependency-lit'),
+      ).toBe('true');
+    },
+  );
   itDom('puts the bar, the caret, the tick, the axis cell and the label on day 7', () => {
     render(
       <GanttPanel

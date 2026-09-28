@@ -502,6 +502,28 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   className={`${REFERENCE_SET_CHIP_CLASS} border-0`}
                   aria-label={`Edit dependency: ${words.label}`}
                   tabIndex={picker === null ? -1 : undefined}
+                  onMouseEnter={() => {
+                    live.current.depLights.updateHover(() => ({
+                      rowId: row.original.id,
+                      pillId: dependency.id,
+                    }));
+                  }}
+                  onMouseLeave={() => {
+                    live.current.depLights.updateHover((current) =>
+                      current?.pillId === dependency.id ? null : current,
+                    );
+                  }}
+                  onFocus={() => {
+                    live.current.depLights.updateFocus(() => ({
+                      rowId: row.original.id,
+                      pillId: dependency.id,
+                    }));
+                  }}
+                  onBlur={() => {
+                    live.current.depLights.updateFocus((current) =>
+                      current?.pillId === dependency.id ? null : current,
+                    );
+                  }}
                   onClick={() => {
                     setEditing({
                       predecessorId: dependency.predecessor.workItemId,

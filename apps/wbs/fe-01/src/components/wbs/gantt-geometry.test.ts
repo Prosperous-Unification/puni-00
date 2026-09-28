@@ -942,6 +942,122 @@ describe('a binding floor this build does not know', () => {
 });
 
 describe('dependency arrows', () => {
+  it('anchors typed node arrows at scheduled finish and start, including unknown placeholders', () => {
+    const plan = planOf({
+      rows: [rowAt('A', 0, 0), rowAt('B', 0, 2)],
+      slices: [sliceAt('A-dev', 'A', 0, 0, { estimated: false }), sliceAt('B-dev', 'B', 0, 2)],
+      typedDependencies: [
+        {
+          id: 'edge',
+          type: 'FS',
+          predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+        },
+      ],
+    });
+    const placed = placeOnWorkdays(layOutGantt(plan));
+    expect(placed.typedArrows).toMatchObject([
+      { fromX: 0, toX: 0, predecessorSliceId: 'A-dev', successorSliceId: 'B-dev' },
+    ]);
+    expect(placed.bars.find((bar) => bar.bar.sliceId === 'A-dev')?.width).toBe(
+      ASSUMED_SLICE_WORKDAYS,
+    );
+  });
+
+  it('expands parent endpoints and groups collapsed proxies and internal relationships', () => {
+    const dependencies = [
+      {
+        id: 'external',
+        type: 'FS',
+        predecessor: { scope: 'whole', workItemId: 'P' },
+        successor: { scope: 'whole', workItemId: 'Q' },
+      },
+      {
+        id: 'internal',
+        type: 'FS',
+        predecessor: { scope: 'whole', workItemId: 'A' },
+        successor: { scope: 'whole', workItemId: 'B' },
+      },
+    ] as const;
+    const base = planOf({
+      rows: [
+        rowAt('P', 0, 2, { leaf: false }),
+        rowAt('A', 0, 1, { depth: 1 }),
+        rowAt('B', 1, 2, { depth: 1 }),
+        rowAt('Q', 2, 3),
+      ],
+      tree: [
+        { id: 'P', parentId: null },
+        { id: 'A', parentId: 'P' },
+        { id: 'B', parentId: 'P' },
+        { id: 'Q', parentId: null },
+      ],
+      slices: [
+        sliceAt('A-dev', 'A', 0, 1),
+        sliceAt('B-dev', 'B', 1, 2),
+        sliceAt('Q-dev', 'Q', 2, 3),
+      ],
+      typedDependencies: dependencies,
+    });
+    expect(
+      layOutGantt(base).typedArrows.filter((arrow) => arrow.relationshipId === 'external'),
+    ).toHaveLength(2);
+    const collapsed = layOutGantt({ ...base, rows: [base.rows[0], base.rows[3]] });
+    expect(collapsed.typedArrows).toMatchObject([
+      { count: 2, proxy: true, predecessorId: 'P', successorId: 'Q' },
+    ]);
+    expect(collapsed.internalDependencies).toEqual([{ rowId: 'P', count: 1 }]);
+  });
+
+  it.each([
+    [
+      'unknown work item',
+      { scope: 'whole', workItemId: 'missing' },
+      [sliceAt('A-dev', 'A', 0, 1)],
+      'unknown chart work item',
+    ],
+    ['missing slices', { scope: 'whole', workItemId: 'A' }, [], 'missing chart slices'],
+    [
+      'node on parent',
+      { scope: 'node', workItemId: 'P', stepId: 'dev' },
+      [sliceAt('A-dev', 'A', 0, 1)],
+      'node endpoint is not a leaf',
+    ],
+    [
+      'descendant step on leaf',
+      { scope: 'descendant-step', workItemId: 'A', stepId: 'dev' },
+      [sliceAt('A-dev', 'A', 0, 1)],
+      'descendant-step endpoint is a leaf',
+    ],
+    [
+      'missing step',
+      { scope: 'node', workItemId: 'A', stepId: 'qa' },
+      [sliceAt('A-dev', 'A', 0, 1)],
+      'missing chart step',
+    ],
+  ] as const)(
+    'refuses %s in a typed chart endpoint',
+    (_case, predecessor, sourceSlices, message) => {
+      const plan = planOf({
+        rows: [rowAt('P', 0, 1, { leaf: false }), rowAt('A', 0, 1, { depth: 1 }), rowAt('B', 1, 2)],
+        tree: [
+          { id: 'P', parentId: null },
+          { id: 'A', parentId: 'P' },
+          { id: 'B', parentId: null },
+        ],
+        slices: [...sourceSlices, sliceAt('B-dev', 'B', 1, 2)],
+        typedDependencies: [
+          {
+            id: 'invalid',
+            type: 'FS',
+            predecessor,
+            successor: { scope: 'whole', workItemId: 'B' },
+          },
+        ],
+      });
+      expect(() => layOutGantt(plan)).toThrow(message);
+    },
+  );
   const twoRowsOneEdge = (parts: Partial<GanttPlan> = {}): GanttPlan =>
     planOf({
       rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 5)],
@@ -1886,6 +2002,8 @@ describe('the shapes a real schedule makes', () => {
       bars: [],
       brackets: [],
       arrows: [],
+      typedArrows: [],
+      internalDependencies: [],
       personLinks: [],
       capacityLinks: [],
       notBeforeFlags: [],

@@ -1757,6 +1757,9 @@ export function WbsTable({
     const dependsOnOf = new Map(flat.map((row) => [row.id, row.dependsOn]));
     depLights.setDependsOnOf((rowId) => dependsOnOf.get(rowId));
   }, [depLights, flat]);
+  useEffect(() => {
+    depLights.setTypedDependencies(typedDependencies);
+  }, [depLights, typedDependencies]);
 
   /**
    * The Gantt panel's report line into the store — stable so the chart's
@@ -1776,6 +1779,7 @@ export function WbsTable({
     cellCards,
   });
   const { ganttPlan, floorByRow } = usePlanChartInput({
+    typedDependencies,
     shownRows,
     startDate,
     effectiveTeamLabelOf,
@@ -3012,6 +3016,7 @@ export function WbsTable({
         <GanttFaultBoundary generation={chartRead.generation}>
           <GanttPanel
             plan={ganttPlan}
+            depLights={depLights}
             startDate={startDate}
             scheduleError={scheduleError}
             generation={chartRead.generation}
