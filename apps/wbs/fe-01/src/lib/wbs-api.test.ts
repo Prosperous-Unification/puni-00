@@ -371,6 +371,16 @@ describe('adding and renaming a step', () => {
       message: 'invalid_allowance',
     });
   });
+
+  it('throws the calendar range refusal of an allowance past the calendar', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response(422, JSON.stringify({ error: 'calendar_range' })))),
+    );
+    await expect(httpProjectApi('t').setStepAllowance('p1', 'r3', 1000)).rejects.toMatchObject({
+      message: 'calendar_range',
+    });
+  });
   it('sends the name and answers with the step', async () => {
     const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
       Promise.resolve(

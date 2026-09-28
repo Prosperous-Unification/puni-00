@@ -2,19 +2,22 @@ import { addStep, removeStep, renameStep } from '@wbs/contracts';
 import { allowancePercentOf, NO_ALLOWANCE } from '@wbs/domain';
 
 import type { PlanCommandRunner } from '../module/plan-commands/plan-commands.feature';
-import { runCommandBatch } from '../module/plan-commands/run-command-batch';
+import { runCommandBatchAfter } from '../module/plan-commands/run-command-batch';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Step } from '../ports/step-store';
 import type { StepOutcome, StepService } from '../service/step.service';
 import { bind, EMPTY, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 
+/** The replies an add and a rename both declare. */
+type NamedReply = Extract<HttpReply<typeof renameStep>, HttpReply<typeof addStep>>;
+
 /** Keeps each named-step domain refusal paired with its existing wire status. */
 function namedReply(
   outcome:
     | { ok: true; value: Step }
     | { ok: false; reason: 'not_found' | 'forbidden' | 'taken' | 'name_required' },
-): HttpReply<typeof renameStep> {
+): NamedReply {
   if (outcome.ok) return { ok: true, status: 200, body: { step: outcome.value } };
   switch (outcome.reason) {
     case 'not_found':
@@ -67,11 +70,12 @@ function renamedReply(outcome: StepOutcome): HttpReply<typeof renameStep> {
  *
  * An allowance edit is not StepService's: it runs as the `setStepAllowance`
  * command through `commands`, so HTTP, a command batch and MCP share one
- * journalled mutation and one undo.
+ * journalled mutation and one undo. A rename sent with it is that batch's
+ * prelude and settles with it; the rename itself is not journalled.
  */
 export function stepRoutes(
   steps: Pick<StepService, 'addWithin' | 'findWithin' | 'removeWithin' | 'renameWithin'>,
-  commands: Pick<PlanCommandRunner, 'runWithin' | 'runDirectoryWithin'>,
+  commands: Pick<PlanCommandRunner, 'runAfterWithin'>,
   organizations: OrganizationAccess,
 ) {
   return [
@@ -140,24 +144,35 @@ export function stepRoutes(
         resolved.access,
       );
       if (!admitted.ok) return renamedReply(admitted);
-      if (body.name !== undefined) {
-        const renamed = await steps.renameWithin(
-          params.id,
-          params.stepId,
-          principal.id,
-          body.name,
-          resolved.access,
-        );
-        if (!renamed.ok) return renamedReply(renamed);
-      }
-      const outcome = await runCommandBatch(commands, {
-        projectId: params.id,
-        actor: principal,
-        commands: [
-          { kind: 'setStepAllowance', stepId: params.stepId, allowancePercent: allowance },
-        ],
-        access: resolved.access,
-      });
+      const { name } = body;
+      // The rename is the batch's prelude, so a refused allowance takes it back
+      // and a refused rename writes no allowance: one edit, all or nothing.
+      // Proof: renaming through `steps` before the batch, as this route did,
+      // kept the name `Review` in `takes back the rename sent in the same edit`
+      // (step-allowance-edit.controller.db.test.ts); watched 2026-09-28.
+      const outcome = await runCommandBatchAfter(
+        commands,
+        {
+          projectId: params.id,
+          actor: principal,
+          commands: [
+            { kind: 'setStepAllowance', stepId: params.stepId, allowancePercent: allowance },
+          ],
+          access: resolved.access,
+        },
+        async (graph) => {
+          if (name === undefined) return null;
+          const renamed = await graph.steps.renameWithin(
+            params.id,
+            params.stepId,
+            principal.id,
+            name,
+            resolved.access,
+          );
+          return renamed.ok ? null : renamed;
+        },
+      );
+      if ('prelude' in outcome) return renamedReply(outcome.prelude);
       // The shape's write-scope policy refused this before the handler ran.
       if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
       if ('refusal' in outcome) {
@@ -166,11 +181,21 @@ export function stepRoutes(
           : { ok: false, status: 403, body: { error: 'forbidden' } };
       }
       if (!outcome.ok) {
-        if (outcome.reason === 'forbidden')
-          return { ok: false, status: 403, body: { error: 'forbidden' } };
-        if (outcome.reason === 'not_found')
-          return { ok: false, status: 404, body: { error: 'not_found' } };
-        throw new Error(`setStepAllowance refused with an unmodelled reason: ${outcome.reason}`);
+        switch (outcome.reason) {
+          case 'forbidden':
+            return { ok: false, status: 403, body: { error: 'forbidden' } };
+          case 'not_found':
+            return { ok: false, status: 404, body: { error: 'not_found' } };
+          // Proof: with this case removed, `is a typed 422 over HTTP and in a
+          // batch, and changes nothing` (step-allowance-edit.controller.db.test.ts)
+          // answered 500 instead of 422; watched 2026-09-28.
+          case 'calendar_range':
+            return { ok: false, status: 422, body: { error: 'calendar_range' } };
+          default:
+            throw new Error(
+              `setStepAllowance refused with an unmodelled reason: ${outcome.reason}`,
+            );
+        }
       }
       return renamedReply(
         await steps.findWithin(params.id, params.stepId, principal.id, resolved.access),
