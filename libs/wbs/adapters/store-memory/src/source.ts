@@ -72,6 +72,11 @@ import {
 } from './replay-fixture';
 import { inMemorySteps, type MemoryStepTable, memoryStepTable } from './step-fixture';
 import { inMemorySubtrees } from './subtree-fixture';
+import {
+  inMemoryTypedDependencies,
+  type MemoryTypedDependencyTable,
+  memoryTypedDependencyTable,
+} from './typed-dependency-fixture';
 
 interface MemoryTables {
   readonly users: MemoryUserTable;
@@ -79,6 +84,7 @@ interface MemoryTables {
   readonly directory: MemoryDirectoryTables;
   readonly steps: MemoryStepTable;
   readonly dependencies: MemoryDependencyTable;
+  readonly typedDependencies: MemoryTypedDependencyTable;
   readonly workItems: MemoryWorkItemTables;
   readonly estimates: MemoryEstimateTable;
   readonly actuals: MemoryActualTable;
@@ -98,6 +104,7 @@ function emptyTables(): MemoryTables {
     directory: memoryDirectoryTables(),
     steps: memoryStepTable(),
     dependencies: memoryDependencyTable(),
+    typedDependencies: memoryTypedDependencyTable(),
     workItems: memoryWorkItemTables(),
     estimates: memoryEstimateTable(),
     actuals: memoryActualTable(),
@@ -184,6 +191,9 @@ export class MemoryState {
     replaceMap(this.tables.directory.assignments, next.tables.directory.assignments);
     replaceArray(this.tables.steps.rows, next.tables.steps.rows);
     replaceArray(this.tables.dependencies.rows, next.tables.dependencies.rows);
+    // Proof: omitting this copy left `commits all mixed-store writes together`
+    // with no committed typed row; watched failing 2026-09-27.
+    replaceArray(this.tables.typedDependencies.rows, next.tables.typedDependencies.rows);
     replaceMap(this.tables.workItems.byId, next.tables.workItems.byId);
     replaceMap(this.tables.workItems.teamsOf, next.tables.workItems.teamsOf);
     replaceMap(this.tables.workItems.tagsOf, next.tables.workItems.tagsOf);
@@ -233,6 +243,7 @@ function bindStores(
   };
   workItems = inMemoryWorkItems(directory, state.tables.workItems);
   const dependencies = inMemoryDependencies([], state.tables.dependencies, workItems);
+  const typedDependencies = inMemoryTypedDependencies([], state.tables.typedDependencies);
   const steps = inMemorySteps([], state.tables.steps);
   const estimates = inMemoryEstimates(workItems, state.tables.estimates, steps);
   const actuals = inMemoryActuals(workItems, state.tables.actuals, steps);
@@ -270,6 +281,7 @@ function bindStores(
     measures,
     progress,
     dependencies,
+    typedDependencies,
     capacity: inMemoryCapacity({}, state.tables.capacity),
     priorityBands: inMemoryPriorityBands({}, state.tables.priorityBands),
     calendarMarkers: inMemoryCalendarMarkers([], state.tables.calendarMarkers),
@@ -391,6 +403,11 @@ function coordinatedStores(
     dependencies: coordinatedStore(
       stores.dependencies,
       ['add', 'remove', 'removeAllFor'],
+      coordinator,
+    ),
+    typedDependencies: coordinatedStore(
+      stores.typedDependencies,
+      ['add', 'update', 'remove', 'removeAllFor'],
       coordinator,
     ),
     subtrees: coordinatedStore(stores.subtrees, ['insertSubtree'], coordinator),
@@ -887,6 +904,7 @@ async function capturePlanInput(
     progress,
     measures,
     dependencies,
+    typedDependencies,
     assignmentRows,
     capacity,
     priorityBands,
@@ -904,6 +922,7 @@ async function capturePlanInput(
     stores.progress.listByProject(projectId),
     stores.measures.listByProject(projectId),
     stores.dependencies.listByProject(projectId),
+    stores.typedDependencies.listByProject(projectId),
     stores.directory.assignmentsInProject(projectId),
     stores.capacity.slotsFor(projectId),
     stores.priorityBands.listFor(projectId),
@@ -923,6 +942,12 @@ async function capturePlanInput(
     progress,
     measures,
     dependencies,
+    typedDependencies: typedDependencies.map(({ id, predecessor, successor, type }) => ({
+      id,
+      predecessor,
+      successor,
+      type,
+    })),
     assignments: assignmentRows.assignments,
     capacity,
     priorityBands,

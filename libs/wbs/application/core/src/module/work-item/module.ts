@@ -15,6 +15,7 @@ import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
 import type { Scheduler } from '../../ports/scheduler';
 import type { SubtreeStore } from '../../ports/subtree-store';
+import type { TypedDependencyStore } from '../../ports/typed-dependency-store';
 import type { WorkItemStore } from '../../ports/work-item-store';
 import { WORK_ITEM_LABEL } from './contract';
 import { WorkItemService, type WorkItemServiceOptions } from './work-item.resource';
@@ -49,6 +50,7 @@ export const workItemModule = DiBag.createBuilder()
         capacityStore,
         priorityBandStore,
         dependencyStore,
+        typedDependencyStore,
         subtreeStore,
         journalStore,
         broadcast,
@@ -66,6 +68,7 @@ export const workItemModule = DiBag.createBuilder()
         capacityStore: CapacityStore;
         priorityBandStore: PriorityBandStore;
         dependencyStore: DependencyStore;
+        typedDependencyStore: TypedDependencyStore;
         subtreeStore: SubtreeStore;
         journalStore: CommandJournalStore;
         broadcast: Broadcaster;
@@ -83,6 +86,7 @@ export const workItemModule = DiBag.createBuilder()
         capacity: capacityStore,
         priorityBands: priorityBandStore,
         dependencies: dependencyStore,
+        typedDependencies: typedDependencyStore,
         subtrees: subtreeStore,
         journal: journalStore,
         // Proof (2026-09-24): handing the resource

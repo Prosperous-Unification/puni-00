@@ -274,6 +274,25 @@ describe('diffPlans — 7.2, the presentation categories', () => {
     ).toBe(true);
   });
 
+  it('reports a typed endpoint edit under dependencies by relationship id', () => {
+    const changed = canonicalisePlanInput({
+      ...planFixtureRows,
+      typedDependencies: planFixtureRows.typedDependencies.map((row) =>
+        row.id === 'typed-1'
+          ? { ...row, successor: { scope: 'node' as const, workItemId: 'w2', stepId: 's2' } }
+          : row,
+      ),
+    });
+    const differences = diffPlans(side(), side(changed)).input;
+    expect(
+      differences.some(
+        (difference) =>
+          difference.category === 'dependencies' &&
+          difference.path === 'typedDependencies[typed-1].successor',
+      ),
+    ).toBe(true);
+  });
+
   /**
    * The only shape a relationship edit can take. Every field of a
    * `dependencies`, `assignments` or `workItemServices` row is part of its key

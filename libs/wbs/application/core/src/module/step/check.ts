@@ -30,6 +30,9 @@ export function installStep(requirements: StepRequirements): StepExports {
       recoveryAdmission: DiBag.createProvider(() => requirements.recoveryAdmission, {
         factoryReturnKind: 'sync-value',
       }),
+      dependencyGraph: DiBag.createProvider(() => requirements.dependencyGraph, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
     .buildContainer();
   // Proof (2026-09-24): returning a structurally assignable `exposed` object with `bag` left the

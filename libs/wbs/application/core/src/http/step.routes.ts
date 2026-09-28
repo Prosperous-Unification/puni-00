@@ -72,7 +72,7 @@ function renamedReply(outcome: StepOutcome): HttpReply<typeof renameStep> {
  * journalled mutation and one undo.
  */
 export function stepRoutes(
-  steps: StepService,
+  steps: Pick<StepService, 'addWithin' | 'findWithin' | 'removeWithin' | 'renameWithin'>,
   commands: Pick<PlanCommandRunner, 'runWithin' | 'runDirectoryWithin'>,
   organizations: OrganizationAccess,
   recovery?: RecoveryWriteBoundary,
@@ -83,7 +83,7 @@ export function stepRoutes(
     projectId: string,
     actorId: string,
     detail: { readonly step: 'add' | 'rename' | 'remove' },
-    perform: (service: StepService) => Promise<T>,
+    perform: (service: typeof steps) => Promise<T>,
     refuse: (reason: 'not_found' | 'forbidden') => T,
   ): Promise<T> => {
     if (access.kind === 'legacy') return perform(steps);
@@ -244,6 +244,14 @@ export function stepRoutes(
               status: 409,
               body: { error: outcome.reason, inUse: outcome.inUse },
             };
+          case 'referenced_by_dependency':
+            return {
+              ok: false,
+              status: 409,
+              body: { error: outcome.reason, dependencyIds: outcome.dependencyIds },
+            };
+          case 'dependency_cycle':
+            return { ok: false, status: 409, body: { error: outcome.reason } };
           case 'not_found':
             return { ok: false, status: 404, body: { error: outcome.reason } };
           case 'forbidden':
