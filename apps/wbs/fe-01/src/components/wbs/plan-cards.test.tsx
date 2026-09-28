@@ -3771,6 +3771,8 @@ describe('setting what a card waits for', () => {
     ]);
   });
   itDom('shows a typed dependency with touch Edit and Remove in the phone sheet', async () => {
+    // Proof: without data-card-wait on the typed entry, this test failed on
+    // `expected null not to be null`; watched 2026-09-28.
     const api = dependencyApi();
     const predecessor = await api.createWorkItem('p1', {
       parentId: null,
@@ -3793,10 +3795,14 @@ describe('setting what a card waits for', () => {
     await screen.findByLabelText('Name of 020');
     await openTheSheetOn('020');
     expect(screen.getByText(/010 FS ·/)).toBeDefined();
+    expect(
+      document.querySelector('[aria-label="Waits for, on 020"] [data-card-wait="010"]'),
+    ).not.toBeNull();
+    expect(document.querySelector('[data-card-wait-remove="010"]')).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /Edit .*010 Strip.*020 Sand/ }));
     expect(screen.getByRole('dialog', { name: 'Customize dependency' })).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Back to dependency picker' }));
-    fireEvent.click(screen.getByRole('button', { name: /Remove .*010 Strip.*020 Sand/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Stop 020 waiting for 010' }));
     await waitFor(() => {
       expect(removed).toHaveLength(1);
     });

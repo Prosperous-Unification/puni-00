@@ -41,7 +41,7 @@ import { ReferenceSetSheet } from './reference-set-field';
 import { type PrintedDay, shortIsoDate } from './short-date';
 import { STATUS_LABEL } from './status-cell';
 import { cardIndentFor } from './table-frame';
-import { dependencyWords, TypedDependencyEditor } from './typed-dependency-editor';
+import { dependencyWords, endpointText, TypedDependencyEditor } from './typed-dependency-editor';
 import type { TreeRow } from './wbs-rows';
 import { rowWords } from './work-item-words';
 
@@ -2120,8 +2120,21 @@ function CardDependsField({
                 );
                 if (removeTypedDependency === undefined || saveTypedDependency === undefined)
                   throw new Error('Missing typed dependency card commands');
+                const wholeWait =
+                  dependency.predecessor.scope === 'whole' &&
+                  dependency.successor.scope === 'whole';
+                const predecessorNumber = endpointText(
+                  dependency.predecessor,
+                  dependencyRows,
+                  steps,
+                  dependencyStepNodes,
+                );
                 return (
-                  <li key={dependency.id} className="typed-dependency-card-entry">
+                  <li
+                    key={dependency.id}
+                    data-card-wait={wholeWait ? predecessorNumber : undefined}
+                    className="typed-dependency-card-entry flex items-center justify-between gap-2 rounded-md border px-3"
+                  >
                     <span>
                       {words.chip} · {words.label}
                     </span>
@@ -2141,7 +2154,12 @@ function CardDependsField({
                     <button
                       type="button"
                       className={`${TAP} rounded-md border px-3`}
-                      aria-label={`Remove ${words.label}`}
+                      data-card-wait-remove={wholeWait ? predecessorNumber : undefined}
+                      aria-label={
+                        wholeWait
+                          ? `Stop ${row.number} waiting for ${predecessorNumber}`
+                          : `Remove ${words.label}`
+                      }
                       disabled={removing.has(dependency.id)}
                       onClick={() => {
                         setRemoving((current) => withId(current, dependency.id));
