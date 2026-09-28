@@ -141,12 +141,12 @@ export function bearerContextCredential(headers: Headers): string | null {
   const authorization = headers.get('authorization');
   const bearer = authorization?.startsWith('Bearer ') === true ? authorization.slice(7) : null;
   // Proof (2026-09-28): the old decoder accepted a Bearer beside malformed
-  // `%E0%A4%A`, and the mounted test issued a token. Removing duplicate-count
-  // refusal made `refuses ambiguous browser and bearer credentials` return
-  // `first` rather than null for two cookies.
-  if (sessionCookies.length > 1 || (sessionCookies.length > 0 && authorization !== null))
-    return null;
+  // `%E0%A4%A`, and the mounted test issued a token.
+  if (sessionCookies.length > 0 && authorization !== null) return null;
   let cookie: string | null = null;
+  // Proof (2026-09-28): changing this exact-one condition to `> 0` made
+  // `refuses ambiguous browser and bearer credentials` return `first` for
+  // two named session cookies instead of null.
   if (sessionCookies.length === 1) {
     const sessionCookie = sessionCookies[0];
     try {

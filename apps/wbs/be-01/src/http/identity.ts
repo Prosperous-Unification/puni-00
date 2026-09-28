@@ -5,6 +5,7 @@ import {
   tokenFromHeaders,
   userFromHeaders,
 } from '../middleware/authenticated';
+import { bearerContextCredential } from '../runtime/bearer-context';
 import { declaresDelegation, type DelegationVerifier } from '../runtime/delegation';
 import type { AuthenticatedUser, AuthService } from '../service/auth.service';
 import type { IdentityResolver } from './endpoint';
@@ -92,7 +93,12 @@ async function delegatedOrSession(
   if (presented !== null && declaresDelegation(presented)) {
     // A delegation is the request's only credential: beside a session cookie,
     // which would otherwise take precedence, the request is ambiguous.
-    if (credentialFromHeaders({ cookie: flat['cookie'] }).token !== null) return null;
+    // Proof (2026-09-28): replacing this raw-cookie check with decoded
+    // credentialFromHeaders made `issues a native direct context only for its
+    // own current membership` answer 200 for a valid cookie followed by a
+    // malformed duplicate beside its signed Bearer. A malformed sole cookie
+    // also answered 200 before this fix.
+    if (bearerContextCredential(headers) === null) return null;
     const judged = await delegation(presented, directAudienceOf(presented));
     // Proof: falling through to the session path on a refusal failed five
     // cases of `delegation.controller.db.test.ts`, a session-key-signed

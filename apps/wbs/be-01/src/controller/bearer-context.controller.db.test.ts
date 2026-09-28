@@ -141,6 +141,14 @@ test('issues a native direct context only for its own current membership', async
       name: 'A project',
     });
     expect(aProject.status).toBe(200);
+    for (const cookie of [
+      `__Host-wbs_access=${harness.token('ada')}; __Host-wbs_access=%E0%A4%A`,
+      '__Host-wbs_access=%E0%A4%A',
+    ]) {
+      expect(
+        await harness.callWith(answer.body.token, 'GET', '/api/projects', undefined, { cookie }),
+      ).toEqual({ status: 401, body: { error: 'unauthenticated' } });
+    }
     const listed = await harness.callWith(answer.body.token, 'GET', '/api/projects', undefined, {
       'x-wbs-organization': 'org-b',
     });
