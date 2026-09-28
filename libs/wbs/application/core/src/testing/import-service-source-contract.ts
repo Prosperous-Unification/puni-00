@@ -1212,7 +1212,7 @@ export function importServiceSourceContract(
         ]);
         const classified = await classifyPlanDocument(file);
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
-        const imported = await importService(source).import(classified.value, ACTOR);
+        const imported = await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS);
         if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
         const exported = await exportDocument(source, imported.projectId);
         const build = exported.workItems.find(({ name }) => name === 'Build release');
@@ -1270,7 +1270,9 @@ export function importServiceSourceContract(
         const before = await source.stores.projects.list();
         const classified = await classifyPlanDocument(file);
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
-        expect(await importService(source).import(classified.value, ACTOR)).toMatchObject({
+        expect(
+          await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS),
+        ).toMatchObject({
           ok: false,
           code: 'invalid_typed_dependency',
           path: 'typedDependencies[0].predecessor.step',
@@ -1302,7 +1304,9 @@ export function importServiceSourceContract(
         const classified = await classifyPlanDocument(file);
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
 
-        expect(await importService(source).import(classified.value, ACTOR)).toMatchObject({
+        expect(
+          await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS),
+        ).toMatchObject({
           ok: false,
           code: 'invalid_typed_dependency',
           path: 'typedDependencies',
@@ -1333,7 +1337,7 @@ export function importServiceSourceContract(
         const classified = await classifyPlanDocument(file);
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
 
-        const imported = await importService(source).import(classified.value, ACTOR);
+        const imported = await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS);
         if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
         expect((await exportDocument(source, imported.projectId)).typedDependencies).toHaveLength(
           1,
@@ -1376,7 +1380,7 @@ export function importServiceSourceContract(
         const classified = await classifyPlanDocument(file);
         if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
 
-        const imported = await importService(source).import(classified.value, ACTOR);
+        const imported = await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS);
         if (!imported.ok)
           throw new Error(`import refused at ${imported.path}: ${String(imported.detail)}`);
         expect((await exportDocument(source, imported.projectId)).typedDependencies).toHaveLength(
@@ -1475,7 +1479,7 @@ export function importServiceSourceContract(
         const before = await source.stores.projects.list();
         const classified = await classifyPlanDocument(file);
         const refusal = classified.ok
-          ? await importService(source).import(classified.value, ACTOR)
+          ? await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS)
           : classified;
         expect(refusal).toMatchObject({ ok: false, code: 'invalid_typed_dependency' });
         expect(await source.stores.projects.list()).toEqual(before);

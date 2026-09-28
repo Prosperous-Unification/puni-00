@@ -232,7 +232,7 @@ async function exportDocument(tree: WorkItemTree = TREE): Promise<PlanDocument> 
 
 async function exportError(tree: WorkItemTree): Promise<string> {
   const outcome = await service()
-    .export(PROJECT, tree)
+    .export(PROJECT, tree, LEGACY_ACCESS)
     .catch((caught: unknown) => caught);
   if (!(outcome instanceof Error)) throw new Error('malformed tree did not throw');
   return outcome.message;
