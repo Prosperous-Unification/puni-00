@@ -19,7 +19,9 @@ describe('password email verification', () => {
   it('keeps the password account ID after a delivered single-use challenge', async () => {
     harness.activate();
     const userId = harness.userId('ada');
-    harness.sqlite.run("UPDATE users SET email = 'ada@example.org' WHERE id = ?", [userId]);
+    harness.sqlite.run("UPDATE users SET email = 'ada@example.org', updated_at = 1 WHERE id = ?", [
+      userId,
+    ]);
     expect(
       await harness.call('ada', 'POST', '/api/onboarding/organizations', { name: 'Before' }),
     ).toEqual({ status: 403, body: { error: 'email_verification_required' } });
@@ -45,8 +47,15 @@ describe('password email verification', () => {
       }),
     ).toEqual({ status: 200, body: { email: 'ada@example.org', verified: true } });
     expect(
-      harness.sqlite.query('SELECT id, email, email_verified FROM users WHERE id = ?').get(userId),
-    ).toEqual({ id: userId, email: 'ada@example.org', email_verified: 1 });
+      harness.sqlite
+        .query('SELECT id, email, email_verified, updated_at FROM users WHERE id = ?')
+        .get(userId),
+    ).toMatchObject({ id: userId, email: 'ada@example.org', email_verified: 1 });
+    expect(
+      harness.sqlite
+        .query<{ updated_at: number }, [string]>('SELECT updated_at FROM users WHERE id = ?')
+        .get(userId)?.updated_at,
+    ).toBeGreaterThan(1);
     expect(
       (await harness.call('ada', 'POST', '/api/onboarding/organizations', { name: 'After' }))
         .status,
