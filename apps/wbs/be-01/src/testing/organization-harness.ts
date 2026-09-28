@@ -2,12 +2,14 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { CREATOR_ADMISSION, type DomainResolver } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import {
+  DomainClaimRepository,
   EmailVerificationRepository,
   ExternalIdentityRepository,
   InvitationRepository,
+  JoinRequestRepository,
   OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
@@ -38,6 +40,7 @@ import { bearerContextIssuer, nativeCredentialSource } from '../runtime/bearer-c
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { delegationVerifier } from '../runtime/delegation';
 import { delegationIssuer } from '../runtime/delegation-issuer';
+import { runDomainProofWorker } from '../runtime/domain-proof-worker';
 import { AuthService } from '../service/auth.service';
 import { CalendarMarkerService } from '../service/calendar-marker.service';
 import { DirectoryService } from '../service/directory.service';
@@ -66,10 +69,18 @@ export interface Answer {
   body: unknown;
 }
 
+/** What {@link OrganizationHarness.open} wires beyond its defaults. */
+export interface OrganizationHarnessOptions {
+  readonly delegationKey?: CryptoKey;
+  readonly directSigningKey?: CryptoKey;
+  readonly policyDirectory?: string;
+  readonly resolver?: DomainResolver;
+}
+
 interface TestMail {
   tokens: Map<string, string>;
   fail: boolean;
-  beforeDelivery?: () => void;
+  beforeDelivery?: () => void | Promise<void>;
 }
 
 /**
@@ -92,6 +103,7 @@ export class OrganizationHarness {
     /** A raw connection the app does not hold, as a second process would. */
     readonly sqlite: ReturnType<typeof openDatabase>,
     private readonly bound: Map<string, string>,
+    private readonly domains: DomainClaimRepository,
     private readonly mail?: TestMail,
     private readonly retryHash?: (projectId: string) => Promise<string>,
     private readonly retryDecision?: (
@@ -102,17 +114,47 @@ export class OrganizationHarness {
     ) => Promise<string>,
   ) {}
 
+  /** Runs one injected dormant worker pass against this harness's SQLite claim store. */
+  checkDomains(
+    at: number,
+    now: () => number = () => at,
+  ): Promise<{ checked: number; stale: number }> {
+    return runDomainProofWorker(this.domains, at, now);
+  }
+
+  /** Exercises the claim-side status check consumed by join approval in task 4.5. */
+  isVerifiedDomain(organizationId: string, domain: string): Promise<boolean> {
+    return this.domains.isVerifiedDomain(organizationId, domain);
+  }
+
+  /** Calls the production rotation transaction directly to prove its marker guard. */
+  rotateDomainClaim(organizationId: string, actorId: string, claimId: string) {
+    return this.domains.rotateClaim(organizationId, actorId, claimId, '0'.repeat(64), {
+      at: Date.now(),
+      by: actorId,
+    });
+  }
+
   /**
    * `delegationKey`, when given, is the RS256 public key the app verifies
    * delegation tokens with (task 2.5); upstream identities resolve through the
-   * real `external_identity` mapping.
+   * real `external_identity` mapping. `directSigningKey` replaces the shared
+   * session key so direct sessions cannot be minted with it; `policyDirectory`
+   * points domain claims at a copied public-email policy, and `resolver` answers
+   * their TXT lookups.
    */
-  static open(delegationKey?: CryptoKey, directSigningKey?: CryptoKey): OrganizationHarness {
+  static open({
+    delegationKey,
+    directSigningKey,
+    policyDirectory,
+    resolver,
+  }: OrganizationHarnessOptions = {}): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
     const db = openDrizzle(path);
     const gate = new WriteCoordinator();
+    const domains = new DomainClaimRepository(db, gate, policyDirectory, resolver);
     const bound = new Map<string, string>();
     const sessionKey =
       directSigningKey === undefined ? TEST_JWT_KEY : crypto.randomUUID() + crypto.randomUUID();
@@ -182,12 +224,14 @@ export class OrganizationHarness {
       ...writing,
       organizations,
       memberships: new OrganizationRepository(db, OPEN),
+      domains,
       onboarding: new OnboardingRepository(db, OPEN),
       emailVerification: new EmailVerificationRepository(db, OPEN),
       invitations: new InvitationRepository(db, OPEN),
+      joinRequests: new JoinRequestRepository(db, OPEN),
       emailDelivery: {
-        deliver: (address, token) => {
-          mail.beforeDelivery?.();
+        deliver: async (address, token) => {
+          await mail.beforeDelivery?.();
           if (mail.fail) return Promise.reject(new Error('injected mail sink failure'));
           mail.tokens.set(address, token);
           return Promise.resolve();
@@ -237,7 +281,7 @@ export class OrganizationHarness {
       writes: testWrites(undefined, writing),
       migrationsApplied: true,
     });
-    return new OrganizationHarness(dir, app, openDatabase(path), bound, mail);
+    return new OrganizationHarness(dir, app, openDatabase(path), bound, domains, mail);
   }
 
   /**
@@ -287,9 +331,11 @@ export class OrganizationHarness {
         },
       },
       memberships: new OrganizationRepository(source.db, services.gate),
+      domains: new DomainClaimRepository(source.db, services.gate),
       onboarding: new OnboardingRepository(source.db, services.gate),
       emailVerification: new EmailVerificationRepository(source.db, services.gate),
       invitations: new InvitationRepository(source.db, services.gate),
+      joinRequests: new JoinRequestRepository(source.db, services.gate),
       emailDelivery: {
         deliver: () => Promise.reject(new Error('composed harness mail sink refuses delivery')),
       },
@@ -317,6 +363,7 @@ export class OrganizationHarness {
       app,
       openDatabase(path),
       bound,
+      new DomainClaimRepository(source.db, services.gate),
       undefined,
       async (projectId) => {
         const input = await services.workItems.scheduleInput(projectId);
@@ -348,9 +395,10 @@ export class OrganizationHarness {
   }
 
   /** Makes the injected test sink reject delivery. */
-  failEmailDelivery(): void {
+  failEmailDelivery(beforeDelivery?: () => void | Promise<void>): void {
     if (this.mail === undefined) throw new Error('no test mail sink');
     this.mail.fail = true;
+    if (beforeDelivery !== undefined) this.mail.beforeDelivery = beforeDelivery;
   }
 
   /** Breaks the durable pending row after issue, before the sink reports success. */

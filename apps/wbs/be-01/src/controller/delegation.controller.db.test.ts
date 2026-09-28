@@ -16,7 +16,7 @@ const ISSUER = 'https://idp.test';
 
 beforeEach(async () => {
   keys = await generateKeyPair('RS256');
-  h = OrganizationHarness.open(keys.publicKey);
+  h = OrganizationHarness.open({ delegationKey: keys.publicKey });
   for (const username of ['ada', 'grace']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
@@ -183,6 +183,16 @@ describe('after activation', () => {
       status: 403,
       body: { error: 'insufficient_scope' },
     });
+    for (const [method, path, body] of [
+      ['GET', '/api/organization/join-requests', undefined],
+      ['POST', '/api/organization/join-requests/missing/approve', { role: 'viewer' }],
+      ['POST', '/api/organization/join-requests/missing/deny', undefined],
+    ] as const) {
+      expect(await h.callWith(await delegation(), method, path, body)).toEqual({
+        status: 403,
+        body: { error: 'insufficient_scope' },
+      });
+    }
     expect(
       await h.callWith(await delegation(), 'POST', '/api/organization/invitations', {
         email: 'recipient@example.org',

@@ -1,4 +1,4 @@
-import type { EmailDelivery, EmailVerification, Invitation } from '@wbs/core';
+import type { EmailDelivery, EmailVerification, Invitation, JoinRequest } from '@wbs/core';
 
 /** Inert fixture for routes outside the email challenge suite. */
 export const refusingEmailVerification: EmailVerification = {
@@ -19,4 +19,12 @@ export const refusingInvitations: Invitation = {
   revoke: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
   failDelivery: () => Promise.reject(new Error('no invitation was issued')),
   accept: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
+};
+
+/** Inert join-request boundary for unrelated route fixtures. */
+export const refusingJoinRequests: JoinRequest = {
+  list: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
+  approve: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
+  deny: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
+  failDelivery: () => Promise.reject(new Error('no join request was approved')),
 };

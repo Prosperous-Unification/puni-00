@@ -7,12 +7,17 @@ import { testDirectoryService } from './directory-fixture';
 import {
   refusingEmailVerification,
   refusingInvitations,
+  refusingJoinRequests,
   refusingTestEmailDelivery,
 } from './email-verification-fixture';
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
 import { refusingOnboarding } from './onboarding-fixture';
-import { legacyOrganizationAccess, refusingMemberships } from './organization-access-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingDomains,
+  refusingMemberships,
+} from './organization-access-fixture';
 import { testPriorityBandService } from './priority-band-fixture';
 import { testProjectService } from './project-fixture';
 import { testReplay } from './replay-fixture';
@@ -50,8 +55,10 @@ export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof 
   return buildApp({
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    domains: refusingDomains,
     emailVerification: refusingEmailVerification,
     invitations: refusingInvitations,
+    joinRequests: refusingJoinRequests,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     appOrigin: 'http://localhost',

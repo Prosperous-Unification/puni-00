@@ -26,6 +26,12 @@ import {
   listTeams,
   listWorkItemTypes,
 } from './directory-shapes';
+import {
+  createDomainChallenge,
+  listOrganizationDomains,
+  rotateDomainProof,
+  verifyDomainClaim,
+} from './domain-shapes';
 import { readHistory } from './history-shapes';
 import { importProject } from './import-shapes';
 import { health, metrics } from './infrastructure-shapes';
@@ -36,6 +42,7 @@ import {
   listInvitations,
   revokeInvitation,
 } from './invitation-shapes';
+import { approveJoinRequest, denyJoinRequest, listJoinRequests } from './join-request-shapes';
 import {
   confirmEmailChallenge,
   createEmailChallenge,
@@ -93,10 +100,17 @@ export const httpShapes = [
   removeStep,
   changeMemberRole,
   removeMember,
+  listOrganizationDomains,
+  createDomainChallenge,
+  verifyDomainClaim,
+  rotateDomainProof,
   listInvitations,
   createInvitation,
   revokeInvitation,
   acceptInvitation,
+  listJoinRequests,
+  approveJoinRequest,
+  denyJoinRequest,
   readOnboarding,
   createOnboardingOrganization,
   submitOnboardingJoinRequest,

@@ -1,20 +1,24 @@
 import type {
   Broadcaster,
   Clock,
+  DomainChallenges,
   EditAdmission,
   EmailDelivery,
   EmailVerification,
   HistoryService,
   ImportService,
   Invitation,
+  JoinRequest,
   MembershipAdministration,
   Onboarding,
   OrganizationAccess,
   ReplayOrchestrator,
   SavedPlanService,
 } from '@wbs/core';
+import { domainRoutes } from '@wbs/core/http/domain.routes';
 import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
 import { invitationRoutes } from '@wbs/core/http/invitation.routes';
+import { joinRequestRoutes } from '@wbs/core/http/join-request.routes';
 import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
@@ -92,12 +96,16 @@ export interface AppOptions {
    * 404 on the membership routes, which reads as a release without them.
    */
   memberships: MembershipAdministration;
+  /** Checked policy and transactional challenge storage; omission is a composition error. */
+  domains: DomainChallenges;
   /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
   onboarding: Onboarding;
   /** Required durable challenge boundary; absence is a boot configuration error. */
   emailVerification: EmailVerification;
   /** Required invitation boundary, inert until activation. */
   invitations: Invitation;
+  /** Required join-request decision boundary. */
+  joinRequests: JoinRequest;
   /** Injected mail sink; production's current adapter refuses delivery visibly. */
   emailDelivery: EmailDelivery;
   /** Required for the same reason as `projects`. */
@@ -281,10 +289,18 @@ export function mountedEndpoints(
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
+    ...domainRoutes(opts.organizations, opts.domains, opts.clock),
     ...onboardingRoutes(opts.onboarding, opts.clock),
     ...emailVerificationRoutes(opts.emailVerification, opts.emailDelivery, opts.clock, nodeDigest),
     ...invitationRoutes(
       opts.invitations,
+      opts.organizations,
+      opts.emailDelivery,
+      opts.clock,
+      nodeDigest,
+    ),
+    ...joinRequestRoutes(
+      opts.joinRequests,
       opts.organizations,
       opts.emailDelivery,
       opts.clock,
