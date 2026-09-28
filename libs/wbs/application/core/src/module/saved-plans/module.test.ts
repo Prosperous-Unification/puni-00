@@ -214,7 +214,7 @@ describe('a saved plan and step allowances', () => {
     if (saved.outcome !== 'saved') throw new Error(`save answered ${saved.outcome}`);
 
     await source.stores.projects.setStepAllowance(created.project.id, qa.id, 50, stamp);
-    await source.stores.steps.rename(qa.id, 'Renamed QA', stamp);
+    await source.stores.steps.rename(created.project.id, qa.id, 'Renamed QA', stamp);
 
     const read = await savedPlans.read(saved.record.id);
     if (read.outcome !== 'read') throw new Error(`read answered ${read.outcome}`);
