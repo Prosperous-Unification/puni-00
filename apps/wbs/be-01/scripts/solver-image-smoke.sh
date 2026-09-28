@@ -47,6 +47,11 @@ remove_created_images() {
     if [ "$presence" -eq 1 ]; then
       continue
     fi
+    # Proof: without this, solver-image-smoke.test.ts saw a smoke whose first orphan inspect
+    # failed and whose later inspects succeeded exit 0.
+    if [ "$presence" -eq 2 ]; then
+      removal_failed=1
+    fi
     if ! docker image rm "$reference" >/dev/null; then
       echo "[solver-image-smoke] could not remove image $reference" >&2
       # Proof: without this, solver-image-smoke.test.ts saw a smoke whose image delete failed
