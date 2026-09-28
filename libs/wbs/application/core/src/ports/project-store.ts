@@ -56,7 +56,11 @@ export interface ProjectStore {
   create(project: NewProject, steps: readonly Step[], stamp: WriteStamp): Promise<Project>;
   /**
    * {@link create} plus the project's organization mapping, in one transaction.
-   * Only an activated deployment's scoped creation calls it.
+   * Only an activated deployment's scoped creation calls it. A `solutionRef`
+   * is written as the organization's own link.
+   *
+   * @throws when another of the organization's projects holds the slug; the
+   * caller checks {@link findBySolutionSlugInOrganization} under its write lock.
    */
   createInOrganization(
     project: NewProject,
@@ -88,7 +92,8 @@ export interface ProjectStore {
   /**
    * {@link findBySolutionSlug} confined to one organization, filtered before
    * any row is decoded: a foreign project is null exactly like an absent slug,
-   * even when its row could not be read.
+   * even when its row could not be read. Matches the organization's own links
+   * and the legacy links its projects kept from before activation.
    */
   findBySolutionSlugInOrganization(slug: string, organizationId: string): Promise<Project | null>;
   /** Every project, newest first. Readable by any account, so it is not filtered by owner. */
@@ -141,6 +146,11 @@ export interface ProjectStore {
    * same transaction; anything else is `forbidden` and writes nothing. Null,
    * before any permission check, when the organization does not own the
    * project. A patch that changes nothing writes and records nothing.
+   *
+   * A `solutionRef` is the organization's own (see `project_solution`): a slug
+   * another of the organization's projects holds, by either representation, is
+   * `solution_taken` and writes nothing; other organizations' slugs are never
+   * consulted. A legacy pair the project held is cleared by any link write.
    */
   editInOrganization(
     id: string,
@@ -148,7 +158,7 @@ export interface ProjectStore {
     stamp: WriteStamp,
     organizationId: string,
     editor: { readonly actorId: string; readonly auditId: string },
-  ): Promise<Project | null | 'forbidden'>;
+  ): Promise<Project | null | 'forbidden' | 'solution_taken'>;
   stepsOf(projectId: string): Promise<Step[]>;
   /**
    * Sets one step's allowance, moves that step's allowance revision by one and

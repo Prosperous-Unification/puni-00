@@ -473,6 +473,37 @@ Astra review 1 raised 2 Important findings, both fixed: the references are now c
 - The spec scenario is added.
 - The CLI header is kept. It follows the invocation comment on every sibling deploy CLI (`migrate-status-cli.ts`, `migrate-down-cli.ts`, `backfill-step-codes-cli.ts`), and a runbook entry belongs with the task 1.1 dry run.
 
+## Slice 18 — solution slugs per organization (task 3.5, part 2)
+
+Branch `batch-9/010-5-2-orgs-16`, stacked on slice 16/17 (#157). Design call: Astra, 2026-09-28.
+
+- The additive migration `20260928010000_add_project_solution` adds:
+  - a `project_solution` table, keyed by project and unique on (organization, slug);
+  - a composite reference to `project_organization`, so a link's organization is always its project's owner;
+  - a `down.sql` that refuses while any link exists or the marker is not one well-formed `pre_activation` row.
+- A scoped PATCH or import writes the link there and clears any legacy pair. The legacy `project.solution_slug` keeps serving links made before activation, and a project holding both fails its read.
+- Collisions are judged only among the organization's own projects, and only after authorization:
+  - PATCH answers `409 solution_taken`, inside one `BEGIN IMMEDIATE` transaction;
+  - import answers `left-off`.
+- The scoped lookup matches both representations within the organization.
+- Every project read joins the link, so capture, export and the project DTO carry the local slug.
+
+| Check                                 | Injected fault                           | Observed failure (2026-09-28)                                                                                                     |
+| ------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Link organization is the owner        | composite reference dropped              | `refuses a link naming an organization other than its project's owner`: no throw                                                  |
+| Rollback keeps links                  | emptiness predicate dropped              | `refuses while a link is recorded`: rolled back                                                                                   |
+| Rollback refused after activation     | marker predicates dropped                | `refuses after activation even with no link`: rolled back                                                                         |
+| Collision answered, nothing written   | in-transaction check skipped             | `refuses a slug another project of the organization holds, writing nothing`: SQLite uniqueness error                              |
+| Legacy slugs collide within the org   | legacy arm of the check dropped          | `refuses a slug a project of the organization kept from before activation`: linked                                                |
+| One representation per project        | both-present refusal dropped             | `refuses a project holding both a legacy and a scoped reference`: read succeeded                                                  |
+| Legacy pair cleared on a scoped link  | legacy columns left as they were         | `moves a legacy pair into the organization link, relinks and unlinks`: read threw                                                 |
+| Scoped lookup sees scoped links       | lookup on the legacy column alone        | `links a slug only another organization holds`: nothing found                                                                     |
+| Scoped import judges its own org only | import looks the slug up deployment-wide | `keeps a slug only another organization holds` (`import-export-organization.controller.db.test.ts`): `left-off` instead of `kept` |
+
+Store tests are in `project-solution.db.test.ts`. The mounted PATCH test in `project-organization.controller.db.test.ts` covers four cases: a viewer gets 403 and a foreign project gets 404, each before any collision is judged; a same-organization collision gets 409; and a slug held only in another organization links normally.
+
+Not covered: a cross-process race. `BEGIN IMMEDIATE` and the unique index are what hold it; no multi-process test exists.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

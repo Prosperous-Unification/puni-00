@@ -654,6 +654,7 @@ describe('readMigrationFolders', () => {
       ORGANIZATION_BRIDGE,
       ORGANIZATION_FROZEN,
       '20260927220000_add_organization_audit',
+      '20260928010000_add_project_solution',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -779,11 +780,13 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_BRIDGE,
         ORGANIZATION_FROZEN,
         '20260927220000_add_organization_audit',
+        '20260928010000_add_project_solution',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
@@ -910,6 +913,7 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_BRIDGE,
         ORGANIZATION_FROZEN,
         '20260927220000_add_organization_audit',
+        '20260928010000_add_project_solution',
       ]);
     } finally {
       db.cleanup();
@@ -980,6 +984,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
@@ -1077,6 +1082,7 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
@@ -1159,6 +1165,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,

@@ -136,9 +136,14 @@ export function inMemoryProjects(
       const found = projects.get(id);
       return Promise.resolve(found === undefined ? null : structuredClone(found));
     },
-    async findBySolutionSlugInOrganization(slug, organizationId) {
-      const found = await store.findBySolutionSlug(slug);
-      return found !== null && owning.get(found.id) === organizationId ? found : null;
+    // Organization and slug together, as SQLite filters them: another
+    // organization's project holding the slug must not hide this one's.
+    findBySolutionSlugInOrganization(slug, organizationId) {
+      for (const project of projects.values()) {
+        if (project.solutionRef?.slug === slug && owning.get(project.id) === organizationId)
+          return Promise.resolve(project);
+      }
+      return Promise.resolve(null);
     },
     findBySolutionSlug(slug) {
       for (const project of projects.values()) {

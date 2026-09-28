@@ -36,13 +36,16 @@
     - A rename moves only the side name.
     - A foreign or absent target answers the same 404. Membership and ownership links must stay inside the organization.
     - Removal usage shows only the organization's projects under local names, and fails closed on a foreign project naming the entry.
-- [ ] 3.5 Scope project copy, import/export and external references. Red: cross-organization import/duplicate/reference refusal. Fault: remove import reference check; observe mounted foreign import test fail, restore and add `Proof:`.
+- [x] 3.5 Scope project copy, import/export and external references. Red: cross-organization import/duplicate/reference refusal. Fault: remove import reference check; observe mounted foreign import test fail, restore and add `Proof:`.
   - Part 1, slice 13, covers the following:
     - The JSON export reads the organization's own catalogs under local names. It fails closed on a person's or team's link into another organization, which is the assignee→team→service closure.
     - Import creates the project in the organization. It resolves and creates directory names among the organization's entries and leaves a solution reference off. Only the organization's projects hear `directory_changed`, and a viewer is refused.
     - The solution lookup answers a foreign slug as an absent one.
     - Copies (`duplicateWorkItem`) and external references are held by 3.4's per-command checks.
-  - Part 2 (open): solution slugs scoped by organization. It needs an additive migration, because `project_solution_slug` is unique across the deployment. Until then, a scoped link is refused and a scoped import leaves the slug off.
+  - Part 2, slice 18 (Astra design call, 2026-09-28): solution slugs scoped by organization.
+    - The additive `20260928010000_add_project_solution` adds `project_solution`, unique on (organization, slug), whose composite reference to `project_organization` holds the link's organization equal to the project's owner. Its `down.sql` refuses while any link exists or after activation.
+    - A scoped PATCH or import writes the link there and clears any legacy pair. Collisions are judged only among the organization's projects, after authorization: PATCH answers `409 solution_taken` and import `left-off`. The scoped lookup matches both representations within the organization.
+    - Owed by 7.1: backfill legacy pairs into `project_solution` in the activation transaction, so a single representation remains after activation.
 - [x] 3.6 Scope saved plans, journal, history and generated events. Red: foreign detail and historical reads return 404 without revealing existence. Fault: omit saved-plan owner predicate; observe mounted history test fail, restore and add `Proof:`.
   - Done as slice 14. Every saved-plan route and the history read resolve organization access first.
     - Routes addressed by a project read it through the caller's access.
@@ -90,7 +93,7 @@
 
 ## 7. Activation, rollback and verification
 
-- [ ] 7.1 Preflight inventory, bridge reconciliation, old-process drain, MCP epoch and trusted policy/marker state; activate only after all pass. Fault: omit one reconciliation family; observe activation test fail, restore and add `Proof:`.
+- [ ] 7.1 Preflight inventory, bridge reconciliation, old-process drain, MCP epoch and trusted policy/marker state; activate only after all pass. In the activation transaction, move every legacy `project.solution_slug` pair into `project_solution` (task 3.5 part 2) and fence releases older than that table. Fault: omit one reconciliation family; observe activation test fail, restore and add `Proof:`.
 - [ ] 7.2 Before activation, execute paired WBS and MCP down migrations in dependency order on production-shaped fixture after preflight. Fault: make reversal drop a legacy relation or live new MCP credential; observe rollback test fail, restore and add `Proof:`.
 - [ ] 7.3 After activation, refuse organization-unaware code routing and WBS/MCP schema reversal even after second-tenant deletion. Test the actual swap abort path and manual completion command on failure. Fault: bypass durable marker; observe swap test fail, restore and add `Proof:`. Read the marker with a deploy-side checker independent of the target image, before routing and during `abortSwap`; absent, unreadable or malformed state refuses.
 - [ ] 7.4 Run targeted unit, mounted API, socket, MCP, migration and browser tests. Record observed faults and adjacent `Proof:` comments in `verify.md`; run migration lint, OpenSpec validation, formatting and `bin/h2puni-gate.sh <sha>` on the committed implementation SHA.

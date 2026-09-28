@@ -178,6 +178,7 @@ describe('saved_plan.created_by_id', () => {
     expect(nullable()).toBe(0);
 
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
@@ -276,6 +277,7 @@ describe('saved_plan.created_by_id', () => {
    */
   it('leaves a row written before the column reading null', () => {
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,

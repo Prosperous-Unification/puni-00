@@ -148,14 +148,14 @@ describe('the import', () => {
     });
   });
 
-  it('leaves a solution reference off, revealing nothing', async () => {
+  it('keeps a slug only another organization holds', async () => {
     const held = await create('grace', 'B plan');
     h.sqlite.run(
       "UPDATE project SET solution_slug = 'shared', solution_url = 'https://x.example/shared' WHERE id = ?",
       [held],
     );
     const answers = [];
-    for (const slug of ['shared', 'free']) {
+    for (const slug of ['shared', 'shared', 'free']) {
       const document = planDocumentFixture();
       const imported = await h.call('ada', 'POST', '/api/projects/import', {
         ...document,
@@ -164,7 +164,11 @@ describe('the import', () => {
       expect(imported.status).toBe(201);
       answers.push((imported.body as { solutionRef: string }).solutionRef);
     }
-    expect(answers).toEqual(['left-off', 'left-off']);
+    expect(answers).toEqual(['kept', 'left-off', 'kept']);
+    expect((await h.call('ada', 'GET', '/plans/by-solution/shared')).status).toBe(200);
+    expect((await h.call('grace', 'GET', '/plans/by-solution/shared')).body).toMatchObject({
+      project: { id: held },
+    });
   });
 
   it("tells only the organization's projects that its directory changed", async () => {

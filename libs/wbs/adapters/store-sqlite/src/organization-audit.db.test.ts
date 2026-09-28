@@ -89,7 +89,10 @@ describe('the organization audit', () => {
   });
 
   it('rolls back while nothing is recorded', () => {
-    expect(rollbackTo(path, FOLDER, FREEZE)).toEqual(['20260927220000_add_organization_audit']);
+    expect(rollbackTo(path, FOLDER, FREEZE)).toEqual([
+      '20260928010000_add_project_solution',
+      '20260927220000_add_organization_audit',
+    ]);
   });
 
   const member = (userId: string, role: string) =>

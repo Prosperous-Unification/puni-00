@@ -200,7 +200,10 @@ export const patchProject = defineEndpointShape({
       status: 422,
       schema: responseSchema(type({ error: "'bad_start_date' | 'bad_pert_weights'" })),
     },
-    { status: 409, schema: responseSchema(type({ error: "'optimizer_unavailable'" })) },
+    {
+      status: 409,
+      schema: responseSchema(type({ error: "'optimizer_unavailable' | 'solution_taken'" })),
+    },
   ],
   document: { summary: 'Update the addressed project’s settings.' },
 });

@@ -230,6 +230,8 @@ type BareRefusalCode =
   | 'bad_start_date'
   | 'bad_pert_weights'
   | 'optimizer_unavailable'
+  /** Another of the organization's projects holds the requested solution slug. */
+  | 'solution_taken'
   | 'engine_unavailable'
   | 'snapshot_busy'
   | 'invalid_client'

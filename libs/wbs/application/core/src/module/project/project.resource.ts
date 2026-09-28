@@ -54,7 +54,14 @@ export type UpdateOutcome =
          * in the request — `refusal-status.ts` answers it 409 for that reason,
          * and the same body will be accepted once TASK-220 wires the reader.
          */
-        | 'optimizer_unavailable';
+        | 'optimizer_unavailable'
+        /**
+         * Under scoped access, another of the organization's projects holds
+         * the requested solution slug. Other organizations' slugs never
+         * collide, so this reveals nothing beyond the caller's own
+         * organization.
+         */
+        | 'solution_taken';
     };
 
 /** A scoped viewer may not create; legacy access and every writing role may. */
@@ -397,17 +404,6 @@ export class ProjectService {
           : 'refused';
     if (edit === 'refused') return { ok: false, reason: 'forbidden' };
     const project = found;
-    // Solution slugs are still unique across the deployment, so after
-    // activation a link collision would reveal another organization's project.
-    // Linking is refused until task 3.5 scopes solution references; clearing a
-    // link stays allowed.
-    // Proof: removing this refusal made `refuses a solution link that could
-    // reveal another organization's project` in
-    // `project-organization.controller.db.test.ts` answer 500 instead of 403
-    // for the foreign project's slug; watched 2026-09-27.
-    if (access.kind === 'scoped' && patch.solutionRef != null) {
-      return { ok: false, reason: 'forbidden' };
-    }
     // After the authorization check, so a reader of a restricted project still
     // learns `forbidden` rather than a fact about how this box is wired.
     if (turnsTheOptimizerOn(project, patch) && !this.optimizerAvailable()) {
@@ -430,6 +426,7 @@ export class ProjectService {
     // The in-transaction classification refused: demoted, or the project
     // changed hands or restriction, since the request was read.
     if (written === 'forbidden') return { ok: false, reason: 'forbidden' };
+    if (written === 'solution_taken') return { ok: false, reason: 'solution_taken' };
     const updated = written;
     // Gone between the read and the write. Reporting success would tell the
     // caller their rename landed on a project that no longer exists.

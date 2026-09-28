@@ -226,6 +226,7 @@ export function projectRoutes(
             return { ok: false, status: 422, body: { error: outcome.reason } };
           // Proof: mapping this to 422 made the mounted unavailable-optimizer test receive 500 instead of 409.
           case 'optimizer_unavailable':
+          case 'solution_taken':
             return { ok: false, status: 409, body: { error: outcome.reason } };
         }
       },

@@ -240,21 +240,41 @@ describe('after activation', () => {
     }
   });
 
-  it("refuses a solution link that could reveal another organization's project", async () => {
+  it("links a solution slug within the organization, blind to another organization's", async () => {
     activate();
     const own = await create('ada', 'A plan');
+    const second = await create('ada', 'A second plan');
     const foreign = await create('grace', 'B plan');
     h.sqlite.run("UPDATE project SET solution_slug = 'shared', solution_url = 'u' WHERE id = ?", [
       foreign,
     ]);
-    for (const slug of ['shared', 'free']) {
-      expect(
-        await call('ada', 'PATCH', `/api/projects/${own}`, { solutionRef: { slug, url: 'u' } }),
-      ).toEqual({ status: 403, body: { error: 'forbidden' } });
-    }
+    const shared = { solutionRef: { slug: 'shared', url: 'https://a.example' } };
+    const linked = await call('ada', 'PATCH', `/api/projects/${own}`, shared);
+    expect(linked.status).toBe(200);
+    expect(linked.body).toMatchObject({ project: shared });
+    // Only a writer of the organization learns that the slug is in use.
+    expect(await call('vic', 'PATCH', `/api/projects/${second}`, shared)).toEqual({
+      status: 403,
+      body: { error: 'forbidden' },
+    });
+    expect(await call('ada', 'PATCH', `/api/projects/${foreign}`, shared)).toEqual({
+      status: 404,
+      body: { error: 'not_found' },
+    });
+    expect(await call('ada', 'PATCH', `/api/projects/${second}`, shared)).toEqual({
+      status: 409,
+      body: { error: 'solution_taken' },
+    });
+    expect((await call('ada', 'GET', '/plans/by-solution/shared')).body).toMatchObject({
+      project: { id: own },
+    });
+    expect((await call('grace', 'GET', '/plans/by-solution/shared')).body).toMatchObject({
+      project: { id: foreign },
+    });
     expect((await call('ada', 'PATCH', `/api/projects/${own}`, { solutionRef: null })).status).toBe(
       200,
     );
+    expect((await call('ada', 'PATCH', `/api/projects/${second}`, shared)).status).toBe(200);
   });
 
   it('fails as a server error on a malformed membership role', async () => {

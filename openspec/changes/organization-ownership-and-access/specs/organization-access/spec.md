@@ -16,6 +16,13 @@ Every project, directory person, team, service, tag, type, external system and s
 - **WHEN** both create a tag with the same name
 - **THEN** both tags exist and remain visible only in their owning organization
 
+#### Scenario: Solution slugs per organization
+
+- **GIVEN** a project in organization B linked to solution slug `s`
+- **WHEN** a writer in organization A links an A project to `s`
+- **THEN** the link is stored and the solution lookup answers each organization with its own project
+- **AND** a second A project linking `s` is refused with `409 solution_taken`, while a viewer or a foreign project is refused before any collision is judged
+
 ### Requirement: Active organization and current membership govern every route
 
 An authenticated WBS request SHALL carry exactly one server-validated active organization, selected from current memberships. A browser SHALL offer an organization switcher and clear or refetch organization-scoped state on switch. A user with no membership SHALL see onboarding without access to WBS resources. be-01 SHALL enforce organization and action permission on every protected route, including list, detail, mutation, export, import, history, scheduling, generated MCP tool and internal gateway routes. Missing or invalid credentials SHALL answer typed 401; absent or revoked membership and disallowed action SHALL answer typed 403; a foreign organization's resource SHALL answer typed 404 without exposing its existence. Missing or malformed trusted authorization state SHALL fail as a server error rather than grant access.

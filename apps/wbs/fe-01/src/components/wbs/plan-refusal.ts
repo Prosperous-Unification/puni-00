@@ -88,6 +88,7 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
     case 'bad_start_date':
     case 'bad_pert_weights':
     case 'optimizer_unavailable':
+    case 'solution_taken':
     case 'no_active_organization':
     case 'not_a_member':
       return refusal.error;
