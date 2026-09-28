@@ -232,6 +232,9 @@ export class DomainClaimRepository implements DomainChallenges {
     | { kind: 'issued'; id: string }
     | { kind: 'forbidden' | 'unclaimable' | 'already_claimed' | 'inactive' }
   > {
+    // Proof: 2026-09-28, bypassing gate.enter made `waits for a batch rollback
+    // before issuing a durable challenge` answer issued inside the held batch;
+    // after rollback the digest was still digest-c-a, not digest-after.
     return await this.gate.enter(async () => {
       await Promise.resolve();
       return this.db.transaction(

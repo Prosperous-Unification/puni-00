@@ -17,7 +17,10 @@ function canonicalDomain(submitted: string): string | null {
   try {
     const host = new URL(`http://${raw}`).hostname;
     if (/^\d+(?:\.\d+){3}$/.test(host) || (host === raw && !host.includes('.'))) return null;
-    return isCanonicalDomain(host) ? host : null;
+    // Proof: 2026-09-28, omitting the TXT owner-name length check made mounted
+    // `refuses a domain whose complete TXT challenge hostname exceeds DNS length`
+    // issue 201 for a 244-character domain and a 262-character DNS name.
+    return isCanonicalDomain(host) && `_wbs-verification.${host}`.length <= 253 ? host : null;
   } catch {
     return null;
   }
