@@ -22,6 +22,8 @@ The gateway strips preview's `/api` prefix before forwarding the callback. The b
 
 Runtime settings remain `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `OPENROUTER_PROVIDER`, `OPENROUTER_INPUT_USD_PER_MILLION`, `OPENROUTER_OUTPUT_USD_PER_MILLION`, `OPENROUTER_PRIVACY_VERIFIED` and `OPENROUTER_ENABLED`. Use a dedicated capped key and explicitly verified model/provider/prices. Never infer a free or zero price from missing configuration. The provider policy remains pinned routing, zero data retention and denied data collection. Missing final usage retains the reservation rather than treating the call as free.
 
+The existing pilot limits are 12 user turns per request, $0.50 per request, $1 per account per UTC day and $10 across the site per UTC day. Admission counts outstanding reservations toward those limits and permits at most one unsettled call per account and four across the site. These limits are enforced by the API/store, independently of the visible remaining-turn counter.
+
 Do not enable the paid provider until the selected model/provider policy, final usage and cancellation tests pass. A local fixture can prove transport behavior but cannot prove a real provider accepts the selected routing policy or price. A real smoke must check the actual account debit and persisted conversation.
 
 ## Activation evidence

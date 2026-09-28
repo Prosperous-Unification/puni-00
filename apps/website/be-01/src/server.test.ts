@@ -49,6 +49,531 @@ function request(
   });
 }
 
+test('entry distinguishes missing and expired claims and limits site reads to entry', async () => {
+  const { api, config } = fixture();
+  const missing = await api.fetch(request('/entry', 'GET', config.publicOrigin));
+  expect(await missing.json()).toEqual({ available: false, reason: 'missing' });
+  const { cookie } = await beginDraft(api);
+  const available = await api.fetch(
+    request('/entry', 'GET', config.publicOrigin, undefined, cookie),
+  );
+  expect(await available.json()).toEqual({ available: true, reason: null });
+  expect(available.headers.get('cache-control')).toBe('no-store');
+  expect(
+    (await api.fetch(request('/entry', 'GET', 'https://foreign.example', undefined, cookie)))
+      .status,
+  ).toBe(403);
+  expect(
+    (await api.fetch(request('/draft', 'GET', config.publicOrigin, undefined, cookie))).status,
+  ).toBe(403);
+  expect(
+    await (
+      await api.fetch(
+        request('/entry', 'GET', config.appOrigin, undefined, 'puni_draft=' + 'a'.repeat(64)),
+      )
+    ).json(),
+  ).toEqual({ available: false, reason: 'expired' });
+  api.close();
+});
+
+test('native intake uses fixed Build URL when configured', async () => {
+  const { config } = fixture();
+  const api = createWebsiteApi({ ...config, appBuildUrl: `${config.appOrigin}/studio` });
+  const response = await api.fetch(
+    new Request('http://localhost:3101/intakes', {
+      method: 'POST',
+      headers: {
+        origin: config.publicOrigin,
+        accept: 'text/html',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ description: 'Build a booking app' }),
+    }),
+  );
+  expect(response.status).toBe(303);
+  expect(response.headers.get('location')).toBe(`${config.appOrigin}/studio`);
+  api.close();
+});
+
+test('streamed initial turn persists once and replays without another provider call', async () => {
+  const { config } = fixture();
+  let calls = 0;
+  const api = createWebsiteApi({
+    ...config,
+    demoAuth: true,
+    openRouterEnabled: true,
+    openRouterKey: 'fixture-only',
+    openRouterModel: 'fixture/model',
+    openRouterProvider: 'Fixture',
+    openRouterInputUsdPerMillion: 1,
+    openRouterOutputUsdPerMillion: 2,
+    openRouterPrivacyVerified: true,
+    providerFetch: (_input, init) => {
+      calls += 1;
+      if (typeof init.body !== 'string') throw new Error('Expected JSON body');
+      const sent = JSON.parse(init.body) as {
+        stream: boolean;
+        stream_options: { include_usage: boolean };
+        provider: { only: string[]; zdr: boolean; data_collection: string };
+      };
+      expect(sent.stream).toBe(true);
+      expect(sent.stream_options.include_usage).toBe(true);
+      expect(sent.provider).toEqual({ only: ['Fixture'], zdr: true, data_collection: 'deny' });
+      const chunks = [
+        {
+          id: 'gen-1',
+          model: 'fixture/model',
+          choices: [
+            { index: 0, delta: { role: 'assistant', content: 'Hello PUNI' }, finish_reason: null },
+          ],
+        },
+        {
+          id: 'gen-1',
+          model: 'fixture/model',
+          choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 20, completion_tokens: 3, total_tokens: 23 },
+        },
+      ];
+      return new Response(
+        chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join('') + 'data: [DONE]\n\n',
+        { headers: { 'content-type': 'text/event-stream' } },
+      );
+    },
+  });
+  const { cookie: draftCookie } = await beginDraft(api);
+  const login = await api.fetch(
+    request(
+      '/session/demo',
+      'POST',
+      config.appOrigin,
+      { email: 'builder@example.test' },
+      draftCookie,
+    ),
+  );
+  const sessionCookie = login.headers.get('set-cookie')?.split(';')[0];
+  const csrf = ((await login.json()) as { csrfToken: string }).csrfToken;
+  const history = (await (
+    await api.fetch(request('/chat', 'GET', config.appOrigin, undefined, sessionCookie))
+  ).json()) as { initialOperation: { idempotencyKey: string } };
+  const payload = {
+    message: 'Ignore this',
+    initial: true,
+    idempotencyKey: history.initialOperation.idempotencyKey,
+  };
+  const first = await api.fetch(
+    request('/chat/stream', 'POST', config.appOrigin, payload, sessionCookie, csrf),
+  );
+  expect(first.status).toBe(200);
+  expect(first.headers.get('x-vercel-ai-ui-message-stream')).toBe('v1');
+  expect(await first.text()).toContain('Hello PUNI');
+  const replay = await api.fetch(
+    request(
+      '/chat/stream',
+      'POST',
+      config.appOrigin,
+      { ...payload, idempotencyKey: 'browser-retry-987', message: 'Changed browser text' },
+      sessionCookie,
+      csrf,
+    ),
+  );
+  expect(replay.status).toBe(200);
+  expect(await replay.text()).toContain('Hello PUNI');
+  const saved = (await (
+    await api.fetch(request('/chat', 'GET', config.appOrigin, undefined, sessionCookie))
+  ).json()) as { turns: { content: string }[]; initialOperation: { state: string } };
+  expect(saved.turns.map((turn) => turn.content)).toEqual([
+    'A booking tool for a local studio',
+    'Hello PUNI',
+  ]);
+  expect(saved.initialOperation.state).toBe('completed');
+  expect(calls).toBe(1);
+  api.close();
+  const unavailable = createWebsiteApi({ ...config, demoAuth: false, openRouterEnabled: false });
+  const savedReplay = await unavailable.fetch(
+    request('/chat/stream', 'POST', config.appOrigin, payload, sessionCookie, csrf),
+  );
+  // Proof: checking provider readiness before durable replay makes this saved answer return 503.
+  expect(savedReplay.status).toBe(200);
+  expect(await savedReplay.text()).toContain('Hello PUNI');
+  expect(calls).toBe(1);
+  expect(
+    (
+      await unavailable.fetch(
+        request(
+          '/chat/stream',
+          'POST',
+          config.appOrigin,
+          { message: 'New work', idempotencyKey: 'new-work-123' },
+          sessionCookie,
+          csrf,
+        ),
+      )
+    ).status,
+  ).toBe(503);
+  unavailable.close();
+});
+
+test('missing stream usage leaves reservation unsettled and blocks another paid turn', async () => {
+  const { config } = fixture();
+  let calls = 0;
+  const api = createWebsiteApi({
+    ...config,
+    demoAuth: true,
+    openRouterEnabled: true,
+    openRouterKey: 'fixture-only',
+    openRouterModel: 'fixture/model',
+    openRouterProvider: 'Fixture',
+    openRouterInputUsdPerMillion: 1,
+    openRouterOutputUsdPerMillion: 2,
+    openRouterPrivacyVerified: true,
+    providerFetch: () => {
+      calls += 1;
+      const chunk = {
+        id: 'gen-2',
+        model: 'fixture/model',
+        choices: [
+          { index: 0, delta: { role: 'assistant', content: 'Unbilled?' }, finish_reason: 'stop' },
+        ],
+      };
+      return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, {
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    },
+  });
+  const login = await api.fetch(
+    request('/session/demo', 'POST', config.appOrigin, { email: 'builder@example.test' }),
+  );
+  const cookie = login.headers.get('set-cookie')?.split(';')[0];
+  const csrf = ((await login.json()) as { csrfToken: string }).csrfToken;
+  const first = await api.fetch(
+    request(
+      '/chat/stream',
+      'POST',
+      config.appOrigin,
+      { message: 'First', idempotencyKey: 'message-key-1' },
+      cookie,
+      csrf,
+    ),
+  );
+  expect(first.status).toBe(200);
+  const streamed = await first.text();
+  expect(streamed).toContain('"type":"error"');
+  const second = await api.fetch(
+    request(
+      '/chat/stream',
+      'POST',
+      config.appOrigin,
+      { message: 'Second', idempotencyKey: 'message-key-2' },
+      cookie,
+      csrf,
+    ),
+  );
+  expect(second.status).toBe(429);
+  expect(calls).toBe(1);
+  api.close();
+});
+
+test('output-limit finish with verified usage settles and records a truncated reply', async () => {
+  const { config } = fixture();
+  const api = createWebsiteApi({
+    ...config,
+    demoAuth: true,
+    openRouterEnabled: true,
+    openRouterKey: 'fixture-only',
+    openRouterModel: 'fixture/model',
+    openRouterProvider: 'Fixture',
+    openRouterInputUsdPerMillion: 1,
+    openRouterOutputUsdPerMillion: 2,
+    openRouterPrivacyVerified: true,
+    providerFetch: () => {
+      const chunks = [
+        {
+          id: 'gen-limit',
+          model: 'fixture/model',
+          choices: [
+            {
+              index: 0,
+              delta: { role: 'assistant', content: 'Partial answer' },
+              finish_reason: null,
+            },
+          ],
+        },
+        {
+          id: 'gen-limit',
+          model: 'fixture/model',
+          choices: [{ index: 0, delta: {}, finish_reason: 'length' }],
+          usage: { prompt_tokens: 20, completion_tokens: 1024, total_tokens: 1044 },
+        },
+      ];
+      return new Response(
+        chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join('') + 'data: [DONE]\n\n',
+        { headers: { 'content-type': 'text/event-stream' } },
+      );
+    },
+  });
+  const login = await api.fetch(
+    request('/session/demo', 'POST', config.appOrigin, { email: 'builder@example.test' }),
+  );
+  const cookie = login.headers.get('set-cookie')?.split(';')[0];
+  const csrf = ((await login.json()) as { csrfToken: string }).csrfToken;
+  const reply = await api.fetch(
+    request(
+      '/chat/stream',
+      'POST',
+      config.appOrigin,
+      { message: 'Explain', idempotencyKey: 'limit-key-1' },
+      cookie,
+      csrf,
+    ),
+  );
+  expect(reply.status).toBe(200);
+  expect(await reply.text()).toContain('"type":"finish"');
+  const history = (await (
+    await api.fetch(request('/chat', 'GET', config.appOrigin, undefined, cookie))
+  ).json()) as {
+    turns: { content: string }[];
+    latestOperation: { state: string; truncated: boolean };
+  };
+  // Proof: treating a known output-limit finish as unknown loses the paid reply despite verified usage.
+  expect(history.turns.map((turn) => turn.content)).toEqual(['Explain', 'Partial answer']);
+  expect(history.latestOperation).toMatchObject({ state: 'completed', truncated: true });
+  api.close();
+});
+
+test('stream admission rejects missing CSRF, duplicate inflight and changed-body replay before another call', async () => {
+  const { config } = fixture();
+  let calls = 0;
+  const api = createWebsiteApi({
+    ...config,
+    demoAuth: true,
+    openRouterEnabled: true,
+    openRouterKey: 'fixture-only',
+    openRouterModel: 'fixture/model',
+    openRouterProvider: 'Fixture',
+    openRouterInputUsdPerMillion: 1,
+    openRouterOutputUsdPerMillion: 2,
+    openRouterPrivacyVerified: true,
+    providerFetch: () => {
+      calls += 1;
+      return new Response(new ReadableStream(), {
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    },
+  });
+  const login = await api.fetch(
+    request('/session/demo', 'POST', config.appOrigin, { email: 'builder@example.test' }),
+  );
+  const cookie = login.headers.get('set-cookie')?.split(';')[0];
+  const csrf = ((await login.json()) as { csrfToken: string }).csrfToken;
+  const payload = { message: 'First', idempotencyKey: 'message-key-1' };
+  // Proof: deleting the stream CSRF guard reserves a provider call on this forged request.
+  expect(
+    (await api.fetch(request('/chat/stream', 'POST', config.appOrigin, payload, cookie))).status,
+  ).toBe(403);
+  const first = await api.fetch(
+    request('/chat/stream', 'POST', config.appOrigin, payload, cookie, csrf),
+  );
+  expect(first.status).toBe(200);
+  expect(
+    (await api.fetch(request('/chat/stream', 'POST', config.appOrigin, payload, cookie, csrf)))
+      .status,
+  ).toBe(409);
+  // Proof: deleting the body-hash guard accepts this changed message under an existing operation key.
+  const changed = await api.fetch(
+    request(
+      '/chat/stream',
+      'POST',
+      config.appOrigin,
+      { ...payload, message: 'Changed' },
+      cookie,
+      csrf,
+    ),
+  );
+  expect(changed.status).toBe(409);
+  expect(await changed.json()).toEqual({ code: 'idempotency_conflict' });
+  expect(
+    (
+      await api.fetch(
+        request('/chat', 'POST', config.appOrigin, { message: 'Legacy' }, cookie, csrf),
+      )
+    ).status,
+  ).toBe(409);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(calls).toBe(1);
+  const otherLogin = await api.fetch(
+    request('/session/demo', 'POST', config.appOrigin, { email: 'other@example.test' }),
+  );
+  const otherCookie = otherLogin.headers.get('set-cookie')?.split(';')[0];
+  const otherCsrf = ((await otherLogin.json()) as { csrfToken: string }).csrfToken;
+  // Proof: dropping the request/account lookup lets another prospect cancel this call.
+  expect(
+    (
+      await api.fetch(
+        request(
+          '/chat/cancel',
+          'POST',
+          config.appOrigin,
+          { idempotencyKey: payload.idempotencyKey },
+          otherCookie,
+          otherCsrf,
+        ),
+      )
+    ).status,
+  ).toBe(404);
+  expect(
+    (
+      await api.fetch(
+        request(
+          '/chat/cancel',
+          'POST',
+          config.appOrigin,
+          { idempotencyKey: payload.idempotencyKey },
+          cookie,
+        ),
+      )
+    ).status,
+  ).toBe(403);
+  // Proof: cancel must change the operation to unknown; otherwise a retry remains inflight.
+  expect(
+    (
+      await api.fetch(
+        request(
+          '/chat/cancel',
+          'POST',
+          config.appOrigin,
+          { idempotencyKey: payload.idempotencyKey },
+          cookie,
+          csrf,
+        ),
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (await api.fetch(request('/chat/stream', 'POST', config.appOrigin, payload, cookie, csrf)))
+      .status,
+  ).toBe(409);
+  await first.body?.cancel();
+  api.close();
+});
+
+test('site JSON intake exposes its credentialed response only to the site origin', async () => {
+  const { api, config } = fixture();
+  const response = await api.fetch(
+    request('/intakes', 'POST', config.publicOrigin, { description: 'New request' }),
+  );
+  expect(response.status).toBe(201);
+  expect(response.headers.get('access-control-allow-origin')).toBe(config.publicOrigin);
+  expect(response.headers.get('access-control-allow-credentials')).toBe('true');
+  const preflight = await api.fetch(request('/intakes', 'OPTIONS', config.publicOrigin));
+  expect(preflight.status).toBe(204);
+  expect(preflight.headers.get('access-control-allow-origin')).toBe(config.publicOrigin);
+  expect((await api.fetch(request('/intakes', 'OPTIONS', 'https://foreign.example'))).status).toBe(
+    403,
+  );
+  api.close();
+});
+
+test('Build sign-in refuses a missing request before OIDC discovery', async () => {
+  const { config } = fixture();
+  let discoveries = 0;
+  const api = createWebsiteApi({
+    ...config,
+    appBuildUrl: config.appOrigin,
+    oidcIssuer: 'https://identity.example.test',
+    oidcClientId: 'fixture-client',
+    oidcRedirectUri: 'https://api.example.test/session/oidc/callback',
+    oidcFetch: () => {
+      discoveries += 1;
+      return Response.json({});
+    },
+  });
+  // Proof: removing the entry gate begins a login for a browser with no submitted request.
+  expect((await api.fetch(request('/session/oidc/start', 'GET', config.appOrigin))).status).toBe(
+    409,
+  );
+  expect(discoveries).toBe(0);
+  api.close();
+});
+
+test('Build redirect rejects a foreign target', () => {
+  const { config } = fixture();
+  // Proof: relaxing the fixed Build URL guard allows a native intake to redirect off-site.
+  expect(() =>
+    createWebsiteApi({ ...config, appBuildUrl: 'https://foreign.example/studio' }),
+  ).toThrow('Build redirect must be fixed');
+});
+
+test('Google prefixed callback exchanges code with secret in form body', async () => {
+  const { config } = fixture();
+  let exchanged = false;
+  const api = createWebsiteApi({
+    ...config,
+    oidcIssuer: 'https://accounts.google.com',
+    oidcClientId: 'fixture-client',
+    oidcClientSecret: 'fixture-secret',
+    oidcRedirectUri: 'https://dev.puni.dev/api/session/oidc/callback',
+    oidcFetch: (input, init) => {
+      if (input.endsWith('/.well-known/openid-configuration'))
+        return Response.json({
+          issuer: 'https://accounts.google.com',
+          authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+          token_endpoint: 'https://oauth2.googleapis.com/token',
+          jwks_uri: 'https://www.googleapis.com/oauth2/v3/certs',
+        });
+      if (input === 'https://oauth2.googleapis.com/token') {
+        exchanged = true;
+        if (!(init.body instanceof URLSearchParams)) throw new Error('Expected form body');
+        // Proof: omitting Google's client_secret form field fails this token-boundary assertion.
+        expect(init.body.get('client_secret')).toBe('fixture-secret');
+        expect(init.body.get('redirect_uri')).toBe(
+          'https://dev.puni.dev/api/session/oidc/callback',
+        );
+        return Response.json({ code: 'fixture-invalid-token' }, { status: 400 });
+      }
+      throw new Error(`Unexpected OIDC URL: ${input}`);
+    },
+  });
+  const start = await api.fetch(request('/session/oidc/start', 'GET', config.appOrigin));
+  expect(start.status).toBe(302);
+  const state = new URL(start.headers.get('location') ?? '').searchParams.get('state');
+  const oidcCookie = start.headers.get('set-cookie')?.split(';')[0];
+  const callback = await api.fetch(
+    request(
+      `/api/session/oidc/callback?state=${String(state)}&code=fixture`,
+      'GET',
+      config.appOrigin,
+      undefined,
+      oidcCookie,
+    ),
+  );
+  expect(callback.status).toBe(502);
+  expect(exchanged).toBe(true);
+  api.close();
+});
+
+test('Google sign-in without a web client secret stays unavailable', async () => {
+  const { config } = fixture();
+  let discoveries = 0;
+  const api = createWebsiteApi({
+    ...config,
+    oidcIssuer: 'https://accounts.google.com',
+    oidcClientId: 'fixture-client',
+    oidcRedirectUri: 'https://dev.puni.dev/api/session/oidc/callback',
+    oidcFetch: () => {
+      discoveries += 1;
+      return Response.json({});
+    },
+  });
+  const session = await api.fetch(request('/session', 'GET', config.appOrigin));
+  expect((await session.json()) as { configured: boolean }).toMatchObject({ configured: false });
+  // Proof: omitting the Google-secret readiness guard advertises sign-in and starts discovery.
+  expect((await api.fetch(request('/session/oidc/start', 'GET', config.appOrigin))).status).toBe(
+    503,
+  );
+  expect(discoveries).toBe(0);
+  api.close();
+});
+
 async function beginDraft(api: ReturnType<typeof createWebsiteApi>) {
   const intake = await api.fetch(
     request('/intakes', 'POST', 'http://localhost:4321', {
@@ -494,6 +1019,55 @@ test('paid provider call requires verified configuration and sends privacy contr
   expect(reply.status).toBe(200);
   expect(((await reply.json()) as { provider: string }).provider).toBe('openrouter');
   expect(calls).toBe(1);
+  api.close();
+});
+
+test('legacy paid chat leaves usage unsettled if saving its reply fails', async () => {
+  const { config } = fixture();
+  const api = createWebsiteApi({
+    ...config,
+    demoAuth: true,
+    openRouterEnabled: true,
+    openRouterKey: 'fixture-key',
+    openRouterModel: 'fixture/model',
+    openRouterProvider: 'Fixture',
+    openRouterInputUsdPerMillion: 1,
+    openRouterOutputUsdPerMillion: 2,
+    openRouterPrivacyVerified: true,
+    providerFetch: () =>
+      Response.json({
+        id: 'gen-fixture',
+        choices: [{ message: { content: 'Save this reply.' } }],
+        usage: { prompt_tokens: 20, completion_tokens: 4 },
+      }),
+  });
+  const login = await api.fetch(
+    request('/session/demo', 'POST', config.appOrigin, { email: 'atomic@example.test' }),
+  );
+  const cookie = login.headers.get('set-cookie')?.split(';')[0];
+  const csrf = ((await login.json()) as { csrfToken: string }).csrfToken;
+  const inspection = new Database(config.databasePath);
+  inspection.run(
+    "CREATE TRIGGER fail_assistant_turn BEFORE INSERT ON chat_turn WHEN NEW.role = 'assistant' BEGIN SELECT RAISE(ABORT, 'injected save failure'); END",
+  );
+  let failedSave: unknown;
+  try {
+    await api.fetch(request('/chat', 'POST', config.appOrigin, { message: 'First' }, cookie, csrf));
+  } catch (error) {
+    failedSave = error;
+  }
+  expect(failedSave).toMatchObject({ message: 'injected save failure' });
+  const call = inspection
+    .query<{ settled_micro_usd: number | null }, []>(
+      'SELECT settled_micro_usd FROM provider_call LIMIT 1',
+    )
+    .get();
+  // Proof: settling outside the turn transaction makes this injected save failure leave a paid receipt.
+  expect(call?.settled_micro_usd).toBeNull();
+  expect(
+    inspection.query<{ count: number }, []>('SELECT count(*) AS count FROM chat_turn').get()?.count,
+  ).toBe(0);
+  inspection.close();
   api.close();
 });
 

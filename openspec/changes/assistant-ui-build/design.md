@@ -18,6 +18,8 @@ Initial request identity derives from the owned request, not prompt text or brow
 
 Conversation plus brief/preview on desktop; selectable panels on mobile. Preserve existing safe concept renderer and proposal flow. Before real credentials exist, render the submitted request, sign-in/provider setup state and manual continuation. Local demo mode is explicitly labeled and stays loopback-only.
 
+Signed-in Build is a workspace: keep its heading compact, scroll conversation and preview independently on desktop, and keep the composer reachable without scrolling through the entire preview. Mobile uses compact panel controls. Customer copy describes the illustrative preview and its limitations without exposing SDK/provider terminology.
+
 ## Release
 
 Public source first, then governed snapshot into the private companion. Preview API remains https://dev.puni.dev/api to preserve host-only cookies; app becomes https://dev.app.puni.dev. Site remains https://dev.puni.dev. Production uses app.puni.dev and api.puni.dev. Verify actual cross-host cookies and routing, then model/auth with fixtures; real-provider activation requires supplied credentials.

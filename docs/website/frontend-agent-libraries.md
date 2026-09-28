@@ -2,6 +2,8 @@
 
 Research checked 2026-09-28 against official product documentation and source repositories. The isolated compatibility probe below covers package imports and one mocked stream, not a PUNI application build.
 
+The user subsequently selected assistant-ui with AI SDK and Google sign-in first. Pinned dependencies are installed; implementation and current verification live in [assistant-ui Build](../../openspec/changes/assistant-ui-build/tasks.md). The compatibility probe below remains historical evidence, not a claim that the new app is deployed.
+
 ## Fit to the current app
 
 The public app is already React 19/Vite with ordinary CSS and a credentialed `fetch` wrapper. Its Bun API owns the prospect session, CSRF check, account scoped turns, 12 turn cap, provider reservation, OpenRouter call, and concept record. `GET /chat` restores turns; `POST /chat` currently returns one JSON reply after a nonstreaming OpenRouter call. The Astro landing page sends the initial description to `/intakes`; after sign in it becomes an unsent composer draft. These facts are visible in [`fe-01/src/main.tsx`](../../apps/website/fe-01/src/main.tsx), [`fe-01/src/api.ts`](../../apps/website/fe-01/src/api.ts), [`be-01/src/server.ts`](../../apps/website/be-01/src/server.ts), and the [funnel design](../../openspec/changes/puni-website-funnel/design.md).
