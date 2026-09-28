@@ -228,6 +228,84 @@ test('combined step patch refuses a modeled allowance failure after rename and d
   expect(published).toEqual([]);
 });
 
+test('combined step patch refuses an allowance that pushes the plan past the calendar', async () => {
+  const step = stepRow({ id: 'step', projectId: 'project', name: 'Review' });
+  const commits: boolean[] = [];
+  const published: string[] = [];
+  const boundary = {
+    uow: {
+      run: async (act: (scope: unknown) => Promise<{ commit: boolean; value: unknown }>) => {
+        const decision = await act({
+          stores: { projects: { admitEditInOrganization: () => Promise.resolve('recovery') } },
+        });
+        commits.push(decision.commit);
+        return decision.value;
+      },
+    },
+    batch: (_scope: unknown, broadcast: RecoveryWriteBoundary['announcements']) => ({
+      steps: {
+        renameWithin: async () => {
+          await broadcast.publish('project', { type: 'step_renamed', step });
+          return { ok: true, value: step };
+        },
+        findWithin: () => Promise.resolve({ ok: true, value: step }),
+      },
+      workItems: {
+        setStepAllowance: () => Promise.resolve({ ok: true, value: null }),
+        tree: () => Promise.resolve({ scheduleError: 'calendar_range' }),
+      },
+    }),
+    announcements: {
+      publish: (projectId: string) => {
+        published.push(projectId);
+        return Promise.resolve();
+      },
+      latestSeq: () => Promise.resolve(-1),
+    },
+  } as unknown as RecoveryWriteBoundary;
+  const [, rename] = stepRoutes(
+    {
+      addWithin: () => Promise.reject(new Error('unexpected add')),
+      removeWithin: () => Promise.reject(new Error('unexpected remove')),
+      renameWithin: () => Promise.reject(new Error('public rename')),
+      findWithin: () => Promise.reject(new Error('public lookup')),
+    },
+    {
+      runWithin: () => Promise.reject(new Error('command batch')),
+      runDirectoryWithin: () => Promise.reject(new Error('directory batch')),
+    },
+    {
+      resolve: () =>
+        Promise.resolve({
+          ok: true,
+          access: {
+            kind: 'scoped',
+            scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+          },
+        }),
+    },
+    boundary,
+  );
+  // The allowance-only path answers this through the command batch's own
+  // calendar preflight, which also leaves nothing written.
+  const refused: unknown = await rename
+    .handle({
+      params: { id: 'project', stepId: 'step' },
+      query: undefined,
+      body: { name: 'Renamed', allowancePercent: 200 },
+      principal,
+      request,
+    })
+    .then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+  expect(refused).toBeInstanceOf(Error);
+  expect(String(refused)).toContain('calendar_range');
+  expect(commits).toEqual([]);
+  expect(published).toEqual([]);
+});
+
 test('combined step patch refuses a missing unit of work boundary', async () => {
   const {
     endpoints: [, rename],

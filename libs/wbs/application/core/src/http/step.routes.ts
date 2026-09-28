@@ -203,6 +203,18 @@ export function stepRoutes(
                 `setStepAllowance refused with an unmodelled reason: ${allowed.reason}`,
               );
             }
+            // The same calendar preflight the command batch runs after a
+            // `setStepAllowance`: a plan pushed past the calendar is refused
+            // as the allowance-only path refuses it, rolling back the rename
+            // and the allowance with the unit of work.
+            // Proof (2026-09-28): skipping this preflight made `combined step
+            // patch refuses an allowance that pushes the plan past the
+            // calendar` resolve instead of rejecting with `calendar_range`.
+            const tree = await services.workItems.tree(params.id);
+            if (tree === null)
+              throw new Error(`Project ${params.id} disappeared inside its step write`);
+            if (!('kind' in tree) && tree.scheduleError === 'calendar_range')
+              throw new Error('setStepAllowance refused with an unmodelled reason: calendar_range');
             return services.steps.findWithin(
               params.id,
               params.stepId,

@@ -698,7 +698,11 @@ Verification on 2026-09-28 (all Bun runs used `env -u CLAUDECODE`):
 
 No new test file was added, so the tool-devsync README index check was not triggered. The full Nx gate and `h2puni-gate.sh` were not run, as this slice's task instruction explicitly forbids the full gate.
 
-The requested commits are pending: `git add` could not create this worktree's `index.lock` because `/home/df/wd/puni/puni-00/.git/worktrees/b9-010-5-2-orgs-8` is mounted `ro` in this environment. No commit was created or pushed.
+### Second review (2026-09-28)
+
+Astra's re-review confirmed the three fixes and found one new Important: the combined name-and-allowance PATCH skipped the command batch's calendar preflight, so a +200% allowance on a plan at the calendar's edge answered 200. The combined unit of work now runs the same preflight after `setStepAllowance` and refuses the way the allowance-only path does, rolling the rename back. Proof: skipping the preflight made `combined step patch refuses an allowance that pushes the plan past the calendar` in `step.routes.test.ts` resolve instead of rejecting (10 pass, 1 fail); restored, 11 pass.
+
+Full suites outside the sandbox, `env -u CLAUDECODE bun test`, after main round 20 was merged: be-01 1362 pass, 0 fail; core 719 pass, 1 fail (the known Playwright spec collected by Bun); store-sqlite 1081 pass, 0 fail; store-memory 121 pass, 0 fail.
 
 ## Pending gate output
 
