@@ -118,16 +118,36 @@ describe('blockedByProxyOf', () => {
     // A.dev → B.dev and B.qa → A.qa is a valid step-node DAG whose work items
     // depend on each other.
     const rows = [row('a'), row('b'), row('c')];
+    const crossing = [
+      typed(
+        't1',
+        { scope: 'node', workItemId: 'a', stepId: 'dev' },
+        {
+          scope: 'node',
+          workItemId: 'b',
+          stepId: 'dev',
+        },
+      ),
+      typed(
+        't2',
+        { scope: 'node', workItemId: 'b', stepId: 'qa' },
+        {
+          scope: 'node',
+          workItemId: 'a',
+          stepId: 'qa',
+        },
+      ),
+    ];
     expect(
-      read(rows, { a: 'unknown', b: 'unknown', c: 'blocked' }, [
-        edge('a', 'b'),
-        edge('b', 'a'),
-        edge('c', 'a'),
-      ]),
+      read(rows, { a: 'unknown', b: 'unknown', c: 'blocked' }, [edge('c', 'a')], crossing),
     ).toEqual({ a: 'blocked_by_proxy', b: 'blocked_by_proxy', c: 'blocked' });
-    expect(
-      read(rows, { a: 'unknown', b: 'ready', c: 'unknown' }, [edge('a', 'b'), edge('b', 'a')]),
-    ).toEqual({ a: 'unknown', b: 'ready', c: 'unknown' });
+    // With no hold behind it the cycle reads as itself: the least fixed point,
+    // not the self-sustaining one in which both leaves block each other.
+    expect(read(rows, { a: 'unknown', b: 'ready', c: 'unknown' }, [], crossing)).toEqual({
+      a: 'unknown',
+      b: 'ready',
+      c: 'unknown',
+    });
   });
 
   it('refuses a leaf with no status', () => {

@@ -137,6 +137,42 @@ describe('withoutHeldSubtrees', () => {
     expect(startOf(run(reduced), 'y')).toBe(4);
   });
 
+  it("keeps a partly held parent's descendant-step endpoint, floor and deadline for its unheld leaves", () => {
+    const dependency: TypedDependency = {
+      id: 't1',
+      predecessor: { scope: 'whole', workItemId: 'x' },
+      successor: { scope: 'descendant-step', workItemId: 'p', stepId: 'dev' },
+      type: 'FS',
+    };
+    const input = inputOf({
+      rows: [row('x'), row('p'), row('p1', 'p'), row('p2', 'p')],
+      slices: [slice('x', 2), slice('p1', 3), slice('p2', 4)],
+      notBefore: new Map([['p', 1]]),
+      deadlines: new Map([['p', 10]]),
+      typed: [dependency],
+    });
+    const reduced = withoutHeldSubtrees(input, new Set(['p2']));
+    expect(reduced.typed).toEqual([dependency]);
+    expect([...reduced.notBefore]).toEqual([['p', 1]]);
+    expect([...reduced.deadlines]).toEqual([['p', 10]]);
+    const placed = run(reduced);
+    expect(startOf(placed, 'p1')).toBe(2);
+    expect(placed.slices.has(sliceKey('p2', 'dev'))).toBe(false);
+  });
+
+  it('leaves an empty plan when every leaf is held', () => {
+    const input = inputOf({
+      rows: [row('p'), row('p1', 'p'), row('a')],
+      slices: [slice('p1', 3), slice('a', 2)],
+      edges: [edge('a', 'p')],
+    });
+    const reduced = withoutHeldSubtrees(input, new Set(['p1', 'a']));
+    expect(reduced.rows).toEqual([]);
+    expect(reduced.slices).toEqual([]);
+    expect(reduced.edges).toEqual([]);
+    expect(run(reduced).workItems.size).toBe(0);
+  });
+
   it('drops typed dependencies whose held endpoint is a leaf or one of its step nodes', () => {
     const input = inputOf({
       rows: [row('a'), row('b')],

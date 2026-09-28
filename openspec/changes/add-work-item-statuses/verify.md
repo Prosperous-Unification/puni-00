@@ -13,11 +13,12 @@ pass; the whole `libs/wbs/domain/domain` suite reported 817 pass, 0 fail.
 
 ## Commands
 
-| Slice | Command                                                                  | Result                                                     |
-| ----- | ------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| 0     | `bunx @fission-ai/openspec@1.12.0 validate --all --json`                 | exit 0; 140 passed, 0 failed; this change valid, no issues |
-| 1     | `bun test` in `libs/wbs/domain/domain`, `CLAUDECODE` unset               | 817 pass, 0 fail                                           |
-| 1     | `bunx nx affected -t typecheck test lint`, base `batch-9/integration-25` | recorded in the slice 1 pull request                       |
+| Slice | Command                                                                     | Result                                                                                                                                                                                                                                                                                 |
+| ----- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | `bunx @fission-ai/openspec@1.12.0 validate --all --json`                    | exit 0; 140 passed, 0 failed; this change valid, no issues                                                                                                                                                                                                                             |
+| 1     | `bun test` in `libs/wbs/domain/domain`, `CLAUDECODE` unset                  | 817 pass, 0 fail                                                                                                                                                                                                                                                                       |
+| 1     | `bunx nx affected -t typecheck test lint`, base `batch-9/integration-25`    | exit 1: 19 projects; failed `wbs-domain:lint` (4 `restrict-template-expressions` in a property test), `tool-devsync:test` (ADR numbers must be contiguous: 0033 renumbered 0032), `wbs-store-sqlite:test` (wall-clock `working-plan-performance` median, 141 s under the parallel run) |
+| 1     | `bunx nx run-many -t lint test -p wbs-domain tool-devsync` after both fixes | exit 0; `Successfully ran targets lint, test for 2 projects`                                                                                                                                                                                                                           |
 
 ## Failure proofs
 
@@ -30,7 +31,18 @@ Each fault was injected into the production function, the named test run, and th
 | proxy counts as stopped in the parent fold | `blocked_by_proxy` removed from `STOPPED_STATUSES`            | partition property; `is blocked by proxy when every child is stopped but not all the same way` | 19 pass, 2 fail; counterexample `["blocked_by_proxy"]`, `Expected: "blocked_by_proxy"`, `Received: "ready"` |
 | a held id must be a leaf of the plan       | the `withoutHeldSubtrees` leaf check disabled                 | `refuses a held id that is not a leaf of this plan`                                            | `Received function did not throw`                                                                           |
 | every leaf has a status                    | `continue` in place of the missing-status throw               | `refuses a leaf with no status`                                                                | `Received function did not throw`                                                                           |
+| readiness guard                            | `isReadiness` reduced to `typeof value === 'string'`          | `admit exactly their own closed sets`                                                          | 19 pass, 1 fail; `Expected: false, Received: true`                                                          |
+| hold guard                                 | `isHold` reduced to `typeof value === 'string'`               | `admit exactly their own closed sets`                                                          | 19 pass, 1 fail; `Expected: false, Received: true`                                                          |
 | no status is given for a parent            | the non-leaf status check disabled                            | `refuses a status for anything but a leaf`                                                     | 9 pass, 1 fail; `Received function did not throw`                                                           |
+
+## Astra review (2026-09-28)
+
+No Critical. Important 1 (spec must require the least fixed point; the unknown scenario must
+exclude every stopping predecessor): fixed in the spec with a typed-cycle scenario. Important 2
+(which holds `in_progress` on a parent clears): left open for slice 3 in `design.md`; it is a
+future contract, easily reversed, and raised for the Fable review. Minor 3 (typed cycle,
+descendant-step endpoint, inherited floor and deadline, all-held plan): tests added. Minor 4
+(vocabulary guard proofs): recorded above.
 
 ## Not run
 

@@ -6,7 +6,7 @@ import { indexTree } from './schedule';
  * leaves are held, taken out: their rows and slices, every legacy and typed
  * dependency with either end on one of them, and their not-before and deadline
  * entries. What remains is an ordinary, smaller plan, so `schedule()`, the
- * solver request and the solver wire need not know holds exist (ADR 0033).
+ * solver request and the solver wire need not know holds exist (ADR 0032).
  *
  * A partly held parent stays, with the dependencies, floor and deadline
  * written on it: they now expand to its unheld leaves only. Nothing is held

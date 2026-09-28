@@ -58,7 +58,7 @@ export type Readiness = (typeof READINESSES)[number];
  * leaf out of the schedule ({@link withoutHeldSubtrees}); `blocked` leaves the
  * schedule alone. Stored beside readiness and progress, never instead of them,
  * so clearing it returns the leaf to what it read before. See
- * `docs/adr/0033-a-hold-leaves-the-plan-blocked-is-a-reading.md`.
+ * `docs/adr/0032-a-hold-leaves-the-plan-blocked-is-a-reading.md`.
  */
 export const HOLDS = ['on_hold', 'blocked'] as const;
 export type Hold = (typeof HOLDS)[number];
@@ -112,11 +112,17 @@ export function isStepState(value: unknown): value is StepState {
 
 /** Whether a stored or posted value is one of the two readinesses. */
 export function isReadiness(value: unknown): value is Readiness {
+  // Proof: reduced to `typeof value === 'string'` and `admit exactly their own
+  // closed sets` failed with `Expected: false, Received: true`; watched
+  // 2026-09-28. Slice 3 proves it again through the routes that call it.
   return typeof value === 'string' && (READINESSES as readonly string[]).includes(value);
 }
 
 /** Whether a stored or posted value is one of the two holds. */
 export function isHold(value: unknown): value is Hold {
+  // Proof: reduced to `typeof value === 'string'` and `admit exactly their own
+  // closed sets` failed with `Expected: false, Received: true`; watched
+  // 2026-09-28.
   return typeof value === 'string' && (HOLDS as readonly string[]).includes(value);
 }
 
