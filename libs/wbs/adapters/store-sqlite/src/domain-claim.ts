@@ -1,12 +1,14 @@
 import type {
   DomainChallenges,
   DomainClaimSummary,
+  DomainProofChecks,
   DomainResolver,
   PendingDomainClaim,
+  RetainedDomainProof,
   WriteStamp,
 } from '@wbs/core';
 import { isClaimableDomain } from '@wbs/domain';
-import { and, eq, gt, inArray } from 'drizzle-orm';
+import { and, eq, gt, inArray, lte } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -29,9 +31,10 @@ export interface OpenedDomainClaim {
 /**
  * Domain claims and their single verified owner. Initial challenge issuance
  * is mounted only after activation and checks current super-admin authority;
- * DNS verification and the remaining ownership lifecycle are still unwired.
+ * DNS verification and retained proof checks are available through injected
+ * ports; the periodic worker remains stopped in production.
  */
-export class DomainClaimRepository implements DomainChallenges {
+export class DomainClaimRepository implements DomainChallenges, DomainProofChecks {
   constructor(
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
@@ -40,6 +43,92 @@ export class DomainClaimRepository implements DomainChallenges {
       lookupTxt: () => Promise.reject(new Error('authoritative DNS resolver unavailable')),
     },
   ) {}
+
+  /** Selects day-seven verified claims; an inactive marker yields no work. */
+  async readDueProofs(at: number): Promise<readonly RetainedDomainProof[]> {
+    await Promise.resolve();
+    return this.db.transaction((tx) => {
+      // Proof: 2026-09-28, bypassing this marker made mounted `leaves planted
+      // retained proof untouched before activation` report a stale check.
+      if (readOrganizationActivation(tx) !== 'activated') return [];
+      const due = tx
+        .select()
+        .from(organizationDomainClaim)
+        .where(
+          and(
+            eq(organizationDomainClaim.status, 'verified'),
+            // Proof: 2026-09-28, consulting the expired initial challenge
+            // instead made mounted `shows retained proof check timestamps and
+            // a warning after a failed day-seven check` skip the due claim.
+            lte(organizationDomainClaim.lastCheckedAt, at - 7 * 24 * 60 * 60 * 1000),
+          ),
+        )
+        .all();
+      return due.map((claim) => {
+        if (
+          claim.proofDigest === null ||
+          claim.lastCheckedAt === null ||
+          claim.lastSuccessAt === null
+        )
+          throw new Error(`verified domain ${claim.id} lacks retained proof state`);
+        if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
+          throw new Error(`verified domain ${claim.id} is no longer claimable`);
+        return {
+          id: claim.id,
+          organizationId: claim.organizationId,
+          domain: claim.domain,
+          proofDigest: claim.proofDigest,
+          lastCheckedAt: claim.lastCheckedAt,
+        };
+      });
+    });
+  }
+
+  /** Records a check only while the same verified ownership snapshot survives. */
+  async finishProofCheck(
+    proof: RetainedDomainProof,
+    matched: boolean,
+    at: number,
+  ): Promise<'checked' | 'stale'> {
+    return this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction(
+        (tx) => {
+          if (readOrganizationActivation(tx) !== 'activated') return 'stale' as const;
+          const current = tx
+            .select()
+            .from(organizationDomainClaim)
+            .where(eq(organizationDomainClaim.id, proof.id))
+            .get();
+          // Proof: 2026-09-28, bypassing the release/snapshot check made mounted
+          // `does not record a retained check after its claim is released during DNS lookup` report checked rather than stale.
+          if (
+            current?.status !== 'verified' ||
+            current.organizationId !== proof.organizationId ||
+            current.domain !== proof.domain ||
+            current.proofDigest !== proof.proofDigest ||
+            current.lastCheckedAt !== proof.lastCheckedAt
+          )
+            return 'stale' as const;
+          // Proof: 2026-09-28, bypassing this commit-time policy recheck made
+          // mounted `refuses a retained check when maintained policy changes
+          // during DNS lookup` resolve rather than throw.
+          if (!isClaimableDomain(current.domain, loadPublicEmailPolicy(this.policyDirectory)))
+            throw new Error(`verified domain ${current.id} is no longer claimable`);
+          tx.update(organizationDomainClaim)
+            .set({
+              lastCheckedAt: at,
+              ...(matched ? { lastSuccessAt: at } : {}),
+              ...auditOnUpdate({ at }),
+            })
+            .where(eq(organizationDomainClaim.id, proof.id))
+            .run();
+          return 'checked' as const;
+        },
+        { behavior: 'immediate' },
+      );
+    });
+  }
 
   /** Reads only a current organization's pending claim after current role and marker checks. */
   async readPendingClaim(
@@ -200,6 +289,8 @@ export class DomainClaimRepository implements DomainChallenges {
             domain: organizationDomainClaim.domain,
             status: organizationDomainClaim.status,
             challengeExpiresAt: organizationDomainClaim.challengeExpiresAt,
+            lastSuccessAt: organizationDomainClaim.lastSuccessAt,
+            lastCheckedAt: organizationDomainClaim.lastCheckedAt,
           })
           .from(organizationDomainClaim)
           // Proof: 2026-09-28, dropping this predicate made mounted `lists only
@@ -207,6 +298,16 @@ export class DomainClaimRepository implements DomainChallenges {
           .where(eq(organizationDomainClaim.organizationId, organizationId))
           .orderBy(organizationDomainClaim.domain)
           .all()
+          .map((claim) => ({
+            ...claim,
+            // Proof: 2026-09-28, forcing false made mounted `shows retained
+            // proof check timestamps and a warning after a failed day-seven
+            // check` hide the warning after DNS timeout.
+            proofWarning:
+              claim.lastCheckedAt !== null &&
+              claim.lastSuccessAt !== null &&
+              claim.lastCheckedAt > claim.lastSuccessAt,
+          }))
       );
     });
   }

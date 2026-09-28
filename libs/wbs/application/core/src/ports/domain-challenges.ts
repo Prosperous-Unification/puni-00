@@ -6,6 +6,9 @@ export interface DomainClaimSummary {
   readonly domain: string;
   readonly status: 'pending' | 'verified' | 'suspended';
   readonly challengeExpiresAt: number | null;
+  readonly lastSuccessAt: number | null;
+  readonly lastCheckedAt: number | null;
+  readonly proofWarning: boolean;
 }
 
 /** A pending, authorized claim captured before an external DNS lookup. */
@@ -19,6 +22,26 @@ export interface PendingDomainClaim {
 /** Authoritative TXT records, one DNS TXT record per string; failure throws. */
 export interface DomainResolver {
   lookupTxt(name: string, signal: AbortSignal): Promise<readonly string[]>;
+}
+
+/** A due verified claim, captured before an authoritative DNS lookup. */
+export interface RetainedDomainProof {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly domain: string;
+  readonly proofDigest: string;
+  readonly lastCheckedAt: number;
+}
+
+/** The write side of periodic proof checks; completion rechecks this snapshot. */
+export interface DomainProofChecks {
+  readonly resolver: DomainResolver;
+  readDueProofs(at: number): Promise<readonly RetainedDomainProof[]>;
+  finishProofCheck(
+    proof: RetainedDomainProof,
+    matched: boolean,
+    at: number,
+  ): Promise<'checked' | 'stale'>;
 }
 
 /** Initial challenge persistence, with authority rechecked in the committing transaction. */

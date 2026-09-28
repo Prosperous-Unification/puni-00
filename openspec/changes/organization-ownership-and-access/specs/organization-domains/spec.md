@@ -54,6 +54,14 @@ On successful initial verification, WBS SHALL promote the verified challenge dig
 - **WHEN** the day-7 check finds the retained current TXT ownership proof
 - **THEN** verification succeeds and the domain stays verified
 
+#### Scenario: Retained check warning
+
+- **GIVEN** a verified domain is due seven days after its last check
+- **WHEN** authoritative DNS times out or lacks the exact retained proof
+- **THEN** WBS records the check time without advancing the success time, keeps ownership and verified status during this slice, and domain GET shows a proof warning without revealing the digest
+- **AND** an exact successful check advances both timestamps and clears the warning, even after the initial challenge expiry
+- **AND** a release or proof change during lookup prevents the old result from updating the claim
+
 #### Scenario: Domain proof disappears
 
 - **GIVEN** a verified domain has no successful TXT proof for 14 days

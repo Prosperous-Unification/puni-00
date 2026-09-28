@@ -34,6 +34,7 @@ import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { delegationVerifier } from '../runtime/delegation';
+import { runDomainProofWorker } from '../runtime/domain-proof-worker';
 import { AuthService } from '../service/auth.service';
 import { CalendarMarkerService } from '../service/calendar-marker.service';
 import { DirectoryService } from '../service/directory.service';
@@ -82,6 +83,7 @@ export class OrganizationHarness {
     /** A raw connection the app does not hold, as a second process would. */
     readonly sqlite: ReturnType<typeof openDatabase>,
     private readonly bound: Map<string, string>,
+    private readonly domains: DomainClaimRepository,
     private readonly retryHash?: (projectId: string) => Promise<string>,
     private readonly retryDecision?: (
       projectId: string,
@@ -90,6 +92,11 @@ export class OrganizationHarness {
       inputHash: string,
     ) => Promise<string>,
   ) {}
+
+  /** Runs one injected dormant worker pass against this harness's SQLite claim store. */
+  checkDomains(at: number): Promise<{ checked: number; stale: number }> {
+    return runDomainProofWorker(this.domains, at);
+  }
 
   /**
    * `delegationKey`, when given, is the RS256 public key the app verifies
@@ -106,6 +113,7 @@ export class OrganizationHarness {
     runMigrations(path, FOLDER);
     const db = openDrizzle(path);
     const gate = new WriteCoordinator();
+    const domains = new DomainClaimRepository(db, gate, policyDirectory, resolver);
     const bound = new Map<string, string>();
     const projects = new ProjectRepository(db, OPEN);
     const directoryStore = new DirectoryRepository(db, OPEN);
@@ -165,7 +173,7 @@ export class OrganizationHarness {
         Promise.resolve(bound.get(userId) ?? null),
       ),
       memberships: new OrganizationRepository(db, OPEN),
-      domains: new DomainClaimRepository(db, gate, policyDirectory, resolver),
+      domains,
       onboarding: new OnboardingRepository(db, OPEN),
       ...(delegationKey === undefined
         ? {}
@@ -194,7 +202,7 @@ export class OrganizationHarness {
       writes: testWrites(undefined, writing),
       migrationsApplied: true,
     });
-    return new OrganizationHarness(dir, app, openDatabase(path), bound);
+    return new OrganizationHarness(dir, app, openDatabase(path), bound, domains);
   }
 
   /**
@@ -270,6 +278,7 @@ export class OrganizationHarness {
       app,
       openDatabase(path),
       bound,
+      new DomainClaimRepository(source.db, services.gate),
       async (projectId) => {
         const input = await services.workItems.scheduleInput(projectId);
         if (input === null) throw new Error(`project ${projectId} has no optimization input`);

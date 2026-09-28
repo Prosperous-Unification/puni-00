@@ -58,6 +58,147 @@ afterEach(() => {
 const path = '/api/organization/domains/challenges';
 
 describe('mounted organization domain challenges', () => {
+  it('shows retained proof check timestamps and a warning after a failed day-seven check', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    expect(
+      (await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`)).status,
+    ).toBe(200);
+    const listed = await harness.call('owner', 'GET', '/api/organization/domains');
+    expect(listed.status).toBe(200);
+    const initial = (
+      listed.body as {
+        domains: { lastSuccessAt: number; lastCheckedAt: number; proofWarning: boolean }[];
+      }
+    ).domains[0];
+    expect(typeof initial.lastSuccessAt).toBe('number');
+    expect(typeof initial.lastCheckedAt).toBe('number');
+    expect(initial.proofWarning).toBe(false);
+    const dayZero = Date.now();
+    harness.sqlite.run(
+      'UPDATE organization_domain_claim SET last_success_at = ?, last_checked_at = ? WHERE id = ?',
+      [dayZero, dayZero, issued.id],
+    );
+    expect(await harness.checkDomains(dayZero + 6 * 24 * 60 * 60 * 1000)).toEqual({
+      checked: 0,
+      stale: 0,
+    });
+    dnsRecords = 'hang';
+    await harness.checkDomains(dayZero + 7 * 24 * 60 * 60 * 1000);
+    const warned = await harness.call('owner', 'GET', '/api/organization/domains');
+    expect(
+      (
+        warned.body as {
+          domains: { lastSuccessAt: number; lastCheckedAt: number; proofWarning: boolean }[];
+        }
+      ).domains[0],
+    ).toMatchObject({
+      lastSuccessAt: dayZero,
+      lastCheckedAt: dayZero + 7 * 24 * 60 * 60 * 1000,
+      proofWarning: true,
+    });
+    const lastHex = issued.dnsValue.slice(-1);
+    dnsRecords = [`${issued.dnsValue.slice(0, -1)}${lastHex === '0' ? '1' : '0'}`];
+    await harness.checkDomains(dayZero + 14 * 24 * 60 * 60 * 1000);
+    const mismatched = await harness.call('owner', 'GET', '/api/organization/domains');
+    expect(
+      (mismatched.body as { domains: { lastSuccessAt: number; proofWarning: boolean }[] })
+        .domains[0],
+    ).toMatchObject({ lastSuccessAt: dayZero, proofWarning: true });
+    dnsRecords = [issued.dnsValue];
+    await harness.checkDomains(dayZero + 21 * 24 * 60 * 60 * 1000);
+    const recovered = await harness.call('owner', 'GET', '/api/organization/domains');
+    expect(
+      (
+        recovered.body as {
+          domains: { lastSuccessAt: number; lastCheckedAt: number; proofWarning: boolean }[];
+        }
+      ).domains[0],
+    ).toMatchObject({
+      lastSuccessAt: dayZero + 21 * 24 * 60 * 60 * 1000,
+      proofWarning: false,
+      status: 'verified',
+    });
+  });
+
+  it('leaves planted retained proof untouched before activation', async () => {
+    const at = Date.now();
+    harness.sqlite.run(
+      "INSERT INTO organization_domain_claim (id, organization_id, domain, status, proof_digest, last_success_at, last_checked_at, created_at, updated_at) VALUES ('planted', 'org-a', 'example.org', 'verified', 'digest', ?, ?, ?, ?)",
+      [at, at, at, at],
+    );
+    expect(await harness.checkDomains(at + 7 * 24 * 60 * 60 * 1000)).toEqual({
+      checked: 0,
+      stale: 0,
+    });
+    expect(
+      harness.sqlite
+        .query("SELECT last_checked_at FROM organization_domain_claim WHERE id = 'planted'")
+        .get(),
+    ).toEqual({ last_checked_at: at });
+  });
+
+  it('does not record a retained check after its claim is released during DNS lookup', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    expect(
+      (await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`)).status,
+    ).toBe(200);
+    const due = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    beforeDnsReply = () => {
+      beforeDnsReply = undefined;
+      harness.sqlite.run('DELETE FROM organization_domain_claim WHERE id = ?', [issued.id]);
+    };
+    expect(await harness.checkDomains(due)).toEqual({ checked: 0, stale: 1 });
+    expect(
+      harness.sqlite.query('SELECT id FROM organization_domain_claim WHERE id = ?').get(issued.id),
+    ).toBeNull();
+  });
+
+  it('refuses a retained check when maintained policy changes during DNS lookup', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    expect(
+      (await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`)).status,
+    ).toBe(200);
+    const before = harness.sqlite
+      .query('SELECT last_checked_at FROM organization_domain_claim WHERE id = ?')
+      .get(issued.id);
+    beforeDnsReply = () => {
+      beforeDnsReply = undefined;
+      const directory = policyDirectory;
+      if (directory === undefined) throw new Error('policy fixture missing');
+      const asset = join(directory, 'public-email-policy.v1.json');
+      const content = readFileSync(asset, 'utf8').replace('"co.jp",', '"example.org", "co.jp",');
+      writeFileSync(asset, content);
+      pinAsset(directory, content);
+    };
+    let refusal: unknown;
+    try {
+      await harness.checkDomains(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    } catch (error) {
+      refusal = error;
+    }
+    expect(refusal).toBeInstanceOf(Error);
+    expect((refusal as Error).message).toContain('no longer claimable');
+    expect(
+      harness.sqlite
+        .query('SELECT last_checked_at FROM organization_domain_claim WHERE id = ?')
+        .get(issued.id),
+    ).toEqual(before);
+  });
   it('verifies only an exact current TXT value and retains its digest', async () => {
     harness.activate();
     const issued = await harness.call('owner', 'POST', path, { domain: 'example.org' });
