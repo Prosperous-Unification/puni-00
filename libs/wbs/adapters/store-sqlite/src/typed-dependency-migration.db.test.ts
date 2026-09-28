@@ -12,7 +12,7 @@ import { rollbackTo } from './migrate-down';
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const TYPED = '20260927213000_add_typed_dependency';
 /** The migration below this one, where every rollback here stops. */
-const BASELINE = '20260927190000_add_organization_bridge';
+const BASELINE = '20260927200000_freeze_organization_ownership';
 let dir: string;
 let path: string;
 

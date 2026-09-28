@@ -481,14 +481,45 @@ describe('sharing the plan', () => {
         'Download chart as SVG',
         'Download what’s on screen',
         'Download JSON',
+        'Import with AI',
       ],
     );
+    // Proof: on 2026-09-27, taking `<ImportWithAiHelp />` out of the menu failed this on the
+    // missing 'Import with AI'.
     const importInput = screen.getByLabelText<HTMLInputElement>('Import JSON');
     expect(importInput).toHaveAttribute('type', 'file');
     expect(importInput).toHaveAttribute('accept', 'application/json');
     expect(menu).toContainElement(importInput);
     // Proof: the `<details>` replaced by a plain `<div>` around the controls, this
     // failed on `no Export menu on the toolbar`. Watched, 2026-08-28.
+  });
+
+  itDom('keeps Export / Import open while its Import with AI dialog is used', async () => {
+    const api = fakeApi();
+    render(
+      <WbsTableOverClient
+        projectId="p1"
+        projectServices={projectServicesOf(api)}
+        projectName="Rewire the shed"
+      />,
+    );
+    const trigger = await screen.findByRole('button', { name: 'Import with AI' });
+    const menu = document.querySelector<HTMLDetailsElement>('[data-toolbar] details[data-export]');
+    if (menu === null) throw new Error('no Export menu on the toolbar');
+    menu.open = true;
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const copy = await screen.findByRole('button', { name: 'Copy import prompt' });
+    fireEvent.pointerDown(copy);
+    fireEvent.click(copy);
+    expect(menu.open).toBe(true);
+
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Import with AI' }), { key: 'Escape' });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Import with AI' })).toBeNull();
+    });
+    expect(trigger).toHaveFocus();
   });
 
   itDom('disables the import file control while an import is in flight', async () => {

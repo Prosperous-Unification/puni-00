@@ -3,6 +3,7 @@ import type {
   Clock,
   HistoryService,
   ImportService,
+  OrganizationAccess,
   ReplayOrchestrator,
   SavedPlanService,
 } from '@wbs/core';
@@ -66,6 +67,12 @@ export interface AppOptions {
    * rather than a process built without its domain.
    */
   projects: ProjectService;
+  /**
+   * Resolves each protected request's organization authority. Required: a
+   * default would have to be legacy access, which is exactly the answer an
+   * activated deployment must never give by omission.
+   */
+  organizations: OrganizationAccess;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
   /** The manual Retry admission seam; absent only in optimizer-less deployments and tests. */
@@ -237,34 +244,37 @@ export function mountedEndpoints(
     ...smokeRoutes(),
     ...stepRoutes(
       {
-        add: (...args) => opts.steps.add(...args),
-        rename: (...args) => opts.steps.rename(...args),
-        find: (...args) => opts.steps.find(...args),
-        remove: admitted.removeStep,
+        addWithin: (...args) => opts.steps.addWithin(...args),
+        findWithin: (...args) => opts.steps.findWithin(...args),
+        renameWithin: (...args) => opts.steps.renameWithin(...args),
+        removeWithin: admitted.removeStepWithin,
       },
       commands,
+      opts.organizations,
     ),
-    ...directoryRoutes(opts.directory),
+    ...directoryRoutes(opts.directory, opts.organizations),
     ...historyRoutes(opts.history),
     ...solutionRoutes(opts.projects),
     // Proof: omitting this spread made the production import reachability test receive 404.
     ...importRoutes(opts.writes.imports),
     ...projectRoutes(
       {
-        create: (...args) => opts.projects.create(...args),
-        list: (...args) => opts.projects.list(...args),
-        open: (...args) => opts.projects.open(...args),
-        read: (...args) => opts.projects.read(...args),
-        update: admitted.updateProject,
+        authorizeEdit: (...args) => opts.projects.authorizeEdit(...args),
+        createWithin: (...args) => opts.projects.createWithin(...args),
+        listWithin: (...args) => opts.projects.listWithin(...args),
+        openWithin: (...args) => opts.projects.openWithin(...args),
+        readWithin: (...args) => opts.projects.readWithin(...args),
+        updateWithin: admitted.updateProjectWithin,
       },
+      opts.organizations,
       opts.workItems,
       opts.directory,
       opts.calendarMarkers,
       opts.clock,
       opts.optimizer,
     ),
-    ...workItemRoutes(opts.workItems, commands, nodeDigest),
-    ...calendarMarkerRoutes(opts.calendarMarkers),
+    ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),
+    ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations),
     ...savedPlanRoutes(opts.savedPlans, opts.projects, opts.writes.announcements),
     ...internalRoutes({
       // A deliberate pure ack: every mutation is an HTTP call to be-01, so a

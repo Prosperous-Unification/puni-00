@@ -13,6 +13,7 @@ import { testClock } from './testing/clock-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
 import { testHistoryService } from './testing/history-fixture';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
+import { legacyOrganizationAccess } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { testProjectService } from './testing/project-fixture';
 import { testReplay } from './testing/replay-fixture';
@@ -64,6 +65,7 @@ async function signedInProbe(): Promise<{
 
 function optionsFor(auth: AuthService, internalAuthSecret = TEST_SECRET): AppOptions {
   return {
+    organizations: legacyOrganizationAccess,
     clock: testClock,
     appOrigin: 'http://localhost',
     loginThrottle: testLoginThrottle(),
