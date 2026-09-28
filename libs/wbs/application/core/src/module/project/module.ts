@@ -21,7 +21,7 @@ import { ProjectService, type ProjectServiceOptions } from './project.resource';
  * optimizer on, as it always has.
  *
  * The module registers no disposer: `ProjectService` holds the borrowed store
- * of one scope, a clock, a broadcaster and a predicate, and no handle of its
+ * of one scope, a clock, a broadcaster, a predicate and a dependency graph guard, and no handle of its
  * own.
  */
 export const projectModule = DiBag.createBuilder()
@@ -32,11 +32,13 @@ export const projectModule = DiBag.createBuilder()
         clock,
         broadcast,
         optimizerAvailable,
+        dependencyGraph,
       }: {
         projectStore: ProjectStore;
         clock: Clock;
         broadcast: Broadcaster;
         optimizerAvailable: OptimizerAvailability | undefined;
+        dependencyGraph: ProjectServiceOptions['dependencyGraph'];
       }): ProjectServiceOptions => ({
         projects: projectStore,
         clock,
@@ -45,6 +47,7 @@ export const projectModule = DiBag.createBuilder()
         // `switches the optimizer on through the availability installProject wires` failing
         // (4 pass, 1 fail): the update answered `optimizer_unavailable`.
         optimizerAvailable,
+        dependencyGraph,
       }),
       { factoryReturnKind: 'sync-value' },
     ),

@@ -18,6 +18,7 @@ import { ProjectRepository } from '../repository/project';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { optimizedScheduleCache, solverQueue, solverSlot } from '../repository/schema';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import {
   OptimizationCoordinator,
   type ReservedSolverChild,
@@ -49,6 +50,7 @@ const INPUT: ScheduleInput = {
   notBefore: new Map(),
   poolSizes: new Map(),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
 };
 const dirs: string[] = [];
@@ -175,6 +177,7 @@ describe('cross-coordinator cancellation', () => {
 
     const broadcast = recordingBroadcaster();
     const service = new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(green, new ProjectRepository(green, OPEN)),
       projects: new ProjectRepository(green, OPEN),
       broadcast,
       optimizerAvailable: () => true,

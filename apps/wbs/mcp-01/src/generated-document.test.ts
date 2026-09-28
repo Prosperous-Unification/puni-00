@@ -10,6 +10,28 @@ test('default MCP document is generated directly from the shared declarations', 
   expect(tools.map((tool) => tool.name)).toContain('getApiProjectsByIdSaved-plansCompare');
 });
 
+test('generated project command tool exposes addTypedDependency with endpoints', () => {
+  const tool = toolsFromDocument(readDocument()).find(
+    (candidate) => candidate.name === 'postApiProjectsByIdCommands',
+  );
+  if (tool === undefined) throw new Error('Project command tool missing');
+  const commands = tool.inputSchema.properties['commands'] as {
+    items: {
+      anyOf: {
+        properties: { kind: { const: string }; predecessor?: unknown; successor?: unknown };
+        required: string[];
+      }[];
+    };
+  };
+  const add = commands.items.anyOf.find(
+    (arm) => arm.properties.kind.const === 'addTypedDependency',
+  );
+  for (const field of ['kind', 'predecessor', 'successor', 'type'])
+    expect(add?.required).toContain(field);
+  expect(add?.properties.predecessor).toBeDefined();
+  expect(add?.properties.successor).toBeDefined();
+});
+
 test('required exclusion drift remains a failure when operational routes are absent', () => {
   const document = documentFromShapes(httpShapes);
   for (const path of Object.keys(document.paths))

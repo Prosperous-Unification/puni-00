@@ -15,6 +15,7 @@ import type { SavedPlanCaptureStore } from './saved-plan-capture-store';
 import type { SavedPlanStore } from './saved-plan-store';
 import type { StepStore } from './step-store';
 import type { SubtreeStore } from './subtree-store';
+import type { TypedDependencyStore } from './typed-dependency-store';
 import type { OidcIdentityStore, UserStore } from './user-store';
 import type { WorkItemStore } from './work-item-store';
 
@@ -34,6 +35,7 @@ export interface PlanTransactionalStores {
   measures: MeasureStore;
   progress: StepProgressStore;
   dependencies: DependencyStore;
+  typedDependencies: TypedDependencyStore;
   subtrees: SubtreeStore;
   journal: CommandJournalStore;
 }

@@ -7,12 +7,14 @@ import {
   indexTree,
   leafDeadlinesOf,
   leafFloorsOf,
+  leavesUnderOf,
   type PlannedRow,
   type PoolSizes,
   priorityByLeaf,
   priorityWeights,
   type Slice,
   SOLVER_QUANTUM,
+  type TypedDependency,
 } from '@wbs/domain';
 
 import { buildSolverEdges } from './build-solver-edges';
@@ -52,6 +54,8 @@ export interface SolverRequestPlan {
   readonly poolSizes: PoolSizes;
   readonly reach: DependencyReach;
   readonly deadlines: ReadonlyMap<string, number>;
+  /** The typed dependencies, resolved into edges beside the legacy ones. */
+  readonly typed: readonly TypedDependency[];
 }
 
 /**
@@ -179,7 +183,14 @@ export function buildSolverRequest(
     deadlines: leafDeadlinesOf(plan.deadlines, index),
     weights: priorityWeights(priorityByLeaf(plan.rows, index)),
   });
-  const edges = buildSolverEdges(leafIds, slicesOf, expandToLeaves(index, plan.edges), plan.reach);
+  // Proof: the typed list replaced by `[]` here made `carries one FS edge per
+  // resolved leaf pair of a parent relationship` fail on `Expected to contain`
+  // the P1.qa → B.dev edge, and the revalidation case report the violation as
+  // `objective-mismatch` instead of `edge-violated`; watched 2026-09-27.
+  const edges = buildSolverEdges(leafIds, slicesOf, expandToLeaves(index, plan.edges), plan.reach, {
+    dependencies: plan.typed,
+    leavesUnder: leavesUnderOf(index),
+  });
   const pools = buildSolverPools(slices, plan.poolSizes);
 
   const named = new Set(slices.map((slice) => slice.key));

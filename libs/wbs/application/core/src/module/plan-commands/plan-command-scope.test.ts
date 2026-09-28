@@ -138,6 +138,9 @@ describe('the command runner builds services from each unit-of-work scope', () =
         },
         patch: () => Promise.resolve({ ok: false as const, reason: 'not_found' as const }),
         hasWorkItemInProject: () => Promise.resolve(false),
+        // `createWorkItem` is graph-changing, so the runner asks after it; this
+        // staged plan holds no dependencies, so the graph has no cycle.
+        findDependencyCycle: () => Promise.resolve(null),
         undoState: () => {
           if (publicGraph) publicReads += 1;
           return Promise.resolve({

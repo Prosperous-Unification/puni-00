@@ -307,6 +307,7 @@ const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
  * {@link ORGANIZATION_BRIDGE} and reversed before it.
  */
 const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 // `step` since 20260831120000_rename_role_to_step. Every raw statement in this
@@ -412,6 +413,7 @@ describe('the WBS domain migration', () => {
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -758,6 +760,7 @@ describe('the capacity migrations', () => {
 
       expect(reversed).toEqual([
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -1242,6 +1245,7 @@ describe('the work item team migration', () => {
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -1493,6 +1497,7 @@ describe('the priority band migration', () => {
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -1796,6 +1801,7 @@ describe('the plan event migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -2037,6 +2043,7 @@ describe('the actual migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -2322,6 +2329,7 @@ describe('the step progress migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -2591,6 +2599,7 @@ describe('the not-before reason migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -2851,6 +2860,7 @@ describe('the tag migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -3216,6 +3226,7 @@ describe('the service migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -3373,6 +3384,7 @@ describe('the work-item-service migration', () => {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
       '20260927220000_add_organization_audit',
+      TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
@@ -3541,6 +3553,7 @@ describe('the work-item-service migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -3842,6 +3855,7 @@ describe('the step measure migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -3942,6 +3956,7 @@ describe('the person kind migration', () => {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
       '20260927220000_add_organization_audit',
+      TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
@@ -4182,6 +4197,7 @@ describe('the person kind migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -4383,6 +4399,7 @@ describe('the step allowance migration', () => {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -4422,6 +4439,7 @@ describe('the step allowance migration', () => {
 
       expect(rollbackTo(db.path, FOLDER, STEP_CODE)).toEqual([
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
