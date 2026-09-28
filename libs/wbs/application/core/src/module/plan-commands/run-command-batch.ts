@@ -44,6 +44,9 @@ export function runCommandBatchAfter<R>(
   input: RunCommandBatchInput & { readonly projectId: string },
   prelude: BatchPrelude<R>,
 ): Promise<RunCommandBatchOutcome | PreludeRefusal<R>> {
+  // Proof: without this branch, `refuses a read-only actor before the prelude
+  // or the runner can write` (admission.test.ts) answered ok:true; watched
+  // 2026-09-28.
   if (!input.actor.scopes.includes('write')) {
     return Promise.resolve({ ok: false, error: 'insufficient_scope' });
   }

@@ -13,7 +13,7 @@ import { inMemoryServices } from '../testing/harness';
 import { batchServices, testWrites } from '../testing/writes-fixture';
 import { replay } from './replay';
 import { retentionSweep } from './retention-sweep';
-import { runCommandBatch } from './run-command-batch';
+import { runCommandBatch, runCommandBatchAfter } from './run-command-batch';
 import { savePlan } from './save-plan';
 
 const writer: AuthenticatedUser = { id: 'owner', username: 'Ada', scopes: ['read', 'write'] };
@@ -78,6 +78,30 @@ describe('runCommandBatch', () => {
     // Proof: replacing absent.id with "owner" returned ok:true and created one work item.
     expect(await plan.stores.workItems.listByProject('p1')).toEqual([]);
     expect(writes.uow.calls).toEqual(['begin', 'rollback']);
+  });
+});
+
+describe('runCommandBatchAfter', () => {
+  test('refuses a read-only actor before the prelude or the runner can write', async () => {
+    const writes: string[] = [];
+    const outcome = await runCommandBatchAfter(
+      {
+        runAfterWithin: async (_projectId, _actorId, prelude) => {
+          writes.push('ran');
+          await prelude({} as never);
+          return { ok: true, results: [], undoable: false, redoable: false };
+        },
+      },
+      { projectId: 'p1', actor: reader, commands: [], access: LEGACY_ACCESS },
+      () => {
+        writes.push('renamed');
+        return Promise.resolve(null);
+      },
+    );
+    // Proof: deleting the write-scope branch returned ok:true here, with
+    // `ran` and `renamed` written; watched 2026-09-28.
+    expect(outcome).toEqual({ ok: false, error: 'insufficient_scope' });
+    expect(writes).toEqual([]);
   });
 });
 
