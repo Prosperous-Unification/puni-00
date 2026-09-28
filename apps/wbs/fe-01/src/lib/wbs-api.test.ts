@@ -1023,6 +1023,26 @@ describe('the browser writes through command batches (plan-commands)', () => {
       [() => api.clearEstimate('w1', 'r1'), 'clearEstimate'],
       [() => api.assignPerson('w1', 'r1', 'k'), 'setAssignee'],
       [() => api.addDependency('w2', 'w1'), 'addDependency'],
+      [
+        () =>
+          api.addTypedDependency(
+            'p1',
+            { scope: 'whole', workItemId: 'w1' },
+            { scope: 'whole', workItemId: 'w2' },
+          ),
+        'addTypedDependency',
+      ],
+      [
+        () =>
+          api.updateTypedDependency(
+            'p1',
+            'd1',
+            { scope: 'whole', workItemId: 'w1' },
+            { scope: 'whole', workItemId: 'w2' },
+          ),
+        'updateTypedDependency',
+      ],
+      [() => api.removeTypedDependency('p1', 'd1'), 'removeTypedDependency'],
       [() => api.removeDependency('w2', 'w1'), 'removeDependency'],
       [() => api.freezeProject('p1'), 'freezeProject'],
       [() => api.unfreezeProject('p1'), 'unfreezeProject'],
@@ -1043,6 +1063,18 @@ describe('the browser writes through command batches (plan-commands)', () => {
         body.commands.map((each) => each.kind),
         kind,
       ).toEqual([kind]);
+      if (kind === 'addTypedDependency' || kind === 'updateTypedDependency') {
+        expect(body.commands[0]).toMatchObject({
+          kind,
+          predecessor: { scope: 'whole', workItemId: 'w1' },
+          successor: { scope: 'whole', workItemId: 'w2' },
+          type: 'FS',
+          ...(kind === 'updateTypedDependency' ? { dependencyId: 'd1' } : {}),
+        });
+      }
+      if (kind === 'removeTypedDependency') {
+        expect(body.commands[0]).toEqual({ kind, dependencyId: 'd1' });
+      }
     }
     // And the create answers the id the batch minted, as the route did.
     await expect(

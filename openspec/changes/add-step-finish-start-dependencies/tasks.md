@@ -78,12 +78,12 @@
 
 ## 10. Expose editing and graph geometry
 
-- [ ] 10.1 Red: one-click default, same-step preselection from a step cell (unavailable when the predecessor lacks it), step-reference chips and descendant-step chip spelling, Customize without write, keyboard/mobile and refused picker choices.
-- [ ] 10.2 Implement picker, chip, card and accessible edit flow.
-- [ ] 10.3 Negative proof: write on Customize activation; watch the no-write test fail, restore, add adjacent `Proof:`.
-- [ ] 10.4 Red: selected FS ticks, unknown placeholder and collapsed-parent proxy geometry.
-- [ ] 10.5 Draw actual boundary arrows and grouped proxies.
-- [ ] 10.6 Negative proof: anchor an arrow to placeholder width; watch geometry fail, restore, add adjacent `Proof:`.
+- [x] 10.1 Red: one-click default, same-step preselection from a step cell (unavailable when the predecessor lacks it), step-reference chips and descendant-step chip spelling, Customize without write, keyboard/mobile and refused picker choices.
+- [x] 10.2 Implement picker, chip, card and accessible edit flow.
+- [x] 10.3 Negative proof: write on Customize activation; watch the no-write test fail, restore, add adjacent `Proof:`.
+- [x] 10.4 Red: selected FS ticks, unknown placeholder and collapsed-parent proxy geometry.
+- [x] 10.5 Draw actual boundary arrows and grouped proxies.
+- [x] 10.6 Negative proof: anchor an arrow to placeholder width; watch geometry fail, restore, add adjacent `Proof:`.
 
 ## 11. Verify
 

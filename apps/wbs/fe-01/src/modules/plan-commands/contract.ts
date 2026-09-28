@@ -27,6 +27,9 @@ export const PROJECT_COMMAND_ROUTES = [
   'arrangeBySchedule',
   'freezeProject',
   'unfreezeProject',
+  'addTypedDependency',
+  'updateTypedDependency',
+  'removeTypedDependency',
 ] as const;
 
 /**

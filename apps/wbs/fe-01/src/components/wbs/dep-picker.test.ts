@@ -46,9 +46,9 @@ describe('pickerEntries', () => {
     expect(offered.map((r) => r.name)).toEqual(['Design API']);
   });
 
-  it('never offers the row itself or its existing predecessors', () => {
+  it('offers a legacy predecessor for another scoped relationship but never the row itself', () => {
     const offered = pickerEntries(rows, { id: 'b', dependsOn: ['a'] }, '');
-    expect(offered.map((r) => r.id)).toEqual(['c', 'd']);
+    expect(offered.map((r) => r.id)).toEqual(['a', 'c', 'd']);
   });
 
   it('offers nothing when nothing matches', () => {

@@ -2,6 +2,8 @@ import type { ExpandedState } from '@tanstack/react-table';
 import type * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import type { TypedDependencyView } from '@/lib/wbs-api';
+
 import {
   type Caret,
   type CellRef,
@@ -197,6 +199,7 @@ export function usePlanKeyboard({
   outdent,
   indent,
   drafts,
+  typedDependencies,
   removeEmptyRow,
   busy,
   pushToast,
@@ -213,6 +216,7 @@ export function usePlanKeyboard({
   outdent: (row: TreeRow, landOn?: string) => Promise<CommitOutcome>;
   indent: (row: TreeRow, landOn?: string) => Promise<CommitOutcome>;
   drafts: Record<string, string>;
+  typedDependencies: readonly TypedDependencyView[];
   removeEmptyRow: (row: TreeRow) => Promise<CommitOutcome>;
   busy: boolean;
   pushToast: (toast: Toast) => void;
@@ -310,6 +314,14 @@ export function usePlanKeyboard({
           row.notes === '' &&
           row.subRows.length === 0 &&
           row.dependsOn.length === 0 &&
+          // Proof: omitting this authored-link guard made `anything the item holds vetoes
+          // the backspace removal` call removeWorkItem for row 050 (`[['w6', undefined]]`
+          // instead of `[]`) after a typed FS write. Watched 2026-09-27.
+          !typedDependencies.some(
+            (dependency) =>
+              dependency.predecessor.workItemId === row.id ||
+              dependency.successor.workItemId === row.id,
+          ) &&
           Object.keys(row.estimates).length === 0 &&
           // A half-typed estimate is not stored yet — it is a draft waiting for
           // the rest of its trio — and deleting the row would take it with it
@@ -320,7 +332,7 @@ export function usePlanKeyboard({
         void removeEmptyRow(row);
       }
     },
-    [attachCell, drafts, indent, logicalCells, outdent, removeEmptyRow],
+    [attachCell, drafts, indent, logicalCells, outdent, removeEmptyRow, typedDependencies],
   );
 
   /**
