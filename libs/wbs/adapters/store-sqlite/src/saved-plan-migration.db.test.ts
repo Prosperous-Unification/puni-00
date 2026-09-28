@@ -168,6 +168,7 @@ describe('the saved-plan migration', () => {
     expect(columnsOf('saved_plan_body')).toContain('bytes');
 
     expect(rollbackTo(path, FOLDER, LOOKUP_INDEXES)).toEqual([
+      '20260928030000_add_delegation_use',
       '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
       ORGANIZATION_FROZEN,

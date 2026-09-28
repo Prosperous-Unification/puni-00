@@ -20,7 +20,7 @@ import { directoryRoutes } from './controller/directory.routes';
 import { historyRoutes } from './controller/history.routes';
 import { importRoutes } from './controller/import.routes';
 import { infrastructureEndpoints } from './controller/infrastructure-endpoints';
-import { internalRoutes } from './controller/internal.routes';
+import { gatewayAccessRoutes, internalRoutes } from './controller/internal.routes';
 import type { OidcRouteOptions } from './controller/oidc-options';
 import { projectRoutes } from './controller/project.routes';
 import { savedPlanRoutes } from './controller/saved-plan.routes';
@@ -137,7 +137,7 @@ export interface AppOptions {
   /**
    * Verifies WBS-signed delegation tokens (task 2.5). Absent, every delegation
    * is refused with 401 (`REFUSE_DELEGATIONS`): production issues none yet,
-   * so the path stays inert until the delegation key is configured.
+   * so the path stays inert. Configuring keys alone never activates it.
    */
   delegation?: DelegationVerifier;
   /**
@@ -284,6 +284,7 @@ export function mountedEndpoints(
       onForward: () => Promise.resolve({ push_responses: [] }),
       onResume: (points) => opts.replay.replay(points),
     }),
+    ...gatewayAccessRoutes(opts.projects, opts.organizations),
   ] as const;
 }
 

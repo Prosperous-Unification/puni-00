@@ -45,6 +45,13 @@ An authenticated WBS request SHALL carry exactly one server-validated active org
 - **WHEN** the member reads, exports, opens, edits or retries that project by its id
 - **THEN** be-01 answers the same typed 404 it answers for an id that names no project, and changes nothing
 
+#### Scenario: Gateway project access check
+
+- **GIVEN** a gateway bearer bound to organization A and a service credential
+- **WHEN** the gateway posts `/internal/gateway/projects/:projectId/access` for an A project
+- **THEN** be-01 requires both credentials, the gateway audience, read scope and current membership, and answers 204 without granting a lease
+- **AND** a foreign B project and an absent project answer identical 404s; context headers do not select the organization
+
 #### Scenario: Organization-unaware behaviour until activation
 
 - **GIVEN** the durable activation marker says `pre_activation`

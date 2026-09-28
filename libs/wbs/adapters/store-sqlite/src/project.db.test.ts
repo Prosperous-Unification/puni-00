@@ -120,6 +120,7 @@ describe('ProjectRepository', () => {
     await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
+      '20260928030000_add_delegation_use',
       '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
       '20260927200000_freeze_organization_ownership',

@@ -8,6 +8,7 @@ import {
   ExternalIdentityRepository,
   openSqliteSource,
   OrganizationRepository,
+  SqliteDelegationUse,
   SqliteOrganizationAccess,
 } from '@wbs/store-sqlite';
 
@@ -147,11 +148,16 @@ export class OrganizationHarness {
       ...(delegationKey === undefined
         ? {}
         : {
-            delegation: delegationVerifier(delegationKey, async (pair) => {
-              const userId = await new ExternalIdentityRepository(db, OPEN).findUserId(pair);
-              if (userId === null) return null;
-              return new UserRepository(db, OPEN).findById(userId);
-            }),
+            delegation: delegationVerifier(
+              delegationKey,
+              async (pair) => {
+                const userId = await new ExternalIdentityRepository(db, OPEN).findUserId(pair);
+                if (userId === null) return null;
+                return new UserRepository(db, OPEN).findById(userId);
+              },
+              (issuer, jti, expiresAt, now) =>
+                new SqliteDelegationUse(db).consume(issuer, jti, expiresAt, now),
+            ),
           }),
       history: testHistoryService(),
       auth: new AuthService({

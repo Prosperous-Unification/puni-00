@@ -8,6 +8,7 @@ export * from './changes';
 export * from './command-journal';
 export * from './constraint';
 export * from './db';
+export * from './delegation-use';
 export * from './dependency';
 export * from './directory';
 export * from './domain-claim';

@@ -2912,6 +2912,20 @@ export const projectSolution = sqliteTable(
   ],
 );
 
+/** Shared single-use delegation ledger, keyed across every be-01 process. */
+export const delegationUse = sqliteTable(
+  'delegation_use',
+  {
+    issuer: text('issuer').notNull(),
+    jti: text('jti').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.issuer, t.jti] }),
+    index('delegation_use_expires_at').on(t.expiresAt),
+  ],
+);
+
 export const savedPlanOrganization = sqliteTable(
   'saved_plan_organization',
   {

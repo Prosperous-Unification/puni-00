@@ -54,6 +54,14 @@ _Avoid_: join request, signup link
 The single organization that receives WBS content and users from before organization ownership was introduced.
 _Avoid_: default tenant, personal organization
 
+**Delegation**:
+A short-lived WBS-signed authority for one request audience, local user, organization, client, grant and set of scopes, bound to a verified upstream identity.
+_Avoid_: session token, internal service secret
+
+**Delegation use**:
+The single admission of a delegation's issuer and token identifier; a later request presenting that same delegation is a replay.
+_Avoid_: session, command idempotency key
+
 ### WBS
 
 **First visible row**: The first logical plan row whose laid-out box extends below a scrolling face's sticky heading. Its identity plus the fraction hidden by that heading describes the reader's vertical position independently of row height.

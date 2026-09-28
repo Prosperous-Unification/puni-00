@@ -37,11 +37,11 @@
     - It must carry a local user, an organization, a client, a `jti` and known scopes, and its upstream `(issuer, subject)` must map to that same user through `external_identity`.
     - A refused delegation answers 401 and never falls back to session authentication. After activation `OrganizationAccess.resolve(principal)` takes the delegation's organization and rechecks membership.
     - Production wires `REFUSE_DELEGATIONS`, so every delegation is refused until WBS issues them.
+  - Slice 25 (2.5b, done 2026-09-28): dedicated RSA key-pair validation, a credential-bound issuer port and signing primitive, the gateway project access check, and durable single-use `jti` consumption for gateway and MCP bearers. The paired additive `20260928030000_add_delegation_use` migration refuses rollback after activation or while a live use remains. Production still wires `REFUSE_DELEGATIONS` and `REFUSE_DELEGATION_ISSUANCE` even with keys.
   - Open:
-    - issuance and its signing key (`WBS_DELEGATION_SIGNING_KEY`, `WBS_DELEGATION_VERIFY_KEY` configuration);
-    - the gateway audience's consumer (6.1–6.3);
+    - trusted browser/bearer/MCP credential-binding adapters and activation of issuance/verification;
+    - gateway subscription, presence, replay and command enforcement and leases (6.1–6.3); the one project access check is only a primitive;
     - bearer clients' own WBS context;
-    - replay prevention by `jti`;
     - MCP consent binding and epoch (6.4–6.6).
 - [x] 2.6 Make activation marker durable and validate absent, unreadable and malformed trusted marker states separately. Red: each state is refused with its own explicit error and an activated or broken marker refuses the marker migration's reversal. Fault: default one broken state to inactive; observe the reader test fail, restore and add `Proof:`. The swap preflight that reads the marker moves to 7.3 (Astra, 2026-09-27): a target image's missing CLI proves nothing about database state.
 

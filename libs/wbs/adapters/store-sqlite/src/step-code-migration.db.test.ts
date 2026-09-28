@@ -131,6 +131,7 @@ describe(STEP_CODE, () => {
     const before = readStepColumns().map((column) => column.name);
 
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+      '20260928030000_add_delegation_use',
       '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
       ORGANIZATION_FROZEN,

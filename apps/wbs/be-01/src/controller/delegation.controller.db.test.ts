@@ -44,6 +44,7 @@ interface Claims {
   readonly upstream?: string;
   readonly lifetime?: number;
   readonly issuedAgo?: number;
+  readonly scope?: string;
   /** null leaves the grant claim out. */
   readonly grant?: string | null;
 }
@@ -62,7 +63,7 @@ async function delegation(
     org: claims.org ?? 'org-a',
     client: 'client-1',
     ...(claims.grant === null ? {} : { grant: claims.grant ?? 'family-1' }),
-    scope: 'read write',
+    scope: claims.scope ?? 'read write',
     upstream_iss: ISSUER,
     upstream_sub: claims.upstream ?? `sub-${username}`,
   })
@@ -97,6 +98,81 @@ describe('after activation', () => {
     bProject = await project('grace', 'B plan');
   });
 
+  it('admits one gateway project check with both credentials and refuses replay', async () => {
+    const projectId = await project('ada', 'Gateway plan');
+    const path = `/internal/gateway/projects/${projectId}/access`;
+    const token = await delegation({ aud: 'wbs-be-01/via-gw-01' });
+    const headers = { 'x-internal-auth': 'x'.repeat(32) };
+    expect((await h.callWith(token, 'POST', path, undefined, headers)).status).toBe(204);
+    // Proof: bypassing durable consumption answered 204 for this replay
+    // instead of 401; watched 2026-09-28.
+    expect((await h.callWith(token, 'POST', path, undefined, headers)).status).toBe(401);
+    expect(
+      (await h.callWith(await delegation({ aud: 'wbs-be-01/via-gw-01' }), 'POST', path)).body,
+    ).toEqual({ error: 'unauthorized' });
+    expect(
+      (
+        await h.callWith(await delegation(), 'POST', path, undefined, {
+          ...headers,
+          'x-wbs-audience': 'wbs-be-01/via-mcp-01',
+        })
+      ).status,
+    ).toBe(401);
+    const noRead = await delegation({ aud: 'wbs-be-01/via-gw-01', scope: 'write' });
+    expect((await h.callWith(noRead, 'POST', path, undefined, headers)).body).toEqual({
+      error: 'insufficient_scope',
+    });
+    expect((await h.callWith(noRead, 'POST', path, undefined, headers)).status).toBe(401);
+  });
+
+  it('checks gateway membership and returns identical foreign and absent project 404s', async () => {
+    const headers = { 'x-internal-auth': 'x'.repeat(32), 'x-wbs-organization': 'org-b' };
+    const token = () => delegation({ aud: 'wbs-be-01/via-gw-01' });
+    const foreign = await h.callWith(
+      await token(),
+      'POST',
+      `/internal/gateway/projects/${bProject}/access`,
+      undefined,
+      headers,
+    );
+    const absent = await h.callWith(
+      await token(),
+      'POST',
+      '/internal/gateway/projects/absent/access',
+      undefined,
+      headers,
+    );
+    expect(foreign).toEqual(absent);
+    expect(foreign.status).toBe(404);
+    h.sqlite.run('DELETE FROM organization_membership WHERE organization_id = ? AND user_id = ?', [
+      'org-a',
+      h.userId('ada'),
+    ]);
+    const removedMemberToken = await token();
+    expect(
+      (
+        await h.callWith(
+          removedMemberToken,
+          'POST',
+          '/internal/gateway/projects/absent/access',
+          undefined,
+          headers,
+        )
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await h.callWith(
+          removedMemberToken,
+          'POST',
+          '/internal/gateway/projects/absent/access',
+          undefined,
+          headers,
+        )
+      ).status,
+    ).toBe(401);
+  });
+
   it('lists only the delegated organization’s projects', async () => {
     const answer = await h.callWith(await delegation(), 'GET', '/api/projects');
 
@@ -104,6 +180,12 @@ describe('after activation', () => {
     expect(names(answer)).toEqual(['A plan']);
     const toB = await h.callWith(await delegation({ org: 'org-b' }), 'GET', '/api/projects');
     expect(names(toB)).toEqual(['B plan']);
+  });
+
+  it('consumes an MCP delegation once even when the project is missing', async () => {
+    const token = await delegation();
+    expect((await h.callWith(token, 'GET', '/api/projects/absent')).status).toBe(404);
+    expect((await h.callWith(token, 'GET', '/api/projects/absent')).status).toBe(401);
   });
 
   it('refuses a gateway or unknown audience', async () => {

@@ -1,4 +1,5 @@
 import { buildOidcVerifier } from '@wbs/auth';
+import type { DelegationIssuer } from '@wbs/core';
 import type { Logger } from '@wbs/observability';
 import {
   NO_BOUND_ORGANIZATION,
@@ -11,12 +12,16 @@ import { backfillStepCodes } from '@wbs/store-sqlite/step-code-backfill';
 import { DiBag } from 'di-bag';
 
 import { buildApp } from './app';
+import type { DelegationKeys } from './config';
 import type { OidcRouteOptions } from './controller/oidc-options';
 import { readDeployedCommit } from './deployed-commit';
 import { OPEN } from './repository/gate';
 import { probeSchema } from './repository/health-probe';
 import { runMigrations } from './repository/migrate';
 import { UserRepository } from './repository/user';
+import { REFUSE_DELEGATIONS } from './runtime/delegation';
+import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
+import { importDelegationKeys } from './runtime/delegation-keys';
 import type { AuthenticatedUser } from './service/auth.service';
 import { type BeServices, buildServices, type OptimizerRuntime } from './services';
 
@@ -28,6 +33,7 @@ export interface BootOptions {
   jwtKey: string;
   gwUrl: string;
   internalAuthSecret: string;
+  delegationKeys?: DelegationKeys;
   oidc?: OidcRouteOptions;
   localIdentity?: AuthenticatedUser;
   version?: string;
@@ -58,6 +64,8 @@ export interface BootOptions {
 
 export interface RunningBe {
   services: BeServices;
+  /** Remains refusing even when a matching delegation key pair is configured. */
+  delegationIssuer: DelegationIssuer;
   port: number;
   stop: () => Promise<void>;
 }
@@ -65,6 +73,10 @@ export interface RunningBe {
 interface BootDependencies {
   /** Opens the source whose lifetime this boot owns. */
   readonly openSource: typeof openSqliteSource;
+  /** Test seam for inspecting the production app composition before listening. */
+  readonly makeApp?: typeof buildApp;
+  /** Test seam for exercising boot without a host socket. */
+  readonly startListener?: (app: BuiltApp, port: number, ready: () => void) => void;
 }
 
 /** The opened source, named through the seam so a test double satisfies the same type. */
@@ -92,6 +104,9 @@ export async function bootBe01(
   opts: BootOptions,
   dependencies: BootDependencies = { openSource: openSqliteSource },
 ): Promise<RunningBe> {
+  // Keys are parsed even while production refuses delegation, so a broken
+  // configured pair cannot hide until a later activation.
+  if (opts.delegationKeys !== undefined) await importDelegationKeys(opts.delegationKeys);
   const state = { migrationsApplied: false };
   const bag = await DiBag.createBuilder()
     .withServices({
@@ -169,7 +184,7 @@ export async function bootBe01(
             factoryCtx,
           ): BuiltApp => {
             const db = source.db;
-            const app = buildApp({
+            const app = (dependencies.makeApp ?? buildApp)({
               appOrigin: opts.appOrigin,
               clock: services.clock,
               get migrationsApplied() {
@@ -214,6 +229,11 @@ export async function bootBe01(
               // started on.
               deployedCommit: () => readDeployedCommit(opts.commitDir),
               internalAuthSecret: opts.internalAuthSecret,
+              // Proof: replacing this with an accepting verifier failed
+              // `validates configured delegation keys before opening storage
+              // and keeps issuance inactive` at the production composition
+              // assertion (2026-09-28).
+              delegation: REFUSE_DELEGATIONS,
               version: opts.version,
             });
             // Pushed before `listen`, because from here on there is something
@@ -228,7 +248,10 @@ export async function bootBe01(
             // schema step and the identity write happen exactly where they did —
             // and a throw in either still leaves this factory, which is now what
             // releases the socket above.
-            app.listen(opts.port, () => {
+            const startListener =
+              dependencies.startListener ??
+              ((server: BuiltApp, port: number, ready: () => void) => server.listen(port, ready));
+            startListener(app, opts.port, () => {
               if (opts.migrateOnStartup !== true) {
                 opts.logger.info(
                   { port: opts.port },
@@ -293,6 +316,7 @@ export async function bootBe01(
 
   return {
     services,
+    delegationIssuer: REFUSE_DELEGATION_ISSUANCE,
     port: app.server?.port ?? opts.port,
     /**
      * Releases in the reverse of the start order: the listener stops accepting,

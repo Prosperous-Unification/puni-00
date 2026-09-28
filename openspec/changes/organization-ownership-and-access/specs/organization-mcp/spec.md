@@ -16,6 +16,18 @@ mcp-01 SHALL require a user to select one current organization during OAuth cons
 - **WHEN** a tool request names B in an argument or header
 - **THEN** be-01 refuses B access even if the upstream identity belongs to B too
 
+#### Scenario: One-use delegation cannot be replayed
+
+- **GIVEN** a WBS-signed MCP or gateway bearer with an unexpired `jti`
+- **WHEN** one request verifies it, including a request later refused for scope, membership or a missing project, and a second request presents the same bearer
+- **THEN** the first request consumes `(issuer,jti)` in shared SQLite and the second answers 401 `unauthenticated`
+
+#### Scenario: Issuance stays inactive without a trusted credential binding
+
+- **GIVEN** complete RSA signing and verification configuration
+- **WHEN** production starts before trusted browser, bearer or MCP binding adapters are activated
+- **THEN** both issuance and delegation acceptance remain refusing; configuration never creates authority
+
 #### Scenario: Switching organizations
 
 - **GIVEN** a user belongs to A and B with an MCP grant bound to A

@@ -7,14 +7,17 @@ import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { DiBagDisposalError } from 'di-bag';
-import { errors } from 'jose';
+import { errors, exportPKCS8, exportSPKI, generateKeyPair, SignJWT } from 'jose';
 
+import { buildApp } from './app';
 import { bootBe01, type RunningBe } from './boot';
 import type { OidcRouteOptions } from './controller/oidc-options';
 import { openDatabase, openDrizzle } from './repository/db';
 import type { WriteCoordinator } from './repository/gate';
 import { runMigrations } from './repository/migrate';
 import { allocateGeneration, readGeneration } from './repository/optimization-generation';
+import { DELEGATION_TOKEN_TYPE, REFUSE_DELEGATIONS } from './runtime/delegation';
+import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
 import type { AuthenticatedUser } from './service/auth.service';
 
 /**
@@ -157,6 +160,102 @@ function bootOptions(dbPath: string, port: number) {
 }
 
 describe('bootBe01', () => {
+  it('validates configured delegation keys before opening storage and keeps issuance inactive', async () => {
+    const dir = tempDir('wbs-delegation-boot-');
+    const dbPath = join(dir, 'test.db');
+    let invalidKeyFailure: unknown;
+    try {
+      await bootBe01(
+        {
+          ...bootOptions(dbPath, 0),
+          delegationKeys: { signingKey: 'bad', verifyKey: 'bad' },
+        },
+        {
+          openSource: () => {
+            throw new Error('source opened before key validation');
+          },
+        },
+      );
+    } catch (failure) {
+      invalidKeyFailure = failure;
+    }
+    expect(reasons(invalidKeyFailure)).toContain('delegation keys must be PKCS#8 and SPKI PEM');
+
+    const keys = await generateKeyPair('RS256', { extractable: true });
+    const configured = {
+      ...bootOptions(dbPath, 0),
+      delegationKeys: {
+        signingKey: await exportPKCS8(keys.privateKey),
+        verifyKey: await exportSPKI(keys.publicKey),
+      },
+    };
+    let validKeyFailure: unknown;
+    try {
+      await bootBe01(configured, {
+        openSource: () => {
+          throw new Error('source reached after valid key validation');
+        },
+      });
+    } catch (failure) {
+      validKeyFailure = failure;
+    }
+    expect(reasons(validKeyFailure)).toContain('source reached after valid key validation');
+    runMigrations(dbPath, FOLDER);
+    let mounted: ReturnType<typeof buildApp> | undefined;
+    running = await bootBe01(configured, {
+      openSource: openSqliteSource,
+      makeApp: (options) => {
+        // Proof: replacing this production binding with a live verifier or
+        // omitting it failed this configured-key composition assertion
+        // (2026-09-28).
+        expect(options.delegation).toBe(REFUSE_DELEGATIONS);
+        const app = buildApp(options);
+        // The test listener opens no socket, so its matching test disposer
+        // does not ask Elysia to stop a server that never started.
+        app.stop = () => Promise.resolve(app);
+        mounted = app;
+        return app;
+      },
+      startListener: (_app, _port, ready) => {
+        ready();
+      },
+    });
+    if (mounted === undefined) throw new Error('boot did not compose an app');
+    const signed = await new SignJWT({
+      org: 'org-a',
+      client: 'client',
+      grant: 'family',
+      scope: 'read',
+      upstream_iss: 'issuer',
+      upstream_sub: 'subject',
+    })
+      .setProtectedHeader({ alg: 'RS256', typ: DELEGATION_TOKEN_TYPE })
+      .setIssuer('wbs')
+      .setSubject('ada')
+      .setAudience('wbs-be-01/via-mcp-01')
+      .setIssuedAt()
+      .setExpirationTime('2m')
+      .setJti(crypto.randomUUID())
+      .sign(keys.privateKey);
+    expect(
+      (
+        await mounted.handle(
+          new Request('http://localhost/api/projects', {
+            headers: { authorization: `Bearer ${signed}` },
+          }),
+        )
+      ).status,
+    ).toBe(401);
+    // Proof: replacing the production refusing issuer with the signer made
+    // this configured-key boot mint a token (2026-09-28).
+    let issuanceFailure: unknown;
+    try {
+      await REFUSE_DELEGATION_ISSUANCE('verified-credential', 'wbs-be-01/via-gw-01', ['read']);
+    } catch (failure) {
+      issuanceFailure = failure;
+    }
+    expect(reasons(issuanceFailure)).toContain('inactive');
+  });
   it('reconciles an abandoned optimizer drain before reporting healthy', async () => {
     const dir = tempDir('wbs-optimizer-reconcile-');
     const dbPath = join(dir, 'test.db');
