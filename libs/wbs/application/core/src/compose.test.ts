@@ -498,6 +498,58 @@ describe('servicesOver', () => {
     expect(await second.priorityBands.listFor(PROJECT)).toEqual([...DEFAULT_PRIORITY_BANDS]);
   });
 
+  // Proof: forwarding `CREATOR_ADMISSION` instead of `shared.admission` to
+  // the Capacity, Priority band or Work item installer in `servicesOver`,
+  // one at a time, made this test fail each time (0 pass, 1 fail, run alone
+  // with `-t`): that service's write answered `ok: true`; watched 2026-09-28.
+  test('hands its admission to every gated writing service it installs', async () => {
+    const broadcast = recordingBroadcaster();
+    const graph = await scopeOver({
+      admission: { admits: () => false },
+      clock: clockOf({ now: () => 1_000, newId: () => 'unused' }),
+      broadcast,
+      scheduler: fastScheduler,
+    });
+
+    expect(await graph.capacity.set(PROJECT, OWNER, TEAM, 3)).toEqual({
+      ok: false,
+      reason: 'forbidden',
+    });
+    expect(await graph.priorityBands.set(PROJECT, OWNER, [...DEFAULT_PRIORITY_BANDS])).toEqual({
+      ok: false,
+      reason: 'forbidden',
+    });
+    expect(
+      await graph.workItems.create(PROJECT, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Scope',
+      }),
+    ).toEqual({ ok: false, reason: 'forbidden' });
+    expect(await graph.capacity.listFor(PROJECT)).toEqual([]);
+    expect(await graph.priorityBands.listFor(PROJECT)).toEqual([...DEFAULT_PRIORITY_BANDS]);
+    expect(broadcast.published).toEqual([]);
+  });
+
+  // Proof: defaulting `shared.admission ?? CREATOR_ADMISSION` in
+  // `servicesOver` made this test fail (0 pass, 1 fail, run alone with `-t`):
+  // the write resolved instead of rejecting; watched 2026-09-28.
+  test('fails closed on a write through a graph built without an admission', async () => {
+    // @ts-expect-error a graph without an admission does not compile
+    const shared: ServicesOverOptions = {
+      clock: clockOf({ now: () => 1_000, newId: () => 'unused' }),
+      broadcast: recordingBroadcaster(),
+      scheduler: fastScheduler,
+    };
+    const graph = await scopeOver(shared);
+
+    const failure = await graph.capacity.set(PROJECT, OWNER, TEAM, 3).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(failure).toBeInstanceOf(TypeError);
+  });
+
   test("installs Step per supplied scope, over that scope's own stores", async () => {
     const { first, second } = await twoScopes();
 

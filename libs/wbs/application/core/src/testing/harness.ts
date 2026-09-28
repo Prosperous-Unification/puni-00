@@ -134,7 +134,7 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
     // verbatim mirror the root-migration map pins and cannot take a new entry,
     // so the record is `openspec/changes/status-at-a-glance/verify.md`.
     service: new AvailableWorkItemService({
-      admission: CREATOR_ADMISSION,
+      admission: overrides.admission ?? CREATOR_ADMISSION,
       clock: overrides.clock ?? testClock,
       ...stores,
       broadcast,
