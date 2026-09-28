@@ -63,6 +63,12 @@ export class DomainClaimRepository {
    * Proof: dropping either the digest or the expiry predicate failed `refuses
    * promotion with a stale or expired challenge` (`Received: "verified"`).
    * Observed 2026-09-27.
+   *
+   * Answers `unclaimable`, writing nothing, when the claim's domain is one
+   * {@link isClaimableDomain} refuses: a claim opened before the policy
+   * listed it, or written around {@link openClaim}.
+   *
+   * @throws when the stored domain is not canonical.
    */
   async promoteClaim(
     claimId: string,

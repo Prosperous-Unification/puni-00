@@ -25,7 +25,15 @@ describe('isClaimableDomain', () => {
   // Proof: skipping the canonical check made this receive false instead of a
   // throw; watched 2026-09-28.
   it('throws on a domain that is not canonical', () => {
-    for (const domain of ['Gmail.com', 'gmail.com.', '', 'exa mple.org', 'bücher.de'])
+    for (const domain of [
+      'Gmail.com',
+      'gmail.com.',
+      'gmail.com\n',
+      '',
+      'exa mple.org',
+      'bücher.de',
+      'xn--a.com',
+    ])
       expect(() => isClaimableDomain(domain)).toThrow('not canonical');
   });
 

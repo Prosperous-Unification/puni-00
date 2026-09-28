@@ -74,11 +74,15 @@ const LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 /**
  * Whether `domain` is a canonical host name: lowercase ASCII (IDNA already
  * applied), labels of letters, digits and inner hyphens, no trailing dot, at
- * most 253 characters.
+ * most 253 characters, and a valid IDNA form — the WHATWG URL host parser
+ * gives it back unchanged, so a malformed A-label such as `xn--a` is refused.
  */
 export function isCanonicalDomain(domain: string): boolean {
   if (domain.length === 0 || domain.length > 253) return false;
-  return domain.split('.').every((label) => LABEL.test(label));
+  if (!domain.split('.').every((label) => LABEL.test(label))) return false;
+  // Proof: skipping this round trip made `throws on a domain that is not
+  // canonical` accept `xn--a.com`; watched 2026-09-28.
+  return URL.canParse(`http://${domain}`) && new URL(`http://${domain}`).hostname === domain;
 }
 
 /**
