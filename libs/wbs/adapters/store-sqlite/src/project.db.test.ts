@@ -120,6 +120,10 @@ describe('ProjectRepository', () => {
     await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
+      '20260928030000_add_delegation_use',
+      '20260928020000_add_email_verification',
+      '20260928010000_add_project_solution',
+      '20260927220000_add_organization_audit',
       '20260927213000_add_typed_dependency',
       '20260927200000_freeze_organization_ownership',
       '20260927190000_add_organization_bridge',
@@ -858,18 +862,23 @@ describe('organization-scoped writes', () => {
       const foreign = project('Foreign', 2);
       await repo.createInOrganization(owned, steps(owned.id, 'Dev'), wrote(), 'org-a');
       await repo.createInOrganization(foreign, steps(foreign.id, 'Dev'), wrote(), 'org-b');
-
-      expect(await repo.updateInOrganization(foreign.id, { name: 'Taken' }, wrote(), 'org-a')).toBe(
-        null,
+      raw.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', ?, 'member', 1)",
+        [ownerId],
       );
-      expect(await repo.updateInOrganization(foreign.id, {}, wrote(), 'org-a')).toBe(null);
+      const editor = { actorId: ownerId, auditId: 'audit-1' };
+
+      expect(
+        await repo.editInOrganization(foreign.id, { name: 'Taken' }, wrote(), 'org-a', editor),
+      ).toBe(null);
+      expect(await repo.editInOrganization(foreign.id, {}, wrote(), 'org-a', editor)).toBe(null);
       expect(await repo.recordOpenInOrganization(foreign.id, wrote(), 'org-a')).toBe(false);
       expect((await repo.findById(foreign.id))?.name).toBe('Foreign');
       expect(raw.query('SELECT COUNT(*) AS n FROM project_access').get()).toEqual({ n: 0 });
 
       expect(
-        (await repo.updateInOrganization(owned.id, { name: 'Renamed' }, wrote(), 'org-a'))?.name,
-      ).toBe('Renamed');
+        await repo.editInOrganization(owned.id, { name: 'Renamed' }, wrote(), 'org-a', editor),
+      ).toMatchObject({ name: 'Renamed' });
       expect(await repo.recordOpenInOrganization(owned.id, wrote(), 'org-a')).toBe(true);
       expect(raw.query('SELECT project_id FROM project_access').all()).toEqual([
         { project_id: owned.id },

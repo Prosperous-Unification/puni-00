@@ -26,6 +26,9 @@ export function installCapacity(requirements: CapacityRequirements): CapacityExp
       broadcast: DiBag.createProvider(() => requirements.broadcast, {
         factoryReturnKind: 'sync-value',
       }),
+      editAdmission: DiBag.createProvider(() => requirements.admission, {
+        factoryReturnKind: 'sync-value',
+      }),
       clock: DiBag.createProvider(() => requirements.clock, { factoryReturnKind: 'sync-value' }),
     })
     .buildContainer();

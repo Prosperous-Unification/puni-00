@@ -203,7 +203,9 @@ export const patchProject = defineEndpointShape({
     {
       status: 409,
       // `dependency_cycle`: a `depReach` change that would close a step-node cycle.
-      schema: responseSchema(type({ error: "'optimizer_unavailable' | 'dependency_cycle'" })),
+      schema: responseSchema(
+        type({ error: "'optimizer_unavailable' | 'solution_taken' | 'dependency_cycle'" }),
+      ),
     },
   ],
   document: { summary: 'Update the addressed project’s settings.' },

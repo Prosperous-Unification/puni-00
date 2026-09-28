@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../compose';
 import { clockOf } from '../ports/clock';
+import { CREATOR_ADMISSION } from '../ports/edit-admission';
 import { LEGACY_ACCESS } from '../ports/organization-access';
 import type { Broadcaster, ProjectEvent } from '../ports/project-event';
 import type { ProjectStore } from '../ports/project-store';
@@ -42,7 +43,12 @@ function importService(
     uow: options.uow ?? source.uow,
     announcements,
     batchServices: (scope, broadcast) =>
-      servicesOver(scope.stores, { clock, broadcast, scheduler: fastScheduler }),
+      servicesOver(scope.stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      }),
   });
 }
 
@@ -213,7 +219,12 @@ async function exportDocument(
 ): Promise<PlanDocument> {
   const clock = clockOf({ now: () => STAMP.at, newId: () => crypto.randomUUID() });
   const broadcast = recordingBroadcaster();
-  const graph = servicesOver(source.stores, { clock, broadcast, scheduler: fastScheduler });
+  const graph = servicesOver(source.stores, {
+    admission: CREATOR_ADMISSION,
+    clock,
+    broadcast,
+    scheduler: fastScheduler,
+  });
   const [project, tree] = await Promise.all([
     source.stores.projects.findById(projectId),
     graph.workItems.tree(projectId),
@@ -359,6 +370,10 @@ function heldSolutionUnitOfWork(
             stored.createInOrganization(project, steps, stamp, organizationId),
           findById: (id) => stored.findById(id),
           findInOrganization: (id, organizationId) => stored.findInOrganization(id, organizationId),
+          editInOrganization: (id, patch, stamp, organizationId, editor) =>
+            stored.editInOrganization(id, patch, stamp, organizationId, editor),
+          admitEditInOrganization: (projectId, organizationId, actorId, detail) =>
+            stored.admitEditInOrganization(projectId, organizationId, actorId, detail),
           findCrossReferences: (projectId, organizationId) =>
             stored.findCrossReferences(projectId, organizationId),
           listForInOrganization: (userId, organizationId) =>
@@ -371,8 +386,6 @@ function heldSolutionUnitOfWork(
           recordOpen: (projectId, stamp) => stored.recordOpen(projectId, stamp),
           recordOpenInOrganization: (projectId, stamp, organizationId) =>
             stored.recordOpenInOrganization(projectId, stamp, organizationId),
-          updateInOrganization: (id, changes, stamp, organizationId) =>
-            stored.updateInOrganization(id, changes, stamp, organizationId),
           update: (id, changes, stamp) => stored.update(id, changes, stamp),
           stepsOf: (projectId) => stored.stepsOf(projectId),
           setStepAllowance: (projectId, stepId, percent, stamp) =>

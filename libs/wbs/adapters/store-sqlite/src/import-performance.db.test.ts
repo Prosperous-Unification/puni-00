@@ -12,6 +12,7 @@ import {
   type TransactionalStores,
   type UnitOfWork,
 } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
@@ -121,7 +122,12 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
       uow: measuredUow,
       announcements,
       batchServices: (scope, broadcast) =>
-        servicesOver(scope.stores, { clock, broadcast, scheduler: fastScheduler }),
+        servicesOver(scope.stores, {
+          admission: CREATOR_ADMISSION,
+          clock,
+          broadcast,
+          scheduler: fastScheduler,
+        }),
     });
 
     const outcome = await imports.import(document, ACTOR, LEGACY_ACCESS);

@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { DEFAULT_PRIORITY_BANDS, suggestStepCode } from '@wbs/domain';
 import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -572,6 +573,7 @@ describe('every plan schedules identically across the migration', () => {
     const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
     const service = new WorkItemService({
+      admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems,

@@ -95,6 +95,15 @@ export function inMemoryProjects(
     },
     // No dependent rows live in this store, so nothing it holds can cross.
     findCrossReferences: () => Promise.resolve([]),
+    // Organization-authorized edits exist only over SQLite, where the
+    // membership they recheck and the audit table live; scoped access never
+    // arises over this store.
+    editInOrganization() {
+      return Promise.reject(new Error('the in-memory project store has no organization edits'));
+    },
+    admitEditInOrganization() {
+      return Promise.reject(new Error('the in-memory project store has no organization edits'));
+    },
     findInOrganization(id, organizationId) {
       return owning.get(id) === organizationId ? store.findById(id) : Promise.resolve(null);
     },
@@ -102,11 +111,6 @@ export function inMemoryProjects(
       if (owning.get(projectId) !== organizationId) return false;
       await store.recordOpen(projectId, stamp);
       return true;
-    },
-    updateInOrganization(id, patch, stamp, organizationId) {
-      return owning.get(id) === organizationId
-        ? store.update(id, patch, stamp)
-        : Promise.resolve(null);
     },
     async listForInOrganization(userId, organizationId) {
       return (await store.listFor(userId)).filter(
@@ -135,9 +139,14 @@ export function inMemoryProjects(
       const found = projects.get(id);
       return Promise.resolve(found === undefined ? null : structuredClone(found));
     },
-    async findBySolutionSlugInOrganization(slug, organizationId) {
-      const found = await store.findBySolutionSlug(slug);
-      return found !== null && owning.get(found.id) === organizationId ? found : null;
+    // Organization and slug together, as SQLite filters them: another
+    // organization's project holding the slug must not hide this one's.
+    findBySolutionSlugInOrganization(slug, organizationId) {
+      for (const project of projects.values()) {
+        if (project.solutionRef?.slug === slug && owning.get(project.id) === organizationId)
+          return Promise.resolve(project);
+      }
+      return Promise.resolve(null);
     },
     findBySolutionSlug(slug) {
       for (const project of projects.values()) {

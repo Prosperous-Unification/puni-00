@@ -1,4 +1,5 @@
 import { clockOf } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { describe, expect, it, spyOn } from 'bun:test';
 
@@ -20,7 +21,11 @@ import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
-import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
+import { refusingOnboarding } from '../testing/onboarding-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingMemberships,
+} from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects, memoryProjectTables, projectRow } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -87,6 +92,7 @@ function buildHarness(
     }),
   });
   const workItems = new WorkItemService({
+    admission: CREATOR_ADMISSION,
     clock: testClock,
     ...plan.stores,
     broadcast: plan.broadcast,
@@ -105,6 +111,8 @@ function buildHarness(
   };
   const app = buildApp({
     organizations: legacyOrganizationAccess,
+    memberships: refusingMemberships,
+    onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
     clock: testClock,
     appOrigin: 'http://localhost',
@@ -1150,7 +1158,7 @@ describe('projects', () => {
     const { register, send } = buildHarness({
       retry: (ask) => {
         asks.push(ask);
-        return outcome;
+        return Promise.resolve(outcome);
       },
     });
     const token = await register('owner');
@@ -1251,7 +1259,7 @@ describe('projects', () => {
     const { register, send } = buildHarness({
       retry: (ask) => {
         asks.push(ask);
-        return { kind: 'already-running' };
+        return Promise.resolve({ kind: 'already-running' });
       },
     });
     const owner = await register('owner');

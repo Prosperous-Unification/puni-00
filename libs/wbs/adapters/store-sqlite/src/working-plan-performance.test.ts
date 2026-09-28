@@ -15,6 +15,7 @@ import {
   type UnitOfWork,
   type WriteStamp,
 } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
@@ -256,7 +257,12 @@ async function performanceFixture(name: string): Promise<PerformanceFixture> {
 
   const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
   const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-    servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+    servicesOver(stores, {
+      admission: CREATOR_ADMISSION,
+      clock,
+      broadcast,
+      scheduler: fastScheduler,
+    });
   return {
     source,
     counts,

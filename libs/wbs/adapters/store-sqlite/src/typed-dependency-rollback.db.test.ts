@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { openConnection, openDatabase } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
-import { rollbackTo } from './migrate-down';
+import { readMigrationFolders, rollbackTo } from './migrate-down';
 import { typedDependency } from './schema';
 import { TypedDependencyRepository } from './typed-dependency';
 import {
@@ -106,7 +106,12 @@ describe('typed dependency rollback', () => {
       ],
     });
     expect(withConnection((db) => removeSavedTypedDependencies(db, snapshot))).toBe(2);
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual(['20260927213000_add_typed_dependency']);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual(
+      readMigrationFolders(FOLDER)
+        .map(({ name }) => name)
+        .filter((name) => name > BASELINE)
+        .reverse(),
+    );
     runMigrations(path, FOLDER);
     expect(withConnection((db) => restoreTypedDependencies(db, snapshot))).toBe(2);
     const connection = openConnection(path);

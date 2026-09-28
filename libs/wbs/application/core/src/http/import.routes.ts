@@ -65,7 +65,7 @@ export function importRoutes(imports: PlanImporter, organizations: OrganizationA
             status: 400,
             body: { error: classified.code, path: classified.path, detail: null },
           };
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const outcome = await imports.import(classified.value, principal.id, resolved.access);
         if (!outcome.ok) return refusal(outcome);

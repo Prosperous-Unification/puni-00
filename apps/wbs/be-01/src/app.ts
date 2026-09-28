@@ -1,12 +1,17 @@
 import type {
   Broadcaster,
   Clock,
+  EditAdmission,
   HistoryService,
   ImportService,
+  MembershipAdministration,
+  Onboarding,
   OrganizationAccess,
   ReplayOrchestrator,
   SavedPlanService,
 } from '@wbs/core';
+import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
+import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
@@ -18,7 +23,7 @@ import { directoryRoutes } from './controller/directory.routes';
 import { historyRoutes } from './controller/history.routes';
 import { importRoutes } from './controller/import.routes';
 import { infrastructureEndpoints } from './controller/infrastructure-endpoints';
-import { internalRoutes } from './controller/internal.routes';
+import { gatewayAccessRoutes, internalRoutes } from './controller/internal.routes';
 import type { OidcRouteOptions } from './controller/oidc-options';
 import { projectRoutes } from './controller/project.routes';
 import { savedPlanRoutes } from './controller/saved-plan.routes';
@@ -33,6 +38,7 @@ import { identityResolver } from './http/identity';
 import { openApiPlugin } from './openapi/openapi-plugin';
 import type { DatabaseHealth } from './repository/health-probe';
 import { nodeDigest } from './runtime/bun-runtime';
+import { type DelegationVerifier, REFUSE_DELEGATIONS } from './runtime/delegation';
 import type { AuthService } from './service/auth.service';
 import type { CalendarMarkerService } from './service/calendar-marker.service';
 import type { CapacityService } from './service/capacity.service';
@@ -73,6 +79,14 @@ export interface AppOptions {
    * activated deployment must never give by omission.
    */
   organizations: OrganizationAccess;
+  /**
+   * Changes and removes memberships under the role matrix (task 3.7).
+   * Required, like `organizations`: a process built without it would answer
+   * 404 on the membership routes, which reads as a release without them.
+   */
+  memberships: MembershipAdministration;
+  /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
+  onboarding: Onboarding;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
   /** The manual Retry admission seam; absent only in optimizer-less deployments and tests. */
@@ -126,6 +140,12 @@ export interface AppOptions {
    */
   internalAuthSecret: string;
   /**
+   * Verifies WBS-signed delegation tokens (task 2.5). Absent, every delegation
+   * is refused with 401 (`REFUSE_DELEGATIONS`): production issues none yet,
+   * so the path stays inert. Configuring keys alone never activates it.
+   */
+  delegation?: DelegationVerifier;
+  /**
    * Required for the same reason as `auth`, and for one more: the stub this
    * replaced answered every resume with `replaying, count: 0`, which no client
    * could distinguish from "you missed nothing". An optional service would let
@@ -162,9 +182,10 @@ export interface AppOptions {
      * announcements are its own (D24). These are
      * **not** the services beside them in these options: those take a turn per
      * write and publish straight through, which is what keeps a route write —
-     * and a route event — out of an open batch.
+     * and a route event — out of an open batch. The admission is the one the
+     * batch's own unit of work established (see `EditAdmission`).
      */
-    batch: (scope: Scope, broadcast: Broadcaster) => WritingServices;
+    batch: (scope: Scope, broadcast: Broadcaster, admission: EditAdmission) => WritingServices;
     /**
      * Where a batch's collected announcements go once it has committed and let
      * go of its turn, and where every route publishes directly.
@@ -203,7 +224,7 @@ export function mountedEndpoints(
     logger: createLogger({ service: 'be-01', version: opts.version }),
     scrapeMetrics: opts.metricsScrape ?? (() => scrapeMetrics('be-01')),
   },
-) {
+): readonly BoundEndpoint[] {
   const passwordThrottle = opts.loginThrottle;
   const commands = new PlanCommandRunner({
     batchServices: opts.writes.batch,
@@ -243,6 +264,8 @@ export function mountedEndpoints(
     // Proof: omitting this binding made “binds each shared HTTP shape once”
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
+    ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
+    ...onboardingRoutes(opts.onboarding, opts.clock),
     ...stepRoutes(
       {
         addWithin: (...args) => opts.steps.addWithin(...args),
@@ -252,6 +275,7 @@ export function mountedEndpoints(
       },
       commands,
       opts.organizations,
+      opts.writes,
     ),
     ...directoryRoutes(opts.directory, opts.organizations),
     ...historyRoutes(opts.history, opts.projects, opts.organizations),
@@ -260,7 +284,7 @@ export function mountedEndpoints(
     ...importRoutes(opts.writes.imports, opts.organizations),
     ...projectRoutes(
       {
-        authorizeEdit: (...args) => opts.projects.authorizeEdit(...args),
+        authorizeRetry: (...args) => opts.projects.authorizeRetry(...args),
         createWithin: (...args) => opts.projects.createWithin(...args),
         listWithin: (...args) => opts.projects.listWithin(...args),
         openWithin: (...args) => opts.projects.openWithin(...args),
@@ -275,7 +299,7 @@ export function mountedEndpoints(
       opts.optimizer,
     ),
     ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),
-    ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations),
+    ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
     ...savedPlanRoutes(
       opts.savedPlans,
       opts.projects,
@@ -288,6 +312,7 @@ export function mountedEndpoints(
       onForward: () => Promise.resolve({ push_responses: [] }),
       onResume: (points) => opts.replay.replay(points),
     }),
+    ...gatewayAccessRoutes(opts.projects, opts.organizations),
   ] as const;
 }
 
@@ -332,7 +357,11 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
         // report postApiAuthRegister equal to the 404/NOT_FOUND router miss.
         mountEndpoints(endpoints, {
           appOrigin: opts.appOrigin,
-          resolveIdentity: identityResolver(opts.auth, opts.internalAuthSecret),
+          resolveIdentity: identityResolver(
+            opts.auth,
+            opts.internalAuthSecret,
+            opts.delegation ?? REFUSE_DELEGATIONS,
+          ),
           // Proof: on 2026-09-21, replacing this production callback with a no-op made
           // “reports one redacted unexpected production failure with its shared occurrence” receive
           // zero logger calls instead of one.

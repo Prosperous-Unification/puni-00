@@ -7,6 +7,7 @@ import type {
   BatchPrelude,
   PlanCommandServices,
 } from '../module/plan-commands/plan-commands.feature';
+import type { EditAdmission } from '../ports/edit-admission';
 import { DependencyGraphGuard } from '../service/dependency-graph';
 import type { PlanCommand } from '../service/plan-command';
 import { StepService } from '../service/step.service';
@@ -14,6 +15,7 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { EMPTY } from './endpoint';
+import { type RecoveryWriteBoundary, runRecoveryWrite } from './recovery-write';
 import { stepRoutes } from './step.routes';
 
 const principal = { id: 'owner', username: 'owner', scopes: ['read', 'write'] as const };
@@ -22,6 +24,131 @@ const request = {
   url: new URL('https://app.example/steps'),
   headers: new Headers(),
 };
+
+test('publishes a dependent recovery only after its unit of work commits', async () => {
+  const order: string[] = [];
+  let held: RecoveryWriteBoundary['announcements'] | null = null;
+  const boundary = {
+    uow: {
+      run: async (act: (scope: unknown) => Promise<{ value: { ok: boolean } }>) => {
+        const decision = await act({
+          stores: { projects: { admitEditInOrganization: () => Promise.resolve('recovery') } },
+        });
+        order.push('commit');
+        return decision.value;
+      },
+    },
+    batch: (_scope: unknown, broadcast: RecoveryWriteBoundary['announcements']) => {
+      held = broadcast;
+      return {};
+    },
+    announcements: {
+      publish: () => {
+        order.push('publish');
+        return Promise.resolve();
+      },
+      latestSeq: () => Promise.resolve(-1),
+    },
+  } as unknown as RecoveryWriteBoundary;
+  expect(
+    await runRecoveryWrite<{ ok: true } | { ok: false; reason: 'not_found' | 'forbidden' }>(
+      boundary,
+      { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin' } },
+      'project',
+      'sam',
+      { step: 'add' },
+      async () => {
+        const broadcast = held;
+        if (broadcast === null) throw new Error('batch did not receive a broadcaster');
+        await broadcast.publish('project', { type: 'step_removed', stepId: 'step' });
+        order.push('write');
+        return { ok: true };
+      },
+      (reason) => ({ ok: false, reason }),
+    ),
+  ).toEqual({ ok: true });
+  expect(order).toEqual(['write', 'commit', 'publish']);
+});
+
+test('scoped step service cannot borrow a recovery grant for another project, actor, or settled unit', async () => {
+  const projects = inMemoryProjects();
+  await projects.createInOrganization(
+    projectRow({ id: 'granted', restricted: true }),
+    [],
+    { at: 1, by: 'owner' },
+    'org-a',
+  );
+  await projects.createInOrganization(
+    projectRow({ id: 'other', restricted: true }),
+    [],
+    { at: 1, by: 'owner' },
+    'org-a',
+  );
+  const stored = inMemorySteps([]);
+  const access = {
+    kind: 'scoped' as const,
+    scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin' as const },
+  };
+  let retained: StepService | undefined;
+  const boundary = {
+    uow: {
+      run: async (act: (scope: unknown) => Promise<{ value: { ok: boolean } }>) =>
+        (
+          await act({
+            stores: { projects: { admitEditInOrganization: () => Promise.resolve('recovery') } },
+          })
+        ).value,
+    },
+    batch: (
+      _scope: unknown,
+      broadcast: RecoveryWriteBoundary['announcements'],
+      admission: EditAdmission,
+    ) => {
+      const service = new StepService({
+        projects,
+        steps: stored,
+        broadcast,
+        clock: testClock,
+        dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects }),
+        recoveryAdmission: admission,
+      });
+      retained = service;
+      return { steps: service };
+    },
+    announcements: recordingBroadcaster(),
+  } as unknown as RecoveryWriteBoundary;
+  await runRecoveryWrite<{ ok: true } | { ok: false }>(
+    boundary,
+    access,
+    'granted',
+    'sam',
+    { step: 'add' },
+    async (services) => {
+      expect(
+        await services.steps.addWithin('other', 'sam', 'Wrong project', 0, undefined, access),
+      ).toEqual({ ok: false, reason: 'forbidden' });
+      expect(
+        await services.steps.addWithin(
+          'granted',
+          'other-actor',
+          'Wrong actor',
+          0,
+          undefined,
+          access,
+        ),
+      ).toEqual({ ok: false, reason: 'forbidden' });
+      return { ok: true as const };
+    },
+    () => ({ ok: false as const }),
+  );
+  if (retained === undefined) throw new Error('batch did not build a step service');
+  expect(await retained.addWithin('granted', 'sam', 'Expired', 0, undefined, access)).toEqual({
+    ok: false,
+    reason: 'forbidden',
+  });
+  expect(await stored.listByProject('granted')).toEqual([]);
+  expect(await stored.listByProject('other')).toEqual([]);
+});
 
 async function fixture(restricted = false) {
   const projects = inMemoryProjects();

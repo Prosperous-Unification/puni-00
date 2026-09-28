@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
 
 import { type InternalDeps, internalRoutes } from '../../controller/internal.routes';
+import { REFUSE_DELEGATIONS } from '../../runtime/delegation';
 import { testAuthService } from '../../testing/auth-fixture';
 import { identityResolver } from '../identity';
 import { mountEndpoints } from './mount';
@@ -13,7 +14,7 @@ function appFor(deps: InternalDeps) {
     mountEndpoints(internalRoutes(deps), {
       appOrigin: 'https://app.example',
       reportUnexpectedFailure: () => undefined,
-      resolveIdentity: identityResolver(testAuthService(), secret),
+      resolveIdentity: identityResolver(testAuthService(), secret, REFUSE_DELEGATIONS),
     }),
   );
 }

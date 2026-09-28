@@ -29,7 +29,7 @@ import { organizationRefusal } from './organization-refusal';
 export function directoryRoutes(directory: DirectoryService, organizations: OrganizationAccess) {
   return [
     bind(listTeams, async ({ principal }): Promise<HttpReply<typeof listTeams>> => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       return {
         ok: true,
@@ -38,7 +38,7 @@ export function directoryRoutes(directory: DirectoryService, organizations: Orga
       };
     }),
     bind(listPeople, async ({ principal }): Promise<HttpReply<typeof listPeople>> => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       return {
         ok: true,
@@ -47,7 +47,7 @@ export function directoryRoutes(directory: DirectoryService, organizations: Orga
       };
     }),
     bind(listTags, async ({ principal }): Promise<HttpReply<typeof listTags>> => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       return {
         ok: true,
@@ -56,7 +56,7 @@ export function directoryRoutes(directory: DirectoryService, organizations: Orga
       };
     }),
     bind(listServices, async ({ principal }): Promise<HttpReply<typeof listServices>> => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       return {
         ok: true,
@@ -65,7 +65,7 @@ export function directoryRoutes(directory: DirectoryService, organizations: Orga
       };
     }),
     bind(listWorkItemTypes, async ({ principal }): Promise<HttpReply<typeof listWorkItemTypes>> => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       return {
         ok: true,
@@ -76,7 +76,7 @@ export function directoryRoutes(directory: DirectoryService, organizations: Orga
     bind(
       listExternalSystems,
       async ({ principal }): Promise<HttpReply<typeof listExternalSystems>> => {
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         return {
           ok: true,
