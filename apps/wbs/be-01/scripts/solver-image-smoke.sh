@@ -30,14 +30,20 @@ image_exists() {
   exit 1
 }
 
-# Removes every image this attempt tagged, newest first, then fails if any survived.
+# Removes every image this attempt tagged, newest first, and fails if any removal failed or
+# any tag survived. Docker can drop a tag and then fail to delete the image, so a failed
+# `image rm` counts even when the tag is gone.
 remove_created_images() {
   local index reference
+  local removal_failed=0
   local surviving=()
   for ((index = ${#created_images[@]} - 1; index >= 0; index--)); do
     reference="${created_images[index]}"
     if image_exists "$reference" && ! docker image rm "$reference" >/dev/null; then
       echo "[solver-image-smoke] could not remove image $reference" >&2
+      # Proof: without this, solver-image-smoke.test.ts saw a smoke whose image delete failed
+      # after untagging exit 0.
+      removal_failed=1
     fi
   done
   for reference in "${created_images[@]}"; do
@@ -49,21 +55,33 @@ remove_created_images() {
     echo "[solver-image-smoke] images outlived the smoke: ${surviving[*]}" >&2
     return 1
   fi
+  return "$removal_failed"
 }
 
+# Runs every cleanup step even when one fails, and turns a passing smoke into a failure when
+# any step failed, so a leaked container or image never hides behind the original status.
 cleanup() {
   local status=$?
+  local cleanup_failed=0
   if [ -n "$supervisor_pid" ]; then
     kill "$supervisor_pid" 2>/dev/null || true
     wait "$supervisor_pid" 2>/dev/null || true
   fi
   docker stop "$registry_name" >/dev/null 2>&1 || true
-  docker container inspect "wbs-solver-$attempt_token" >/dev/null 2>&1 &&
-    docker rm --force "wbs-solver-$attempt_token" >/dev/null
+  # Proof: with this removal failing under `set -e`, solver-image-smoke.test.ts observed the
+  # trap exit before any image removal and all three tags left in the fake Docker store.
+  if docker container inspect "wbs-solver-$attempt_token" >/dev/null 2>&1 &&
+    ! docker rm --force "wbs-solver-$attempt_token" >/dev/null; then
+    echo "[solver-image-smoke] could not remove container wbs-solver-$attempt_token" >&2
+    cleanup_failed=1
+  fi
   rmdir "$socket_directory" 2>/dev/null || true
   # Proof: with this call removed, or run only after a passing smoke, solver-image-smoke.test.ts
   # observed the build and registry tags left in the fake Docker store.
-  if ! remove_created_images && [ "$status" -eq 0 ]; then
+  if ! remove_created_images; then
+    cleanup_failed=1
+  fi
+  if [ "$status" -eq 0 ] && [ "$cleanup_failed" -ne 0 ]; then
     status=1
   fi
   exit "$status"

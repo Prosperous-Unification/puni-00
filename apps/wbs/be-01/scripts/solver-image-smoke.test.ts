@@ -16,7 +16,7 @@ const SCRIPT = join(import.meta.dir, 'solver-image-smoke.sh');
 
 /**
  * Fake Docker with an image store of one file per tag, so a test can see which tags outlive
- * the smoke. `WBS_FAKE_FAULT` injects one failure: `solver-run`, `rm-ignored` or `inspect-broken`.
+ * the smoke. `WBS_FAKE_FAULT` injects one failure; see {@link SmokeFault}.
  */
 const FAKE_DOCKER = `#!/usr/bin/env bash
 set -euo pipefail
@@ -41,7 +41,10 @@ case "$1" in
         fi
         [ -e "$(store_path "$3")" ] || { echo "Error response from daemon: No such image: $3" >&2; exit 1; }
         ;;
-      rm) [ "\${WBS_FAKE_FAULT:-}" = rm-ignored ] || rm "$(store_path "$3")" ;;
+      rm)
+        [ "\${WBS_FAKE_FAULT:-}" = rm-ignored ] || rm "$(store_path "$3")"
+        [ "\${WBS_FAKE_FAULT:-}" != delete-fails-after-untag ]
+        ;;
     esac
     ;;
   inspect)
@@ -53,7 +56,8 @@ case "$1" in
   run)
     if [ "\${WBS_FAKE_FAULT:-}" = solver-run ] && [[ "$*" == *'--entrypoint wbs-solver'* ]]; then exit 86; fi
     ;;
-  container) exit 1 ;;
+  container) [ "\${WBS_FAKE_FAULT:-}" = container-rm-fails ] ;;
+  rm) [ "\${WBS_FAKE_FAULT:-}" != container-rm-fails ] ;;
 esac
 `;
 
@@ -64,6 +68,14 @@ case "$1" in
     ;;
 esac
 `;
+
+/** One injected Docker failure, named for the step that goes wrong. */
+type SmokeFault =
+  | 'solver-run'
+  | 'rm-ignored'
+  | 'delete-fails-after-untag'
+  | 'inspect-broken'
+  | 'container-rm-fails';
 
 interface SmokeRun {
   exitCode: number;
@@ -87,7 +99,7 @@ function writeCommand(directory: string, name: string, body: string): void {
   chmodSync(join(directory, name), 0o755);
 }
 
-function runSmoke(fault?: 'solver-run' | 'rm-ignored' | 'inspect-broken'): SmokeRun {
+function runSmoke(fault?: SmokeFault): SmokeRun {
   const commands = join(root, 'commands');
   const store = join(root, 'images');
   const dockerLog = join(root, 'docker.log');
@@ -162,6 +174,23 @@ describe('solver-image-smoke image lifecycle', () => {
     expect(smoke.exitCode).toBe(1);
     expect(smoke.stderr).toContain('images outlived the smoke');
     expect(smoke.survivingTags).toHaveLength(3);
+  });
+
+  it('fails a passing smoke when Docker drops a tag but cannot delete its image', () => {
+    const smoke = runSmoke('delete-fails-after-untag');
+
+    // Proof: with a failed `image rm` only logged, this smoke exited 0 once the tags were gone.
+    expect(smoke.exitCode).toBe(1);
+    expect(smoke.stderr).toContain('could not remove image');
+    expect(smoke.survivingTags).toEqual([]);
+  });
+
+  it('still removes its images when the solver container cannot be removed', () => {
+    const smoke = runSmoke('container-rm-fails');
+
+    expect(smoke.survivingTags).toEqual([]);
+    expect(smoke.exitCode).toBe(1);
+    expect(smoke.stderr).toContain('could not remove container wbs-solver-');
   });
 
   it('fails when Docker cannot say whether an image is gone', () => {
