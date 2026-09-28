@@ -502,7 +502,19 @@ Branch `batch-9/010-5-2-orgs-16`, stacked on slice 16/17 (#157). Design call: As
 
 Store tests are in `project-solution.db.test.ts`. The mounted PATCH test in `project-organization.controller.db.test.ts` covers four cases: a viewer gets 403 and a foreign project gets 404, each before any collision is judged; a same-organization collision gets 409; and a slug held only in another organization links normally.
 
-Not covered: a cross-process race. `BEGIN IMMEDIATE` and the unique index are what hold it; no multi-process test exists.
+Astra review 1 raised 3 Important findings, all fixed with new negatives, each faulted and seen failing on 2026-09-28:
+
+| Check                               | Injected fault                        | Observed failure                                                                            |
+| ----------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Cross-process collision is modeled  | deferred instead of `BEGIN IMMEDIATE` | `answers solution_taken to a link racing another process, writing nothing`: busy error      |
+| Link has a project                  | `NOT NULL` dropped from `project_id`  | `refuses a link of no project`: inserted                                                    |
+| Ambiguous lookup refused            | two matches let through               | `refuses a lookup two of the organization's projects answer`: one returned                  |
+| Slug unique in the organization     | plain index                           | `refuses a slug twice in one organization and allows it in two`: inserted                   |
+| Non-empty slug and url              | either length check dropped           | `refuses an empty slug or url`: inserted                                                    |
+| Rollback needs a well-formed marker | only an activated row checked         | `refuses with a missing or malformed marker, keeping the table and the ledger`: rolled back |
+| Marker time must be empty           | `activated_at IS NULL` dropped        | same case: rolled back                                                                      |
+
+The race holder is a second `bun` process holding `BEGIN IMMEDIATE` while it inserts the competing link. The row-count predicate of the down check is shadowed by the marker's single-row trigger.
 
 ## Pending gate output
 

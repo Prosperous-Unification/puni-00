@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -17,6 +17,8 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
 const AUDIT = '20260927220000_add_organization_audit';
 const SOLUTION = '20260928010000_add_project_solution';
 const wrote: WriteStamp = { at: 1, by: 'ada' };
+/** Long enough that the racing edit starts while the holder still writes. */
+const HELD_FOR_MS = 300;
 const link = (slug: string) => ({ slug, url: `https://solutions.example/${slug}` });
 
 /**
@@ -109,6 +111,16 @@ describe('scoped solution links', () => {
       expect(() => insertLink('b1', 'org-b', 'shared')).not.toThrow();
     });
 
+    it('refuses a link of no project', () => {
+      expect(() =>
+        raw((db) =>
+          db.run(
+            "INSERT INTO project_solution (project_id, organization_id, slug, url) VALUES (NULL, 'org-a', 's', 'u')",
+          ),
+        ),
+      ).toThrow();
+    });
+
     it('refuses an empty slug or url', () => {
       expect(() => insertLink('a1', 'org-a', '')).toThrow();
       expect(() =>
@@ -136,6 +148,30 @@ describe('scoped solution links', () => {
       insertLink('a1', 'org-a', 'kept');
       expect(() => rollbackTo(path, FOLDER, AUDIT)).toThrow();
       expect(rows().links).toEqual([{ project_id: 'a1', slug: 'kept' }]);
+    });
+
+    const applied = () =>
+      raw((db) =>
+        db
+          .query<{ name: string }, []>('SELECT name FROM __drizzle_migrations ORDER BY created_at')
+          .all()
+          .map((row) => row.name)
+          .at(-1),
+      );
+
+    it('refuses with a missing or malformed marker, keeping the table and the ledger', () => {
+      raw((db) => {
+        db.run('PRAGMA ignore_check_constraints = ON');
+        db.run('UPDATE organization_activation SET activated_at = 5');
+      });
+      expect(() => rollbackTo(path, FOLDER, AUDIT)).toThrow();
+      expect(applied()).toBe(SOLUTION);
+      raw((db) => db.run('DELETE FROM organization_activation'));
+      expect(() => rollbackTo(path, FOLDER, AUDIT)).toThrow();
+      expect(applied()).toBe(SOLUTION);
+      expect(raw((db) => db.query('SELECT COUNT(*) AS n FROM project_solution').get())).toEqual({
+        n: 0,
+      });
     });
 
     it('refuses after activation even with no link', () => {
@@ -210,6 +246,66 @@ describe('scoped solution links', () => {
       expect(await edit('a2', 'org-a', { solutionRef: link('old') })).toMatchObject({
         solutionRef: link('old'),
       });
+    });
+
+    it("refuses a lookup two of the organization's projects answer", async () => {
+      raw((db) =>
+        db.run(
+          "UPDATE project SET solution_slug = 'dup', solution_url = 'https://solutions.example/dup' WHERE id = 'a1'",
+        ),
+      );
+      insertLink('a2', 'org-a', 'dup');
+      const refused = await store()
+        .findBySolutionSlugInOrganization('dup', 'org-a')
+        .then(
+          () => 'found',
+          (error: unknown) => String(error),
+        );
+      expect(refused).toContain('hold one solution slug');
+    });
+
+    it('answers solution_taken to a link racing another process, writing nothing', async () => {
+      const ready = join(dir, 'held');
+      const holder = Bun.spawn({
+        cmd: [
+          process.execPath,
+          '-e',
+          `
+            import { Database } from 'bun:sqlite';
+            import { writeFileSync } from 'node:fs';
+            const db = new Database(${JSON.stringify(path)});
+            db.run('PRAGMA foreign_keys = ON');
+            db.run('BEGIN IMMEDIATE');
+            db.run("INSERT INTO project_solution (project_id, organization_id, slug, url) VALUES ('a2', 'org-a', 'race', 'u')");
+            writeFileSync(${JSON.stringify(ready)}, '');
+            Bun.sleepSync(${String(HELD_FOR_MS)});
+            db.run('COMMIT');
+          `,
+        ],
+        stderr: 'pipe',
+      });
+      const startedWaiting = Date.now();
+      while (!existsSync(ready)) {
+        if (Date.now() - startedWaiting > 10_000) {
+          throw new Error(
+            `the holder never took the lock: ${await new Response(holder.stderr).text()}`,
+          );
+        }
+        await Bun.sleep(5);
+      }
+      const answer = await edit('a1', 'org-a', { name: 'Renamed', solutionRef: link('race') }).then(
+        (outcome) => outcome,
+        (error: unknown) => String(error),
+      );
+      expect(await holder.exited).toBe(0);
+      expect(answer).toBe('solution_taken');
+      expect(rows().legacy).toContainEqual({
+        id: 'a1',
+        solution_slug: null,
+        name: 'a1',
+        revision: 0,
+      });
+      expect(rows().links).toEqual([{ project_id: 'a2', slug: 'race' }]);
     });
 
     it('answers a foreign project as absent before judging its slug', async () => {

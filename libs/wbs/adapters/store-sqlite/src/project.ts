@@ -644,6 +644,8 @@ export class ProjectRepository implements ProjectStore {
     // Proof: matching the legacy column alone made `links a slug only another
     // organization holds` in `project-solution.db.test.ts` find nothing for
     // a scoped link; watched 2026-09-28.
+    // Proof: letting two matches through made `refuses a lookup two of the
+    // organization's projects answer` return one of them; watched 2026-09-28.
     // Every link write refuses a slug the organization already uses, so a
     // second match is a broken invariant rather than a choice to make.
     if (rows.length > 1) {
@@ -1071,6 +1073,10 @@ export class ProjectRepository implements ProjectStore {
           return fromJoined(reread);
         },
         // A scoped write reads the organization's slugs before it writes one.
+        // Proof: a deferred transaction made `answers solution_taken to a link
+        // racing another process, writing nothing` in
+        // `project-solution.db.test.ts` fail on SQLite's busy snapshot;
+        // watched 2026-09-28.
         organizationId === null ? undefined : { behavior: 'immediate' },
       );
     });

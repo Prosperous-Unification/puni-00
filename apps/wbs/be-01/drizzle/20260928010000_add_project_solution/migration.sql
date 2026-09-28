@@ -11,7 +11,11 @@
 --
 -- Proof, observed 2026-09-28 in `project-solution.db.test.ts`: dropping the
 -- composite reference failed `refuses a link naming an organization other
--- than its project's owner`.
+-- than its project's owner`; dropping `NOT NULL` from `project_id` (SQLite
+-- lets a text primary key hold NULL) failed `refuses a link of no project`;
+-- a plain index in place of the unique one failed `refuses a slug twice in
+-- one organization and allows it in two`; and dropping either length check
+-- failed `refuses an empty slug or url`.
 --
 -- Additive: one index on an existing table, whose primary key already makes
 -- the pair unique, and a new table the outgoing release never reads or writes.
