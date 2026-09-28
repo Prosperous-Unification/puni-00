@@ -56,6 +56,9 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
       broadcast: DiBag.createProvider(() => requirements.broadcast, {
         factoryReturnKind: 'sync-value',
       }),
+      editAdmission: DiBag.createProvider(() => requirements.admission, {
+        factoryReturnKind: 'sync-value',
+      }),
       scheduler: DiBag.createProvider(() => requirements.scheduler, {
         factoryReturnKind: 'sync-value',
       }),

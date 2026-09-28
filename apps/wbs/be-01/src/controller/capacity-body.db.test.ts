@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -96,6 +97,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       }),
       directory: new DirectoryService({ clock: testClock, directory: directoryStore, broadcast }),
       capacity: new CapacityService({
+        admission: CREATOR_ADMISSION,
         clock: testClock,
         projects: projectStore,
         capacity: capacityStore,
@@ -110,6 +112,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
         broadcast,
       }),
       workItems: new WorkItemService({
+        admission: CREATOR_ADMISSION,
         scheduler: fastScheduler,
         clock: testClock,
         workItems,

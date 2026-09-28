@@ -62,6 +62,7 @@ export { type Clock, clockOf } from './ports/clock';
 export * from './ports/command-journal-store';
 export * from './ports/dependency-store';
 export * from './ports/directory-store';
+export * from './ports/edit-admission';
 export * from './ports/estimate-store';
 export type { EventLogStore, RecordedEvent } from './ports/event-log-store';
 export * from './ports/measure-store';

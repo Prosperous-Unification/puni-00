@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import {
   openSqliteSource,
@@ -108,6 +109,7 @@ export class OrganizationHarness {
         broadcast: recordingBroadcaster(),
       }),
       workItems: new WorkItemService({
+        admission: CREATOR_ADMISSION,
         scheduler: fastScheduler,
         clock: testClock,
         workItems: new WorkItemRepository(db, OPEN),

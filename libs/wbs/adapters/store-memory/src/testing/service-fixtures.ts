@@ -25,6 +25,7 @@ import {
   ReplayOrchestrator,
   StepService,
 } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { inMemoryServices } from '@wbs/core/testing/harness';
@@ -61,7 +62,13 @@ export function testCapacityService(
   capacity: CapacityStore = inMemoryCapacity(),
   broadcast: Broadcaster = recordingBroadcaster(),
 ): CapacityService {
-  return new CapacityService({ clock: testClock, projects, capacity, broadcast });
+  return new CapacityService({
+    admission: CREATOR_ADMISSION,
+    clock: testClock,
+    projects,
+    capacity,
+    broadcast,
+  });
 }
 
 export function testPriorityBandService(
@@ -69,7 +76,13 @@ export function testPriorityBandService(
   bands: PriorityBandStore = inMemoryPriorityBands(),
   broadcast: Broadcaster = recordingBroadcaster(),
 ): PriorityBandService {
-  return new PriorityBandService({ clock: testClock, projects, bands, broadcast });
+  return new PriorityBandService({
+    admission: CREATOR_ADMISSION,
+    clock: testClock,
+    projects,
+    bands,
+    broadcast,
+  });
 }
 
 export function testCalendarMarkerService(

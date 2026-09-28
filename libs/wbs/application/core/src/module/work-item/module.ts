@@ -6,6 +6,7 @@ import type { Clock } from '../../ports/clock';
 import type { CommandJournalStore } from '../../ports/command-journal-store';
 import type { DependencyStore } from '../../ports/dependency-store';
 import type { DirectoryStore } from '../../ports/directory-store';
+import type { EditAdmission } from '../../ports/edit-admission';
 import type { EstimateStore } from '../../ports/estimate-store';
 import type { MeasureStore } from '../../ports/measure-store';
 import type { PriorityBandStore } from '../../ports/priority-band-store';
@@ -51,6 +52,7 @@ export const workItemModule = DiBag.createBuilder()
         subtreeStore,
         journalStore,
         broadcast,
+        editAdmission,
         scheduler,
         clock,
       }: {
@@ -67,6 +69,7 @@ export const workItemModule = DiBag.createBuilder()
         subtreeStore: SubtreeStore;
         journalStore: CommandJournalStore;
         broadcast: Broadcaster;
+        editAdmission: EditAdmission;
         scheduler: Scheduler;
         clock: Clock;
       }): WorkItemServiceOptions => ({
@@ -87,6 +90,7 @@ export const workItemModule = DiBag.createBuilder()
         // broadcaster left `announces a created work item through the broadcaster installWorkItem
         // wires` failing (4 pass, 1 fail): it received `[]`.
         broadcast,
+        admission: editAdmission,
         scheduler,
         clock,
       }),

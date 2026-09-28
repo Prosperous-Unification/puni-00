@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
@@ -22,7 +23,12 @@ function silentBroadcaster(): Broadcaster {
 }
 
 const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-  servicesOver(stores, { clock: testClock, broadcast, scheduler: fastScheduler });
+  servicesOver(stores, {
+    admission: CREATOR_ADMISSION,
+    clock: testClock,
+    broadcast,
+    scheduler: fastScheduler,
+  });
 
 function runnerOver(
   source: ReturnType<typeof openMemorySource>,
@@ -301,7 +307,12 @@ describe('working plan command before-images', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock: testClock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock: testClock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, direct);
 
     try {
@@ -663,7 +674,12 @@ describe('working plan subtree mutations through runner commands', () => {
         },
       });
       const composeBatch = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-        servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+        servicesOver(stores, {
+          admission: CREATOR_ADMISSION,
+          clock,
+          broadcast,
+          scheduler: fastScheduler,
+        });
       const publicGraph = composeBatch(source.stores, direct);
       const runner = new PlanCommandRunner({
         uow: source.uow,
@@ -1034,7 +1050,12 @@ describe('working plan value mutations through runner commands', () => {
         },
       });
       const orderedCompose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-        servicesOver(stores, { clock: orderedClock, broadcast, scheduler: fastScheduler });
+        servicesOver(stores, {
+          admission: CREATOR_ADMISSION,
+          clock: orderedClock,
+          broadcast,
+          scheduler: fastScheduler,
+        });
       const admitted = captureAdmittedStores(source.uow);
       const runner = new PlanCommandRunner({
         uow: admitted.uow,
@@ -1669,7 +1690,12 @@ async function expectSubtreePlacementFaultRollsBack(
       },
     });
     const composeBatch = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = composeBatch(source.stores, direct);
     const runner = runnerOver(source, publicGraph, brokenUow, (scope, broadcast) =>
       composeBatch(scope.stores, broadcast),

@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -113,6 +114,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       directory: testDirectoryService(),
       capacity: testCapacityService(),
       priorityBands: new PriorityBandService({
+        admission: CREATOR_ADMISSION,
         clock: testClock,
         projects: projectStore,
         bands,

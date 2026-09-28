@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Broadcaster } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
 import {
   DEFAULT_PRIORITY_BANDS,
   ORDINARY_BAND_RANK,
@@ -118,6 +119,7 @@ beforeEach(async () => {
   );
 
   serviceOptions = {
+    admission: CREATOR_ADMISSION,
     scheduler: fastScheduler,
     clock: testClock,
     workItems: workItemStore,
@@ -155,12 +157,14 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
     capacity: new CapacityService({
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       projects: projectStore,
       capacity: capacityStore,
       broadcast: selectedBroadcast,
     }),
     priorityBands: new PriorityBandService({
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       projects: projectStore,
       bands: bandStore,

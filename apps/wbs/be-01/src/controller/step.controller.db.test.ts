@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { AnnouncementCollector } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -149,6 +150,7 @@ beforeEach(async () => {
       broadcast: announcements,
     }),
     workItems: new WorkItemService({
+      admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems,

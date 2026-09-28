@@ -1,3 +1,4 @@
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { DirectoryStore, ProjectStore, WriteStamp } from '../repository';
@@ -60,6 +61,7 @@ beforeEach(async () => {
   const harness = inMemoryServices();
   ({ projects, directory } = harness.stores);
   serviceOptions = {
+    admission: CREATOR_ADMISSION,
     clock: testClock,
     ...harness.stores,
     broadcast: harness.broadcast,

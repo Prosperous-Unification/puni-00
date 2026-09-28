@@ -14,6 +14,7 @@ import {
   type WritingServices,
 } from './compose';
 import { clockOf } from './ports/clock';
+import { CREATOR_ADMISSION } from './ports/edit-admission';
 import { LEGACY_ACCESS } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
 import type { Scope } from './ports/unit-of-work';
@@ -456,6 +457,7 @@ describe('servicesOver', () => {
   }> {
     let next = 0;
     const shared: ServicesOverOptions = {
+      admission: CREATOR_ADMISSION,
       clock: clockOf({ now: () => 1_000, newId: () => `id-${String(++next)}` }),
       broadcast: recordingBroadcaster(),
       scheduler: fastScheduler,

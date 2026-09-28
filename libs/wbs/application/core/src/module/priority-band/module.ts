@@ -1,6 +1,7 @@
 import { DiBag } from 'di-bag';
 
 import type { Clock } from '../../ports/clock';
+import type { EditAdmission } from '../../ports/edit-admission';
 import type { PriorityBandStore } from '../../ports/priority-band-store';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
@@ -28,11 +29,13 @@ export const priorityBandModule = DiBag.createBuilder()
         projectStore,
         priorityBandStore,
         broadcast,
+        editAdmission,
         clock,
       }: {
         projectStore: ProjectStore;
         priorityBandStore: PriorityBandStore;
         broadcast: Broadcaster;
+        editAdmission: EditAdmission;
         clock: Clock;
       }): PriorityBandServiceOptions => ({
         projects: projectStore,
@@ -42,6 +45,7 @@ export const priorityBandModule = DiBag.createBuilder()
         // broadcaster left `announces a ladder write through the broadcaster installPriorityBand wires`
         // failing (4 pass, 1 fail): it received `[]`.
         broadcast,
+        admission: editAdmission,
         clock,
       }),
       { factoryReturnKind: 'sync-value' },

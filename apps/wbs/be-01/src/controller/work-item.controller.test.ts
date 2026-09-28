@@ -1,3 +1,4 @@
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { builtByNonOwner, MAX_ESTIMATE_DAYS, type Schedule, schedule } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
@@ -48,12 +49,14 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
   const workItems =
     optimized === undefined
       ? new WorkItemService({
+          admission: CREATOR_ADMISSION,
           clock: testClock,
           ...plan.stores,
           broadcast: plan.broadcast,
           scheduler: plan.scheduler,
         })
       : new WorkItemService({
+          admission: CREATOR_ADMISSION,
           clock: testClock,
           ...plan.stores,
           broadcast: plan.broadcast,

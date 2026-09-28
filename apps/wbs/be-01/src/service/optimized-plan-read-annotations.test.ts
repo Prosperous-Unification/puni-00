@@ -1,5 +1,6 @@
 import { materialiseOptimized } from '@wbs/contracts/solver/materialise-optimized';
 import { quantisedFastBaseline } from '@wbs/contracts/solver/quantised-baseline';
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { sliceKey, SOLVER_QUANTUM } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { beforeEach, describe, expect, it } from 'bun:test';
@@ -81,6 +82,7 @@ beforeEach(async () => {
   const harness = inMemoryServices();
   ({ projects, workItems, estimates, capacity, directory } = harness.stores);
   serviceOptions = {
+    admission: CREATOR_ADMISSION,
     clock: testClock,
     ...harness.stores,
     broadcast: harness.broadcast,

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { clockOf } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -152,6 +153,7 @@ describe('the schedule identity guarantee', () => {
         broadcast,
       }),
       workItems: new WorkItemService({
+        admission: CREATOR_ADMISSION,
         scheduler: fastScheduler,
         clock: testClock,
         workItems: new WorkItemRepository(db, OPEN),

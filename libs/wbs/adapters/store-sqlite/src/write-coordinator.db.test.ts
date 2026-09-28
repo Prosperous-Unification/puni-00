@@ -12,6 +12,7 @@ import { PriorityBandService } from '@wbs/core';
 import { ProjectService } from '@wbs/core';
 import { StepService } from '@wbs/core';
 import { WorkItemService } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
@@ -152,6 +153,7 @@ beforeEach(async () => {
   const admitted = { ...buildStores(db, OPEN), workItems: suspendingWorkItems };
   const servicesWith = (selectedBroadcast: Broadcaster) => ({
     workItems: new WorkItemService({
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       ...serviceOptions,
       broadcast: selectedBroadcast,
@@ -162,12 +164,14 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
     capacity: new CapacityService({
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       projects: projectStore,
       capacity: capacityStore,
       broadcast: selectedBroadcast,
     }),
     priorityBands: new PriorityBandService({
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       projects: projectStore,
       bands: bandStore,

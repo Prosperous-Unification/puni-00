@@ -34,12 +34,7 @@ import {
   UNKNOWN,
   workdaysBetween,
 } from '@wbs/domain';
-import {
-  canEditProject,
-  MEASURE_METRICS,
-  SOLVER_OBJECTIVES,
-  type SolverObjectiveName,
-} from '@wbs/domain';
+import { MEASURE_METRICS, SOLVER_OBJECTIVES, type SolverObjectiveName } from '@wbs/domain';
 import { byTreeOrder, treeOrder } from '@wbs/domain';
 import {
   haveSameSliceOrder,
@@ -63,6 +58,7 @@ import type {
 } from '../../ports/command-journal-store';
 import type { DependencyStore, StoredDependency } from '../../ports/dependency-store';
 import type { Assignment, DirectoryCatalog, DirectoryStore } from '../../ports/directory-store';
+import type { EditAdmission } from '../../ports/edit-admission';
 import type { EstimateStore, StoredEstimate } from '../../ports/estimate-store';
 import type { MeasureStore, StoredMeasure } from '../../ports/measure-store';
 import {
@@ -890,6 +886,11 @@ export interface WorkItemServiceOptions {
    */
   journal: CommandJournalStore;
   broadcast: Broadcaster;
+  /**
+   * Who may write a project through this service: `CREATOR_ADMISSION`
+   * outside a batch that established wider authority. See {@link EditAdmission}.
+   */
+  admission: EditAdmission;
   /** The installed scheduling capabilities for live plan reads. */
   scheduler: Scheduler;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
@@ -2094,7 +2095,7 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<WorkItem> & { stepNodeMapping?: { from: string; to: string }[] }> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const rows = await this.opts.workItems.listByProject(projectId);
     // `rows` is this project only, so a parent that is not among them belongs to
@@ -3097,7 +3098,7 @@ export class WorkItemService {
   async arrangeBySchedule(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const rows = await this.opts.workItems.listByProject(projectId);
     const stored = await this.opts.estimates.listByProject(projectId);
@@ -3195,7 +3196,7 @@ export class WorkItemService {
   ): Promise<WorkItemOutcome<null>> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const stamp = this.clock.stampFor(actorId);
     const written = await this.opts.projects.setStepAllowance(
@@ -3238,7 +3239,7 @@ export class WorkItemService {
   async freeze(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const rows = await this.opts.workItems.listByProject(projectId);
     const numbers = deriveNumbers(rows);
@@ -3293,7 +3294,7 @@ export class WorkItemService {
   async unfreezeProject(projectId: string, actorId: string): Promise<WorkItemOutcome<null>> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
 
     const rows = await this.opts.workItems.listByProject(projectId);
     const frozen = rows.filter((row) => row.frozenNumber !== null);
@@ -4102,7 +4103,8 @@ export class WorkItemService {
     if (project === null) return { ok: false, reason: 'not_found', detail: null };
     // An undo is a mutation. Being allowed to read a restricted project is not
     // being allowed to reverse somebody's work in it.
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden', detail: null };
+    if (!this.opts.admission.admits(project, actorId))
+      return { ok: false, reason: 'forbidden', detail: null };
 
     // The whole stack, because applying one entry re-stamps its neighbours.
     // It is capped at fifty rows.
@@ -5068,7 +5070,7 @@ export class WorkItemService {
     if (workItem === null) return { ok: false, reason: 'not_found' };
     const project = await this.opts.projects.findById(workItem.projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
     const rows = await this.opts.workItems.listByProject(workItem.projectId);
     return { ok: true, value: { workItem, project, rows } };
   }

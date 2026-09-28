@@ -27,6 +27,7 @@ import type { SavedPlanService } from './module/saved-plans/saved-plans.feature'
 import { installStep } from './module/step/check';
 import { installWorkItem } from './module/work-item/check';
 import type { Clock } from './ports/clock';
+import { CREATOR_ADMISSION, type EditAdmission } from './ports/edit-admission';
 import type { OidcVerifier } from './ports/oidc-verifier';
 import type { Broadcaster } from './ports/project-event';
 import type { PushTransport } from './ports/push-transport';
@@ -74,6 +75,8 @@ export interface ServicesOverOptions {
   readonly clock: Clock;
   readonly broadcast: Broadcaster;
   readonly scheduler: Scheduler;
+  /** Who may write a project through the built services; see {@link EditAdmission}. */
+  readonly admission: EditAdmission;
 }
 
 /**
@@ -88,7 +91,7 @@ export interface ServicesOverOptions {
  * `openspec/changes/adopt-di-composition/specs/di-composition/spec.md`.
  */
 export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOverOptions) {
-  const { clock, broadcast, scheduler } = shared;
+  const { clock, broadcast, scheduler, admission } = shared;
   return {
     projects: installProject({
       clock,
@@ -101,6 +104,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       projects: stores.projects,
       capacity: stores.capacity,
       broadcast,
+      admission,
     }).capacity,
     calendarMarkers: installCalendarMarker({
       clock,
@@ -113,6 +117,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       projects: stores.projects,
       bands: stores.priorityBands,
       broadcast,
+      admission,
     }).priorityBands,
     steps: installStep({
       clock,
@@ -136,6 +141,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       subtrees: stores.subtrees,
       journal: stores.journal,
       broadcast,
+      admission,
       scheduler,
     }).workItems,
   };
@@ -230,12 +236,14 @@ export function composeServices(
     clock: runtime.clock,
     broadcast: announcements,
     scheduler: runtime.scheduler,
+    admission: CREATOR_ADMISSION,
   });
   const batch = (scope: Scope, broadcast: Broadcaster) =>
     servicesOver(scope.stores, {
       clock: runtime.clock,
       broadcast,
       scheduler: runtime.scheduler,
+      admission: CREATOR_ADMISSION,
     });
   const { savedPlans } = installSavedPlans({
     digest: runtime.digest,
