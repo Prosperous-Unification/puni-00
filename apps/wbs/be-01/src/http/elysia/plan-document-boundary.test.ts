@@ -38,7 +38,10 @@ async function refused(input: unknown) {
   return {
     ok: false,
     status: 400,
-    body: { error: classified.code, path: classified.path },
+    body: {
+      error: classified.code === 'invalid_typed_dependency' ? 'invalid_body' : classified.code,
+      path: classified.path,
+    },
   } as const;
 }
 
@@ -56,7 +59,11 @@ function mounted(
             return {
               ok: false,
               status: 400,
-              body: { error: classified.code, path: classified.path },
+              body: {
+                error:
+                  classified.code === 'invalid_typed_dependency' ? 'invalid_body' : classified.code,
+                path: classified.path,
+              },
             };
           const prepared = prepareImport(classified.value, scheduler);
           if (!prepared.ok)
@@ -188,7 +195,7 @@ test('mounted malformed priority names workItems[3].priority', async () => {
 
 test('mounted unknown version precedes version-specific validation', async () => {
   const supplied = documentBody();
-  Reflect.set(supplied.document, 'version', 3);
+  Reflect.set(supplied.document, 'version', 5);
   Reflect.set(supplied.workItems[3] ?? {}, 'priority', 'high');
   const response = await mounted().handle(
     new Request('https://backend.example/api/projects/import', {

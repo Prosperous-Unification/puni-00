@@ -27,7 +27,7 @@ The canonical `docs/import-with-ai.md` guide SHALL explain how to connect an AI 
 
 ### Requirement: Client support claims carry evidence
 
-The guide SHALL have a per-client row for Claude Code, Claude Desktop, claude.ai, ChatGPT, Cursor desktop, VS Code Copilot, Codex CLI, Gemini CLI, Windsurf, JetBrains AI Assistant, Junie CLI, Zed, Cline, Roo Code, Continue, Goose, Warp desktop, Amazon Q Developer CLI, GitHub Copilot in JetBrains, LM Studio, Raycast, Perplexity, Mistral Le Chat / Work and Microsoft Copilot Studio. Each row SHALL carry documented, bridge fallback or unverified status, a version/date where checked, and client-specific connection constraints. It SHALL mark a client **WBS import tested** only after a recorded live public connection with client version, exact callback, registration method, requested/granted scopes, grant-bound organization and current role, owned-project read, reversible write, actual refresh and revoked-token rejection.
+The guide SHALL have a per-client row for Claude Code, Claude Desktop, claude.ai, ChatGPT, Cursor desktop, VS Code Copilot, Codex CLI, Gemini CLI, Windsurf, JetBrains AI Assistant, Junie CLI, Zed, Cline, Roo Code, Continue, Goose, Warp desktop, Amazon Q Developer CLI, GitHub Copilot in JetBrains, LM Studio, Raycast, Perplexity, Mistral Le Chat / Work and Microsoft Copilot Studio. Each row SHALL carry documented, bridge fallback, unverified or unsupported status, unsupported meaning WBS refuses the client's callback today, a version/date where checked, and client-specific connection constraints. It SHALL mark a client **WBS import tested** only after a recorded live public connection with client version, exact callback, registration method, requested/granted scopes, grant-bound organization and current role, owned-project read, reversible write, actual refresh and revoked-token rejection.
 
 #### Scenario: Documentation exists without interoperability proof
 
@@ -39,5 +39,5 @@ The guide SHALL have a per-client row for Claude Code, Claude Desktop, claude.ai
 
 - **GIVEN** a desktop client whose native OAuth is not established
 - **WHEN** its row offers a stdio bridge
-- **THEN** the guide identifies a pinned, tested bridge and its explicit read/write scope request
+- **THEN** the guide identifies a pinned bridge, its explicit read/write scope request and whether it has been tested against WBS
 - **AND** it does not claim that hosted clients can use the desktop bridge

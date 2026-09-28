@@ -7,16 +7,15 @@ import { workItemTree } from './work-item-response';
 /**
  * The plan document version this release writes.
  *
- * `2` carries each step's `allowancePercent` (`add-project-step-estimate-allowances`);
- * a version-1 file is read through the explicit legacy conversion in
- * `classifyPlanDocument`, which charges every step at 0%. The typed-dependency
- * changes (`add-step-finish-start-dependencies`) take the next free number.
+ * `4` adds typed dependencies separately from legacy `dependsOn`; `3` added
+ * step codes and `2` step allowances. The classifier converts versions 1–3
+ * explicitly, preserving their legacy dependency interpretation.
  */
-export const PLAN_DOCUMENT_VERSION = 2;
+export const PLAN_DOCUMENT_VERSION = 4;
 
 const planHeader = type({
   format: "'wbs-plan'",
-  version: '2',
+  version: '4',
   exportedAt: 'string',
 });
 
@@ -56,11 +55,40 @@ const authoredMarker = type({
   color: 'string | null',
 });
 
+const documentEndpoint = type({ scope: "'whole'", workItem: 'string' })
+  .or({ scope: "'node'", workItem: 'string', step: 'string' })
+  .or({ scope: "'descendant-step'", workItem: 'string', step: 'string' });
+
+export const documentTypedDependency = type({
+  id: 'string',
+  predecessor: documentEndpoint,
+  successor: documentEndpoint,
+  type: "'FS'",
+});
+export const documentTypedDependencyRequest = requestSchema(documentTypedDependency);
+export type DocumentTypedDependency = (typeof documentTypedDependency)['infer'];
+
 /**
- * Version 2 keeps the complete established export, every authored value needed
- * to interpret its file-local references during a restore, and step allowances.
+ * Version 4 keeps the established export and adds typed relationships with
+ * file-local work-item and step references, distinct from legacy links.
+ *
+ * A step's `code` is optional and nullable on the work-item read (an older
+ * be-01, an uncoded step); here it is a required string, because the export
+ * refuses an uncoded project rather than write a file without its codes.
+ * `stepNodes` spells each leaf's step node beside the structured work-item and
+ * step IDs the estimates, facts and assignments are keyed by — `010.dev` for
+ * `sn1.<work item>.<step>` — for a reader of the file. It is derived, so import
+ * drops it and the new project's nodes follow its own IDs.
  */
-export const planDocument = workItemTree.and({
+export const planDocument = workItemTree.omit('typedDependencies').and({
+  typedDependencies: documentTypedDependency.array(),
+  steps: type({ code: 'string' }).array(),
+  stepNodes: type({
+    id: 'string',
+    workItemId: 'string',
+    stepId: 'string',
+    reference: 'string',
+  }).array(),
   project,
   document: planHeader,
   settings: planSettings,
@@ -127,15 +155,19 @@ const writablePlanDocument = type({
   calendarMarkers: authoredMarker.array(),
   directory,
   workItems: authoredWorkItem.array(),
-  // Optional structurally because version 1 has no such field; the version
-  // decides whether it is required (2) or must be absent (1) — see
-  // `classifyPlanDocument`.
+  // Optional structurally because version 1 has no allowance and versions 1
+  // and 2 carry no code the import keeps; the version decides what each field
+  // must be — see `classifyPlanDocument`. `code` stays `unknown` here so an
+  // earlier-version file is read exactly as before codes existed, whatever it
+  // held under that key (a version-2 export writes the read's `code: null`).
   steps: type({
     id: 'string',
     name: 'string',
     position: 'number',
     'allowancePercent?': 'number',
+    'code?': 'unknown',
   }).array(),
+  'typedDependencies?': 'unknown',
 });
 
 export const planDocumentRequest = requestSchema(writablePlanDocument, {
@@ -146,11 +178,14 @@ export type PlanDocumentRequest = (typeof writablePlanDocument)['infer'];
 
 /**
  * A writable plan document once its version has been read: every step carries
- * the allowance it is imported with — the file's own at version 2, zero at
- * version 1.
+ * the allowance it is imported with — the file's own from version 2, zero at
+ * version 1 — and the code the file gives it from version 3, or `null` for an
+ * earlier version. Versions 1–3 carry an empty typed set after conversion.
  */
-export type PlanDocumentImport = Omit<PlanDocumentRequest, 'steps'> & {
-  steps: (Omit<PlanDocumentRequest['steps'][number], 'allowancePercent'> & {
+export type PlanDocumentImport = Omit<PlanDocumentRequest, 'steps' | 'typedDependencies'> & {
+  typedDependencies: DocumentTypedDependency[];
+  steps: (Omit<PlanDocumentRequest['steps'][number], 'allowancePercent' | 'code'> & {
     allowancePercent: number;
+    code: string | null;
   })[];
 };

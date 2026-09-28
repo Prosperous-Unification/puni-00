@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { AnnouncementCollector } from '@wbs/core';
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn, test } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -11,7 +12,9 @@ import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import type { SavedPlanWrite } from '../repository/saved-plan';
+import { StepRepository } from '../repository/step';
 import { UserRepository } from '../repository/user';
+import { WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { type AuthenticatedUser, AuthService } from '../service/auth.service';
 import { ProjectService } from '../service/project.service';
@@ -27,6 +30,7 @@ import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { projectRow, testProjectService } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -105,6 +109,7 @@ describe('the saved-plan routes', () => {
     writes = testWrites(broadcast, { projects: projectService });
 
     app = buildApp({
+      organizations: legacyOrganizationAccess,
       loginThrottle: testLoginThrottle(),
       clock: testClock,
       appOrigin: 'http://localhost',
@@ -182,6 +187,106 @@ describe('the saved-plan routes', () => {
 
   const savedIdOf = async (res: Response): Promise<string> =>
     ((await res.json()) as { savedPlan: { id: string } }).savedPlan.id;
+
+  it('reads captured node endpoints after live step and relationship edits', async () => {
+    const writing = openConnection(path);
+    try {
+      const projects = new ProjectRepository(writing.db, OPEN);
+      const steps = await projects.stepsOf(projectId);
+      const firstStep = steps.at(0);
+      const laterStep = steps.at(1);
+      if (firstStep === undefined || laterStep === undefined)
+        throw new Error('project has fewer than two steps');
+      const ownerId = (await projects.findById(projectId))?.ownerId;
+      if (ownerId === undefined) throw new Error('project is missing');
+      const stamp = { at: 1, by: ownerId };
+      const workItems = new WorkItemRepository(writing.db, OPEN);
+      for (const [index, id] of ['A', 'B'].entries()) {
+        await workItems.insert(
+          {
+            id,
+            projectId,
+            parentId: null,
+            position: index * 10,
+            name: id,
+            notes: '',
+            frozenNumber: null,
+            priority: null,
+            startNoEarlierThan: null,
+            startNoEarlierThanReason: null,
+            serviceTeamId: null,
+            serviceId: null,
+            maxParallel: 1,
+            deadline: null,
+            factStart: null,
+            factEnd: null,
+            revision: 0,
+          },
+          [],
+          stamp,
+        );
+      }
+      const typed = new TypedDependencyRepository(writing.db, OPEN);
+      writing.db.run(`UPDATE step SET code = 'captured-code' WHERE id = '${laterStep.id}'`);
+      const relationship = {
+        id: 'captured-fs',
+        projectId,
+        predecessor: { scope: 'node' as const, workItemId: 'A', stepId: firstStep.id },
+        successor: { scope: 'node' as const, workItemId: 'B', stepId: laterStep.id },
+        type: 'FS' as const,
+      };
+      await typed.add(relationship, stamp);
+      const saveResponse = await save('ada');
+      expect(saveResponse.status).toBe(201);
+      const savedId = await savedIdOf(saveResponse);
+      await new StepRepository(writing.db, OPEN).rename(projectId, laterStep.id, 'Renamed', stamp);
+      await typed.remove(relationship.id, stamp);
+      writing.db.run(
+        `UPDATE step SET code = 'live-code', position = 5 WHERE id = '${laterStep.id}'`,
+      );
+      writing.db.run(`UPDATE step SET position = 30 WHERE id = '${firstStep.id}'`);
+      expect((await projects.stepsOf(projectId)).map(({ id }) => id)).toEqual([
+        laterStep.id,
+        firstStep.id,
+      ]);
+      writing.db.run(`DELETE FROM step WHERE id = '${laterStep.id}'`);
+      const readResponse = await as(tokens['ada'], `/api/saved-plans/${savedId}`);
+      expect(readResponse.status).toBe(200);
+      const saved = (await readResponse.json()) as { savedPlan: { input: { bytes: string } } };
+      const body = JSON.parse(saved.savedPlan.input.bytes) as {
+        typedDependencies: unknown[];
+        steps: { id: string; code: string | null; name: string; position: number }[];
+      };
+      // Proof: substituting live typed rows for stored body rows in SavedPlanResource.readPlan,
+      // then separately omitting the capture read, made this mounted read receive []
+      // instead of the saved FS endpoints (2026-09-27).
+      expect(body.typedDependencies).toEqual([
+        {
+          id: relationship.id,
+          predecessor: relationship.predecessor,
+          successor: relationship.successor,
+          type: 'FS',
+        },
+      ]);
+      const capturedStep = body.steps.find((candidate) => candidate.id === laterStep.id);
+      expect(capturedStep?.name).toBe(laterStep.name);
+      expect(capturedStep?.position).toBe(laterStep.position);
+      expect(capturedStep?.code).toBe('captured-code');
+      expect(
+        [...body.steps].sort((left, right) => left.position - right.position).map(({ id }) => id),
+      ).toEqual([firstStep.id, laterStep.id]);
+      for (const endpoint of [relationship.predecessor, relationship.successor]) {
+        expect(body.steps.find((candidate) => candidate.id === endpoint.stepId)?.id).toBe(
+          endpoint.stepId,
+        );
+        expect(body.steps.find((candidate) => candidate.id === endpoint.stepId)?.code).toBe(
+          endpoint.stepId === laterStep.id ? 'captured-code' : firstStep.code,
+        );
+      }
+    } finally {
+      writing.close();
+    }
+  });
 
   /**
    * The identity assertion, and the one a body-supplied creator would fail.
@@ -507,7 +612,7 @@ describe('the saved-plan routes', () => {
       version: 9999,
       // Named rather than matched loosely: the answer has to say what this
       // build *does* know, or an operator cannot tell how far behind it is.
-      supported: [1, 2],
+      supported: [1, 2, 3],
     });
 
     const read = await as(tokens['ada'], `/api/saved-plans/${id}`);

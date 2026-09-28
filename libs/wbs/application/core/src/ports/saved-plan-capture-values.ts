@@ -8,6 +8,7 @@ import type {
   PriorityBand,
   ScheduleEngine,
   SolverObjectiveName,
+  TypedDependency,
 } from '@wbs/domain';
 
 export interface CapturedProject {
@@ -28,6 +29,8 @@ export interface CapturedProject {
 
 export interface CapturedStep {
   readonly id: string;
+  /** Captured identity; null is the live step's modeled uncoded state. */
+  readonly code: string | null;
   readonly name: string;
   readonly position: number;
   /** The step's allowance at capture: a saved plan's charged figures use it, never the live one. */
@@ -125,6 +128,8 @@ export interface PlanInputReads {
   readonly progress: readonly CapturedProgress[];
   readonly measures: readonly CapturedMeasure[];
   readonly dependencies: readonly CapturedDependency[];
+  /** Detached relationship identities and endpoints from the capture snapshot. */
+  readonly typedDependencies: readonly TypedDependency[];
   readonly assignments: readonly CapturedAssignment[];
   readonly capacity: ReadonlyMap<string, number>;
   readonly priorityBands: readonly PriorityBand[];

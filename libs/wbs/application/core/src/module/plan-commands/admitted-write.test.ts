@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
+import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
 import { type AdmittedServices, admittedWrites } from './admitted-write';
@@ -29,7 +30,7 @@ function silent(log: string[]): Broadcaster {
 
 describe('admittedWrites', () => {
   /**
-   * Proof: `updateProject` calling the graph without `uow.run` made this case
+   * Proof: `updateProjectWithin` calling the graph without `uow.run` made this case
    * fail on `- Expected - 2 / + Received + 0`, `begin` and `commit` missing
    * around `update`; watched 2026-09-27.
    */
@@ -37,13 +38,13 @@ describe('admittedWrites', () => {
     const log: string[] = [];
     const graph = (_scope: Scope, broadcast: Broadcaster): AdmittedServices => ({
       projects: {
-        update: async (id) => {
+        updateWithin: async (id) => {
           log.push('update');
           await broadcast.publish(id, { type: 'project_settings_changed' } as never);
           return { ok: true, value: {} as never };
         },
       },
-      steps: { remove: () => Promise.reject(new Error('not asked')) },
+      steps: { removeWithin: () => Promise.reject(new Error('not asked')) },
     });
     const writes = admittedWrites({
       uow: recordingUnitOfWork(log),
@@ -51,7 +52,7 @@ describe('admittedWrites', () => {
       announcements: silent(log),
     });
 
-    await writes.updateProject('p', 'u', { depReach: 'whole-item' });
+    await writes.updateProjectWithin('p', 'u', { depReach: 'whole-item' }, LEGACY_ACCESS);
 
     expect(log).toEqual(['begin', 'update', 'commit', 'publish']);
   });
@@ -61,9 +62,9 @@ describe('admittedWrites', () => {
     const writes = admittedWrites({
       uow: recordingUnitOfWork(log),
       batch: (_scope, broadcast) => ({
-        projects: { update: () => Promise.reject(new Error('not asked')) },
+        projects: { updateWithin: () => Promise.reject(new Error('not asked')) },
         steps: {
-          remove: async (projectId) => {
+          removeWithin: async (projectId) => {
             log.push('remove');
             await broadcast.publish(projectId, { type: 'step_removed' } as never);
             return { ok: false, reason: 'dependency_cycle' };
@@ -73,7 +74,7 @@ describe('admittedWrites', () => {
       announcements: silent(log),
     });
 
-    expect(await writes.removeStep('p', 's', 'u', true)).toEqual({
+    expect(await writes.removeStepWithin('p', 's', 'u', true, LEGACY_ACCESS)).toEqual({
       ok: false,
       reason: 'dependency_cycle',
     });

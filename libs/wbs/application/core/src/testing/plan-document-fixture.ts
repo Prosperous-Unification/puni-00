@@ -3,7 +3,8 @@ import type { PlanDocumentImport } from '@wbs/contracts';
 /** A small, fully referenced current-version document for import-boundary tests. */
 export function planDocumentFixture(): PlanDocumentImport {
   return {
-    document: { format: 'wbs-plan', version: 2, exportedAt: '2026-09-13T12:30:00.000Z' },
+    document: { format: 'wbs-plan', version: 3, exportedAt: '2026-09-13T12:30:00.000Z' },
+    typedDependencies: [],
     settings: {
       name: ' Portable plan ',
       restricted: false,
@@ -72,8 +73,10 @@ export function planDocumentFixture(): PlanDocumentImport {
       },
     ],
     steps: [
-      { id: 'step-1', name: ' Build ', position: 10, allowancePercent: 0 },
-      { id: 'step-2', name: 'QA', position: 20, allowancePercent: 30 },
+      // `impl`, not the `build` a suggestion would give, so a round trip shows
+      // the file's own code was kept.
+      { id: 'step-1', name: ' Build ', position: 10, allowancePercent: 0, code: 'impl' },
+      { id: 'step-2', name: 'QA', position: 20, allowancePercent: 30, code: 'qa' },
     ],
   };
 }

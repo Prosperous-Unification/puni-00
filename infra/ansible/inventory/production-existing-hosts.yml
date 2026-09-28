@@ -20,8 +20,8 @@ all:
       hosts:
         h4claw:
           ansible_host: 10.1.0.4
-          # `unread` until preflight prints it; must equal desired.yaml (placement.test.ts).
-          puni_machine_id: unread
+          # From the 2026-09-27 before-enrollment preflight; must equal desired.yaml (placement.test.ts).
+          puni_machine_id: f592d9aa3f3547d0b08a4b8bdec81012
           puni_node_name: h4claw
           puni_node_ip: 10.1.0.4
           puni_private_interface: enp7s0
@@ -33,13 +33,13 @@ all:
           puni_kubelet_eviction_memory: 256Mi
           puni_preflight_minimum_memory_mib: 14000
           puni_preserved_listeners: [127.0.0.1:3000, 0.0.0.0:22]
-          # Filled from the before-enrollment preflight fact, as `name` of each running container.
-          puni_preserved_containers: []
+          # The running containers in the 2026-09-27 before-enrollment preflight fact.
+          puni_preserved_containers: [openhands-app]
     k3s_agents:
       hosts:
         h3mon:
           ansible_host: 10.1.0.2
-          puni_machine_id: unread
+          puni_machine_id: bed07fdd1c9d47c08540df462db009f4
           puni_node_name: h3mon
           puni_node_ip: 10.1.0.2
           puni_private_interface: enp7s0
@@ -61,6 +61,13 @@ all:
             - 127.0.0.1:5000
             - 127.0.0.1:4318
             - 0.0.0.0:22
-          puni_preserved_containers: []
+          puni_preserved_containers:
+            - h3mon-observability-mlflow-1
+            - h3mon-observability-otel-collector-1
+            - h3mon-observability-victorialogs-1
+            - h3mon-observability-victoriatraces-1
+            - h3mon-observability-victoriametrics-1
+            - h3mon-observability-vmauth-1
+            - h3mon-observability-grafana-1
     k3s_join_servers:
       hosts: {}

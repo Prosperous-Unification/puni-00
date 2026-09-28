@@ -1,4 +1,6 @@
 import {
+  type DocumentTypedDependency,
+  documentTypedDependencyRequest,
   PLAN_DOCUMENT_VERSION,
   type PlanDocument,
   planDocumentHeaderRequest,
@@ -7,7 +9,7 @@ import {
   validateSchema,
   type WorkItemTree,
 } from '@wbs/contracts';
-import { NO_ALLOWANCE } from '@wbs/domain';
+import { formatStepNodeId, formatStepReference, NO_ALLOWANCE, orderSteps } from '@wbs/domain';
 
 import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { Clock } from '../../ports/clock';
@@ -18,6 +20,20 @@ import type {
 } from '../../ports/directory-store';
 import type { Project } from '../../ports/project-store';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
+
+type TreeEndpoint = NonNullable<WorkItemTree['typedDependencies']>[number]['predecessor'];
+
+/** Writes file-local references and refuses an incomplete trusted tree projection. */
+function documentEndpoint(endpoint: TreeEndpoint): DocumentTypedDependency['predecessor'] {
+  if (endpoint.scope === 'whole') return { scope: 'whole', workItem: endpoint.workItemId };
+  // Proof (2026-09-28): removing this guard let the missing-step tree export
+  // succeed with an undefined step; its trusted-endpoint test then failed.
+  if (endpoint.stepId === undefined)
+    throw new Error(`typed ${endpoint.scope} endpoint has no step in tree read`);
+  // Proof (2026-09-28): forcing this scope to whole made the memory source
+  // "round trips multiple step links" fail on node/step endpoint equality.
+  return { scope: endpoint.scope, workItem: endpoint.workItemId, step: endpoint.stepId };
+}
 
 type PlanDirectory = Pick<
   DirectoryStore,
@@ -35,6 +51,23 @@ export interface PlanDocumentServiceOptions {
   clock: Pick<Clock, 'now'>;
 }
 
+/** The be-01 command that codes every step an older writer left uncoded. */
+const STEP_CODE_BACKFILL_COMMAND = 'bun run src/backfill-step-codes-cli.ts';
+
+/**
+ * A plan export: the document, or the modeled refusal of a project holding
+ * uncoded steps, which names each one and the be-01 backfill `command` that
+ * codes them, after which the export succeeds.
+ */
+export type PlanDocumentExport =
+  | { ok: true; value: PlanDocument }
+  | {
+      ok: false;
+      error: 'uncoded_steps';
+      steps: { id: string; name: string }[];
+      command: string;
+    };
+
 /**
  * Constructs the versioned archival document around the established project
  * tree projection.
@@ -45,7 +78,42 @@ export interface PlanDocumentServiceOptions {
 export class PlanDocumentService {
   constructor(private readonly options: PlanDocumentServiceOptions) {}
 
-  async export(project: Project, tree: WorkItemTree): Promise<PlanDocument> {
+  /**
+   * Exports `tree` as the current plan document, or refuses while any step is
+   * uncoded (`code: null`, written mid-swap by an older be-01 and not yet
+   * backfilled): the document carries every step's code and never invents one.
+   *
+   * @throws when a step has no `code` key at all. This service reads its own
+   * store, which always answers the key; an absent one is an older reader's
+   * wire shape and cannot reach here.
+   */
+  async export(project: Project, tree: WorkItemTree): Promise<PlanDocumentExport> {
+    const coded: PlanDocument['steps'] = [];
+    const uncoded: { id: string; name: string }[] = [];
+    for (const step of tree.steps) {
+      // Proof: with this throw removed, `throws on a step read without a code
+      // key` received an export instead of an Error (2026-09-27).
+      if (step.code === undefined) throw new Error(`step "${step.id}" was read without a code`);
+      // Proof: with this branch removed, `refuses to export a project holding
+      // an uncoded step, naming it` received ok: true, and the mounted be-01
+      // export received 500 instead of 409 (2026-09-27).
+      if (step.code === null) uncoded.push({ id: step.id, name: step.name });
+      else coded.push({ ...step, code: step.code });
+    }
+    if (uncoded.length > 0)
+      return {
+        ok: false,
+        error: 'uncoded_steps',
+        steps: uncoded,
+        command: STEP_CODE_BACKFILL_COMMAND,
+      };
+    return { ok: true, value: await this.buildDocument(project, { ...tree, steps: coded }) };
+  }
+
+  private async buildDocument(
+    project: Project,
+    tree: WorkItemTree & { steps: PlanDocument['steps'] },
+  ): Promise<PlanDocument> {
     const [teams, people, tags, services, types, externalSystems, markerRead] = await Promise.all([
       this.options.directory.listTeams(),
       this.options.directory.listPeople(),
@@ -64,9 +132,25 @@ export class PlanDocumentService {
       types,
       externalSystems,
     });
+    // Proof (2026-09-28): removing this guard made the missing-list export
+    // test receive a TypeError from .map instead of the named trusted-state error.
+    if (tree.typedDependencies === undefined)
+      throw new Error(`project "${project.id}" tree was read without typed dependencies`);
     return {
       project,
       ...tree,
+      typedDependencies: tree.typedDependencies.map(({ id, predecessor, successor, type }) => {
+        // Proof (2026-09-28): omitting this guard let the unknown-type tree
+        // export succeed; its trusted-relationship test failed.
+        if (type !== 'FS') throw new Error(`unknown typed dependency type ${type}`);
+        return {
+          id,
+          predecessor: documentEndpoint(predecessor),
+          successor: documentEndpoint(successor),
+          type,
+        };
+      }),
+      stepNodes: spellStepNodes(tree),
       document: {
         format: 'wbs-plan',
         version: PLAN_DOCUMENT_VERSION,
@@ -102,9 +186,38 @@ export class PlanDocumentService {
   }
 }
 
+/**
+ * Every leaf's step nodes in tree and step order, each with its reference —
+ * the same nodes and spellings the work-item read answers, for a fully coded
+ * tree.
+ */
+function spellStepNodes(tree: {
+  workItems: readonly { id: string; parentId: string | null; number: string }[];
+  steps: PlanDocument['steps'];
+}): PlanDocument['stepNodes'] {
+  const parentIds = new Set(tree.workItems.map(({ parentId }) => parentId));
+  const ordered = orderSteps(tree.steps);
+  return tree.workItems.flatMap(({ id: workItemId, number }) =>
+    // Proof: with the leaf filter removed, `spells each leaf's step nodes
+    // beside their IDs` received the parent's nodes too (2026-09-27).
+    parentIds.has(workItemId)
+      ? []
+      : ordered.map(({ id: stepId, code }) => ({
+          id: formatStepNodeId({ workItemId, stepId }),
+          workItemId,
+          stepId,
+          reference: formatStepReference(number, code),
+        })),
+  );
+}
+
 export type PlanDocumentClassification =
   | { ok: true; value: PlanDocumentImport }
-  | { ok: false; code: 'invalid_body' | 'unsupported_version'; path: string };
+  | {
+      ok: false;
+      code: 'invalid_body' | 'invalid_typed_dependency' | 'unsupported_version';
+      path: string;
+    };
 
 /**
  * Projects an archival payload to writable fields at its version. Header
@@ -113,8 +226,16 @@ export type PlanDocumentClassification =
  *
  * Version 1 is the explicit legacy conversion: it has no step allowances, so
  * every step is imported at 0% and a version-1 file that names one is refused
- * rather than half-read. Version 2 requires an allowance on every step; its
- * range is checked with the rest of the document by `prepareImport`.
+ * rather than half-read. Versions 2 and 3 require an allowance on every step;
+ * its range is checked with the rest of the document by `prepareImport`.
+ *
+ * Versions 1 and 2 keep no step code: whatever a file holds under `code` is
+ * ignored exactly as before codes existed (a version-2 export wrote the read's
+ * `code: null`), and each step is imported with `code: null`, which
+ * `prepareImport` codes by suggestion. Version 3 requires a string code on
+ * every step; its grammar, reservation and uniqueness are checked by
+ * `prepareImport`. Versions 1–3 ignore typed relationships, retaining their
+ * legacy link semantics; version 4 requires and validates the typed list.
  */
 export async function classifyPlanDocument(input: unknown): Promise<PlanDocumentClassification> {
   const header = await validateSchema(planDocumentHeaderRequest, input);
@@ -125,29 +246,72 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
   // Proof: moving this after version validation made the mounted future-file
   // response invalid_body/workItems[3].priority instead of
   // unsupported_version/document.version.
-  if (version !== 1 && version !== PLAN_DOCUMENT_VERSION) {
+  if (version !== 1 && version !== 2 && version !== 3 && version !== PLAN_DOCUMENT_VERSION) {
     return { ok: false, code: 'unsupported_version', path: 'document.version' };
   }
   const checked = await validateSchema(planDocumentRequest, input);
   if (checked.issues !== undefined) {
     return { ok: false, code: 'invalid_body', path: pathOf(checked.issues[0]?.path) };
   }
+  const typedDependencies: PlanDocumentImport['typedDependencies'] = [];
+  if (version === 4) {
+    // Proof (2026-09-28): removing this check made a missing version-4 list
+    // throw from .entries instead of returning invalid_typed_dependency.
+    if (!Array.isArray(checked.value.typedDependencies))
+      return { ok: false, code: 'invalid_typed_dependency', path: 'typedDependencies' };
+    for (const [at, entry] of checked.value.typedDependencies.entries()) {
+      if (typeof entry === 'object' && entry !== null && !Array.isArray(entry)) {
+        for (const side of ['predecessor', 'successor'] as const) {
+          const endpoint: unknown = Reflect.get(entry, side);
+          if (typeof endpoint !== 'object' || endpoint === null || Array.isArray(endpoint))
+            continue;
+          const scope: unknown = Reflect.get(endpoint, 'scope');
+          // Proof (2026-09-28): without this scope check, the mounted import
+          // returned predecessor.step for an unknown scope instead of .scope.
+          if (scope !== 'whole' && scope !== 'node' && scope !== 'descendant-step')
+            return {
+              ok: false,
+              code: 'invalid_typed_dependency',
+              path: `typedDependencies[${String(at)}].${side}.scope`,
+            };
+        }
+      }
+      const parsed = await validateSchema(documentTypedDependencyRequest, entry);
+      // Proof (2026-09-28): bypassing schema refusal made the unknown-type
+      // memory import throw on an undefined relationship in preparation.
+      if (parsed.issues !== undefined)
+        return {
+          ok: false,
+          code: 'invalid_typed_dependency',
+          path: `typedDependencies[${String(at)}]${pathOf(parsed.issues[0]?.path) === 'body' ? '' : `.${pathOf(parsed.issues[0]?.path)}`}`,
+        };
+      typedDependencies.push(parsed.value);
+    }
+  }
   const steps: PlanDocumentImport['steps'] = [];
-  for (const [at, step] of checked.value.steps.entries()) {
+  for (const [at, { code, ...step }] of checked.value.steps.entries()) {
     const path = `steps[${String(at)}].allowancePercent`;
     if (version === 1) {
       // Proof: with this refusal removed, `refuses a version-1 file that names
       // a step allowance` imported it at 0% (2026-09-27).
       if (step.allowancePercent !== undefined) return { ok: false, code: 'invalid_body', path };
-      steps.push({ ...step, allowancePercent: NO_ALLOWANCE });
+      steps.push({ ...step, allowancePercent: NO_ALLOWANCE, code: null });
       continue;
     }
     // Proof: with this refusal removed, `refuses a current-format file whose
     // step has no allowance` imported it (2026-09-27).
     if (step.allowancePercent === undefined) return { ok: false, code: 'invalid_body', path };
-    steps.push({ ...step, allowancePercent: step.allowancePercent });
+    if (version === 2) {
+      steps.push({ ...step, allowancePercent: step.allowancePercent, code: null });
+      continue;
+    }
+    // Proof: with this refusal removed, `refuses a version-3 file whose step
+    // has no string code` received ok: true (2026-09-27).
+    if (typeof code !== 'string')
+      return { ok: false, code: 'invalid_body', path: `steps[${String(at)}].code` };
+    steps.push({ ...step, allowancePercent: step.allowancePercent, code });
   }
-  return { ok: true, value: { ...checked.value, steps } };
+  return { ok: true, value: { ...checked.value, steps, typedDependencies } };
 }
 
 function pathOf(path: readonly (PropertyKey | { key: PropertyKey })[] | undefined): string {

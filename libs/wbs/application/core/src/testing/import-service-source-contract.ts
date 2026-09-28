@@ -1,4 +1,4 @@
-import type { PlanDocumentImport } from '@wbs/contracts';
+import type { PlanDocument, PlanDocumentImport } from '@wbs/contracts';
 import { suggestStepCode } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
@@ -116,9 +116,9 @@ function roundTripFixture(): PlanDocumentImport {
     scheduleObjective: 'time',
   };
   document.steps = [
-    { id: 'step-discover', name: 'Discover', position: 10, allowancePercent: 0 },
-    { id: 'step-build', name: 'Build', position: 30, allowancePercent: 12.5 },
-    { id: 'step-verify', name: 'Verify', position: 70, allowancePercent: 30 },
+    { id: 'step-discover', name: 'Discover', position: 10, allowancePercent: 0, code: 'discover' },
+    { id: 'step-build', name: 'Build', position: 30, allowancePercent: 12.5, code: 'impl' },
+    { id: 'step-verify', name: 'Verify', position: 70, allowancePercent: 30, code: 'verify' },
   ];
   document.calendarMarkers = [
     {
@@ -206,10 +206,10 @@ function roundTripFixture(): PlanDocumentImport {
   return document;
 }
 
-async function exportProject(
+async function exportDocument(
   source: Source<TransactionalStores>,
   projectId: string,
-): Promise<PlanDocumentImport> {
+): Promise<PlanDocument> {
   const clock = clockOf({ now: () => STAMP.at, newId: () => crypto.randomUUID() });
   const broadcast = recordingBroadcaster();
   const graph = servicesOver(source.stores, { clock, broadcast, scheduler: fastScheduler });
@@ -224,7 +224,15 @@ async function exportProject(
     markers: graph.calendarMarkers,
     clock,
   }).export(project, tree);
-  const classified = await classifyPlanDocument(exported);
+  if (!exported.ok) throw new Error(`imported project export refused: ${exported.error}`);
+  return exported.value;
+}
+
+async function exportProject(
+  source: Source<TransactionalStores>,
+  projectId: string,
+): Promise<PlanDocumentImport> {
+  const classified = await classifyPlanDocument(await exportDocument(source, projectId));
   if (!classified.ok) throw new Error(`exported project refused at ${classified.path}`);
   return classified.value;
 }
@@ -346,11 +354,22 @@ function heldSolutionUnitOfWork(
             }
             return stored.create(project, steps, stamp);
           },
+          createInOrganization: (project, steps, stamp, organizationId) =>
+            stored.createInOrganization(project, steps, stamp, organizationId),
           findById: (id) => stored.findById(id),
+          findInOrganization: (id, organizationId) => stored.findInOrganization(id, organizationId),
+          findCrossReferences: (projectId, organizationId) =>
+            stored.findCrossReferences(projectId, organizationId),
+          listForInOrganization: (userId, organizationId) =>
+            stored.listForInOrganization(userId, organizationId),
           findBySolutionSlug: (slug) => stored.findBySolutionSlug(slug),
           list: () => stored.list(),
           listFor: (userId) => stored.listFor(userId),
           recordOpen: (projectId, stamp) => stored.recordOpen(projectId, stamp),
+          recordOpenInOrganization: (projectId, stamp, organizationId) =>
+            stored.recordOpenInOrganization(projectId, stamp, organizationId),
+          updateInOrganization: (id, changes, stamp, organizationId) =>
+            stored.updateInOrganization(id, changes, stamp, organizationId),
           update: (id, changes, stamp) => stored.update(id, changes, stamp),
           stepsOf: (projectId) => stored.stepsOf(projectId),
           setStepAllowance: (projectId, stepId, percent, stamp) =>
@@ -517,9 +536,9 @@ export function importServiceSourceContract(
         document.settings.scheduleEngine = 'optimized';
         document.settings.scheduleObjective = 'time';
         document.steps = [
-          { id: 'step-discover', name: 'Discover', position: 10, allowancePercent: 0 },
-          { id: 'step-build', name: 'Build', position: 30, allowancePercent: 0 },
-          { id: 'step-verify', name: 'Verify', position: 70, allowancePercent: 0 },
+          { id: 'step-discover', name: 'Discover', position: 10, allowancePercent: 0, code: null },
+          { id: 'step-build', name: 'Build', position: 30, allowancePercent: 0, code: null },
+          { id: 'step-verify', name: 'Verify', position: 70, allowancePercent: 0, code: null },
         ];
         const row = document.workItems.at(0);
         if (row === undefined) throw new Error('plan document fixture has no work item');
@@ -1106,6 +1125,268 @@ export function importServiceSourceContract(
         release.resolve(undefined);
         const imported = await importing;
         expect(imported.ok).toBe(true);
+      } finally {
+        await source.close();
+      }
+    });
+
+    it.each([
+      [1, ['discover', 'build', 'verify']],
+      [2, ['discover', 'build', 'verify']],
+      [3, ['discover', 'impl', 'verify']],
+    ] as const)(
+      'round trips a version-%d file’s step codes, suggesting those it does not keep',
+      async (version, codes) => {
+        const source = await ownedSource();
+        try {
+          const file: unknown = structuredClone(roundTripFixture());
+          const header: unknown = Reflect.get(file as object, 'document');
+          Reflect.set(header as object, 'version', version);
+          if (version === 3)
+            Reflect.set(file as object, 'typedDependencies', [
+              {
+                id: 'ignored',
+                predecessor: { scope: 'node', workItem: 'absent', step: 'absent' },
+                successor: { scope: 'whole', workItem: 'absent' },
+                type: 'SS',
+              },
+            ]);
+          if (version === 1)
+            for (const step of Reflect.get(file as object, 'steps') as object[])
+              Reflect.deleteProperty(step, 'allowancePercent');
+          const classified = await classifyPlanDocument(file);
+          if (!classified.ok) throw new Error(`version ${String(version)} refused`);
+
+          const imported = await importService(source).import(classified.value, ACTOR);
+          if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+          const exported = await exportDocument(source, imported.projectId);
+
+          expect(exported.document.version).toBe(4);
+          expect(exported.typedDependencies).toEqual([]);
+          expect(exported.steps.map(({ name, code }) => [name, code])).toEqual([
+            ['Discover', codes[0]],
+            ['Build', codes[1]],
+            ['Verify', codes[2]],
+          ]);
+          // The copy's nodes follow its own work item and step IDs.
+          const stepIds = new Set(exported.steps.map(({ id }) => id));
+          const rowIds = new Set(exported.workItems.map(({ id }) => id));
+          for (const node of exported.stepNodes) {
+            expect(stepIds.has(node.stepId) && rowIds.has(node.workItemId)).toBe(true);
+            expect(node.id).toBe(`sn1.${node.workItemId}.${node.stepId}`);
+          }
+          expect(exported.stepNodes.length).toBeGreaterThan(0);
+        } finally {
+          await source.close();
+        }
+      },
+    );
+
+    it('round trips multiple step links and a legacy link with fresh identities', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 4;
+        Reflect.set(file, 'typedDependencies', [
+          {
+            id: 'node-link',
+            predecessor: { scope: 'node', workItem: 'row-build', step: 'step-build' },
+            successor: { scope: 'node', workItem: 'row-verify', step: 'step-verify' },
+            type: 'FS',
+          },
+          {
+            id: 'whole-link',
+            predecessor: { scope: 'whole', workItem: 'row-build' },
+            successor: { scope: 'whole', workItem: 'row-verify' },
+            type: 'FS',
+          },
+        ]);
+        const classified = await classifyPlanDocument(file);
+        if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
+        const imported = await importService(source).import(classified.value, ACTOR);
+        if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+        const exported = await exportDocument(source, imported.projectId);
+        const build = exported.workItems.find(({ name }) => name === 'Build release');
+        const verify = exported.workItems.find(({ name }) => name === 'Verify release');
+        const buildStep = exported.steps.find(({ code }) => code === 'impl');
+        const verifyStep = exported.steps.find(({ code }) => code === 'verify');
+        if (
+          build === undefined ||
+          verify === undefined ||
+          buildStep === undefined ||
+          verifyStep === undefined
+        )
+          throw new Error('round-trip relationship references disappeared');
+        expect(exported.document.version).toBe(4);
+        expect(
+          exported.typedDependencies.map(({ predecessor, successor, type }) => ({
+            predecessor,
+            successor,
+            type,
+          })),
+        ).toEqual([
+          {
+            predecessor: { scope: 'node', workItem: build.id, step: buildStep.id },
+            successor: { scope: 'node', workItem: verify.id, step: verifyStep.id },
+            type: 'FS',
+          },
+          {
+            predecessor: { scope: 'whole', workItem: build.id },
+            successor: { scope: 'whole', workItem: verify.id },
+            type: 'FS',
+          },
+        ]);
+        expect(new Set(exported.typedDependencies.map(({ id }) => id)).size).toBe(2);
+        expect(exported.typedDependencies.map(({ id }) => id)).not.toContain('node-link');
+        expect(verify.dependsOn).toContain(build.id);
+        expect(exported.settings.depReach).toBe('anchor-slice');
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('refuses a missing typed step before any project write', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 4;
+        Reflect.set(file, 'typedDependencies', [
+          {
+            id: 'missing-step',
+            predecessor: { scope: 'node', workItem: 'row-build', step: 'absent' },
+            successor: { scope: 'whole', workItem: 'row-verify' },
+            type: 'FS',
+          },
+        ]);
+        const before = await source.stores.projects.list();
+        const classified = await classifyPlanDocument(file);
+        if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
+        expect(await importService(source).import(classified.value, ACTOR)).toMatchObject({
+          ok: false,
+          code: 'invalid_typed_dependency',
+          path: 'typedDependencies[0].predecessor.step',
+        });
+        expect(await source.stores.projects.list()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    });
+
+    it.each([
+      [
+        'unknown scope',
+        {
+          id: 'bad',
+          predecessor: { scope: 'elsewhere', workItem: 'row-build' },
+          successor: { scope: 'whole', workItem: 'row-verify' },
+          type: 'FS',
+        },
+      ],
+      [
+        'unknown type',
+        {
+          id: 'bad',
+          predecessor: { scope: 'whole', workItem: 'row-build' },
+          successor: { scope: 'whole', workItem: 'row-verify' },
+          type: 'SS',
+        },
+      ],
+      [
+        'unknown work item',
+        {
+          id: 'bad',
+          predecessor: { scope: 'whole', workItem: 'absent' },
+          successor: { scope: 'whole', workItem: 'row-verify' },
+          type: 'FS',
+        },
+      ],
+      [
+        'node on parent',
+        {
+          id: 'bad',
+          predecessor: { scope: 'node', workItem: 'row-1', step: 'step-build' },
+          successor: { scope: 'whole', workItem: 'row-verify' },
+          type: 'FS',
+        },
+      ],
+      [
+        'descendant step on leaf',
+        {
+          id: 'bad',
+          predecessor: { scope: 'descendant-step', workItem: 'row-build', step: 'step-build' },
+          successor: { scope: 'whole', workItem: 'row-verify' },
+          type: 'FS',
+        },
+      ],
+      [
+        'duplicate relationship',
+        {
+          id: 'bad',
+          predecessor: { scope: 'whole', workItem: 'row-build' },
+          successor: { scope: 'whole', workItem: 'row-verify' },
+          type: 'FS',
+        },
+      ],
+      [
+        'combined cycle',
+        {
+          id: 'bad',
+          predecessor: { scope: 'whole', workItem: 'row-verify' },
+          successor: { scope: 'whole', workItem: 'row-build' },
+          type: 'FS',
+        },
+      ],
+      [
+        'self node',
+        {
+          id: 'bad',
+          predecessor: { scope: 'node', workItem: 'row-build', step: 'step-build' },
+          successor: { scope: 'node', workItem: 'row-build', step: 'step-build' },
+          type: 'FS',
+        },
+      ],
+    ] as const)('refuses a %s without a partial plan write', async (fault, relationship) => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 4;
+        Reflect.set(
+          file,
+          'typedDependencies',
+          fault === 'duplicate relationship'
+            ? [relationship, { ...relationship, id: 'also-bad' }]
+            : [relationship],
+        );
+        const before = await source.stores.projects.list();
+        const classified = await classifyPlanDocument(file);
+        const refusal = classified.ok
+          ? await importService(source).import(classified.value, ACTOR)
+          : classified;
+        expect(refusal).toMatchObject({ ok: false, code: 'invalid_typed_dependency' });
+        expect(await source.stores.projects.list()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('refuses a version-3 file with a duplicate step code, writing no project', async () => {
+      const source = await ownedSource();
+      try {
+        const before = await source.stores.projects.list();
+        const duplicated = roundTripFixture();
+        const verify = duplicated.steps.at(2);
+        if (verify === undefined) throw new Error('round-trip fixture lacks its third step');
+        verify.code = 'impl';
+
+        const refused = await importService(source).import(duplicated, ACTOR);
+
+        expect(refused).toMatchObject({
+          ok: false,
+          code: 'invalid_body',
+          path: 'steps[2].code',
+          detail: 'impl',
+        });
+        expect(await source.stores.projects.list()).toEqual(before);
       } finally {
         await source.close();
       }

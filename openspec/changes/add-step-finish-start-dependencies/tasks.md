@@ -36,21 +36,21 @@
 
 ## 6. Version import and export
 
-- [ ] 6.1 Red: typed/legacy round-trip and malformed or dangling new-format refusal.
-- [ ] 6.2 Allocate an archive version after earlier changes and implement explicit converters.
-- [ ] 6.3 Negative proof: drop an endpoint scope or accept a missing step; watch transfer test fail, restore, add adjacent `Proof:`.
+- [x] 6.1 Red: typed/legacy round-trip and malformed or dangling new-format refusal.
+- [x] 6.2 Allocate an archive version after earlier changes and implement explicit converters.
+- [x] 6.3 Negative proof: drop an endpoint scope or accept a missing step; watch transfer test fail, restore, add adjacent `Proof:`.
 
 ## 6a. Remap copied relationships
 
-- [ ] 6a.1 Red: whole-project copy and subtree duplication remap internal IDs without dangling references.
-- [ ] 6a.2 Implement copy remapping under the existing external-link policy.
-- [ ] 6a.3 Negative proof: retain a source work-item ID; watch copy test fail, restore, add adjacent `Proof:`.
+- [x] 6a.1 Red: mounted subtree duplication fails when its internal typed relationship is absent. No separate project-copy command exists; project transfer is export/import in a later task.
+- [x] 6a.2 Remap both internal endpoints and relationship IDs; retain scopes, steps and type; omit external relationships and journal typed rows around subtree replay.
+- [x] 6a.3 Negative proofs: retaining a source work-item ID fails the endpoint assertion; copying an external relationship fails the relationship-count assertion. Both faults restored with adjacent `Proof:` comments.
 
 ## 6b. Capture saved-plan history
 
-- [ ] 6b.1 Red: a later step reorder or relationship edit does not change a saved-plan read.
-- [ ] 6b.2 Capture typed IDs, scopes, steps and type for immutable read/display.
-- [ ] 6b.3 Negative proof: resolve history against live steps; watch saved-plan test fail, restore, add adjacent `Proof:`.
+- [x] 6b.1 Red: a later step reorder or relationship edit does not change a saved-plan read.
+- [x] 6b.2 Capture typed IDs, scopes, steps and type for immutable read/display.
+- [x] 6b.3 Negative proof: resolve history against live typed rows, omit captured rows, and drop them from scheduling; watch saved-plan and schedule tests fail, restore, add adjacent `Proof:`.
 
 ## 6c. Expose working-plan mutations
 
