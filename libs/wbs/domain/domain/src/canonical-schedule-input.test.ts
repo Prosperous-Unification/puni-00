@@ -82,6 +82,7 @@ const BASE: ScheduleInput = {
   notBefore: new Map([['b', 1]]),
   poolSizes: new Map([['team', 1]]),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
 };
 
@@ -146,6 +147,7 @@ const TIED: ScheduleInput = {
   notBefore: new Map(),
   poolSizes: new Map([['team', 1]]),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
 };
 
@@ -170,6 +172,7 @@ const CHAINED: ScheduleInput = {
   notBefore: new Map(),
   poolSizes: new Map(),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
 };
 
@@ -203,6 +206,7 @@ const PARALLEL: ScheduleInput = {
     ['beta', 1],
   ]),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
 };
 
@@ -236,6 +240,7 @@ const NESTED: ScheduleInput = {
   notBefore: new Map(),
   poolSizes: new Map(),
   reach: 'whole-item',
+  typed: [],
   deadlines: new Map(),
 };
 
@@ -695,5 +700,40 @@ describe('canonicalScheduleInput', () => {
     const orphaned: ScheduleInput = { ...BASE, slices: [step('p', null, 2)] };
     expect(() => canonicalScheduleInput(orphaned)).toThrow(/not a leaf/);
     expect(() => run(orphaned)).toThrow(/not a leaf/);
+  });
+});
+
+describe('typed dependencies in the canonical input', () => {
+  const plan = (typed: ScheduleInput['typed']): ScheduleInput => ({ ...CHAINED, edges: [], typed });
+  const node = (workItemId: string) => ({ scope: 'node' as const, workItemId, stepId: 's' });
+  const whole = (workItemId: string) => ({ scope: 'whole' as const, workItemId });
+
+  it('keeps the hash a plan had before typed dependencies when it holds none', () => {
+    expect(canonicalScheduleInput(plan([]))).not.toContain('typed');
+  });
+
+  /**
+   * Proof: the `typed` entry left out of `canonicalScheduleInput` made this
+   * case fail on the whole and node plans hashing equal; watched 2026-09-27.
+   */
+  it('hashes a typed dependency’s endpoints, scope and identity', () => {
+    const byWhole = canonicalScheduleInput(
+      plan([{ id: 'r1', predecessor: whole('x'), successor: whole('y'), type: 'FS' }]),
+    );
+    const byNode = canonicalScheduleInput(
+      plan([{ id: 'r1', predecessor: node('x'), successor: whole('y'), type: 'FS' }]),
+    );
+    const renamed = canonicalScheduleInput(
+      plan([{ id: 'r2', predecessor: whole('x'), successor: whole('y'), type: 'FS' }]),
+    );
+    expect(new Set([canonicalScheduleInput(plan([])), byWhole, byNode, renamed]).size).toBe(4);
+  });
+
+  it('orders typed dependencies by id, so arrival order does not move the hash', () => {
+    const first = { id: 'a', predecessor: whole('x'), successor: whole('y'), type: 'FS' as const };
+    const second = { id: 'b', predecessor: node('x'), successor: whole('y'), type: 'FS' as const };
+    expect(canonicalScheduleInput(plan([first, second]))).toBe(
+      canonicalScheduleInput(plan([second, first])),
+    );
   });
 });

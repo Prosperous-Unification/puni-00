@@ -10,6 +10,7 @@ import { inMemoryPriorityBands } from '@wbs/store-memory/priority-band-fixture';
 import { inMemoryProgress } from '@wbs/store-memory/progress-fixture';
 import { inMemoryProjects } from '@wbs/store-memory/project-fixture';
 import { inMemorySubtrees } from '@wbs/store-memory/subtree-fixture';
+import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 
 import { CREATOR_ADMISSION } from '../ports/edit-admission';
 import type { WorkItemServiceOptions } from '../service/work-item.service';
@@ -67,6 +68,7 @@ export interface InMemoryPlan {
       | 'measures'
       | 'progress'
       | 'dependencies'
+      | 'typedDependencies'
       | 'directory'
       | 'capacity'
       | 'priorityBands'
@@ -88,6 +90,7 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
   const measures = overrides.measures ?? inMemoryMeasures(workItems);
   const progress = overrides.progress ?? inMemoryProgress(workItems);
   const dependencies = overrides.dependencies ?? inMemoryDependencies([], undefined, workItems);
+  const typedDependencies = overrides.typedDependencies ?? inMemoryTypedDependencies();
   const projects = overrides.projects ?? inMemoryProjects();
   const capacity = overrides.capacity ?? inMemoryCapacity();
   const priorityBands = overrides.priorityBands ?? inMemoryPriorityBands();
@@ -117,6 +120,7 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
     measures,
     progress,
     dependencies,
+    typedDependencies,
     directory,
     capacity,
     priorityBands,

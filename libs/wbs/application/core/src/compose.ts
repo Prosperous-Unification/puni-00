@@ -37,6 +37,7 @@ import type { Source } from './ports/source';
 import type { PlanTransactionalStores, TransactionalStores } from './ports/stores';
 import type { Intervals, Timers } from './ports/timers';
 import type { Scope } from './ports/unit-of-work';
+import { DependencyGraphGuard } from './service/dependency-graph';
 import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
 
 /** Runtime capabilities required by every service composition. */
@@ -84,7 +85,8 @@ export interface ServicesOverOptions {
  *
  * Called once for the public graph and once per admitted batch or import, so
  * every resource module is installed here, per call, over the stores it is
- * handed — never once for the process. A shared installation would hand one
+ * handed — never once for the process. Project and Step share one dependency
+ * graph guard over those same stores. A shared installation would hand one
  * batch's staged stores to the next: the backend module map's "A singleton
  * module installation here would leak staged stores" hazard, and the
  * `Writing modules are installed per admitted scope` requirement of
@@ -92,12 +94,14 @@ export interface ServicesOverOptions {
  */
 export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOverOptions) {
   const { clock, broadcast, scheduler, admission } = shared;
+  const dependencyGraph = new DependencyGraphGuard(stores);
   return {
     projects: installProject({
       clock,
       projects: stores.projects,
       broadcast,
       optimizerAvailable: () => scheduler.supports('optimized'),
+      dependencyGraph,
     }).projects,
     capacity: installCapacity({
       clock,
@@ -124,6 +128,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       projects: stores.projects,
       steps: stores.steps,
       broadcast,
+      dependencyGraph,
     }).steps,
     directory: installDirectory({ clock, directory: stores.directory, broadcast }).directory,
     workItems: installWorkItem({
@@ -135,6 +140,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       measures: stores.measures,
       progress: stores.progress,
       dependencies: stores.dependencies,
+      typedDependencies: stores.typedDependencies,
       directory: stores.directory,
       capacity: stores.capacity,
       priorityBands: stores.priorityBands,

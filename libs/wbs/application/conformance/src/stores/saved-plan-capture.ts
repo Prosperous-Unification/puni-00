@@ -14,6 +14,7 @@ type CaptureSeedStores = Pick<
   | 'progress'
   | 'measures'
   | 'dependencies'
+  | 'typedDependencies'
   | 'directory'
   | 'capacity'
   | 'priorityBands'
@@ -111,6 +112,7 @@ export function observePlanInput(reads: PlanInputReads) {
           left.predecessorId.localeCompare(right.predecessorId) ||
           left.successorId.localeCompare(right.successorId),
       ),
+    typedDependencies: reads.typedDependencies.map((row) => structuredClone(row)).sort(byId),
     assignments: reads.assignments
       .map((row) => ({ ...row }))
       .sort((left, right) => byPair(left, right) || left.personId.localeCompare(right.personId)),
@@ -212,14 +214,14 @@ export function savedPlanCaptureExpected(
         projectId,
         firstWorkItemId,
         'Work 1',
-        revisionPolicy === 'sqlite-bumped' ? (isA ? 6 : 4) : 0,
+        revisionPolicy === 'sqlite-bumped' ? (isA ? 7 : 5) : 0,
         isA,
       ),
       expectedWorkItem(
         projectId,
         secondWorkItemId,
         'Work 2',
-        revisionPolicy === 'sqlite-bumped' ? 3 : 0,
+        revisionPolicy === 'sqlite-bumped' ? 4 : 0,
       ),
     ],
     estimates: [
@@ -262,6 +264,24 @@ export function savedPlanCaptureExpected(
         successorId: isA ? secondWorkItemId : firstWorkItemId,
       },
     ],
+    // Proof: 2026-09-28, memory capture returning [] failed the complete case's typedDependencies comparison.
+    typedDependencies: isA
+      ? [
+          {
+            id: 'capture-typed-a',
+            predecessor: { scope: 'whole', workItemId: firstWorkItemId },
+            successor: { scope: 'whole', workItemId: secondWorkItemId },
+            type: 'FS',
+          },
+        ]
+      : [
+          {
+            id: 'capture-typed-b',
+            predecessor: { scope: 'node', workItemId: firstWorkItemId, stepId: firstStepId },
+            successor: { scope: 'node', workItemId: secondWorkItemId, stepId: secondStepId },
+            type: 'FS',
+          },
+        ],
     assignments: [
       {
         workItemId: firstWorkItemId,
@@ -317,6 +337,7 @@ async function readSeededPlanInput(
     progress,
     measures,
     dependencies,
+    typedDependencies,
     assignmentRows,
     capacity,
     priorityBands,
@@ -335,6 +356,7 @@ async function readSeededPlanInput(
     stores.progress.listByProject(projectId),
     stores.measures.listByProject(projectId),
     stores.dependencies.listByProject(projectId),
+    stores.typedDependencies.listByProject(projectId),
     stores.directory.assignmentsInProject(projectId),
     stores.capacity.slotsFor(projectId),
     stores.priorityBands.listFor(projectId),
@@ -355,6 +377,12 @@ async function readSeededPlanInput(
     progress,
     measures,
     dependencies,
+    typedDependencies: typedDependencies.map(({ id, predecessor, successor, type }) => ({
+      id,
+      predecessor,
+      successor,
+      type,
+    })),
     assignments: assignmentRows.assignments,
     capacity,
     priorityBands,
@@ -530,6 +558,30 @@ export async function seedSavedPlanCapture(stores: CaptureSeedStores, seed: Seed
     },
     stamp,
   );
+  await stores.typedDependencies.add(
+    {
+      id: 'capture-typed-a',
+      projectId: seed.projectIds[0],
+      predecessor: { scope: 'whole', workItemId: seed.workItemIds[0][0] },
+      successor: { scope: 'whole', workItemId: seed.workItemIds[0][1] },
+      type: 'FS',
+    },
+    stamp,
+  );
+  await stores.typedDependencies.add(
+    {
+      id: 'capture-typed-b',
+      projectId: seed.projectIds[1],
+      predecessor: {
+        scope: 'node',
+        workItemId: seed.workItemIds[1][0],
+        stepId: seed.stepIds[1][0],
+      },
+      successor: { scope: 'node', workItemId: seed.workItemIds[1][1], stepId: seed.stepIds[1][1] },
+      type: 'FS',
+    },
+    stamp,
+  );
   await stores.dependencies.add(
     {
       id: 'capture-dependency-b',
@@ -574,6 +626,28 @@ export async function seedSavedPlanCapture(stores: CaptureSeedStores, seed: Seed
       successorId: 'work-b-one',
     },
   ]);
+}
+
+/** Changes one live typed relationship and removes the other after both captures. */
+export async function changeSavedPlanCaptureTypedDependencies(
+  stores: Pick<CaptureSeedStores, 'typedDependencies'>,
+  seed: SeededPlan,
+) {
+  await stores.typedDependencies.update(
+    {
+      id: 'capture-typed-a',
+      projectId: seed.projectIds[0],
+      predecessor: { scope: 'whole', workItemId: seed.workItemIds[0][0] },
+      successor: {
+        scope: 'node',
+        workItemId: seed.workItemIds[0][1],
+        stepId: seed.stepIds[0][1],
+      },
+      type: 'FS',
+    },
+    seed.stamps[1],
+  );
+  await stores.typedDependencies.remove('capture-typed-b', seed.stamps[1]);
 }
 
 function captureAlternatives(seed: SeededPlan, missing: PlanInputReads | null) {
@@ -698,10 +772,16 @@ export function savedPlanCaptureRegistrations(
       'savedPlanCapture',
       'savedPlanCapture.readPlanInput:detached',
       open,
-      async ({ port, seed }) => {
+      async ({ port, seed, readers, scenario }) => {
+        if (scenario.kind !== 'capture-typed-change')
+          throw new Error('detached capture requires its typed-change scenario');
         const first = await readComplete(port, seed.projectIds[0]);
+        const firstB = await readComplete(port, seed.projectIds[1]);
         expect(captureAlternatives(seed, null).map(({ projectA }) => projectA)).toContainEqual(
           observePlanInput(first),
+        );
+        expect(captureAlternatives(seed, null).map(({ projectB }) => projectB)).toContainEqual(
+          observePlanInput(firstB),
         );
         const labelled = first.workItems.find(({ id }) => id === 'work-a-one');
         const unassigned = first.people.find(({ id }) => id === 'capture-person-unassigned');
@@ -749,6 +829,45 @@ export function savedPlanCaptureRegistrations(
           projectA: observePlanInput(projectA),
           projectB: observePlanInput(projectB),
         });
+        await scenario.changeTypedDependencies();
+        expect(await readers.typedDependencies.listByProject(seed.projectIds[0])).toEqual([
+          {
+            id: 'capture-typed-a',
+            projectId: seed.projectIds[0],
+            predecessor: { scope: 'whole', workItemId: seed.workItemIds[0][0] },
+            successor: {
+              scope: 'node',
+              workItemId: seed.workItemIds[0][1],
+              stepId: seed.stepIds[0][1],
+            },
+            type: 'FS',
+          },
+        ]);
+        expect(await readers.typedDependencies.listByProject(seed.projectIds[1])).toEqual([]);
+        expect(first.typedDependencies).toEqual([
+          {
+            id: 'capture-typed-a',
+            predecessor: { scope: 'whole', workItemId: seed.workItemIds[0][0] },
+            successor: { scope: 'whole', workItemId: seed.workItemIds[0][1] },
+            type: 'FS',
+          },
+        ]);
+        expect(firstB.typedDependencies).toEqual([
+          {
+            id: 'capture-typed-b',
+            predecessor: {
+              scope: 'node',
+              workItemId: seed.workItemIds[1][0],
+              stepId: seed.stepIds[1][0],
+            },
+            successor: {
+              scope: 'node',
+              workItemId: seed.workItemIds[1][1],
+              stepId: seed.stepIds[1][1],
+            },
+            type: 'FS',
+          },
+        ]);
       },
     ),
   ];
