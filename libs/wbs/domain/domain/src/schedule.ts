@@ -2010,6 +2010,7 @@ function rebuildResourceOrder(
         // refuses a pinned pool overlap during the replay, before this runs.
         // Disabling this branch left wbs-domain and wbs-contracts green
         // (791 / 430 pass), 2026-09-28; the watched refusal is that one's.
+        // R5-29 in docs/findings/checks-that-cannot-fail.md.
         throw new ScheduleInvalidOptimizedStartError(
           graph.nodes[at].key,
           `overlaps pool ${poolId}`,
@@ -2035,7 +2036,8 @@ function rebuildResourceOrder(
  * {@link pinFloor} does, rather than left one ulp inside a live reservation.
  * A move shifts that slice's finish and so every boundary downstream of it, so
  * placement reruns from the moved starts until no replay moves anything; the
- * starts only rise, by drift each time, and `round` bounds the reruns.
+ * starts only rise, by drift each time, and `round` bounds the reruns. The
+ * returned `eventsVisited` is the final round's; discarded rounds' are dropped.
  */
 function placeWeightedSlices(
   graph: SliceGraph,
@@ -2207,6 +2209,14 @@ function placeWeightedSlices(
       const personId = duration > 0 ? node.slice.personId : null;
       const intervals = personId === null ? [] : (replayPeople.get(personId) ?? []);
       const actualDuration = placed[taken].finish - start;
+      // Kept for the Fast replay only, where no reachable input fires it: Fast
+      // placed every slice in a person window over the same intervals. See
+      // R5-30 in docs/findings/checks-that-cannot-fail.md.
+      if (
+        pinned === undefined &&
+        findPersonWindow(intervals, start, actualDuration).start !== start
+      )
+        throw new ScheduleInvalidOptimizedStartError(node.key, 'overlaps a resource reservation');
       const held =
         pinned === undefined
           ? start
@@ -2222,8 +2232,11 @@ function placeWeightedSlices(
       if (held !== start) moved.set(taken, held);
       if (moved.size > 0) {
         // This round is discarded; it only reserves, so later slices meet the
-        // moved intervals and move in the same rerun.
-        reserveReplayed(taken, held, placed[taken].finish + (held - start));
+        // moved intervals and move in the same rerun. The finish is the one the
+        // rerun will tile from `held`: `placed.finish + (held - start)` lands
+        // an ulp short of it, and a same-person chain then moved one link per
+        // rerun instead of all at once.
+        reserveReplayed(taken, held, tileFinish(undefined, held, node.at, node.offsets).finish);
         continue;
       }
       let planFloor = node.notBefore;
@@ -2287,10 +2300,16 @@ function placeWeightedSlices(
     }
     if (pinned !== undefined && moved.size > 0) {
       const [first] = moved.keys();
-      // Bounded convergence, not a proven check: no input is known to reach
-      // it, because a rerun pins every moved start onto the double that moved
-      // it. It exists so a replay that kept moving would refuse, not recurse.
-      if (round >= 16) {
+      // Bounded convergence. A rerun that moves nothing returns, and a moved
+      // start only rises. The bound is the slice count: even one moved link
+      // per rerun, the propagation seen before the discarded round reserved
+      // the rerun's own finish, settles an n-slice chain within n reruns.
+      // Proof: a bound of 0 made `settles a 17-slice same-person chain in one
+      // rerun` throw `resource releases did not converge within drift` for S5;
+      // a bound of 1 passed it (one rerun suffices). With the old
+      // `placed.finish + (held - start)` reservation, a bound of 3 threw for
+      // S10. Watched 2026-09-29.
+      if (round >= nodes.length) {
         throw new ScheduleInvalidOptimizedStartError(
           nodes[first].key,
           'resource releases did not converge within drift',

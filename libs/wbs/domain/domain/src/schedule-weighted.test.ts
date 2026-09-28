@@ -325,8 +325,12 @@ describe('weighted Fast relationships', () => {
       pins,
     );
     // The replay also asks each pin's pools whether it may start there, which
-    // Fast never asks; that work is counted, so only the counter differs.
+    // Fast never asks; that work is counted, so only the counter differs. It
+    // is one joint search per slice from the pin, never earlier than the floor
+    // search Fast also runs over the same ledger, so at most doubling it. A
+    // rerun reports only its own round's counter; discarded rounds' are dropped.
     expect(replay.eventsVisited).toBeGreaterThan(fast.eventsVisited);
+    expect(replay.eventsVisited).toBeLessThanOrEqual(2 * fast.eventsVisited);
     expect({ ...replay, eventsVisited: fast.eventsVisited }).toEqual(fast);
   });
 

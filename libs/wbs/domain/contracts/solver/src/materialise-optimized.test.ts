@@ -367,6 +367,44 @@ describe('materialiseOptimized over tight weighted solver answers', () => {
     },
   );
 
+  it('settles a 17-slice same-person chain in one rerun', () => {
+    const units = [13, 12, 52, 24, 86, 95, 2, 75, 43, 64, 8, 62, 20, 38, 82, 85, 94];
+    const chain = units.map((_, at) => `S${String(at + 1)}`);
+    const offsets: Record<string, number> = {
+      [sliceKey('A', null)]: 0,
+      [sliceKey('D', null)]: 0,
+    };
+    let at = 0;
+    units.forEach((length, index) => {
+      offsets[sliceKey(chain[index], null)] = at;
+      at += length;
+    });
+    const plan = materialiseOptimized(
+      [row('A', 10), row('D', 40), ...chain.map((id, index) => row(id, 100 + index))],
+      noEdges,
+      [
+        sliceOf('A', null, 1),
+        sliceOf('D', null, 1),
+        ...units.map((length, index) =>
+          sliceOf(chain[index], null, length / SOLVER_QUANTUM, { personId: 'kat' }),
+        ),
+      ],
+      new Map(),
+      new Map(),
+      'whole-item',
+      [link('A', 'D', 'SS')],
+      offsets,
+    );
+    const slices = chain.map((id) => plan.slices.get(sliceKey(id, null)));
+    // A pin a ulp after its predecessor's finish stays where it is; one a ulp
+    // before moves onto it. Either way the chain abuts and never overlaps.
+    slices.slice(1).forEach((slice, index) => {
+      const gap = (slice?.earliestStart ?? NaN) - (slices[index]?.earliestFinish ?? NaN);
+      expect(gap).toBeGreaterThanOrEqual(0);
+      expect(gap).toBeLessThan(1e-9);
+    });
+  });
+
   it.each(['person', 'pool', 'FS'] as const)(
     'still refuses a %s-sharing answer one solver unit early',
     (sharing) => {
