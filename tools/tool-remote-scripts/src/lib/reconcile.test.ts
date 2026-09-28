@@ -109,7 +109,12 @@ describe('planSwap', () => {
 
   it('backfills step codes for be once the old colour has stopped, before committing', () => {
     const steps = planSwap('be', base).steps;
-    expect(steps.slice(-3)).toEqual(['stop-blue', 'backfill-step-codes', 'commit']);
+    expect(steps.slice(-4)).toEqual([
+      'stop-blue',
+      'relationship-types-after-stop',
+      'backfill-step-codes',
+      'commit',
+    ]);
   });
 
   it('backfills step codes for be on a first-ever deploy too — the file may predate it', () => {
@@ -120,6 +125,7 @@ describe('planSwap', () => {
       phase: null,
     }).steps;
     expect(steps.slice(-2)).toEqual(['backfill-step-codes', 'commit']);
+    expect(steps).not.toContain('relationship-types-after-stop');
   });
 
   it('never backfills step codes for gw or fe', () => {

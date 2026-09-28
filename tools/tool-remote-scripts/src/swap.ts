@@ -500,7 +500,8 @@ export async function startGreen(
 // Steps at or before `reload` are still reversible: nothing client-facing has
 // switched over yet (or, for `reload` itself, the switch is what's failing).
 // A failure anywhere in this window must delegate to `abortSwap`. Steps after
-// `reload` (`drain`, `revoke-alias`, `stop-blue`, `backfill-step-codes`, `commit`) are NOT reversible
+// `reload` (`drain`, `revoke-alias`, `stop-blue`, `relationship-types-after-stop`,
+// `backfill-step-codes`, `commit`) are NOT reversible
 // by this mechanism: routing has already moved to `to`, which is now the
 // legitimately live colour, so rolling back to `from` would be exactly
 // backwards. See the boundary enforced in `execute`'s per-step try/catch.
@@ -534,6 +535,8 @@ function parseSupportedTypes(output: string): string[] {
   if (!Array.isArray(parsed))
     throw new Error('incoming release reported malformed supported relationship types');
   return parsed.map((type: unknown) => {
+    // Proof: disabling this type check made `rejects a non-string supported relationship type`
+    // fail on `Unable to find property` for the expected malformed-output error.
     if (typeof type !== 'string')
       throw new Error('incoming release reported malformed supported relationship types');
     return type;
@@ -558,6 +561,8 @@ function parseStoredTypes(output: string): StoredRelationshipType[] {
       typeof row.type !== 'string' ||
       !('count' in row) ||
       typeof row.count !== 'number' ||
+      // Proof: disabling the integer check made `rejects a stored relationship with a fractional count`
+      // fail: it received `stored relationship types unsupported ... FF (1.5)` instead of malformed output.
       !Number.isSafeInteger(row.count) ||
       row.count <= 0
     ) {
@@ -565,6 +570,37 @@ function parseStoredTypes(output: string): StoredRelationshipType[] {
     }
     return { type: row.type, count: row.count };
   });
+}
+
+/** Refuses a release whose reader cannot interpret types currently stored in the shared DB. */
+async function assertSupportedRelationshipTypes(
+  container: string,
+  shCommand: SwapExecutionIo['sh'],
+  afterStop: boolean,
+): Promise<void> {
+  const supported = parseSupportedTypes(await shCommand(relationshipTypesCommand(container)));
+  const stored = parseStoredTypes(await shCommand(storedRelationshipTypesCommand(container)));
+  // Proof: replacing this comparison with `stored.filter(() => false)` made
+  // `refuses FS-only code with stored FF before migration and stops green`
+  // fail on `Expected value: StringContaining "FF (2)"; Unable to find property`.
+  const unsupported = stored.filter((row) => !supported.includes(row.type));
+  if (unsupported.length === 0) return;
+
+  const types = unsupported.map((row) => `${row.type} (${String(row.count)})`).join(', ');
+  if (afterStop) {
+    throw new Error(
+      `stored relationship types unsupported by ${container} after the outgoing colour stopped: ${types}. ` +
+        'The new colour is serving and this swap cannot commit. Redeploy a release that understands these types, ' +
+        'or save and remove the rows with typed-dependency-rollback-cli.ts save|remove as described in ' +
+        'docs/runbook-prod-deploy.md#typed-dependency-rollback',
+    );
+  }
+  throw new Error(
+    `stored relationship types unsupported by ${container}: ${types}. ` +
+      'Save and remove these rows losslessly with typed-dependency-rollback-cli.ts save|remove, ' +
+      'then rerun deploy; restore after redeploying a compatible release. ' +
+      'See docs/runbook-prod-deploy.md#typed-dependency-rollback',
+  );
 }
 
 export async function execute(
@@ -734,20 +770,7 @@ export async function execute(
         }
 
         case 'relationship-types': {
-          const supported = parseSupportedTypes(await io.sh(relationshipTypesCommand(greenName)));
-          const stored = parseStoredTypes(await io.sh(storedRelationshipTypesCommand(greenName)));
-          // Proof: replacing this comparison with `stored.filter(() => false)` made
-          // `refuses FS-only code with stored FF before migration and stops green`
-          // fail on `Expected value: StringContaining "FF (2)"; Unable to find property`.
-          const unsupported = stored.filter((row) => !supported.includes(row.type));
-          if (unsupported.length > 0) {
-            throw new Error(
-              `stored relationship types unsupported by ${greenName}: ${unsupported.map((row) => `${row.type} (${String(row.count)})`).join(', ')}. ` +
-                'Save and remove these rows losslessly with typed-dependency-rollback-cli.ts save|remove, ' +
-                'then rerun deploy; restore after redeploying a compatible release. ' +
-                'See docs/runbook-prod-deploy.md#typed-dependency-rollback',
-            );
-          }
+          await assertSupportedRelationshipTypes(greenName, io.sh, false);
           break;
         }
 
@@ -930,6 +953,12 @@ export async function execute(
           if (from !== null) await io.sh(['stop', containerName(tier, from)]);
           break;
 
+        case 'relationship-types-after-stop':
+          // Proof: omitting this recheck made `refuses FF inserted after the first check`
+          // fail on `Received message: "step-code backfill failed..."` after running past stop-blue.
+          await assertSupportedRelationshipTypes(greenName, io.sh, true);
+          break;
+
         case 'backfill-step-codes':
           // After `stop-blue`, so this is outside `ABORTABLE_STEPS`: a failure
           // throws past `commit`, leaving the new colour serving and the deploy
@@ -953,7 +982,7 @@ export async function execute(
         await abortSwap(`${tier}-${to} failed during '${step}'`, e);
       }
       // Steps after `reload` (`drain`, `revoke-alias`, `stop-blue`,
-      // `backfill-step-codes`, `commit`): routing has already moved onto `to`, which is now the
+      // `relationship-types-after-stop`, `backfill-step-codes`, `commit`): routing has already moved onto `to`, which is now the
       // legitimately live colour — that is the explicit boundary
       // `ABORTABLE_STEPS` draws. Rolling back to `from` here would be
       // exactly backwards: Caddy and (for `be`) gw's forward alias already

@@ -786,9 +786,93 @@ describe('execute, relationship type rollback guard', () => {
       expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
     }
   });
+
+  it('rejects a non-string supported relationship type', async () => {
+    const attempt = await runGuard('["FS",42]', '[]');
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringContaining('malformed supported relationship types'),
+    );
+    expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+  });
+
+  it('rejects a stored relationship with a fractional count', async () => {
+    const attempt = await runGuard('["FS"]', '[{"type":"FF","count":1.5}]');
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringContaining('malformed stored relationship types'),
+    );
+    expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+  });
 });
 
 describe('execute, after routing has moved', () => {
+  it('refuses FF inserted after the first check once blue stops, without committing', async () => {
+    const ran: string[][] = [];
+    const written: string[] = [];
+    let storedReads = 0;
+    const io: SwapExecutionIo = {
+      sh: (args) => {
+        ran.push(args);
+        if (JSON.stringify(args) === JSON.stringify(relationshipTypesCommand('be-01-green')))
+          return Promise.resolve('["FS"]');
+        if (
+          JSON.stringify(args) === JSON.stringify(storedRelationshipTypesCommand('be-01-green'))
+        ) {
+          storedReads++;
+          return Promise.resolve(
+            storedReads === 1 ? '[{"type":"FS","count":1}]' : '[{"type":"FF","count":2}]',
+          );
+        }
+        if (args.includes('src/migrate-status-cli.ts')) return Promise.resolve('none');
+        if (args.includes('src/migrate-cli.ts')) return Promise.resolve('migrated');
+        if (args[0] === 'stop') return Promise.resolve('');
+        throw new Error(`unexpected Docker command: ${args.join(' ')}`);
+      },
+      readPhase: () => Promise.resolve('committed'),
+      writePhase: (_path, phase) => {
+        written.push(`phase ${phase}`);
+        return Promise.resolve();
+      },
+      writeAtomic: (path) => {
+        written.push(`file ${path}`);
+        return Promise.resolve();
+      },
+    };
+
+    let caught: unknown;
+    try {
+      await execute(
+        {
+          tier: 'be',
+          from: 'blue',
+          to: 'green',
+          steps: [
+            'relationship-types',
+            'migrate',
+            'stop-blue',
+            'relationship-types-after-stop',
+            'backfill-step-codes',
+            'commit',
+          ],
+        },
+        'registry/be-01@sha256:abc',
+        'deadbeef',
+        io,
+      );
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toHaveProperty(
+      'message',
+      expect.stringMatching(/FF \(2\).*redeploy.*docs\/runbook-prod-deploy\.md/is),
+    );
+    expect(storedReads).toBe(2);
+    expect(ran).toContainEqual(['stop', 'be-01-blue']);
+    expect(ran.some((args) => args.includes('src/backfill-step-codes-cli.ts'))).toBe(false);
+    expect(written).toEqual(['phase old-stopped']);
+  });
+
   /**
    * Proof: with the `backfill-step-codes` case emptied (the step logged and
    * skipped), this case failed on `Expected path: "message"` — the swap went

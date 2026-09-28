@@ -2,6 +2,7 @@ import { expect, it } from 'bun:test';
 
 it('prints the relationship types understood by this binary as JSON', async () => {
   const command = Bun.spawn(['bun', 'run', 'src/relationship-types-cli.ts'], {
+    cwd: `${import.meta.dir}/..`,
     stdout: 'pipe',
     stderr: 'pipe',
   });

@@ -21,6 +21,7 @@ export type SwapStep =
   | 'drain'
   | 'revoke-alias'
   | 'stop-blue'
+  | 'relationship-types-after-stop'
   | 'backfill-step-codes'
   | 'commit';
 
@@ -67,6 +68,7 @@ export function planSwap(tier: Tier, observed: Observed): SwapPlan {
   if (tier === 'gw') steps.push('drain');
   if (tier === 'be' && from !== null) steps.push('revoke-alias');
   if (from !== null) steps.push('stop-blue');
+  if (tier === 'be' && from !== null) steps.push('relationship-types-after-stop');
   // After the old colour stops, so no writer that ignores `step.code` is left;
   // on a first deploy too, because the database may predate this release.
   if (tier === 'be') steps.push('backfill-step-codes');

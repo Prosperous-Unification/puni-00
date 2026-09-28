@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { renderTemplate, tierComposeTmpl } from '@tools/compose';
@@ -40,13 +40,30 @@ import {
 const DIGEST = 'sha256:' + 'a'.repeat(64);
 
 describe('relationship type commands', () => {
+  it('executes the present reader CLI', async () => {
+    const directory = scratchSync('wbs-reader-present-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      writeFileSync(
+        join(directory, 'src/relationship-types-cli.ts'),
+        'console.log(JSON.stringify(["FS", "FF"]));\n',
+      );
+      const command = relationshipTypesCommand('be-01-green');
+      const probe = Bun.spawn(command.slice(2), { cwd: directory, stdout: 'pipe' });
+      expect(await probe.exited).toBe(0);
+      expect(JSON.parse(await new Response(probe.stdout).text())).toEqual(['FS', 'FF']);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it('treats an absent reader CLI as exactly FS', async () => {
     const directory = scratchSync('wbs-reader-types-');
     try {
       mkdirSync(join(directory, 'src'));
       const command = relationshipTypesCommand('be-01-green');
       expect(command.slice(0, 4)).toEqual(['exec', 'be-01-green', 'sh', '-c']);
-      const probe = Bun.spawn(['sh', '-c', command[4]], { cwd: directory, stdout: 'pipe' });
+      const probe = Bun.spawn(command.slice(2), { cwd: directory, stdout: 'pipe' });
       expect(await probe.exited).toBe(0);
       expect(JSON.parse(await new Response(probe.stdout).text())).toEqual(['FS']);
     } finally {
@@ -58,9 +75,38 @@ describe('relationship type commands', () => {
     const directory = scratchSync('wbs-reader-unavailable-');
     try {
       const command = relationshipTypesCommand('be-01-green');
-      const probe = Bun.spawn(['sh', '-c', command[4]], { cwd: directory });
+      const probe = Bun.spawn(command.slice(2), { cwd: directory });
       expect(await probe.exited).toBe(74);
     } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a nonregular reader CLI path', async () => {
+    const directory = scratchSync('wbs-reader-nonregular-');
+    try {
+      mkdirSync(join(directory, 'src/relationship-types-cli.ts'), { recursive: true });
+      const probe = Bun.spawn(relationshipTypesCommand('be-01-green').slice(2), {
+        cwd: directory,
+      });
+      expect(await probe.exited).toBe(73);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects an unreadable source directory', async () => {
+    const directory = scratchSync('wbs-reader-unreadable-');
+    const source = join(directory, 'src');
+    try {
+      mkdirSync(source);
+      chmodSync(source, 0o000);
+      const probe = Bun.spawn(relationshipTypesCommand('be-01-green').slice(2), {
+        cwd: directory,
+      });
+      expect(await probe.exited).toBe(74);
+    } finally {
+      chmodSync(source, 0o700);
       rmSync(directory, { recursive: true, force: true });
     }
   });
@@ -73,7 +119,7 @@ describe('relationship type commands', () => {
       const command = storedRelationshipTypesCommand('be-01-green');
       expect(command.slice(0, 4)).toEqual(['exec', 'be-01-green', 'bun', '-e']);
       const readTypes = async () => {
-        const probe = Bun.spawn(['bun', '-e', command[4]], {
+        const probe = Bun.spawn(command.slice(2), {
           env: { ...process.env, DB_PATH: path },
           stdout: 'pipe',
           stderr: 'pipe',
@@ -94,6 +140,28 @@ describe('relationship type commands', () => {
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+
+  it('rejects a missing database file', async () => {
+    const directory = scratchSync('wbs-stored-missing-');
+    try {
+      const probe = Bun.spawn(storedRelationshipTypesCommand('be-01-green').slice(2), {
+        env: { ...process.env, DB_PATH: join(directory, 'missing.db') },
+        stderr: 'pipe',
+      });
+      expect(await probe.exited).not.toBe(0);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects an unset DB_PATH', async () => {
+    const { DB_PATH: _dbPath, ...environment } = process.env;
+    const probe = Bun.spawn(storedRelationshipTypesCommand('be-01-green').slice(2), {
+      env: environment,
+      stderr: 'pipe',
+    });
+    expect(await probe.exited).not.toBe(0);
   });
 });
 
