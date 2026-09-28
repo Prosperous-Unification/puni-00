@@ -50,11 +50,11 @@ function write(path: string, source: string): void {
 function workflowStep(workflowPath: string, stepName: string): string {
   const workflow = parseYaml(readFileSync(workflowPath, 'utf8')) as {
     jobs?: {
-      gate?: { steps?: { name?: string; run?: string }[] };
+      gate_workspace?: { steps?: { name?: string; run?: string }[] };
       lint?: { steps?: { name?: string; run?: string }[] };
     };
   };
-  const steps = workflow.jobs?.gate?.steps ?? workflow.jobs?.lint?.steps ?? [];
+  const steps = workflow.jobs?.gate_workspace?.steps ?? workflow.jobs?.lint?.steps ?? [];
   const run = steps.find((step) => step.name === stepName)?.run;
   if (typeof run !== 'string') throw new Error(`workflow step is missing: ${stepName}`);
   return run;
@@ -1811,11 +1811,14 @@ await import(${JSON.stringify(productionSnapshotter)});
   });
 
   test('CI gives the complete uncached gate its chosen finite allowance', () => {
-    const ci = readFileSync(join(workspace, '.github', 'workflows', 'ci.yml'), 'utf8');
-    const gate = /jobs:\n {2}gate:\n {4}runs-on: ubuntu-latest\n {4}timeout-minutes: ([0-9]+)/.exec(
-      ci,
-    );
-    if (gate === null) throw new Error('CI gate timeout is absent or malformed');
+    const ci = parseYaml(
+      readFileSync(join(workspace, '.github', 'workflows', 'ci.yml'), 'utf8'),
+    ) as {
+      jobs?: {
+        gate_workspace?: { 'timeout-minutes'?: number };
+        gate_tool_wiki?: { 'timeout-minutes'?: number };
+      };
+    };
 
     // Proof: the production workflow's obsolete 20-minute value failed here on
     // `Expected: 45 · Received: 20` after CI canceled required Tool Wiki work at 20m11s.
@@ -1823,7 +1826,12 @@ await import(${JSON.stringify(productionSnapshotter)});
     // 35337661318 was canceled at 45m with every project affected and the packed suite in scope.
     // Proof: the 60-minute value failed here on `Expected: 90 · Received: 60` after run
     // 36416401675 was canceled at 60m in `Gate head pinning`.
-    expect(Number(gate[1])).toBe(90);
+    // Since 2026-09-28 the gate is split and each shard carries its own allowance; the
+    // measurements behind both are in docs/findings/ci-gate-duration.md.
+    // Proof (2026-09-28): with `gate_tool_wiki` set back to 20 minutes this failed on
+    // `Expected: 50 · Received: 20`.
+    expect(ci.jobs?.gate_workspace?.['timeout-minutes']).toBe(60);
+    expect(ci.jobs?.gate_tool_wiki?.['timeout-minutes']).toBe(50);
   });
 
   test('committed entrypoint certifies the exact external-trust fixture', () => {
@@ -2123,22 +2131,29 @@ describe('package-backed admission bootstrap in the CI gate', () => {
   });
 
   test('the CI gate runs the packed package suite whenever Tool Wiki is in scope', () => {
-    // The ci.yml gate job owns this shape; only the two named steps are claimed.
+    // The ci.yml `gate_tool_wiki` job owns this shape; only its scope and the two named steps
+    // are claimed. The job-level `if` is the scope; a step-level one would read the
+    // `gate_mode` job's outputs as a missing step's and skip the suite on every run.
     const workflow = parseYaml(
       readFileSync(join(workspace, '.github', 'workflows', 'ci.yml'), 'utf8'),
-    ) as { jobs?: { gate?: { steps?: { name?: string; if?: string; run?: string }[] } } };
-    const steps = workflow.jobs?.gate?.steps ?? [];
+    ) as {
+      jobs?: {
+        gate_tool_wiki?: { if?: string; steps?: { name?: string; if?: string; run?: string }[] };
+      };
+    };
+    const job = workflow.jobs?.gate_tool_wiki;
+    const steps = job?.steps ?? [];
     const suite = steps.find((step) => step.name === 'Twilight Burokrat packed package suite');
     const bubblewrap = steps.find(
       (step) => step.name === 'Provision bubblewrap for the packed package suite',
     );
     // Proof: deleting the suite step from ci.yml failed here on the undefined step.
+    expect(job?.if).toBe("${{ needs.gate_mode.outputs.tool_wiki == 'run' }}");
     expect(suite).toEqual({
       name: 'Twilight Burokrat packed package suite',
-      if: "steps.gate_mode.outputs.tool_wiki == 'run'",
       run: 'bunx nx run twilight-burokrat:test:package --skip-nx-cache --output-style=stream',
     });
-    expect(bubblewrap?.if).toBe("steps.gate_mode.outputs.tool_wiki == 'run'");
+    expect(bubblewrap?.if).toBeUndefined();
     expect(steps.indexOf(bubblewrap ?? {})).toBeLessThan(steps.indexOf(suite ?? {}));
   });
 
