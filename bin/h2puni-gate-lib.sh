@@ -177,11 +177,28 @@ gate_with_pinned_head() {
   # deletes work nobody asked us to delete, and this runs unattended. The gate
   # gates a COMMIT; anything else in the tree is a caller error with a name
   # printed next to it. Raised by the peer review of 75408058 (TASK-328).
+  #
+  # The tree is also the Docker build context. The legacy builder on h2puni copies
+  # file modes verbatim, and solver-image-smoke runs its caller container as the
+  # host uid against root-owned files, so a 0600 tsconfig.base.json there made bun
+  # lose every path alias and the orphan proof time out after 25 s with no cause
+  # logged (2026-09-27 23:17Z to 2026-09-28 02:05Z, after a caller with umask 077
+  # checked shas out here). The payload therefore fixes its own umask, and refuses
+  # with 66 when a tracked file or directory is still closed to other users, which
+  # only an out-of-gate checkout can leave behind because git never rewrites the
+  # mode of a file the pinned sha does not change. Refused rather than repaired,
+  # for the same reason as the dirty tree: the listing names the damage and the
+  # repair command, and nothing unattended edits the shared tree.
+  # Proof: h2puni-gate.test.sh case 37 (umask 077 caller) failed with the umask
+  # line removed; case 38 exited 0 and ran the steps over a 0600 file with the
+  # file half removed, and exited 0 over a 0700 directory with the directory half
+  # removed.
   with_heavy_lock "$lock_path" -- bash -c '
     set -euo pipefail
     repo=$1
     pinned=$2
     shift 2
+    umask 022
     original_commit=$(git -C "$repo" rev-parse HEAD)
     original_ref=
     if branch_ref=$(git -C "$repo" symbolic-ref --quiet HEAD); then
@@ -232,13 +249,9 @@ gate_with_pinned_head() {
     }
     # Proof: h2puni-gate.test.sh rejects branch and detached candidates and observes both
     # exact checkout shapes restored; deleting the saved branch makes recovery exit 74 loudly.
-    trap restore_rejected_checkout EXIT
-    git -C "$repo" checkout --detach --quiet "$pinned"
-    dirty=$(git -C "$repo" status --porcelain --untracked-files=normal)
-    if [[ -n $dirty ]]; then
-      printf "h2puni gate: %s is dirty after checking out %s; refusing to report a verdict about bytes that commit does not contain:\n" "$repo" "$pinned" >&2
-      # No pipe here, and no apostrophes either: see the two notes above this
-      # call, both of which are load-bearing and both of which were watched.
+    # No pipe here, and no apostrophes either: see the two notes above this
+    # call, both of which are load-bearing and both of which were watched.
+    list_bounded() {
       shown=0
       while IFS= read -r line; do
         printf "  %s\n" "$line" >&2
@@ -247,13 +260,32 @@ gate_with_pinned_head() {
           break
         fi
       done <<EOF
-$dirty
+$1
 EOF
-      total=$(printf "%s\n" "$dirty" | wc -l)
+      total=$(printf "%s\n" "$1" | wc -l)
       if [[ $total -gt $shown ]]; then
         printf "  … and %s more\n" "$((total - shown))" >&2
       fi
+    }
+    trap restore_rejected_checkout EXIT
+    git -C "$repo" checkout --detach --quiet "$pinned"
+    dirty=$(git -C "$repo" status --porcelain --untracked-files=normal)
+    if [[ -n $dirty ]]; then
+      printf "h2puni gate: %s is dirty after checking out %s; refusing to report a verdict about bytes that commit does not contain:\n" "$repo" "$pinned" >&2
+      list_bounded "$dirty"
       exit 65
+    fi
+    unreadable=$(
+      cd "$repo"
+      git ls-tree -r -z --name-only HEAD |
+        xargs -0 -r sh -c "find -P \"\$@\" -maxdepth 0 -type f ! -perm -0004 -print" find-unreadable-files
+      git ls-tree -r -d -z --name-only HEAD |
+        xargs -0 -r sh -c "find -P \"\$@\" -maxdepth 0 -type d ! -perm -0005 -print" find-closed-directories
+    )
+    if [[ -n $unreadable ]]; then
+      printf "h2puni gate: %s has tracked paths other users cannot read after checking out %s; containers that run as the host uid would not see them. Repair with: git -C %s ls-tree -r -t -z --name-only HEAD | xargs -0 chmod go+rX\n" "$repo" "$pinned" "$repo" >&2
+      list_bounded "$unreadable"
+      exit 66
     fi
     printf "h2puni gate: running on %s\n" "$(git -C "$repo" rev-parse HEAD)" >&2
     cd "$repo"
