@@ -239,7 +239,7 @@ describe('the saved-plan routes', () => {
       const saveResponse = await save('ada');
       expect(saveResponse.status).toBe(201);
       const savedId = await savedIdOf(saveResponse);
-      await new StepRepository(writing.db, OPEN).rename(laterStep.id, 'Renamed', stamp);
+      await new StepRepository(writing.db, OPEN).rename(projectId, laterStep.id, 'Renamed', stamp);
       await typed.remove(relationship.id, stamp);
       writing.db.run(
         `UPDATE step SET code = 'live-code', position = 5 WHERE id = '${laterStep.id}'`,
