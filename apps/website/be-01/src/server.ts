@@ -14,6 +14,11 @@ import { createLocalJWKSet, errors, jwtVerify } from 'jose';
 
 type ProviderFetch = (input: string, init: RequestInit) => Response | Promise<Response>;
 
+interface ProviderRates {
+  inputUsdPerMillion: number;
+  outputUsdPerMillion: number;
+}
+
 export interface WebsiteApiConfig {
   databasePath: string;
   apiBindHost?: string;
@@ -489,16 +494,32 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     };
   }
 
-  function providerReady(): boolean {
+  /** Captures the validated rates used throughout one paid operation; unavailable pricing returns null. */
+  function readProviderRates(): ProviderRates | null {
+    const inputUsdPerMillion = config.openRouterInputUsdPerMillion;
+    const outputUsdPerMillion = config.openRouterOutputUsdPerMillion;
+    // Proof: removing this check makes the mounted undefined-input-rate test fail with a null reservation.
+    if (
+      typeof inputUsdPerMillion !== 'number' ||
+      typeof outputUsdPerMillion !== 'number' ||
+      !Number.isFinite(inputUsdPerMillion) ||
+      !Number.isFinite(outputUsdPerMillion) ||
+      inputUsdPerMillion <= 0 ||
+      outputUsdPerMillion <= 0
+    )
+      return null;
+    return { inputUsdPerMillion, outputUsdPerMillion };
+  }
+
+  function providerReady(
+    rates: ProviderRates | null = readProviderRates(),
+  ): rates is ProviderRates {
     return Boolean(
       config.openRouterKey &&
       config.openRouterModel &&
       config.openRouterProvider &&
       config.openRouterPrivacyVerified &&
-      Number.isFinite(config.openRouterInputUsdPerMillion) &&
-      Number.isFinite(config.openRouterOutputUsdPerMillion) &&
-      (config.openRouterInputUsdPerMillion ?? 0) > 0 &&
-      (config.openRouterOutputUsdPerMillion ?? 0) > 0,
+      rates,
     );
   }
 
@@ -517,13 +538,46 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
   function chatReservation(
     message: string,
     prior: { role: 'user' | 'assistant'; content: string }[],
+    rates: ProviderRates,
   ): number {
-    const inputRate = config.openRouterInputUsdPerMillion;
-    const outputRate = config.openRouterOutputUsdPerMillion;
-    if (inputRate === undefined || outputRate === undefined)
-      throw new Error('Provider rates lost after admission');
     const inputTokensBound = Buffer.byteLength(JSON.stringify([...prior, message]), 'utf8') + 2_000;
-    return Math.ceil(inputTokensBound * inputRate + 1_024 * outputRate);
+    return Math.ceil(
+      inputTokensBound * rates.inputUsdPerMillion + 1_024 * rates.outputUsdPerMillion,
+    );
+  }
+
+  /** Maps durable replay and refusal outcomes without starting another provider call. */
+  function resolveChatAdmission(
+    admitted: ReturnType<WebsiteStore['admitChatOperation']>,
+    origin: string | null,
+    paid: boolean,
+  ): { kind: 'started'; id: string } | { kind: 'response'; response: Response } {
+    if (admitted.kind === 'started') return admitted;
+    if (admitted.kind === 'completed')
+      return { kind: 'response', response: attachCors(replayChat(admitted.reply), origin) };
+    const code =
+      admitted.kind === 'provider_unavailable'
+        ? paid
+          ? 'provider_unconfigured'
+          : 'provider_unavailable'
+        : admitted.kind === 'conflict'
+          ? 'idempotency_conflict'
+          : admitted.kind === 'inflight'
+            ? 'chat_inflight'
+            : admitted.kind === 'unknown'
+              ? 'chat_unsettled'
+              : admitted.kind === 'turn_limit'
+                ? 'turn_limit'
+                : admitted.kind === 'budget'
+                  ? 'provider_budget_or_unsettled'
+                  : 'request_unavailable';
+    const status =
+      admitted.kind === 'provider_unavailable'
+        ? 503
+        : admitted.kind === 'turn_limit' || admitted.kind === 'budget'
+          ? 429
+          : 409;
+    return { kind: 'response', response: attachCors(failure(code, status), origin) };
   }
 
   function readFinalUsage(
@@ -551,11 +605,12 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     message: string,
     prior: { role: 'user' | 'assistant'; content: string }[],
     now: number,
+    rates: ProviderRates,
     purpose: 'chat' | 'concept' = 'chat',
     accounting: 'direct' | 'chat-operation' = 'direct',
   ): Promise<{ reply: string; actualMicroUsd: number } | { code: string; status: number }> {
     // Proof: removing this admission made the missing-price/privacy test invoke the provider.
-    if (!providerReady()) return { code: 'provider_unconfigured', status: 503 };
+    if (!providerReady(rates)) return { code: 'provider_unconfigured', status: 503 };
     const messages = [
       {
         role: 'system',
@@ -568,10 +623,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       { role: 'user', content: message },
     ];
     const inputTokensBound = Buffer.byteLength(JSON.stringify(messages), 'utf8') + 2_000;
-    const inputRate = config.openRouterInputUsdPerMillion;
-    const outputRate = config.openRouterOutputUsdPerMillion;
-    if (inputRate === undefined || outputRate === undefined)
-      throw new Error('Provider rates lost after admission');
+    const inputRate = rates.inputUsdPerMillion;
+    const outputRate = rates.outputUsdPerMillion;
     const reservedMicroUsd = Math.ceil(inputTokensBound * inputRate + 1_024 * outputRate);
     const callId =
       accounting === 'direct'
@@ -599,7 +652,15 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           messages,
           max_tokens: 1_024,
           stream: false,
-          provider: { only: [config.openRouterProvider], zdr: true, data_collection: 'deny' },
+          // Proof: the mounted paid-JSON payload test fails when either routing flag or price ceiling is removed.
+          provider: {
+            only: [config.openRouterProvider],
+            zdr: true,
+            data_collection: 'deny',
+            allow_fallbacks: false,
+            require_parameters: true,
+            max_price: { prompt: inputRate, completion: outputRate, request: 0 },
+          },
         }),
       });
       if (!response.ok)
@@ -1075,47 +1136,56 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const idempotencyKey = initial ? `initial:${active.id}` : suppliedKey;
       const bodyHash = digest(`${initial ? 'initial' : 'message'}:${message}`);
       const prior = store.listTurns(active.id);
-      const newCallReady = config.openRouterEnabled ? providerReady() : Boolean(config.demoAuth);
-      const reservedMicroUsd =
-        config.openRouterEnabled && newCallReady ? chatReservation(message, prior) : null;
-      const admitted = store.admitChatOperation(
-        session.id,
-        active.id,
-        idempotencyKey,
-        bodyHash,
-        message,
-        initial,
-        reservedMicroUsd,
-        now,
-        newCallReady,
-      );
-      if (admitted.kind === 'completed') return attachCors(replayChat(admitted.reply), origin);
-      if (admitted.kind !== 'started') {
-        const code =
-          admitted.kind === 'provider_unavailable'
-            ? config.openRouterEnabled
-              ? 'provider_unconfigured'
-              : 'provider_unavailable'
-            : admitted.kind === 'conflict'
-              ? 'idempotency_conflict'
-              : admitted.kind === 'inflight'
-                ? 'chat_inflight'
-                : admitted.kind === 'unknown'
-                  ? 'chat_unsettled'
-                  : admitted.kind === 'turn_limit'
-                    ? 'turn_limit'
-                    : admitted.kind === 'budget'
-                      ? 'provider_budget_or_unsettled'
-                      : 'request_unavailable';
-        const status =
-          admitted.kind === 'provider_unavailable'
-            ? 503
-            : admitted.kind === 'turn_limit' || admitted.kind === 'budget'
-              ? 429
-              : 409;
-        return attachCors(failure(code, status), origin);
+      const paid = Boolean(config.openRouterEnabled);
+      const paidRates = paid ? readProviderRates() : null;
+      const preparedProvider = paid
+        ? providerReady(paidRates)
+          ? { kind: 'paid' as const, rates: paidRates }
+          : { kind: 'unavailable' as const }
+        : { kind: 'demo' as const };
+      // Replay and conflicts still use the durable admission path when paid inference is unavailable.
+      if (preparedProvider.kind === 'unavailable') {
+        const unavailable = resolveChatAdmission(
+          store.admitChatOperation(
+            session.id,
+            active.id,
+            idempotencyKey,
+            bodyHash,
+            message,
+            initial,
+            null,
+            now,
+            false,
+          ),
+          origin,
+          paid,
+        );
+        if (unavailable.kind === 'response') return unavailable.response;
+        // Proof: the injected broken-store admission test fails when this invariant is removed.
+        throw new Error('Unavailable provider admitted a new chat operation');
       }
-      if (!config.openRouterEnabled) {
+      const newCallReady = preparedProvider.kind === 'paid' || Boolean(config.demoAuth);
+      const reservedMicroUsd =
+        preparedProvider.kind === 'paid'
+          ? chatReservation(message, prior, preparedProvider.rates)
+          : null;
+      const admitted = resolveChatAdmission(
+        store.admitChatOperation(
+          session.id,
+          active.id,
+          idempotencyKey,
+          bodyHash,
+          message,
+          initial,
+          reservedMicroUsd,
+          now,
+          newCallReady,
+        ),
+        origin,
+        paid,
+      );
+      if (admitted.kind === 'response') return admitted.response;
+      if (preparedProvider.kind === 'demo') {
         const questions = [
           'Who will use this first, and what do they need to accomplish?',
           'What does the current workflow look like from start to finish?',
@@ -1151,6 +1221,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         compatibility: 'strict',
         fetch: providerFetch,
       });
+      const inputRate = preparedProvider.rates.inputUsdPerMillion;
+      const outputRate = preparedProvider.rates.outputUsdPerMillion;
       const streamed = streamText({
         model: openrouter.chat(String(config.openRouterModel)),
         system:
@@ -1168,18 +1240,18 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
               only: [String(config.openRouterProvider)],
               zdr: true,
               data_collection: 'deny',
+              // Proof: the mounted SSE payload test fails when either routing flag or price ceiling is removed.
+              allow_fallbacks: false,
+              require_parameters: true,
+              max_price: { prompt: inputRate, completion: outputRate, request: 0 },
             },
           },
         },
         onFinish: ({ text, finalStep, finishReason }) => {
           try {
             const usage = readFinalUsage(finalStep.usage.raw);
-            const inputRate = config.openRouterInputUsdPerMillion;
-            const outputRate = config.openRouterOutputUsdPerMillion;
             if (
               !usage ||
-              inputRate === undefined ||
-              outputRate === undefined ||
               !['stop', 'length'].includes(finishReason) ||
               !text.trim() ||
               text.length > 8_000
@@ -1306,9 +1378,16 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         return attachCors(failure('chat_inflight', 409), origin);
       const used = turns.filter((turn) => turn.role === 'user').length;
       if (used >= 12) return attachCors(failure('turn_limit', 429), origin);
-      if (config.openRouterEnabled && !providerReady())
+      const paid = Boolean(config.openRouterEnabled);
+      const paidRates = paid ? readProviderRates() : null;
+      const preparedProvider = paid
+        ? providerReady(paidRates)
+          ? { kind: 'paid' as const, rates: paidRates }
+          : { kind: 'unavailable' as const }
+        : { kind: 'demo' as const };
+      if (preparedProvider.kind === 'unavailable')
         return attachCors(failure('provider_unconfigured', 503), origin);
-      if (!config.openRouterEnabled && !config.demoAuth)
+      if (preparedProvider.kind === 'demo' && !config.demoAuth)
         return attachCors(failure('provider_unavailable', 503), origin);
       const legacyOperation = store.admitChatOperation(
         session.id,
@@ -1317,7 +1396,9 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         digest(`message:${message}`),
         message,
         false,
-        config.openRouterEnabled ? chatReservation(message, turns) : null,
+        preparedProvider.kind === 'paid'
+          ? chatReservation(message, turns, preparedProvider.rates)
+          : null,
         now,
       );
       if (legacyOperation.kind !== 'started')
@@ -1335,13 +1416,14 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       let reply: string;
       let provider: 'demo' | 'openrouter';
       let actualMicroUsd: number | null = null;
-      if (config.openRouterEnabled) {
+      if (preparedProvider.kind === 'paid') {
         const completion = await requestProvider(
           session.id,
           active.id,
           message,
           turns,
           now,
+          preparedProvider.rates,
           'chat',
           'chat-operation',
         );
@@ -1388,13 +1470,22 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const template = chooseTemplate(sourceText);
       let concept: ConceptView;
       if (config.openRouterEnabled) {
-        if (!providerReady()) return attachCors(failure('provider_unconfigured', 503), origin);
+        const rates = readProviderRates();
+        if (!providerReady(rates)) return attachCors(failure('provider_unconfigured', 503), origin);
         const prompt = JSON.stringify({
           template,
           request: sourceText.slice(0, 2000),
           brief: requestRecord?.brief.slice(0, 4000) ?? '',
         });
-        const completion = await requestProvider(session.id, active.id, prompt, [], now, 'concept');
+        const completion = await requestProvider(
+          session.id,
+          active.id,
+          prompt,
+          [],
+          now,
+          rates,
+          'concept',
+        );
         if ('code' in completion)
           return attachCors(failure(completion.code, completion.status), origin);
         const parsed = parseProviderConcept(completion.reply, template, subject, 0);
@@ -1437,9 +1528,18 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const subject = subjectFrom(existing['subject']);
       let revised: ConceptView;
       if (config.openRouterEnabled) {
-        if (!providerReady()) return attachCors(failure('provider_unconfigured', 503), origin);
+        const rates = readProviderRates();
+        if (!providerReady(rates)) return attachCors(failure('provider_unconfigured', 503), origin);
         const prompt = JSON.stringify({ template: selected, subject, feedback });
-        const completion = await requestProvider(session.id, active.id, prompt, [], now, 'concept');
+        const completion = await requestProvider(
+          session.id,
+          active.id,
+          prompt,
+          [],
+          now,
+          rates,
+          'concept',
+        );
         if ('code' in completion)
           return attachCors(failure(completion.code, completion.status), origin);
         const parsed = parseProviderConcept(completion.reply, selected, subject, 1);

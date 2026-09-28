@@ -20,6 +20,8 @@ The gateway strips preview's `/api` prefix before forwarding the callback. The b
 
 ## OpenRouter
 
+The [provider candidate and activation checks](provider-activation.md) record the current proposed model, exact endpoint and listed rates. They are not live billing or eligibility evidence.
+
 Runtime settings remain `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `OPENROUTER_PROVIDER`, `OPENROUTER_INPUT_USD_PER_MILLION`, `OPENROUTER_OUTPUT_USD_PER_MILLION`, `OPENROUTER_PRIVACY_VERIFIED` and `OPENROUTER_ENABLED`. Use a dedicated capped key and explicitly verified model/provider/prices. Never infer a free or zero price from missing configuration. The provider policy remains pinned routing, zero data retention and denied data collection. Missing final usage retains the reservation rather than treating the call as free.
 
 The existing pilot limits are 12 user turns per request, $0.50 per request, $1 per account per UTC day and $10 across the site per UTC day. Admission counts outstanding reservations toward those limits and permits at most one unsettled call per account and four across the site. These limits are enforced by the API/store, independently of the visible remaining-turn counter.
@@ -38,3 +40,24 @@ Before claiming live Google/AI, record:
 - Desktop/mobile chat, brief, preview and explicit proposal conversion.
 
 Missing credentials are an activation dependency, not evidence of a working login. Keep unavailable states visible until real checks are recorded.
+
+## Preview activation sequence
+
+The preview Compose file explicitly sets `DEMO_AUTH=0` and `OPENROUTER_ENABLED=0`. Its `environment` entries override the protected `env_file`: adding `OPENROUTER_ENABLED=1` to `runtime/runtime.env` alone will not enable inference. Keep the base release disabled and retain a separate reviewed activation configuration with the release receipts.
+
+1. Provision a PUNI Google **Web application** client and register the preview callback above. Add its four OIDC settings to the existing mode-0600 runtime file without replacing the operator credential. Recreate the API with the existing release's immutable images and runtime/data paths. An API restart alone does not reload a Compose env file.
+2. With inference still disabled, verify a real browser's Home submission, Google return, verified identity, owned request and reload. Keep the manual brief available if Google rejects or the user cancels sign-in. Record this result before activating paid calls.
+3. Create a dedicated OpenRouter key with a $100 monthly ceiling, model/provider restrictions and the required privacy settings. Verify current endpoint compatibility, prices and processor wording. Store the key and approved nonsecret model/provider/rate settings in the protected file. Catalog research is not proof of account eligibility or successful paid accounting.
+4. After those checks, an operator may apply a separate Compose override containing only the following enable switch. Use the same release Compose file, image IDs, runtime file and database path; validate the merged configuration with `docker compose ... config --quiet`, then recreate the API. Retain the exact override and runtime change receipt outside Git; never print expanded configuration containing credentials.
+
+   ```yaml
+   services:
+     api:
+       environment:
+         OPENROUTER_ENABLED: '1'
+   ```
+
+5. Run the bounded real-provider checks in **Activation evidence** above. Inspect provider-side debit and the durable operation/usage record without copying request content or credentials into logs. A successful reply alone does not prove accounting. Keep unknown usage held for investigation; do not clear its reservation to make another request succeed.
+6. To disable inference, recreate the API using the base Compose configuration without the enable override. Retain the same database and runtime file so saved requests and manual conversion remain available. Confirm provider readiness is unavailable and all services remain healthy.
+
+Configuration-only proof on 2026-09-29: with a synthetic env file containing `OPENROUTER_ENABLED=1`, `docker compose -f deploy/website/dev/compose.yml config --format json` still resolved the API flag to `0`. Adding the override above resolved it to `1`; both configurations retained `DEMO_AUTH=0`. No service was started and no live setting was changed by this proof. The deployed runtime still contains only its operator credential, so steps 1–5 remain pending.

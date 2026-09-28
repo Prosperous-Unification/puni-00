@@ -6,7 +6,7 @@ import { WebsiteStore } from '@website/store-sqlite';
 import { Database } from 'bun:sqlite';
 import { afterEach, expect, test } from 'bun:test';
 
-import { createWebsiteApi } from './server';
+import { createWebsiteApi, type WebsiteApiConfig } from './server';
 
 const directories: string[] = [];
 afterEach(() => {
@@ -114,11 +114,25 @@ test('streamed initial turn persists once and replays without another provider c
       const sent = JSON.parse(init.body) as {
         stream: boolean;
         stream_options: { include_usage: boolean };
-        provider: { only: string[]; zdr: boolean; data_collection: string };
+        provider: {
+          only: string[];
+          zdr: boolean;
+          data_collection: string;
+          allow_fallbacks: boolean;
+          require_parameters: boolean;
+          max_price: { prompt: number; completion: number; request: number };
+        };
       };
       expect(sent.stream).toBe(true);
       expect(sent.stream_options.include_usage).toBe(true);
-      expect(sent.provider).toEqual({ only: ['Fixture'], zdr: true, data_collection: 'deny' });
+      expect(sent.provider).toEqual({
+        only: ['Fixture'],
+        zdr: true,
+        data_collection: 'deny',
+        allow_fallbacks: false,
+        require_parameters: true,
+        max_price: { prompt: 1, completion: 2, request: 0 },
+      });
       const chunks = [
         {
           id: 'gen-1',
@@ -989,7 +1003,14 @@ test('paid provider call requires verified configuration and sends privacy contr
       if (typeof init.body !== 'string') throw new Error('Expected JSON request body');
       const sent = JSON.parse(init.body) as {
         model: string;
-        provider: { zdr: boolean; data_collection: string; only: string[] };
+        provider: {
+          zdr: boolean;
+          data_collection: string;
+          only: string[];
+          allow_fallbacks: boolean;
+          require_parameters: boolean;
+          max_price: { prompt: number; completion: number; request: number };
+        };
         max_tokens: number;
         tools?: unknown;
       };
@@ -998,6 +1019,9 @@ test('paid provider call requires verified configuration and sends privacy contr
         zdr: true,
         data_collection: 'deny',
         only: ['ExampleProvider'],
+        allow_fallbacks: false,
+        require_parameters: true,
+        max_price: { prompt: 1, completion: 2, request: 0 },
       });
       expect(sent.max_tokens).toBe(1024);
       expect(sent.tools).toBeUndefined();
@@ -1021,6 +1045,114 @@ test('paid provider call requires verified configuration and sends privacy contr
   expect(calls).toBe(1);
   api.close();
 });
+
+for (const route of ['/chat', '/chat/stream'] as const) {
+  test(`${route} keeps admitted rates through outbound ceiling and settlement`, async () => {
+    const { api: initialApi, config } = fixture();
+    initialApi.close();
+    let outboundPrice: unknown;
+    const paidConfig: WebsiteApiConfig = {
+      ...config,
+      demoAuth: true,
+      openRouterEnabled: true,
+      openRouterKey: 'fixture-key',
+      openRouterModel: 'fixture/model',
+      openRouterProvider: 'Fixture',
+      openRouterInputUsdPerMillion: 1,
+      openRouterOutputUsdPerMillion: 2,
+      openRouterPrivacyVerified: true,
+      providerFetch: (_input, init) => {
+        if (typeof init.body !== 'string') throw new Error('Expected JSON request body');
+        const sent = JSON.parse(init.body) as {
+          provider?: { max_price?: unknown };
+          stream?: boolean;
+        };
+        outboundPrice = sent.provider?.max_price;
+        if (!sent.stream)
+          return Response.json({
+            choices: [{ message: { content: 'A useful reply.' } }],
+            usage: { prompt_tokens: 20, completion_tokens: 3 },
+          });
+        const chunks = [
+          {
+            id: 'rate-snapshot',
+            model: 'fixture/model',
+            choices: [
+              {
+                index: 0,
+                delta: { role: 'assistant', content: 'A useful reply.' },
+                finish_reason: null,
+              },
+            ],
+          },
+          {
+            id: 'rate-snapshot',
+            model: 'fixture/model',
+            choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 20, completion_tokens: 3, total_tokens: 23 },
+          },
+        ];
+        return new Response(
+          chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join('') + 'data: [DONE]\n\n',
+          { headers: { 'content-type': 'text/event-stream' } },
+        );
+      },
+    };
+    const website = createWebsiteApi(paidConfig);
+    const login = await website.fetch(
+      request('/session/demo', 'POST', config.appOrigin, { email: 'rates@example.test' }),
+    );
+    const cookie = login.headers.get('set-cookie')?.split(';')[0];
+    const csrf = ((await login.json()) as { csrfToken: string }).csrfToken;
+    const admission = Reflect.get(WebsiteStore.prototype, 'admitChatOperation');
+    WebsiteStore.prototype.admitChatOperation = function (...args: Parameters<typeof admission>) {
+      const outcome = admission.apply(this, args);
+      if (outcome.kind === 'started') {
+        paidConfig.openRouterInputUsdPerMillion = undefined;
+        paidConfig.openRouterOutputUsdPerMillion = undefined;
+      }
+      return outcome;
+    };
+    try {
+      const response = await website.fetch(
+        request(
+          route,
+          'POST',
+          config.appOrigin,
+          route === '/chat'
+            ? { message: 'A booking tool' }
+            : { message: 'A booking tool', idempotencyKey: 'rate-snapshot-123' },
+          cookie,
+          csrf,
+        ),
+      );
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain('A useful reply.');
+      expect(outboundPrice).toEqual({ prompt: 1, completion: 2, request: 0 });
+      const inspection = new Database(config.databasePath);
+      try {
+        const call = inspection
+          .query<{ reserved_micro_usd: number; settled_micro_usd: number | null }, []>(
+            'SELECT reserved_micro_usd, settled_micro_usd FROM provider_call LIMIT 1',
+          )
+          .get();
+        const expectedReservation =
+          Buffer.byteLength(JSON.stringify(['A booking tool']), 'utf8') + 2_000 + 1_024 * 2;
+        expect(call?.reserved_micro_usd).toBe(expectedReservation);
+        expect(call?.settled_micro_usd).toBe(26);
+        expect(
+          inspection.query<{ count: number }, []>('SELECT count(*) AS count FROM chat_turn').get()
+            ?.count,
+        ).toBe(2);
+      } finally {
+        inspection.close();
+      }
+    } finally {
+      WebsiteStore.prototype.admitChatOperation = admission;
+      website.close();
+    }
+  });
+}
 
 test('legacy paid chat leaves usage unsettled if saving its reply fails', async () => {
   const { config } = fixture();
@@ -1676,6 +1808,99 @@ test('enabled inference without vetted rate or privacy configuration never calls
   ).toBe(503);
   expect(calls).toBe(0);
   api.close();
+});
+
+for (const rateName of ['openRouterInputUsdPerMillion', 'openRouterOutputUsdPerMillion'] as const) {
+  for (const invalidRate of [undefined, 0, -1, Number.POSITIVE_INFINITY, Number.NaN]) {
+    test(`paid admission rejects ${rateName} ${String(invalidRate)}`, async () => {
+      const { config } = fixture();
+      let calls = 0;
+      const api = createWebsiteApi({
+        ...config,
+        demoAuth: true,
+        openRouterEnabled: true,
+        openRouterKey: 'fixture-key',
+        openRouterModel: 'fixture/model',
+        openRouterProvider: 'Fixture',
+        openRouterPrivacyVerified: true,
+        openRouterInputUsdPerMillion: 1,
+        openRouterOutputUsdPerMillion: 2,
+        [rateName]: invalidRate,
+        providerFetch: () => {
+          calls += 1;
+          return Response.json({});
+        },
+      });
+      const login = await api.fetch(
+        request('/session/demo', 'POST', config.appOrigin, { email: 'invalid-rate@example.test' }),
+      );
+      const cookie = login.headers.get('set-cookie')?.split(';')[0];
+      const csrf = ((await login.json()) as { csrfToken: string }).csrfToken;
+      const response = await api.fetch(
+        request('/chat', 'POST', config.appOrigin, { message: 'Booking app' }, cookie, csrf),
+      );
+      // Proof: bypassing readProviderRates validation makes this mounted admission test throw or call the provider.
+      expect(response.status).toBe(503);
+      expect(calls).toBe(0);
+      const inspection = new Database(config.databasePath);
+      expect(
+        inspection.query<{ count: number }, []>('SELECT count(*) AS count FROM provider_call').get()
+          ?.count,
+      ).toBe(0);
+      inspection.close();
+      api.close();
+    });
+  }
+}
+
+test('unavailable stream refuses a broken store admission without contacting provider', async () => {
+  const { config } = fixture();
+  let calls = 0;
+  const api = createWebsiteApi({
+    ...config,
+    demoAuth: true,
+    openRouterEnabled: true,
+    openRouterKey: 'fixture-key',
+    openRouterModel: 'fixture/model',
+    openRouterProvider: 'Fixture',
+    openRouterPrivacyVerified: true,
+    providerFetch: () => {
+      calls += 1;
+      return Response.json({});
+    },
+  });
+  const login = await api.fetch(
+    request('/session/demo', 'POST', config.appOrigin, { email: 'broken-store@example.test' }),
+  );
+  const cookie = login.headers.get('set-cookie')?.split(';')[0];
+  const csrf = ((await login.json()) as { csrfToken: string }).csrfToken;
+  const admission = Reflect.get(WebsiteStore.prototype, 'admitChatOperation');
+  let admissionCalls = 0;
+  WebsiteStore.prototype.admitChatOperation = function (...args: Parameters<typeof admission>) {
+    admissionCalls += 1;
+    if (args[8] === false) return { kind: 'started', id: 'injected-invalid-admission' };
+    return admission.apply(this, args);
+  };
+  try {
+    // Proof: removing the unavailable-branch invariant lets the injected store result continue as a paid turn.
+    expect(
+      api.fetch(
+        request(
+          '/chat/stream',
+          'POST',
+          config.appOrigin,
+          { message: 'Booking app', idempotencyKey: 'broken-store-123' },
+          cookie,
+          csrf,
+        ),
+      ),
+    ).rejects.toThrow('Unavailable provider admitted a new chat operation');
+    expect(admissionCalls).toBe(1);
+    expect(calls).toBe(0);
+  } finally {
+    WebsiteStore.prototype.admitChatOperation = admission;
+    api.close();
+  }
 });
 
 test('edited applied website migration refuses startup', () => {
