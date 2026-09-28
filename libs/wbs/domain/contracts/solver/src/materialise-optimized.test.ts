@@ -3,12 +3,14 @@ import {
   FAST_GOLDEN_CASES,
   type PlannedRow,
   type PoolSizes,
+  type RelationshipType,
   schedule,
   type ScheduledSlice,
   ScheduleInvalidOptimizedStartError,
   type Slice,
   sliceKey,
   SOLVER_QUANTUM,
+  type TypedDependency,
 } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
@@ -300,4 +302,115 @@ describe('materialiseOptimized over the Fast golden corpus', () => {
       expect(earlier).toEqual({});
     });
   }
+});
+
+describe('materialiseOptimized over tight weighted solver answers', () => {
+  const rows = [row('A', 10), row('B', 20), row('C', 30), row('D', 40)];
+  const link = (
+    predecessor: string,
+    successor: string,
+    type: RelationshipType,
+  ): TypedDependency => ({
+    id: `${predecessor}-${successor}`,
+    predecessor: { scope: 'whole', workItemId: predecessor },
+    successor: { scope: 'whole', workItemId: successor },
+    type,
+  });
+
+  // A→D SS forces the weighted path; B then C abut on the solver axis, sharing
+  // a person, a size-1 pool, or an FS dependency.
+  type Sharing = 'person' | 'pool' | 'FS';
+  const materialiseAbutting = (sharing: Sharing, before: number, at: number, gap: number) => {
+    const shared: Partial<Slice> =
+      sharing === 'person' ? { personId: 'kat' } : sharing === 'pool' ? { poolIds: ['p'] } : {};
+    const typed = [link('A', 'D', 'SS'), ...(sharing === 'FS' ? [link('B', 'C', 'FS')] : [])];
+    return materialiseOptimized(
+      rows,
+      noEdges,
+      [
+        sliceOf('A', null, 1),
+        sliceOf('B', null, before / SOLVER_QUANTUM, shared),
+        sliceOf('C', null, 1, shared),
+        sliceOf('D', null, 1),
+      ],
+      new Map(),
+      new Map([['p', 1]]),
+      'whole-item',
+      typed,
+      {
+        [sliceKey('A', null)]: 0,
+        [sliceKey('B', null)]: at,
+        [sliceKey('C', null)]: at + before + gap,
+        [sliceKey('D', null)]: 0,
+      },
+    );
+  };
+
+  it.each(['person', 'pool', 'FS'] as const)(
+    'accepts every %s-abutting answer on the solver axis',
+    (sharing) => {
+      const refused: string[] = [];
+      for (let before = 1; before <= 96; before += 1) {
+        for (let at = 0; at < 96; at += 1) {
+          try {
+            const plan = materialiseAbutting(sharing, before, at, 0);
+            const finish = plan.slices.get(sliceKey('B', null))?.earliestFinish;
+            const start = plan.slices.get(sliceKey('C', null))?.earliestStart;
+            if (finish === undefined || start === undefined || start < finish)
+              refused.push(`${String(before)}@${String(at)}: C at ${String(start)}`);
+          } catch (error) {
+            refused.push(`${String(before)}@${String(at)}: ${String(error)}`);
+          }
+        }
+      }
+      expect(refused).toEqual([]);
+    },
+  );
+
+  it('settles a 17-slice same-person chain in one rerun', () => {
+    const units = [13, 12, 52, 24, 86, 95, 2, 75, 43, 64, 8, 62, 20, 38, 82, 85, 94];
+    const chain = units.map((_, at) => `S${String(at + 1)}`);
+    const offsets: Record<string, number> = {
+      [sliceKey('A', null)]: 0,
+      [sliceKey('D', null)]: 0,
+    };
+    let at = 0;
+    units.forEach((length, index) => {
+      offsets[sliceKey(chain[index], null)] = at;
+      at += length;
+    });
+    const plan = materialiseOptimized(
+      [row('A', 10), row('D', 40), ...chain.map((id, index) => row(id, 100 + index))],
+      noEdges,
+      [
+        sliceOf('A', null, 1),
+        sliceOf('D', null, 1),
+        ...units.map((length, index) =>
+          sliceOf(chain[index], null, length / SOLVER_QUANTUM, { personId: 'kat' }),
+        ),
+      ],
+      new Map(),
+      new Map(),
+      'whole-item',
+      [link('A', 'D', 'SS')],
+      offsets,
+    );
+    const slices = chain.map((id) => plan.slices.get(sliceKey(id, null)));
+    // A pin a ulp after its predecessor's finish stays where it is; one a ulp
+    // before moves onto it. Either way the chain abuts and never overlaps.
+    slices.slice(1).forEach((slice, index) => {
+      const gap = (slice?.earliestStart ?? NaN) - (slices[index]?.earliestFinish ?? NaN);
+      expect(gap).toBeGreaterThanOrEqual(0);
+      expect(gap).toBeLessThan(1e-9);
+    });
+  });
+
+  it.each(['person', 'pool', 'FS'] as const)(
+    'still refuses a %s-sharing answer one solver unit early',
+    (sharing) => {
+      expect(() => materialiseAbutting(sharing, 12, 7, -1)).toThrow(
+        ScheduleInvalidOptimizedStartError,
+      );
+    },
+  );
 });
