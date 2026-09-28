@@ -173,6 +173,8 @@ export class EmailVerificationRepository implements EmailVerification {
             // Proof: 2026-09-28, an abort trigger on this update left
             // consumption uncommitted; omitting this update failed both the
             // mounted ID-preservation and rollback tests.
+            // Proof: 2026-09-28, omitting auditOnUpdate left updated_at at 1
+            // and failed `keeps the password account ID after a delivered single-use challenge`.
             tx.update(users)
               .set({
                 email: challenge.email,

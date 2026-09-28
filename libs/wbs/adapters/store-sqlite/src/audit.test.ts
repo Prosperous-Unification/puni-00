@@ -25,9 +25,8 @@ import { describe, expect, it } from 'bun:test';
  *
  * **What it does not cover**, stated rather than left to be discovered: it reads
  * text, so a write assembled across two statements, or one whose table is named
- * through a variable, is invisible to it. Both are absent today and the
- * assertion below on the number of statements it found is what will notice if a
- * refactor makes them present.
+ * through a variable, is invisible to it. The count floor below detects a
+ * broad loss of matches, but it cannot detect one newly invisible write.
  *
  * Proof, and it is not a hypothetical: on its **first** run this found two
  * unstamped updates nobody had noticed — `revision.ts`'s `bumpWorkItems` and
@@ -42,7 +41,8 @@ const FOLDER = import.meta.dir;
 
 /**
  * The drizzle tables that carry no audit columns, by the identifier the code
- * writes them as — the five exceptions `schema.ts` documents.
+ * writes them as. The exemption test below checks that each remains without
+ * audit columns.
  *
  * `eventLog`, `commandJournal` and `planEvent` record an **act** rather than a
  * record: each already holds the acting user and the instant, and nothing ever
@@ -124,8 +124,11 @@ const EXEMPT = new Set([
   // An audit record is its own authorship: `actor_id` and `created_at` are
   // the act it records, not audit columns about the row.
   'organizationAudit',
-  // Challenge rows date each transition (`revoked_at`, `consumed_at`) and have
-  // no general audit columns; the exemption assertion below checks the schema.
+  // Short-lived address proof: challenge rows date creation and each state
+  // transition (`revoked_at`, `consumed_at`), with no actor or general audit
+  // columns. The exemption assertion below checks the schema.
+  // Proof: 2026-09-28, injecting auditColumns() into emailChallenge made
+  // `exempts only tables that carry no audit columns` fail for this entry.
   'emailChallenge',
 ]);
 
