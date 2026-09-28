@@ -23,6 +23,7 @@ const STORE_BINDINGS = [
   'projects',
   'steps',
   'subtrees',
+  'typedDependencies',
   'users',
   'workItems',
 ] as const satisfies readonly (keyof TransactionalStores)[];
@@ -88,6 +89,16 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
   );
   await stores.dependencies.add(
     { id: 'dep-1', projectId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
+    stamp,
+  );
+  await stores.typedDependencies.add(
+    {
+      id: 'typed-1',
+      projectId: 'p1',
+      predecessor: { scope: 'whole', workItemId: 'wi-1' },
+      successor: { scope: 'whole', workItemId: 'wi-2' },
+      type: 'FS',
+    },
     stamp,
   );
   await stores.estimates.set(
@@ -201,6 +212,11 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
       name: 'dependencies',
       returned: await stores.dependencies.listByProject('p1'),
       reread: () => stores.dependencies.listByProject('p1'),
+    },
+    {
+      name: 'typed dependencies',
+      returned: await stores.typedDependencies.listByProject('p1'),
+      reread: () => stores.typedDependencies.listByProject('p1'),
     },
     {
       name: 'directory',
@@ -401,6 +417,16 @@ describe('the staged memory source', () => {
         );
         await scope.stores.directory.addTag({ id: 'tag-1', name: 'urgent' }, stamp);
         await scope.stores.projects.update('p1', { name: 'Committed' }, stamp);
+        await scope.stores.typedDependencies.add(
+          {
+            id: 'committed-typed',
+            projectId: 'p1',
+            predecessor: { scope: 'whole', workItemId: 'wi-1' },
+            successor: { scope: 'whole', workItemId: 'wi-2' },
+            type: 'FS',
+          },
+          stamp,
+        );
         return { commit: true, value: 'applied' as const };
       }),
       new Promise<'timed-out'>((resolve) => {
@@ -416,6 +442,9 @@ describe('the staged memory source', () => {
     );
     expect((await source.stores.directory.listTags()).map((tag) => tag.name)).toContain('urgent');
     expect((await source.stores.projects.findById('p1'))?.name).toBe('Committed');
+    expect((await source.stores.typedDependencies.listByProject('p1')).map(({ id }) => id)).toEqual(
+      ['committed-typed'],
+    );
   });
 
   it('queues public writes behind a held batch', async () => {
@@ -455,6 +484,16 @@ describe('the staged memory source', () => {
     await source.uow.run(async (scope) => {
       refusedStores = scope.stores;
       await scope.stores.projects.update('p1', { name: 'Refused' }, stamp);
+      await scope.stores.typedDependencies.add(
+        {
+          id: 'refused-typed',
+          projectId: 'p1',
+          predecessor: { scope: 'whole', workItemId: 'wi-1' },
+          successor: { scope: 'whole', workItemId: 'wi-2' },
+          type: 'FS',
+        },
+        stamp,
+      );
       await scope.stores.steps.add(
         { id: 'refused-step', projectId: 'p1', name: 'Refused only', allowancePercent: 0 },
         stamp,
@@ -462,6 +501,7 @@ describe('the staged memory source', () => {
       return { commit: false, value: undefined };
     });
     expect((await source.stores.projects.findById('p1'))?.name).toBe('Before');
+    expect(await source.stores.typedDependencies.listByProject('p1')).toEqual([]);
 
     let committedStores: unknown;
     await source.uow.run(async (scope) => {

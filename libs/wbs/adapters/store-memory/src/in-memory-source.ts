@@ -17,6 +17,7 @@ import { inMemoryProjects } from './project-fixture';
 import { inMemoryEventLog } from './replay-fixture';
 import { inMemorySteps } from './step-fixture';
 import { inMemorySubtrees } from './subtree-fixture';
+import { inMemoryTypedDependencies } from './typed-dependency-fixture';
 
 /**
  * The in-memory source's transactional stores, wired as
@@ -49,6 +50,7 @@ export function inMemoryStores(): TransactionalStores {
     measures,
     progress,
     dependencies,
+    typedDependencies: inMemoryTypedDependencies(),
     capacity: inMemoryCapacity(),
     priorityBands: inMemoryPriorityBands(),
     calendarMarkers: inMemoryCalendarMarkers(),

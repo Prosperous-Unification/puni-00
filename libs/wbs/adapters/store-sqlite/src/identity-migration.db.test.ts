@@ -116,6 +116,7 @@ const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
  * {@link ORGANIZATION_BRIDGE} and reversed before it.
  */
 const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -134,6 +135,7 @@ function beforeIdentity(dbPath: string): void {
     '20260928030000_add_delegation_use',
     '20260928010000_add_project_solution',
     '20260927220000_add_organization_audit',
+    TYPED_DEPENDENCY,
     ORGANIZATION_FROZEN,
     ORGANIZATION_BRIDGE,
     ORGANIZATION_ACTIVATION,
@@ -245,6 +247,7 @@ describe('the OIDC identity migration', () => {
         '20260928030000_add_delegation_use',
         '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -321,6 +324,7 @@ describe('the OIDC identity migration', () => {
         '20260928030000_add_delegation_use',
         '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
+        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,

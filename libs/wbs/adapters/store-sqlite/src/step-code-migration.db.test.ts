@@ -13,6 +13,7 @@ const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url)
 const STEP_CODE = '20260927150000_add_step_code';
 /** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
 const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 /** The one below it, which is where every rollback here stops. */
 const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 /** The organization activation marker, stamped after this one and so reversed first. */
@@ -134,6 +135,7 @@ describe(STEP_CODE, () => {
       '20260928030000_add_delegation_use',
       '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
+      TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
