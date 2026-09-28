@@ -165,8 +165,9 @@ export class OnboardingRepository implements Onboarding {
 
 /** Activation and verified address are trusted state, checked together per write. */
 function readReady(tx: Transaction, userId: string): OnboardingAnswer<Ready> {
-  // Proof: 2026-09-28, ignoring this read let creation proceed before
-  // activation in `is inert before activation and throws on a broken marker`.
+  // Proof: 2026-09-28, ignoring this read made `is inert before activation
+  // and throws on a broken marker` answer `email_verification_required`
+  // instead of `onboarding_inactive` for a creation before activation.
   if (readOrganizationActivation(tx) !== 'activated')
     return { ok: false, refusal: 'onboarding_inactive' };
   return readVerifiedEmail(tx, userId);

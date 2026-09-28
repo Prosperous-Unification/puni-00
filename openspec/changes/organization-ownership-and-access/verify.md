@@ -688,6 +688,15 @@ Commands and observed results:
 - `bunx prettier --check` on touched TypeScript and OpenSpec files: exit 0.
 - `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 139 of 139 items valid, 0 failed.
 
+### Second review — 2026-09-28
+
+Astra's re-review confirmed findings 1–4 and 6 fixed and 5 now using separate processes, and found one new Important: fe-01 did not handle the new `insufficient_scope` refusal, so `wbs-fe-01:typecheck` failed and a read-only write would reach the Error Boundary. All three onboarding switches now show write-access copy. Proof: answering the generic retry copy made `renders a write-scope refusal on creation` fail in Vitest (1 failed, 4 passed); restored, 5 passed, and `wbs-fe-01` typecheck and lint:fast pass.
+
+- Minor, activation proof text: corrected. Removing `readReady`'s activation read answers `email_verification_required` rather than `onboarding_inactive`, observed in `is inert before activation and throws on a broken marker`.
+- Minor, contention timing: accepted. The separate-process test releases the lock after a fixed delay; a slow parent can run the two writes in sequence, which would make it pass without exercising overlap. The recheck-placement fault was still observed failing both contended cases.
+
+Full suites outside the sandbox, `env -u CLAUDECODE bun test`, after main round 20 was merged: be-01 1362 pass, 0 fail; core 715 pass, 1 fail (the known Playwright spec collected by Bun); store-sqlite 1092 pass, 0 fail; contracts 404 pass, 0 fail.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

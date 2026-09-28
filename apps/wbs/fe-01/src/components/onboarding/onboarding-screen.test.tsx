@@ -122,4 +122,30 @@ describe('onboarding screen', () => {
     );
     expect(screen.getByRole('button', { name: 'Create organization' })).toBeDefined();
   });
+
+  it('renders a write-scope refusal on creation', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init?: RequestInit) =>
+        Promise.resolve(
+          init?.method === 'POST'
+            ? answer(403, { error: 'insufficient_scope' })
+            : answer(200, { state: 'create_organization' }),
+        ),
+      ),
+    );
+    render(
+      <OnboardingScreen onSignOut={() => undefined}>
+        <p>Existing app</p>
+      </OnboardingScreen>,
+    );
+    fireEvent.change(await screen.findByLabelText('Organization name'), {
+      target: { value: 'Acme' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create organization' }));
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      'This sign-in cannot set up an organization. Sign in to WBS again.',
+    );
+  });
 });

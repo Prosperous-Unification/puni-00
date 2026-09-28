@@ -51,6 +51,9 @@ export function OnboardingScreen({
           case 'unauthenticated':
             setView({ kind: 'failure', message: 'Your session ended. Sign in again.' });
             return;
+          case 'insufficient_scope':
+            setView({ kind: 'failure', message: WRITE_ACCESS_REQUIRED });
+            return;
           case 'invalid_query':
           case 'invalid_body':
           case 'invalid_json':
@@ -196,6 +199,15 @@ export function OnboardingScreen({
   );
 }
 
+/**
+ * A read-only or delegated sign-in cannot onboard: onboarding acts only for a
+ * session that may write.
+ *
+ * Proof: 2026-09-28, answering the generic retry copy for `insufficient_scope`
+ * made `renders a write-scope refusal on creation` fail in Vitest.
+ */
+const WRITE_ACCESS_REQUIRED = 'This sign-in cannot set up an organization. Sign in to WBS again.';
+
 /** Every modeled create refusal receives visible copy. */
 function createRefusal(
   error: Extract<
@@ -220,6 +232,8 @@ function createRefusal(
       return 'Could not create the organization. Reload and try again.';
     case 'unauthenticated':
       return 'Your session ended. Sign in again.';
+    case 'insufficient_scope':
+      return WRITE_ACCESS_REQUIRED;
     default:
       return unreachable(error);
   }
@@ -250,6 +264,8 @@ function joinRefusal(
       return 'Could not send the request. Reload and try again.';
     case 'unauthenticated':
       return 'Your session ended. Sign in again.';
+    case 'insufficient_scope':
+      return WRITE_ACCESS_REQUIRED;
     default:
       return unreachable(error);
   }
