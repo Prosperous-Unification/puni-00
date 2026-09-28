@@ -90,3 +90,31 @@ export const readPasswordSession = defineEndpointShape({
   ],
   document: { summary: 'Read the account behind the current session.' },
 });
+
+/** Exchanges one native WBS session for its own selected organization context. */
+export const issueBearerContext = defineEndpointShape({
+  method: 'POST',
+  path: '/api/auth/context',
+  operationId: 'postApiAuthContext',
+  // Proof (2026-09-28): requiring origin for a bearer-only request made
+  // `issues a native direct context only for its own current membership`
+  // answer 403 to a direct client with no Origin header.
+  policies: [{ kind: 'origin', when: 'always-unsafe-with-session-cookie' }],
+  // Proof (2026-09-28): admitting a caller audience made `context route stays
+  // inert before activation and production binding` answer 403 instead of 400.
+  body: requestSchema(type({ organizationId: 'string' })),
+  responses: [{ kind: 'json', status: 200, schema: responseSchema(type({ token: 'string' })) }],
+  refusals: [
+    {
+      status: 400,
+      schema: responseSchema(type({ error: "'invalid_body' | 'invalid_json' | 'invalid_query'" })),
+    },
+    { status: 401, schema: responseSchema(type({ error: "'invalid_binding'" })) },
+    {
+      status: 403,
+      schema: responseSchema(type({ error: "'context_inactive' | 'invalid_origin'" })),
+    },
+    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  ],
+  document: { summary: 'Issue a direct WBS bearer for a current organization membership.' },
+});
