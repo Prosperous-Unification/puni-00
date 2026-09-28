@@ -612,7 +612,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     });
                   }}
                 >
-                  {wholeWait ? `${words.chip} ✕` : words.chip}
+                  {wholeWait ? `${predecessorNumber} ✕` : words.chip}
                 </button>
               );
             })}

@@ -4811,7 +4811,7 @@ function GanttChart({
                     arrow.proxy && '[stroke-dasharray:3_2]',
                     activeTypedId !== null && arrow.relationshipIds.includes(activeTypedId)
                       ? '[stroke-width:2]'
-                      : '[stroke-width:1.25] hover:[stroke-width:2] focus:[stroke-width:2]',
+                      : '[stroke-width:1.5] hover:[stroke-width:2] focus:[stroke-width:2]',
                   )}
                   vectorEffect="non-scaling-stroke"
                   tabIndex={0}
