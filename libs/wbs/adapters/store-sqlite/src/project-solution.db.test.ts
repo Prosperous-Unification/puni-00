@@ -162,22 +162,26 @@ describe('scoped solution links', () => {
           .at(-1),
       );
 
+    const rollbackVerification = () => rollbackTo(path, FOLDER, SOLUTION);
+
     it('refuses with a missing or malformed marker, keeping the table and the ledger', () => {
+      rollbackVerification();
       raw((db) => {
         db.run('PRAGMA ignore_check_constraints = ON');
         db.run('UPDATE organization_activation SET activated_at = 5');
       });
       expect(() => rollbackTo(path, FOLDER, AUDIT)).toThrow();
-      expect(applied()).toBe('20260928020000_add_email_verification');
+      expect(applied()).toBe(SOLUTION);
       raw((db) => db.run('DELETE FROM organization_activation'));
       expect(() => rollbackTo(path, FOLDER, AUDIT)).toThrow();
-      expect(applied()).toBe('20260928020000_add_email_verification');
+      expect(applied()).toBe(SOLUTION);
       expect(raw((db) => db.query('SELECT COUNT(*) AS n FROM project_solution').get())).toEqual({
         n: 0,
       });
     });
 
     it('refuses after activation even with no link', () => {
+      rollbackVerification();
       raw((db) =>
         db.run("UPDATE organization_activation SET state = 'activated', activated_at = 5"),
       );

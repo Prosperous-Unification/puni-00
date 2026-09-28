@@ -42,6 +42,8 @@ describe('email verification migration', () => {
       expect(() => db.run("UPDATE users SET email_verified = 1 WHERE id = 'u'")).toThrow();
       expect(() => db.run("UPDATE users SET email_verified = 2 WHERE id = 'u'")).toThrow();
       db.run("UPDATE users SET email = 'u@example.org', email_verified = 1 WHERE id = 'u'");
+      expect(() => db.run("UPDATE users SET email_verified = 2 WHERE id = 'u'")).toThrow();
+      expect(() => db.run("UPDATE users SET email = NULL WHERE id = 'u'")).toThrow();
     });
   });
 

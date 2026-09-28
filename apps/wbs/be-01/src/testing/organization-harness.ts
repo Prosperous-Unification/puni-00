@@ -235,9 +235,9 @@ export class OrganizationHarness {
     rmSync(this.dir, { recursive: true, force: true });
   }
 
-  /** Opens a second SQLite client on the same file for transaction race probes. */
-  secondConnection() {
-    return openDrizzle(join(this.dir, 'test.db'));
+  /** The fixture database path for a separate-process contention probe. */
+  databasePath(): string {
+    return join(this.dir, 'test.db');
   }
 
   async register(username: string): Promise<void> {

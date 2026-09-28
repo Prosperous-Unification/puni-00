@@ -2,7 +2,25 @@
 
 ### Requirement: Verified identity chooses an onboarding path
 
-After sign-in, a user without membership SHALL establish a verified email before creating an organization, accepting an invitation or requesting to join. If its exact domain belongs to a verified organization, WBS SHALL show that organization and offer a join request or invitation acceptance; organization creation through that address MUST be refused. Otherwise the user SHALL be able to create an organization and become its first super-admin atomically. Creation SHALL NOT claim the email domain. Existing members SHALL be able to select an active membership. A verified email on a public domain SHALL remain eligible to create an organization.
+After sign-in, a user without membership SHALL establish a verified email before creating an organization, accepting an invitation or requesting to join. If its exact domain belongs to a verified organization, WBS SHALL show that organization and offer a join request or invitation acceptance; organization creation through that address MUST be refused. Otherwise the user SHALL be able to create an organization and become its first super-admin atomically. Creation SHALL NOT claim the email domain. Existing members SHALL be able to select an active membership even without a verified email. A verified email on a public domain SHALL remain eligible to create an organization. Onboarding discovery and writes SHALL require a session principal; a delegation SHALL receive a typed 403 without revealing memberships or changing onboarding state. Onboarding writes SHALL require the session's write scope.
+
+#### Scenario: Delegated onboarding
+
+- **GIVEN** a verified delegation bound to one organization
+- **WHEN** it requests onboarding discovery, organization creation or a join request
+- **THEN** each request receives 403 without revealing memberships or writing an organization, membership or request
+
+#### Scenario: Read-only session onboarding write
+
+- **GIVEN** a session with read scope and no write scope
+- **WHEN** it requests organization creation or join submission
+- **THEN** the request receives `insufficient_scope` without changing onboarding state
+
+#### Scenario: Existing member without verified email
+
+- **GIVEN** a signed-in user with a current membership and no verified email
+- **WHEN** the user discovers onboarding after activation
+- **THEN** discovery offers membership selection
 
 #### Scenario: Matching company domain
 

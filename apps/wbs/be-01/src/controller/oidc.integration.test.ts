@@ -547,9 +547,15 @@ describe('OIDC browser routes', () => {
     expect(mutations.length).toBeGreaterThanOrEqual(10);
     for (const route of mutations) {
       const path = route.path.replace(/:[^/]+/g, 'test-id');
+      const body =
+        route.path === '/api/onboarding/organizations'
+          ? { name: 'Example' }
+          : route.path === '/api/onboarding/join-requests'
+            ? { organizationId: 'test-id' }
+            : {};
       const res = await f.app.handle(
         new Request(`https://dev.wbs.test${path}`, {
-          body: route.method === 'DELETE' ? undefined : '{}',
+          body: route.method === 'DELETE' ? undefined : JSON.stringify(body),
           headers: {
             'content-type': 'application/json',
             cookie: '__Host-wbs_access=reader-token',

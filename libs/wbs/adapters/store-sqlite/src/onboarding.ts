@@ -27,14 +27,21 @@ export class OnboardingRepository implements Onboarding {
     private readonly gate: Gate,
   ) {}
 
+  /** Existing memberships take precedence over verification after activation. */
   discover(userId: string): Promise<OnboardingAnswer<OnboardingState>> {
     return Promise.resolve(
       this.db.transaction((tx) => {
-        const ready = readReady(tx, userId);
-        if (!ready.ok) return ready;
+        // Proof: 2026-09-28, bypassing this check made `is inert before
+        // activation and throws on a broken marker` answer 200 discovery.
+        if (readOrganizationActivation(tx) !== 'activated')
+          return { ok: false, refusal: 'onboarding_inactive' };
+        // Proof: 2026-09-28, moving this behind email verification made
+        // `offers an existing member selection without a verified email` fail.
         const memberships = membershipsOf(tx, userId);
         if (memberships.length > 0)
           return { ok: true, value: { state: 'selection_required', memberships } };
+        const ready = readVerifiedEmail(tx, userId);
+        if (!ready.ok) return ready;
         const owner = claimedOwner(tx, ready.value.domain);
         if (owner === null) return { ok: true, value: { state: 'create_organization' } };
         const pending =
@@ -70,8 +77,9 @@ export class OnboardingRepository implements Onboarding {
           (tx) => {
             const ready = readReady(tx, userId);
             if (!ready.ok) return ready;
-            // Proof: 2026-09-28, bypassing membership rechecks failed `creates the
-            // organization with its first super-admin together` on a second create.
+            // Proof: 2026-09-28, moving this read before BEGIN IMMEDIATE made
+            // both `rechecks membership after a separate process commits`
+            // contention cases create another organization (201, not 409).
             if (membershipsOf(tx, userId).length > 0)
               return { ok: false, refusal: 'already_member' };
             // Proof: 2026-09-28, bypassing this recheck made the matching-domain
@@ -155,12 +163,17 @@ export class OnboardingRepository implements Onboarding {
   }
 }
 
-/** Activation and verified address are trusted state, checked together per read. */
+/** Activation and verified address are trusted state, checked together per write. */
 function readReady(tx: Transaction, userId: string): OnboardingAnswer<Ready> {
-  // Proof: 2026-09-28, ignoring this read made inactive onboarding answer a
-  // create state and a malformed marker cease throwing.
+  // Proof: 2026-09-28, ignoring this read let creation proceed before
+  // activation in `is inert before activation and throws on a broken marker`.
   if (readOrganizationActivation(tx) !== 'activated')
     return { ok: false, refusal: 'onboarding_inactive' };
+  return readVerifiedEmail(tx, userId);
+}
+
+/** A verified address is required only when onboarding would create new state. */
+function readVerifiedEmail(tx: Transaction, userId: string): OnboardingAnswer<Ready> {
   const account = tx
     .select({ email: users.email, verified: users.emailVerified })
     .from(users)

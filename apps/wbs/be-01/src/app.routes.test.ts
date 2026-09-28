@@ -208,8 +208,6 @@ const SIGNED_IN_OPERATIONS = [
   'getApiTags',
   'getApiTeams',
   'getApiWork-item-types',
-  'postApiOnboardingJoinRequests',
-  'postApiOnboardingOrganizations',
 ] as const;
 const READ_SCOPE_OPERATIONS = ['getApiProjectsByIdExport', 'getPlansBy-solutionBySlug'] as const;
 const WRITE_SCOPE_OPERATIONS = [
@@ -223,6 +221,8 @@ const WRITE_SCOPE_OPERATIONS = [
   'patchApiProjectsByIdStepsByStepId',
   'patchApiSaved-plansById',
   'postApiDirectoryCommands',
+  'postApiOnboardingJoinRequests',
+  'postApiOnboardingOrganizations',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',

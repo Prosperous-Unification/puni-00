@@ -6,7 +6,12 @@ import { requestSchema, responseSchema } from './schema-shape';
 const policies = [{ kind: 'identity', require: 'signed-in' }] as const;
 // Proof: 2026-09-28, requiring origin only for cookies failed the mounted
 // `refuses a foreign origin and malformed or authority-bearing bodies` case.
-const writePolicies = [{ kind: 'origin', when: 'always' }, ...policies] as const;
+// Proof: 2026-09-28, downgrading write-scope to signed-in failed `guards every
+// registered user-facing mutation with write scope` with a read-only cookie.
+const writePolicies = [
+  { kind: 'origin', when: 'always' },
+  { kind: 'identity', require: 'write-scope' },
+] as const;
 const member = type({ organizationId: 'string', name: 'string', role: 'string' });
 const organization = type({ id: 'string', name: 'string' });
 const state = type({ state: "'verification_required'" })
@@ -19,7 +24,12 @@ const common = [
     schema: responseSchema(type({ error: "'invalid_query' | 'invalid_body' | 'invalid_json'" })),
   },
   { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
-  { status: 403, schema: responseSchema(type({ error: "'onboarding_inactive'" })) },
+  {
+    status: 403,
+    // Proof: 2026-09-28, omitting insufficient_scope made `refuses delegated
+    // onboarding discovery and writes` receive 500 for an undeclared refusal.
+    schema: responseSchema(type({ error: "'onboarding_inactive' | 'insufficient_scope'" })),
+  },
 ] as const;
 const writeRefusals = [
   { status: 400, schema: responseSchema(type({ error: "'invalid_json' | 'invalid_body'" })) },

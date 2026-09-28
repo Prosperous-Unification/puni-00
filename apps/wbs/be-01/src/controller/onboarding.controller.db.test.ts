@@ -1,7 +1,8 @@
-import { OnboardingRepository } from '@wbs/store-sqlite';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { OPEN } from '../repository/gate';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 /** Mounted onboarding over the same file and route adapter as be-01. */
@@ -80,6 +81,19 @@ describe('onboarding routes', () => {
     expect(
       await harness.call('ada', 'POST', '/api/onboarding/organizations', { name: 'A' }),
     ).toEqual({ status: 403, body: { error: 'email_verification_required' } });
+  });
+
+  it('offers an existing member selection without a verified email', async () => {
+    harness.activate();
+    harness.organization('org-a');
+    harness.member('org-a', 'ada', 'member');
+    expect(await harness.call('ada', 'GET', '/api/onboarding')).toEqual({
+      status: 200,
+      body: {
+        state: 'selection_required',
+        memberships: [{ organizationId: 'org-a', name: 'org-a', role: 'member' }],
+      },
+    });
   });
 
   it('refuses a foreign origin and malformed or authority-bearing bodies', async () => {
@@ -224,27 +238,95 @@ describe('onboarding routes', () => {
     ).toBe(201);
   });
 
-  it('lets only one of two connections create for the same user', async () => {
+  it.each(['creation', 'promotion'] as const)(
+    'rechecks membership after a separate process commits %s under contention',
+    async (priorWrite) => {
+      harness.activate();
+      verified();
+      if (priorWrite === 'promotion') harness.organization('org-a');
+      const ready = join(dirname(harness.databasePath()), `ready-${priorWrite}`);
+      const organizationId = priorWrite === 'promotion' ? 'org-a' : 'org-first';
+      const holder = Bun.spawn({
+        cmd: [
+          process.execPath,
+          '-e',
+          `
+          import { Database } from 'bun:sqlite';
+          import { writeFileSync } from 'node:fs';
+          const sqlite = new Database(${JSON.stringify(harness.databasePath())});
+          sqlite.run('PRAGMA busy_timeout = 5000');
+          sqlite.run('PRAGMA foreign_keys = ON');
+          sqlite.run('BEGIN IMMEDIATE');
+          if (${JSON.stringify(priorWrite)} === 'creation')
+            sqlite.run("INSERT INTO organization (id, name, created_at) VALUES ('org-first', 'First', 1)");
+          sqlite.run('INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (?, ?, ?, 1)', [${JSON.stringify(organizationId)}, ${JSON.stringify(harness.userId('ada'))}, 'member']);
+          writeFileSync(${JSON.stringify(ready)}, '');
+          Bun.sleepSync(350);
+          sqlite.run('COMMIT');
+        `,
+        ],
+        stderr: 'pipe',
+      });
+      const started = Date.now();
+      while (!existsSync(ready)) {
+        if (Date.now() - started > 10_000)
+          throw new Error(
+            `holder never took the lock: ${await new Response(holder.stderr).text()}`,
+          );
+        await Bun.sleep(5);
+      }
+      // Proof: 2026-09-28, moving the membership recheck before BEGIN IMMEDIATE
+      // made this case create a second organization after the holder committed.
+      expect(
+        await harness.call('ada', 'POST', '/api/onboarding/organizations', { name: 'Second' }),
+      ).toEqual({ status: 409, body: { error: 'already_member' } });
+      expect(await holder.exited).toBe(0);
+      expect(harness.sqlite.query('SELECT id FROM organization').all()).toHaveLength(1);
+    },
+  );
+
+  it('keeps a first-owner creation when another process promotes membership afterward', async () => {
     harness.activate();
     verified();
-    const first = new OnboardingRepository(harness.secondConnection(), OPEN);
-    const second = new OnboardingRepository(harness.secondConnection(), OPEN);
-    // Both clients address one WAL file. Separate processes would add process
-    // scheduling, but the immediate transactions and recheck are identical.
-    const outcomes = await Promise.all([
-      first.createOrganization(harness.userId('ada'), 'First', {
-        at: 1,
-        by: harness.userId('ada'),
-      }),
-      second.createOrganization(harness.userId('ada'), 'Second', {
-        at: 1,
-        by: harness.userId('ada'),
-      }),
-    ]);
-    expect(outcomes.filter((answer) => answer.ok)).toHaveLength(1);
-    expect(outcomes.filter((answer) => !answer.ok)).toEqual([
-      { ok: false, refusal: 'already_member' },
-    ]);
-    expect(harness.sqlite.query('SELECT id FROM organization').all()).toHaveLength(1);
+    harness.organization('org-a');
+    const ready = join(dirname(harness.databasePath()), 'promotion-ready');
+    const release = join(dirname(harness.databasePath()), 'promotion-release');
+    const promoter = Bun.spawn({
+      cmd: [
+        process.execPath,
+        '-e',
+        `
+          import { Database } from 'bun:sqlite';
+          import { writeFileSync, existsSync } from 'node:fs';
+          writeFileSync(${JSON.stringify(ready)}, '');
+          const started = Date.now();
+          while (!existsSync(${JSON.stringify(release)})) {
+            if (Date.now() - started > 10000) throw new Error('creation never released promotion');
+            Bun.sleepSync(5);
+          }
+          const sqlite = new Database(${JSON.stringify(harness.databasePath())});
+          sqlite.run('PRAGMA foreign_keys = ON');
+          sqlite.run('BEGIN IMMEDIATE');
+          sqlite.run('INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (?, ?, ?, 1)', ['org-a', ${JSON.stringify(harness.userId('ada'))}, 'member']);
+          sqlite.run('COMMIT');
+        `,
+      ],
+      stderr: 'pipe',
+    });
+    const started = Date.now();
+    while (!existsSync(ready)) {
+      if (Date.now() - started > 10_000)
+        throw new Error(`promoter did not start: ${await new Response(promoter.stderr).text()}`);
+      await Bun.sleep(5);
+    }
+    const created = await harness.call('ada', 'POST', '/api/onboarding/organizations', {
+      name: 'First',
+    });
+    expect(created.status).toBe(201);
+    await Bun.write(release, 'go');
+    expect(await promoter.exited).toBe(0);
+    expect(
+      harness.sqlite.query('SELECT role FROM organization_membership ORDER BY role').all(),
+    ).toEqual([{ role: 'member' }, { role: 'super_admin' }]);
   });
 });
