@@ -6,6 +6,11 @@ import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingTestEmailDelivery,
+} from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { refusingOnboarding } from '../testing/onboarding-fixture';
@@ -28,6 +33,9 @@ function buildHarness() {
   const app = buildApp({
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    emailVerification: refusingEmailVerification,
+    invitations: refusingInvitations,
+    emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
     clock: testClock,
