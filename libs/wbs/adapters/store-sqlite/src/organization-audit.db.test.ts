@@ -92,6 +92,7 @@ describe('the organization audit', () => {
     expect(rollbackTo(path, FOLDER, FREEZE)).toEqual([
       '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
+      '20260927213000_add_typed_dependency',
     ]);
   });
 
