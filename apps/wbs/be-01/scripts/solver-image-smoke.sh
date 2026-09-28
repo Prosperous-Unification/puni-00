@@ -16,9 +16,9 @@ socket_path="$socket_directory/supervisor.sock"
 supervisor_pid=''
 created_images=()
 
-# Returns 0 when the image exists and 1 when Docker reports it absent; any other inspect
-# failure throws, so a broken daemon cannot pass for a removed image.
-image_exists() {
+# Returns 0 when image $1 exists, 1 when Docker reports it absent and 2 when Docker cannot
+# answer, so a broken daemon cannot pass for a removed image.
+probe_image() {
   local inspect_error
   if inspect_error="$(docker image inspect "$1" 2>&1 >/dev/null)"; then
     return 0
@@ -27,19 +27,27 @@ image_exists() {
     *'No such image'*) return 1 ;;
   esac
   echo "[solver-image-smoke] cannot inspect image $1: $inspect_error" >&2
-  exit 1
+  return 2
 }
 
-# Removes every image this attempt tagged, newest first, and fails if any removal failed or
-# any tag survived. Docker can drop a tag and then fail to delete the image, so a failed
-# `image rm` counts even when the tag is gone.
+# Removes every image this attempt tagged, newest first, and fails if any removal failed, any
+# tag survived or Docker could not say. Docker can drop a tag and then fail to delete the
+# image, so a failed `image rm` counts even when the tag is gone. An image whose presence is
+# unknown is still removed, so one bad inspect does not strand the rest.
 remove_created_images() {
-  local index reference
+  local index reference presence
   local removal_failed=0
   local surviving=()
   for ((index = ${#created_images[@]} - 1; index >= 0; index--)); do
     reference="${created_images[index]}"
-    if image_exists "$reference" && ! docker image rm "$reference" >/dev/null; then
+    presence=0
+    probe_image "$reference" || presence=$?
+    # Proof: with an inspect failure ending cleanup, solver-image-smoke.test.ts saw one bad
+    # orphan inspect leave all three tags in the fake Docker store.
+    if [ "$presence" -eq 1 ]; then
+      continue
+    fi
+    if ! docker image rm "$reference" >/dev/null; then
       echo "[solver-image-smoke] could not remove image $reference" >&2
       # Proof: without this, solver-image-smoke.test.ts saw a smoke whose image delete failed
       # after untagging exit 0.
@@ -47,9 +55,13 @@ remove_created_images() {
     fi
   done
   for reference in "${created_images[@]}"; do
-    if image_exists "$reference"; then
-      surviving+=("$reference")
-    fi
+    presence=0
+    probe_image "$reference" || presence=$?
+    case "$presence" in
+      0) surviving+=("$reference") ;;
+      # Proof: treating an inspect failure as absence let the broken-inspect smoke exit 0.
+      2) removal_failed=1 ;;
+    esac
   done
   if [ "${#surviving[@]}" -ne 0 ]; then
     echo "[solver-image-smoke] images outlived the smoke: ${surviving[*]}" >&2

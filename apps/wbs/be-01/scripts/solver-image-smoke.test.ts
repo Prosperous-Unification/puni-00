@@ -35,7 +35,8 @@ case "$1" in
   image)
     case "$2" in
       inspect)
-        if [ "\${WBS_FAKE_FAULT:-}" = inspect-broken ]; then
+        if [ "\${WBS_FAKE_FAULT:-}" = inspect-broken ] ||
+          { [ "\${WBS_FAKE_FAULT:-}" = orphan-inspect-broken ] && [[ "$3" == *solver-orphan-* ]]; }; then
           echo 'Cannot connect to the Docker daemon' >&2
           exit 1
         fi
@@ -75,6 +76,7 @@ type SmokeFault =
   | 'rm-ignored'
   | 'delete-fails-after-untag'
   | 'inspect-broken'
+  | 'orphan-inspect-broken'
   | 'container-rm-fails';
 
 interface SmokeRun {
@@ -197,6 +199,16 @@ describe('solver-image-smoke image lifecycle', () => {
     const smoke = runSmoke('inspect-broken');
 
     // Proof: treating every inspect failure as absence let this smoke exit 0.
+    expect(smoke.exitCode).toBe(1);
+    expect(smoke.stderr).toContain('cannot inspect image 127.0.0.1:5000/wbs-be-01:solver-orphan-');
+  });
+
+  it('keeps removing the other images when one cannot be inspected', () => {
+    const smoke = runSmoke('orphan-inspect-broken');
+
+    // Proof: with an inspect failure ending cleanup (`exit 1` in probe_image), all three tags
+    // stayed here.
+    expect(smoke.survivingTags).toEqual([]);
     expect(smoke.exitCode).toBe(1);
     expect(smoke.stderr).toContain('cannot inspect image 127.0.0.1:5000/wbs-be-01:solver-orphan-');
   });
