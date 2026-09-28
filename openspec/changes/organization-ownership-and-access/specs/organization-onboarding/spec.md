@@ -78,8 +78,17 @@ After activation, `POST /api/auth/link/auth0` SHALL require an originating first
 - **WHEN** U requests a normalized address challenge through an injected mail sink and confirms its 30-minute token
 - **THEN** WBS stores only the token digest, marks the challenge delivered before confirmation, consumes it once in an immediate transaction, and updates U's existing email and verification flag without changing U's ID
 - **AND** pending or failed delivery, expiry, revocation, wrong account, replay and address conflict refuse without verifying U; an inactive marker refuses both routes
-- **AND** until an internationalized-address policy matches the existing SQLite email uniqueness rule, the challenge routes refuse non-ASCII addresses with typed `400 invalid_body`
+- **AND** the challenge routes canonicalize addresses as the internationalized-address scenario states
 - **AND** the production sink currently refuses delivery with typed `503 delivery_failed` until a reviewed delivery adapter is provided
+
+#### Scenario: Internationalized addresses share one canonical form
+
+- **GIVEN** activation is complete and organization A holds a verified claim on `xn--bcher-kva.example`
+- **WHEN** a password account requests and confirms a challenge for `Ada.Lovelace+wbs@Bücher.example`, or an administrator invites that address
+- **THEN** the domain is processed with UTS #46 non-transitional mapping to lowercase A-labels (`Bücher.example` becomes `xn--bcher-kva.example`, `faß.de` becomes `xn--fa-hia.de`) and the local part is kept NFC-normalised and otherwise byte-exact, so the address is stored and delivered as `Ada.Lovelace+wbs@xn--bcher-kva.example` and its verified owner is routed to A
+- **AND** a local part that stays non-ASCII after NFC, which would need SMTPUTF8, answers typed `400 unsupported_email` at both challenge routes and invitation issuance
+- **AND** a domain that fails IDNA or DNS-label validation answers typed `400 invalid_body`, never a server error
+- **AND** ownership comparisons stay ASCII case-insensitive as the SQLite `lower(email)` uniqueness rule is: a case variant of another account's address answers `409 address_conflict`, and an invitation or join-request approval addressed to a case variant of the recipient's verified address still matches it
 
 #### Scenario: Auth0 link collision
 

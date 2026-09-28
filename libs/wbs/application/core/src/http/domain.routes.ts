@@ -5,7 +5,7 @@ import {
   rotateDomainProof,
   verifyDomainClaim,
 } from '@wbs/contracts';
-import { isCanonicalDomain } from '@wbs/domain';
+import { canonicalDomain } from '@wbs/domain';
 
 import type { Clock } from '../ports/clock';
 import type { DomainChallenges } from '../ports/domain-challenges';
@@ -13,23 +13,13 @@ import type { OrganizationAccess } from '../ports/organization-access';
 import { bind, EMPTY, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 
-/** Turns a submitted Unicode host into one exact lower-case IDNA DNS name. */
-function canonicalDomain(submitted: string): string | null {
-  const raw = submitted.trim().replace(/\.$/, '');
-  // Proof: 2026-09-28, allowing `%` or `\\` separately made mounted
-  // `canonicalizes exact IDNA names and refuses malformed, provider, relay and
-  // suffix domains` accept a rewritten host with 201 instead of 400.
-  if (!/^[^\s:/?#@%\\]+$/.test(raw)) return null;
-  try {
-    const host = new URL(`http://${raw}`).hostname;
-    if (/^\d+(?:\.\d+){3}$/.test(host) || (host === raw && !host.includes('.'))) return null;
-    // Proof: 2026-09-28, omitting the TXT owner-name length check made mounted
-    // `refuses a domain whose complete TXT challenge hostname exceeds DNS length`
-    // issue 201 for a 244-character domain and a 262-character DNS name.
-    return isCanonicalDomain(host) && `_wbs-verification.${host}`.length <= 253 ? host : null;
-  } catch {
-    return null;
-  }
+/** A claimable host whose `_wbs-verification` TXT owner name still fits DNS. */
+function challengeDomain(submitted: string): string | null {
+  const host = canonicalDomain(submitted);
+  // Proof: 2026-09-28, omitting the TXT owner-name length check made mounted
+  // `refuses a domain whose complete TXT challenge hostname exceeds DNS length`
+  // issue 201 for a 244-character domain and a 262-character DNS name.
+  return host !== null && `_wbs-verification.${host}`.length <= 253 ? host : null;
 }
 
 /** Domain listing and 24-hour initial TXT challenge issuance. */
@@ -242,7 +232,7 @@ export function domainRoutes(
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
-        const domain = canonicalDomain(body.domain);
+        const domain = challengeDomain(body.domain);
         if (domain === null) return { ok: false, status: 400, body: { error: 'invalid_domain' } };
         // A full 32 random bytes are carried by each new challenge. Reissue
         // replaces its digest in the store's immediate transaction.

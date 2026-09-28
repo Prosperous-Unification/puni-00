@@ -1272,3 +1272,54 @@ Focused verification: be-01 `env -u CLAUDECODE bun test --timeout 10000 src/cont
 | Snapshot permitted contradictory phases                   | Restoring the independent-field interface made `wbs-store-sqlite` spec typecheck fail at both `PendingWithoutExpiry` and `RotationWithoutDeadline` assertions (`TS2322: false is not assignable to true`).                                                                                                                                                                         | One `phase` discriminant requires initial expiry and a rotation's previous proof fields.                                                                                                                                            |
 
 The earlier review's fault injections were restored, and its recorded focused run passed 71/71 at that point. The four new rows above record this review's observed failures; all injections were restored. The bystander row was re-observed at commit time (1 fail with the domain predicate removed). Final focused `env -u CLAUDECODE bun test --timeout 10000 apps/wbs/be-01/src/controller/domain-organization.controller.db.test.ts libs/wbs/adapters/store-sqlite/src/organization-records.db.test.ts` passed 82/82; `bunx nx run-many -t lint:fast typecheck -p wbs-core wbs-store-sqlite wbs-be-01` succeeded; Prettier passed on the six touched files. The full Nx gate is left to the integrator.
+
+## Slice 38 — Internationalized email addresses (task 4.1 follow-up)
+
+2026-09-28, approved follow-up to slice 29. Assumptions, recorded verbatim: "UTS #46 non-transitional to lowercase A-labels; local part NFC and byte-exact; SMTPUTF8 local parts refused with a typed 400".
+
+`canonicalEmailAddress` in `@wbs/domain` is the one canonicalization for `POST /api/onboarding/email-challenges`, `.../confirm` and `POST /api/organization/invitations`. Its domain goes through `canonicalDomain`, moved unchanged from `domain.routes.ts` so email domains and domain claims share one function. That function uses the WHATWG URL host parser (Bun 1.4.2), which applies UTS #46 non-transitional processing. Observed: `Bücher.example` becomes `xn--bcher-kva.example`, `faß.de` becomes `xn--fa-hia.de` and `ς` becomes `xn--3xa`, while `xn--a`, ZWJ and ZWNJ labels are refused. `isCanonicalDomain` then adds the STD3 label rules the parser skips. No dependency was added, because domain claims already use this parser. `node:url` `domainToASCII` gave identical answers. A local part that is non-ASCII after NFC answers the new typed `400 unsupported_email`, declared in `refusal.ts`, both challenge shapes and the invitation shape. An invalid domain answers `400 invalid_body`. NFC maps the Kelvin sign to ASCII `K`, so that address is now admitted as `K@...`. Slice 29's mounted Kelvin case was replaced by `用户@example.org`.
+
+Stored and delivered addresses keep the local part's case. Ownership comparison stays ASCII case-insensitive, as the `users_email_normalized` index on `lower(email)` already is. `isSameMailbox` compares addresses for invitation acceptance and join-request approval, and the challenge conflict checks lower both sides. Slice 29 lowercased existing rows entirely, and their domains are already canonical ASCII. They still match and need no re-canonicalization, so no migration was added. Accepted behavior change: an invitation to `RECIPIENT@EXAMPLE.ORG` is now stored and delivered as `RECIPIENT@example.org`.
+
+TDD RED: before implementation, 8 of the 80 mounted tests in the four onboarding controller files failed. They covered the new IDN challenge, conflict, onboarding routing, join approval and invitation cases, plus the updated malformed-address and uppercase-invitation expectations. The new domain unit file failed on its missing module.
+
+| Guard                                | Injected fault → observed failing test                                                                                                                                           |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SMTPUTF8 local part                  | Bypassed the ASCII check → unit `refuses a local part that would need SMTPUTF8` failed; mounted `rejects malformed addresses at both HTTP boundaries` received 201.              |
+| NFC                                  | Skipped `normalize('NFC')` → `NFC-normalises the local part before judging it` failed.                                                                                           |
+| Local-part syntax                    | Checked only for a missing `@` → `refuses malformed addresses and invalid domains` failed (smtputf8_required instead of malformed).                                              |
+| Invalid domain                       | Admitted a null canonical domain → the unit malformed test failed; mounted `rejects malformed addresses at both HTTP boundaries` received 201.                                   |
+| Dotless domain                       | Dropped the dot requirement → the unit malformed test failed (its only dotless case is `ada@bücher`).                                                                            |
+| 254-character limit                  | Bypassed it → the unit malformed test failed; mounted `rejects malformed recipient addresses and a super-admin offer` received 201.                                              |
+| Moved `%` guard in `canonicalDomain` | Admitted `%` → unit `refuses invalid IDNA labels, addresses and URL-shaped input` returned `example.com`; mounted `canonicalizes exact IDNA names and refuses ...` received 201. |
+| Label judgement in `canonicalDomain` | Returned the parsed host unjudged → the unit IDNA test returned `-bad.example`; mounted `rejects malformed addresses at both HTTP boundaries` received 201.                      |
+| Refusal literal                      | Mapped `smtputf8_required` to `invalid_body` → both mounted malformed-address tests received `invalid_body`.                                                                     |
+| Invitation boundary                  | Used the raw address when canonicalization refused → `rejects malformed recipient addresses and a super-admin offer` received 201.                                               |
+| Challenge shape declaration          | Removed `unsupported_email` from both challenge shapes → `rejects malformed addresses at both HTTP boundaries` received 500.                                                     |
+| Invitation shape declaration         | Removed it from the invitation shape → `rejects malformed recipient addresses and a super-admin offer` received 500.                                                             |
+| Issue conflict                       | Dropped `lower()` on the submitted address → `refuses a case variant of an address another account holds` received 201.                                                          |
+| Confirm conflict                     | Dropped `lower()` on the challenge address → the same test received 500 from the `users_email_normalized` index instead of 409.                                                  |
+| Invitation recipient match           | Lowercased only the account address → `invites an internationalized domain byte-exact and accepts its case-variant recipient` received 403 `recipient_mismatch`.                 |
+| Join approval match                  | Lowercased only the stored address → `approves a mixed-case internationalized applicant with a byte-exact invitation` received 409 instead of 200.                               |
+| `isSameMailbox`                      | Compared exactly → unit `matches canonical addresses as the SQLite lower(email) index does` failed; the mounted invitation IDN test received 403.                                |
+
+A script applied each injection alone and restored it afterward.
+
+Focused verification:
+
+- be-01 `env -u CLAUDECODE bun test --timeout 10000 src/controller/email-verification.controller.db.test.ts src/controller/invitation.controller.db.test.ts src/controller/join-request.controller.db.test.ts src/controller/onboarding.controller.db.test.ts src/controller/domain-organization.controller.db.test.ts` passed 131/131.
+- domain `env -u CLAUDECODE bun test src/email-address.test.ts src/public-email-domain.test.ts` passed 12/12.
+- In one focused run, `consumes once across independent SQLite processes` failed once after 6.5 s: multi-process timing under load. It passed alone, on the rerun and in the full suite.
+
+Full suites (`env -u CLAUDECODE bun test`):
+
+- be-01: 1545 pass, 1 skip, 0 fail.
+- core: 723 pass, plus the accepted Playwright collection error.
+- store-sqlite: 1140 pass.
+- contracts: 406 pass.
+- domain: 768 pass.
+- mcp-01: 323 pass.
+
+`NX_DAEMON=false bunx nx run-many -t typecheck lint:fast -p wbs-be-01 wbs-core wbs-store-sqlite wbs-contracts wbs-domain wbs-mcp-01 wbs-fe-01 --output-style=static` succeeded. It first needed stale local ESLint caches deleted, because they still held a type error from before the fix. The `openspec validate --all --json` result and the Prettier check on touched files are in the commit report.
+
+**Still open for 4.1:** real-address delivery and the rendered path (4.6).

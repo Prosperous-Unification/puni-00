@@ -58,6 +58,9 @@ export const createInvitation = defineEndpointShape({
   responses: [{ kind: 'json', status: 201, schema: responseSchema(type({ invitation: summary })) }],
   refusals: [
     ...common,
+    // Proof: 2026-09-28, dropping this declaration made mounted `rejects
+    // malformed recipient addresses and a super-admin offer` receive 500.
+    { status: 400, schema: responseSchema(type({ error: "'unsupported_email'" })) },
     organizationRefusal,
     { status: 503, schema: responseSchema(type({ error: "'delivery_failed'" })) },
   ],
