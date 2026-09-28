@@ -3315,10 +3315,32 @@ async function seedTwoStepChain(page: Page): Promise<void> {
     await expect(box).not.toHaveValue('');
   }
 
-  const depends = page.getByLabel('Add a dependency to 020');
-  await depends.click();
-  await depends.fill('010');
-  await depends.press('Enter');
+  // A **legacy** link, through the command API. The picker's one-click default
+  // writes a typed Whole→Whole FS link, which waits for the predecessor's last
+  // step under either reach by design (`add-step-finish-start-dependencies`);
+  // only a legacy link still follows `depReach`, and that is what this chain is
+  // for.
+  await page.evaluate(async () => {
+    const projectId = localStorage.getItem('wbs.project');
+    if (projectId === null) throw new Error('no open project to link');
+    const read = await fetch(`/api/projects/${projectId}/work-items`);
+    if (!read.ok) throw new Error(`reading the plan failed: ${String(read.status)}`);
+    const tree = (await read.json()) as { workItems: { id: string; number: string }[] };
+    const idOf = (number: string): string => {
+      const row = tree.workItems.find((each) => each.number === number);
+      if (row === undefined) throw new Error(`no ${number} in the seeded plan`);
+      return row.id;
+    };
+    const write = await fetch(`/api/projects/${projectId}/commands`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        commands: [{ kind: 'addDependency', workItemId: idOf('020'), predecessorId: idOf('010') }],
+      }),
+    });
+    if (!write.ok) throw new Error(`linking 020 to 010 failed: ${String(write.status)}`);
+  });
+  await page.reload();
   await expect(page.getByRole('button', { name: 'Stop 020 waiting for 010' })).toBeVisible();
 }
 

@@ -18,11 +18,13 @@ import { type TreeRow } from './wbs-rows';
  */
 export function createPlanCellProps({
   dependenciesOf,
+  hasTypedDependencies,
   depLights,
   depPicker,
   cellCards,
 }: {
   dependenciesOf: (ids: readonly string[]) => DependsEntry[];
+  hasTypedDependencies: (rowId: string) => boolean;
   depLights: DepLights;
   depPicker: { rowId: string; typed: string; highlightId: string | null } | null;
   cellCards: CellCards;
@@ -58,6 +60,11 @@ export function createPlanCellProps({
     row: TreeRow,
   ): Pick<ComponentProps<'td'>, 'onMouseEnter' | 'onMouseLeave'> => {
     const dependsCell = cellKey(row.id, 'depends');
+    // Proof: with typed relationships excluded here, `opens a typed-only
+    // dependency card from the cell and keeps it across the cell leave` failed
+    // because no tooltip opened. Watched, 2026-09-28.
+    const hasDependencies =
+      dependenciesOf(row.dependsOn).length > 0 || hasTypedDependencies(row.id);
     return {
       onMouseEnter: () => {
         // **No guard on the way in, since 2026-09-09.** A card standing *under*
@@ -77,7 +84,7 @@ export function createPlanCellProps({
         // render (codex round 3, finding 5). The functional writer returns the
         // current object when the value is already there, which is the
         // string-key bail-out below, spelt for an object.
-        if (dependenciesOf(row.dependsOn).length > 0) {
+        if (hasDependencies) {
           depLights.updateHover((current) =>
             current?.rowId === row.id && current.pillId === null
               ? current
@@ -99,7 +106,7 @@ export function createPlanCellProps({
         // picker are the two boxes that hang off one 110px cell, and the one
         // somebody is typing into is the one they are looking at. Read from
         // the state directly, because this is outside the column definitions.
-        const cardable = dependenciesOf(row.dependsOn).length > 0 && depPicker?.rowId !== row.id;
+        const cardable = hasDependencies && depPicker?.rowId !== row.id;
         if (!cardable) return;
         cellCards.arriveOn(dependsCell);
       },
@@ -111,7 +118,7 @@ export function createPlanCellProps({
         // `relatedTarget` is deliberately not required because passive card
         // pixels hit-test through to the plan and Chromium may report that
         // boundary as a leave with no related node.
-        if (dependenciesOf(row.dependsOn).length > 0 && depPicker?.rowId !== row.id) return;
+        if (hasDependencies && depPicker?.rowId !== row.id) return;
 
         // Leaving the cell clears the dependency hover outright — with the
         // same-cell guard the card store's clear uses, because a leave lands

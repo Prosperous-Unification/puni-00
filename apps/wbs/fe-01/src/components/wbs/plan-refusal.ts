@@ -200,7 +200,9 @@ function markerRemoveCode(
   }
 }
 
-function stepWriteCode(refusal: RefusalOf<'postApiProjectsByIdSteps'>): string {
+function stepWriteCode(
+  refusal: RefusalOf<'postApiProjectsByIdSteps'> | RefusalOf<'patchApiProjectsByIdStepsByStepId'>,
+): string {
   switch (refusal.error) {
     case 'name_required':
     case 'invalid_query':
@@ -221,6 +223,9 @@ function stepWriteCode(refusal: RefusalOf<'postApiProjectsByIdSteps'>): string {
     case 'code_taken':
       // fe-01 sends no code yet, so the last three cannot arrive from the step
       // header; named so a caller that does send one reads the refusal.
+      return refusal.error;
+    case 'calendar_range':
+      // An allowance edit that would place the plan past the supported calendar.
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -566,6 +571,7 @@ export const PLAN_REFUSALS: RefusalWords = {
     // Reachable bare — the dependency **picker** takes one entry through `run`,
     // where the typed list composes its own sentence and keeps the word instead.
     cycle: 'That dependency could not be added: it would make a loop.',
+    dependency_cycle: 'That dependency would make a cycle between steps.',
     ancestor: 'That dependency could not be added: the row it names is already above this one.',
     // A move refused for the dependencies it would break, re-worded by
     // `translateMoveRefusal` because be-01 spells it with the two words above.

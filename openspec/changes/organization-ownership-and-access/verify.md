@@ -704,6 +704,12 @@ Astra's re-review confirmed the three fixes and found one new Important: the com
 
 Full suites outside the sandbox, `env -u CLAUDECODE bun test`, after main round 20 was merged: be-01 1362 pass, 0 fail; core 719 pass, 1 fail (the known Playwright spec collected by Bun); store-sqlite 1081 pass, 0 fail; store-memory 121 pass, 0 fail.
 
+### Reconciled with main's batch prelude (2026-09-28)
+
+Main (#161) now runs the combined name-and-allowance PATCH as one command batch with the rename as its `BatchPrelude`, and answers `calendar_range` as a typed 422. Slice 24's separate combined recovery write is dropped in favour of it. Under scoped access the batch's own unit of work classifies the edit and records one recovery (`{"commands":["setStepAllowance"]}`), and its graph carries the grant, so the prelude rename is admitted as recovery too.
+
+The public `steps.findWithin` pre-check refused a recovering super-admin before the batch ran, including an allowance-only edit. It now runs inside the prelude through the batch's graph. Proof: skipping it made `refuses an allowance edit of a foreign step or project, changing nothing` fail (16 pass, 1 fail). `commits a combined recovered step patch once and rolls its rename back when allowance fails` and the allowance-only recovery case pass.
+
 ## Slice 26 — onboarding discovery, creation and join submission (tasks 4.3, 4.5 part, 4.6 part)
 
 The additive `20260928020000_add_email_verification` migration adds `users.email_verified` as a checked, default-false boolean. The existing `organization_join_request` table from slice 1 is reused; no request table is added. Its paired down migration refuses activated databases or retained verification evidence. No email is sent: validated OIDC evidence alone updates verification; the password-account challenge (4.1), link flow (4.2), approval and denial (4.5) remain open.

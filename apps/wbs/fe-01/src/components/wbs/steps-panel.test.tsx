@@ -148,6 +148,17 @@ describe('the steps a project holds', () => {
     expect(stub.onChanged).not.toHaveBeenCalled();
   });
 
+  itDom('says why an allowance past the calendar was refused', async () => {
+    const stub = stubbed({
+      setStepAllowance: vi.fn(() => Promise.reject(new Error('calendar_range'))),
+    });
+    type('QA allowance (%)', '1000');
+    fireEvent.blur(screen.getByLabelText('QA allowance (%)'));
+    await settle();
+    expect(screen.getByText(/past the last date the calendar supports/i)).toBeInTheDocument();
+    expect(stub.onChanged).not.toHaveBeenCalled();
+  });
+
   itDom('does not send an unchanged allowance', async () => {
     const stub = stubbed();
     fireEvent.blur(screen.getByLabelText('QA allowance (%)'));

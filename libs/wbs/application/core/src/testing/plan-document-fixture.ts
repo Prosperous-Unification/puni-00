@@ -4,6 +4,7 @@ import type { PlanDocumentImport } from '@wbs/contracts';
 export function planDocumentFixture(): PlanDocumentImport {
   return {
     document: { format: 'wbs-plan', version: 3, exportedAt: '2026-09-13T12:30:00.000Z' },
+    typedDependencies: [],
     settings: {
       name: ' Portable plan ',
       restricted: false,

@@ -56,3 +56,23 @@ All commands were run in the lane worktree with `env -u CLAUDECODE`. Only focuse
 - `down.sql` guard INSERT removed → `refuses to roll back while a step carries a nonzero allowance` (the rollback succeeded).
 - `sameSteps` ignoring the allowance → `a changed allowance is a different step list`.
 - fe-01: panel validation disabled → 30.001 was sent. Fake-API validation disabled → the refusal changed.
+
+### Follow-up: typed calendar refusal and atomic rename (lane allowance-bugs, 2026-09-28)
+
+- A step PATCH whose allowance overflowed the calendar threw `setStepAllowance refused with an unmodelled reason: calendar_range` (500). It is now 422 `calendar_range`. The batch already answered 422; MCP proxies the HTTP reply.
+- A PATCH with a name and an allowance renamed through the public step service and then ran the batch, so a refused allowance kept the rename. The rename is now the batch's prelude (`PlanCommandRunner.runAfterWithin`), inside the same unit of work.
+- New suite `apps/wbs/be-01/src/controller/step-allowance-edit.controller.db.test.ts` runs over real SQLite and the composed services.
+- Commands, all under `env -u CLAUDECODE` in the lane worktree:
+  - `bunx nx run-many -t typecheck lint:fast -p wbs-contracts wbs-core wbs-be-01 wbs-fe-01 wbs-mcp-01 --skip-nx-cache`: green (after clearing stale `.nx/eslintcache-wbs-*`).
+  - `bunx nx run-many -t test -p wbs-contracts wbs-core wbs-be-01 wbs-mcp-01 --skip-nx-cache`: 399/0, 322/0, 691/0 and 1248/0.
+  - fe-01 Vitest, `TZ=UTC bunx vitest run src/lib/wbs-api.test.ts src/components/wbs/steps-panel.test.tsx`: 106/0.
+  - `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 138/0.
+  - MCP: not run end to end. The review drove the generated PATCH and batch tools against a mocked 422 `calendar_range`, and both kept the status and body.
+  - Not run: the full Nx gate, build, pixels and the host gate. Integration gating runs those.
+- Proofs, each fault watched failing (fault → failing test):
+  - Route's `calendar_range` case removed → `is a typed 422 over HTTP and in a batch, and changes nothing` (500 instead of 422).
+  - `setStepAllowance` dropped from the calendar preflight kinds → the same test (200, and +1000% stored).
+  - Rename made before the batch, as before → `takes back the rename sent in the same edit` (name `Review`).
+  - Runner continuing past a refused prelude → `writes no allowance when the rename is refused` (200 with 30%).
+  - fe-01 sentence removed → `says why an allowance past the calendar was refused`.
+  - `runCommandBatchAfter` write-scope branch removed → `refuses a read-only actor before the prelude or the runner can write` (ok:true).

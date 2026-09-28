@@ -1,4 +1,6 @@
 import {
+  type DocumentTypedDependency,
+  documentTypedDependencyRequest,
   PLAN_DOCUMENT_VERSION,
   type PlanDocument,
   planDocumentHeaderRequest,
@@ -21,6 +23,20 @@ import type {
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Project } from '../../ports/project-store';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
+
+type TreeEndpoint = NonNullable<WorkItemTree['typedDependencies']>[number]['predecessor'];
+
+/** Writes file-local references and refuses an incomplete trusted tree projection. */
+function documentEndpoint(endpoint: TreeEndpoint): DocumentTypedDependency['predecessor'] {
+  if (endpoint.scope === 'whole') return { scope: 'whole', workItem: endpoint.workItemId };
+  // Proof (2026-09-28): removing this guard let the missing-step tree export
+  // succeed with an undefined step; its trusted-endpoint test then failed.
+  if (endpoint.stepId === undefined)
+    throw new Error(`typed ${endpoint.scope} endpoint has no step in tree read`);
+  // Proof (2026-09-28): forcing this scope to whole made the memory source
+  // "round trips multiple step links" fail on node/step endpoint equality.
+  return { scope: endpoint.scope, workItem: endpoint.workItemId, step: endpoint.stepId };
+}
 
 type PlanDirectory = Pick<
   DirectoryStore,
@@ -146,9 +162,24 @@ export class PlanDocumentService {
       types,
       externalSystems,
     });
+    // Proof (2026-09-28): removing this guard made the missing-list export
+    // test receive a TypeError from .map instead of the named trusted-state error.
+    if (tree.typedDependencies === undefined)
+      throw new Error(`project "${project.id}" tree was read without typed dependencies`);
     return {
       project,
       ...tree,
+      typedDependencies: tree.typedDependencies.map(({ id, predecessor, successor, type }) => {
+        // Proof (2026-09-28): omitting this guard let the unknown-type tree
+        // export succeed; its trusted-relationship test failed.
+        if (type !== 'FS') throw new Error(`unknown typed dependency type ${type}`);
+        return {
+          id,
+          predecessor: documentEndpoint(predecessor),
+          successor: documentEndpoint(successor),
+          type,
+        };
+      }),
       stepNodes: spellStepNodes(tree),
       document: {
         format: 'wbs-plan',
@@ -212,7 +243,11 @@ function spellStepNodes(tree: {
 
 export type PlanDocumentClassification =
   | { ok: true; value: PlanDocumentImport }
-  | { ok: false; code: 'invalid_body' | 'unsupported_version'; path: string };
+  | {
+      ok: false;
+      code: 'invalid_body' | 'invalid_typed_dependency' | 'unsupported_version';
+      path: string;
+    };
 
 /**
  * Projects an archival payload to writable fields at its version. Header
@@ -229,7 +264,8 @@ export type PlanDocumentClassification =
  * `code: null`), and each step is imported with `code: null`, which
  * `prepareImport` codes by suggestion. Version 3 requires a string code on
  * every step; its grammar, reservation and uniqueness are checked by
- * `prepareImport`.
+ * `prepareImport`. Versions 1–3 ignore typed relationships, retaining their
+ * legacy link semantics; version 4 requires and validates the typed list.
  */
 export async function classifyPlanDocument(input: unknown): Promise<PlanDocumentClassification> {
   const header = await validateSchema(planDocumentHeaderRequest, input);
@@ -240,12 +276,47 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
   // Proof: moving this after version validation made the mounted future-file
   // response invalid_body/workItems[3].priority instead of
   // unsupported_version/document.version.
-  if (version !== 1 && version !== 2 && version !== PLAN_DOCUMENT_VERSION) {
+  if (version !== 1 && version !== 2 && version !== 3 && version !== PLAN_DOCUMENT_VERSION) {
     return { ok: false, code: 'unsupported_version', path: 'document.version' };
   }
   const checked = await validateSchema(planDocumentRequest, input);
   if (checked.issues !== undefined) {
     return { ok: false, code: 'invalid_body', path: pathOf(checked.issues[0]?.path) };
+  }
+  const typedDependencies: PlanDocumentImport['typedDependencies'] = [];
+  if (version === 4) {
+    // Proof (2026-09-28): removing this check made a missing version-4 list
+    // throw from .entries instead of returning invalid_typed_dependency.
+    if (!Array.isArray(checked.value.typedDependencies))
+      return { ok: false, code: 'invalid_typed_dependency', path: 'typedDependencies' };
+    for (const [at, entry] of checked.value.typedDependencies.entries()) {
+      if (typeof entry === 'object' && entry !== null && !Array.isArray(entry)) {
+        for (const side of ['predecessor', 'successor'] as const) {
+          const endpoint: unknown = Reflect.get(entry, side);
+          if (typeof endpoint !== 'object' || endpoint === null || Array.isArray(endpoint))
+            continue;
+          const scope: unknown = Reflect.get(endpoint, 'scope');
+          // Proof (2026-09-28): without this scope check, the mounted import
+          // returned predecessor.step for an unknown scope instead of .scope.
+          if (scope !== 'whole' && scope !== 'node' && scope !== 'descendant-step')
+            return {
+              ok: false,
+              code: 'invalid_typed_dependency',
+              path: `typedDependencies[${String(at)}].${side}.scope`,
+            };
+        }
+      }
+      const parsed = await validateSchema(documentTypedDependencyRequest, entry);
+      // Proof (2026-09-28): bypassing schema refusal made the unknown-type
+      // memory import throw on an undefined relationship in preparation.
+      if (parsed.issues !== undefined)
+        return {
+          ok: false,
+          code: 'invalid_typed_dependency',
+          path: `typedDependencies[${String(at)}]${pathOf(parsed.issues[0]?.path) === 'body' ? '' : `.${pathOf(parsed.issues[0]?.path)}`}`,
+        };
+      typedDependencies.push(parsed.value);
+    }
   }
   const steps: PlanDocumentImport['steps'] = [];
   for (const [at, { code, ...step }] of checked.value.steps.entries()) {
@@ -270,7 +341,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       return { ok: false, code: 'invalid_body', path: `steps[${String(at)}].code` };
     steps.push({ ...step, allowancePercent: step.allowancePercent, code });
   }
-  return { ok: true, value: { ...checked.value, steps } };
+  return { ok: true, value: { ...checked.value, steps, typedDependencies } };
 }
 
 function pathOf(path: readonly (PropertyKey | { key: PropertyKey })[] | undefined): string {
