@@ -347,8 +347,9 @@ jobs:
     # "CI gate budget repair after 6234d1c1". Sixty then expired too: run 36410497860 (main
     # 94ce7928, 2026-09-28) spent 57m46s in the Nx step alone, and run 36416401675 was canceled
     # at 60m in `Gate head pinning` after every earlier step passed. Ninety was then set for the
-    # single job. With Tool Wiki's 25m52s moved to `gate_tool_wiki` this job measured about
-    # 36 minutes of steps (docs/findings/ci-gate-duration.md), and sixty leaves two thirds above it.
+    # single job. With Tool Wiki moved to `gate_tool_wiki` this job took 26m35s in the full-mode
+    # run 36473105834 (Nx step 22m21s; docs/findings/ci-gate-duration.md), and sixty leaves more
+    # than double that.
     timeout-minutes: 60
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
@@ -752,8 +753,8 @@ jobs:
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.tool_wiki == 'run' }}
     runs-on: ubuntu-latest
-    # The same run measured 25m52s for the Nx run, 23s for source lint and 2m7s for the packed
-    # suite; fifty leaves over two thirds above it.
+    # This job took 29m16s in the full-mode run 36473105834 (Nx step with source lint 26m37s,
+    # packed suite 2m8s); fifty leaves over two thirds above it.
     timeout-minutes: 50
     steps:
       # Full history for parity with the workspace shard: the suites read git state and ran

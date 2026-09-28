@@ -53,7 +53,18 @@ Proofs: `tools/tool-git-hooks/src/hooks/gate-workflow.test.ts` runs the producti
 script with each shard result, and its `Proof:` comments record the faults that were watched
 failing.
 
-The measured result after the split is in the pull request that made this change.
+## Measurements after the split
+
+These are from PR #195 at `ea04c22f`.
+
+| Run                                                        | `gate` job(s)                      | Wall time to `gate` |
+| ---------------------------------------------------------- | ---------------------------------- | ------------------- |
+| Before: push to main `262d006c`, run 36454449115 (full)    | 62m53s                             | 62m57s              |
+| After: dispatch run 36473105834 (full mode, every project) | workspace 26m35s, Tool Wiki 29m16s | 29m48s              |
+| After: pull-request run 36472328583 (affected)             | workspace 5m25s, Tool Wiki 22m22s  | 22m54s              |
+
+In the full run, the workspace Nx step took 22m21s and the Tool Wiki Nx step took 26m37s.
+The Tool Wiki shard is now the critical path.
 
 ## Alternatives not taken
 
