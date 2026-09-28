@@ -36,9 +36,9 @@
 
 ## 6. Version import and export
 
-- [ ] 6.1 Red: typed/legacy round-trip and malformed or dangling new-format refusal.
-- [ ] 6.2 Allocate an archive version after earlier changes and implement explicit converters.
-- [ ] 6.3 Negative proof: drop an endpoint scope or accept a missing step; watch transfer test fail, restore, add adjacent `Proof:`.
+- [x] 6.1 Red: typed/legacy round-trip and malformed or dangling new-format refusal.
+- [x] 6.2 Allocate an archive version after earlier changes and implement explicit converters.
+- [x] 6.3 Negative proof: drop an endpoint scope or accept a missing step; watch transfer test fail, restore, add adjacent `Proof:`.
 
 ## 6a. Remap copied relationships
 

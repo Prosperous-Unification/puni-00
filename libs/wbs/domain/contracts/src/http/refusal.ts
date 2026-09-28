@@ -342,6 +342,7 @@ export type RefusalCode = keyof RefusalDetail;
 export interface ImportRefusal {
   error:
     | 'invalid_body'
+    | 'invalid_typed_dependency'
     | 'unsupported_version'
     | 'unknown_ref'
     | 'cycle'

@@ -7,19 +7,15 @@ import { workItemTree } from './work-item-response';
 /**
  * The plan document version this release writes.
  *
- * `3` carries each step's `code` (`address-step-nodes`); `2` added each step's
- * `allowancePercent` (`add-project-step-estimate-allowances`). Files of
- * versions 1 and 2 are read through the explicit conversions in
- * `classifyPlanDocument`: version 1 charges every step at 0%, and neither
- * earlier version's steps keep a code — each is suggested on import exactly as
- * for a newly created step. The typed-dependency changes
- * (`add-step-finish-start-dependencies`) take the next free number, 4.
+ * `4` adds typed dependencies separately from legacy `dependsOn`; `3` added
+ * step codes and `2` step allowances. The classifier converts versions 1–3
+ * explicitly, preserving their legacy dependency interpretation.
  */
-export const PLAN_DOCUMENT_VERSION = 3;
+export const PLAN_DOCUMENT_VERSION = 4;
 
 const planHeader = type({
   format: "'wbs-plan'",
-  version: '3',
+  version: '4',
   exportedAt: 'string',
 });
 
@@ -59,10 +55,22 @@ const authoredMarker = type({
   color: 'string | null',
 });
 
+const documentEndpoint = type({ scope: "'whole'", workItem: 'string' })
+  .or({ scope: "'node'", workItem: 'string', step: 'string' })
+  .or({ scope: "'descendant-step'", workItem: 'string', step: 'string' });
+
+export const documentTypedDependency = type({
+  id: 'string',
+  predecessor: documentEndpoint,
+  successor: documentEndpoint,
+  type: "'FS'",
+});
+export const documentTypedDependencyRequest = requestSchema(documentTypedDependency);
+export type DocumentTypedDependency = (typeof documentTypedDependency)['infer'];
+
 /**
- * Version 3 keeps the complete established export, every authored value needed
- * to interpret its file-local references during a restore, step allowances and
- * step codes.
+ * Version 4 keeps the established export and adds typed relationships with
+ * file-local work-item and step references, distinct from legacy links.
  *
  * A step's `code` is optional and nullable on the work-item read (an older
  * be-01, an uncoded step); here it is a required string, because the export
@@ -72,7 +80,8 @@ const authoredMarker = type({
  * `sn1.<work item>.<step>` — for a reader of the file. It is derived, so import
  * drops it and the new project's nodes follow its own IDs.
  */
-export const planDocument = workItemTree.and({
+export const planDocument = workItemTree.omit('typedDependencies').and({
+  typedDependencies: documentTypedDependency.array(),
   steps: type({ code: 'string' }).array(),
   stepNodes: type({
     id: 'string',
@@ -158,6 +167,7 @@ const writablePlanDocument = type({
     'allowancePercent?': 'number',
     'code?': 'unknown',
   }).array(),
+  'typedDependencies?': 'unknown',
 });
 
 export const planDocumentRequest = requestSchema(writablePlanDocument, {
@@ -170,9 +180,10 @@ export type PlanDocumentRequest = (typeof writablePlanDocument)['infer'];
  * A writable plan document once its version has been read: every step carries
  * the allowance it is imported with — the file's own from version 2, zero at
  * version 1 — and the code the file gives it from version 3, or `null` for an
- * earlier version, whose steps are coded by suggestion on import.
+ * earlier version. Versions 1–3 carry an empty typed set after conversion.
  */
-export type PlanDocumentImport = Omit<PlanDocumentRequest, 'steps'> & {
+export type PlanDocumentImport = Omit<PlanDocumentRequest, 'steps' | 'typedDependencies'> & {
+  typedDependencies: DocumentTypedDependency[];
   steps: (Omit<PlanDocumentRequest['steps'][number], 'allowancePercent' | 'code'> & {
     allowancePercent: number;
     code: string | null;

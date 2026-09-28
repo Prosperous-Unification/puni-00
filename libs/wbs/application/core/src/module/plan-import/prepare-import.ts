@@ -2,6 +2,8 @@ import type { PlanDocumentImport } from '@wbs/contracts';
 import {
   type AllowancePercent,
   allowancePercentOf,
+  findTypedEndpointDefect,
+  formatTypedDependencyKey,
   isHexTriple,
   isIsoDate,
   isMarkerName,
@@ -19,6 +21,7 @@ import {
   suggestStepCodes,
   type ThreePointEstimate as Estimate,
   ThreePointEstimate,
+  type TypedDependency,
   validateCustomColor,
 } from '@wbs/domain';
 import { type } from '@wbs/validation';
@@ -29,6 +32,7 @@ import type { WorkItem } from '../../ports/work-item-store';
 import { cleanName } from '../../service/clean-name';
 import { MOST_CHARACTERS_IN_A_REF_NAME } from '../../service/command-normalizers';
 import { canDepend } from '../../service/dependency';
+import { findDependencyGraphCycle } from '../../service/dependency-graph';
 
 type DocumentRow = PlanDocumentImport['workItems'][number];
 type DocumentStep = PlanDocumentImport['steps'][number];
@@ -145,6 +149,7 @@ export interface PreparedImport {
   steps: PreparedStep[];
   workItems: PreparedWorkItem[];
   dependencies: PreparedDependency[];
+  typedDependencies: TypedDependency[];
   stepByFileId: ReadonlyMap<string, PreparedStep>;
   teamByFileId: ReadonlyMap<string, PreparedTeam>;
   personByFileId: ReadonlyMap<string, PreparedPerson>;
@@ -156,6 +161,7 @@ export interface PreparedImport {
 
 export type ImportRefusalCode =
   | 'invalid_body'
+  | 'invalid_typed_dependency'
   | 'unknown_ref'
   | 'cycle'
   | 'ancestor'
@@ -759,10 +765,73 @@ export function prepareImport(
       successorFileId: row.id,
     })),
   );
+  const typedDependencies: TypedDependency[] = [];
+  const relationshipKeys = new Set<string>();
+  const leafByFileId = new Map(preparedRows.map(({ fileId, isLeaf }) => [fileId, isLeaf]));
   const inStepOrder = [...document.steps].sort(
     (left, right) =>
       left.position - right.position || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
   );
+  for (const [at, relationship] of document.typedDependencies.entries()) {
+    const prefix = `typedDependencies[${String(at)}]`;
+    const endpointOf = (endpoint: typeof relationship.predecessor) =>
+      endpoint.scope === 'whole'
+        ? { scope: 'whole' as const, workItemId: endpoint.workItem }
+        : { scope: endpoint.scope, workItemId: endpoint.workItem, stepId: endpoint.step };
+    const typed: TypedDependency = {
+      id: relationship.id,
+      predecessor: endpointOf(relationship.predecessor),
+      successor: endpointOf(relationship.successor),
+      type: relationship.type,
+    };
+    for (const side of ['predecessor', 'successor'] as const) {
+      const defect = findTypedEndpointDefect(typed[side], {
+        isLeaf: (workItemId) => leafByFileId.get(workItemId),
+        hasStep: (stepId) => steps.byId.has(stepId),
+      });
+      // Proof (2026-09-28): forcing hasStep true made the memory source's
+      // missing-step transfer test throw from graph resolution instead of
+      // returning invalid_typed_dependency before admission.
+      if (defect !== null)
+        return refuses(
+          'invalid_typed_dependency',
+          `${prefix}.${side}.${defect === 'unknown_step' ? 'step' : 'workItem'}`,
+          defect,
+        );
+    }
+    const key = formatTypedDependencyKey(typed);
+    // Proof (2026-09-28): bypassing this check made the memory source's
+    // duplicate-relationship import throw from its store instead of refusing.
+    if (relationshipKeys.has(key)) return refuses('invalid_typed_dependency', prefix, 'duplicate');
+    relationshipKeys.add(key);
+    typedDependencies.push(typed);
+  }
+  if (typedDependencies.length > 0) {
+    const cycle = findDependencyGraphCycle({
+      rows: document.workItems.map(rowShape),
+      // Proof (2026-09-28): restoring file-array order made the shuffled-step
+      // position-order cycle test import a project instead of refusing it.
+      steps: inStepOrder.map(({ id, allowancePercent }) => {
+        const checked = allowancePercentOf(allowancePercent);
+        if (checked === null) throw new Error(`validated allowance disappeared for step ${id}`);
+        return { id, allowancePercent: checked };
+      }),
+      estimates: preparedRows.flatMap(({ fileId, estimates }) =>
+        estimates.map(({ stepFileId }) => ({ workItemId: fileId, stepId: stepFileId })),
+      ),
+      legacy: dependencies.map(({ predecessorFileId, successorFileId }, at) => ({
+        id: `file-edge-${String(at)}`,
+        projectId: 'file',
+        predecessorId: predecessorFileId,
+        successorId: successorFileId,
+      })),
+      typed: typedDependencies,
+      reach: document.settings.depReach,
+    });
+    // Proof (2026-09-28): bypassing this refusal made the memory source admit
+    // a combined legacy/typed cycle and create a project (ok: true).
+    if (cycle !== null) return refuses('invalid_typed_dependency', 'typedDependencies', cycle.kind);
+  }
   // A file of an earlier version codes none of its steps and one of version 3
   // codes all of them (`classifyPlanDocument`); suggesting around the file's
   // own codes keeps the two apart without assuming which.
@@ -809,6 +878,7 @@ export function prepareImport(
       steps: preparedSteps,
       workItems: preparedRows,
       dependencies,
+      typedDependencies,
       stepByFileId,
       teamByFileId,
       personByFileId,
