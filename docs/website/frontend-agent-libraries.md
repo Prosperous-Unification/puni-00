@@ -1,6 +1,6 @@
 # Frontend agent chat libraries for PUNI
 
-Research checked 2026-09-28 against official product documentation and source repositories. This is a selection note, not an implementation decision or a claim of runtime compatibility in PUNI.
+Research checked 2026-09-28 against official product documentation and source repositories. The isolated compatibility probe below covers package imports and one mocked stream, not a PUNI application build.
 
 ## Fit to the current app
 
@@ -41,4 +41,8 @@ Target **assistant-ui + AI SDK with streaming** for the full Build experience. I
 
 **assistant-ui LocalRuntime** remains a lower-effort transitional path if the existing JSON `GET/POST /chat` contract needs to ship before streaming. Its REST adapter fits that shape, but client edit, retry and branching controls must follow server paid-turn semantics. Defer AI Elements unless the app intentionally adopts Tailwind/shadcn; defer CopilotKit/AG-UI until it has a multi-step agent or shared agent state that justifies its protocol. [LocalRuntime](https://www.assistant-ui.com/docs/runtimes/custom/local-runtime), [AI Elements setup](https://elements.ai-sdk.dev/docs/setup), [AG-UI connection](https://docs.copilotkit.ai/agent-spec/backend/ag-ui)
 
-No packages were installed and no compatibility test was run. The findings are a source-backed design comparison only.
+## Isolated Bun compatibility probe
+
+On 2026-09-28, `bun install` succeeded in `/tmp/puni-agent-compat` with exact versions `@assistant-ui/react@0.15.22`, `@assistant-ui/ai-sdk@0.0.8`, `ai@7.0.118`, `@ai-sdk/react@4.0.121`, `@openrouter/ai-sdk-provider@3.1.0`, `react@19.2.8`, `react-dom@19.2.8`, and `zod@4.1.8` under Bun 1.4.2. Runtime imports of assistant-ui's provider and AI SDK transport, AI SDK `useChat`, and the OpenRouter provider succeeded. A `streamText` call using the OpenRouter package's `fetch` injection point sent one POST to a fixture URL (`fixture.invalid`) intercepted in process; no real provider request or credential was used. Two mocked text chunks produced an HTTP 200 AI SDK UI message stream with `x-vercel-ai-ui-message-stream: v1`, two `text-delta` events, a finish event, and `[DONE]`.
+
+The default `toUIMessageStreamResponse()` did **not** expose the mock provider's final token usage in that UI stream. This probe supports basic package import and stream-shape compatibility only. PUNI must independently retrieve verified final usage on the server, and still needs a Vite/React build, browser session and CSRF check, history mapping, and disconnect/cancellation tests before adoption. The `/tmp` probe made no repository dependency changes. [AI SDK UI stream response](https://ai-sdk.dev/docs/reference/ai-sdk-ui/create-ui-message-stream-response), [OpenRouter provider](https://ai-sdk.dev/providers/community-providers/openrouter)
