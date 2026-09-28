@@ -19,6 +19,7 @@ import {
   listTeams,
   listWorkItemTypes,
 } from './directory-shapes';
+import { createDomainChallenge, listOrganizationDomains } from './domain-shapes';
 import { readHistory } from './history-shapes';
 import { importProject } from './import-shapes';
 import { health, metrics } from './infrastructure-shapes';
@@ -75,6 +76,8 @@ export const httpShapes = [
   removeStep,
   changeMemberRole,
   removeMember,
+  listOrganizationDomains,
+  createDomainChallenge,
   readOnboarding,
   createOnboardingOrganization,
   submitOnboardingJoinRequest,

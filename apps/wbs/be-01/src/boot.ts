@@ -2,6 +2,7 @@ import { buildOidcVerifier } from '@wbs/auth';
 import type { DelegationIssuer } from '@wbs/core';
 import type { Logger } from '@wbs/observability';
 import {
+  DomainClaimRepository,
   NO_BOUND_ORGANIZATION,
   OnboardingRepository,
   openSqliteSource,
@@ -204,6 +205,7 @@ export async function bootBe01(
               // of 403; watched 2026-09-27.
               organizations: new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION),
               memberships: new OrganizationRepository(db, services.gate),
+              domains: new DomainClaimRepository(db, services.gate),
               onboarding: new OnboardingRepository(db, services.gate),
               steps: services.steps,
               calendarMarkers: services.calendarMarkers,

@@ -1,3 +1,4 @@
+import type { DomainChallenges } from '../ports/domain-challenges';
 import type { MembershipAdministration } from '../ports/membership-administration';
 import type { OrganizationAccess } from '../ports/organization-access';
 
@@ -19,4 +20,12 @@ export const legacyOrganizationAccess: OrganizationAccess = {
 export const refusingMemberships: MembershipAdministration = {
   administer: () =>
     Promise.reject(new Error('membership administration was reached in a pre-activation suite')),
+};
+
+/** Domain routes in unrelated suites throw if a test unexpectedly reaches them. */
+export const refusingDomains: DomainChallenges = {
+  listClaims: () =>
+    Promise.reject(new Error('domain claims were reached in a pre-activation suite')),
+  reissueClaim: () =>
+    Promise.reject(new Error('domain challenges were reached in a pre-activation suite')),
 };

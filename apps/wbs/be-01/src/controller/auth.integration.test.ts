@@ -15,6 +15,7 @@ import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
+  refusingDomains,
   refusingMemberships,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
@@ -32,6 +33,7 @@ function app(auth = testAuthService(), maxConcurrentLogins?: number) {
   return buildApp({
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    domains: refusingDomains,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(maxConcurrentLogins),
     appOrigin: 'http://localhost',
@@ -149,6 +151,7 @@ describe('GET /api/auth/me', () => {
     const res = await buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      domains: refusingDomains,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
       appOrigin: 'http://localhost',

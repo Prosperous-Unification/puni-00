@@ -1,6 +1,7 @@
 import type {
   Broadcaster,
   Clock,
+  DomainChallenges,
   EditAdmission,
   HistoryService,
   ImportService,
@@ -10,6 +11,7 @@ import type {
   ReplayOrchestrator,
   SavedPlanService,
 } from '@wbs/core';
+import { domainRoutes } from '@wbs/core/http/domain.routes';
 import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
@@ -85,6 +87,8 @@ export interface AppOptions {
    * 404 on the membership routes, which reads as a release without them.
    */
   memberships: MembershipAdministration;
+  /** Checked policy and transactional challenge storage; omission is a composition error. */
+  domains: DomainChallenges;
   /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
   onboarding: Onboarding;
   /** Required for the same reason as `projects`. */
@@ -265,6 +269,7 @@ export function mountedEndpoints(
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
+    ...domainRoutes(opts.organizations, opts.domains, opts.clock),
     ...onboardingRoutes(opts.onboarding, opts.clock),
     ...stepRoutes(
       {

@@ -42,6 +42,7 @@ import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
+  refusingDomains,
   refusingMemberships,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
@@ -121,6 +122,7 @@ beforeEach(() => {
     savedPlans: testSavedPlanService(),
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    domains: refusingDomains,
     onboarding: refusingOnboarding,
     history: testHistoryService(),
     auth: new AuthService({

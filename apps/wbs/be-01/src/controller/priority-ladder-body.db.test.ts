@@ -28,6 +28,7 @@ import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
+  refusingDomains,
   refusingMemberships,
 } from '../testing/organization-access-fixture';
 import { projectRow } from '../testing/project-fixture';
@@ -130,6 +131,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
     app = buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      domains: refusingDomains,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
       clock: testClock,

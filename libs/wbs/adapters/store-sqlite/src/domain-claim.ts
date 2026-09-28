@@ -1,4 +1,4 @@
-import type { WriteStamp } from '@wbs/core';
+import type { DomainChallenges, DomainClaimSummary, WriteStamp } from '@wbs/core';
 import { isClaimableDomain } from '@wbs/domain';
 import { and, eq, gt, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
@@ -6,7 +6,9 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
 import type { Gate } from './gate';
-import { organizationDomainClaim } from './schema';
+import { readOrganizationActivation } from './organization-activation';
+import { loadPublicEmailPolicy } from './public-email-policy';
+import { organizationDomainClaim, organizationMembership } from './schema';
 
 /** A pending claim with its current challenge; only the token's digest is stored. */
 export interface OpenedDomainClaim {
@@ -19,14 +21,140 @@ export interface OpenedDomainClaim {
 }
 
 /**
- * Domain claims and their single verified owner. Inert until the domain slice
- * (tasks 5.1–5.5) puts DNS proof and super-admin authority in front of it.
+ * Domain claims and their single verified owner. Initial challenge issuance
+ * is mounted only after activation and checks current super-admin authority;
+ * DNS verification and the remaining ownership lifecycle are still unwired.
  */
-export class DomainClaimRepository {
+export class DomainClaimRepository implements DomainChallenges {
   constructor(
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
+    private readonly policyDirectory?: string,
   ) {}
+
+  /** Lists exact claims for the organization established by current access. */
+  async listClaims(
+    organizationId: string,
+    actorId: string,
+  ): Promise<readonly DomainClaimSummary[] | 'forbidden'> {
+    await Promise.resolve();
+    return this.db.transaction((tx) => {
+      const member = tx
+        .select({ role: organizationMembership.role })
+        .from(organizationMembership)
+        .where(
+          and(
+            eq(organizationMembership.organizationId, organizationId),
+            eq(organizationMembership.userId, actorId),
+          ),
+        )
+        .get();
+      // Proof: 2026-09-28, bypassing this role check made mounted `rechecks
+      // super-admin authority after request access resolves` disclose the list
+      // after demotion (200 instead of 403).
+      if (member?.role !== 'super_admin') return 'forbidden';
+      return (
+        tx
+          .select({
+            id: organizationDomainClaim.id,
+            domain: organizationDomainClaim.domain,
+            status: organizationDomainClaim.status,
+            challengeExpiresAt: organizationDomainClaim.challengeExpiresAt,
+          })
+          .from(organizationDomainClaim)
+          // Proof: 2026-09-28, dropping this predicate made mounted `lists only
+          // the active organization and never a foreign challenge` include B.
+          .where(eq(organizationDomainClaim.organizationId, organizationId))
+          .orderBy(organizationDomainClaim.domain)
+          .all()
+      );
+    });
+  }
+
+  /**
+   * Issues or replaces one pending challenge under the current super-admin
+   * membership and activation marker. The read and write share an immediate
+   * transaction, so a concurrent demotion or reissue cannot authorize an old
+   * request. A verified claim is not replaced by this initial-claim route.
+   *
+   * Proof: 2026-09-28, keeping the old digest on reissue made `reissues a
+   * pending claim in place and invalidates its old digest` promote the old
+   * token; bypassing the role recheck made the mounted demoted-admin test issue.
+   */
+  async reissueClaim(
+    organizationId: string,
+    actorId: string,
+    domain: string,
+    challengeDigest: string,
+    challengeExpiresAt: number,
+    stamp: WriteStamp,
+  ): Promise<
+    | { kind: 'issued'; id: string }
+    | { kind: 'forbidden' | 'unclaimable' | 'already_claimed' | 'inactive' }
+  > {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction(
+        (tx) => {
+          // Proof: 2026-09-28, bypassing this marker check made `does not issue a
+          // challenge before activation` insert a pending claim.
+          if (readOrganizationActivation(tx) !== 'activated') return { kind: 'inactive' } as const;
+          const member = tx
+            .select({ role: organizationMembership.role })
+            .from(organizationMembership)
+            .where(
+              and(
+                eq(organizationMembership.organizationId, organizationId),
+                eq(organizationMembership.userId, actorId),
+              ),
+            )
+            .get();
+          // Proof: 2026-09-28, bypassing this role recheck made `rechecks
+          // super-admin authority after request access resolves` issue a claim.
+          if (member?.role !== 'super_admin') return { kind: 'forbidden' } as const;
+          const policy = loadPublicEmailPolicy(this.policyDirectory);
+          if (!isClaimableDomain(domain, policy)) return { kind: 'unclaimable' } as const;
+          const existing = tx
+            .select({ id: organizationDomainClaim.id, status: organizationDomainClaim.status })
+            .from(organizationDomainClaim)
+            .where(
+              and(
+                // Proof: 2026-09-28, removing this organization predicate
+                // made mounted `lists only the active organization and never
+                // a foreign challenge` overwrite B's pending digest.
+                eq(organizationDomainClaim.organizationId, organizationId),
+                eq(organizationDomainClaim.domain, domain),
+              ),
+            )
+            .get();
+          if (existing !== undefined) {
+            if (existing.status !== 'pending') return { kind: 'already_claimed' } as const;
+            // Proof: 2026-09-28, leaving the old digest here made `reissues a
+            // pending claim in place and invalidates its old digest` promote it.
+            tx.update(organizationDomainClaim)
+              .set({ challengeDigest, challengeExpiresAt, ...auditOnUpdate(stamp) })
+              .where(eq(organizationDomainClaim.id, existing.id))
+              .run();
+            return { kind: 'issued', id: existing.id } as const;
+          }
+          const id = crypto.randomUUID();
+          tx.insert(organizationDomainClaim)
+            .values({
+              id,
+              organizationId,
+              domain,
+              status: 'pending',
+              challengeDigest,
+              challengeExpiresAt,
+              ...auditOnCreate(stamp),
+            })
+            .run();
+          return { kind: 'issued', id } as const;
+        },
+        { behavior: 'immediate' },
+      );
+    });
+  }
 
   /**
    * Records a pending claim, or answers `unclaimable` for a public mailbox
@@ -39,7 +167,8 @@ export class DomainClaimRepository {
     // Proof: skipping this made `never opens or promotes a claim on a public
     // domain` in `organization-records.db.test.ts` open the claim; watched
     // 2026-09-28.
-    if (!isClaimableDomain(claim.domain)) return 'unclaimable';
+    if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
+      return 'unclaimable';
     await this.gate.enter(async () => {
       await Promise.resolve();
       this.db
@@ -86,7 +215,11 @@ export class DomainClaimRepository {
       // `openClaim`, is still never promoted.
       // Proof: skipping this made `never opens or promotes a claim on a public
       // domain` promote the planted claim; watched 2026-09-28.
-      if (pending !== undefined && !isClaimableDomain(pending.domain)) return 'unclaimable';
+      if (
+        pending !== undefined &&
+        !isClaimableDomain(pending.domain, loadPublicEmailPolicy(this.policyDirectory))
+      )
+        return 'unclaimable';
       try {
         const promoted = this.db
           .update(organizationDomainClaim)

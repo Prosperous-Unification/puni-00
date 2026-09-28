@@ -394,6 +394,41 @@ describe('DomainClaimRepository', () => {
     expect(await claims.promoteClaim('c-a', 'digest-c-a', stamp('u-a', 1000))).toBe('stale');
     expect(await claims.findOwner('example.org')).toBeNull();
   });
+
+  it('reissues a pending claim in place and invalidates its old digest', async () => {
+    const claims = await twoOrganizationsClaiming('example.org');
+    const marker = openDatabase(path);
+    marker.run(
+      "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+    );
+    marker.close();
+    expect(
+      await claims.reissueClaim(
+        'org-a',
+        'u-a',
+        'example.org',
+        'digest-new',
+        2000,
+        stamp('u-a', 20),
+      ),
+    ).toEqual({ kind: 'issued', id: 'c-a' });
+    expect(await claims.promoteClaim('c-a', 'digest-c-a', stamp('u-a', 21))).toBe('stale');
+    expect(await claims.promoteClaim('c-a', 'digest-new', stamp('u-a', 21))).toBe('verified');
+  });
+
+  it('does not issue a challenge before activation', async () => {
+    const claims = await twoOrganizationsClaiming('example.org');
+    expect(
+      await claims.reissueClaim(
+        'org-a',
+        'u-a',
+        'example.org',
+        'digest-new',
+        2000,
+        stamp('u-a', 20),
+      ),
+    ).toEqual({ kind: 'inactive' });
+  });
 });
 
 describe('20260927120000_add_organization_records', () => {

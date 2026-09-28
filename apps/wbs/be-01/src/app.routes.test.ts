@@ -23,6 +23,7 @@ import { testHistoryService } from './testing/history-fixture';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
 import {
   legacyOrganizationAccess,
+  refusingDomains,
   refusingMemberships,
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
@@ -37,6 +38,7 @@ function options(): AppOptions {
   return {
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    domains: refusingDomains,
     onboarding: {
       discover: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
       createOrganization: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
@@ -127,6 +129,7 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postApiAuthLogin: { username: 'route-probe', password: 'valid-password' },
   postApiOnboardingOrganizations: { name: 'Reachable organization' },
   postApiOnboardingJoinRequests: { organizationId: ROUTE_ID },
+  postApiOrganizationDomainsChallenges: { domain: 'example.org' },
   postApiSmokeEcho: { text: 'reachable' },
   postApiProjectsByIdSteps: { name: 'Reachable step' },
   patchApiProjectsByIdStepsByStepId: { name: 'Renamed step' },
@@ -194,6 +197,7 @@ const PUBLIC_OPERATIONS = [
 const SIGNED_IN_OPERATIONS = [
   'getApiExternal-systems',
   'getApiOnboarding',
+  'getApiOrganizationDomains',
   'getApiPeople',
   'getApiProjects',
   'getApiProjectsById',
@@ -223,6 +227,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiDirectoryCommands',
   'postApiOnboardingJoinRequests',
   'postApiOnboardingOrganizations',
+  'postApiOrganizationDomainsChallenges',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -256,6 +261,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiAuthLogout',
   'postApiAuthRefresh',
   'postApiDirectoryCommands',
+  'postApiOrganizationDomainsChallenges',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -274,6 +280,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiAuthOktaCallback',
   'getApiExternal-systems',
   'getApiOnboarding',
+  'getApiOrganizationDomains',
   'getApiPeople',
   'getApiProjects',
   'getApiProjectsById',

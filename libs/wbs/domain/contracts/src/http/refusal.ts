@@ -236,6 +236,9 @@ type BareRefusalCode =
   | 'email_verification_required'
   | 'already_member'
   | 'domain_matched'
+  | 'invalid_domain'
+  | 'unclaimable'
+  | 'already_claimed'
   | 'join_request_pending'
   /** Authenticated, but the bound organization no longer lists the user. */
   | 'not_a_member'

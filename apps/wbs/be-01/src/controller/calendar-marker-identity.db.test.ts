@@ -42,6 +42,7 @@ import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
+  refusingDomains,
   refusingMemberships,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
@@ -196,6 +197,7 @@ describe('the schedule identity guarantee', () => {
     app = buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      domains: refusingDomains,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
       clock: testClock,

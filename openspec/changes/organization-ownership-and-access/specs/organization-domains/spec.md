@@ -4,6 +4,20 @@
 
 Only a current super-admin SHALL start a domain claim. WBS SHALL canonicalize an exact DNS domain, reject public suffixes, relay domains and maintained public-email domains, and issue a cryptographically random, organization-and-domain-bound TXT token valid for 24 hours. The challenge SHALL be shown with its required DNS name and value. A verification attempt SHALL query authoritative DNS with a bounded timeout and accept only the current unexpired token. Reissuing a challenge SHALL invalidate prior tokens. A domain SHALL have at most one verified organization owner, decided atomically at verification; pending challenges SHALL not reserve ownership indefinitely. Failed DNS lookup SHALL not silently verify or claim it.
 
+The active organization's domain list SHALL be visible only to a current super-admin and SHALL omit challenge secrets. Before activation, both list and issuance SHALL refuse. The public-domain policy SHALL be a revisioned, checksum-checked, licensed asset read on each claim decision; the public suffix rule SHALL include ICANN and private suffixes from the pinned PSL package. Missing, unreadable, malformed or checksum-invalid policy SHALL throw rather than admit a claim. A reissued pending challenge SHALL replace the old digest in the same organization's row under an immediate transaction that rechecks current super-admin membership.
+
+#### Scenario: Pre-activation and lost-authority refusal
+
+- **GIVEN** organization isolation is inactive, or a request's super-admin membership was removed or demoted
+- **WHEN** the caller lists domains or requests a challenge
+- **THEN** WBS refuses with typed 403 and stores no new challenge
+
+#### Scenario: Broken maintained policy
+
+- **GIVEN** the policy asset or manifest is absent, unreadable, malformed or fails its pinned checksum
+- **WHEN** a current super-admin requests a challenge
+- **THEN** the operation throws a server fault and stores no claim
+
 #### Scenario: Public domain refusal
 
 - **GIVEN** `gmail.com` is on the maintained public-domain list

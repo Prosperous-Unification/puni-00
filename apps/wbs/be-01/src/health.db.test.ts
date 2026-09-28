@@ -18,6 +18,7 @@ import { testLoginThrottle } from './testing/login-throttle-fixture';
 import { refusingOnboarding } from './testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
+  refusingDomains,
   refusingMemberships,
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
@@ -35,6 +36,7 @@ describe('GET /health', () => {
     const app = buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      domains: refusingDomains,
       onboarding: refusingOnboarding,
       clock: testClock,
       loginThrottle: testLoginThrottle(),
@@ -65,6 +67,7 @@ describe('GET /health', () => {
     const app = buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      domains: refusingDomains,
       onboarding: refusingOnboarding,
       clock: testClock,
       loginThrottle: testLoginThrottle(),
@@ -106,6 +109,7 @@ describe('/health tells the truth about the database', () => {
       const app = buildApp({
         organizations: legacyOrganizationAccess,
         memberships: refusingMemberships,
+        domains: refusingDomains,
         onboarding: refusingOnboarding,
         clock: testClock,
         loginThrottle: testLoginThrottle(),
@@ -150,6 +154,7 @@ describe('/health tells the truth about the database', () => {
       const app = buildApp({
         organizations: legacyOrganizationAccess,
         memberships: refusingMemberships,
+        domains: refusingDomains,
         onboarding: refusingOnboarding,
         clock: testClock,
         loginThrottle: testLoginThrottle(),
@@ -184,6 +189,7 @@ describe('/health tells the truth about the database', () => {
     const app = buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      domains: refusingDomains,
       onboarding: refusingOnboarding,
       clock: testClock,
       loginThrottle: testLoginThrottle(),

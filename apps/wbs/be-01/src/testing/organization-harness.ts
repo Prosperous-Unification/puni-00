@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import {
+  DomainClaimRepository,
   ExternalIdentityRepository,
   OnboardingRepository,
   openSqliteSource,
@@ -95,7 +96,7 @@ export class OrganizationHarness {
    * delegation tokens with (task 2.5); upstream identities resolve through the
    * real `external_identity` mapping.
    */
-  static open(delegationKey?: CryptoKey): OrganizationHarness {
+  static open(delegationKey?: CryptoKey, policyDirectory?: string): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
@@ -160,6 +161,7 @@ export class OrganizationHarness {
         Promise.resolve(bound.get(userId) ?? null),
       ),
       memberships: new OrganizationRepository(db, OPEN),
+      domains: new DomainClaimRepository(db, gate, policyDirectory),
       onboarding: new OnboardingRepository(db, OPEN),
       ...(delegationKey === undefined
         ? {}
@@ -238,6 +240,7 @@ export class OrganizationHarness {
         },
       },
       memberships: new OrganizationRepository(source.db, services.gate),
+      domains: new DomainClaimRepository(source.db, services.gate),
       onboarding: new OnboardingRepository(source.db, services.gate),
       steps: services.steps,
       calendarMarkers: services.calendarMarkers,

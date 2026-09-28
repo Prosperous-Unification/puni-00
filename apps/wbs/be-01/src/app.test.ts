@@ -16,6 +16,7 @@ import { testLoginThrottle } from './testing/login-throttle-fixture';
 import { refusingOnboarding } from './testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
+  refusingDomains,
   refusingMemberships,
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
@@ -71,6 +72,7 @@ function optionsFor(auth: AuthService, internalAuthSecret = TEST_SECRET): AppOpt
   return {
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    domains: refusingDomains,
     onboarding: refusingOnboarding,
     clock: testClock,
     appOrigin: 'http://localhost',
