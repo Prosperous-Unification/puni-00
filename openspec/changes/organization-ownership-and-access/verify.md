@@ -455,6 +455,17 @@ Astra review 1 raised 2 Important and 4 Minor findings, all fixed:
 - **Minor:** the detail is typed as `RecoveryAuditDetail`.
 - **Minor:** the classifier is renamed `classifyProjectEdit`.
 
+## Slice 17 — organization selection preview (task 2.4 groundwork)
+
+Branch `batch-9/010-5-2-orgs-15` (same PR as slice 16), a read-only dry run with no production access.
+
+| Check                          | Injected fault            | Observed failure (`organization-selection-preview.db.test.ts`, 2026-09-28)                                |
+| ------------------------------ | ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Stored roles validated         | every role accepted       | `fails on a malformed membership role`: no throw                                                          |
+| No membership means onboarding | onboarding never answered | `reports zero, one and several memberships, choosing for nobody`: `selection_required` with no candidates |
+
+The file is left byte for byte as it was (`leaves the database file byte for byte as it was`), and the CLI fails without a database (`migration-cli.db.test.ts`).
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

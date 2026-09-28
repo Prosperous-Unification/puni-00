@@ -229,3 +229,20 @@ export function drizzleReadTransaction(db: Drizzle): {
     },
   };
 }
+
+/**
+ * A read-only connection to an existing database file, for reports that must
+ * leave the file byte for byte as they found it: no file is created, no
+ * journal mode is set, and SQLite refuses any write. Opening a missing file
+ * throws.
+ */
+export function openReadOnlyConnection(dbPath: string): Connection {
+  const client = new Database(dbPath, { readonly: true, create: false });
+  client.run(`PRAGMA busy_timeout = ${String(BUSY_TIMEOUT_MS)};`);
+  return {
+    db: drizzle({ client }),
+    close: () => {
+      client.close();
+    },
+  };
+}
