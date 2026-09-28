@@ -1,7 +1,6 @@
 import type { DelegationIssuer, DelegationSourceResolver, OrganizationAccess } from '@wbs/core';
 import { errors, jwtVerify } from 'jose';
 
-import { cookieValue } from '../middleware/authenticated';
 import type { AuthService } from '../service/auth.service';
 import { DelegationSourceIneligible } from './delegation-issuer';
 
@@ -26,11 +25,12 @@ export type IssueBearerContext = (
 export const REFUSE_BEARER_CONTEXT: IssueBearerContext = () =>
   Promise.resolve({ kind: 'inactive' });
 
-/** Verifies a native credential and current membership before a fixed-audience issue. */
+/** Verifies a native credential, durable activation and current membership before issue. */
 export function bearerContextIssuer(
   resolveSource: DelegationSourceResolver,
   organizations: OrganizationAccess,
   issue: DelegationIssuer,
+  activationState: () => 'pre_activation' | 'activated',
 ): IssueBearerContext {
   return async (credential, organizationId) => {
     let source;
@@ -48,6 +48,9 @@ export function bearerContextIssuer(
     // a delegated source` issue a bearer for its delegated source.
     if (source.kind !== 'verified-first-party-credential' || source.delegated)
       return { kind: 'forbidden' };
+    // Proof (2026-09-28): replacing this check with `activated` made
+    // `enabled context issuance reports inactive before activation` answer forbidden.
+    if (activationState() === 'pre_activation') return { kind: 'inactive' };
     // Proof (2026-09-28): dropping organization_activation made `issues a
     // native direct context only for its own current membership` answer 500
     // rather than issue or classify the missing trusted marker as inactive.
@@ -59,10 +62,6 @@ export function bearerContextIssuer(
     // `refuses direct issuance before activation, without membership, or from
     // a delegated source` issue for a nonmember.
     if (!resolved.ok) return { kind: 'forbidden' };
-    // Proof (2026-09-28): skipping this check made `refuses direct issuance
-    // before activation, without membership, or from a delegated source`
-    // issue while organization access was legacy.
-    if (resolved.access.kind === 'legacy') return { kind: 'inactive' };
     try {
       const token = await issue(
         credential,
@@ -132,14 +131,32 @@ export function nativeCredentialSource(
   };
 }
 
-/** One native credential from a browser session or Bearer header, or null on ambiguity. */
+/** One native credential from a browser session or Bearer header; malformed or ambiguous is null. */
 export function bearerContextCredential(headers: Headers): string | null {
-  const cookie = cookieValue(headers.get('cookie') ?? undefined, '__Host-wbs_access');
+  const rawCookies = headers.get('cookie') ?? '';
+  const sessionCookies = rawCookies.split(';').filter((part) => {
+    const separator = part.indexOf('=');
+    return separator > 0 && part.slice(0, separator).trim() === '__Host-wbs_access';
+  });
   const authorization = headers.get('authorization');
   const bearer = authorization?.startsWith('Bearer ') === true ? authorization.slice(7) : null;
-  // Proof (2026-09-28): accepting both carriers made `refuses ambiguous browser
-  // and bearer credentials` receive `browser` instead of null; its Basic
-  // substitution likewise failed until every Authorization form was refused.
-  if (cookie !== null && authorization !== null) return null;
+  // Proof (2026-09-28): the old decoder accepted a Bearer beside malformed
+  // `%E0%A4%A`, and the mounted test issued a token. Removing duplicate-count
+  // refusal made `refuses ambiguous browser and bearer credentials` return
+  // `first` rather than null for two cookies.
+  if (sessionCookies.length > 1 || (sessionCookies.length > 0 && authorization !== null))
+    return null;
+  let cookie: string | null = null;
+  if (sessionCookies.length === 1) {
+    const sessionCookie = sessionCookies[0];
+    try {
+      cookie = decodeURIComponent(sessionCookie.slice(sessionCookie.indexOf('=') + 1));
+    } catch (cause) {
+      // Proof (2026-09-28): rethrowing the malformed cookie's URIError made
+      // `refuses ambiguous browser and bearer credentials` fail by throwing.
+      if (cause instanceof URIError) return null;
+      throw cause;
+    }
+  }
   return cookie ?? bearer;
 }

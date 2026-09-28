@@ -9,6 +9,7 @@ import {
   OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
+  readOrganizationActivation,
   scheduleInputHash,
   SqliteDelegationUse,
   SqliteOrganizationAccess,
@@ -205,6 +206,7 @@ export class OrganizationHarness {
                   return admitted.ok && admitted.access.kind === 'scoped';
                 },
               ),
+              () => readOrganizationActivation(db),
             ),
           }),
       history: testHistoryService(),

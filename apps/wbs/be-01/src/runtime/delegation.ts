@@ -127,10 +127,16 @@ export function delegationVerifier(
     // scalar check made `issues a direct context with a native identity and
     // fixed audience` verify a direct token as MCP.
     if (payload['aud'] !== audience) return { kind: 'refused' };
-    const mapped =
-      claims.kind === 'first_party'
-        ? await localUserOf?.(claims.userId)
-        : await mappedUserOf(claims.upstream);
+    // Proof (2026-09-28): omitting the trusted lookup made `issues a direct
+    // context with a native identity and fixed audience` return refused instead
+    // of throwing `direct account lookup unavailable`.
+    let mapped: Awaited<ReturnType<LocalUserOf>>;
+    if (claims.kind === 'first_party') {
+      if (localUserOf === undefined) throw new Error('direct account lookup unavailable');
+      mapped = await localUserOf(claims.userId);
+    } else {
+      mapped = await mappedUserOf(claims.upstream);
+    }
     // Proof: accepting any mapped upstream identity made `refuses a delegation
     // whose upstream identity maps to someone else` in
     // `delegation.controller.db.test.ts` fail; watched 2026-09-28.
@@ -229,9 +235,13 @@ function parseClaims(payload: Record<string, unknown>, now: () => number): Deleg
   };
   if (identity_kind === 'first_party') {
     if (
+      // Proof (2026-09-28): removing this predicate made `refuses signed
+      // first-party tokens for MCP and gateway audiences` verify both tokens.
       payload['aud'] !== 'wbs-be-01/direct' ||
       client !== undefined ||
       grant !== undefined ||
+      // Proof (2026-09-28): removing this predicate made `refuses signed
+      // first-party tokens carrying upstream identity claims` verify the token.
       upstream_iss !== undefined ||
       upstream_sub !== undefined
     )

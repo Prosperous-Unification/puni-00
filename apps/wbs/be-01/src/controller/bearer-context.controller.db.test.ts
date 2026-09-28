@@ -60,6 +60,23 @@ test('issues a native direct context only for its own current membership', async
         { cookie: `__Host-wbs_access=${harness.token('bob')}` },
       ),
     ).toEqual({ status: 401, body: { error: 'invalid_binding' } });
+    for (const cookie of [
+      '__Host-wbs_access=%E0%A4%A',
+      `__Host-wbs_access=${harness.token('bob')}; __Host-wbs_access=${harness.token('ada')}`,
+    ]) {
+      expect(
+        await harness.callWith(
+          harness.token('ada'),
+          'POST',
+          '/api/auth/context',
+          { organizationId: 'org-a' },
+          { cookie },
+        ),
+      ).toEqual({
+        status: 401,
+        body: { error: 'invalid_binding' },
+      });
+    }
     expect(
       await harness.call('ada', 'POST', '/api/auth/context', { organizationId: 'org-b' }),
     ).toEqual({
@@ -139,6 +156,23 @@ test('issues a native direct context only for its own current membership', async
     expect(
       (await harness.call('ada', 'POST', '/api/auth/context', { organizationId: 'org-a' })).status,
     ).toBe(500);
+  } finally {
+    harness.close();
+  }
+});
+
+test('enabled context issuance reports inactive before activation', async () => {
+  const keys = await generateKeyPair('RS256');
+  const harness = OrganizationHarness.open(keys.publicKey, keys.privateKey);
+  try {
+    await harness.register('ada');
+    harness.organization('org-a');
+    harness.member('org-a', 'ada', 'member');
+    expect(
+      await harness.call('ada', 'POST', '/api/auth/context', {
+        organizationId: 'org-a',
+      }),
+    ).toEqual({ status: 403, body: { error: 'context_inactive' } });
   } finally {
     harness.close();
   }

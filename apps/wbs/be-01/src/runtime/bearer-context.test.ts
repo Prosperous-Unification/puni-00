@@ -32,6 +32,22 @@ test('refuses ambiguous browser and bearer credentials', () => {
       new Headers({ cookie: '__Host-wbs_access=browser', authorization: 'Basic other' }),
     ),
   ).toBeNull();
+  expect(
+    bearerContextCredential(
+      new Headers({
+        cookie: '__Host-wbs_access=%E0%A4%A',
+        authorization: 'Bearer direct',
+      }),
+    ),
+  ).toBeNull();
+  expect(
+    bearerContextCredential(
+      new Headers({
+        cookie: '__Host-wbs_access=first; __Host-wbs_access=second',
+      }),
+    ),
+  ).toBeNull();
+  expect(bearerContextCredential(new Headers({ cookie: '__Host-wbs_access=%E0%A4%A' }))).toBeNull();
 });
 
 test('binds a native session to its own user and requested organization', async () => {
@@ -108,12 +124,14 @@ test('refuses direct issuance before activation, without membership, or from a d
     () => Promise.resolve(source),
     { resolve: () => Promise.resolve({ ok: true, access: { kind: 'legacy' } }) },
     issuer,
+    () => 'pre_activation',
   );
   expect(await inactive('native', 'org-a')).toEqual({ kind: 'inactive' });
   const foreign = bearerContextIssuer(
     () => Promise.resolve(source),
     { resolve: () => Promise.resolve({ ok: false, refusal: 'not_a_member' }) },
     issuer,
+    () => 'activated',
   );
   expect(await foreign('native', 'org-a')).toEqual({ kind: 'forbidden' });
   const delegated = bearerContextIssuer(
@@ -129,6 +147,7 @@ test('refuses direct issuance before activation, without membership, or from a d
         }),
     },
     issuer,
+    () => 'activated',
   );
   expect(await delegated('delegated', 'org-a')).toEqual({ kind: 'forbidden' });
   const overScoped = bearerContextIssuer(
@@ -144,6 +163,7 @@ test('refuses direct issuance before activation, without membership, or from a d
         }),
     },
     () => Promise.reject(new DelegationSourceIneligible('scope exceeds credential')),
+    () => 'activated',
   );
   expect(await overScoped('native', 'org-a')).toEqual({ kind: 'forbidden' });
 });

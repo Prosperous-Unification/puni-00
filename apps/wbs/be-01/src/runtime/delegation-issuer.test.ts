@@ -54,12 +54,23 @@ it('issues a direct context with a native identity and fixed audience', async ()
   );
   expect((await swapped(token, 'wbs-be-01/direct')).kind).toBe('refused');
   expect(
+    await rejectionOf(
+      delegationVerifier(
+        keys.publicKey,
+        () => Promise.resolve(null),
+        () => Promise.resolve(true),
+        () => 1_000_000,
+      )(token, 'wbs-be-01/direct'),
+    ),
+  ).toHaveProperty('message', 'direct account lookup unavailable');
+  expect(
     (
       await delegationVerifier(
         keys.publicKey,
         () => Promise.resolve(null),
         () => Promise.resolve(true),
         () => 1_000_000,
+        () => Promise.resolve(null),
       )(token, 'wbs-be-01/direct')
     ).kind,
   ).toBe('refused');
@@ -142,6 +153,57 @@ it('refuses an unknown signed identity variant', async () => {
     () => 1_000_000,
   );
   expect((await verify(token, 'wbs-be-01/via-mcp-01')).kind).toBe('refused');
+});
+
+it('refuses signed first-party tokens carrying upstream identity claims', async () => {
+  const keys = await generateKeyPair('RS256');
+  const token = await new SignJWT({
+    org: 'org-a',
+    scope: 'read',
+    identity_kind: 'first_party',
+    upstream_iss: 'https://idp.test',
+  })
+    .setProtectedHeader({ alg: 'RS256', typ: 'wbs-delegation+jwt' })
+    .setIssuer('wbs')
+    .setSubject('ada')
+    .setAudience('wbs-be-01/direct')
+    .setJti(crypto.randomUUID())
+    .setIssuedAt(1000)
+    .setExpirationTime(1100)
+    .sign(keys.privateKey);
+  const verify = delegationVerifier(
+    keys.publicKey,
+    () => Promise.resolve(null),
+    () => Promise.resolve(true),
+    () => 1_000_000,
+    () => Promise.resolve({ id: 'ada', username: 'ada' }),
+  );
+  expect((await verify(token, 'wbs-be-01/direct')).kind).toBe('refused');
+});
+
+it('refuses signed first-party tokens for MCP and gateway audiences', async () => {
+  const keys = await generateKeyPair('RS256');
+  const verify = delegationVerifier(
+    keys.publicKey,
+    () => Promise.resolve(null),
+    () => Promise.resolve(true),
+    () => 1_000_000,
+    () => Promise.resolve({ id: 'ada', username: 'ada' }),
+  );
+  const outcomes = [];
+  for (const audience of ['wbs-be-01/via-mcp-01', 'wbs-be-01/via-gw-01'] as const) {
+    const token = await new SignJWT({ org: 'org-a', scope: 'read', identity_kind: 'first_party' })
+      .setProtectedHeader({ alg: 'RS256', typ: 'wbs-delegation+jwt' })
+      .setIssuer('wbs')
+      .setSubject('ada')
+      .setAudience(audience)
+      .setJti(crypto.randomUUID())
+      .setIssuedAt(1000)
+      .setExpirationTime(1100)
+      .sign(keys.privateKey);
+    outcomes.push((await verify(token, audience)).kind);
+  }
+  expect(outcomes).toEqual(['refused', 'refused']);
 });
 
 it('caps a verified source to five minutes and its credential expiry', async () => {
