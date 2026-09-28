@@ -105,9 +105,15 @@ export function findTypedEndpointDefect(
 export function formatTypedDependencyKey(
   dependency: Pick<TypedDependency, 'predecessor' | 'successor' | 'type'>,
 ): string {
-  const formatEndpointKey = (endpoint: DependencyEndpoint): string =>
+  const endpointKey = (endpoint: DependencyEndpoint): string[] =>
     endpoint.scope === 'whole'
-      ? `whole:${endpoint.workItemId}`
-      : `${endpoint.scope}:${endpoint.workItemId}:${endpoint.stepId}`;
-  return `${formatEndpointKey(dependency.predecessor)}|${formatEndpointKey(dependency.successor)}|${dependency.type}`;
+      ? [endpoint.scope, endpoint.workItemId]
+      : [endpoint.scope, endpoint.workItemId, endpoint.stepId];
+  // Proof (2026-09-28): restoring delimiter concatenation made the import source
+  // contract's "delimiter spelling" test refuse its second distinct link as duplicate.
+  return JSON.stringify([
+    endpointKey(dependency.predecessor),
+    endpointKey(dependency.successor),
+    dependency.type,
+  ]);
 }
