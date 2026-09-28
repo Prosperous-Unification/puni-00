@@ -3,7 +3,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { generateKeyPair, SignJWT } from 'jose';
 
 import { DELEGATION_TOKEN_TYPE } from '../runtime/delegation';
@@ -29,6 +29,22 @@ function pinAsset(directory: string, content: string): void {
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { sha256: string };
   manifest.sha256 = createHash('sha256').update(content).digest('hex');
   writeFileSync(manifestPath, JSON.stringify(manifest));
+}
+
+async function withShortDnsTimeout<T>(run: () => Promise<T>): Promise<T> {
+  const timeout = AbortSignal.timeout.bind(AbortSignal);
+  const requested: number[] = [];
+  const timeoutSpy = spyOn(AbortSignal, 'timeout').mockImplementation((milliseconds) => {
+    requested.push(milliseconds);
+    return timeout(1);
+  });
+  try {
+    const answer = await run();
+    expect(requested).toEqual([5_000]);
+    return answer;
+  } finally {
+    timeoutSpy.mockRestore();
+  }
 }
 
 beforeEach(async () => {
@@ -91,7 +107,7 @@ describe('mounted organization domain challenges', () => {
       stale: 0,
     });
     dnsRecords = 'hang';
-    await harness.checkDomains(dayZero + 7 * 24 * 60 * 60 * 1000);
+    await withShortDnsTimeout(() => harness.checkDomains(dayZero + 7 * 24 * 60 * 60 * 1000));
     const warned = await harness.call('owner', 'GET', '/api/organization/domains');
     expect(
       (
@@ -143,6 +159,172 @@ describe('mounted organization domain challenges', () => {
         .query("SELECT last_checked_at FROM organization_domain_claim WHERE id = 'planted'")
         .get(),
     ).toEqual({ last_checked_at: at });
+  });
+
+  it('rejects a verified claim with a missing retained check timestamp', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    expect(
+      (await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`)).status,
+    ).toBe(200);
+    harness.sqlite.run('UPDATE organization_domain_claim SET last_checked_at = NULL WHERE id = ?', [
+      issued.id,
+    ]);
+    let failure: unknown;
+    try {
+      await harness.checkDomains(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    } catch (cause) {
+      failure = cause;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    if (!(failure instanceof Error)) throw new Error('expected corrupt proof refusal');
+    expect(failure.message).toContain('lacks retained proof state');
+  });
+
+  it('records a failed retained check for a malformed TXT response', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    expect(
+      (await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`)).status,
+    ).toBe(200);
+    const dayZero = Date.now();
+    harness.sqlite.run(
+      'UPDATE organization_domain_claim SET last_success_at = ?, last_checked_at = ? WHERE id = ?',
+      [dayZero, dayZero, issued.id],
+    );
+    // The resolver violates its trusted return contract after verification.
+    dnsRecords = [42] as unknown as readonly string[];
+    expect(await harness.checkDomains(dayZero + 7 * 24 * 60 * 60 * 1000)).toEqual({
+      checked: 1,
+      stale: 0,
+    });
+    expect(
+      harness.sqlite
+        .query(
+          'SELECT last_success_at, last_checked_at FROM organization_domain_claim WHERE id = ?',
+        )
+        .get(issued.id),
+    ).toEqual({
+      last_success_at: dayZero,
+      last_checked_at: dayZero + 7 * 24 * 60 * 60 * 1000,
+    });
+  });
+
+  for (const [snapshot, change] of [
+    [
+      'organization',
+      (claimId: string) => {
+        harness.organization('org-b');
+        harness.sqlite.run(
+          'UPDATE organization_domain_claim SET organization_id = ? WHERE id = ?',
+          ['org-b', claimId],
+        );
+      },
+    ],
+    [
+      'domain',
+      (claimId: string) => {
+        harness.sqlite.run('UPDATE organization_domain_claim SET domain = ? WHERE id = ?', [
+          'example.net',
+          claimId,
+        ]);
+      },
+    ],
+    [
+      'digest',
+      (claimId: string) => {
+        harness.sqlite.run('UPDATE organization_domain_claim SET proof_digest = ? WHERE id = ?', [
+          '0'.repeat(64),
+          claimId,
+        ]);
+      },
+    ],
+    [
+      'timestamp',
+      (claimId: string) => {
+        harness.sqlite.run(
+          'UPDATE organization_domain_claim SET last_checked_at = last_checked_at + 1 WHERE id = ?',
+          [claimId],
+        );
+      },
+    ],
+  ] as const) {
+    it(`leaves a retained check stale when its ${snapshot} changes during lookup`, async () => {
+      harness.activate();
+      const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' }))
+        .body as {
+        id: string;
+        dnsValue: string;
+      };
+      dnsRecords = [issued.dnsValue];
+      expect(
+        (await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`))
+          .status,
+      ).toBe(200);
+      beforeDnsReply = () => {
+        beforeDnsReply = undefined;
+        change(issued.id);
+      };
+      const before = harness.sqlite
+        .query(
+          'SELECT last_success_at, last_checked_at FROM organization_domain_claim WHERE id = ?',
+        )
+        .get(issued.id) as { last_success_at: number; last_checked_at: number };
+      expect(await harness.checkDomains(Date.now() + 7 * 24 * 60 * 60 * 1000)).toEqual({
+        checked: 0,
+        stale: 1,
+      });
+      expect(
+        harness.sqlite
+          .query(
+            'SELECT last_success_at, last_checked_at FROM organization_domain_claim WHERE id = ?',
+          )
+          .get(issued.id),
+      ).toEqual({
+        last_success_at: before.last_success_at,
+        last_checked_at: before.last_checked_at + (snapshot === 'timestamp' ? 1 : 0),
+      });
+    });
+  }
+
+  it('leaves a retained check stale when activation changes during lookup', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    expect(
+      (await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`)).status,
+    ).toBe(200);
+    const before = harness.sqlite
+      .query('SELECT last_checked_at FROM organization_domain_claim WHERE id = ?')
+      .get(issued.id);
+    beforeDnsReply = () => {
+      beforeDnsReply = undefined;
+      // Inject a rollback that production's irreversible activation trigger refuses.
+      harness.sqlite.run('DROP TRIGGER organization_activation_no_revert');
+      harness.sqlite.run(
+        "UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL WHERE singleton = 1",
+      );
+    };
+    expect(await harness.checkDomains(Date.now() + 7 * 24 * 60 * 60 * 1000)).toEqual({
+      checked: 0,
+      stale: 1,
+    });
+    expect(
+      harness.sqlite
+        .query('SELECT last_checked_at FROM organization_domain_claim WHERE id = ?')
+        .get(issued.id),
+    ).toEqual(before);
   });
 
   it('does not record a retained check after its claim is released during DNS lookup', async () => {
@@ -423,7 +605,9 @@ describe('mounted organization domain challenges', () => {
     ).toEqual({ status: 503, body: { error: 'dns_unavailable' } });
     dnsRecords = 'hang';
     expect(
-      await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
+      await withShortDnsTimeout(() =>
+        harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
+      ),
     ).toEqual({ status: 503, body: { error: 'dns_unavailable' } });
     expect(
       harness.sqlite

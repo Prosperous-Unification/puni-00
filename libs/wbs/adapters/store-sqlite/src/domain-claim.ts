@@ -8,7 +8,7 @@ import type {
   WriteStamp,
 } from '@wbs/core';
 import { isClaimableDomain } from '@wbs/domain';
-import { and, eq, gt, inArray, lte } from 'drizzle-orm';
+import { and, eq, gt, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -54,17 +54,12 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
       const due = tx
         .select()
         .from(organizationDomainClaim)
-        .where(
-          and(
-            eq(organizationDomainClaim.status, 'verified'),
-            // Proof: 2026-09-28, consulting the expired initial challenge
-            // instead made mounted `shows retained proof check timestamps and
-            // a warning after a failed day-seven check` skip the due claim.
-            lte(organizationDomainClaim.lastCheckedAt, at - 7 * 24 * 60 * 60 * 1000),
-          ),
-        )
+        .where(eq(organizationDomainClaim.status, 'verified'))
         .all();
-      return due.map((claim) => {
+      return due.flatMap((claim) => {
+        // Proof: 2026-09-28, filtering by last_checked_at in SQL hid a NULL
+        // verified timestamp; mounted `rejects a verified claim with a missing
+        // retained check timestamp` resolved instead of throwing.
         if (
           claim.proofDigest === null ||
           claim.lastCheckedAt === null ||
@@ -73,13 +68,20 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
           throw new Error(`verified domain ${claim.id} lacks retained proof state`);
         if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
           throw new Error(`verified domain ${claim.id} is no longer claimable`);
-        return {
-          id: claim.id,
-          organizationId: claim.organizationId,
-          domain: claim.domain,
-          proofDigest: claim.proofDigest,
-          lastCheckedAt: claim.lastCheckedAt,
-        };
+        // Proof: 2026-09-28, filtering by challenge expiry instead made mounted
+        // `shows retained proof check timestamps and a warning after a failed
+        // day-seven check` skip a due verified claim. Bypassing this due filter
+        // made that test check the claim on day six (checked: 1 instead of 0).
+        if (claim.lastCheckedAt > at - 7 * 24 * 60 * 60 * 1000) return [];
+        return [
+          {
+            id: claim.id,
+            organizationId: claim.organizationId,
+            domain: claim.domain,
+            proofDigest: claim.proofDigest,
+            lastCheckedAt: claim.lastCheckedAt,
+          },
+        ];
       });
     });
   }
@@ -94,14 +96,21 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
       await Promise.resolve();
       return this.db.transaction(
         (tx) => {
+          // Proof: 2026-09-28, bypassing this read made mounted `leaves a
+          // retained check stale when activation changes during lookup`
+          // record checked after an injected marker rollback.
           if (readOrganizationActivation(tx) !== 'activated') return 'stale' as const;
           const current = tx
             .select()
             .from(organizationDomainClaim)
             .where(eq(organizationDomainClaim.id, proof.id))
             .get();
-          // Proof: 2026-09-28, bypassing the release/snapshot check made mounted
-          // `does not record a retained check after its claim is released during DNS lookup` report checked rather than stale.
+          // Proof: 2026-09-28, bypassing the release check made mounted `does
+          // not record a retained check after its claim is released during DNS
+          // lookup` report checked. Bypassing organization, domain, digest and
+          // timestamp comparisons separately made each corresponding mounted
+          // `leaves a retained check stale when its ... changes during lookup`
+          // report checked instead of stale.
           if (
             current?.status !== 'verified' ||
             current.organizationId !== proof.organizationId ||

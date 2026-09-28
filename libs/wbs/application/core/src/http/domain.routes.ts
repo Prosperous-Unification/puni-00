@@ -56,7 +56,8 @@ export function domainRoutes(
         if (pending.challengeExpiresAt <= now)
           return { ok: false, status: 409, body: { error: 'stale' } };
         // Proof: 2026-09-28, raising this bound to 50 seconds made mounted
-        // `refuses malformed and timed-out resolver answers` exceed its 8-second test deadline.
+        // `refuses malformed and timed-out resolver answers` observe 50,000
+        // instead of 5,000 through its injected short timer.
         const signal = AbortSignal.timeout(5_000);
         let records: readonly string[];
         try {
