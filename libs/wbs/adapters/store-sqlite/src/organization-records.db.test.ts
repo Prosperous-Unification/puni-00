@@ -4,12 +4,13 @@ import { join } from 'node:path';
 
 import type { WriteStamp } from '@wbs/core';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { sql } from 'drizzle-orm';
 
 import { messagesOf } from './constraint';
 import { type Connection, openConnection, openDatabase } from './db';
 import { DomainClaimRepository } from './domain-claim';
 import { ExternalIdentityRepository } from './external-identity';
-import { OPEN } from './gate';
+import { OPEN, WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 import { OrganizationRepository } from './organization';
@@ -330,6 +331,39 @@ describe('OrganizationRepository.administer', () => {
 });
 
 describe('DomainClaimRepository', () => {
+  it('refuses a challenge that expires while verification waits for the write gate', async () => {
+    await twoOrganizationsClaiming('example.org');
+    connection.db.run(
+      sql`UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1`,
+    );
+    const gate = new WriteCoordinator();
+    const claims = new DomainClaimRepository(connection.db, gate);
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    const batch = gate.enter(async () => {
+      entered.resolve(undefined);
+      await release.promise;
+    });
+    await entered.promise;
+    let now = 100;
+    const verification = claims.verifyClaim(
+      'org-a',
+      'u-a',
+      { id: 'c-a', domain: 'example.org', challengeDigest: 'digest-c-a', challengeExpiresAt: 1000 },
+      'digest-c-a',
+      stamp('u-a', now),
+      () => now,
+    );
+    now = 1000;
+    release.resolve(undefined);
+    await batch;
+    expect(await verification).toBe('stale');
+    expect(
+      connection.db.all(
+        sql`SELECT status, challenge_digest FROM organization_domain_claim WHERE id = 'c-a'`,
+      ),
+    ).toEqual([{ status: 'pending', challenge_digest: 'digest-c-a' }]);
+  });
   it('keeps both verification phases inert before activation', async () => {
     const organizations = new OrganizationRepository(connection.db, OPEN);
     await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
@@ -357,6 +391,7 @@ describe('DomainClaimRepository', () => {
         },
         'digest-c-a',
         stamp('u-a', 20),
+        () => 20,
       ),
     ).toBe('inactive');
   });
@@ -458,6 +493,48 @@ describe('DomainClaimRepository', () => {
         stamp('u-a', 20),
       ),
     ).toEqual({ kind: 'inactive' });
+  });
+
+  it('waits for a batch rollback before issuing a durable challenge', async () => {
+    await twoOrganizationsClaiming('example.org');
+    const marker = openDatabase(path);
+    marker.run(
+      "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+    );
+    marker.close();
+    const gate = new WriteCoordinator();
+    const claims = new DomainClaimRepository(connection.db, gate);
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    const batch = gate.enter(async () => {
+      connection.db.run(sql`BEGIN IMMEDIATE`);
+      entered.resolve(undefined);
+      await release.promise;
+      connection.db.run(sql`ROLLBACK`);
+    });
+    await entered.promise;
+    let settled = false;
+    const issuance = claims
+      .reissueClaim('org-a', 'u-a', 'example.org', 'digest-after', 2000, stamp('u-a', 20))
+      .then((issued) => {
+        settled = true;
+        return issued;
+      });
+    let settledBeforeRollback: boolean;
+    try {
+      for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+      settledBeforeRollback = settled;
+    } finally {
+      release.resolve(undefined);
+      await batch;
+    }
+    expect(await issuance).toEqual({ kind: 'issued', id: 'c-a' });
+    expect(
+      connection.db.all(
+        sql`SELECT challenge_digest FROM organization_domain_claim WHERE id = 'c-a'`,
+      ),
+    ).toEqual([{ challenge_digest: 'digest-after' }]);
+    expect(settledBeforeRollback).toBe(false);
   });
 });
 
