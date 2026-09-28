@@ -132,6 +132,7 @@ describe.each(SIDES)('%s', (side, root, id, catalog) => {
 it('rolls back to the bridge and reapplies', () => {
   db.close();
   expect(rollbackTo(path, FOLDER, ORGANIZATION_BRIDGE)).toEqual([
+    '20260928040000_add_email_challenge',
     '20260928030000_add_delegation_use',
     '20260928020000_add_email_verification',
     '20260928010000_add_project_solution',

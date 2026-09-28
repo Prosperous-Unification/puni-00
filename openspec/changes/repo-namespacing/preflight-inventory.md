@@ -751,6 +751,8 @@ b294bd5775c3cae2d474d8771f99984a3f6e3b1a apps/be-01/drizzle/20260928020000_add_e
 979808a15d6219e69dd4c61378e79b9bd0a74373 apps/be-01/drizzle/20260928020000_add_email_verification/migration.sql
 fe552f3276769d4f7419f788bdd85ad5e7258c40 apps/be-01/drizzle/20260928030000_add_delegation_use/down.sql
 5016984af80a5d12915612af4ceb43093a5840fc apps/be-01/drizzle/20260928030000_add_delegation_use/migration.sql
+9e1b777b0c2e293c8aebfe994365ead7a9ed1387 apps/be-01/drizzle/20260928040000_add_email_challenge/down.sql
+497e35a3bfc38c1eb79f35b8cf2258044c56ef6b apps/be-01/drizzle/20260928040000_add_email_challenge/migration.sql
 ```
 
 ## Deployment identities

@@ -13,6 +13,12 @@ import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
 import { testCapacityService } from './testing/capacity-fixture';
 import { testClock } from './testing/clock-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingJoinRequests,
+  refusingTestEmailDelivery,
+} from './testing/email-verification-fixture';
 import { testHistoryService } from './testing/history-fixture';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
 import { refusingOnboarding } from './testing/onboarding-fixture';
@@ -37,6 +43,10 @@ describe('GET /health', () => {
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       domains: refusingDomains,
+      emailVerification: refusingEmailVerification,
+      invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
+      emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       clock: testClock,
       loginThrottle: testLoginThrottle(),
@@ -68,6 +78,10 @@ describe('GET /health', () => {
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       domains: refusingDomains,
+      emailVerification: refusingEmailVerification,
+      invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
+      emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       clock: testClock,
       loginThrottle: testLoginThrottle(),
@@ -110,6 +124,10 @@ describe('/health tells the truth about the database', () => {
         organizations: legacyOrganizationAccess,
         memberships: refusingMemberships,
         domains: refusingDomains,
+        emailVerification: refusingEmailVerification,
+        invitations: refusingInvitations,
+        joinRequests: refusingJoinRequests,
+        emailDelivery: refusingTestEmailDelivery,
         onboarding: refusingOnboarding,
         clock: testClock,
         loginThrottle: testLoginThrottle(),
@@ -155,6 +173,10 @@ describe('/health tells the truth about the database', () => {
         organizations: legacyOrganizationAccess,
         memberships: refusingMemberships,
         domains: refusingDomains,
+        emailVerification: refusingEmailVerification,
+        invitations: refusingInvitations,
+        joinRequests: refusingJoinRequests,
+        emailDelivery: refusingTestEmailDelivery,
         onboarding: refusingOnboarding,
         clock: testClock,
         loginThrottle: testLoginThrottle(),
@@ -190,6 +212,10 @@ describe('/health tells the truth about the database', () => {
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       domains: refusingDomains,
+      emailVerification: refusingEmailVerification,
+      invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
+      emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       clock: testClock,
       loginThrottle: testLoginThrottle(),
