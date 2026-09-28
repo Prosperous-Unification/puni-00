@@ -3,13 +3,15 @@ import { deadlineOffsetOf, workdaysBetween } from '@wbs/domain/workday';
 import type * as React from 'react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 
-import type { PriorityBandView, TeamView } from '@/lib/wbs-api';
+import type { PriorityBandView, TeamView, TypedDependencyView } from '@/lib/wbs-api';
 
 import {
+  GanttDataError,
   type GanttPlan,
   type ServiceTeamLabel,
   startFloorByRow,
   type TagLabel,
+  type TypedChartDependency,
 } from './gantt-geometry';
 import type { PlanTableFeatures } from './plan-columns/column';
 import { showDay } from './plan-number-format';
@@ -22,6 +24,21 @@ interface ShownPlanRow {
   source: TreeRow;
   depth: number;
   leaf: boolean;
+}
+
+/** Keep an unknown wire relationship type from being drawn as FS. */
+export function chartTypedDependencies(
+  dependencies: readonly TypedDependencyView[],
+): TypedChartDependency[] {
+  return dependencies.map((dependency) => {
+    // Proof: bypassing this check made `refuses an unknown typed chart
+    // relationship` stop throwing. Replacing GanttDataError with Error made
+    // `contains an unsupported chart relationship inside the chart fault
+    // boundary` show the generic fault. Watched 2026-09-28.
+    if (dependency.type !== 'FS')
+      throw new GanttDataError(`unsupported chart dependency ${dependency.type}`);
+    return { ...dependency, type: 'FS' };
+  });
 }
 
 /**

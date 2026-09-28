@@ -8,6 +8,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import tailwindcss from '@tailwindcss/vite';
+import postcss from 'postcss';
 import { build, type Rollup } from 'vite';
 import { describe, expect, it } from 'vitest';
 
@@ -222,6 +223,27 @@ function baseLayerSelectors(css: string): string[] {
  *     2026-08-09 after the shadcn merge.
  */
 describe('the Tailwind stylesheet this app ships', () => {
+  it('places the dependency editor inside the card renderer at wide and short viewports', () => {
+    const sheet = postcss.parse(stylesheet);
+    const sheetRules: string[] = [];
+    sheet.walkRules('.typed-dependency-editor', (rule) => {
+      const media = rule.parent;
+      if (media?.type !== 'atrule' || media.name !== 'media') return;
+      const hasDeclaration = (property: string, value: string) =>
+        rule.nodes.some(
+          (node) => node.type === 'decl' && node.prop === property && node.value === value,
+        );
+      if (
+        hasDeclaration('position', 'fixed') &&
+        (hasDeclaration('inset', 'auto 0 0') ||
+          (hasDeclaration('top', 'auto') && hasDeclaration('bottom', '0')))
+      )
+        sheetRules.push(media.params);
+    });
+    expect(sheetRules.some((media) => media.includes('767.98') && media.includes('499.98'))).toBe(
+      true,
+    );
+  });
   it('compiles the tracer class written on the brand heading', () => {
     expect(stylesheet).toContain('.tracking-tight');
     expect(stylesheet).toContain('letter-spacing');

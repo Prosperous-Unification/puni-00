@@ -2,6 +2,7 @@ import type {
   ExternalSystemView,
   PriorityBandView,
   ServiceView,
+  StepView,
   TagView,
   TeamView,
   WorkItemTypeView,
@@ -49,8 +50,18 @@ export interface PlanRowReadings {
   editingFactStart: boolean;
   editingNotBefore: boolean;
   dependencies: DependsEntry[];
+  typedDependencies: NonNullable<PlanRead['typedDependencies']>;
+  dependencyRows: TreeRow[];
+  dependencySteps: StepView[];
+  dependencyStepNodes: NonNullable<PlanRead['stepNodes']> | null;
+  dependencyStepIdsByRow: ReadonlyMap<string, readonly string[]> | null;
   dependencyEntries: PickerEntry[];
-  dependencyPicker: { rowId: string; typed: string; highlightId: string | null } | null;
+  dependencyPicker: {
+    rowId: string;
+    typed: string;
+    highlightId: string | null;
+    stepId?: string;
+  } | null;
   externalSystems: ExternalSystemView[];
   assigneeEntries: PickableEntry[];
   estimateReadings: ReadonlyMap<string, EstimateReadings>;

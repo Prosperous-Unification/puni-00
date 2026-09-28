@@ -39,6 +39,7 @@ export interface FoldedStepCardProps {
   stepNode: NonNullable<PlanRead['stepNodes']>[number] | null;
   /** Returns keyboard focus from the card actions to their folded step cell. */
   onExitActions: () => void;
+  onAddDependency?: () => void;
   /** Keeps a hover-opened card while the pointer arrives from its cell. */
   onPointerArrives: () => void;
   pushToast: (toast: Toast) => void;
@@ -96,6 +97,7 @@ export function FoldedStepCard({
   projectId,
   stepNode,
   onExitActions,
+  onAddDependency,
   onPointerArrives,
   pushToast,
   number,
@@ -187,6 +189,11 @@ export function FoldedStepCard({
             Copy link
           </button>
         </div>
+      )}
+      {onAddDependency !== undefined && (
+        <button type="button" onKeyDown={onActionKeyDown} onClick={onAddDependency}>
+          Add dependency from {stepName}
+        </button>
       )}
       {/*
         Said in words, not as `2/3/8`: the shorthand is what an estimator types
