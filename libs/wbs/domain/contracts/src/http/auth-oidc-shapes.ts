@@ -66,6 +66,7 @@ export const startAuth0Link = defineEndpointShape({
   responses: [{ kind: 'empty', status: 302 }],
   refusals: [
     malformed,
+    { status: 400, schema: responseSchema(type({ error: "'invalid_client'" })) },
     invalidOrigin,
     { status: 401, schema: responseSchema(type({ error: "'invalid_credentials'" })) },
     { status: 429, schema: responseSchema(type({ error: "'invalid_credentials'" })) },

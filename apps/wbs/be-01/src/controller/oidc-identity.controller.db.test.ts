@@ -209,7 +209,12 @@ describe('the OIDC callback after activation', () => {
     );
   };
 
-  async function startLink(app: ReturnType<typeof buildApp>, token: string, password: string) {
+  async function startLink(
+    app: ReturnType<typeof buildApp>,
+    token: string,
+    password: string,
+    edge: Readonly<Record<string, string>> = { 'x-forwarded-for': '203.0.113.7' },
+  ) {
     return app.handle(
       new Request('https://dev.wbs.test/api/auth/link/auth0', {
         method: 'POST',
@@ -217,6 +222,7 @@ describe('the OIDC callback after activation', () => {
           cookie: `__Host-wbs_access=${token}`,
           origin: 'https://dev.wbs.test',
           'content-type': 'application/json',
+          ...edge,
         },
         body: JSON.stringify({ password }),
       }),
@@ -313,6 +319,7 @@ describe('the OIDC callback after activation', () => {
           cookie: `__Host-wbs_access=${registration.value.token}`,
           origin: 'https://dev.wbs.test',
           'content-type': 'application/json',
+          'x-forwarded-for': '203.0.113.7',
         },
         body: JSON.stringify({ password: 'fresh-password' }),
       }),
@@ -364,6 +371,18 @@ describe('the OIDC callback after activation', () => {
     );
     expect(response.status).toBe(401);
     expect(passwordVerifications).toBe(0);
+  });
+
+  it('refuses a link start without an edge client address before throttle admission', async () => {
+    activate();
+    const app = mounted();
+    const registration = await auth.register('password_user', 'fresh-password');
+    if (!registration.ok) throw new Error('test registration refused');
+    const response = await startLink(app, registration.value.token, 'fresh-password', {});
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'invalid_client' });
+    expect(passwordVerifications).toBe(0);
+    expect(all('SELECT * FROM external_identity')).toEqual([]);
   });
 
   it('refuses link start and callback after password sessions are disabled', async () => {
