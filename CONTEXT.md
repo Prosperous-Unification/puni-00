@@ -457,10 +457,32 @@ the moment it was said. Unknown is the absence of a statement, never a stored va
 _Avoid_: step status, completion, state
 
 **Status**:
-What a work item reads as — unknown, in progress or done — folded from its steps' progress
-and, for a parent, from its children's statuses, on every read and never stored. Unknown means
-nobody has said anything; done is unanimous; every disagreement in between is in progress.
+What a work item reads as — unknown, draft, ready, in progress, blocked by proxy, on hold,
+blocked or done — folded on every read from a leaf's progress, readiness, hold and
+predecessors and, for a parent, from its children's statuses; never stored. Unknown means
+nobody has said anything; done is unanimous.
 _Avoid_: state, completion, progress (which is the step's), done flag
+
+**Readiness**:
+What the planner has said about whether a leaf is defined well enough to start: draft or
+ready. Absent means nobody has said; it yields to any progress statement.
+_Avoid_: definition of ready, groomed, approved, state
+
+**Hold**:
+The planner's statement that work on a leaf is stopped: on hold (parked by choice, taken out of
+the schedule) or blocked (stopped by something outside the plan, still scheduled). Sits beside
+readiness and progress, so resuming returns the leaf to what it read before.
+_Avoid_: pause, suspension, freeze, status (for the stored fact)
+
+**Held**:
+Of a leaf, carrying a hold of on hold. Of a parent, every leaf beneath it held. A held work item
+takes no part in the schedule.
+_Avoid_: paused, frozen, excluded
+
+**Blocked by proxy**:
+The status of a leaf that has not started while a predecessor reads on hold, blocked or blocked
+by proxy. Derived from the full dependency graph, never said by anyone and never stored.
+_Avoid_: transitively blocked, waiting, indirectly blocked
 
 **Fact start**:
 The day work on a work item actually began, date-only, typed by the planner. A record of the
@@ -475,7 +497,7 @@ _Avoid_: actual end, finished at, completion date, done at
 
 **Status strip**:
 The mark at a row's left edge, before its drag handle, that says the row's status while the
-Status column is hidden: nothing for unknown, one colour for in progress, another for done.
+Status column is hidden: nothing for unknown, and one colour for each other status.
 _Avoid_: status bar, row marker, left border, indicator, flag
 
 **Completion prompt**:
