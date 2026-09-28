@@ -5,6 +5,10 @@ import { dirname, join } from 'node:path';
 import type { ChatTurn, ProposalStatus, SubmissionView } from '@website/contracts';
 import { Database } from 'bun:sqlite';
 
+import { websiteMigrations } from './migration-catalogue';
+export type { DraftCleanupPlan } from './draft-retention';
+export { inspectExpiredDrafts, purgeExpiredDrafts } from './draft-retention';
+
 interface DraftRow {
   id: string;
   description: string;
@@ -99,23 +103,7 @@ export class WebsiteStore {
     this.database.run(
       'CREATE TABLE IF NOT EXISTS schema_migration (name TEXT PRIMARY KEY, checksum TEXT NOT NULL)',
     );
-    const migrations = [
-      { name: '001_initial', directory: join(import.meta.dir, 'migrations/001_initial') },
-      { name: '002_m2', directory: join(import.meta.dir, 'migrations/002_m2') },
-      {
-        name: '003_account_submission',
-        directory: join(import.meta.dir, 'migrations/003_account_submission'),
-      },
-      {
-        name: '004_request_scope',
-        directory: join(import.meta.dir, 'migrations/004_request_scope'),
-      },
-      {
-        name: '005_chat_operation',
-        directory: join(import.meta.dir, 'migrations/005_chat_operation'),
-      },
-    ];
-    for (const migration of migrations) {
+    for (const migration of websiteMigrations()) {
       const forward = readFileSync(join(migration.directory, 'migration.sql'), 'utf8');
       readFileSync(join(migration.directory, 'down.sql'), 'utf8');
       const checksum = createHash('sha256').update(forward).digest('hex');

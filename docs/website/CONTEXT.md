@@ -40,3 +40,6 @@ _Avoid_: Contract, order
 
 **Operator inbox**:
 The private view in which an authorized PUNI operator reviews proposal requests and their contact status.
+
+**Expired anonymous draft**:
+An intake draft whose browser access period ended before it was attached to an account or submitted for a proposal.
