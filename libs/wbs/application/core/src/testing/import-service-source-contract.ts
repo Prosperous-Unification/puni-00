@@ -359,8 +359,8 @@ function heldSolutionUnitOfWork(
             stored.createInOrganization(project, steps, stamp, organizationId),
           findById: (id) => stored.findById(id),
           findInOrganization: (id, organizationId) => stored.findInOrganization(id, organizationId),
-          recoverInOrganization: (id, patch, stamp, organizationId, recovery) =>
-            stored.recoverInOrganization(id, patch, stamp, organizationId, recovery),
+          editInOrganization: (id, patch, stamp, organizationId, editor) =>
+            stored.editInOrganization(id, patch, stamp, organizationId, editor),
           findCrossReferences: (projectId, organizationId) =>
             stored.findCrossReferences(projectId, organizationId),
           listForInOrganization: (userId, organizationId) =>
@@ -373,8 +373,6 @@ function heldSolutionUnitOfWork(
           recordOpen: (projectId, stamp) => stored.recordOpen(projectId, stamp),
           recordOpenInOrganization: (projectId, stamp, organizationId) =>
             stored.recordOpenInOrganization(projectId, stamp, organizationId),
-          updateInOrganization: (id, changes, stamp, organizationId) =>
-            stored.updateInOrganization(id, changes, stamp, organizationId),
           update: (id, changes, stamp) => stored.update(id, changes, stamp),
           stepsOf: (projectId) => stored.stepsOf(projectId),
           setStepAllowance: (projectId, stepId, percent, stamp) =>

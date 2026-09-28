@@ -34,6 +34,11 @@ export const PROJECT_CROSS_REFERENCE_KINDS = [
 
 export type ProjectCrossReferenceKind = (typeof PROJECT_CROSS_REFERENCE_KINDS)[number];
 
+/** What an audited recovery records about the edit: the patched fields, sorted. */
+export interface RecoveryAuditDetail {
+  readonly fields: readonly string[];
+}
+
 /** One reference that leaves the project or its organization; see {@link ProjectStore.findCrossReferences}. */
 export interface ProjectCrossReference {
   /** Which relation it is. */
@@ -127,28 +132,22 @@ export interface ProjectStore {
   ): Promise<boolean>;
   /** Returns null when the project is gone. */
   update(id: string, patch: ProjectPatch, stamp: WriteStamp): Promise<Project | null>;
-  /** {@link update} with the ownership predicate in the write; null when not the organization's. */
-  updateInOrganization(
-    id: string,
-    patch: ProjectPatch,
-    stamp: WriteStamp,
-    organizationId: string,
-  ): Promise<Project | null>;
   /**
-   * {@link updateInOrganization} as a super-admin's recovery of a restricted
-   * project: in one transaction it rechecks that `recovery.actorId` is still
-   * a super-admin of `organizationId` and the project still restricted and
-   * someone else's, writes the patch, and appends one `organization_audit`
-   * record naming the actor, the project and the patched fields. `forbidden`
-   * when the recheck fails; null when not the organization's. A patch that
-   * changes nothing writes nothing and records nothing.
+   * {@link update} by `editor.actorId` in `organizationId`, authorized in the
+   * write's own transaction against the project and the actor's membership as
+   * they stand then (see `classifyProjectEdit`): an ordinary edit is written;
+   * a super-admin's recovery of someone else's restricted project is written
+   * with one `organization_audit` record ({@link RecoveryAuditDetail}) in the
+   * same transaction; anything else is `forbidden` and writes nothing. Null,
+   * before any permission check, when the organization does not own the
+   * project. A patch that changes nothing writes and records nothing.
    */
-  recoverInOrganization(
+  editInOrganization(
     id: string,
     patch: ProjectPatch,
     stamp: WriteStamp,
     organizationId: string,
-    recovery: { readonly auditId: string; readonly actorId: string },
+    editor: { readonly actorId: string; readonly auditId: string },
   ): Promise<Project | null | 'forbidden'>;
   stepsOf(projectId: string): Promise<Step[]>;
   /**

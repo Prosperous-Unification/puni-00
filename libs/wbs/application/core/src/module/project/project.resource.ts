@@ -1,10 +1,10 @@
 import {
   canEditProject,
   canWriteInOrganization,
+  classifyProjectEdit,
   DEFAULT_ESTIMATE_RULE,
   isIsoDate,
   PertWeights,
-  projectEditIn,
 } from '@wbs/domain';
 import { NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCodes } from '@wbs/domain';
 import { type } from '@wbs/validation';
@@ -391,7 +391,7 @@ export class ProjectService {
     // answer 403; watched 2026-09-27.
     const edit =
       access.kind === 'scoped'
-        ? projectEditIn(found, access.scope)
+        ? classifyProjectEdit(found, access.scope)
         : mayEditProjectWithin(found, actorId, access)
           ? 'ordinary'
           : 'refused';
@@ -414,25 +414,21 @@ export class ProjectService {
       return { ok: false, reason: 'optimizer_unavailable' };
     }
     const stamp = this.clock.stampFor(actorId);
+    // Scoped writes are classified again inside the store's transaction, so a
+    // restriction or membership change since the read above cannot turn a
+    // recovery into an unaudited ordinary write.
     const written =
       access.kind === 'legacy'
         ? await this.opts.projects.update(id, patch, stamp)
-        : edit === 'recovery'
-          ? await this.opts.projects.recoverInOrganization(
-              id,
-              patch,
-              stamp,
-              access.scope.organizationId,
-              { auditId: this.clock.newId(), actorId },
-            )
-          : await this.opts.projects.updateInOrganization(
-              id,
-              patch,
-              stamp,
-              access.scope.organizationId,
-            );
-    // The recovery's own recheck failed: demoted, or the project changed hands
-    // or restriction, since the request was read.
+        : await this.opts.projects.editInOrganization(
+            id,
+            patch,
+            stamp,
+            access.scope.organizationId,
+            { actorId, auditId: this.clock.newId() },
+          );
+    // The in-transaction classification refused: demoted, or the project
+    // changed hands or restriction, since the request was read.
     if (written === 'forbidden') return { ok: false, reason: 'forbidden' };
     const updated = written;
     // Gone between the read and the write. Reporting success would tell the

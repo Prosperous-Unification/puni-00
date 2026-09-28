@@ -77,6 +77,12 @@ WBS SHALL enforce the role matrix below against current membership; Auth0 groups
 
 #### Scenario: Restricted project recovery
 
-- **GIVEN** a restricted project whose creator is no longer a member
-- **WHEN** a super-admin edits it
-- **THEN** the edit succeeds and the original creator remains recorded
+- **GIVEN** a restricted project created by someone else, whether or not that creator is still a member
+- **WHEN** a super-admin edits it, including clearing its restriction
+- **THEN** the edit succeeds, the original creator remains recorded, and one audit record naming the super-admin, the project and the edited fields is written in the same transaction
+
+#### Scenario: Recovery audit cannot be written
+
+- **GIVEN** a super-admin's recovery edit of a restricted project
+- **WHEN** its audit record cannot be written
+- **THEN** the edit is rolled back and nothing is changed

@@ -858,18 +858,23 @@ describe('organization-scoped writes', () => {
       const foreign = project('Foreign', 2);
       await repo.createInOrganization(owned, steps(owned.id, 'Dev'), wrote(), 'org-a');
       await repo.createInOrganization(foreign, steps(foreign.id, 'Dev'), wrote(), 'org-b');
-
-      expect(await repo.updateInOrganization(foreign.id, { name: 'Taken' }, wrote(), 'org-a')).toBe(
-        null,
+      raw.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', ?, 'member', 1)",
+        [ownerId],
       );
-      expect(await repo.updateInOrganization(foreign.id, {}, wrote(), 'org-a')).toBe(null);
+      const editor = { actorId: ownerId, auditId: 'audit-1' };
+
+      expect(
+        await repo.editInOrganization(foreign.id, { name: 'Taken' }, wrote(), 'org-a', editor),
+      ).toBe(null);
+      expect(await repo.editInOrganization(foreign.id, {}, wrote(), 'org-a', editor)).toBe(null);
       expect(await repo.recordOpenInOrganization(foreign.id, wrote(), 'org-a')).toBe(false);
       expect((await repo.findById(foreign.id))?.name).toBe('Foreign');
       expect(raw.query('SELECT COUNT(*) AS n FROM project_access').get()).toEqual({ n: 0 });
 
       expect(
-        (await repo.updateInOrganization(owned.id, { name: 'Renamed' }, wrote(), 'org-a'))?.name,
-      ).toBe('Renamed');
+        await repo.editInOrganization(owned.id, { name: 'Renamed' }, wrote(), 'org-a', editor),
+      ).toMatchObject({ name: 'Renamed' });
       expect(await repo.recordOpenInOrganization(owned.id, wrote(), 'org-a')).toBe(true);
       expect(raw.query('SELECT project_id FROM project_access').all()).toEqual([
         { project_id: owned.id },

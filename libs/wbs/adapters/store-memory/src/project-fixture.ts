@@ -95,10 +95,11 @@ export function inMemoryProjects(
     },
     // No dependent rows live in this store, so nothing it holds can cross.
     findCrossReferences: () => Promise.resolve([]),
-    // Audited recovery exists only over SQLite, where the audit table and the
-    // membership it rechecks live; scoped access never arises here.
-    recoverInOrganization() {
-      return Promise.reject(new Error('the in-memory project store has no audited recovery'));
+    // Organization-authorized edits exist only over SQLite, where the
+    // membership they recheck and the audit table live; scoped access never
+    // arises over this store.
+    editInOrganization() {
+      return Promise.reject(new Error('the in-memory project store has no organization edits'));
     },
     findInOrganization(id, organizationId) {
       return owning.get(id) === organizationId ? store.findById(id) : Promise.resolve(null);
@@ -107,11 +108,6 @@ export function inMemoryProjects(
       if (owning.get(projectId) !== organizationId) return false;
       await store.recordOpen(projectId, stamp);
       return true;
-    },
-    updateInOrganization(id, patch, stamp, organizationId) {
-      return owning.get(id) === organizationId
-        ? store.update(id, patch, stamp)
-        : Promise.resolve(null);
     },
     async listForInOrganization(userId, organizationId) {
       return (await store.listFor(userId)).filter(

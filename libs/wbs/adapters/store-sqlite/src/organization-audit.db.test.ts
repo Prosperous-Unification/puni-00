@@ -92,22 +92,88 @@ describe('the organization audit', () => {
     expect(rollbackTo(path, FOLDER, FREEZE)).toEqual(['20260927220000_add_organization_audit']);
   });
 
-  it("refuses a recovery by an actor who is not the organization's super-admin", async () => {
+  const member = (userId: string, role: string) =>
     raw((db) =>
       db.run(
-        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'sam', 'admin', 1)",
+        'INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (?, ?, ?, 1)',
+        ['org-a', userId, role],
       ),
     );
-    const projects = new ProjectRepository(openDrizzle(path), OPEN);
-    expect(
-      await projects.recoverInOrganization('p1', { name: 'Taken' }, wrote, 'org-a', {
-        auditId: 'a1',
-        actorId: 'sam',
-      }),
-    ).toBe('forbidden');
-    expect(raw((db) => db.query('SELECT name FROM project').get())).toEqual({ name: 'Plan' });
-    expect(raw((db) => db.query('SELECT COUNT(*) AS n FROM organization_audit').get())).toEqual({
-      n: 0,
+  const edit = (actorId: string, name: string) =>
+    new ProjectRepository(openDrizzle(path), OPEN).editInOrganization(
+      'p1',
+      { name },
+      { at: 2, by: actorId },
+      'org-a',
+      { actorId, auditId: crypto.randomUUID() },
+    );
+  const state = () =>
+    raw((db) => ({
+      project: db.query('SELECT name, revision FROM project').get(),
+      audits: db.query('SELECT actor_id, detail FROM organization_audit').all(),
+    }));
+
+  it('refuses an actor who is no longer a writing member', async () => {
+    member('sam', 'viewer');
+    const before = state();
+    expect(await edit('sam', 'Taken')).toBe('forbidden');
+    expect(await edit('nobody', 'Taken')).toBe('forbidden');
+    expect(state()).toEqual(before);
+  });
+
+  it('refuses a non-creator admin of a restricted project', async () => {
+    member('sam', 'admin');
+    const before = state();
+    expect(await edit('sam', 'Taken')).toBe('forbidden');
+    expect(state()).toEqual(before);
+  });
+
+  it('audits a recovery the project became after the request read it', async () => {
+    member('sam', 'super_admin');
+    // The caller read the project while unrestricted; it is restricted now.
+    expect(await edit('sam', 'Recovered')).toMatchObject({ name: 'Recovered', ownerId: 'ada' });
+    expect(state().audits).toEqual([{ actor_id: 'sam', detail: '{"fields":["name"]}' }]);
+  });
+
+  it("writes the creator's own edit and an unrestricted project's edit without a record", async () => {
+    member('ada', 'member');
+    member('sam', 'super_admin');
+    expect(await edit('ada', 'Mine')).toMatchObject({ name: 'Mine' });
+    raw((db) => db.run('UPDATE project SET restricted = 0'));
+    expect(await edit('sam', 'Open')).toMatchObject({ name: 'Open' });
+    expect(state().audits).toEqual([]);
+  });
+
+  it('rolls the edit back when its audit record cannot be written', async () => {
+    member('sam', 'super_admin');
+    raw((db) =>
+      db.run(
+        "CREATE TRIGGER audit_refused BEFORE INSERT ON organization_audit BEGIN SELECT RAISE(ABORT, 'audit refused'); END",
+      ),
+    );
+    const before = state();
+    let failure: unknown;
+    try {
+      await edit('sam', 'Recovered');
+    } catch (error) {
+      failure = error;
+    }
+    expect(String(failure)).toContain('Failed query: insert into "organization_audit"');
+    expect(state()).toEqual(before);
+  });
+
+  it('answers a project of another organization as absent, before any permission', async () => {
+    raw((db) => {
+      db.run("INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)");
     });
+    member('sam', 'viewer');
+    const answer = await new ProjectRepository(openDrizzle(path), OPEN).editInOrganization(
+      'p1',
+      { name: 'Taken' },
+      { at: 2, by: 'sam' },
+      'org-b',
+      { actorId: 'sam', auditId: 'a1' },
+    );
+    expect(answer).toBeNull();
   });
 });

@@ -5,18 +5,22 @@ import type {
   ProjectPatch,
   ProjectStore,
   ProjectWithAccess,
+  RecoveryAuditDetail,
   Step,
   StepAllowanceWritten,
   WriteStamp,
 } from '@wbs/core';
 import {
   type AllowancePercent,
+  classifyProjectEdit,
   type DependencyReach,
   type EstimateMethod,
   type EstimateRounding,
   isDependencyReach,
   isEstimateMethod,
   isEstimateRounding,
+  ORGANIZATION_ROLES,
+  type OrganizationRole,
   PertWeights,
 } from '@wbs/domain';
 import { type } from '@wbs/validation';
@@ -761,35 +765,29 @@ export class ProjectRepository implements ProjectStore {
    * the organization owns the project` in `project.db.test.ts` answer the
    * renamed foreign project instead of null; watched 2026-09-27.
    */
-  async updateInOrganization(
-    id: string,
-    patch: ProjectPatch,
-    stamp: WriteStamp,
-    organizationId: string,
-  ): Promise<Project | null> {
-    return await this.write(id, patch, stamp, organizationId);
-  }
-
   /**
    * Proof, each watched 2026-09-27: skipping the audit insert made `recovers
    * a restricted project as an audited super-admin edit` in
-   * `project-organization.controller.db.test.ts` find no record, and skipping
-   * the in-transaction recheck made `refuses a recovery by an actor who is not
-   * the organization's super-admin` in `organization-audit.db.test.ts` write
-   * the project instead of answering `forbidden`.
+   * `project-organization.controller.db.test.ts` find no record; classifying
+   * from the caller's earlier read instead of in the transaction made
+   * `audits a recovery the project became after the request read it` in
+   * `organization-audit.db.test.ts` write without a record; skipping the
+   * refusal made `refuses an actor who is no longer a writing member` write
+   * the project; and continuing past a failed audit insert made `rolls the
+   * edit back when its audit record cannot be written` keep the rename.
    */
-  async recoverInOrganization(
+  async editInOrganization(
     id: string,
     patch: ProjectPatch,
     stamp: WriteStamp,
     organizationId: string,
-    recovery: { readonly auditId: string; readonly actorId: string },
+    editor: { readonly actorId: string; readonly auditId: string },
   ): Promise<Project | null | 'forbidden'> {
     try {
-      return await this.write(id, patch, stamp, organizationId, recovery);
+      return await this.write(id, patch, stamp, organizationId, editor);
     } catch (refused) {
       // The modeled refusal, raised inside the transaction so it rolls back.
-      if (refused instanceof RecoveryRefused) return 'forbidden';
+      if (refused instanceof EditRefused) return 'forbidden';
       throw refused;
     }
   }
@@ -799,7 +797,7 @@ export class ProjectRepository implements ProjectStore {
     patch: ProjectPatch,
     stamp: WriteStamp,
     organizationId: string | null,
-    recovery: { readonly auditId: string; readonly actorId: string } | null = null,
+    editor: { readonly auditId: string; readonly actorId: string } | null = null,
   ): Promise<Project | null> {
     const addressed =
       organizationId === null
@@ -846,30 +844,34 @@ export class ProjectRepository implements ProjectStore {
         revision: bumpedProject,
       };
       return this.db.transaction((tx) => {
-        if (recovery !== null && organizationId !== null) {
+        let edit: 'ordinary' | 'recovery' = 'ordinary';
+        if (editor !== null && organizationId !== null) {
           const current = tx
             .select({ restricted: project.restricted, ownerId: project.ownerId })
             .from(project)
-            .where(eq(project.id, id))
+            .where(addressed)
             .get();
-          const actor = tx
+          // Not the organization's (any more): null, as for an absent project,
+          // before any permission is judged.
+          if (current === undefined) return null;
+          const membership = tx
             .select({ role: organizationMembership.role })
             .from(organizationMembership)
             .where(
               and(
                 eq(organizationMembership.organizationId, organizationId),
-                eq(organizationMembership.userId, recovery.actorId),
+                eq(organizationMembership.userId, editor.actorId),
               ),
             )
             .get();
-          if (
-            current === undefined ||
-            !current.restricted ||
-            current.ownerId === recovery.actorId ||
-            actor?.role !== 'super_admin'
-          ) {
-            throw new RecoveryRefused();
-          }
+          if (membership === undefined) throw new EditRefused();
+          const classified = classifyProjectEdit(current, {
+            organizationId,
+            userId: editor.actorId,
+            role: storedRole(membership.role, organizationId),
+          });
+          if (classified === 'refused') throw new EditRefused();
+          edit = classified;
         }
         // Claim the ON→OFF edge with a write, not a read followed by a write.
         // Two backend processes can PATCH one SQLite file during a blue/green
@@ -894,21 +896,22 @@ export class ProjectRepository implements ProjectStore {
           .all()
           .at(0);
         if (updated === undefined) return null;
-        if (recovery !== null && organizationId !== null) {
+        if (edit === 'recovery' && editor !== null && organizationId !== null) {
+          const detail: RecoveryAuditDetail = {
+            fields: Object.entries(patch)
+              .filter(([, value]) => value !== undefined)
+              .map(([field]) => field)
+              .sort(),
+          };
           tx.insert(organizationAudit)
             .values({
-              id: recovery.auditId,
+              id: editor.auditId,
               organizationId,
-              actorId: recovery.actorId,
+              actorId: editor.actorId,
               action: 'restricted_project_recovery',
               subjectKind: 'project',
               subjectId: id,
-              detail: JSON.stringify({
-                fields: Object.entries(patch)
-                  .filter(([, value]) => value !== undefined)
-                  .map(([field]) => field)
-                  .sort(),
-              }),
+              detail: JSON.stringify(detail),
               createdAt: stamp.at,
             })
             .run();
@@ -1017,10 +1020,25 @@ export class ProjectRepository implements ProjectStore {
   }
 }
 
-/** A recovery whose in-transaction recheck failed; rolls the write back. */
-class RecoveryRefused extends Error {
+/** An organization edit its in-transaction classification refused; rolls the write back. */
+class EditRefused extends Error {
   constructor() {
-    super('the recovery no longer holds: not a super-admin or not a restricted project');
-    this.name = 'RecoveryRefused';
+    super('the edit is not permitted to this member now');
+    this.name = 'EditRefused';
   }
+}
+
+/**
+ * A stored membership role, checked rather than trusted: an unknown role
+ * reaching the classification must never be read as a privileged one.
+ *
+ * @throws for a role outside {@link ORGANIZATION_ROLES}.
+ */
+function storedRole(role: string, organizationId: string): OrganizationRole {
+  const known: readonly string[] = ORGANIZATION_ROLES;
+  if (!known.includes(role)) {
+    throw new Error(`membership in organization "${organizationId}" has a malformed role`);
+  }
+  // Narrowed by the membership test above, which is the boundary this is.
+  return role as OrganizationRole;
 }

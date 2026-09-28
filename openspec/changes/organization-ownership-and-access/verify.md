@@ -431,18 +431,29 @@ Branch `batch-9/010-5-2-orgs-14`, stacked on slice 14.
 
 Branch `batch-9/010-5-2-orgs-15`, stacked on slice 15. Migration `20260927220000_add_organization_audit` sorts after every migration on main and in the queue (newest queued: `20260927213000_add_typed_dependency`).
 
-| Check                               | Injected fault                       | Observed failure (2026-09-27)                                                                                          |
-| ----------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| Audit action vocabulary             | `action` CHECK dropped               | `organization-audit.db.test.ts` `refuses an unknown action or subject kind`                                            |
-| Audit subject vocabulary            | `subject_kind` CHECK dropped         | same case                                                                                                              |
-| Audit organization reference        | `organization_id` REFERENCES dropped | `refuses a record of no organization`                                                                                  |
-| Rollback keeps evidence             | `down.sql` CHECK made `CHECK (1)`    | `refuses to roll back over a recorded act`: the migration reversed                                                     |
-| Recheck in the recovery transaction | refusal skipped                      | `refuses a recovery by an actor who is not the organization's super-admin`: the project written                        |
-| Audit record written                | audit insert skipped                 | `project-organization.controller.db.test.ts` `recovers a restricted project as an audited super-admin edit`: no record |
-| Recovery classified                 | `projectEditIn` answers `ordinary`   | same case: no record; `organization-access.test.ts` `calls a super-admin's edit … a recovery`                          |
-| Recovery admitted                   | service refuses `recovery`           | same mounted case: 403 instead of 200                                                                                  |
+| Check                                    | Injected fault                           | Observed failure (2026-09-27)                                                                                            |
+| ---------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Audit action vocabulary                  | `action` CHECK dropped                   | `organization-audit.db.test.ts` `refuses an unknown action or subject kind`                                              |
+| Audit subject vocabulary                 | `subject_kind` CHECK dropped             | same case                                                                                                                |
+| Audit organization reference             | `organization_id` REFERENCES dropped     | `refuses a record of no organization`                                                                                    |
+| Rollback keeps evidence                  | `down.sql` CHECK made `CHECK (1)`        | `refuses to roll back over a recorded act`: the migration reversed                                                       |
+| Classified in the write's transaction    | classification forced to `ordinary`      | `organization-audit.db.test.ts` `audits a recovery the project became after the request read it`: written with no record |
+| Refused edits write nothing              | refusal skipped                          | `refuses an actor who is no longer a writing member`: the project written                                                |
+| A removed member is refused              | missing membership answered as absent    | same case: null instead of `forbidden`                                                                                   |
+| Foreign project absent before permission | absent project refused                   | `answers a project of another organization as absent, before any permission`: `forbidden`                                |
+| Audit failure rolls the edit back        | audit insert errors swallowed            | `rolls the edit back when its audit record cannot be written`: no failure, rename kept                                   |
+| Audit record written                     | audit insert skipped                     | `project-organization.controller.db.test.ts` `recovers a restricted project as an audited super-admin edit`: no record   |
+| Recovery classified                      | `classifyProjectEdit` answers `ordinary` | `organization-access.test.ts` `calls a super-admin's edit … a recovery`                                                  |
+| Recovery admitted                        | service refuses `recovery`               | the mounted recovery case: 403 instead of 200                                                                            |
 
-Not run: failing the audit insert after the project update inside one transaction, to watch the edit roll back. The insert and the update share the drizzle transaction, and the recheck case above shows a throw there rolls back the write.
+Astra review 1 raised 2 Important and 4 Minor findings, all fixed:
+
+- **Important:** classification now happens inside the write's own transaction, which closes the restriction race.
+- **Important:** the audit-failure rollback is now proven.
+- **Minor:** an absent or foreign project answers null.
+- **Minor:** the spec scenario is updated.
+- **Minor:** the detail is typed as `RecoveryAuditDetail`.
+- **Minor:** the classifier is renamed `classifyProjectEdit`.
 
 ## Pending gate output
 

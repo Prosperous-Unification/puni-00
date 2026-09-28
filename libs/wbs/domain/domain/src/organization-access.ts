@@ -101,12 +101,10 @@ export function mayInvite(actor: OrganizationRole, role: OrganizationRole): bool
  * still a member; the creator stays recorded.
  *
  * Proof: answering `ordinary` for the super-admin case made `calls a
- * super-admin's edit of someone else's restricted project a recovery` fail,
- * and made `recovers a restricted project as an audited super-admin edit` in
- * `project-organization.controller.db.test.ts` write no audit record;
- * watched 2026-09-27.
+ * super-admin's edit of someone else's restricted project a recovery` in
+ * `organization-access.test.ts` fail; watched 2026-09-27.
  */
-export function projectEditIn(
+export function classifyProjectEdit(
   project: ProjectOwnership,
   scope: OrganizationScope,
 ): 'ordinary' | 'recovery' | 'refused' {
