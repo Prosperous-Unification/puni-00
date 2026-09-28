@@ -541,7 +541,7 @@ Branch `batch-9/010-5-2-orgs-18`, stacked on slice 19. There is no migration, be
 | The grant ends with its journal walk       | `expire` skipped in `walk`                            | `grants a journal walk until it settles, and its repair nothing`: still admitted                                                                         |
 | A journal repair is granted nothing        | the repair graph built with the walk's grant          | same case                                                                                                                                                |
 
-The grant is refused for another actor or another project (`plan-command-admission.test.ts`). The mounted cases show three more things: a batch that fails at its second command, a refused batch and a failed undo each leave no record, and a creator's ordinary batch leaves none.
+The grant is refused for another actor or another project: dropping the project equality or the actor equality in `grantAdmission`, each alone, failed `admits the granted actor on the granted project only while its unit of work runs` (Astra review 1, Important; watched 2026-09-28). The mounted cases show three more things: a batch that fails at its second command, a refused batch and a failed undo each leave no record, and a creator's ordinary batch leaves none.
 
 ## Slice 21 — identity resolution after activation (task 2.3)
 

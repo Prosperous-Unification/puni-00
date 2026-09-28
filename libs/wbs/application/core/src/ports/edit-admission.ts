@@ -52,6 +52,10 @@ export interface GrantedAdmission {
 export function grantAdmission(projectId: string, actorId: string): GrantedAdmission {
   let live = true;
   return {
+    // Proof: dropping the project equality, then the actor equality, each
+    // alone, made `admits the granted actor on the granted project only while
+    // its unit of work runs` in `plan-command-admission.test.ts` fail (0 pass,
+    // 1 fail, run alone with `-t`); watched 2026-09-28.
     admission: {
       admits: (project, actor) => live && project.id === projectId && actor === actorId,
     },
