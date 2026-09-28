@@ -1,7 +1,8 @@
 import type { DomainProofChecks, RetainedDomainProof } from '../ports/domain-challenges';
 
 // Proof: 2026-09-28, raising this to 50 seconds made mounted `shows retained
-// proof check timestamps and a warning after a failed day-seven check` time out at 10 seconds.
+// proof check timestamps and a warning after a failed day-seven check` observe
+// 50,000 instead of the required 5,000 through its injected short timer.
 const LOOKUP_TIMEOUT_MS = 5_000;
 
 /** Runs one bounded authoritative lookup against a retained, bound digest. */
@@ -25,8 +26,9 @@ async function matchesProof(
         );
       }),
     ]);
-    // Proof: 2026-09-28, treating a resolver error as success made mounted
-    // `shows retained proof check timestamps and a warning after a failed day-seven check` lose its warning.
+    // Proof: 2026-09-28, bypassing response validation made mounted `records
+    // a failed retained check for a malformed TXT response` throw a TypeError
+    // on numeric TXT data instead of recording a failed check.
     if (!Array.isArray(records) || !records.every((record) => typeof record === 'string'))
       return null;
   } catch {

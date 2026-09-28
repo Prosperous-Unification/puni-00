@@ -75,6 +75,7 @@ export interface DomainChallenges {
     claim: PendingDomainClaim,
     observedDigest: string,
     stamp: WriteStamp,
+    now: () => number,
   ): Promise<'verified' | 'forbidden' | 'not_found' | 'stale' | 'taken' | 'inactive'>;
   rotateClaim(
     organizationId: string,

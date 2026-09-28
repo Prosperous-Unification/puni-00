@@ -60,6 +60,51 @@ describe('checked public email policy', () => {
     expect(policy.suffixes.has('co.uk')).toBe(true);
   });
 
+  it('loads checked assets beside a bundled backend module', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'domain-policy-bundle-'));
+    directories.push(directory);
+    const bundled = Bun.spawnSync({
+      cmd: [
+        'bun',
+        'build',
+        'libs/wbs/adapters/store-sqlite/src/public-email-policy.ts',
+        '--target=bun',
+        `--outfile=${join(directory, 'main.js')}`,
+      ],
+      cwd: new URL('../../../../../', import.meta.url).pathname,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(bundled.exitCode).toBe(0);
+    const assets = join(directory, 'public-email-policy');
+    mkdirSync(assets);
+    for (const file of ['public-email-policy.v1.json', 'public-email-policy.manifest.json'])
+      copyFileSync(new URL(file, source), join(assets, file));
+    const loaded = Bun.spawnSync({
+      cmd: [
+        'bun',
+        '-e',
+        `import { loadPublicEmailPolicy } from ${JSON.stringify(join(directory, 'main.js'))}; if (!loadPublicEmailPolicy().providers.has('gmail.com')) throw new Error('provider missing')`,
+      ],
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(loaded.stderr.toString()).toBe('');
+    expect(loaded.exitCode).toBe(0);
+    rmSync(join(assets, 'public-email-policy.manifest.json'));
+    const missing = Bun.spawnSync({
+      cmd: [
+        'bun',
+        '-e',
+        `import { loadPublicEmailPolicy } from ${JSON.stringify(join(directory, 'main.js'))}; loadPublicEmailPolicy()`,
+      ],
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(missing.exitCode).not.toBe(0);
+    expect(missing.stderr.toString()).toContain('ENOENT');
+  });
+
   it('refuses a changed policy licence or PSL package revision', () => {
     for (const [field, replacement] of [
       ['license', 'unknown'],
