@@ -91,6 +91,84 @@ describe('typed dependency editor', () => {
     });
   });
 
+  it('names selected step endpoints in the lower-bound sentence', () => {
+    render(
+      <TypedDependencyEditor
+        predecessor={predecessor}
+        successor={successor}
+        rows={rows}
+        steps={steps}
+        preferredStepId="qa"
+        onCancel={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: 'SS' } });
+    expect(
+      screen.getByText('Start-to-start: 020.qa step starts no earlier than 010.qa step starts.'),
+    ).toBeDefined();
+    fireEvent.change(screen.getByLabelText('Predecessor'), { target: { value: 'dev' } });
+    fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: 'FF' } });
+    expect(
+      screen.getByText(
+        'Finish-to-finish: 020.qa step finishes no earlier than 010.dev step finishes.',
+      ),
+    ).toBeDefined();
+  });
+
+  it('names every leaf under selected parent scopes in the lower-bound sentence', () => {
+    const branch = toTree([
+      workItemView({ id: 'p', number: '030', name: 'Parent' }),
+      workItemView({ id: 'c1', parentId: 'p', number: '030.1' }),
+      workItemView({ id: 'c2', parentId: 'p', number: '030.2' }),
+    ]);
+    const branchRows = [...branch, ...(branch[0]?.subRows ?? [])];
+    render(
+      <TypedDependencyEditor
+        predecessor={branch[0]}
+        successor={successor}
+        rows={[...branchRows, ...rows]}
+        steps={steps}
+        onCancel={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(
+        'Finish-to-start: 020 starts no earlier than every leaf under 030 finishes.',
+      ),
+    ).toBeDefined();
+    fireEvent.change(screen.getByLabelText('Predecessor'), { target: { value: 'dev' } });
+    expect(
+      screen.getByText(
+        'Finish-to-start: 020 starts no earlier than the dev step of every leaf under 030 finishes.',
+      ),
+    ).toBeDefined();
+  });
+
+  it('names a selected descendant successor step', () => {
+    const branch = toTree([
+      workItemView({ id: 'p', number: '030', name: 'Parent' }),
+      workItemView({ id: 'c1', parentId: 'p', number: '030.1' }),
+    ]);
+    render(
+      <TypedDependencyEditor
+        predecessor={predecessor}
+        successor={branch[0]}
+        rows={[...rows, ...branch, ...(branch[0]?.subRows ?? [])]}
+        steps={steps}
+        onCancel={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('This work item'), { target: { value: 'qa' } });
+    expect(
+      screen.getByText(
+        'Finish-to-start: the qa step of every leaf under 030 starts no earlier than 010 finishes.',
+      ),
+    ).toBeDefined();
+  });
+
   it.each(['SS', 'FF'] as const)('keeps %s when editing only an endpoint', async (type) => {
     const onSave = vi.fn().mockResolvedValue('landed');
     render(

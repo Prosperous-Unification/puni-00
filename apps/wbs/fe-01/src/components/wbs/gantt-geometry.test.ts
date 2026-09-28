@@ -1060,6 +1060,84 @@ describe('dependency arrows', () => {
     expect(route?.at(-2)?.x).toBe(2);
   });
 
+  it.each([
+    {
+      name: 'SS into QA after a contiguous Dev bar',
+      type: 'SS' as const,
+      sourceFinish: 2,
+      targetStart: 2,
+      targetFinish: 4,
+      unknown: false,
+    },
+    {
+      name: 'FF into an unknown QA tick below an overlapping Dev placeholder',
+      type: 'FF' as const,
+      sourceFinish: 3,
+      targetStart: 3,
+      targetFinish: 3,
+      unknown: true,
+    },
+  ])(
+    'routes $name without crossing a bar',
+    ({ type, sourceFinish, targetStart, targetFinish, unknown }) => {
+      const clearance = { approach: 0.4, barInset: 0.18 };
+      const placed = placeOnWorkdays(
+        layOutGantt(
+          planOf({
+            rows: [rowAt('A', 0, sourceFinish), rowAt('B', 0, 4)],
+            slices: [
+              sliceAt('A-dev', 'A', 0, sourceFinish),
+              sliceAt('B-dev', 'B', unknown ? 2 : 0, unknown ? 4 : 2, { estimated: !unknown }),
+              sliceAt('B-qa', 'B', targetStart, targetFinish, {
+                stepId: 'qa',
+                estimated: !unknown,
+              }),
+            ],
+            typedDependencies: [
+              {
+                id: 'scoped',
+                type,
+                predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+                successor: { scope: 'node', workItemId: 'B', stepId: 'qa' },
+              },
+            ],
+          }),
+        ),
+      );
+      const route = routeArrow(placed.typedArrows[0], placed.bars, clearance, {
+        boundaryEntry: true,
+      });
+      expect(route).not.toBeNull();
+      if (route === null) throw new Error('expected a clear typed route');
+      expect(route.at(-1)?.x).toBe(type === 'SS' ? targetStart : targetFinish);
+      for (const bar of placed.bars) {
+        const top =
+          bar.bar.rowIndex +
+          clearance.barInset +
+          (bar.bar.lane * (1 - 2 * clearance.barInset)) / bar.bar.lanes;
+        const bottom =
+          bar.bar.rowIndex +
+          clearance.barInset +
+          ((bar.bar.lane + 1) * (1 - 2 * clearance.barInset)) / bar.bar.lanes;
+        const left = bar.x;
+        const right = bar.x + bar.width;
+        const crosses = route.slice(1).some((corner, index) => {
+          const prior = route[index];
+          return prior.x === corner.x
+            ? prior.x > left &&
+                prior.x < right &&
+                Math.min(prior.y, corner.y) < bottom &&
+                Math.max(prior.y, corner.y) > top
+            : prior.y > top &&
+                prior.y < bottom &&
+                Math.min(prior.x, corner.x) < right &&
+                Math.max(prior.x, corner.x) > left;
+        });
+        expect(crosses, bar.bar.sliceId).toBe(false);
+      }
+    },
+  );
+
   it('routes SS left of both starts and FF right of both finishes', () => {
     const plan = planOf({
       rows: [rowAt('A', 1, 4), rowAt('B', 3, 6)],

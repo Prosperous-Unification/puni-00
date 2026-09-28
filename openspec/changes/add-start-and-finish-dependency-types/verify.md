@@ -235,3 +235,11 @@ Observed fault injections, all restored, with adjacent `Proof:` comments:
 - Treating an unknown relationship as FS in the chip or editor made the unknown-type refusal test stop throwing (one failure for each injected fault).
 
 The Playwright Gantt spec's typed-chip selectors were updated and e2e was not run. The h2puni gate was not run because this worktree is uncommitted and the gate checks out a committed SHA.
+
+## 2026-09-28 UI review follow-up
+
+- Red regression: `TZ=UTC bunx vitest run src/components/wbs/gantt-geometry.test.ts src/components/wbs/typed-dependency-editor.test.tsx` from `apps/wbs/fe-01` reported 4 failed / 172 passed. Both production-geometry SS/FF routes returned `null`; the two selected-scope explanation cases still showed only work-item numbers.
+- Green regression: the same two-file run after routing and explanation changes reported 176 passed / 0 failed. After adding the descendant successor case and preferring the ordinary arrival before boundary entry, the final geometry/editor/panel run reported 434 passed / 0 failed across 3 files. The panel suite includes the existing visible unroutable notice case.
+- Collision proof: replacing the typed-route `isClear(route)` guard with unconditional acceptance made the focused FF unknown-QA regression fail because the returned route crossed `B-dev` (1 failed / 1 passed; 158 skipped). The guard was restored; its adjacent `Proof:` comment names the fault and failure.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/codex-nx-ssff bunx nx run wbs-fe-01:lint:fast --skip-nx-cache --output-style=static`: target succeeded, exit 0. The same command for `wbs-fe-01:typecheck` succeeded with its module dependency, exit 0.
+- `bunx prettier --check` on the four touched frontend files and this verify file: exit 0. `git diff --check`: exit 0. The h2puni gate, build, full frontend suite, and browser/assistive-technology checks were not run.

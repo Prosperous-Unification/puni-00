@@ -1628,15 +1628,29 @@ export function routeArrow(
           rect.top < frame.toY &&
           rect.bottom > frame.toY,
       );
-    const route = trimmed([
-      { x: frame.fromX, y: frame.fromY },
-      { x: frame.fromX, y: frame.bandFrom },
-      { x: gutter, y: frame.bandFrom },
-      { x: gutter, y: targetIsUnknownTick ? frame.bandTo : frame.toY },
-      ...(targetIsUnknownTick ? [{ x: frame.toX, y: frame.bandTo }] : []),
-      { x: frame.toX, y: frame.toY },
-    ]);
-    return isClear(route) ? route : null;
+    const oppositeBand = (rowIndex: number, band: number): number =>
+      rowIndex +
+      (band < rowIndex + ROW_MIDDLE ? 1 - clearance.barInset / 2 : clearance.barInset / 2);
+    const departureBands = [frame.bandFrom, oppositeBand(arrow.fromRowIndex, frame.bandFrom)];
+    const arrivalBands = [frame.bandTo, oppositeBand(arrow.toRowIndex, frame.bandTo)];
+    for (const departure of departureBands) {
+      for (const arrival of arrivalBands) {
+        const entries = targetIsUnknownTick ? [true] : [false, true];
+        for (const boundaryEntry of entries) {
+          const route = trimmed([
+            { x: frame.fromX, y: frame.fromY },
+            { x: frame.fromX, y: departure },
+            { x: gutter, y: departure },
+            { x: gutter, y: boundaryEntry ? arrival : frame.toY },
+            ...(boundaryEntry ? [{ x: frame.toX, y: arrival }] : []),
+            { x: frame.toX, y: frame.toY },
+          ]);
+          // Proof: bypassing this collision check made `routes FF into an unknown QA tick below an overlapping Dev placeholder` draw through B-dev (1 failed, 1 passed); watched 2026-09-28.
+          if (isClear(route)) return route;
+        }
+      }
+    }
+    return null;
   }
 
   // Left of everything on these rows, and never right of the canvas's own left

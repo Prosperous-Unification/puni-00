@@ -236,6 +236,15 @@ export function TypedDependencyEditor({
   // Proof: substituting the available Dev choice for a missing QA node made `marks a missing predecessor step unavailable` fail: the selector no longer held QA; watched 2026-09-27.
   const chosenPredecessor = predecessors.find((choice) => choice.key === predecessorKey);
   const chosenSuccessor = successors.find((choice) => choice.key === successorKey);
+  const selectedEndpointWords = (row: TreeRow, key: string): string => {
+    const parent = rows.some((candidate) => candidate.parentId === row.id);
+    const scope = parent ? `every leaf under ${row.number}` : row.number;
+    return key === 'whole'
+      ? scope
+      : parent
+        ? `the ${stepOf(steps, key).id} step of ${scope}`
+        : `${scope}.${stepOf(steps, key).id} step`;
+  };
   const save = async () => {
     if (chosenPredecessor === undefined || chosenSuccessor === undefined) return;
     setBusy(true);
@@ -316,8 +325,9 @@ export function TypedDependencyEditor({
         </select>
       </label>
       <p>
-        {relationshipName(relationshipType)}: {successor.number}{' '}
-        {relationshipType === 'FF' ? 'finishes' : 'starts'} no earlier than {predecessor.number}{' '}
+        {relationshipName(relationshipType)}: {selectedEndpointWords(successor, successorKey)}{' '}
+        {relationshipType === 'FF' ? 'finishes' : 'starts'} no earlier than{' '}
+        {selectedEndpointWords(predecessor, predecessorKey)}{' '}
         {relationshipType === 'SS' ? 'starts' : 'finishes'}.
       </p>
       {message !== '' && <p role="alert">{message}</p>}
