@@ -4,8 +4,8 @@ import type { ProjectService, ProjectServiceOptions } from './project.resource';
  * What a host must supply to install {@link projectModule}.
  *
  * Exactly {@link ProjectServiceOptions}, unchanged by the move: the project
- * store of the one scope being installed over, the clock, the broadcaster and
- * the optional optimizer availability. `servicesOver` supplies the store of
+ * store of the one scope being installed over, the clock, the broadcaster,
+ * the dependency graph guard and the optional optimizer availability. `servicesOver` supplies the store of
  * each admitted scope, so one installation never outlives the scope it was
  * built over.
  *

@@ -4,6 +4,7 @@ import type { EstimateStore } from '../../ports/estimate-store';
 import type { MeasureStore } from '../../ports/measure-store';
 import type { StepProgressStore } from '../../ports/progress-store';
 import type { PlanTransactionalStores } from '../../ports/stores';
+import type { TypedDependencyStore } from '../../ports/typed-dependency-store';
 import type { Scope } from '../../ports/unit-of-work';
 import type { LabelledWorkItem } from '../../ports/work-item-store';
 import { createWorkingPlanDirectory } from './working-plan-directory';
@@ -278,6 +279,68 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     assertOpen,
     refreshRows,
   );
+  /**
+   * Typed links pass through to the batch scope: every read sees preceding
+   * writes in that transaction, with no retained snapshot to refresh. The
+   * wrapper still enforces the working plan's lifetime and project boundary.
+   *
+   * Proof: bypassing the project, closed-plan, remove-owner, or bulk-owner
+   * check separately made the matching negative in `passes typed links through
+   * the batch and refuses cross-project and closed access` resolve; each
+   * watched failing on 2026-09-27.
+   */
+  const typedDependencies: TypedDependencyStore = {
+    listByProject: (requestedProjectId) => {
+      assertProject(requestedProjectId);
+      // Proof: returning the pre-edit empty set made `sees the first typed relationship
+      // when a later batch command closes a cycle` receive 200 instead of 409; watched 2026-09-27.
+      return scope.stores.typedDependencies.listByProject(requestedProjectId);
+    },
+    add: async (row, stamp) => {
+      assertProject(row.projectId);
+      await scope.stores.typedDependencies.add(row, stamp);
+      await refreshRows([row.predecessor.workItemId, row.successor.workItemId]);
+    },
+    update: async (row, stamp) => {
+      assertProject(row.projectId);
+      const previous = (await scope.stores.typedDependencies.listByProject(projectId)).find(
+        (current) => current.id === row.id,
+      );
+      if (previous === undefined)
+        throw new Error(`typed dependency ${row.id} is outside project ${projectId}`);
+      await scope.stores.typedDependencies.update(row, stamp);
+      // Proof: skipping this refresh made `undoes and redoes a typed update with
+      // its exact ID and endpoints` receive 409 instead of 200; watched 2026-09-27.
+      await refreshRows([
+        previous.predecessor.workItemId,
+        previous.successor.workItemId,
+        row.predecessor.workItemId,
+        row.successor.workItemId,
+      ]);
+    },
+    remove: async (id, stamp) => {
+      assertOpen();
+      const rows = await scope.stores.typedDependencies.listByProject(projectId);
+      const previous = rows.find((row) => row.id === id);
+      if (previous === undefined) {
+        throw new Error(`typed dependency ${id} is outside project ${projectId}`);
+      }
+      await scope.stores.typedDependencies.remove(id, stamp);
+      await refreshRows([previous.predecessor.workItemId, previous.successor.workItemId]);
+    },
+    removeAllFor: async (workItemIds, stamp) => {
+      assertOpen();
+      const admitted = await scope.stores.workItems.listByIds(projectId, workItemIds);
+      if (new Set(admitted.map(({ id }) => id)).size !== new Set(workItemIds).size) {
+        throw new Error(`typed dependency removal has a work item outside project ${projectId}`);
+      }
+      const removed = await scope.stores.typedDependencies.removeAllFor(workItemIds, stamp);
+      await refreshRows(
+        removed.flatMap((row) => [row.predecessor.workItemId, row.successor.workItemId]),
+      );
+      return removed;
+    },
+  };
   const retainedSubtrees = createWorkingPlanSubtrees(
     () => scope.stores.subtrees,
     {
@@ -344,6 +407,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     measures: retainedMeasures,
     progress: retainedProgress,
     dependencies: retainedDependencies,
+    typedDependencies,
     subtrees: retainedSubtrees,
     get journal() {
       assertOpen();
