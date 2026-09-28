@@ -883,6 +883,10 @@ The original slice run recorded 76 focused passes and 14 Nx targets, but did not
 
 Fresh restored checks: `env -u CLAUDECODE bun test` across eight touched OIDC, store, audit and contract files: 139 passed, zero failed; `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast typecheck -p wbs-be-01 wbs-store-sqlite wbs-core wbs-contracts --outputStyle=static`: all targets passed (three cache hits); `bunx prettier --check` across the touched files: passed; `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 139 passed, zero failed; `git diff --check`: passed. The first post-extraction focused run failed six legacy OIDC tests because `user.ts` still needed its `normalizeEmail` import; the import was restored before the 139-pass run. The full Nx gate, listener tests and commit were not run in this sandbox.
 
+### Second review (2026-09-28)
+
+Astra's re-review confirmed findings 1 and 3–5 fixed and one Important open: link proof refused only an explicit `passwordSessions: false`, while ordinary authentication with OIDC configured refuses unless it is explicitly `true`. Link proof now applies the same policy. Proof: checking only an explicit `false` made `admits a password session as link proof only when password sessions are explicitly enabled` in `auth-service-null-password.test.ts` fail (4 pass, 1 fail); restored, it and `oidc-identity.controller.db.test.ts` pass (27 pass).
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

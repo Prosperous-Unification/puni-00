@@ -72,8 +72,14 @@ export class AuthService {
 
   /** Verify a first-party password JWT and re-read its account; Auth0 tokens cannot pass. */
   async passwordSessionUser(token: string | null): Promise<User | null> {
-    // Proof: 2026-09-28, removing this policy check made `refuses link start and callback after password sessions are disabled` receive 302 at start.
-    if (this.opts.passwordSessions === false) return null;
+    // The same policy `authenticate` applies: once OIDC is configured, a
+    // password session counts only when password sessions are explicitly on.
+    // Proof: 2026-09-28, removing this policy check made `refuses link start
+    // and callback after password sessions are disabled` receive 302 at start;
+    // checking only an explicit `false` made `admits a password session as
+    // link proof only when password sessions are explicitly enabled` in
+    // `auth-service-null-password.test.ts` fail (4 pass, 1 fail).
+    if (this.opts.oidc !== undefined && this.opts.passwordSessions !== true) return null;
     if (token === null) return null;
     const claims = await this.opts.tokens.verify(token);
     if (claims === null) return null;
