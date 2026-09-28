@@ -1617,17 +1617,6 @@ export function routeArrow(
       arrow.type === 'SS'
         ? Math.min(arrow.fromX, arrow.toX, ...edges) - clearance.approach
         : Math.max(arrow.fromX, arrow.toX, ...edges) + clearance.approach;
-    const targetIsUnknownTick =
-      // Proof: disabling this tick entry made `attaches SS to starts and FF to actual finishes, including an unknown tick` receive no route to the unknown FF target; watched 2026-09-28.
-      arrow.type === 'FF' &&
-      obstacles.some(
-        (rect) =>
-          rect.left === arrow.toX &&
-          rect.right > arrow.toX &&
-          // Proof: checking the row midpoint instead of this slice lane made `routes FF into a second unknown step lane at its zero-time tick` receive no route; watched 2026-09-28.
-          rect.top < frame.toY &&
-          rect.bottom > frame.toY,
-      );
     const oppositeBand = (rowIndex: number, band: number): number =>
       rowIndex +
       (band < rowIndex + ROW_MIDDLE ? 1 - clearance.barInset / 2 : clearance.barInset / 2);
@@ -1635,7 +1624,7 @@ export function routeArrow(
     const arrivalBands = [frame.bandTo, oppositeBand(arrow.toRowIndex, frame.bandTo)];
     for (const departure of departureBands) {
       for (const arrival of arrivalBands) {
-        const entries = targetIsUnknownTick ? [true] : [false, true];
+        const entries = [false, true];
         for (const boundaryEntry of entries) {
           const route = trimmed([
             { x: frame.fromX, y: frame.fromY },
@@ -1645,7 +1634,9 @@ export function routeArrow(
             ...(boundaryEntry ? [{ x: frame.toX, y: arrival }] : []),
             { x: frame.toX, y: frame.toY },
           ]);
-          // Proof: bypassing this collision check made `routes FF into an unknown QA tick below an overlapping Dev placeholder` draw through B-dev (1 failed, 1 passed); watched 2026-09-28.
+          // Proof: bypassing this collision check made four geometry cases fail,
+          // including `routes FF into an unknown QA tick below an overlapping
+          // Dev placeholder` crossing B-qa; watched 2026-09-28.
           if (isClear(route)) return route;
         }
       }

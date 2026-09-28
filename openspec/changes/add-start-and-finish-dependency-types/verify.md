@@ -239,9 +239,16 @@ The Playwright Gantt spec's typed-chip selectors were updated and e2e was not ru
 
 - Red regression: `TZ=UTC bunx vitest run src/components/wbs/gantt-geometry.test.ts src/components/wbs/typed-dependency-editor.test.tsx` from `apps/wbs/fe-01` reported 4 failed / 172 passed. Both production-geometry SS/FF routes returned `null`; the two selected-scope explanation cases still showed only work-item numbers.
 - Green regression: the same two-file run after routing and explanation changes reported 176 passed / 0 failed. After adding the descendant successor case and preferring the ordinary arrival before boundary entry, the final geometry/editor/panel run reported 434 passed / 0 failed across 3 files. The panel suite includes the existing visible unroutable notice case.
-- Collision proof: replacing the typed-route `isClear(route)` guard with unconditional acceptance made the focused FF unknown-QA regression fail because the returned route crossed `B-dev` (1 failed / 1 passed; 158 skipped). The guard was restored; its adjacent `Proof:` comment names the fault and failure.
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/codex-nx-ssff bunx nx run wbs-fe-01:lint:fast --skip-nx-cache --output-style=static`: target succeeded, exit 0. The same command for `wbs-fe-01:typecheck` succeeded with its module dependency, exit 0.
 - `bunx prettier --check` on the four touched frontend files and this verify file: exit 0. `git diff --check`: exit 0. The h2puni gate, build, full frontend suite, and browser/assistive-technology checks were not run.
+
+## 2026-09-28 UI review proof refresh
+
+- A realistic UUID step ID in `names selected step endpoints in the lower-bound sentence` failed before the label fix: the rendered sentence contained `020.550e8400-e29b-41d4-a716-446655440001 step` instead of `020.QA step`. The restored editor test passed in the three-file run below; parent-scope assertions now expect the same visible step names as the selectors.
+- Removing the FF unknown-tick selection and slice-lane midpoint test left `gantt-geometry.test.ts` at 160 passed / 0 failed. The collision-checked direct entry is rejected and the boundary entry remains available, so both redundant guards and their stale `Proof:` comments were removed.
+- Bypassing typed-route collision rejection after that removal made `gantt-geometry.test.ts` report 4 failed / 156 passed. The unknown-QA case crossed `B-qa`; the other failures were the two unknown-tick route assertions and the SS contiguous-Dev crossing assertion. Collision rejection was restored and its adjacent `Proof:` records this observed replay.
+- `cd apps/wbs/fe-01 && TZ=UTC bunx vitest run src/components/wbs/gantt-geometry.test.ts src/components/wbs/typed-dependency-editor.test.tsx src/components/wbs/gantt-panel.test.tsx --reporter=dot`: 3 files, 434 passed / 0 failed. Vitest emitted dconf read-only warnings but completed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/codex-nx-review-lint bunx nx run wbs-fe-01:lint:fast --skip-nx-cache --output-style=static`: exit 0. The same target command with `typecheck` and `/tmp/codex-nx-review-type`: exit 0. `bunx prettier --check` on the touched frontend files and this verify file: exit 0.
 
 ## 2026-09-28 integration with main round 24
 

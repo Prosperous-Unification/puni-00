@@ -242,8 +242,8 @@ export function TypedDependencyEditor({
     return key === 'whole'
       ? scope
       : parent
-        ? `the ${stepOf(steps, key).id} step of ${scope}`
-        : `${scope}.${stepOf(steps, key).id} step`;
+        ? `the ${stepOf(steps, key).name} step of ${scope}`
+        : `${scope}.${stepOf(steps, key).name} step`;
   };
   const save = async () => {
     if (chosenPredecessor === undefined || chosenSuccessor === undefined) return;
