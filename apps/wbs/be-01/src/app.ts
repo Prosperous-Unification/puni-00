@@ -274,6 +274,7 @@ export function mountedEndpoints(
       },
       commands,
       opts.organizations,
+      opts.writes,
     ),
     ...directoryRoutes(opts.directory, opts.organizations),
     ...historyRoutes(opts.history, opts.projects, opts.organizations),
@@ -282,7 +283,7 @@ export function mountedEndpoints(
     ...importRoutes(opts.writes.imports, opts.organizations),
     ...projectRoutes(
       {
-        authorizeEdit: (...args) => opts.projects.authorizeEdit(...args),
+        authorizeRetry: (...args) => opts.projects.authorizeRetry(...args),
         createWithin: (...args) => opts.projects.createWithin(...args),
         listWithin: (...args) => opts.projects.listWithin(...args),
         openWithin: (...args) => opts.projects.openWithin(...args),
@@ -297,7 +298,7 @@ export function mountedEndpoints(
       opts.optimizer,
     ),
     ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),
-    ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations),
+    ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
     ...savedPlanRoutes(
       opts.savedPlans,
       opts.projects,

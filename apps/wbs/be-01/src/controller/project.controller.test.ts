@@ -1158,7 +1158,7 @@ describe('projects', () => {
     const { register, send } = buildHarness({
       retry: (ask) => {
         asks.push(ask);
-        return outcome;
+        return Promise.resolve(outcome);
       },
     });
     const token = await register('owner');
@@ -1259,7 +1259,7 @@ describe('projects', () => {
     const { register, send } = buildHarness({
       retry: (ask) => {
         asks.push(ask);
-        return { kind: 'already-running' };
+        return Promise.resolve({ kind: 'already-running' });
       },
     });
     const owner = await register('owner');

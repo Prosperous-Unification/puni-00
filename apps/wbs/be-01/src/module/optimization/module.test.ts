@@ -117,7 +117,7 @@ const completeHost = () =>
     .buildContainer();
 
 describe('the Optimization module', () => {
-  it('routes enabled reads and Retry decisions through the supplied repository', () => {
+  it('routes enabled reads and Retry decisions through the supplied repository', async () => {
     const calls: string[] = [];
     const repository: OptimizationRequirements['repository'] = {
       allocateGeneration: () => {
@@ -135,7 +135,7 @@ describe('the Optimization module', () => {
       },
       admitRetry: () => {
         calls.push('retry');
-        return { kind: 'not-retryable', state: 'idle' };
+        return Promise.resolve({ kind: 'not-retryable', state: 'idle' });
       },
       reserveSlot: () => {
         throw new Error('unexpected reservation');
@@ -169,7 +169,7 @@ describe('the Optimization module', () => {
       input: INPUT,
       enabled: true,
     });
-    const retry = optimizer.retry({
+    const retry = await optimizer.retry({
       projectId: PROJECT,
       objective: 'pri',
       inputHash: 'port-hash',
@@ -209,10 +209,10 @@ describe('the Optimization module', () => {
    * hash differs from the port's answer is refused as stale, with the port's
    * own value, before any repository call.
    */
-  it('hashes a Retry through the cache-key port installOptimization wires', () => {
+  it('hashes a Retry through the cache-key port installOptimization wires', async () => {
     const { optimizer } = installOptimization(requirements());
 
-    const refused = optimizer.retry({
+    const refused = await optimizer.retry({
       projectId: PROJECT,
       objective: 'pri',
       inputHash: 'stale-hash',

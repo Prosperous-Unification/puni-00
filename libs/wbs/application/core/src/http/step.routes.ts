@@ -4,10 +4,12 @@ import { allowancePercentOf, NO_ALLOWANCE } from '@wbs/domain';
 import type { PlanCommandRunner } from '../module/plan-commands/plan-commands.feature';
 import { runCommandBatch } from '../module/plan-commands/run-command-batch';
 import type { OrganizationAccess } from '../ports/organization-access';
+import type { ResourceAccess } from '../ports/organization-access';
 import type { Step } from '../ports/step-store';
 import type { StepOutcome, StepService } from '../service/step.service';
 import { bind, EMPTY, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
+import { type RecoveryWriteBoundary, runRecoveryWrite } from './recovery-write';
 
 /** Keeps each named-step domain refusal paired with its existing wire status. */
 function namedReply(
@@ -65,15 +67,38 @@ function renamedReply(outcome: StepOutcome): HttpReply<typeof renameStep> {
  * `refuses an unbound session and a removed member before any lookup` in
  * `step-marker-organization.controller.db.test.ts`; watched 2026-09-27.
  *
- * An allowance edit is not StepService's: it runs as the `setStepAllowance`
- * command through `commands`, so HTTP, a command batch and MCP share one
- * journalled mutation and one undo.
+ * An allowance-only edit runs the `setStepAllowance` command through `commands`.
+ * A combined name and allowance edit invokes the same WorkItemService operation
+ * inside its shared step unit of work, preserving the allowance's journal entry
+ * and one undo while settling the rename and allowance together.
  */
 export function stepRoutes(
   steps: Pick<StepService, 'addWithin' | 'findWithin' | 'removeWithin' | 'renameWithin'>,
   commands: Pick<PlanCommandRunner, 'runWithin' | 'runDirectoryWithin'>,
   organizations: OrganizationAccess,
+  recovery?: RecoveryWriteBoundary,
 ) {
+  /** Runs a scoped dependent write in the transaction that records its recovery. */
+  const write = <T extends { readonly ok: boolean }>(
+    access: ResourceAccess,
+    projectId: string,
+    actorId: string,
+    detail: { readonly step: 'add' | 'rename' | 'remove' },
+    perform: (service: typeof steps) => Promise<T>,
+    refuse: (reason: 'not_found' | 'forbidden') => T,
+  ): Promise<T> => {
+    if (access.kind === 'legacy') return perform(steps);
+    if (recovery === undefined) throw new Error('scoped step write has no recovery boundary');
+    return runRecoveryWrite(
+      recovery,
+      access,
+      projectId,
+      actorId,
+      detail,
+      (services) => perform(services.steps),
+      refuse,
+    );
+  };
   return [
     bind(addStep, async ({ params, body, principal }): Promise<HttpReply<typeof addStep>> => {
       const allowance =
@@ -89,13 +114,21 @@ export function stepRoutes(
       // Proof: catching the store failure as not_found returned a refusal object
       // instead of the original error in step.routes.test.ts's outage case.
       return addedReply(
-        await steps.addWithin(
+        await write(
+          resolved.access,
           params.id,
           principal.id,
-          body.name,
-          allowance,
-          body.code,
-          resolved.access,
+          { step: 'add' },
+          (service) =>
+            service.addWithin(
+              params.id,
+              principal.id,
+              body.name,
+              allowance,
+              body.code,
+              resolved.access,
+            ),
+          (reason): StepOutcome => ({ ok: false, reason }),
         ),
       );
     }),
@@ -113,15 +146,85 @@ export function stepRoutes(
         if (body.name === undefined) {
           return { ok: false, status: 422, body: { error: 'invalid_body' } };
         }
+        const name = body.name;
         return renamedReply(
-          await steps.renameWithin(
-            params.id,
-            params.stepId,
-            principal.id,
-            body.name,
+          await write(
             resolved.access,
+            params.id,
+            principal.id,
+            { step: 'rename' },
+            (service) =>
+              service.renameWithin(params.id, params.stepId, principal.id, name, resolved.access),
+            (reason): StepOutcome => ({ ok: false, reason }),
           ),
         );
+      }
+      // Proof (2026-09-28): bypassing this combined branch made scoped recovery
+      // answer 403; the legacy failure kept its rename after the allowance
+      // abort. Both focused mounted tests failed, then passed on restore.
+      if (body.name !== undefined) {
+        // Proof (2026-09-28): bypassing this dependency check made `combined
+        // step patch refuses a missing unit of work boundary` throw an
+        // untyped nullish error instead of naming the missing boundary.
+        if (recovery === undefined) throw new Error('combined step write has no recovery boundary');
+        const name = body.name;
+        const patched = await runRecoveryWrite(
+          recovery,
+          resolved.access,
+          params.id,
+          principal.id,
+          { step: 'rename' },
+          async (services): Promise<StepOutcome> => {
+            const renamed = await services.steps.renameWithin(
+              params.id,
+              params.stepId,
+              principal.id,
+              name,
+              resolved.access,
+            );
+            // Proof (2026-09-28): continuing after a duplicate-name refusal
+            // made the mounted combined PATCH answer 200 instead of 409.
+            if (!renamed.ok) return renamed;
+            const allowed = await services.workItems.setStepAllowance(
+              params.id,
+              principal.id,
+              params.stepId,
+              allowance,
+            );
+            // Proof (2026-09-28): ignoring a modeled allowance refusal made
+            // `combined step patch refuses a modeled allowance failure after
+            // rename and discards its event` answer 200 instead of 403.
+            if (!allowed.ok) {
+              // Proof (2026-09-28): accepting an injected unmodelled reason
+              // made that test resolve instead of rejecting with the reason.
+              if (allowed.reason === 'not_found' || allowed.reason === 'forbidden')
+                return { ok: false, reason: allowed.reason };
+              throw new Error(
+                `setStepAllowance refused with an unmodelled reason: ${allowed.reason}`,
+              );
+            }
+            // The same calendar preflight the command batch runs after a
+            // `setStepAllowance`: a plan pushed past the calendar is refused
+            // as the allowance-only path refuses it, rolling back the rename
+            // and the allowance with the unit of work.
+            // Proof (2026-09-28): skipping this preflight made `combined step
+            // patch refuses an allowance that pushes the plan past the
+            // calendar` resolve instead of rejecting with `calendar_range`.
+            const tree = await services.workItems.tree(params.id);
+            if (tree === null)
+              throw new Error(`Project ${params.id} disappeared inside its step write`);
+            if (!('kind' in tree) && tree.scheduleError === 'calendar_range')
+              throw new Error('setStepAllowance refused with an unmodelled reason: calendar_range');
+            return services.steps.findWithin(
+              params.id,
+              params.stepId,
+              principal.id,
+              resolved.access,
+            );
+          },
+          (reason): StepOutcome => ({ ok: false, reason }),
+        );
+        return renamedReply(patched);
       }
       // The project, the step and the caller's role are checked here first,
       // through the caller's access, before the rename or the command writes
@@ -140,16 +243,6 @@ export function stepRoutes(
         resolved.access,
       );
       if (!admitted.ok) return renamedReply(admitted);
-      if (body.name !== undefined) {
-        const renamed = await steps.renameWithin(
-          params.id,
-          params.stepId,
-          principal.id,
-          body.name,
-          resolved.access,
-        );
-        if (!renamed.ok) return renamedReply(renamed);
-      }
       const outcome = await runCommandBatch(commands, {
         projectId: params.id,
         actor: principal,
@@ -184,12 +277,20 @@ export function stepRoutes(
         // Proof: truthy cascade deleted on cascade=1 (204 instead of409); reading
         // the first raw duplicate deleted on true&false (204 instead of409), both
         // observed in step.controller.db.test.ts before restoring this comparison.
-        const outcome = await steps.removeWithin(
-          params.id,
-          params.stepId,
-          principal.id,
-          query.cascade === 'true',
+        const outcome = await write(
           resolved.access,
+          params.id,
+          principal.id,
+          { step: 'remove' },
+          (service) =>
+            service.removeWithin(
+              params.id,
+              params.stepId,
+              principal.id,
+              query.cascade === 'true',
+              resolved.access,
+            ),
+          (reason) => ({ ok: false, reason }) as const,
         );
         if (outcome.ok) return { ok: true, status: 204, body: EMPTY };
         switch (outcome.reason) {
