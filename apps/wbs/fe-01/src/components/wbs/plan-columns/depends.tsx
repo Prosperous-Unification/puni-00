@@ -570,7 +570,8 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               onBlur={(event) => {
                 if (
                   event.relatedTarget instanceof HTMLElement &&
-                  event.relatedTarget.closest('.typed-dependency-editor') !== null
+                  (event.relatedTarget.closest('.typed-dependency-editor') !== null ||
+                    event.relatedTarget.closest('[role="listbox"]') !== null)
                 )
                   return;
                 live.current.setDepPicker((current) =>
@@ -595,14 +596,35 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     : live.current
                         .depEntriesFor(row.original, typed)
                         .find((entry) => entry.refusal === undefined);
-                live.current.setDepPicker({
+                live.current.setDepPicker((current) => ({
                   rowId: row.original.id,
                   typed,
                   highlightId: first?.id ?? null,
-                });
+                  // Proof: dropping this retained step made `keeps QA preselected after
+                  // typing a predecessor search` receive Whole instead of QA for
+                  // both endpoints. Watched 2026-09-28.
+                  ...(current?.rowId === row.original.id && current.stepId !== undefined
+                    ? { stepId: current.stepId }
+                    : {}),
+                }));
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Tab') {
+                  // Proof: forcing this branch off made `tabs from the picker into
+                  // Customize, then escapes the editor` fail: focus stayed on the
+                  // input instead of reaching Customize. Watched 2026-09-28.
+                  if (!e.shiftKey && open) {
+                    const customize = e.currentTarget
+                      .closest('[data-depends-strip]')
+                      ?.parentElement?.querySelector<HTMLButtonElement>(
+                        '.typed-dependency-customize',
+                      );
+                    if (customize !== undefined && customize !== null) {
+                      e.preventDefault();
+                      customize.focus();
+                      return;
+                    }
+                  }
                   // The move blurs this input, which closes the list and
                   // drops what was typed into it — this cell's blur contract
                   // since it was written, now reached by Tab on purpose. The
@@ -711,6 +733,15 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               // was unpickable by mouse (cross review #6).
               onMouseDown={(e) => {
                 e.preventDefault();
+              }}
+              onBlur={(event) => {
+                if (
+                  event.relatedTarget instanceof HTMLElement &&
+                  (event.currentTarget.contains(event.relatedTarget) ||
+                    event.relatedTarget.closest('.typed-dependency-editor') !== null)
+                )
+                  return;
+                live.current.setDepPicker(null);
               }}
               style={{
                 // {@link PICKER_PANEL_STYLE} and not a copy of it. This
@@ -823,6 +854,15 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     type="button"
                     className="typed-dependency-customize"
                     aria-label={`Customize ${entry.number} - ${entry.name}`}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Escape') return;
+                      event.preventDefault();
+                      document
+                        .querySelector<HTMLInputElement>(
+                          `[data-depends-input="${row.original.id}"]`,
+                        )
+                        ?.focus();
+                    }}
                     onClick={(event) => {
                       event.stopPropagation();
                       // Proof: injecting pickDependency here made `opens Customize without writing
@@ -845,6 +885,23 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               const dependency = typedDependencies.find(
                 (candidate) => candidate.id === editing.dependencyId,
               );
+              // Proof: forcing this guard false made `refuses to recreate an edited
+              // relationship removed before Save` fail because the stale alert was absent;
+              // the editor exposed Add. Watched 2026-09-28.
+              if (editing.dependencyId !== undefined && dependency === undefined)
+                return (
+                  <div role="alert">
+                    This dependency was removed.{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditing(null);
+                      }}
+                    >
+                      Back to dependency picker
+                    </button>
+                  </div>
+                );
               const close = () => {
                 setEditing(null);
                 document

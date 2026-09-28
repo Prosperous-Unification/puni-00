@@ -208,16 +208,13 @@ export function usePlanDependencies({
         flat,
         {
           id: forRow.id,
-          dependsOn: [
-            ...forRow.dependsOn,
-            ...typedDependencies
-              .filter((dependency) => dependency.successor.workItemId === forRow.id)
-              .map((dependency) => dependency.predecessor.workItemId),
-          ],
+          // Typed links can connect a different endpoint pair on this same row pair.
+          // Keep the row available for Customize; the command boundary checks exact endpoints.
+          dependsOn: forRow.dependsOn,
         },
         typed,
       ),
-    [flat, typedDependencies],
+    [flat],
   );
 
   /**
@@ -230,6 +227,20 @@ export function usePlanDependencies({
    */
   const pickDependency = useCallback(
     (successorId: string, predecessorId: string): Promise<CommitOutcome> => {
+      // Proof: forcing this exact-pair guard false made `refuses an exact Whole FS
+      // duplicate while leaving Customize available` fail because the refusal
+      // announcement never appeared. Watched 2026-09-28.
+      if (
+        typedDependencies.some(
+          (dependency) =>
+            dependency.type === 'FS' &&
+            dependency.predecessor.scope === 'whole' &&
+            dependency.predecessor.workItemId === predecessorId &&
+            dependency.successor.scope === 'whole' &&
+            dependency.successor.workItemId === successorId,
+        )
+      )
+        return Promise.resolve('refused');
       setDepPicker((current) =>
         current === null ? null : { ...current, typed: '', highlightId: null },
       );
@@ -242,7 +253,7 @@ export function usePlanDependencies({
         ),
       );
     },
-    [commands, run, setDepPicker],
+    [commands, run, setDepPicker, typedDependencies],
   );
 
   /** Moves the picker highlight by `delta` over `entryIds`, clamped. */

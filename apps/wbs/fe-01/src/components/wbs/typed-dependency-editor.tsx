@@ -104,7 +104,9 @@ export function endpointChoices(
   return [
     {
       key: 'whole',
-      label: 'Whole work item',
+      label: isParent
+        ? `All descendant work items (${String(leavesUnder(rows, row.id))})`
+        : 'Whole work item',
       endpoint: { scope: 'whole', workItemId: row.id },
     },
     ...steps
