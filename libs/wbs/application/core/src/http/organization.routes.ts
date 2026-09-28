@@ -42,7 +42,7 @@ export function organizationRoutes(
     bind(
       changeMemberRole,
       async ({ params, body, principal }): Promise<HttpReply<typeof changeMemberRole>> => {
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
         const outcome = await memberships.administer(
@@ -60,7 +60,7 @@ export function organizationRoutes(
       },
     ),
     bind(removeMember, async ({ params, principal }): Promise<HttpReply<typeof removeMember>> => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
       const outcome = await memberships.administer(

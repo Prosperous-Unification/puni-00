@@ -560,6 +560,23 @@ Branch `batch-9/010-5-2-orgs-19`, stacked on slice 20. There is no migration.
 
 A broken marker throws before any resolution (`throws on a broken marker instead of resolving as before activation`). The marker is read on every call (`reads the marker on every call, so activation needs no restart`).
 
+## Slice 22 — delegation verifier (task 2.5, first slice)
+
+Branch `batch-9/010-5-2-orgs-20`, stacked on slice 21. There is no migration and no configuration change. Production wires `REFUSE_DELEGATIONS`.
+
+All faults were watched failing in `delegation.controller.db.test.ts` on 2026-09-28:
+
+| Check                                        | Injected fault                                              | Observed failure                                                                                                |
+| -------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Audience fixed by the route policy           | `audience` dropped from `jwtVerify`                         | `refuses a gateway or unknown audience`                                                                         |
+| A refused delegation stays refused           | JOSE refusal answered `not_delegation`                      | the audience case and `refuses an expired, re-signed or forged-organization delegation`                         |
+| No fallback to the session                   | identity resolver falls through on `refused`                | five cases, the session-key-signed delegation among them                                                        |
+| Upstream identity binds the user             | any mapped upstream identity accepted                       | `refuses a delegation whose upstream identity maps to someone else`                                             |
+| Lifetime capped at five minutes              | cap skipped                                                 | `refuses a delegation longer than five minutes`                                                                 |
+| No key, no delegation                        | `REFUSE_DELEGATIONS` answers `not_delegation`               | `refuses every delegation when no delegation key is configured`: 200                                            |
+| Delegation's organization is the one checked | session binding used instead                                | `lists only the delegated organization’s projects`; `refuses a delegation to an organization the user has left` |
+| No header selects authority                  | `x-wbs-organization` replaces the delegation's organization | `lets no header select the organization`: B's project read                                                      |
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

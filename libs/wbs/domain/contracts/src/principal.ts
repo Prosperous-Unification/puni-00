@@ -17,6 +17,30 @@ export interface AuthenticatedUser {
   id: string;
   username: string;
   scopes: readonly WbsScope[];
+  /**
+   * The organization a verified WBS-signed delegation bound this request to.
+   * Absent for a session or upstream credential, which carries no
+   * organization of its own; see {@link Delegation}.
+   */
+  delegation?: Delegation;
+}
+
+/** Who may present a delegation, as its `aud` names it; see {@link Delegation}. */
+export const DELEGATION_AUDIENCES = ['wbs-be-01/via-mcp-01', 'wbs-be-01/via-gw-01'] as const;
+
+export type DelegationAudience = (typeof DELEGATION_AUDIENCES)[number];
+
+/**
+ * What a verified delegation token (task 2.5) binds a request to. Its
+ * signature, audience, lifetime and identity binding were checked by be-01's
+ * delegation verifier; nothing here comes from a caller header, and a header
+ * can never select any of it.
+ */
+export interface Delegation {
+  readonly organizationId: string;
+  readonly audience: DelegationAudience;
+  /** The OAuth client the delegating service acted for. */
+  readonly client: string;
 }
 
 /**

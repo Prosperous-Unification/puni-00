@@ -14,6 +14,7 @@ export * from './domain-claim';
 export * from './estimate';
 export * from './event-log';
 export * from './external-identity';
+export * from './external-identity';
 export * from './gate';
 export * from './health-probe';
 export * from './migrate';

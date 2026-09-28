@@ -1,4 +1,8 @@
-import type { OrganizationAccess, OrganizationAccessResolution } from '@wbs/core';
+import type {
+  OrganizationAccess,
+  OrganizationAccessResolution,
+  OrganizationPrincipal,
+} from '@wbs/core';
 import { ORGANIZATION_ROLES, type OrganizationRole } from '@wbs/domain';
 import { and, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
@@ -29,7 +33,9 @@ export const NO_BOUND_ORGANIZATION: ActiveOrganizationOf = () => Promise.resolve
  * explicit `pre_activation` answers `legacy`; a broken marker throws and the
  * request fails as a server error. After activation the bound organization
  * must still list the user as a member **now**, so a removed member's live
- * token stops working on its next request.
+ * token stops working on its next request. A verified delegation's
+ * organization takes the place of the session's binding; before activation
+ * it is ignored like every other organization claim.
  */
 export class SqliteOrganizationAccess implements OrganizationAccess {
   constructor(
@@ -37,7 +43,8 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
     private readonly activeOrganizationOf: ActiveOrganizationOf,
   ) {}
 
-  async resolve(userId: string): Promise<OrganizationAccessResolution> {
+  async resolve(principal: OrganizationPrincipal): Promise<OrganizationAccessResolution> {
+    const userId = principal.id;
     // Proof: answering `legacy` without reading the marker made `scopes the same
     // running app once another connection activates isolation` in
     // `project-organization.controller.db.test.ts` still list both
@@ -45,7 +52,15 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
     if (readOrganizationActivation(this.db) === 'pre_activation') {
       return { ok: true, access: { kind: 'legacy' } };
     }
-    const organizationId = await this.activeOrganizationOf(userId);
+    // A verified delegation (task 2.5) carries its organization; a session
+    // takes the one it is bound to. Membership is rechecked below either way.
+    // Proof: taking the session's binding instead of the delegation's made
+    // `lists only the delegated organization's projects` in
+    // `delegation.controller.db.test.ts` answer 403; watched 2026-09-28.
+    const organizationId =
+      principal.delegation === undefined
+        ? await this.activeOrganizationOf(userId)
+        : principal.delegation.organizationId;
     // Proof: answering `legacy` here instead made `refuses a session bound to no
     // organization before any lookup` in
     // `project-organization.controller.db.test.ts` answer 200 for the list;

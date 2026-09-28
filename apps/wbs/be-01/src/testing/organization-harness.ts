@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import {
+  ExternalIdentityRepository,
   openSqliteSource,
   OrganizationRepository,
   SqliteOrganizationAccess,
@@ -27,6 +28,7 @@ import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
+import { delegationVerifier } from '../runtime/delegation';
 import { AuthService } from '../service/auth.service';
 import { CalendarMarkerService } from '../service/calendar-marker.service';
 import { DirectoryService } from '../service/directory.service';
@@ -76,7 +78,12 @@ export class OrganizationHarness {
     private readonly bound: Map<string, string>,
   ) {}
 
-  static open(): OrganizationHarness {
+  /**
+   * `delegationKey`, when given, is the RS256 public key the app verifies
+   * delegation tokens with (task 2.5); upstream identities resolve through the
+   * real `external_identity` mapping.
+   */
+  static open(delegationKey?: CryptoKey): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
@@ -137,6 +144,15 @@ export class OrganizationHarness {
         Promise.resolve(bound.get(userId) ?? null),
       ),
       memberships: new OrganizationRepository(db, OPEN),
+      ...(delegationKey === undefined
+        ? {}
+        : {
+            delegation: delegationVerifier(delegationKey, async (pair) => {
+              const userId = await new ExternalIdentityRepository(db, OPEN).findUserId(pair);
+              if (userId === null) return null;
+              return new UserRepository(db, OPEN).findById(userId);
+            }),
+          }),
       history: testHistoryService(),
       auth: new AuthService({
         clock: testClock,
@@ -227,6 +243,13 @@ export class OrganizationHarness {
     this.ids.set(username, body.user.id);
   }
 
+  /** `username`'s session token, as {@link register} received it. */
+  token(username: string): string {
+    const found = this.tokens.get(username);
+    if (found === undefined) throw new Error(`${username} was never registered`);
+    return found;
+  }
+
   userId(username: string): string {
     const found = this.ids.get(username);
     if (found === undefined) throw new Error(`${username} was never registered`);
@@ -262,11 +285,23 @@ export class OrganizationHarness {
   }
 
   async call(username: string, method: string, path: string, body?: unknown): Promise<Answer> {
+    return this.callWith(this.tokens.get(username) ?? 'none', method, path, body);
+  }
+
+  /** {@link call} with an explicit Bearer credential, and any extra headers a caller forges. */
+  async callWith(
+    token: string,
+    method: string,
+    path: string,
+    body?: unknown,
+    extraHeaders: Record<string, string> = {},
+  ): Promise<Answer> {
     const res = await this.app.handle(
       new Request(`http://localhost${path}`, {
         method,
         headers: {
-          authorization: `Bearer ${this.tokens.get(username) ?? 'none'}`,
+          ...extraHeaders,
+          authorization: `Bearer ${token}`,
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),

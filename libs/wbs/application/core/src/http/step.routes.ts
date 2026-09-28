@@ -84,7 +84,7 @@ export function stepRoutes(
       // names, and refuses one with three decimals` stored the step.
       if (allowance === null)
         return { ok: false, status: 422, body: { error: 'invalid_allowance' } };
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       // Proof: catching the store failure as not_found returned a refusal object
       // instead of the original error in step.routes.test.ts's outage case.
@@ -107,7 +107,7 @@ export function stepRoutes(
       // invalid_allowance for -1%.
       if (allowance === null)
         return { ok: false, status: 422, body: { error: 'invalid_allowance' } };
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       if (allowance === undefined) {
         if (body.name === undefined) {
@@ -179,7 +179,7 @@ export function stepRoutes(
     bind(
       removeStep,
       async ({ params, query, principal }): Promise<HttpReply<typeof removeStep>> => {
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         // Proof: truthy cascade deleted on cascade=1 (204 instead of409); reading
         // the first raw duplicate deleted on true&false (204 instead of409), both

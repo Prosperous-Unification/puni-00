@@ -35,6 +35,7 @@ import { identityResolver } from './http/identity';
 import { openApiPlugin } from './openapi/openapi-plugin';
 import type { DatabaseHealth } from './repository/health-probe';
 import { nodeDigest } from './runtime/bun-runtime';
+import { type DelegationVerifier, REFUSE_DELEGATIONS } from './runtime/delegation';
 import type { AuthService } from './service/auth.service';
 import type { CalendarMarkerService } from './service/calendar-marker.service';
 import type { CapacityService } from './service/capacity.service';
@@ -133,6 +134,12 @@ export interface AppOptions {
    * failing every forward with a 401 that only shows up in a real deployment.
    */
   internalAuthSecret: string;
+  /**
+   * Verifies WBS-signed delegation tokens (task 2.5). Absent, every delegation
+   * is refused with 401 (`REFUSE_DELEGATIONS`): production issues none yet,
+   * so the path stays inert until the delegation key is configured.
+   */
+  delegation?: DelegationVerifier;
   /**
    * Required for the same reason as `auth`, and for one more: the stub this
    * replaced answered every resume with `replaying, count: 0`, which no client
@@ -321,7 +328,11 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
         // report postApiAuthRegister equal to the 404/NOT_FOUND router miss.
         mountEndpoints(endpoints, {
           appOrigin: opts.appOrigin,
-          resolveIdentity: identityResolver(opts.auth, opts.internalAuthSecret),
+          resolveIdentity: identityResolver(
+            opts.auth,
+            opts.internalAuthSecret,
+            opts.delegation ?? REFUSE_DELEGATIONS,
+          ),
           // Proof: on 2026-09-21, replacing this production callback with a no-op made
           // “reports one redacted unexpected production failure with its shared occurrence” receive
           // zero logger calls instead of one.

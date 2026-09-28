@@ -31,6 +31,18 @@
     - `GET /api/organization/memberships` and `POST /api/organization/active`, with explicit selection even for one membership;
     - the mounted negatives: tampering, cross-user or cross-session substitution, expiry, refresh, forged headers and membership removal.
 - [ ] 2.5 Issue and verify audience-specific signed bearer, gateway and MCP delegation. Red: wrong audience, forged organization and expired signature. Fault: trust caller header; observe mounted route refusal fail, restore and add `Proof:`.
+  - Slice 22, the verifier (Astra design call, 2026-09-28):
+    - be-01's `delegationVerifier` checks a WBS-signed `wbs-delegation+jwt`. It must be RS256 under a dedicated public key, never the session or internal secret.
+    - Its issuer must be `wbs`, its audience the one the server's route policy names (`wbs-be-01/via-mcp-01` on resource routes), and its lifetime at most five minutes.
+    - It must carry a local user, an organization, a client, a `jti` and known scopes, and its upstream `(issuer, subject)` must map to that same user through `external_identity`.
+    - A refused delegation answers 401 and never falls back to session authentication. After activation `OrganizationAccess.resolve(principal)` takes the delegation's organization and rechecks membership.
+    - Production wires `REFUSE_DELEGATIONS`, so every delegation is refused until WBS issues them.
+  - Open:
+    - issuance and its signing key (`WBS_DELEGATION_SIGNING_KEY`, `WBS_DELEGATION_VERIFY_KEY` configuration);
+    - the gateway audience's consumer (6.1–6.3);
+    - bearer clients' own WBS context;
+    - replay prevention by `jti`;
+    - MCP consent binding and epoch (6.4–6.6).
 - [x] 2.6 Make activation marker durable and validate absent, unreadable and malformed trusted marker states separately. Red: each state is refused with its own explicit error and an activated or broken marker refuses the marker migration's reversal. Fault: default one broken state to inactive; observe the reader test fail, restore and add `Proof:`. The swap preflight that reads the marker moves to 7.3 (Astra, 2026-09-27): a target image's missing CLI proves nothing about database state.
 
 ## 3. Resource authorization, one boundary at a time

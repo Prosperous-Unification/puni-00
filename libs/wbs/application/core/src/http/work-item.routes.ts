@@ -384,7 +384,7 @@ export function workItemRoutes(
       // unbound session and a removed member before any lookup` in
       // `schedule-organization.controller.db.test.ts` answer 200; watched
       // 2026-09-27.
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       const tree = await workItems.treeWithin(params.id, resolved.access);
       if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
@@ -415,7 +415,7 @@ export function workItemRoutes(
         // unbound session and a removed member before any batch` in
         // `command-organization.controller.db.test.ts` answer 200; watched
         // 2026-09-27.
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const outcome = await runCommandBatch(commands, {
           projectId: params.id,
@@ -445,7 +445,7 @@ export function workItemRoutes(
       async ({ body, principal }): Promise<HttpReply<typeof applyDirectoryCommands>> => {
         const parsed = await parsedBatch(body);
         if (!parsed.ok) return parsed;
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const outcome = await runCommandBatch(commands, {
           projectId: null,
@@ -467,12 +467,12 @@ export function workItemRoutes(
       { classifyRequestFailure: classifyCommand },
     ),
     bind(undoProject, async ({ params, principal }): Promise<HttpReply<typeof undoProject>> => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       return answerUndo(await commands.undoWithin(params.id, principal.id, resolved.access));
     }),
     bind(redoProject, async ({ params, principal }): Promise<HttpReply<typeof redoProject>> => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       return answerUndo(await commands.redoWithin(params.id, principal.id, resolved.access));
     }),
@@ -483,7 +483,7 @@ export function workItemRoutes(
         // an unbound session and a removed member before any lookup` in
         // `schedule-organization.controller.db.test.ts` answer 409 instead of
         // 403; watched 2026-09-27.
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const addresses = await workItems.readAddressesWithin(params.id, resolved.access);
         if (addresses === null) return { ok: false, status: 404, body: { error: 'not_found' } };
