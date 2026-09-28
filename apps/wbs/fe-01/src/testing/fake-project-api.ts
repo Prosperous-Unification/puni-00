@@ -466,6 +466,9 @@ export function fakeProjectApi(): ProjectApi & {
           projectId,
           position: rows.indexOf(r),
           serviceId: null,
+          // be-01 always sends both; the face reads the folded status only.
+          readiness: null,
+          hold: null,
           tagIds: [...(r.tagIds ?? [])],
           serviceIds: [...(r.serviceIds ?? [])],
           typeIds: [...(r.typeIds ?? [])],
