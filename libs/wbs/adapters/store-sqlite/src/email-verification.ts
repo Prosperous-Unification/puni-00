@@ -2,6 +2,7 @@ import type { EmailChallengeAnswer, EmailVerification } from '@wbs/core';
 import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { auditOnUpdate } from './audit';
 import type { Gate } from './gate';
 import { readOrganizationActivation } from './organization-activation';
 import { emailChallenge, externalIdentity, users } from './schema';
@@ -173,7 +174,11 @@ export class EmailVerificationRepository implements EmailVerification {
             // consumption uncommitted; omitting this update failed both the
             // mounted ID-preservation and rollback tests.
             tx.update(users)
-              .set({ email: challenge.email, emailVerified: true })
+              .set({
+                email: challenge.email,
+                emailVerified: true,
+                ...auditOnUpdate({ at: checkedAt }),
+              })
               .where(eq(users.id, userId))
               .run();
             return { ok: true, value: { email: challenge.email, verified: true } };

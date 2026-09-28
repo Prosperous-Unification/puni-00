@@ -124,6 +124,9 @@ const EXEMPT = new Set([
   // An audit record is its own authorship: `actor_id` and `created_at` are
   // the act it records, not audit columns about the row.
   'organizationAudit',
+  // Challenge rows date each transition (`revoked_at`, `consumed_at`) and have
+  // no general audit columns; the exemption assertion below checks the schema.
+  'emailChallenge',
 ]);
 
 /**

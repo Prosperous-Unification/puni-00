@@ -145,10 +145,12 @@ export function invitationRoutes(
         // Proof: 2026-09-28, bypassing this guard failed `refuses delegated onboarding discovery and writes` at acceptance.
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
-        const answer = await invitations.accept(principal.id, await digest.sha256(body.token), {
-          at: clock.now(),
-          by: principal.id,
-        });
+        const answer = await invitations.accept(
+          principal.id,
+          await digest.sha256(body.token),
+          principal.id,
+          () => clock.now(),
+        );
         if (!answer.ok) {
           if (answer.refusal === 'forbidden')
             throw new Error('acceptance returned an admin refusal');
