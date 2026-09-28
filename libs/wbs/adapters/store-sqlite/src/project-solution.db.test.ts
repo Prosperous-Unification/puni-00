@@ -141,7 +141,10 @@ describe('scoped solution links', () => {
 
   describe('the rollback', () => {
     it('rolls back while nothing is linked before activation', () => {
-      expect(rollbackTo(path, FOLDER, AUDIT)).toEqual([SOLUTION]);
+      expect(rollbackTo(path, FOLDER, AUDIT)).toEqual([
+        '20260928020000_add_email_verification',
+        SOLUTION,
+      ]);
     });
 
     it('refuses while a link is recorded', () => {
@@ -165,10 +168,10 @@ describe('scoped solution links', () => {
         db.run('UPDATE organization_activation SET activated_at = 5');
       });
       expect(() => rollbackTo(path, FOLDER, AUDIT)).toThrow();
-      expect(applied()).toBe(SOLUTION);
+      expect(applied()).toBe('20260928020000_add_email_verification');
       raw((db) => db.run('DELETE FROM organization_activation'));
       expect(() => rollbackTo(path, FOLDER, AUDIT)).toThrow();
-      expect(applied()).toBe(SOLUTION);
+      expect(applied()).toBe('20260928020000_add_email_verification');
       expect(raw((db) => db.query('SELECT COUNT(*) AS n FROM project_solution').get())).toEqual({
         n: 0,
       });

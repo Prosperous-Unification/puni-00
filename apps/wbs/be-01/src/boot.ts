@@ -2,6 +2,7 @@ import { buildOidcVerifier } from '@wbs/auth';
 import type { Logger } from '@wbs/observability';
 import {
   NO_BOUND_ORGANIZATION,
+  OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
   SqliteOrganizationAccess,
@@ -188,6 +189,7 @@ export async function bootBe01(
               // of 403; watched 2026-09-27.
               organizations: new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION),
               memberships: new OrganizationRepository(db, services.gate),
+              onboarding: new OnboardingRepository(db, services.gate),
               steps: services.steps,
               calendarMarkers: services.calendarMarkers,
               workItems: services.workItems,

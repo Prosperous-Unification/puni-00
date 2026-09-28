@@ -22,6 +22,26 @@ After sign-in, a user without membership SHALL establish a verified email before
 - **WHEN** they create an organization
 - **THEN** the organization and their super-admin membership commit together
 
+#### Scenario: Activation and durable OIDC evidence
+
+- **GIVEN** onboarding is inactive, or a signed-in user has no stored verified email
+- **WHEN** they discover or mutate onboarding
+- **THEN** the inactive deployment refuses with `onboarding_inactive` and writes nothing; after activation discovery shows `verification_required`, and writes refuse with `email_verification_required`
+- **AND** only a validated OIDC callback carrying literal `email_verified: true` sets durable verification; an absent or false claim clears it without changing the issuer/subject mapping
+
+#### Scenario: Exact matching and public email
+
+- **GIVEN** an exact verified claim for `example.org`
+- **WHEN** a verified `@example.org` user discovers onboarding or attempts creation
+- **THEN** discovery names that organization and creation refuses with `domain_matched`
+- **AND** `@sub.example.org`, suspended claims and public-email domains do not match it; an unmatched verified address may create without claiming its domain
+
+#### Scenario: Concurrent first-owner creation
+
+- **GIVEN** a verified user without memberships or a matching claim
+- **WHEN** two connections create an organization for the same user concurrently, or membership insertion fails
+- **THEN** at most one organization and its first super-admin membership commit; a failed membership insert rolls the organization back
+
 ### Requirement: Password-only accounts can establish verified email without changing identity
 
 An existing first-party username/password account without verified email SHALL retain its local WBS user ID and password sign-in. Its authenticated owner SHALL be offered a rendered path to add an email, receive a single-use expiring verification challenge at that address, and confirm possession before any organization creation, invitation acceptance or join request. Alternatively, the owner MAY link an Auth0 identity through a fresh authenticated Auth0 flow whose verified email is established by Auth0; WBS SHALL bind its verified issuer/subject to the same local user ID only after proving control of both sessions. Matching email alone SHALL never merge accounts. Expired, replayed, mismatched or unverified proofs and issuer/subject collisions SHALL refuse linking and onboarding without changing the local ID or granting membership. Lost delivery, expired challenge, collision and query failure SHALL have distinct rendered recovery or support paths.
@@ -69,6 +89,13 @@ A verified-email user SHALL be able to submit at most one pending request to a m
 - **GIVEN** one pending join request
 - **WHEN** two admins approve it concurrently
 - **THEN** exactly one invitation is issued, no membership is created, and the second approval is refused as already resolved
+
+#### Scenario: Pending submission and identical missing targets
+
+- **GIVEN** a verified user whose exact domain has a currently verified owner
+- **WHEN** they submit a request, then submit again
+- **THEN** the first response is 201 with a pending request and no membership; the second refuses with `join_request_pending`
+- **AND** an absent organization, another domain and a no-longer-verified claim all answer the same `404 not_found`
 
 ### Requirement: Organization administration has explicit rendered states
 

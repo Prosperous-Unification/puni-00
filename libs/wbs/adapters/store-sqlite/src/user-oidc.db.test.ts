@@ -209,6 +209,49 @@ describe('UserRepository.resolveOidcIdentity after activation', () => {
     activate();
 
     expect(await resolve({ email: 'someone@else.show' })).toMatchObject({ id: 'existing' });
+    expect(rows("SELECT email, email_verified FROM users WHERE id = 'existing'")).toEqual([
+      { email: 'someone@else.show', email_verified: 1 },
+    ]);
+  });
+
+  it('stores activated OIDC domains in canonical ASCII IDNA form', async () => {
+    activate();
+    const account = await resolve({ email: 'Ada@Bücher.example' });
+    expect(account?.email).toBe('ada@xn--bcher-kva.example');
+    expect(rows("SELECT email_verified FROM users WHERE id = 'new'")).toEqual([
+      { email_verified: 1 },
+    ]);
+  });
+
+  it('clears verification when a mapped callback lacks literal verified evidence', async () => {
+    await federated('existing', 'old@puni.show');
+    map('existing');
+    raw("UPDATE users SET email_verified = 1 WHERE id = 'existing'");
+    activate();
+    await resolve({ email: 'new@puni.show', emailVerified: false });
+    expect(rows("SELECT email, email_verified FROM users WHERE id = 'existing'")).toEqual([
+      { email: 'new@puni.show', email_verified: 0 },
+    ]);
+  });
+
+  it('refuses a mapped email collision without changing the old address or identity', async () => {
+    await federated('existing', 'old@puni.show');
+    map('existing');
+    await users.create(
+      {
+        id: 'holder',
+        username: 'holder',
+        passwordHash: 'x',
+        email: 'held@puni.show',
+        createdAt: 1,
+      },
+      selfMade('holder', 1),
+    );
+    activate();
+    expect(await resolve({ email: 'held@puni.show' })).toBeNull();
+    expect(rows("SELECT email, email_verified FROM users WHERE id = 'existing'")).toEqual([
+      { email: 'old@puni.show', email_verified: 0 },
+    ]);
   });
 
   it('refuses an unmapped identity whose verified email an account holds, changing nothing', async () => {

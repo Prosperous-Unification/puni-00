@@ -37,6 +37,11 @@ function options(): AppOptions {
   return {
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    onboarding: {
+      discover: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
+      createOrganization: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
+      submitJoinRequest: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
+    },
     appOrigin: 'http://localhost',
     loginThrottle: testLoginThrottle(),
     clock: testClock,
@@ -120,6 +125,8 @@ const OIDC_SHAPES = new Set<(typeof httpShapes)[number]>([
 const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postApiAuthRegister: { username: 'route-probe', password: 'valid-password' },
   postApiAuthLogin: { username: 'route-probe', password: 'valid-password' },
+  postApiOnboardingOrganizations: { name: 'Reachable organization' },
+  postApiOnboardingJoinRequests: { organizationId: ROUTE_ID },
   postApiSmokeEcho: { text: 'reachable' },
   postApiProjectsByIdSteps: { name: 'Reachable step' },
   patchApiProjectsByIdStepsByStepId: { name: 'Renamed step' },
@@ -186,6 +193,7 @@ const PUBLIC_OPERATIONS = [
 ] as const;
 const SIGNED_IN_OPERATIONS = [
   'getApiExternal-systems',
+  'getApiOnboarding',
   'getApiPeople',
   'getApiProjects',
   'getApiProjectsById',
@@ -200,6 +208,8 @@ const SIGNED_IN_OPERATIONS = [
   'getApiTags',
   'getApiTeams',
   'getApiWork-item-types',
+  'postApiOnboardingJoinRequests',
+  'postApiOnboardingOrganizations',
 ] as const;
 const READ_SCOPE_OPERATIONS = ['getApiProjectsByIdExport', 'getPlansBy-solutionBySlug'] as const;
 const WRITE_SCOPE_OPERATIONS = [
@@ -225,7 +235,12 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiProjectsImport',
 ] as const;
 const INTERNAL_OPERATIONS = ['postInternalForward', 'postInternalResume'] as const;
-const ALWAYS_ORIGIN_OPERATIONS = ['postApiAuthLogin', 'postApiAuthRegister'] as const;
+const ALWAYS_ORIGIN_OPERATIONS = [
+  'postApiAuthLogin',
+  'postApiAuthRegister',
+  'postApiOnboardingJoinRequests',
+  'postApiOnboardingOrganizations',
+] as const;
 const COOKIE_ORIGIN_OPERATIONS = [
   'deleteApiOrganizationMembersByUserId',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
@@ -257,6 +272,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiAuthMe',
   'getApiAuthOktaCallback',
   'getApiExternal-systems',
+  'getApiOnboarding',
   'getApiPeople',
   'getApiProjects',
   'getApiProjectsById',

@@ -90,6 +90,7 @@ export const users = sqliteTable(
     username: text('username').notNull(),
     passwordHash: text('password_hash'),
     email: text('email'),
+    emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
     idpIssuer: text('idp_issuer'),
     idpSub: text('idp_sub'),
     createdAt: integer('created_at').notNull(),

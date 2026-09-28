@@ -219,6 +219,11 @@ type BareRefusalCode =
   | 'insufficient_scope'
   /** Authenticated, but the session is bound to no organization (after activation). */
   | 'no_active_organization'
+  | 'onboarding_inactive'
+  | 'email_verification_required'
+  | 'already_member'
+  | 'domain_matched'
+  | 'join_request_pending'
   /** Authenticated, but the bound organization no longer lists the user. */
   | 'not_a_member'
   | 'invalid_origin'

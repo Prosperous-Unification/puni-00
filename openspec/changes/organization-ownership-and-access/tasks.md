@@ -95,10 +95,12 @@
 
 - [ ] 4.1 Let a signed-in password-only account add and verify email using an expiring, single-use address challenge while retaining its local ID. Red: missing/unverified email, wrong address, replay, expiry and failed delivery. Fault: accept an unverified address; observe mounted onboarding refusal fail, restore and add `Proof:`.
 - [ ] 4.2 Link Auth0 to an existing password account only after proving both sessions and verified Auth0 email, preserving local ID. Red: issuer/subject collision and same-email different-user case. Fault: merge by email; observe mounted identity test fail, restore and add `Proof:`.
-- [ ] 4.3 Route verified email by exact currently verified domain and atomically create an unmatched organization with first super-admin. Red: matching-domain creation refusal and concurrent creation. Fault: skip domain match; observe mounted creation test fail, restore and add `Proof:`.
+- [x] 4.3 Route verified email by exact currently verified domain and atomically create an unmatched organization with first super-admin. Slice 26 adds durable OIDC verification, discovery and creation. The two-connection race and matching-domain refusal are mounted; task 4.1 remains open for password accounts.
 - [ ] 4.4 Issue/revoke invitations, then accept with current verified recipient email in one consuming transaction. Red: wrong address, expiry, concurrent accept and replay. Fault: disable consumption; observe replay test fail, restore and add `Proof:`.
 - [ ] 4.5 Submit, approve or deny join requests; approval rechecks domain, email and admin role and only issues an invitation. Red: suspended domain and concurrent approval. Fault: skip domain recheck; observe mounted approval test fail, restore and add `Proof:`.
+  - Slice 26: submission is done, including duplicate-pending and suspended-domain refusals. Approval and denial remain open.
 - [ ] 4.6 Render onboarding, password-email verification, link collision/recovery, switcher, members and domain settings with loading, empty, failure and lost-access states. Red: stale tab after switch or removal. Fault: retain organization cache; observe browser test fail, restore and add `Proof:`.
+  - Slice 26: verification-required, create, matching-organization join, pending-request, selection-required, loading and query-failure screens landed. Password challenge, link recovery, switcher, members, domain settings and lost-access behavior remain open.
 
 ## 5. Domain ownership lifecycle
 

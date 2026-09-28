@@ -5,10 +5,12 @@ import type {
   HistoryService,
   ImportService,
   MembershipAdministration,
+  Onboarding,
   OrganizationAccess,
   ReplayOrchestrator,
   SavedPlanService,
 } from '@wbs/core';
+import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
@@ -82,6 +84,8 @@ export interface AppOptions {
    * 404 on the membership routes, which reads as a release without them.
    */
   memberships: MembershipAdministration;
+  /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
+  onboarding: Onboarding;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
   /** The manual Retry admission seam; absent only in optimizer-less deployments and tests. */
@@ -219,7 +223,7 @@ export function mountedEndpoints(
     logger: createLogger({ service: 'be-01', version: opts.version }),
     scrapeMetrics: opts.metricsScrape ?? (() => scrapeMetrics('be-01')),
   },
-) {
+): readonly BoundEndpoint[] {
   const passwordThrottle = opts.loginThrottle;
   const commands = new PlanCommandRunner({
     batchServices: opts.writes.batch,
@@ -255,6 +259,7 @@ export function mountedEndpoints(
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
+    ...onboardingRoutes(opts.onboarding, opts.clock),
     ...stepRoutes(opts.steps, commands, opts.organizations),
     ...directoryRoutes(opts.directory, opts.organizations),
     ...historyRoutes(opts.history, opts.projects, opts.organizations),

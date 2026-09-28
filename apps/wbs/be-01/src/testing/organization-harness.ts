@@ -6,6 +6,7 @@ import { CREATOR_ADMISSION } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import {
   ExternalIdentityRepository,
+  OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
   SqliteOrganizationAccess,
@@ -144,6 +145,7 @@ export class OrganizationHarness {
         Promise.resolve(bound.get(userId) ?? null),
       ),
       memberships: new OrganizationRepository(db, OPEN),
+      onboarding: new OnboardingRepository(db, OPEN),
       ...(delegationKey === undefined
         ? {}
         : {
@@ -200,6 +202,7 @@ export class OrganizationHarness {
         Promise.resolve(bound.get(userId) ?? null),
       ),
       memberships: new OrganizationRepository(source.db, services.gate),
+      onboarding: new OnboardingRepository(source.db, services.gate),
       steps: services.steps,
       calendarMarkers: services.calendarMarkers,
       workItems: services.workItems,
@@ -225,6 +228,11 @@ export class OrganizationHarness {
   close(): void {
     this.sqlite.close();
     rmSync(this.dir, { recursive: true, force: true });
+  }
+
+  /** Opens a second SQLite client on the same file for transaction race probes. */
+  secondConnection() {
+    return openDrizzle(join(this.dir, 'test.db'));
   }
 
   async register(username: string): Promise<void> {
@@ -300,6 +308,7 @@ export class OrganizationHarness {
       new Request(`http://localhost${path}`, {
         method,
         headers: {
+          ...(method === 'GET' ? {} : { origin: 'http://localhost' }),
           ...extraHeaders,
           authorization: `Bearer ${token}`,
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),

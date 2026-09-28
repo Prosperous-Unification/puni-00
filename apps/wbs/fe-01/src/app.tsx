@@ -5,6 +5,7 @@ import { AuthForm } from '@/components/auth/auth-form';
 import { AccountMenu } from '@/components/chrome/account-menu';
 import { AppFaultBoundary } from '@/components/chrome/app-fault';
 import { LifetimeFault } from '@/components/chrome/lifetime-fault';
+import { OnboardingScreen } from '@/components/onboarding/onboarding-screen';
 import { PresencePanel } from '@/components/presence/presence-panel';
 import { HintLayer } from '@/components/wbs/hint';
 import { me as fetchMe, type Session } from '@/lib/api';
@@ -149,12 +150,18 @@ function AppContent() {
     );
 
   return (
-    <SignedInApp
-      session={session}
-      onSignedOut={() => {
+    <OnboardingScreen
+      onSignOut={() => {
         setSession(null);
       }}
-    />
+    >
+      <SignedInApp
+        session={session}
+        onSignedOut={() => {
+          setSession(null);
+        }}
+      />
+    </OnboardingScreen>
   );
 }
 
