@@ -3743,6 +3743,31 @@ describe('setting a card’s priority', () => {
 });
 
 describe('setting what a card waits for', () => {
+  itDom('shows FF wording and editing on a phone card', async () => {
+    const api = dependencyApi();
+    const source = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const target = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: source.id,
+      name: 'Sand',
+    });
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'whole', workItemId: source.id },
+      { scope: 'whole', workItemId: target.id },
+      'FF',
+    );
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    await openTheSheetOn('020');
+    expect(screen.getByText(/010 FF.*Finish-to-finish/)).toBeDefined();
+    fireEvent.click(
+      screen.getByRole('button', { name: /Edit .*010 Strip.*020 Sand.*Finish-to-finish/ }),
+    );
+    expect(screen.getByLabelText('Relationship')).toHaveProperty('value', 'FF');
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeDefined();
+  });
   itDom('adds one whole FS relationship from a phone search result', async () => {
     const api = dependencyApi();
     const predecessor = await api.createWorkItem('p1', {
@@ -3768,6 +3793,7 @@ describe('setting what a card waits for', () => {
       'p1',
       { scope: 'whole', workItemId: predecessor.id },
       { scope: 'whole', workItemId: successor.id },
+      'FS',
     ]);
   });
   itDom('shows a typed dependency with touch Edit and Remove in the phone sheet', async () => {

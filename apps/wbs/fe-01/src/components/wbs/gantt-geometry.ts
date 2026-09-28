@@ -631,13 +631,15 @@ export interface TypedChartEndpoint {
 
 export interface TypedChartDependency {
   id: string;
-  type: 'FS';
+  type: 'FS' | 'SS' | 'FF';
   predecessor: TypedChartEndpoint;
   successor: TypedChartEndpoint;
 }
 
-/** One expanded or grouped authored FS connector. */
+/** One expanded or grouped authored connector. */
 export interface TypedGanttArrow extends GanttDependencyArrow {
+  type: TypedChartDependency['type'];
+  toFinish: number;
   relationshipId: string;
   relationshipIds: string[];
   /** Every authored pair in this connector; highlight membership is independent of its first anchor. */
@@ -1131,8 +1133,10 @@ export interface PlacedBracket {
   to: number;
 }
 
-/** A dependency as it is drawn: the predecessor's right edge, and the successor's left one. */
+/** A dependency as it is drawn at the scheduled boundary selected by its relationship. */
 export interface PlacedArrow {
+  /** Explicit relationship, when this is an authored connector. */
+  type?: TypedChartDependency['type'];
   predecessorId: string;
   successorId: string;
   fromRowIndex: number;
@@ -1207,6 +1211,7 @@ export interface PlacedGantt {
       | 'count'
       | 'proxy'
       | 'scope'
+      | 'type'
     >)[];
   internalDependencies: { rowId: string; count: number }[];
   personLinks: PlacedPersonLink[];
@@ -1268,9 +1273,11 @@ function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset
     predecessorId: arrow.predecessorId,
     successorId: arrow.successorId,
     fromRowIndex: arrow.fromRowIndex,
-    fromX: stopOf(arrow.fromStart, arrow.fromFinish),
+    fromX:
+      arrow.type === 'SS' ? startOf(arrow.fromStart) : stopOf(arrow.fromStart, arrow.fromFinish),
     toRowIndex: arrow.toRowIndex,
-    toX: startOf(arrow.toStart),
+    toX: arrow.type === 'FF' ? stopOf(arrow.toStart, arrow.toFinish) : startOf(arrow.toStart),
+    type: arrow.type,
     fromY: laneMiddle(arrow.predecessorSliceId),
     toY: laneMiddle(arrow.successorSliceId),
     relationshipId: arrow.relationshipId,
@@ -1602,6 +1609,35 @@ export function routeArrow(
       (corner, index) =>
         index === 0 || obstacles.every((rect) => !runCrossesBar(route[index - 1], corner, rect)),
     );
+
+  if (arrow.type === 'SS' || arrow.type === 'FF') {
+    // Proof: returning the FS elbow made `routes SS left of both starts and FF right of both finishes` fail because SS had no point left of its starts; watched 2026-09-28.
+    const edges = obstacles.flatMap((rect) => [rect.left, rect.right]);
+    const gutter =
+      arrow.type === 'SS'
+        ? Math.min(arrow.fromX, arrow.toX, ...edges) - clearance.approach
+        : Math.max(arrow.fromX, arrow.toX, ...edges) + clearance.approach;
+    const targetIsUnknownTick =
+      // Proof: disabling this tick entry made `attaches SS to starts and FF to actual finishes, including an unknown tick` receive no route to the unknown FF target; watched 2026-09-28.
+      arrow.type === 'FF' &&
+      obstacles.some(
+        (rect) =>
+          rect.left === arrow.toX &&
+          rect.right > arrow.toX &&
+          // Proof: checking the row midpoint instead of this slice lane made `routes FF into a second unknown step lane at its zero-time tick` receive no route; watched 2026-09-28.
+          rect.top < frame.toY &&
+          rect.bottom > frame.toY,
+      );
+    const route = trimmed([
+      { x: frame.fromX, y: frame.fromY },
+      { x: frame.fromX, y: frame.bandFrom },
+      { x: gutter, y: frame.bandFrom },
+      { x: gutter, y: targetIsUnknownTick ? frame.bandTo : frame.toY },
+      ...(targetIsUnknownTick ? [{ x: frame.toX, y: frame.bandTo }] : []),
+      { x: frame.toX, y: frame.toY },
+    ]);
+    return isClear(route) ? route : null;
+  }
 
   // Left of everything on these rows, and never right of the canvas's own left
   // edge: the column the fallback below is guaranteed on.

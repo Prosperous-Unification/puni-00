@@ -84,12 +84,12 @@
 
 ## 11. Show SS/FF in the editor and chart
 
-- [ ] 11.1 Red: type picker, one-click FS default, full accessible wording and mobile card.
-- [ ] 11.2 Implement type selector and labels.
-- [ ] 11.3 Negative proof: change one-click default to FF; watch UI test fail, restore, add adjacent `Proof:`.
-- [ ] 11.4 Red: SS start/start, FF finish/finish, unknown tick and collapsed proxy geometry.
-- [ ] 11.5 Draw relationship-specific routes and proxies.
-- [ ] 11.6 Negative proof: attach FF arrow to placeholder finish; watch geometry fail, restore, add adjacent `Proof:`.
+- [x] 11.1 Red: type picker, one-click FS default, full accessible wording and mobile card.
+- [x] 11.2 Implement type selector and labels.
+- [x] 11.3 Negative proof: change one-click default to FF; watch UI test fail, restore, add adjacent `Proof:`.
+- [x] 11.4 Red: SS start/start, FF finish/finish, unknown tick and collapsed proxy geometry.
+- [x] 11.5 Draw relationship-specific routes and proxies.
+- [x] 11.6 Negative proof: attach FF arrow to placeholder finish; watch geometry fail, restore, add adjacent `Proof:`.
 
 ## 12. Verify
 

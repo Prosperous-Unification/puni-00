@@ -2504,17 +2504,17 @@ export function WbsTable({
               }
               dependencyRows={flat}
               dependencyStepNodes={stepNodes}
-              saveTypedDependency={(dependencyId, predecessor, successor) =>
+              saveTypedDependency={(dependencyId, predecessor, successor, type) =>
                 run((write) =>
                   write.perform(['tree'], () =>
-                    commands.updateTypedDependency(dependencyId, predecessor, successor),
+                    commands.updateTypedDependency(dependencyId, predecessor, successor, type),
                   ),
                 )
               }
-              addTypedDependency={(predecessor, successor) =>
+              addTypedDependency={(predecessor, successor, type) =>
                 run((write) =>
                   write.perform(['tree'], () =>
-                    commands.addTypedDependency(predecessor, successor),
+                    commands.addTypedDependency(predecessor, successor, type),
                   ),
                 )
               }

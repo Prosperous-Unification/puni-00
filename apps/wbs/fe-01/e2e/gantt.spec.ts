@@ -315,7 +315,7 @@ async function seedPlan(
   await depends.click();
   await depends.fill('010.1');
   await depends.press('Enter');
-  await expect(page.getByRole('button', { name: 'Stop 010.2 waiting for 010.1' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Stop 010\.2 waiting for 010\.1/ })).toBeVisible();
 
   // The day be-01 says this row starts, typed back in as the day it may not
   // start before: the caret and the bar's left edge on the same workday.
@@ -403,7 +403,7 @@ async function seedUnestimatedChain(page: Page, _account: string): Promise<void>
   await depends.click();
   await depends.fill('010');
   await depends.press('Enter');
-  await expect(page.getByRole('button', { name: 'Stop 020 waiting for 010' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Stop 020 waiting for 010/ })).toBeVisible();
   await depends.press('Escape');
   await expect(page.getByRole('listbox')).toHaveCount(0);
 }
@@ -477,7 +477,7 @@ async function seedEdgeRoutes(page: Page, _account: string): Promise<void> {
     await depends.fill(on);
     await depends.press('Enter');
     await expect(
-      page.getByRole('button', { name: `Stop ${waiting} waiting for ${on}` }),
+      page.getByRole('button', { name: new RegExp(`^Stop ${waiting} waiting for ${on}`) }),
     ).toBeVisible();
     // Enter commits the chip and leaves the list open on what is still
     // pickable, and that list hangs over the rows underneath — so the next

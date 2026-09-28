@@ -375,6 +375,55 @@ describe('the chart’s row labels read a name as the plan reads it', () => {
 });
 
 describe('every mark on the chart lands on the calendar day its workday is', () => {
+  it.each([
+    ['SS', 'Start-to-start'],
+    ['FF', 'Finish-to-finish'],
+  ] as const)('names a %s arrow with its full relationship', (type, fullName) => {
+    const chart = planOf({
+      rows: [rowAt('A', 0, 2), rowAt('B', 2, 4)],
+      slices: [sliceAt('A-dev', 'A', 0, 2), sliceAt('B-dev', 'B', 2, 4)],
+      typedDependencies: [
+        {
+          id: 'edge',
+          type,
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+      ],
+    });
+    expect(typedArrowLabel(chart, layOutGantt(chart).typedArrows[0])).toContain(fullName);
+  });
+  itDom('points an FF arrowhead left into the successor finish', () => {
+    const chart = planOf({
+      rows: [rowAt('A', 1, 4), rowAt('B', 3, 6)],
+      slices: [sliceAt('A-dev', 'A', 1, 4), sliceAt('B-dev', 'B', 3, 6)],
+      typedDependencies: [
+        {
+          id: 'ff',
+          type: 'FF',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+      ],
+    });
+    render(
+      <GanttPanel
+        plan={chart}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    askForTheDetail('[data-gantt-typed-arrow="ff"]');
+    const head = markAttribute('[data-gantt-arrow-head="ff-0"]', 'd');
+    const coordinates = /^M ([\d.]+) [\d.]+ L ([\d.]+)/.exec(head);
+    if (coordinates === null) throw new Error(`Unexpected FF head ${head}`);
+    expect(Number(coordinates[2])).toBeGreaterThan(Number(coordinates[1]));
+  });
   it('refuses missing label metadata on the typed arrow label path', () => {
     const chart = planOf({
       rows: [rowAt('A', 0, 2), rowAt('B', 2, 4)],
@@ -444,7 +493,7 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
           typedDependencies={[
             {
               id: 'future',
-              type: 'SS',
+              type: 'SF',
               predecessor: { scope: 'whole', workItemId: 'A' },
               successor: { scope: 'whole', workItemId: 'A' },
             },
@@ -460,7 +509,7 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
       </GanttFaultBoundary>,
     );
     expect(document.querySelector('[data-gantt-fault]')?.textContent).toContain(
-      'unsupported chart dependency SS',
+      'unsupported chart dependency SF',
     );
   });
   itDom(

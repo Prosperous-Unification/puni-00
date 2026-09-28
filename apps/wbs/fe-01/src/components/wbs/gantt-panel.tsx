@@ -643,7 +643,7 @@ export function typedArrowLabel(
   plan: GanttPlan,
   arrow: Pick<
     TypedGanttArrow,
-    'predecessorId' | 'successorId' | 'relationshipIds' | 'count' | 'proxy'
+    'predecessorId' | 'successorId' | 'relationshipIds' | 'count' | 'proxy' | 'type'
   >,
 ): string {
   const rowOf = (rowId: string) => {
@@ -681,7 +681,13 @@ export function typedArrowLabel(
   // Proof: omitting the singular proxy count made `draws an authored FS arrow
   // from an unknown node tick and names a collapsed proxy count` miss "1 link"
   // in its accessible name. Watched 2026-09-28.
-  return `FS dependency from ${rowOf(arrow.predecessorId)} ${scopesOf('predecessor')} to ${rowOf(arrow.successorId)} ${scopesOf('successor')}${arrow.proxy || arrow.count > 1 ? `, ${String(arrow.count)} ${arrow.count === 1 ? 'link' : 'links'}` : ''}`;
+  const typeName =
+    arrow.type === 'FS'
+      ? 'Finish-to-start'
+      : arrow.type === 'SS'
+        ? 'Start-to-start'
+        : 'Finish-to-finish';
+  return `${typeName} dependency from ${rowOf(arrow.predecessorId)} ${scopesOf('predecessor')} to ${rowOf(arrow.successorId)} ${scopesOf('successor')}${arrow.proxy || arrow.count > 1 ? `, ${String(arrow.count)} ${arrow.count === 1 ? 'link' : 'links'}` : ''}`;
 }
 
 /**
@@ -801,6 +807,8 @@ function arrowRoute(
   const tip = route[route.length - 1];
   const beforeTip = route[route.length - 2];
   const arrivesVertically = beforeTip.x === tip.x;
+  // Proof: keeping the FS right-facing head for FF made `points an FF arrowhead left into the successor finish` fail with base x 5.75 left of tip x 6; watched 2026-09-28.
+  const headBackX = beforeTip.x > tip.x ? headX : -headX;
   return {
     kind: 'routed',
     elbow: route
@@ -811,7 +819,7 @@ function arrowRoute(
     // Watched 2026-09-28.
     head: arrivesVertically
       ? `M ${at(tip.x, tip.y)} L ${at(tip.x - headX, tip.y - Math.sign(tip.y - beforeTip.y) * headY)} L ${at(tip.x + headX, tip.y - Math.sign(tip.y - beforeTip.y) * headY)} Z`
-      : `M ${at(tip.x, tip.y)} L ${at(tip.x - headX, tip.y - headY)} L ${at(tip.x - headX, tip.y + headY)} Z`,
+      : `M ${at(tip.x, tip.y)} L ${at(tip.x + headBackX, tip.y - headY)} L ${at(tip.x + headBackX, tip.y + headY)} Z`,
   };
 }
 
@@ -4803,7 +4811,7 @@ function GanttChart({
                     arrow.proxy && '[stroke-dasharray:3_2]',
                     activeTypedId !== null && arrow.relationshipIds.includes(activeTypedId)
                       ? '[stroke-width:2]'
-                      : '[stroke-width:1.5] hover:[stroke-width:2] focus:[stroke-width:2]',
+                      : '[stroke-width:1.25] hover:[stroke-width:2] focus:[stroke-width:2]',
                   )}
                   vectorEffect="non-scaling-stroke"
                   tabIndex={0}
@@ -4863,7 +4871,7 @@ function GanttChart({
                     y={Math.min(arrow.fromRowIndex, arrow.toRowIndex) + 0.18}
                     className="fill-foreground text-[0.35px]"
                   >
-                    FS
+                    {arrow.type}
                   </text>
                 )}
                 {arrow.proxy && (

@@ -942,6 +942,195 @@ describe('a binding floor this build does not know', () => {
 });
 
 describe('dependency arrows', () => {
+  it('uses first whole steps for SS starts and last whole steps for FF finishes', () => {
+    const plan = planOf({
+      rows: [rowAt('A', 0, 4), rowAt('B', 1, 5)],
+      steps: [
+        { id: 'dev', name: 'Dev' },
+        { id: 'qa', name: 'QA' },
+      ],
+      slices: [
+        sliceAt('A-dev', 'A', 0, 2),
+        sliceAt('A-qa', 'A', 2, 4, { stepId: 'qa' }),
+        sliceAt('B-dev', 'B', 1, 3),
+        sliceAt('B-qa', 'B', 3, 5, { stepId: 'qa' }),
+      ],
+      typedDependencies: [
+        {
+          id: 'ss',
+          type: 'SS',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+        {
+          id: 'ff',
+          type: 'FF',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+      ],
+    });
+    expect(placeOnWorkdays(layOutGantt(plan)).typedArrows).toMatchObject([
+      { type: 'SS', predecessorSliceId: 'A-dev', successorSliceId: 'B-dev', fromX: 0, toX: 1 },
+      { type: 'FF', predecessorSliceId: 'A-qa', successorSliceId: 'B-qa', fromX: 4, toX: 5 },
+    ]);
+  });
+  it('attaches SS to starts and FF to actual finishes, including an unknown tick', () => {
+    const plan = planOf({
+      rows: [rowAt('A', 1, 4), rowAt('B', 3, 6)],
+      slices: [sliceAt('A-dev', 'A', 1, 4), sliceAt('B-dev', 'B', 3, 6)],
+      typedDependencies: [
+        {
+          id: 'ss',
+          type: 'SS',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+        {
+          id: 'ff',
+          type: 'FF',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+      ],
+    });
+    expect(placeOnWorkdays(layOutGantt(plan)).typedArrows).toMatchObject([
+      { type: 'SS', fromX: 1, toX: 3 },
+      { type: 'FF', fromX: 4, toX: 6 },
+    ]);
+    const unknown = planOf({
+      rows: [rowAt('A', 0, 0), rowAt('B', 2, 2)],
+      slices: [
+        sliceAt('A-dev', 'A', 0, 0, { estimated: false }),
+        sliceAt('B-dev', 'B', 2, 2, { estimated: false }),
+      ],
+      typedDependencies: [
+        {
+          id: 'ff',
+          type: 'FF',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+      ],
+    });
+    const unknownPlaced = placeOnWorkdays(layOutGantt(unknown));
+    expect(unknownPlaced.typedArrows[0]).toMatchObject({
+      fromX: 0,
+      toX: 2,
+    });
+    const unknownRoute = routeArrow(
+      unknownPlaced.typedArrows[0],
+      unknownPlaced.bars,
+      { approach: 0.4, barInset: 0.18 },
+      { boundaryEntry: true },
+    );
+    expect(unknownRoute?.at(-2)?.x).toBe(2);
+    expect(unknownRoute?.at(-1)?.x).toBe(2);
+  });
+
+  it('routes FF into a second unknown step lane at its zero-time tick', () => {
+    const plan = planOf({
+      rows: [rowAt('A', 0, 2), rowAt('B', 2, 2)],
+      steps: [
+        { id: 'dev', name: 'Dev' },
+        { id: 'qa', name: 'QA' },
+      ],
+      slices: [
+        sliceAt('A-dev', 'A', 0, 2),
+        sliceAt('B-dev', 'B', 2, 2, { estimated: false }),
+        sliceAt('B-qa', 'B', 2, 2, { stepId: 'qa', estimated: false }),
+      ],
+      typedDependencies: [
+        {
+          id: 'ff',
+          type: 'FF',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'qa' },
+        },
+      ],
+    });
+    const placed = placeOnWorkdays(layOutGantt(plan));
+    const route = routeArrow(
+      placed.typedArrows[0],
+      placed.bars,
+      { approach: 0.4, barInset: 0.18 },
+      { boundaryEntry: true },
+    );
+    expect(route?.at(-1)?.x).toBe(2);
+    expect(route?.at(-2)?.x).toBe(2);
+  });
+
+  it('routes SS left of both starts and FF right of both finishes', () => {
+    const plan = planOf({
+      rows: [rowAt('A', 1, 4), rowAt('B', 3, 6)],
+      slices: [sliceAt('A-dev', 'A', 1, 4), sliceAt('B-dev', 'B', 3, 6)],
+      typedDependencies: [
+        {
+          id: 'ss',
+          type: 'SS',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+        {
+          id: 'ff',
+          type: 'FF',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+      ],
+    });
+    const placed = placeOnWorkdays(layOutGantt(plan));
+    const ss = routeArrow(
+      placed.typedArrows[0],
+      placed.bars,
+      { approach: 0.4, barInset: 0.18 },
+      { boundaryEntry: true },
+    );
+    const ff = routeArrow(
+      placed.typedArrows[1],
+      placed.bars,
+      { approach: 0.4, barInset: 0.18 },
+      { boundaryEntry: true },
+    );
+    expect(ss?.[0].x).toBe(1);
+    expect(ss?.at(-1)?.x).toBe(3);
+    expect(ss?.some((point) => point.x < 1)).toBe(true);
+    expect(ff?.[0].x).toBe(4);
+    expect(ff?.at(-1)?.x).toBe(6);
+    expect(ff?.some((point) => point.x > 6)).toBe(true);
+    expect(ff?.at(-2)?.x).toBeGreaterThan(6);
+    expect(ff?.at(-2)?.y).toBe(ff?.at(-1)?.y);
+  });
+
+  it('keeps collapsed proxy types separate', () => {
+    const plan = planOf({
+      rows: [rowAt('P', 0, 2, { leaf: false }), rowAt('A', 0, 2, { depth: 1 }), rowAt('Q', 2, 4)],
+      tree: [
+        { id: 'P', parentId: null },
+        { id: 'A', parentId: 'P' },
+        { id: 'Q', parentId: null },
+      ],
+      slices: [sliceAt('A-dev', 'A', 0, 2), sliceAt('Q-dev', 'Q', 2, 4)],
+      typedDependencies: [
+        {
+          id: 'ss',
+          type: 'SS',
+          predecessor: { scope: 'whole', workItemId: 'P' },
+          successor: { scope: 'whole', workItemId: 'Q' },
+        },
+        {
+          id: 'ff',
+          type: 'FF',
+          predecessor: { scope: 'whole', workItemId: 'P' },
+          successor: { scope: 'whole', workItemId: 'Q' },
+        },
+      ],
+    });
+    expect(layOutGantt({ ...plan, rows: [plan.rows[0], plan.rows[2]] }).typedArrows).toMatchObject([
+      { type: 'SS', proxy: true, count: 1 },
+      { type: 'FF', proxy: true, count: 1 },
+    ]);
+  });
   it('uses project step order for whole endpoints despite shuffled slices', () => {
     const plan = planOf({
       rows: [rowAt('A', 0, 4), rowAt('B', 4, 8)],

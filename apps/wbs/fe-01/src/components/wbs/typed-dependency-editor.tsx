@@ -4,6 +4,7 @@ import type {
   PlanRead,
   StepView,
   TypedDependencyEndpoint,
+  TypedDependencyType,
   TypedDependencyView,
 } from '@/lib/wbs-api';
 
@@ -101,8 +102,29 @@ export function dependencyWords(
         : `${stepOf(steps, endpoint.stepId).name} step of all descendant work items under ${row.number} ${row.name}`;
   return {
     chip: `${source} ${dependency.type}${target}`,
-    label: `${nameOf(dependency.predecessor, predecessor)} finishes before ${nameOf(dependency.successor, successor)} starts`,
+    label: `${nameOf(dependency.predecessor, predecessor)} to ${nameOf(dependency.successor, successor)}, ${relationshipName(dependency.type)}`,
   };
+}
+
+/** The full relationship name used by chips and the lower-bound explanation. */
+export function relationshipName(type: string): string {
+  switch (type) {
+    case 'FS':
+      return 'Finish-to-start';
+    case 'SS':
+      return 'Start-to-start';
+    case 'FF':
+      return 'Finish-to-finish';
+    default:
+      // Proof: treating unknown SF as FS made `refuses an unknown relationship in a read chip and an edit` stop throwing for dependencyWords; watched 2026-09-28.
+      throw new Error(`Unknown dependency relationship ${type}`);
+  }
+}
+
+function dependencyTypeOf(type: string): TypedDependencyType {
+  if (type === 'FS' || type === 'SS' || type === 'FF') return type;
+  // Proof: coercing an unknown SF edit to FS made `refuses an unknown relationship in a read chip and an edit` stop throwing in the editor; watched 2026-09-28.
+  throw new Error(`Unknown dependency relationship ${type}`);
 }
 
 /** Scope choices in project step order; a parent expands each step across its leaves. */
@@ -164,6 +186,7 @@ export function TypedDependencyEditor({
   onSave: (
     predecessor: TypedDependencyEndpoint,
     successor: TypedDependencyEndpoint,
+    type: TypedDependencyType,
   ) => Promise<'landed' | 'refused' | 'unsent'>;
   onRemove?: () => Promise<'landed' | 'refused' | 'unsent'>;
 }) {
@@ -176,6 +199,10 @@ export function TypedDependencyEditor({
   const [successorKey, setSuccessorKey] = useState(
     initialKey(dependency?.successor) ?? preferredStepId ?? 'whole',
   );
+  const [relationshipType, setRelationshipType] = useState<TypedDependencyType>(() => {
+    if (dependency === undefined) return 'FS';
+    return dependencyTypeOf(dependency.type);
+  });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const backButton = useRef<HTMLButtonElement>(null);
@@ -212,7 +239,11 @@ export function TypedDependencyEditor({
   const save = async () => {
     if (chosenPredecessor === undefined || chosenSuccessor === undefined) return;
     setBusy(true);
-    const outcome = await onSave(chosenPredecessor.endpoint, chosenSuccessor.endpoint);
+    const outcome = await onSave(
+      chosenPredecessor.endpoint,
+      chosenSuccessor.endpoint,
+      relationshipType,
+    );
     setBusy(false);
     if (outcome === 'landed') onCancel();
     else setMessage('Dependency refused. Review the selected scopes and try again.');
@@ -273,12 +304,21 @@ export function TypedDependencyEditor({
       </label>
       <label>
         Relationship
-        <select value="FS" disabled>
-          <option value="FS">FS · Finish to start</option>
+        <select
+          value={relationshipType}
+          onChange={(event) => {
+            setRelationshipType(dependencyTypeOf(event.target.value));
+          }}
+        >
+          <option value="FS">FS · Finish-to-start</option>
+          <option value="SS">SS · Start-to-start</option>
+          <option value="FF">FF · Finish-to-finish</option>
         </select>
       </label>
       <p>
-        {successor.number} may start when {predecessor.number} has finished.
+        {relationshipName(relationshipType)}: {successor.number}{' '}
+        {relationshipType === 'FF' ? 'finishes' : 'starts'} no earlier than {predecessor.number}{' '}
+        {relationshipType === 'SS' ? 'starts' : 'finishes'}.
       </p>
       {message !== '' && <p role="alert">{message}</p>}
       <div className="typed-dependency-actions">
