@@ -91,6 +91,8 @@ export function renameWords(
     case 'insufficient_scope':
     case 'invalid_json':
     case 'invalid_body':
+    case 'no_active_organization':
+    case 'not_a_member':
       return `The rename was refused (${refusal.error}).`;
     default:
       return unreachable(refusal);
@@ -250,6 +252,8 @@ export function SavedPlansPanel({
               case 'unsupported_body_version':
               case 'invalid_body':
               case 'invalid_query':
+              case 'no_active_organization':
+              case 'not_a_member':
                 return { kind: 'error', code: reply.body.error };
               default:
                 return unreachable(reply.body);

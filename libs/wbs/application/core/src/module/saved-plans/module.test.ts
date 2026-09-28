@@ -4,6 +4,7 @@ import { DiBag } from 'di-bag';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
+import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Digest } from '../../ports/runtime';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
@@ -118,7 +119,7 @@ describe('the Saved plans module', () => {
 
     const outcome = await savePlan(
       { projects, plans: savedPlans, announcements },
-      { projectId, actor: owner, name: 'Announced' },
+      { projectId, actor: owner, name: 'Announced', access: LEGACY_ACCESS },
     );
 
     expect(outcome).toHaveProperty('outcome', 'saved');
@@ -214,13 +215,16 @@ describe('a saved plan and step allowances', () => {
     if (saved.outcome !== 'saved') throw new Error(`save answered ${saved.outcome}`);
 
     await source.stores.projects.setStepAllowance(created.project.id, qa.id, 50, stamp);
+    await source.stores.steps.rename(created.project.id, qa.id, 'Renamed QA', stamp);
 
     const read = await savedPlans.read(saved.record.id);
     if (read.outcome !== 'read') throw new Error(`read answered ${read.outcome}`);
     const body = JSON.parse(read.plan.input.bytes) as {
-      steps: { id: string; allowancePercent: number }[];
+      steps: { id: string; code: string | null; name: string; allowancePercent: number }[];
     };
-    expect(read.plan.input.schemaVersion).toBe(2);
+    expect(read.plan.input.schemaVersion).toBe(3);
     expect(body.steps.find((step) => step.id === qa.id)?.allowancePercent).toBe(30);
+    expect(body.steps.find((step) => step.id === qa.id)?.code).toBe(qa.code);
+    expect(body.steps.find((step) => step.id === qa.id)?.name).toBe(qa.name);
   });
 });

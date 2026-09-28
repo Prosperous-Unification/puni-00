@@ -74,7 +74,7 @@ function renamedReply(outcome: StepOutcome): HttpReply<typeof renameStep> {
  * prelude and settles with it; the rename itself is not journalled.
  */
 export function stepRoutes(
-  steps: StepService,
+  steps: Pick<StepService, 'addWithin' | 'findWithin' | 'removeWithin' | 'renameWithin'>,
   commands: Pick<PlanCommandRunner, 'runAfterWithin'>,
   organizations: OrganizationAccess,
 ) {
@@ -226,6 +226,14 @@ export function stepRoutes(
               status: 409,
               body: { error: outcome.reason, inUse: outcome.inUse },
             };
+          case 'referenced_by_dependency':
+            return {
+              ok: false,
+              status: 409,
+              body: { error: outcome.reason, dependencyIds: outcome.dependencyIds },
+            };
+          case 'dependency_cycle':
+            return { ok: false, status: 409, body: { error: outcome.reason } };
           case 'not_found':
             return { ok: false, status: 404, body: { error: outcome.reason } };
           case 'forbidden':

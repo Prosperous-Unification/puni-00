@@ -1,3 +1,4 @@
+import { inMemoryStores } from '@wbs/store-memory/in-memory-source';
 import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { inMemorySteps, stepRow } from '@wbs/store-memory/step-fixture';
 import { expect, spyOn, test } from 'bun:test';
@@ -6,6 +7,7 @@ import type {
   BatchPrelude,
   PlanCommandServices,
 } from '../module/plan-commands/plan-commands.feature';
+import { DependencyGraphGuard } from '../service/dependency-graph';
 import type { PlanCommand } from '../service/plan-command';
 import { StepService } from '../service/step.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -31,7 +33,13 @@ async function fixture(restricted = false) {
   ]);
   const addWrite = spyOn(stored, 'add');
   const broadcast = recordingBroadcaster();
-  const service = new StepService({ clock: testClock, projects, steps: stored, broadcast });
+  const service = new StepService({
+    dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects: projects }),
+    clock: testClock,
+    projects,
+    steps: stored,
+    broadcast,
+  });
   const commandsRun: unknown[] = [];
   // The fake runs the prelude over the fixture's own step service, as the
   // runner runs it over the batch's graph; the batch itself only records.
@@ -153,6 +161,7 @@ test('typed name bindings preserve every modeled service refusal without a statu
 test('typed removal carries every usage field and only literal true confirms cascade', async () => {
   const { projects, stored, broadcast } = await fixture();
   const service = new StepService({
+    dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects: projects }),
     clock: testClock,
     projects,
     broadcast,

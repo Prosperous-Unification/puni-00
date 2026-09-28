@@ -6,6 +6,7 @@ import type { PlanDocumentImport } from '@wbs/contracts';
 import {
   clockOf,
   ImportService,
+  LEGACY_ACCESS,
   prepareImport,
   servicesOver,
   type TransactionalStores,
@@ -123,7 +124,7 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
         servicesOver(scope.stores, { clock, broadcast, scheduler: fastScheduler }),
     });
 
-    const outcome = await imports.import(document, ACTOR);
+    const outcome = await imports.import(document, ACTOR, LEGACY_ACCESS);
     if (queuedWrite === undefined) throw new Error('ordinary write was not queued during import');
     const queuedTag = await queuedWrite;
     expect(outcome.ok).toBe(true);

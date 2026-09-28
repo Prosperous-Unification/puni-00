@@ -7,6 +7,7 @@ import {
 import { expect, test } from 'bun:test';
 
 import type { CalendarMarker, DirectoryStore, Project } from '../../index';
+import { LEGACY_ACCESS } from '../../ports/organization-access';
 import { classifyPlanDocument, PlanDocumentService } from './plan-document.resource';
 
 const PROJECT: Project = {
@@ -167,6 +168,7 @@ const MARKERS: CalendarMarker[] = [
 
 function directory(): Pick<
   DirectoryStore,
+  | 'listInOrganization'
   | 'listTeams'
   | 'listPeople'
   | 'listTags'
@@ -208,6 +210,8 @@ function directory(): Pick<
         { id: 'system-used', name: 'Tracker' },
         { id: 'system-unused', name: 'Unrelated tracker' },
       ]),
+    listInOrganization: () =>
+      Promise.reject(new Error('a legacy export read an organization catalog')),
   };
 }
 
@@ -220,7 +224,7 @@ function service(directorySource = directory()) {
 }
 
 async function exportDocument(tree: WorkItemTree = TREE): Promise<PlanDocument> {
-  const exported = await service().export(PROJECT, tree);
+  const exported = await service().export(PROJECT, tree, LEGACY_ACCESS);
   if (!exported.ok) throw new Error(`export refused: ${exported.error}`);
   return exported.value;
 }
@@ -296,7 +300,7 @@ test('missing referenced entry throws', async () => {
   const missingTag = directory();
   missingTag.listTags = () => Promise.resolve([]);
   const cause = await service(missingTag)
-    .export(PROJECT, TREE)
+    .export(PROJECT, TREE, LEGACY_ACCESS)
     .catch((caught: unknown) => caught);
   expect(cause).toBeInstanceOf(Error);
   expect((cause as Error).message).toContain('tag "tag-used"');
@@ -403,7 +407,7 @@ test('refuses to export a project holding an uncoded step, naming it', async () 
   if (step === undefined) throw new Error('fixture has no step');
   step.code = null;
 
-  expect(await service().export(PROJECT, uncoded)).toEqual({
+  expect(await service().export(PROJECT, uncoded, LEGACY_ACCESS)).toEqual({
     ok: false,
     error: 'uncoded_steps',
     steps: [{ id: step.id, name: step.name }],
@@ -416,7 +420,7 @@ test('throws on a step read without a code key', async () => {
   Reflect.deleteProperty(keyless.steps[0] ?? {}, 'code');
 
   const cause = await service()
-    .export(PROJECT, keyless)
+    .export(PROJECT, keyless, LEGACY_ACCESS)
     .catch((caught: unknown) => caught);
   expect(cause).toBeInstanceOf(Error);
   expect((cause as Error).message).toContain('was read without a code');

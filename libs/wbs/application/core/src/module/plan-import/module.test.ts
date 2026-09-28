@@ -4,6 +4,7 @@ import { DiBag } from 'di-bag';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
+import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scope } from '../../ports/unit-of-work';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
@@ -69,7 +70,7 @@ describe('the Plan import module', () => {
     if (row === undefined) throw new Error('fixture lost its own first work item');
     row.deadline = '2026-09-13';
 
-    expect(await imports.import(document, 'importer')).toMatchObject({
+    expect(await imports.import(document, 'importer', LEGACY_ACCESS)).toMatchObject({
       ok: false,
       code: 'deadline_before_project_start',
       path: 'workItems[0].deadline',
@@ -85,7 +86,7 @@ describe('the Plan import module', () => {
     if (row === undefined) throw new Error('fixture lost its own first work item');
     row.typeIds = ['type-1', 'type-2'];
 
-    expect(await imports.import(document, 'importer')).toEqual({
+    expect(await imports.import(document, 'importer', LEGACY_ACCESS)).toEqual({
       ok: false,
       code: 'work_item_takes_one_type',
       path: 'workItems[0].typeIds',
@@ -98,7 +99,7 @@ describe('the Plan import module', () => {
     const announcements = recordingBroadcaster();
     const { imports } = installPlanImport({ ...requirements(), announcements });
 
-    const outcome = await imports.import(planDocumentFixture(), 'importer');
+    const outcome = await imports.import(planDocumentFixture(), 'importer', LEGACY_ACCESS);
 
     expect(outcome).toMatchObject({ ok: true, rows: 1 });
     expect(

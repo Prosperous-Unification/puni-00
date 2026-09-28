@@ -69,6 +69,7 @@ const materialise = (offsets: SolverOffsetMap) =>
     new Map(),
     new Map(),
     'whole-item',
+    [],
     offsets,
   );
 
@@ -93,7 +94,15 @@ describe('materialiseOptimized', () => {
 
   it('round-trips the quantised baseline back onto Fast on a fixture the quantum rounds nothing on', () => {
     const { rows, edges, slices } = wholeDays;
-    const offsets = quantisedFastBaseline(rows, edges, slices, new Map(), new Map(), 'whole-item');
+    const offsets = quantisedFastBaseline(
+      rows,
+      edges,
+      slices,
+      new Map(),
+      new Map(),
+      'whole-item',
+      [],
+    );
     const fast = schedule(rows, edges, slices, new Map(), new Map(), 'whole-item');
     const placed = materialise(offsets);
 
@@ -139,6 +148,7 @@ describe('materialiseOptimized', () => {
       new Map(),
       new Map(),
       'whole-item',
+      [],
     );
     const fast = schedule(rows, noEdges, slices, new Map(), new Map(), 'whole-item');
 
@@ -149,6 +159,7 @@ describe('materialiseOptimized', () => {
       new Map(),
       new Map(),
       'whole-item',
+      [],
       offsets,
     );
 
@@ -254,6 +265,7 @@ describe('materialiseOptimized over the Fast golden corpus', () => {
         notBefore,
         poolSizes,
         reach,
+        [],
       );
       const fast = schedule(each.rows, each.edges, each.slices, notBefore, poolSizes, reach);
       const placed = materialiseOptimized(
@@ -263,6 +275,7 @@ describe('materialiseOptimized over the Fast golden corpus', () => {
         notBefore,
         poolSizes,
         reach,
+        [],
         offsets,
       );
 

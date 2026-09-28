@@ -226,6 +226,12 @@
       "rationale": "prepare-import.ts and work-item.service.ts call canDepend as a pure check over work-item and dependency values with no store or clock"
     },
     {
+      "path": "libs/wbs/application/core/src/service/dependency-graph.ts",
+      "kind": "support",
+      "disposition": "shared by the work item, project and step resources; move beside dependency.ts",
+      "rationale": "work-item.resource.ts, project.resource.ts and step.resource.ts ask DependencyGraphGuard whether the combined step-node dependency graph their write would leave holds a cycle; it reads the project's stores and holds no clock"
+    },
+    {
       "path": "libs/wbs/application/core/src/service/directory-usage.ts",
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
