@@ -1978,7 +1978,12 @@ function rebuildResourceOrder(
 /**
  * Place weighted DAG nodes; pins materialize in plan order, then resources replay in actual time.
  * A pin must meet its explicit floor and the dependency's materialized boundary;
- * nominal weighted sums can round above a valid fractional FF pin.
+ * nominal weighted sums can round above a valid fractional FF pin. A pin short
+ * of a materialized boundary by less than {@link withinDrift} is moved onto it
+ * (start for FS/SS, finish for FF), because the pin divides back from
+ * `k / SOLVER_QUANTUM` while the boundary accumulated `start + days`; a real
+ * violation is short by at least one solver unit and still throws
+ * {@link ScheduleInvalidOptimizedStartError}.
  */
 function placeWeightedSlices(
   graph: SliceGraph,
@@ -2067,9 +2072,16 @@ function placeWeightedSlices(
         // successor against the materialized predecessor finish` fail:
         // B finished at 32024810461.572468 before A at
         // 32024810461.57247; watched 2026-09-28.
-        const violates = edge.type === 'FF' ? candidate.finish < boundary : start < boundary;
-        if (!violates) continue;
-        if (pinned !== undefined) {
+        const observed = edge.type === 'FF' ? candidate.finish : start;
+        if (observed >= boundary) continue;
+        // A pin within DRIFT below its boundary is the solver's tight answer
+        // read on another rounding, as in {@link pinFloor}; it snaps onto the
+        // boundary through the Fast adjustment below. Proof: throwing on every
+        // `observed < boundary` again made `accepts every tight FS and FF pin
+        // on the solver axis` report 1867 refusals (868 FS, 999 FF, 0 on the
+        // all-FS control) and `accepts 7/48 + 0.25 against a pin at 19/48
+        // across FS` throw; watched 2026-09-28 (21 pass / 2 fail).
+        if (pinned !== undefined && !withinDrift(observed, boundary)) {
           throw new ScheduleInvalidOptimizedStartError(
             node.key,
             `violates ${edge.type} materialized boundary`,

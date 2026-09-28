@@ -15,6 +15,10 @@ import { groupSlicesByLeaf } from './slice-groups';
  * Both Fast and optimized publication use this after placement, so rounded
  * integer finishes cannot hide a fractional FF violation.
  *
+ * The comparison is strict, without `withinDrift`, on purpose: both placement
+ * paths already move a pin that is short by drift onto the boundary itself, so
+ * any shortfall reaching this check is a placement bug, not solver rounding.
+ *
  * Throws {@link ScheduleInvalidOptimizedStartError} for a missing or early
  * materialized slice. The optimized caller classifies that as invalid output.
  */
