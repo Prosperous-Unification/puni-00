@@ -2,7 +2,13 @@
 
 ## Slice 0 — spec
 
-Base `batch-9/integration-25` (`ffbe37be`), because main was still `262d006c` on 2026-09-28.
+### Constraints
+
+- The REMOVED requirements in `specs/wbs-domain/spec.md` name headings that exist only in the
+  unarchived changes `work-item-status-and-facts` and `status-from-the-menu`. Archive those two
+  before this change, or its archive cannot find the requirements it removes.
+
+Written on `batch-9/integration-25` (`ffbe37be`) while main was `262d006c`; retargeted to main at `f0feb5dd` (round 25, the same tree).
 
 ## Slice 1 — vocabulary and folds
 

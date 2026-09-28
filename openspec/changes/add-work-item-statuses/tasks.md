@@ -35,8 +35,9 @@
 - [ ] 3.1 Red: migrate/down walk; `setStatus` for each status on leaf and parent, refusals,
       journal inverse, hand-down, last-child fold, duplicate; read shape.
 - [ ] 3.2 Green: migration (stamp rechecked against main and the queue), guarded `down.sql`,
-      `work-item-hold-rollback-cli.ts`, widened command, CLI prints both kinds; settle the two
-      open questions in `design.md`.
+      `work-item-hold-rollback-cli.ts`, widened command and `SETTABLE_STATUSES`, CLI prints both
+      kinds; the three `in_progress` cases (parent, reopen, `409 no_steps`, which `done` gains
+      too).
 - [ ] 3.3 Negatives: guard deleted → down succeeds over held rows; inverse omitting `hold` →
       undo leaves the row held; `invalid_status` guard removed → 500 instead of 400.
 

@@ -41,7 +41,7 @@ SHALL remain its progress.
 
 A leaf SHALL read `blocked_by_proxy` exactly when it reads neither `done`, a hold nor
 `in_progress`, and a chain of dependencies reaches it from a leaf holding `on_hold` or
-`blocked` through leaves each reading `unknown`, `draft` or `ready` apart from their hold.
+`blocked` through unstarted or held leaves.
 Predecessors SHALL come from every legacy and typed dependency, of every relationship type,
 expanded to leaves, whether or not the predecessor takes part in the schedule. A leaf reading
 `done` or `in_progress` SHALL stop the chain. No leaf SHALL read `blocked_by_proxy` without such
@@ -80,8 +80,8 @@ A parent's status SHALL be, in order: `done` when every child reads `done`; `on_
 every child reads `on_hold`; `blocked` when every child reads `blocked`; `in_progress` when
 any child reads `done` or `in_progress`; `blocked_by_proxy` when every child reads `on_hold`,
 `blocked` or `blocked_by_proxy`; otherwise, over the children reading none of those three,
-`unknown` when any reads `unknown`, `draft` when any reads `draft`, else `ready`. A parent with
-no children SHALL read `unknown`. Folding a parent's children and folding every leaf beneath
+`unknown` when any reads `unknown`, `draft` when any reads `draft`, else `ready`. The fold of
+no children SHALL be `unknown`. Folding a parent's children and folding every leaf beneath
 it SHALL give the same status for every partition of the leaves.
 
 #### Scenario: a branch with one held and one ready leaf is ready
@@ -149,14 +149,22 @@ it.
 
 `setStatus` SHALL act on a leaf, or on every leaf beneath a parent, as one journal entry whose
 inverse restores every prior progress statement, readiness, hold and fact date verbatim.
-`done` SHALL write today's done statements and clear the hold. `in_progress` SHALL write
-`in_progress` on the leaf's first step in step order holding no statement — for a parent, on
-its first such leaf in tree order only — fill an empty fact start with `on` or the day of the
-act, and clear the hold. `ready` and `draft` SHALL set readiness and clear the hold, and SHALL
+`done` SHALL write today's done statements and clear the hold. `in_progress` on a leaf not
+reading `done` SHALL write `in_progress` on its first step in step order holding no statement,
+fill an empty fact start with `on` or the day of the act, and clear that leaf's hold. On a
+parent it SHALL start one leaf only: the first in tree order holding no progress statement,
+preferring unheld leaves, and only when every such leaf is held the first held one; it SHALL
+clear the hold of that leaf alone, and a parent already reading `in_progress` SHALL write
+nothing. `in_progress` on a leaf reading `done` SHALL reopen it: its last step in step order
+goes from `done` to `in_progress` and its fact end is cleared while its fact start stays; on a
+parent reading `done` the same SHALL happen on its first leaf in tree order, and the parent's
+own fact end SHALL be cleared too. In a project with no steps `in_progress` and `done` SHALL be
+refused `409 no_steps`, and the menu SHALL NOT offer `in_progress` there. `ready` and `draft` SHALL set readiness and clear the hold, and SHALL
 be refused `409 readiness_after_progress` when a leaf holds any progress statement. `on_hold`
 and `blocked` SHALL set the hold and leave progress, readiness and facts untouched, and SHALL
 be refused `409 cannot_hold_done` on a leaf reading `done`. `unknown` SHALL clear progress,
-readiness and hold. Any status other than a hold SHALL clear the hold. When nothing would
+readiness and hold. Any status other than a hold SHALL clear the hold of every leaf it acts on.
+When nothing would
 change, nothing SHALL be written, journalled or announced.
 
 #### Scenario: resuming returns the row to what it was
@@ -171,6 +179,28 @@ change, nothing SHALL be written, journalled or announced.
 - **WHEN** `setStatus` sets it `in_progress` on `2026-10-01`
 - **THEN** only the first leaf in tree order gains `in_progress` on its first step and fact start
   `2026-10-01`, and the parent reports `in_progress`
+
+#### Scenario: in progress on a parent prefers an unheld leaf and clears only its hold
+
+- **GIVEN** a parent whose leaves in tree order are L1 `on_hold`, L2 with nothing said and L3
+  `blocked`
+- **WHEN** `setStatus` sets the parent `in_progress`
+- **THEN** only L2 gains `in_progress` on its first step; L1 stays `on_hold` and L3 stays
+  `blocked`; had L2 been held too, L1 would start and lose its hold; a parent already reading
+  `in_progress` writes nothing and journals nothing
+
+#### Scenario: in progress reopens a done leaf
+
+- **GIVEN** a leaf done on `Dev` and `QA` with fact start `2026-09-01` and fact end `2026-09-20`
+- **WHEN** `setStatus` sets it `in_progress`
+- **THEN** `QA` reads `in_progress`, `Dev` stays `done`, the fact end is `null`, the fact start is
+  `2026-09-01`, and one undo restores `QA: done` and the fact end `2026-09-20`
+
+#### Scenario: a project with no steps cannot be started or finished
+
+- **GIVEN** a project holding no steps and one leaf
+- **WHEN** `setStatus` sets the leaf `in_progress` or `done`
+- **THEN** it is refused `409 no_steps`, nothing is written, and the row menu offers neither
 
 #### Scenario: one undo restores a held branch
 

@@ -57,9 +57,10 @@ As the ADR and spec state: two nullable CHECKed columns, vocabularies in
 save|remove|restore`; the swap's `relationship-types` step generalises to a stored-vocabularies
 step reading `supported-vocabularies-cli.ts`.
 
-## Open for slice 3 (easily reversible, decided there with a test)
+## Settled by the design authority for slice 3 (Fable review, 2026-09-28)
 
-- `in_progress` on a leaf reading `done`, or in a project with no steps: which statement, if
-  any, it writes.
-- Whether `in_progress` on a parent clears the hold on every leaf beneath or only on the leaf it
-  starts.
+The three `in_progress` cases are specified in `specs/wbs-domain/spec.md` under "A work item's
+status is set by one act for every settable status": a parent starts one leaf and clears only
+its hold, a done leaf reopens its last step, and a project with no steps refuses `409
+no_steps` for `in_progress` and, new in slice 3, for `done`. On a parent reading done, the
+parent's own fact end (filled by today's `setStatus done`) is cleared with its first leaf's.
