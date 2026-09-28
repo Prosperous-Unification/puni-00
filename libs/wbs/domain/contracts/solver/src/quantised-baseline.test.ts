@@ -119,6 +119,28 @@ const noConstraints: LeafConstraintMaps = {
 };
 
 describe('quantisedFastBaseline', () => {
+  it('keeps an FF successor after a sub-unit predecessor with an unknown duration', () => {
+    const rows = [row('A', 0), row('B', 1)];
+    const slices = [sliceOf('A', null, 5e-10), sliceOf('B', null, null)];
+    const typed = [
+      {
+        id: 'ff',
+        predecessor: { scope: 'whole' as const, workItemId: 'A' },
+        successor: { scope: 'whole' as const, workItemId: 'B' },
+        type: 'FF' as const,
+      },
+    ];
+    const offsets = quantisedFastBaseline(
+      rows,
+      [],
+      slices,
+      new Map(),
+      new Map(),
+      'whole-item',
+      typed,
+    );
+    expect(offsets['B\u0000']).toBeGreaterThanOrEqual(offsets['A\u0000'] + 1);
+  });
   it('places the 0.030/0.021 FF successor after the strengthened unit bound', () => {
     const rows = [row('A', 0), row('B', 1)];
     const slices = [sliceOf('A', null, 0.03), sliceOf('B', null, 0.021)];

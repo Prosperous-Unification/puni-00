@@ -188,8 +188,11 @@ def check_cross_field(request: dict[str, Any]) -> None:
         # Independent receiver guard for the typed edge contract. JSON Schema
         # also states this shape, but the model must never treat an omitted or
         # malformed FF weight as an implicit zero.
-        # Proof: removing this block made all six TypedEdgeBoundary negative
-        # subcases accept malformed edges (2026-09-28 observed unittest FAIL).
+        # Proof (helper scope): removing this block made all six
+        # TypedEdgeBoundary helper negatives accept malformed edges. The
+        # production entrypoint also has JSON Schema protection. Disabling both
+        # made its malformed-edge test fail in all three subcases (RequestRejected
+        # not raised); both faults were restored before the green run.
         edge_type = edge.get("type")
         if edge_type not in ("FS", "SS", "FF"):
             raise RequestRejected(f"edges[{index}] has unsupported dependency type {edge_type!r}")

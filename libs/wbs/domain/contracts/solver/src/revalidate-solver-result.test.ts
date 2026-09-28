@@ -169,10 +169,16 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       baselineOffsets: { [a]: 0, [b]: 0 },
       fastHint: { [a]: 0, [b]: 0 },
     });
-    // Proof: skipping canonical W_FF recomputation accepted this forged zero;
-    // the production revalidator then returned published:false for unknown.
+    // Proof: with both the direct weight comparison and the canonical edge
+    // signature's weight removed, this production-shaped call accepted forged
+    // zero (expected false, received true); either protection alone rejects it.
     rejects(
-      revalidateSolverResult(forged, { wireVersion: 2, status: 'unknown' }, real),
+      revalidateSolverResult(
+        forged,
+        { wireVersion: 2, status: 'unknown' },
+        real,
+        canonicalPair(real, 'FF'),
+      ),
       'malformed-request',
     );
   });

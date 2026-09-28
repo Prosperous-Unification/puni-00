@@ -176,6 +176,7 @@ export function quantisedFastBaseline(
     .map(([key]) => key)
     .sort();
   const serial: Record<string, number> = {};
+  const predecessorBounds = new Map<string, number>();
   let cursor = 0;
   while (ready.length > 0) {
     const key = ready.shift();
@@ -183,10 +184,21 @@ export function quantisedFastBaseline(
     const slice = byKey.get(key);
     const duration = durationByKey.get(key);
     if (slice === undefined || duration === undefined) throw new Error(`no canonical slice ${key}`);
-    const start = Math.max(cursor, notBeforeUnitsOf(floors, slice.workItemId));
+    // Proof: omitting the predecessor bound left the 5e-10-day FF predecessor
+    // and unknown successor at the same unit; the focused baseline test failed.
+    const start = Math.max(
+      cursor,
+      notBeforeUnitsOf(floors, slice.workItemId),
+      predecessorBounds.get(key) ?? 0,
+    );
     serial[key] = start;
     cursor = start + duration;
     for (const edge of outgoing.get(key) ?? []) {
+      const weight = edge.type === 'FF' ? edge.startWeightUnits : edge.type === 'FS' ? duration : 0;
+      predecessorBounds.set(
+        edge.successorKey,
+        Math.max(predecessorBounds.get(edge.successorKey) ?? 0, start + weight),
+      );
       const remaining = pending.get(edge.successorKey);
       if (remaining === undefined) throw new Error(`no successor slice ${edge.successorKey}`);
       pending.set(edge.successorKey, remaining - 1);

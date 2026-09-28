@@ -133,6 +133,26 @@ describe('typed dependency rollback', () => {
     }
   });
 
+  it('restores saved SS and FF relationships as readable rows', async () => {
+    const snapshot = saved();
+    withConnection((db) => removeSavedTypedDependencies(db, snapshot));
+    const rows = [
+      { ...snapshot.rows[0], type: 'SS' },
+      { ...snapshot.rows[1], type: 'FF' },
+    ];
+    expect(withConnection((db) => restoreTypedDependencies(db, { ...snapshot, rows }))).toBe(2);
+    const connection = openConnection(path);
+    try {
+      expect(
+        (await new TypedDependencyRepository(connection.db, OPEN).listByProject('p')).map(
+          ({ type }) => type,
+        ),
+      ).toEqual(['SS', 'FF']);
+    } finally {
+      connection.close();
+    }
+  });
+
   it('refuses a same-count save with a different id or column and deletes nothing', () => {
     const snapshot = saved();
     for (const rows of [

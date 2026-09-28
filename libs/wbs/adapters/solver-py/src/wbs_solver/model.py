@@ -25,8 +25,9 @@ Six clauses, in the re-validator's own order:
 
 1. **Offset domain** — `0 <= start <= horizonUnits` (`offset-domain`). The
    horizon bounds the *start*, not the finish; a finish past the horizon is
-   legal and is the makespan's business. `horizonUnits` is the serial bound
-   `max(0, ...notBefore) + Σ duration`, so no feasible placement is excluded.
+   legal and is the makespan's business. `horizonUnits` includes the latest
+   floor, every duration and every positive FF start-weight excess, so a
+   topological serial placement fits when deadlines permit one.
 2. **Floors** — `start >= notBeforeUnits` (`floor-violated`), folded into the
    variable's own domain rather than added as a constraint: it is the same
    statement and it gives the presolve a tighter start.

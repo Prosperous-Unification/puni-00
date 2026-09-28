@@ -16,6 +16,8 @@ import sys
 import unittest
 from pathlib import Path
 
+from ortools.sat.python import cp_model
+
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = PACKAGE_ROOT.parents[3]
 sys.path.insert(0, str(PACKAGE_ROOT / "src"))
@@ -28,6 +30,7 @@ from wbs_solver.validate import (  # noqa: E402
     validate_against_schema,
     validate_request,
 )
+from wbs_solver.model import build_model  # noqa: E402
 
 CORPUS = REPO_ROOT / "libs" / "wbs" / "domain" / "contracts" / "solver" / "fixtures"
 FIXTURES = CORPUS / "request"
@@ -291,6 +294,35 @@ class KeySetEquality(unittest.TestCase):
 
 
 class HorizonBound(unittest.TestCase):
+    def test_weighted_ff_fallback_fits_a_horizon_with_its_placement_gap(self) -> None:
+        request = valid_request()
+        request["slices"][0]["durationUnits"] = 1
+        request["slices"][0]["poolIds"] = []
+        request["pools"] = {}
+        request["slices"][1]["durationUnits"] = 0
+        request["slices"][1]["workItemIsMilestone"] = True
+        request["edges"] = [{
+            "predecessorKey": KEY_A,
+            "successorKey": KEY_B,
+            "type": "FF",
+            "startWeightUnits": 2,
+        }]
+        request["baselineOffsets"] = {KEY_A: 0, KEY_B: 2}
+        request["fastHint"] = dict(request["baselineOffsets"])
+        request["horizonUnits"] = 2
+
+        validated = validate_request(json.dumps(request).encode("utf-8"))
+        self.assertEqual(validated["baselineOffsets"][KEY_B], 2)
+        for slice_entry in validated["slices"]:
+            self.assertLessEqual(
+                validated["baselineOffsets"][slice_entry["key"]] + slice_entry["durationUnits"],
+                validated["horizonUnits"],
+            )
+        built = build_model(validated)
+        for key, start in validated["baselineOffsets"].items():
+            built.model.add(built.starts[key] == start)
+        self.assertIn(cp_model.CpSolver().solve(built.model), (cp_model.OPTIMAL, cp_model.FEASIBLE))
+
     def test_an_offset_past_the_horizon_is_refused(self) -> None:
         """`safeInteger` bounds the value by MAX_SAFE_INTEGER, not by this
         request's own horizon, so the schema accepts it."""

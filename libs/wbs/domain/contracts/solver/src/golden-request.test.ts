@@ -120,7 +120,7 @@ const requestOf = () => {
       plan.reach,
       [],
     ),
-    solverVersion: '0.1.3',
+    solverVersion: '0.1.4',
     budgetMs: 30_000,
   });
   if (!built.ok) throw new Error(`expected a request, got ${built.failure}: ${built.detail}`);
@@ -173,7 +173,7 @@ describe('the golden request corpus', () => {
     );
     const built = buildSolverRequest(ffPlan, 'time', {
       baselineOffsets,
-      solverVersion: '0.1.3',
+      solverVersion: '0.1.4',
       budgetMs: 1_000,
     });
     if (!built.ok) throw new Error(built.detail);

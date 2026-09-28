@@ -1,19 +1,21 @@
-import { durationOf, durationUnits, type Slice, snapWorkdays, SOLVER_QUANTUM } from '@wbs/domain';
+import { durationOf, durationUnits, type Slice, SOLVER_QUANTUM } from '@wbs/domain';
 
 /**
  * The FF start bound protects real finish order after integer placement.
- * Snap in unit space as duration quantisation does: it removes only the
- * sub-nanounit residue from floating division, before the ceiling can add a
- * spurious whole unit. The integer finish bound remains independently active.
+ * Ceiling the unsnapped difference is conservative even when two canonical
+ * durations differ by less than the duration quantiser's drift window.
+ * The integer finish bound remains independently active.
  */
 export function ffStartWeightUnits(predecessor: Slice, successor: Slice): number {
   const integerFinishWeight = durationUnits(predecessor) - durationUnits(successor);
   const realFinishWeight = Math.ceil(
-    snapWorkdays(SOLVER_QUANTUM * (durationOf(predecessor) - durationOf(successor))),
+    SOLVER_QUANTUM * (durationOf(predecessor) - durationOf(successor)),
   );
   if (!Number.isSafeInteger(realFinishWeight)) {
     throw new Error(`FF relationship has no safe integer start weight`);
   }
+  // Proof: restoring the snap made the 0.03+1e-12/0.03 production request
+  // emit weight 0 and the upper fractional-unit round trip emit 1 instead of 2.
   // Proof: replacing this max with integerFinishWeight made the 0.030/0.021
   // baseline test fail (B=0, expected >=1) and forgery test accept weight 0;
   // observed 56 pass / 2 fail, then restored.
