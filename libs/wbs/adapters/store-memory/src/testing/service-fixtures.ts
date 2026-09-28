@@ -25,6 +25,7 @@ import {
   ReplayOrchestrator,
   StepService,
 } from '@wbs/core';
+import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { inMemoryServices } from '@wbs/core/testing/harness';
@@ -33,20 +34,34 @@ import { inMemoryCalendarMarkers } from '../calendar-marker-fixture';
 import { inMemoryCapacity } from '../capacity-fixture';
 import { inMemoryDirectory } from '../directory-fixture';
 import { inMemoryPlanEvents } from '../history-fixture';
+import { inMemoryStores } from '../in-memory-source';
 import { inMemoryPriorityBands } from '../priority-band-fixture';
 import { inMemoryProjects } from '../project-fixture';
 import { inMemoryEventLog } from '../replay-fixture';
 import { inMemorySteps } from '../step-fixture';
 
 export function testProjectService(projects: ProjectStore = inMemoryProjects()): ProjectService {
-  return new ProjectService({ clock: testClock, projects, broadcast: recordingBroadcaster() });
+  const stores = { ...inMemoryStores(), projects };
+  return new ProjectService({
+    clock: testClock,
+    projects,
+    broadcast: recordingBroadcaster(),
+    dependencyGraph: new DependencyGraphGuard(stores),
+  });
 }
 
 export function testStepService(
   projects: ProjectStore = inMemoryProjects(),
   steps: StepStore = inMemorySteps(),
 ): StepService {
-  return new StepService({ clock: testClock, projects, steps, broadcast: recordingBroadcaster() });
+  const stores = { ...inMemoryStores(), projects, steps };
+  return new StepService({
+    clock: testClock,
+    projects,
+    steps,
+    broadcast: recordingBroadcaster(),
+    dependencyGraph: new DependencyGraphGuard(stores),
+  });
 }
 
 export function testDirectoryService(

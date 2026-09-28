@@ -8,6 +8,7 @@ import type { StoredEstimate } from '../ports/estimate-store';
 import type { MeasureKey, StoredMeasure } from '../ports/measure-store';
 import type { ProgressKey, StoredProgress } from '../ports/progress-store';
 import type { EstimateKey } from '../ports/subtree-store';
+import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 import type { FrozenNumber, Reparented, WorkItem, WorkItemPatch } from '../ports/work-item-store';
 import type { Days } from './roll-up';
 
@@ -68,6 +69,9 @@ export type CompensatingCommand =
   | { do: 'assign'; workItemId: string; stepId: string; personId: string | null }
   | { do: 'add_dependency'; successorId: string; predecessorId: string }
   | { do: 'remove_dependency'; successorId: string; predecessorId: string }
+  | { do: 'add_typed_dependency'; dependency: StoredTypedDependency }
+  | { do: 'remove_typed_dependency'; dependency: StoredTypedDependency }
+  | { do: 'update_typed_dependency'; from: StoredTypedDependency; to: StoredTypedDependency }
   | { do: 'move'; workItemId: string; parentId: string | null; afterId: string | null }
   /**
    * One press of `Arrange by schedule`: every work item of every sibling group
@@ -332,6 +336,9 @@ const COMMANDS = [
   'assign',
   'add_dependency',
   'remove_dependency',
+  'add_typed_dependency',
+  'remove_typed_dependency',
+  'update_typed_dependency',
   'move',
   'set_frozen',
   'set_step_allowance',
@@ -428,6 +435,18 @@ export function touchedBy(command: CompensatingCommand): string[] {
     case 'add_dependency':
     case 'remove_dependency':
       return [command.successorId, command.predecessorId];
+    case 'add_typed_dependency':
+    case 'remove_typed_dependency':
+      return [command.dependency.predecessor.workItemId, command.dependency.successor.workItemId];
+    case 'update_typed_dependency':
+      return [
+        ...new Set([
+          command.from.predecessor.workItemId,
+          command.from.successor.workItemId,
+          command.to.predecessor.workItemId,
+          command.to.successor.workItemId,
+        ]),
+      ];
     case 'move':
       return [command.workItemId];
     case 'set_frozen':
@@ -645,6 +664,11 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
     case 'add_dependency':
     case 'remove_dependency':
       return { workItemId: command.successorId, stepId: null };
+    case 'add_typed_dependency':
+    case 'remove_typed_dependency':
+      return { workItemId: command.dependency.successor.workItemId, stepId: null };
+    case 'update_typed_dependency':
+      return { workItemId: command.to.successor.workItemId, stepId: null };
     case 'delete_subtree':
       return { workItemId: command.rootId, stepId: null };
     case 'restore_subtree':
