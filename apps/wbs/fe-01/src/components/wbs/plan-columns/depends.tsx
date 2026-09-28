@@ -18,7 +18,12 @@ import {
 import { dependencyWords, TypedDependencyEditor } from '../typed-dependency-editor';
 import { column } from './column';
 
-/** Builds the depends column family against the stable live cell contract. */
+/** Builds the depends column family against the stable live cell contract.
+ * Tab and Shift+Tab keep the grid walk. Home in an empty search focuses the
+ * first typed chip; ArrowDown/ArrowUp move between typed chips, Enter edits,
+ * Delete removes, and Escape returns to search. ArrowRight/› on a highlighted
+ * search result opens Customize for a new relationship.
+ */
 export function createDependsColumn({ live }: { live: PlanLive }) {
   return column.display({
     id: 'depends',
@@ -500,7 +505,9 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   key={dependency.id}
                   type="button"
                   className={`${REFERENCE_SET_CHIP_CLASS} border-0`}
-                  aria-label={`Edit dependency: ${words.label}`}
+                  aria-label={`Edit dependency: ${words.label}. Enter to edit. Delete to remove. Escape to return to dependency search.`}
+                  aria-keyshortcuts="Enter Delete"
+                  data-typed-dependency-chip=""
                   tabIndex={picker === null ? -1 : undefined}
                   onMouseEnter={() => {
                     live.current.depLights.updateHover(() => ({
@@ -523,6 +530,52 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     live.current.depLights.updateFocus((current) =>
                       current?.pillId === dependency.id ? null : current,
                     );
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      event.currentTarget.parentElement
+                        ?.querySelector<HTMLInputElement>(
+                          `[data-depends-input="${row.original.id}"]`,
+                        )
+                        ?.focus();
+                      return;
+                    }
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                      event.preventDefault();
+                      const chips = Array.from(
+                        event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(
+                          '[data-typed-dependency-chip]',
+                        ) ?? [],
+                      );
+                      const index = chips.indexOf(event.currentTarget);
+                      chips[index + (event.key === 'ArrowDown' ? 1 : -1)]?.focus();
+                      return;
+                    }
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      event.currentTarget.click();
+                      return;
+                    }
+                    if (event.key !== 'Delete') return;
+                    event.preventDefault();
+                    // Proof: bypassing Delete made `Home reaches typed chips for Enter edit and Delete removal while Tab stays in the grid` fail to find `Dependency removed.`; watched 2026-09-28.
+                    event.currentTarget.parentElement
+                      ?.querySelector<HTMLInputElement>(`[data-depends-input="${row.original.id}"]`)
+                      ?.focus();
+                    void live.current
+                      .run((write) =>
+                        write.perform(['tree'], () =>
+                          live.current.commands.removeTypedDependency(dependency.id),
+                        ),
+                      )
+                      .then((outcome) => {
+                        setAnnouncement(
+                          outcome === 'landed'
+                            ? 'Dependency removed.'
+                            : 'Dependency removal refused.',
+                        );
+                      });
                   }}
                   onClick={() => {
                     setEditing({
@@ -593,6 +646,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 if (
                   event.relatedTarget instanceof HTMLElement &&
                   (event.relatedTarget.closest('.typed-dependency-editor') !== null ||
+                    event.relatedTarget.closest('[data-typed-dependency-chip]') !== null ||
                     event.relatedTarget.closest('[role="listbox"]') !== null)
                 )
                   return;
@@ -644,6 +698,23 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   // failed with the key left to the browser. Watched,
                   // 2026-08-07.
                   live.current.onTabKey(e, row.original.id, 'depends');
+                  return;
+                }
+                if (
+                  open &&
+                  e.key === 'Home' &&
+                  picker.typed === '' &&
+                  typedDependencies.length > 0 &&
+                  !e.altKey &&
+                  !e.ctrlKey &&
+                  !e.metaKey &&
+                  !e.shiftKey
+                ) {
+                  e.preventDefault();
+                  // Proof: without Home, `Home reaches typed chips for Enter edit and Delete removal while Tab stays in the grid` left focus on the input; watched 2026-09-28.
+                  e.currentTarget.parentElement
+                    ?.querySelector<HTMLButtonElement>('[data-typed-dependency-chip]')
+                    ?.focus();
                   return;
                 }
                 if (
@@ -903,11 +974,6 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
           )}
           {editing !== null &&
             (() => {
-              const predecessor = dependencyRows.find(
-                (candidate) => candidate.id === editing.predecessorId,
-              );
-              if (predecessor === undefined)
-                throw new Error(`Missing predecessor ${editing.predecessorId}`);
               const dependency = typedDependencies.find(
                 (candidate) => candidate.id === editing.dependencyId,
               );
@@ -928,6 +994,26 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     </button>
                   </div>
                 );
+              // Proof: before this ordering, `shows a stale edit when deleting its predecessor also removes the relationship` threw `Missing predecessor` instead of rendering the alert; watched 2026-09-28.
+              const predecessor = dependencyRows.find(
+                (candidate) => candidate.id === editing.predecessorId,
+              );
+              // Proof: deleting a pending Add predecessor made the mounted
+              // stale-Add regression throw Missing predecessor; watched 2026-09-28.
+              if (predecessor === undefined)
+                return (
+                  <div role="alert">
+                    This predecessor was removed.{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditing(null);
+                      }}
+                    >
+                      Back to dependency picker
+                    </button>
+                  </div>
+                );
               const close = () => {
                 setEditing(null);
                 document
@@ -936,6 +1022,8 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               };
               return (
                 <TypedDependencyEditor
+                  // Proof: removing this key made `switching edit targets shows the newly selected relationship scopes` keep Whole instead of Dev; watched 2026-09-28.
+                  key={editing.dependencyId ?? `add:${editing.predecessorId}`}
                   predecessor={predecessor}
                   successor={row.original}
                   rows={dependencyRows}

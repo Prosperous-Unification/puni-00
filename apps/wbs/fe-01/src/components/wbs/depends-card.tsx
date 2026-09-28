@@ -224,25 +224,30 @@ export function DependsCard({
         const target = targets.current.get(entry.id);
         return target === undefined ? [] : [{ id: entry.id, rect: target.getBoundingClientRect() }];
       });
-      const typedIds = new Set(typedEntries.map((entry) => entry.id));
-      for (const dependency of typedEntries) {
-        const target = targets.current.get(dependency.id);
-        // Proof: omitting this target made `keeps a typed entry interactive and
-        // tracks a real pointer move through the card` receive null rather
-        // than edge after a pointermove. Watched 2026-09-28.
-        if (target !== undefined)
-          rows.push({ id: dependency.id, rect: target.getBoundingClientRect() });
-      }
+      // Proof: removing typed-row registration made `keeps typed Edit and Remove
+      // clickable while the pointer crosses the card` miss onPointEntry(null),
+      // and `keeps a typed entry interactive and tracks a real pointer move
+      // through the card` read null instead of edge; watched 2026-09-28.
+      const typedRows = typedEntries.flatMap((dependency) => {
+        const target = targets.current.get(`typed:${dependency.id}`);
+        return target === undefined
+          ? []
+          : [{ id: `typed:${dependency.id}`, rect: target.getBoundingClientRect() }];
+      });
       const region = dependencyPointerRegion(
         { x: event.clientX, y: event.clientY },
         owner.getBoundingClientRect(),
-        rows,
+        [...rows, ...typedRows],
         cardRectOf(first),
       );
       if (region.kind === 'owner') onPointEntry(null);
       else if (region.kind === 'row') {
-        if (typedIds.has(region.id)) {
-          depLights.updateHover(() => ({ rowId, pillId: region.id }));
+        if (region.id.startsWith('typed:')) {
+          onPointEntry(null);
+          // Proof: disabling this publication made `keeps typed Edit and Remove
+          // clickable while the pointer crosses the card` receive null instead
+          // of `typed` from activeTypedId(); watched 2026-09-28.
+          depLights.updateHover(() => ({ rowId, pillId: region.id.slice('typed:'.length) }));
         } else onPointEntry(region.id);
       } else if (region.kind === 'outside') onPointerOutside();
     };
@@ -280,8 +285,8 @@ export function DependsCard({
         <div
           key={dependency.id}
           ref={(target) => {
-            if (target === null) targets.current.delete(dependency.id);
-            else targets.current.set(dependency.id, target);
+            if (target === null) targets.current.delete(`typed:${dependency.id}`);
+            else targets.current.set(`typed:${dependency.id}`, target);
           }}
           className="typed-dependency-card-entry"
           role="group"
@@ -292,7 +297,8 @@ export function DependsCard({
           data-dependency-lit={activeTypedId === dependency.id ? 'true' : undefined}
           // Proof: without pointerEvents auto, `keeps a typed entry interactive
           // and tracks a real pointer move through the card` received an empty
-          // computed pointer-events style. Watched 2026-09-28.
+          // computed style, and `keeps typed Edit and Remove clickable while the
+          // pointer crosses the card` read an empty inline style. Watched 2026-09-28.
           style={{
             pointerEvents: 'auto',
             ...(activeTypedId === dependency.id ? { background: 'var(--card-dep-lit)' } : {}),

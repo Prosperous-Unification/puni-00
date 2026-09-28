@@ -1695,7 +1695,9 @@
   min-height: 44px;
   padding-inline: 10px;
 }
-@media (max-width: 640px) {
+/* Proof: with the 640px cutoff, the compiled-sheet regression had no fixed
+ * editor rule at the card renderer's 767.98px/499.98px boundary; watched 2026-09-28. */
+@media (max-width: 767.98px), (max-height: 499.98px) {
   .typed-dependency-editor {
     position: fixed;
     left: 0;

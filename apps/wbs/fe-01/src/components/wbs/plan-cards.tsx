@@ -2209,8 +2209,22 @@ function CardDependsField({
               const predecessor = dependencyRows.find(
                 (candidate) => candidate.id === editing.predecessorId,
               );
+              // Proof: deleting a pending phone Add predecessor made the
+              // mounted stale-Add regression throw Missing predecessor; watched 2026-09-28.
               if (predecessor === undefined)
-                throw new Error(`Missing predecessor ${editing.predecessorId}`);
+                return (
+                  <p role="alert">
+                    This predecessor was removed.{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditing(null);
+                      }}
+                    >
+                      Back to dependency picker
+                    </button>
+                  </p>
+                );
               if (
                 addTypedDependency === undefined ||
                 saveTypedDependency === undefined ||
@@ -2219,6 +2233,8 @@ function CardDependsField({
                 throw new Error('Missing typed dependency card commands');
               return (
                 <TypedDependencyEditor
+                  // Proof: removing this key made `switches phone edit scope state when a second relationship is selected` keep Whole instead of Dev; watched 2026-09-28.
+                  key={editing.dependencyId ?? `add:${editing.predecessorId}`}
                   predecessor={predecessor}
                   successor={row}
                   rows={dependencyRows}

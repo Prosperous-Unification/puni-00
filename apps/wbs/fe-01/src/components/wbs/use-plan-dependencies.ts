@@ -231,6 +231,8 @@ export function usePlanDependencies({
       // duplicate while leaving Customize available` fail because the refusal
       // announcement never appeared. Watched 2026-09-28.
       if (
+        // Proof: bypassing this legacy duplicate guard made `offers Customize on an existing legacy predecessor and refuses its default duplicate` lose its refusal announcement; watched 2026-09-28.
+        flat.find((row) => row.id === successorId)?.dependsOn.includes(predecessorId) ||
         typedDependencies.some(
           (dependency) =>
             dependency.type === 'FS' &&
@@ -253,7 +255,7 @@ export function usePlanDependencies({
         ),
       );
     },
-    [commands, run, setDepPicker, typedDependencies],
+    [commands, flat, run, setDepPicker, typedDependencies],
   );
 
   /** Moves the picker highlight by `delta` over `entryIds`, clamped. */

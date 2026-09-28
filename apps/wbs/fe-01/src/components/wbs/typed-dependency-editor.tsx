@@ -21,6 +21,8 @@ function nodeCode(endpoint: ReadEndpoint, row: TreeRow, step: StepView, nodes?: 
   // Proof: removing this read-integrity check made `spells whole, node and descendant scopes` resolve instead of throwing for an absent step node; watched 2026-09-27.
   if (nodes !== undefined && node === undefined)
     throw new Error(`Missing dependency step node for ${row.id} and ${step.id}`);
+  // Proof: with the null branch removed, `uses work-item and step words when a server node has no reference` received invented `010.dev`; watched 2026-09-28.
+  if (node?.reference === null) return `${row.number} · ${step.name} step`;
   return (
     node?.reference ?? `${row.number}.${step.name.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-')}`
   );
@@ -79,7 +81,17 @@ export function dependencyWords(
     dependency.successor.scope === 'whole'
       ? ''
       : dependency.successor.scope === 'node'
-        ? ` → ${nodeCode(dependency.successor, successor, stepOf(steps, dependency.successor.stepId), nodes).slice(successor.number.length + 1)}`
+        ? ` → ${(() => {
+            const code = nodeCode(
+              dependency.successor,
+              successor,
+              stepOf(steps, dependency.successor.stepId),
+              nodes,
+            );
+            return code.startsWith(`${successor.number}.`)
+              ? code.slice(successor.number.length + 1)
+              : code;
+          })()}`
         : ` → all ${stepOf(steps, dependency.successor.stepId).name} (${String(leavesUnder(rows, successor.id))})`;
   const nameOf = (endpoint: ReadEndpoint, row: TreeRow) =>
     endpoint.scope === 'whole'
@@ -174,6 +186,13 @@ export function TypedDependencyEditor({
     if (element === null) throw new Error('Missing dependency editor dialog');
     const returnToList = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' && event.key !== 'ArrowLeft') return;
+      // Proof: without the form-control guard, `keeps ArrowLeft inside a scope selector` called onCancel; watched 2026-09-28.
+      if (
+        event.key === 'ArrowLeft' &&
+        event.target instanceof HTMLElement &&
+        event.target.closest('input, select, textarea, [contenteditable="true"]') !== null
+      )
+        return;
       event.preventDefault();
       event.stopPropagation();
       // Proof: without ArrowLeft here, the ›/ArrowLeft keyboard case kept
