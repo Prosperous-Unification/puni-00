@@ -1740,9 +1740,9 @@ const surface = (page: Page): Locator => page.getByRole('tooltip');
  * The surface one row's bar opens, by the name `HoverCard` gives it.
  *
  * {@link surface} is any card on the page, and a table card can still be up
- * when the bar is hovered: a pointer parked on a folded step cell keeps that
- * cell's card for `REACH_FOR_THE_CARD_MS` after it leaves, by design. Named,
- * the wait is for the bar's own card rather than whichever came first.
+ * when a bar is hovered: CI run 36482644786's trace has the wait resolve on a
+ * folded step cell's `folded-…` card, with no `Facts for …` card drawn yet.
+ * Named, the wait is for the bar's own card and not whichever is up first.
  */
 const barSurface = (page: Page, number: string): Locator =>
   page.getByRole('tooltip', { name: `Facts for ${number}`, exact: true });
@@ -1836,7 +1836,8 @@ test.describe('the surface a bar opens, as a browser places it', () => {
     // its centre would have Playwright scroll the chart to find it.
     const bar = barOf(page, '010.2', 'Dev');
     await bar.hover({ position: { x: 4, y: 4 } });
-    await expect(surface(page)).toBeVisible();
+    const shown = barSurface(page, '010.2');
+    await expect(shown).toBeVisible();
 
     // The row's own printed days, off the table rather than computed here: two
     // derivations of one rule agree by construction and say nothing.
@@ -1844,8 +1845,8 @@ test.describe('the surface a bar opens, as a browser places it', () => {
     const from = await row.locator('[data-start]').textContent();
     const to = await row.locator('[data-finish]').textContent();
     expect(from, 'the Start cell prints nothing to compare against').not.toBe('');
-    await expect(surface(page)).toContainText(`${String(from)} → ${String(to)}`);
-    await expect(surface(page)).toContainText('010.2');
+    await expect(shown).toContainText(`${String(from)} → ${String(to)}`);
+    await expect(shown).toContainText('010.2');
   });
 
   test('names an axis day’s month on hover, from the chart and not the browser', async ({
@@ -1884,13 +1885,20 @@ test.describe('the surface a bar opens, as a browser places it', () => {
     });
 
     const bar = page.locator('[data-gantt-bar]').last();
+    const label = await bar.getAttribute('aria-label');
+    if (label === null) throw new Error('the last bar carries no accessible name');
+    const number = /^(\S+) - /.exec(label)?.[1];
+    if (number === undefined) {
+      throw new Error(`the last bar's name starts with no number: ${label}`);
+    }
     await bar.hover();
-    await expect(surface(page)).toBeVisible();
+    const shownSurface = barSurface(page, number);
+    await expect(shownSurface).toBeVisible();
 
     // The bar first, and with an area — a mark of no height is one every
     // "above" comparison holds about (the sixteenth check).
     const mark = await rectOfLocator(bar, 'the last bar on the chart');
-    const shown = await rectOfLocator(surface(page), 'the surface');
+    const shown = await rectOfLocator(shownSurface, 'the surface');
     const window_ = await page.evaluate(() => ({
       width: window.innerWidth,
       height: window.innerHeight,
@@ -1928,17 +1936,19 @@ test.describe('the surface a bar opens, as a browser places it', () => {
     const bar = page.locator('[data-gantt-bar]').last();
     await expect(bar).toHaveAttribute('aria-label', /^010\.2 - /);
     await bar.hover();
-    // The bar's own card, not any tooltip. Seeding clicks last at 010.2's
-    // Earliest start, and filling 010.1's estimate reflows 010.1's folded Dev
-    // cell under that parked pointer, so its card opens; the Gantt click moves
-    // the pointer off and the card lingers up to `REACH_FOR_THE_CARD_MS`. A
-    // fast hover met that card, it went while its box was being read, and the
-    // bar's own card was not open yet: CI run 36482644786, `the surface is not
-    // on the page at all`, reproduced here 3 times in 20.
-    // Proof: with the pointer hovered onto 010.1's Dev cell before the bar,
-    // `REACH_FOR_THE_CARD_MS` raised to 5000 and a 400ms pause after this wait,
-    // `surface(page)` failed 5 of 5 on `strict mode violation:
-    // getByRole('tooltip') resolved to 2 elements`; this locator passed 5 of 5.
+    // The bar's own card, not any tooltip. Observed in CI run 36482644786's
+    // trace: the wait resolved on 010.1's folded Dev card, still up after the
+    // Gantt click, and no `Facts for 010.2` card had been drawn when the box
+    // read found nothing — `the surface is not on the page at all`, 3 times in
+    // 20 here. Locally, seeding's last click leaves the pointer where the
+    // estimate fill brings that cell under it, and its card closed about 190ms
+    // after the pointer left, i.e. after the bar was hovered.
+    // Proof: with the pointer hovered onto 010.1's Dev cell before the bar and
+    // a 400ms pause after this wait, `surface(page)` passed 5 of 5 at the
+    // shipped `REACH_FOR_THE_CARD_MS`; raised to 5000, so the folded card is
+    // still up when the bar's opens, it failed 5 of 5 on `strict mode
+    // violation: getByRole('tooltip') resolved to 2 elements`, and this
+    // locator passed 5 of 5.
     const shownSurface = barSurface(page, '010.2');
     await expect(shownSurface).toBeVisible();
 
