@@ -86,3 +86,25 @@ export const resumeInternal = defineEndpointShape({
   refusals,
   document: { summary: 'Replay recorded events to one reconnecting gateway socket.' },
 });
+
+/** Checks one project for a gateway's single-use, read-scoped delegation. */
+export const gatewayProjectAccess = defineEndpointShape({
+  method: 'POST',
+  path: '/internal/gateway/projects/:projectId/access',
+  operationId: 'postInternalGatewayProjectAccess',
+  policies: [{ kind: 'identity', require: 'gateway-delegation' }],
+  params: requestSchema(type({ projectId: 'string' })),
+  responses: [{ kind: 'empty', status: 204 }],
+  refusals: [
+    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_body'" })) },
+    { status: 401, schema: responseSchema(type({ error: "'unauthorized' | 'unauthenticated'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({ error: "'insufficient_scope' | 'no_active_organization' | 'not_a_member'" }),
+      ),
+    },
+    { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+  ],
+  document: { summary: 'Check a gateway delegation against current project access.' },
+});

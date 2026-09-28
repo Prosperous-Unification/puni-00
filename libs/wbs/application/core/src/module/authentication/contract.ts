@@ -1,3 +1,5 @@
+import type { DelegationAudience, WbsScope } from '@wbs/contracts';
+
 import type { Clock } from '../../ports/clock';
 import type { OidcIdentityStore, UserStore } from '../../ports/user-store';
 import type { AuthService, AuthServiceOptions } from './authentication.feature';
@@ -41,3 +43,28 @@ export interface AuthenticationExports {
  * prefix.
  */
 export const AUTHENTICATION_LABEL = 'application.authentication';
+
+/** Complete trusted credential binding; a session principal lacks expiry and cannot issue. */
+export interface VerifiedDelegationSource {
+  readonly kind: 'verified-wbs-credential';
+  readonly delegated: boolean;
+  /** Verified originating credential expiry, Unix milliseconds. */
+  readonly credentialExpiresAt: number;
+  readonly userId: string;
+  readonly organizationId: string;
+  readonly client: string;
+  readonly grant: string;
+  readonly upstreamIssuer: string;
+  readonly upstreamSubject: string;
+  readonly scopeCeiling: readonly WbsScope[];
+}
+
+/** Resolves a WBS credential and its bindings at the trusted adapter boundary. */
+export type DelegationSourceResolver = (credential: string) => Promise<VerifiedDelegationSource>;
+
+/** Issues only after resolving a credential; callers cannot supply source claims. */
+export type DelegationIssuer = (
+  credential: string,
+  audience: DelegationAudience,
+  scopes: readonly WbsScope[],
+) => Promise<string>;

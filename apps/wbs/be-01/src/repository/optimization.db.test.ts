@@ -3,10 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'bun:test';
+import { sql } from 'drizzle-orm';
 
 import { openDatabase, openDrizzle } from './db';
 import { DrizzleEventLogStore, type EventLogTransactionalWrite } from './event-log';
-import { OPEN } from './gate';
+import { OPEN, WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 import { createOptimizationRepository } from './optimization';
 
@@ -42,7 +43,7 @@ function fixture() {
     contractVersion: CONTRACT,
     budgetMs: BUDGET,
   };
-  const generation = createOptimizationRepository(db, log).allocateGeneration(
+  const generation = createOptimizationRepository(db, log, OPEN).allocateGeneration(
     'p-1',
     CONTRACT,
     key.inputHash,
@@ -62,9 +63,92 @@ function count(path: string, table: string): number {
 }
 
 describe('Optimization SQLite adapter', () => {
+  it('waits for an overlapping rolled-back unit of work before accepting Retry', async () => {
+    const { db, log, key, generation } = fixture();
+    db.run(
+      sql.raw(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('sam', 'sam', 'hash', 1)",
+      ),
+    );
+    db.run(sql.raw("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)"));
+    db.run(
+      sql.raw(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'sam', 'super_admin', 1)",
+      ),
+    );
+    db.run(
+      sql.raw(
+        "INSERT INTO project_organization (resource_id, organization_id) VALUES ('p-1', 'org-a')",
+      ),
+    );
+    db.run(sql.raw("UPDATE project SET restricted = 1 WHERE id = 'p-1'"));
+    const gate = new WriteCoordinator();
+    const repository = createOptimizationRepository(db, log, gate);
+    const slot = {
+      projectId: key.projectId,
+      contractVersion: CONTRACT,
+      generation,
+      objective: 'pri' as const,
+      budgetMs: BUDGET,
+      ownerId: 'blue',
+      attemptToken: 'first',
+    };
+    const admitted = repository.reserveSlot({ ...slot, now: 10 });
+    if (admitted.kind !== 'reserved') throw new Error('fixture admission refused');
+    expect(
+      repository.recordOutcome({
+        claim: slot,
+        inputHash: key.inputHash,
+        admittedCancelEpoch: admitted.admittedCancelEpoch,
+        outcome: { kind: 'failed', reason: 'internal-error' },
+        now: 20,
+      }).kind,
+    ).toBe('stored');
+    repository.releaseSlot(slot);
+    let release: (() => void) | undefined;
+    let opened: (() => void) | undefined;
+    const ready = new Promise<void>((resolve) => {
+      opened = resolve;
+    });
+    const closed = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const outer = gate.enter(async () => {
+      db.run(sql.raw('BEGIN IMMEDIATE'));
+      opened?.();
+      await closed;
+      db.run(sql.raw('ROLLBACK'));
+    });
+    await ready;
+    let settled = false;
+    const retry = Promise.resolve(
+      repository.admitRetry({
+        key,
+        objective: 'pri',
+        ownerId: 'green',
+        now: 21,
+        attemptToken: () => 'retry',
+        scoped: { organizationId: 'org-a', actorId: 'sam' },
+      }),
+    ).then((decision) => {
+      settled = true;
+      return decision;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    release?.();
+    await outer;
+    expect(await retry).toMatchObject({ kind: 'accepted', generation });
+    expect(db.all(sql.raw('SELECT attempt_token FROM solver_slot'))).toEqual([
+      { attempt_token: 'retry' },
+    ]);
+    expect(db.all(sql.raw('SELECT detail FROM organization_audit'))).toEqual([
+      { detail: '{"optimizer":"retry"}' },
+    ]);
+  });
   it('projects a cache miss as a non-ready variant before admission callbacks', () => {
     const { db, log, key } = fixture();
-    const repository = createOptimizationRepository(db, log);
+    const repository = createOptimizationRepository(db, log, OPEN);
     expect(repository.readPairAndAdmit(key, () => undefined)).toEqual({
       pri: { kind: 'non-ready', state: { state: 'idle' }, schedule: null },
       time: { kind: 'non-ready', state: { state: 'idle' }, schedule: null },
@@ -73,7 +157,7 @@ describe('Optimization SQLite adapter', () => {
 
   it('returns the pre-callback cache snapshot when admission commits a marker', () => {
     const { db, log, key, generation } = fixture();
-    const repository = createOptimizationRepository(db, log);
+    const repository = createOptimizationRepository(db, log, OPEN);
     const pair = repository.readPairAndAdmit(key, ({ objective }) => {
       if (objective !== 'pri') return;
       const slot = {
@@ -105,10 +189,10 @@ describe('Optimization SQLite adapter', () => {
     });
   });
 
-  it('checks Retry eligibility before creating a token', () => {
+  it('checks Retry eligibility before creating a token', async () => {
     const { db, log, key } = fixture();
     let tokens = 0;
-    const decision = createOptimizationRepository(db, log).admitRetry({
+    const decision = await createOptimizationRepository(db, log, OPEN).admitRetry({
       key: { ...key, inputHash: 'stale-input' },
       objective: 'pri',
       ownerId: 'blue',
@@ -122,9 +206,9 @@ describe('Optimization SQLite adapter', () => {
     expect(tokens).toBe(0);
   });
 
-  it('retains a failed marker until an eligible Retry reserves, then reports liveness', () => {
+  it('retains a failed marker until an eligible Retry reserves, then reports liveness', async () => {
     const { db, log, key, generation } = fixture();
-    const repository = createOptimizationRepository(db, log);
+    const repository = createOptimizationRepository(db, log, OPEN);
     const slot = {
       projectId: key.projectId,
       contractVersion: CONTRACT,
@@ -159,9 +243,9 @@ describe('Optimization SQLite adapter', () => {
         now: 20,
         attemptToken: () => `retry-${String(tokens++)}`,
       });
-    expect(retry()).toMatchObject({ kind: 'accepted', generation });
+    expect(await retry()).toMatchObject({ kind: 'accepted', generation });
     expect(repository.readPairAndAdmit(key, () => undefined).pri.state.state).toBe('failed');
-    expect(retry()).toEqual({ kind: 'already-running' });
+    expect(await retry()).toEqual({ kind: 'already-running' });
     expect(tokens).toBe(1);
   });
 
@@ -173,7 +257,7 @@ describe('Optimization SQLite adapter', () => {
         throw new Error('injected event failure');
       },
     };
-    const repository = createOptimizationRepository(db, writer);
+    const repository = createOptimizationRepository(db, writer, OPEN);
     const admission = repository.reserveSlot({
       projectId: key.projectId,
       contractVersion: CONTRACT,
@@ -214,7 +298,7 @@ describe('Optimization SQLite adapter', () => {
       // Deliberately breach the trusted store contract to test the adapter boundary.
       recordEventIn: () => undefined as never,
     };
-    const repository = createOptimizationRepository(db, writer);
+    const repository = createOptimizationRepository(db, writer, OPEN);
     const admission = repository.reserveSlot({
       projectId: key.projectId,
       contractVersion: CONTRACT,

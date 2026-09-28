@@ -45,6 +45,13 @@ An authenticated WBS request SHALL carry exactly one server-validated active org
 - **WHEN** the member reads, exports, opens, edits or retries that project by its id
 - **THEN** be-01 answers the same typed 404 it answers for an id that names no project, and changes nothing
 
+#### Scenario: Gateway project access check
+
+- **GIVEN** a gateway bearer bound to organization A and a service credential
+- **WHEN** the gateway posts `/internal/gateway/projects/:projectId/access` for an A project
+- **THEN** be-01 requires both credentials, the gateway audience, read scope and current membership, and answers 204 without granting a lease
+- **AND** a foreign B project and an absent project answer identical 404s; context headers do not select the organization
+
 #### Scenario: Organization-unaware behaviour until activation
 
 - **GIVEN** the durable activation marker says `pre_activation`
@@ -101,3 +108,13 @@ WBS SHALL enforce the role matrix below against current membership; Auth0 groups
 - **THEN** the batch or walk succeeds with the creator still recorded, and exactly one audit record naming the super-admin, the project and the command kinds or the journal direction is written in the same transaction
 - **AND** a batch or walk that fails at any point, or is refused, leaves no audit record and no partial effect
 - **AND** no other actor, project or later request can use that recovery authority
+
+#### Scenario: Recovery through dependent project writes and optimizer Retry
+
+- **GIVEN** a restricted project created by someone else, and a current super-admin of its organization
+- **WHEN** that super-admin adds, renames or removes a step; creates, renames, recolors or removes a calendar marker; saves, renames or deletes a saved plan; or retries a failed optimization
+- **THEN** each successful operation writes exactly one audit record naming the actor, organization, project and operation in the same transaction as the write, and retains the project's creator
+- **AND** a failed, refused or non-retryable operation writes no recovery record and publishes nothing; audit insertion failure rolls the write back and publishes nothing
+- **AND** an ordinary creator write writes no recovery record, a non-creator member or admin and a viewer creator are refused, a foreign project answers 404, and a removed super-admin is refused
+- **AND** a recovered saved-plan rename or delete may touch another author's plan of that restricted project, while ordinary touches retain the author-or-project-creator rule
+- **AND** before activation these routes retain their legacy permissions and behavior

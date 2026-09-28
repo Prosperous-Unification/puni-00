@@ -33,6 +33,14 @@ export type DelegationVerifier = (
   audience: DelegationAudience,
 ) => Promise<DelegationOutcome>;
 
+/** Resolves after one verified use commits; false means a replay. */
+export type ConsumeDelegation = (
+  issuer: string,
+  jti: string,
+  expiresAt: number,
+  now: number,
+) => Promise<boolean>;
+
 /** Whether `token` declares itself a delegation, without believing anything else it says. */
 export function declaresDelegation(token: string): boolean {
   try {
@@ -62,8 +70,9 @@ export const REFUSE_DELEGATIONS: DelegationVerifier = (token) =>
  * expects (never one the caller chooses); live at most
  * {@link MOST_DELEGATION_SECONDS} and not be expired; carry a local user, an
  * organization, a client, a grant or refresh family, a `jti` and known
- * scopes; be issued no later than now; and bind an upstream
- * `(issuer, subject)` that maps to that same local user. Scopes only narrow.
+ * scopes; be issued no later than now; bind an upstream
+ * `(issuer, subject)` that maps to that same local user; and consume its
+ * `(issuer,jti)` once in shared SQLite before route authorization. Scopes only narrow.
  *
  * @throws anything other than a JOSE refusal or a malformed claim, such as an
  * unusable key or a failing identity lookup: unknown, not a refusal.
@@ -71,6 +80,7 @@ export const REFUSE_DELEGATIONS: DelegationVerifier = (token) =>
 export function delegationVerifier(
   key: CryptoKey,
   mappedUserOf: MappedUserOf,
+  consume: ConsumeDelegation,
   now: () => number = Date.now,
 ): DelegationVerifier {
   return async (token, audience) => {
@@ -97,11 +107,21 @@ export function delegationVerifier(
     }
     const claims = parseClaims(payload, now);
     if (claims === null) return { kind: 'refused' };
+    // jose accepts audience arrays for general JWTs; WBS issues exactly one
+    // scalar audience and refuses any broader shape here.
+    // Proof (2026-09-28): removing this check made `refuses a signed array
+    // audience that includes the MCP route` answer 200 instead of 401.
+    if (payload['aud'] !== audience) return { kind: 'refused' };
     const mapped = await mappedUserOf(claims.upstream);
     // Proof: accepting any mapped upstream identity made `refuses a delegation
     // whose upstream identity maps to someone else` in
     // `delegation.controller.db.test.ts` fail; watched 2026-09-28.
     if (mapped?.id !== claims.userId) return { kind: 'refused' };
+    // Proof (2026-09-28): removing this await made `consumes an MCP delegation
+    // once even when the project is missing` answer 404 twice. The store's
+    // conflict mutation separately failed the two-connection race test.
+    if (!(await consume(DELEGATION_ISSUER, claims.jti, claims.expiresAt, Math.floor(now() / 1000))))
+      return { kind: 'refused' };
     return {
       kind: 'verified',
       principal: {
@@ -124,6 +144,8 @@ interface DelegationClaims {
   readonly organizationId: string;
   readonly client: string;
   readonly grant: string;
+  readonly jti: string;
+  readonly expiresAt: number;
   readonly scopes: readonly WbsScope[];
   readonly upstream: { readonly issuer: string; readonly subject: string };
 }
@@ -146,7 +168,8 @@ function parseClaims(payload: Record<string, unknown>, now: () => number): Deleg
     return null;
   // Proof: skipping this bound made `refuses a delegation longer than five
   // minutes` in `delegation.controller.db.test.ts` fail; watched 2026-09-28.
-  if (exp - iat > MOST_DELEGATION_SECONDS) return null;
+  if (!Number.isInteger(iat) || !Number.isInteger(exp) || exp - iat > MOST_DELEGATION_SECONDS)
+    return null;
   // Together with JOSE's own `exp` check this also refuses a lifetime of zero
   // or less: `exp <= iat <= now` is expired.
   // Proof: skipping this made `refuses a delegation issued in the future, of
@@ -161,6 +184,8 @@ function parseClaims(payload: Record<string, unknown>, now: () => number): Deleg
     organizationId: org,
     client,
     grant,
+    jti,
+    expiresAt: exp,
     scopes,
     upstream: { issuer: upstream_iss, subject: upstream_sub },
   };

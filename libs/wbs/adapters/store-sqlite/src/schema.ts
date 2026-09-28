@@ -90,6 +90,7 @@ export const users = sqliteTable(
     username: text('username').notNull(),
     passwordHash: text('password_hash'),
     email: text('email'),
+    emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
     idpIssuer: text('idp_issuer'),
     idpSub: text('idp_sub'),
     createdAt: integer('created_at').notNull(),
@@ -2966,6 +2967,20 @@ export const projectSolution = sqliteTable(
     uniqueIndex('project_solution_organization_slug').on(t.organizationId, t.slug),
     check('project_solution_slug', sql`length(${t.slug}) > 0`),
     check('project_solution_url', sql`length(${t.url}) > 0`),
+  ],
+);
+
+/** Shared single-use delegation ledger, keyed across every be-01 process. */
+export const delegationUse = sqliteTable(
+  'delegation_use',
+  {
+    issuer: text('issuer').notNull(),
+    jti: text('jti').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.issuer, t.jti] }),
+    index('delegation_use_expires_at').on(t.expiresAt),
   ],
 );
 

@@ -14,6 +14,13 @@ const VALID = {
 };
 
 describe('BeConfig', () => {
+  it('refuses partial delegation key configuration', () => {
+    expect(() => loadConfig({ ...VALID, WBS_DELEGATION_SIGNING_KEY: 'x' })).toThrow();
+    expect(() => loadConfig({ ...VALID, WBS_DELEGATION_VERIFY_KEY: 'x' })).toThrow();
+    expect(() =>
+      loadConfig({ ...VALID, WBS_DELEGATION_SIGNING_KEY: '', WBS_DELEGATION_VERIFY_KEY: '' }),
+    ).toThrow();
+  });
   it('defaults the one solver budget to sixty seconds and accepts an explicit millisecond override', () => {
     // Proof: remove the default and the first read is undefined; ignore the
     // environment key and the second stays 60000. Both would key cache rows and

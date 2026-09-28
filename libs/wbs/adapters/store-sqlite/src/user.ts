@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { normalizeEmail, type OidcIdentity } from '@wbs/auth';
 import type { User, UserStore, WriteStamp } from '@wbs/core';
+import { isCanonicalDomain } from '@wbs/domain';
 import { and, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -227,7 +228,9 @@ type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0
  * Resolves a verified pair after activation, through `external_identity`
  * alone: email never selects or merges an account (linking is task 4.2).
  *
- * - A mapped pair answers its user, whatever email the token now carries.
+ * - A mapped pair refreshes its user's email and verification when the new
+ *   address is available; a collision refuses resolution, retains the old
+ *   address and revokes its verification for any existing session.
  * - An unmapped pair whose verified email an account already holds, as its
  *   email or as its email-shaped username, is a collision: null.
  * - Any other unmapped pair creates a user and its mapping together.
@@ -287,21 +290,54 @@ function resolveMappedIdentity(
     // 2026-09-28.
     if (legacyOwners.some(({ id }) => id !== owner.id))
       throw new Error(`external identity ${issuer} ${subject} is another user's legacy pair`);
-    return owner;
+    const email = canonicalOidcEmail(identity.email);
+    if (email !== null) {
+      const holder = tx
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          sql`(lower(${users.email}) = ${email} OR lower(${users.username}) = ${email}) AND ${users.id} <> ${owner.id}`,
+        )
+        .get();
+      // Proof: 2026-09-28, bypassing this check made `refuses a mapped email
+      // collision without changing the old address or identity` return a user.
+      if (holder !== undefined) {
+        // Proof: 2026-09-28, skipping this update made `revokes a verified
+        // mapped address after a colliding callback for an existing session`
+        // leave the old claimed domain available to onboarding.
+        tx.update(users)
+          .set({ emailVerified: false, ...auditOnUpdate(stamp) })
+          .where(eq(users.id, owner.id))
+          .run();
+        return null;
+      }
+    }
+    // Proof: 2026-09-28, omitting this update failed `answers the mapped user
+    // whatever email the token now carries` and `clears verification when a
+    // mapped callback lacks literal verified evidence`.
+    return tx
+      .update(users)
+      .set({
+        email,
+        emailVerified: identity.emailVerified && email !== null,
+        ...auditOnUpdate(stamp),
+      })
+      .where(eq(users.id, owner.id))
+      .returning(USER_COLUMNS)
+      .get();
   }
   // Proof: skipping this made `throws on a legacy pair activation never
   // mapped` in `user-oidc.db.test.ts` create a second account; watched
   // 2026-09-28.
   if (legacyOwners.length > 0)
     throw new Error(`legacy identity ${issuer} ${subject} was never mapped at activation`);
-  const trustedEmail =
-    identity.emailVerified && identity.email !== null ? normalizeEmail(identity.email) : null;
-  if (trustedEmail !== null) {
+  const normalizedEmail = canonicalOidcEmail(identity.email);
+  if (normalizedEmail !== null) {
     const holder = tx
       .select({ id: users.id })
       .from(users)
       .where(
-        sql`lower(${users.email}) = ${trustedEmail} OR lower(${users.username}) = ${trustedEmail}`,
+        sql`lower(${users.email}) = ${normalizedEmail} OR lower(${users.username}) = ${normalizedEmail}`,
       )
       .get();
     // Proof: skipping this made `refuses an unmapped identity whose verified
@@ -313,13 +349,17 @@ function resolveMappedIdentity(
     id: create.id,
     username: availableOidcUsername(tx, identity),
     passwordHash: null,
-    email: trustedEmail,
+    email: normalizedEmail,
     idpIssuer: issuer,
     idpSub: subject,
     createdAt: stamp.at,
   };
   tx.insert(users)
-    .values({ ...created, ...auditOnCreateBesidesCreatedAt(stamp) })
+    .values({
+      ...created,
+      emailVerified: identity.emailVerified && normalizedEmail !== null,
+      ...auditOnCreateBesidesCreatedAt(stamp),
+    })
     .run();
   tx.insert(externalIdentity)
     .values({ id: create.id, userId: create.id, issuer, subject, ...auditOnCreate(stamp) })
@@ -356,4 +396,27 @@ function availableOidcUsername(
 
 function looksLikeEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+/** Rejects URL-shaped domains before normalizing an activated OIDC address to ASCII IDNA. */
+function canonicalOidcEmail(email: string | null): string | null {
+  if (email === null) return null;
+  const normalized = normalizeEmail(email);
+  if (normalized === null) return null;
+  const separator = normalized.lastIndexOf('@');
+  const mailbox = normalized.slice(0, separator);
+  const domain = normalized.slice(separator + 1);
+  // Proof: 2026-09-28, skipping this check made `does not route a URL-shaped
+  // callback email to a claimed organization` admit a path as a domain.
+  if (!/^[\p{L}\p{M}\p{N}.-]+$/u.test(domain)) return null;
+  let host: string;
+  try {
+    // Proof: 2026-09-28, retaining the Unicode domain here failed `stores
+    // activated OIDC domains in canonical ASCII IDNA form`.
+    host = new URL(`http://${domain}`).hostname;
+  } catch {
+    return null;
+  }
+  if (!isCanonicalDomain(host)) return null;
+  return `${mailbox}@${host}`;
 }

@@ -22,7 +22,12 @@ import {
 import { readHistory } from './history-shapes';
 import { importProject } from './import-shapes';
 import { health, metrics } from './infrastructure-shapes';
-import { forwardInternal, resumeInternal } from './internal-http-shapes';
+import { forwardInternal, gatewayProjectAccess, resumeInternal } from './internal-http-shapes';
+import {
+  createOnboardingOrganization,
+  readOnboarding,
+  submitOnboardingJoinRequest,
+} from './onboarding-shapes';
 import { changeMemberRole, removeMember } from './organization-shapes';
 import {
   createProject,
@@ -70,6 +75,9 @@ export const httpShapes = [
   removeStep,
   changeMemberRole,
   removeMember,
+  readOnboarding,
+  createOnboardingOrganization,
+  submitOnboardingJoinRequest,
   listTeams,
   listPeople,
   listTags,
@@ -104,4 +112,5 @@ export const httpShapes = [
   deleteSavedPlan,
   forwardInternal,
   resumeInternal,
+  gatewayProjectAccess,
 ] as const;

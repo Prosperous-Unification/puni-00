@@ -141,7 +141,11 @@ describe('scoped solution links', () => {
 
   describe('the rollback', () => {
     it('rolls back while nothing is linked before activation', () => {
-      expect(rollbackTo(path, FOLDER, AUDIT)).toEqual([SOLUTION]);
+      expect(rollbackTo(path, FOLDER, AUDIT)).toEqual([
+        '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
+        SOLUTION,
+      ]);
     });
 
     it('refuses while a link is recorded', () => {
@@ -159,7 +163,10 @@ describe('scoped solution links', () => {
           .at(-1),
       );
 
+    const rollbackVerification = () => rollbackTo(path, FOLDER, SOLUTION);
+
     it('refuses with a missing or malformed marker, keeping the table and the ledger', () => {
+      rollbackVerification();
       raw((db) => {
         db.run('PRAGMA ignore_check_constraints = ON');
         db.run('UPDATE organization_activation SET activated_at = 5');
@@ -175,6 +182,7 @@ describe('scoped solution links', () => {
     });
 
     it('refuses after activation even with no link', () => {
+      rollbackVerification();
       raw((db) =>
         db.run("UPDATE organization_activation SET state = 'activated', activated_at = 5"),
       );

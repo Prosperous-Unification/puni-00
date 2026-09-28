@@ -3,11 +3,12 @@ import { allowancePercentOf, NO_ALLOWANCE } from '@wbs/domain';
 
 import type { PlanCommandRunner } from '../module/plan-commands/plan-commands.feature';
 import { runCommandBatchAfter } from '../module/plan-commands/run-command-batch';
-import type { OrganizationAccess } from '../ports/organization-access';
+import type { OrganizationAccess, ResourceAccess } from '../ports/organization-access';
 import type { Step } from '../ports/step-store';
 import type { StepOutcome, StepService } from '../service/step.service';
 import { bind, EMPTY, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
+import { type RecoveryWriteBoundary, runRecoveryWrite } from './recovery-write';
 
 /** The replies an add and a rename both declare. */
 type NamedReply = Extract<HttpReply<typeof renameStep>, HttpReply<typeof addStep>>;
@@ -77,7 +78,29 @@ export function stepRoutes(
   steps: Pick<StepService, 'addWithin' | 'findWithin' | 'removeWithin' | 'renameWithin'>,
   commands: Pick<PlanCommandRunner, 'runAfterWithin'>,
   organizations: OrganizationAccess,
+  recovery?: RecoveryWriteBoundary,
 ) {
+  /** Runs a scoped dependent write in the transaction that records its recovery. */
+  const write = <T extends { readonly ok: boolean }>(
+    access: ResourceAccess,
+    projectId: string,
+    actorId: string,
+    detail: { readonly step: 'add' | 'rename' | 'remove' },
+    perform: (service: typeof steps) => Promise<T>,
+    refuse: (reason: 'not_found' | 'forbidden') => T,
+  ): Promise<T> => {
+    if (access.kind === 'legacy') return perform(steps);
+    if (recovery === undefined) throw new Error('scoped step write has no recovery boundary');
+    return runRecoveryWrite(
+      recovery,
+      access,
+      projectId,
+      actorId,
+      detail,
+      (services) => perform(services.steps),
+      refuse,
+    );
+  };
   return [
     bind(addStep, async ({ params, body, principal }): Promise<HttpReply<typeof addStep>> => {
       const allowance =
@@ -93,13 +116,21 @@ export function stepRoutes(
       // Proof: catching the store failure as not_found returned a refusal object
       // instead of the original error in step.routes.test.ts's outage case.
       return addedReply(
-        await steps.addWithin(
+        await write(
+          resolved.access,
           params.id,
           principal.id,
-          body.name,
-          allowance,
-          body.code,
-          resolved.access,
+          { step: 'add' },
+          (service) =>
+            service.addWithin(
+              params.id,
+              principal.id,
+              body.name,
+              allowance,
+              body.code,
+              resolved.access,
+            ),
+          (reason): StepOutcome => ({ ok: false, reason }),
         ),
       );
     }),
@@ -117,33 +148,19 @@ export function stepRoutes(
         if (body.name === undefined) {
           return { ok: false, status: 422, body: { error: 'invalid_body' } };
         }
+        const name = body.name;
         return renamedReply(
-          await steps.renameWithin(
-            params.id,
-            params.stepId,
-            principal.id,
-            body.name,
+          await write(
             resolved.access,
+            params.id,
+            principal.id,
+            { step: 'rename' },
+            (service) =>
+              service.renameWithin(params.id, params.stepId, principal.id, name, resolved.access),
+            (reason): StepOutcome => ({ ok: false, reason }),
           ),
         );
       }
-      // The project, the step and the caller's role are checked here first,
-      // through the caller's access, before the rename or the command writes
-      // anything; the command batch then holds itself to the same access.
-      // Proof: skipping this check made `refuses an allowance edit of a foreign
-      // step or project, changing nothing` in
-      // `step-marker-organization.controller.db.test.ts` change B's step
-      // allowance from 0 to 25 before the command batch was scoped; since it
-      // is, the same fault answers 500 instead of 404 for B's step under A's
-      // project, the batch's `unknown_step` being no reply this route models;
-      // watched 2026-09-27.
-      const admitted = await steps.findWithin(
-        params.id,
-        params.stepId,
-        principal.id,
-        resolved.access,
-      );
-      if (!admitted.ok) return renamedReply(admitted);
       const { name } = body;
       // The rename is the batch's prelude, so a refused allowance takes it back
       // and a refused rename writes no allowance: one edit, all or nothing.
@@ -161,6 +178,22 @@ export function stepRoutes(
           access: resolved.access,
         },
         async (graph) => {
+          // The step is checked through the batch's own graph, inside its unit
+          // of work: after activation that graph carries the grant the unit of
+          // work admitted, so a super-admin's audited recovery reaches the step
+          // as the batch does, and a step of another project is `not_found`
+          // before anything is written.
+          // Proof: skipping this check made `refuses an allowance edit of a
+          // foreign step or project, changing nothing` in
+          // `step-marker-organization.controller.db.test.ts` fail (16 pass,
+          // 1 fail); watched 2026-09-28 after the check moved into the prelude.
+          const found = await graph.steps.findWithin(
+            params.id,
+            params.stepId,
+            principal.id,
+            resolved.access,
+          );
+          if (!found.ok) return found;
           if (name === undefined) return null;
           const renamed = await graph.steps.renameWithin(
             params.id,
@@ -209,12 +242,20 @@ export function stepRoutes(
         // Proof: truthy cascade deleted on cascade=1 (204 instead of409); reading
         // the first raw duplicate deleted on true&false (204 instead of409), both
         // observed in step.controller.db.test.ts before restoring this comparison.
-        const outcome = await steps.removeWithin(
-          params.id,
-          params.stepId,
-          principal.id,
-          query.cascade === 'true',
+        const outcome = await write(
           resolved.access,
+          params.id,
+          principal.id,
+          { step: 'remove' },
+          (service) =>
+            service.removeWithin(
+              params.id,
+              params.stepId,
+              principal.id,
+              query.cascade === 'true',
+              resolved.access,
+            ),
+          (reason) => ({ ok: false, reason }) as const,
         );
         if (outcome.ok) return { ok: true, status: 204, body: EMPTY };
         switch (outcome.reason) {
