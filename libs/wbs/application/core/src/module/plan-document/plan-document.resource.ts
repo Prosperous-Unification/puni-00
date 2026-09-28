@@ -14,10 +14,13 @@ import { formatStepNodeId, formatStepReference, NO_ALLOWANCE, orderSteps } from 
 import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { Clock } from '../../ports/clock';
 import type {
+  DirectoryCatalog,
+  DirectoryCatalogRows,
   DirectoryStore,
   PersonWithTeams,
   TeamWithServices,
 } from '../../ports/directory-store';
+import type { ResourceAccess } from '../../ports/organization-access';
 import type { Project } from '../../ports/project-store';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
 
@@ -37,6 +40,7 @@ function documentEndpoint(endpoint: TreeEndpoint): DocumentTypedDependency['pred
 
 type PlanDirectory = Pick<
   DirectoryStore,
+  | 'listInOrganization'
   | 'listTeams'
   | 'listPeople'
   | 'listTags'
@@ -83,11 +87,25 @@ export class PlanDocumentService {
    * uncoded (`code: null`, written mid-swap by an older be-01 and not yet
    * backfilled): the document carries every step's code and never invents one.
    *
+   * Under scoped access the directory closure is read from the organization's
+   * own catalogs, under their local names, so a person's teams and a team's
+   * services that cross into another organization fail the export closed
+   * rather than export a foreign entry; see {@link DirectoryStore.listInOrganization}.
+   *
+   * Proof: reading the global directory under scoped access made `exports
+   * only the organization's own directory, under its local names` in
+   * `import-export-organization.controller.db.test.ts` export the root names
+   * `root-pe-a`, `root-tm-a` and `root-sv-a`; watched 2026-09-27.
+   *
    * @throws when a step has no `code` key at all. This service reads its own
    * store, which always answers the key; an absent one is an older reader's
    * wire shape and cannot reach here.
    */
-  async export(project: Project, tree: WorkItemTree): Promise<PlanDocumentExport> {
+  async export(
+    project: Project,
+    tree: WorkItemTree,
+    access: ResourceAccess,
+  ): Promise<PlanDocumentExport> {
     const coded: PlanDocument['steps'] = [];
     const uncoded: { id: string; name: string }[] = [];
     for (const step of tree.steps) {
@@ -107,20 +125,32 @@ export class PlanDocumentService {
         steps: uncoded,
         command: STEP_CODE_BACKFILL_COMMAND,
       };
-    return { ok: true, value: await this.buildDocument(project, { ...tree, steps: coded }) };
+    return {
+      ok: true,
+      value: await this.buildDocument(project, { ...tree, steps: coded }, access),
+    };
   }
 
   private async buildDocument(
     project: Project,
     tree: WorkItemTree & { steps: PlanDocument['steps'] },
+    access: ResourceAccess,
   ): Promise<PlanDocument> {
+    const directory = this.options.directory;
+    const read = <C extends DirectoryCatalog>(
+      catalog: C,
+      legacy: () => Promise<DirectoryCatalogRows[C]>,
+    ): Promise<DirectoryCatalogRows[C]> =>
+      access.kind === 'scoped'
+        ? directory.listInOrganization(catalog, access.scope.organizationId)
+        : legacy();
     const [teams, people, tags, services, types, externalSystems, markerRead] = await Promise.all([
-      this.options.directory.listTeams(),
-      this.options.directory.listPeople(),
-      this.options.directory.listTags(),
-      this.options.directory.listServices(),
-      this.options.directory.listWorkItemTypes(),
-      this.options.directory.listExternalSystems(),
+      read('teams', () => directory.listTeams()),
+      read('people', () => directory.listPeople()),
+      read('tags', () => directory.listTags()),
+      read('services', () => directory.listServices()),
+      read('workItemTypes', () => directory.listWorkItemTypes()),
+      read('externalSystems', () => directory.listExternalSystems()),
       this.options.markers.list(project.id),
     ]);
     if (!markerRead.ok) throw new Error(`project "${project.id}" disappeared during export`);

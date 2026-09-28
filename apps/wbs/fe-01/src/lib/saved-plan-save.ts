@@ -281,6 +281,8 @@ export function useSavedPlanSave(
               case 'forbidden':
               case 'invalid_json':
               case 'invalid_body':
+              case 'no_active_organization':
+              case 'not_a_member':
                 return { kind: 'error', code: reply.body.error };
               default:
                 return unreachable(reply.body);

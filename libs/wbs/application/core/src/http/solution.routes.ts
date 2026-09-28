@@ -1,21 +1,24 @@
 import { readSolution } from '@wbs/contracts';
 
+import type { OrganizationAccess } from '../ports/organization-access';
 import type { ProjectService } from '../service/project.service';
-import { bind } from './endpoint';
+import { bind, type HttpReply } from './endpoint';
+import { organizationRefusal } from './organization-refusal';
 
 /**
- * Resolves the plan owned by an external solution. The mounted declaration
- * enforces read scope; an absent solution is modeled, while store failures
- * propagate without being disguised as absence.
- * Proof: replacing the slug with empty text or removing this binding each
- * returned404 instead of200 in the mounted slug-resolution case. Catching the
- * store exception as null returned404 instead of500 in the solution-settings
- * case (project.controller.test.ts).
+ * Resolves a solution slug through the caller's access: under scoped access a
+ * project the organization does not own is `not_found` exactly as an absent
+ * slug.
+ * Proof: reading the slug unscoped made `answers a foreign solution slug as
+ * an absent one` in `import-export-organization.controller.db.test.ts` answer
+ * 200 with B's project; watched 2026-09-27.
  */
-export function solutionRoutes(projects: ProjectService) {
+export function solutionRoutes(projects: ProjectService, organizations: OrganizationAccess) {
   return [
-    bind(readSolution, async ({ params }) => {
-      const found = await projects.readBySolutionSlug(params.slug);
+    bind(readSolution, async ({ params, principal }): Promise<HttpReply<typeof readSolution>> => {
+      const resolved = await organizations.resolve(principal.id);
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      const found = await projects.readBySolutionSlugWithin(params.slug, resolved.access);
       return found === null
         ? { ok: false, status: 404, body: { error: 'not_found' } }
         : { ok: true, status: 200, body: found };

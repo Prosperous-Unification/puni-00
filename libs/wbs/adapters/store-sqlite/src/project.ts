@@ -553,6 +553,32 @@ export class ProjectRepository implements ProjectStore {
     return found === undefined ? null : toProject(found);
   }
 
+  /**
+   * Proof: finding the slug deployment-wide and checking ownership afterwards
+   * made `answers a foreign solution slug as an absent one, even when its row
+   * is unreadable` in `import-export-organization.controller.db.test.ts`
+   * answer 500 instead of 404; watched 2026-09-27.
+   */
+  async findBySolutionSlugInOrganization(
+    slug: string,
+    organizationId: string,
+  ): Promise<Project | null> {
+    const rows = await this.db
+      .select({ project })
+      .from(project)
+      .innerJoin(
+        projectOrganization,
+        and(
+          eq(projectOrganization.resourceId, project.id),
+          eq(projectOrganization.organizationId, organizationId),
+        ),
+      )
+      .where(eq(project.solutionSlug, slug))
+      .limit(1);
+    const found = rows.at(0);
+    return found === undefined ? null : toProject(found.project);
+  }
+
   async list(): Promise<Project[]> {
     const rows = await this.db.select().from(project).orderBy(desc(project.createdAt));
     return rows.map(toProject);

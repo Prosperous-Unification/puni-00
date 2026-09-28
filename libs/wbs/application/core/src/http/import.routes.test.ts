@@ -1,6 +1,7 @@
 import { importProject } from '@wbs/contracts';
 import { expect, mock, test } from 'bun:test';
 
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { planDocumentFixture } from '../testing/plan-document-fixture';
 import { importRoutes } from './import.routes';
 
@@ -21,7 +22,7 @@ const summary = {
 
 test('binds the import shape and returns its complete created summary', async () => {
   const importPlan = mock(() => Promise.resolve(summary));
-  const [endpoint] = importRoutes({ import: importPlan });
+  const [endpoint] = importRoutes({ import: importPlan }, legacyOrganizationAccess);
   expect(endpoint.shape).toBe(importProject);
 
   const response = await endpoint.handle({
@@ -36,7 +37,7 @@ test('binds the import shape and returns its complete created summary', async ()
     },
   });
 
-  expect(importPlan).toHaveBeenCalledWith(planDocumentFixture(), 'actor');
+  expect(importPlan).toHaveBeenCalledWith(planDocumentFixture(), 'actor', { kind: 'legacy' });
   expect(response).toEqual({
     ok: true,
     status: 201,
@@ -78,7 +79,10 @@ test.each([
     409,
   ],
 ] as const)('maps import refusal %# to its declared wire status', async (outcome, status) => {
-  const [endpoint] = importRoutes({ import: () => Promise.resolve(outcome) });
+  const [endpoint] = importRoutes(
+    { import: () => Promise.resolve(outcome) },
+    legacyOrganizationAccess,
+  );
   const response = await endpoint.handle({
     params: {},
     query: undefined,
