@@ -73,7 +73,7 @@ const term = (value: number): SolverObjectiveValues[SolverObjectiveTerm] => ({
   status: 'feasible',
 });
 const feasible = (offsets: Record<string, number>): SolverResponse => ({
-  wireVersion: 1,
+  wireVersion: 2,
   status: 'feasible',
   offsets,
   objectiveValues: { makespan: term(0), priority: term(0), movement: term(0) },

@@ -30,8 +30,8 @@ Six clauses, in the re-validator's own order:
 2. **Floors** — `start >= notBeforeUnits` (`floor-violated`), folded into the
    variable's own domain rather than added as a constraint: it is the same
    statement and it gives the presolve a tighter start.
-3. **Edges** — `finish(pred) <= start(succ)` (`edge-violated`). Closed-then-open:
-   a slice finishing exactly where its successor starts is a hand-off.
+3. **Edges** — FS finish→start, SS start→start, FF finish→finish plus its
+   derived start weight (`edge-violated`). A boundary equality is a hand-off.
 4. **Pools** — one `AddCumulative` per pool, demand `width`, capacity
    `pools[poolId]` (`pool-overcapacity`). The whole width is spent in *every*
    pool a slice names, so a two-pool slice is counted at full width in both.
@@ -80,7 +80,7 @@ from typing import Any, Mapping, Sequence
 
 from ortools.sat.python import cp_model
 
-# The three term names, spelled exactly as `solver-wire.v1.json`'s
+# The three term names, spelled exactly as `solver-wire.v2.json`'s
 # `objectiveValues` spells them. Lowercase is derived rather than chosen: the
 # schema's own `$comment` records that `MAKESPAN`/`PRIORITY`/`MOVEMENT` in
 # design.md are mathematical names and these are the JSON keys.
@@ -91,7 +91,7 @@ MOVEMENT = "movement"
 TERMS: tuple[str, str, str] = (MAKESPAN, PRIORITY, MOVEMENT)
 
 # The lexicographic order each objective minimises, from the request's
-# `objective` enum. `solver-wire.v1.json`: "pri minimises (PRIORITY, MAKESPAN,
+# `objective` enum. `solver-wire.v2.json`: "pri minimises (PRIORITY, MAKESPAN,
 # MOVEMENT) lexicographically; time minimises (MAKESPAN, PRIORITY, MOVEMENT)".
 # MOVEMENT is last in both, which is why it is a tie-breaker and never a driver.
 STAGE_ORDER: Mapping[str, tuple[str, str, str]] = {
@@ -133,7 +133,7 @@ def stage_order(objective: str) -> tuple[str, str, str]:
 def build_model(request: Mapping[str, Any]) -> BuiltModel:
     """Build the constraint system and the three cost terms for one request.
 
-    The request is assumed already validated — schema plus the four cross-field
+    The request is assumed already validated — schema plus the receiver's cross-field
     checks in `validate.py`. This function re-derives nothing about
     well-formedness and would build a nonsense model from a nonsense request,
     which is why `cli.main` validates first and unconditionally.
@@ -143,7 +143,6 @@ def build_model(request: Mapping[str, Any]) -> BuiltModel:
     horizon: int = request["horizonUnits"]
     pools: Mapping[str, int] = request["pools"]
     baseline: Mapping[str, int] = request["baselineOffsets"]
-    hint: Mapping[str, int] = request["fastHint"]
 
     keys = tuple(str(s["key"]) for s in slices)
     starts: dict[str, cp_model.IntVar] = {}
@@ -189,18 +188,27 @@ def build_model(request: Mapping[str, Any]) -> BuiltModel:
         if duration > 0:
             intervals[key] = model.new_interval_var(start, duration, end, f"span[{key}]")
 
-        # 5.9's solution hint. The bound half of 5.9 belongs to the staging loop,
-        # because it constrains stage 1's term and no term exists until below.
-        # A hint is advice: CP-SAT is free to ignore it, so an infeasible hint
-        # costs search time and never a wrong answer.
-        if key in hint:
-            model.add_hint(start, int(hint[key]))
-
-    # Clause 3.
+    # Clause 3. The wire has already selected the boundary slices. An FF edge
+    # needs both constraints: integer finish order and the separately derived
+    # start weight that protects real finish order after quantisation.
+    # Proof: removing the SS clause made EdgeClause.test_ss_allows_concurrent_
+    # finishes_but_orders_starts return OPTIMAL instead of INFEASIBLE;
+    # removing the FF start-weight clause made EdgeClause.test_ff_requires_
+    # weight_even_when_rounded_finishes_tie return OPTIMAL instead of
+    # INFEASIBLE (2026-09-28 observed unittest failures).
     for edge in request["edges"]:
         predecessor = str(edge["predecessorKey"])
         successor = str(edge["successorKey"])
-        model.add(ends[predecessor] <= starts[successor])
+        edge_type = edge["type"]
+        if edge_type == "FS":
+            model.add(ends[predecessor] <= starts[successor])
+        elif edge_type == "SS":
+            model.add(starts[predecessor] <= starts[successor])
+        elif edge_type == "FF":
+            model.add(ends[predecessor] <= ends[successor])
+            model.add(starts[successor] >= starts[predecessor] + edge["startWeightUnits"])
+        else:  # pragma: no cover - validate_request rejects unsupported types
+            raise ValueError(f"unsupported dependency type {edge_type!r}")
 
     # Clause 4. One cumulative per pool, over the members that name it. A pool
     # nobody references is absent from this loop and constrains nothing, which

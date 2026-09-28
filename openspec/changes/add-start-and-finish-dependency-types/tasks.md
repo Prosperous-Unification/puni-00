@@ -48,15 +48,15 @@
 
 ## 5. Build weighted solver constraints
 
-- [ ] 5.1 Red: FS/SS/FF wire and CP-SAT goldens including unknown zero-duration endpoints.
-- [ ] 5.2 Enforce weighted edges and real FS/SS/FF boundary checks.
-- [ ] 5.3 Negative proof: omit one SS edge or real-boundary check; watch validation fail, restore, add adjacent `Proof:`.
+- [x] 5.1 Red: FS/SS/FF wire and CP-SAT goldens including unknown zero-duration endpoints.
+- [x] 5.2 Enforce weighted edges and real FS/SS/FF boundary checks.
+- [x] 5.3 Negative proof: omit one SS edge or real-boundary check; watch validation fail, restore, add adjacent `Proof:`.
 
 ## 6. Protect FF quantization
 
-- [ ] 6.1 Red: 0.030/0.021 counterexample and forged one-unit-too-small W_FF.
-- [ ] 6.2 Add W_FF to versioned wire and recompute it independently before publication.
-- [ ] 6.3 Negative proof: lower wire weight or skip recomputation; watch the counterexample fail, restore, add adjacent `Proof:`.
+- [x] 6.1 Red: 0.030/0.021 counterexample and forged one-unit-too-small W_FF.
+- [x] 6.2 Add W_FF to versioned wire and recompute it independently before publication.
+- [x] 6.3 Negative proof: lower wire weight or skip recomputation; watch the counterexample fail, restore, add adjacent `Proof:`.
 
 ## 7. Generalize Fast placement
 
@@ -78,9 +78,9 @@
 
 ## 10. Preserve outcome truth and cache identity
 
-- [ ] 10.1 Red: Fast deadline miss with feasible optimized order, timeout unknown, quantized-only infeasibility and stale cache after type edit.
-- [ ] 10.2 Distinguish these outcomes, bump wire and scheduler contract versions, update hash and corpora.
-- [ ] 10.3 Negative proof: label Fast miss infeasible or accept old cache; watch outcome test fail, restore, add adjacent `Proof:`.
+- [x] 10.1 Red: Fast deadline miss with feasible optimized order, timeout unknown, quantized-only infeasibility and stale cache after type edit.
+- [x] 10.2 Distinguish these outcomes, bump wire and scheduler contract versions, update hash and corpora.
+- [x] 10.3 Negative proof: label Fast miss infeasible or accept old cache; watch outcome test fail, restore, add adjacent `Proof:`.
 
 ## 11. Show SS/FF in the editor and chart
 

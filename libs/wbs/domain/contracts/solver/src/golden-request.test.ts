@@ -135,6 +135,59 @@ describe('the golden request corpus', () => {
     expect(requestOf()).toEqual(fixture('request/valid-quantised-baseline.json'));
   });
 
+  it('pins the FF counterexample as a complete v2 request', () => {
+    const ffPlan: SolverRequestPlan = {
+      rows: ['A', 'B'].map((id, position) => ({
+        id,
+        parentId: null,
+        position,
+        frozenNumber: null,
+        priority: null,
+      })),
+      edges: [],
+      slices: [
+        { workItemId: 'A', stepId: null, days: 0.03, personId: null, width: 1, poolIds: [] },
+        { workItemId: 'B', stepId: null, days: 0.021, personId: null, width: 1, poolIds: [] },
+      ],
+      notBefore: new Map(),
+      poolSizes: new Map(),
+      reach: 'whole-item',
+      deadlines: new Map(),
+      typed: [
+        {
+          id: 'ff',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+          type: 'FF',
+        },
+      ],
+    };
+    const baselineOffsets = quantisedFastBaseline(
+      ffPlan.rows,
+      ffPlan.edges,
+      ffPlan.slices,
+      ffPlan.notBefore,
+      ffPlan.poolSizes,
+      ffPlan.reach,
+      ffPlan.typed,
+    );
+    const built = buildSolverRequest(ffPlan, 'time', {
+      baselineOffsets,
+      solverVersion: '0.1.3',
+      budgetMs: 1_000,
+    });
+    if (!built.ok) throw new Error(built.detail);
+    expect(built.request).toEqual(fixture('request/valid-ff-quantization.json'));
+    expect(
+      revalidateSolverResult(
+        built.request,
+        { wireVersion: 2, status: 'unknown' },
+        ffPlan.slices,
+        ffPlan,
+      ),
+    ).toEqual({ ok: true, published: false });
+  });
+
   it('rounds the durations up, so the offsets are the model the solver receives', () => {
     // Stated separately from the deep equality because it is the ONE number the
     // fixture exists to hold: real Fast's 9.6 and 19.2 are not values any
@@ -170,6 +223,9 @@ describe('the golden request corpus', () => {
       (candidate) => candidate.valid && candidate.file.startsWith('request/valid-'),
     )) {
       const request = fixture(entry.file);
+      // FF weights require canonical real slices, which the wire intentionally
+      // does not carry. The dedicated FF golden above supplies its Bun plan.
+      if (request.edges.some((edge) => edge.type === 'FF')) continue;
       const groups = new Map<string, typeof request.slices>();
       for (const slice of request.slices) {
         groups.set(slice.workItemKey, [...(groups.get(slice.workItemKey) ?? []), slice]);
@@ -178,7 +234,7 @@ describe('the golden request corpus', () => {
         const expected = peers.every((slice) => slice.durationUnits === 0);
         expect(peers.every((slice) => slice.workItemIsMilestone === expected)).toBe(true);
       }
-      expect(revalidateSolverResult(request, { wireVersion: 1, status: 'unknown' })).toEqual({
+      expect(revalidateSolverResult(request, { wireVersion: 2, status: 'unknown' })).toEqual({
         ok: true,
         published: false,
       });

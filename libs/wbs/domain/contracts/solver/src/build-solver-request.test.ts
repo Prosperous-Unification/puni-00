@@ -132,8 +132,8 @@ describe('buildSolverRequest', () => {
     ]);
     // The chain first, then the join: A's LAST slice to B's FIRST, whole-item.
     expect(request.edges).toEqual([
-      { predecessorKey: sliceKey('A', 'design'), successorKey: sliceKey('A', 'dev') },
-      { predecessorKey: sliceKey('A', 'dev'), successorKey: sliceKey('B', 'dev') },
+      { predecessorKey: sliceKey('A', 'design'), successorKey: sliceKey('A', 'dev'), type: 'FS' },
+      { predecessorKey: sliceKey('A', 'dev'), successorKey: sliceKey('B', 'dev'), type: 'FS' },
     ]);
     expect(request.pools).toEqual({ 'team-x': 2 });
     // `team-y` is sized in the project and named by no slice, so it stays out:

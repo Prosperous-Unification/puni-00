@@ -1,4 +1,24 @@
-import { SOLVER_QUANTUM } from '@wbs/domain';
+import { durationOf, durationUnits, type Slice, snapWorkdays, SOLVER_QUANTUM } from '@wbs/domain';
+
+/**
+ * The FF start bound protects real finish order after integer placement.
+ * Snap in unit space as duration quantisation does: it removes only the
+ * sub-nanounit residue from floating division, before the ceiling can add a
+ * spurious whole unit. The integer finish bound remains independently active.
+ */
+export function ffStartWeightUnits(predecessor: Slice, successor: Slice): number {
+  const integerFinishWeight = durationUnits(predecessor) - durationUnits(successor);
+  const realFinishWeight = Math.ceil(
+    snapWorkdays(SOLVER_QUANTUM * (durationOf(predecessor) - durationOf(successor))),
+  );
+  if (!Number.isSafeInteger(realFinishWeight)) {
+    throw new Error(`FF relationship has no safe integer start weight`);
+  }
+  // Proof: replacing this max with integerFinishWeight made the 0.030/0.021
+  // baseline test fail (B=0, expected >=1) and forgery test accept weight 0;
+  // observed 56 pass / 2 fail, then restored.
+  return Math.max(integerFinishWeight, realFinishWeight);
+}
 
 /**
  * The two calendar constraints converted from whole workdays into the solver's

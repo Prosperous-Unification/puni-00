@@ -53,3 +53,35 @@ The full Nx gate, host gate, build, CP-SAT wire, command/import SS/FF writes and
 Commit attempt: `git add` could not create `/home/df/wd/puni/puni-00/.git/worktrees/b9-010-4-7-step-deps-b/index.lock` (`Read-only file system`, exit 128). A direct write probe to that Git worktree metadata directory also returned `Read-only file system` (exit 1). All source and artifact edits remain in this worktree, unstaged; no commits or push were made.
 
 The requested Astra math review was attempted with `codex exec -m gpt-6-astra -c model_reasoning_effort=high --skip-git-repo-check` and the schedule/design file paths. It exited 1 because workspace routing discovery and HTTPS requests failed; no review answer was returned. The production tests and mutation proofs above remain the available evidence.
+
+## 2026-09-28 solver-wire slice (groups 5, 6, 10)
+
+Wire v2 carries FS/SS/FF edges and FF's signed `startWeightUnits`. The one Bun derivation uses the maximum of integer finish difference and snapped real-duration difference in Q=48 units. CP-SAT enforces the corresponding typed inequalities. The Bun revalidator checks the wire edge set against the canonical graph and recomputes FF weights from canonical slices before it accepts any response status. Fast and optimized publication share a real-boundary validator. A rounded Fast baseline that misses the strengthened FF bound is replaced by a serial topological placement; Python installs its hint and stage-1 bound only after a pinned-start model proves that placement satisfies all active constraints, including deadlines. Stage-1 integer infeasibility is now `no-solution` for the fractional plan, so it does not create a persistent real-plan infeasibility certificate. The scheduler contract remains 14 from the Fast slice, and a type edit changes the canonical input hash. The v2 schema copy matches the normative schema byte for byte (`cmp`, exit 0).
+
+Final observed scoped checks:
+
+- `env -u CLAUDECODE bun test src` in `libs/wbs/domain/contracts/solver`: 285 pass, 0 fail.
+- `env -u CLAUDECODE bun test src` in `libs/wbs/domain/domain`: 766 pass, 0 fail.
+- `env -u CLAUDECODE bun test` on the five touched service/coordinator/event test files from `apps/wbs/be-01`: 58 pass, 0 fail.
+- `/home/df/wd/puni/puni-plan/venv-solver-py/bin/python -m unittest discover -s tests -t tests` from `libs/wbs/adapters/solver-py`: 226 tests, OK, 33.619 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run <project>:lint:fast` and `:typecheck` for `wbs-contracts`, `wbs-domain`, `wbs-be-01`: all exited 0. The final domain typecheck used `--skip-nx-cache` and ran fresh.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: exit 0, 139 passed, 0 failed.
+- `bunx prettier --check` on every touched tracked TS/JSON/Markdown file and four new TS/JSON files: exit 0 after formatting this record.
+
+Observed fault injections, all restored with adjacent `Proof:` comments:
+
+| Removed or damaged production check                      | Observed negative                                                                                                            |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Return only `D_a-D_b` as FF weight                       | Contracts focused run: 56 pass / 2 fail; baseline put B at 0 instead of at least 1 and forged zero weight was accepted.      |
+| Bypass FF canonical weight comparison                    | Forged 0.030/0.021 request was accepted as `published:false` instead of `malformed-request`; revalidation: 47 pass / 1 fail. |
+| Bypass Bun edge type and misplaced-weight guards         | Unsupported SF and weighted SS edges were accepted; revalidation: 47 pass / 2 fail.                                          |
+| Bypass canonical edge-set comparison                     | Omitted SS edge was accepted; revalidation file: 47 pass / 1 fail, expected false, received true.                            |
+| Replace SS boundary check with false                     | Response with A start 1, B start 0 was accepted; revalidation file: 44 pass / 1 fail.                                        |
+| Drop Python SS or FF weight constraint                   | Each model golden changed from `INFEASIBLE` to `OPTIMAL`.                                                                    |
+| Install Python hints without feasible-baseline probe     | Hint count changed from `[0, 0, 0, 0]` to `[0, 2, 2, 2]`.                                                                    |
+| Disable materialized FF real-boundary comparison         | Domain publication test failed with `Received function did not throw`; 6 pass / 1 fail.                                      |
+| Remove relationship type from canonical hash             | Focused cache test failed: FS and FF canonical strings became equal (0 pass / 1 fail).                                       |
+| Certify integer infeasibility as real-plan infeasibility | Quantized-only 49-step case failed its expected `no-solution` outcome (0 pass / 1 fail).                                     |
+| Short-circuit on Fast's deadline miss                    | Feasible alternate resource order failed to publish (0 pass / 1 fail).                                                       |
+
+The full be-01 suite was attempted earlier in this slice: 1288 pass, 1 skip, 36 fail. Most failures were sandbox `EPERM` on socket listeners; one spawn-handshake test timed out. Two stale contract-version expectations were corrected afterward and their 10-test file passed; the full suite was not rerun. The host gate, full Nx gate and build were not run: the user explicitly excluded the full gate and prohibited commits, while this worktree's Git metadata is read-only. Other OpenSpec groups remain pending.

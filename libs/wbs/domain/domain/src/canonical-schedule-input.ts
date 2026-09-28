@@ -241,6 +241,8 @@ export function canonicalScheduleInput(input: ScheduleInput): string {
       id: dependency.id,
       predecessor: canonicalEndpoint(dependency.predecessor),
       successor: canonicalEndpoint(dependency.successor),
+      // Proof: deleting this member made the FS→FF cache-input test fail:
+      // 0 pass, 1 fail; both canonical strings became identical (2026-09-28).
       type: dependency.type,
     }));
 

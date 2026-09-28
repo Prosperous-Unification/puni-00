@@ -1,4 +1,4 @@
-"""The copy of `solver-wire.v1.json` inside the package is the original.
+"""The copy of `solver-wire.v2.json` inside the package is the original.
 
 Two files with the same name in one repository are a drift bug waiting to be
 written, so the drift is a test rather than a convention. It compares **bytes**,
@@ -76,7 +76,7 @@ class SchemaCopy(unittest.TestCase):
 
         schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
         root = Draft202012Validator(schema)
-        for message in ({}, {"wireVersion": 1}, {"anything": "at all"}):
+        for message in ({}, {"wireVersion": 2}, {"anything": "at all"}):
             with self.subTest(message=message):
                 self.assertFalse(root.is_valid(message))
 

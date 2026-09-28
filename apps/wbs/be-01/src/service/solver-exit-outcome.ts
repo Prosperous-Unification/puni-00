@@ -3,10 +3,6 @@ import { materialiseOptimized } from '@wbs/contracts/solver/materialise-optimize
 import { publishOptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import { parseSolverResponse } from '@wbs/contracts/solver/parse-solver-response';
 import {
-  type PlanInfeasibleResult,
-  planInfeasibleResultOf,
-} from '@wbs/contracts/solver/plan-infeasible';
-import {
   revalidateOptimizedDeadlines,
   revalidateSolverResult,
 } from '@wbs/contracts/solver/revalidate-solver-result';
@@ -27,9 +23,7 @@ export type SolverProcessOutcome =
   | { readonly kind: 'response'; readonly stdout: string }
   | { readonly kind: 'failed'; readonly reason: SolverFailureReason };
 
-export type EvaluatedSolverOutcome =
-  | OptimizationOutcome
-  | { readonly kind: 'plan-infeasible'; readonly certificate: PlanInfeasibleResult };
+export type EvaluatedSolverOutcome = OptimizationOutcome;
 
 /**
  * Turn one classified child outcome into the exact cache value it earned.
@@ -74,18 +68,27 @@ export function evaluateSolverOutcome(
   // ones that were malformed all along — and `unknown` now reports the
   // malformed request instead of `no-solution`, which is the more accurate of
   // the two.
-  const checked = revalidateSolverResult(request, response);
+  const checked = revalidateSolverResult(request, response, input.slices, input);
   if (!checked.ok) {
     return { kind: 'failed', reason: dispositionOfRevalidationFailure(checked.failure) };
   }
   if (response.status !== 'feasible') {
     if (response.status === 'unknown') return { kind: 'failed', reason: 'no-solution' };
-    const certificate = planInfeasibleResultOf(input);
-    return certificate.items.length === 0
-      ? { kind: 'failed', reason: 'invalid-output' }
-      : { kind: 'plan-infeasible', certificate };
+    // Proof: removing this no-deadline refusal made the no-deadline
+    // infeasible-response test receive no-solution instead of invalid-output
+    // (2026-09-28, 3 pass / 1 fail in solver-exit-outcome.test.ts).
+    if (input.deadlines.size === 0) return { kind: 'failed', reason: 'invalid-output' };
+    // The integer model can be infeasible while the fractional plan is
+    // feasible. Its verdict cannot justify a persistent real-plan certificate.
+    // Proof: mapping this branch to plan-infeasible made the quantized-only
+    // outcome test fail: expected no-solution, received plan-infeasible
+    // (2026-09-28, 0 pass / 1 fail in the focused solver-exit-outcome test).
+    return { kind: 'failed', reason: 'no-solution' };
   }
 
+  // Proof: short-circuiting here when real Fast had a late slice made the
+  // feasible-order test fail (expected ok, received failed; 0 pass / 1 fail,
+  // 2026-09-28). The solver's valid order is still eligible for publication.
   try {
     const optimized = materialiseOptimized(
       input.rows,

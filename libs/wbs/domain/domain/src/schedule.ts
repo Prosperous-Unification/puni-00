@@ -2,6 +2,7 @@ import type { DependencyReach } from './dependency-reach';
 import type { PlannedRow } from './derive-numbers';
 import { leafDeadlinesOf, leafFloorsOf } from './leaf-constraints';
 import { WORK_ITEM_PROJECTION_START, workdaysLateBy } from './on-time';
+import { validateRealBoundaries } from './real-boundaries';
 import { resolveStepNodeGraph, type StepNodeGraphEdge } from './slice-edges';
 import { groupSlicesByLeaf } from './slice-groups';
 import { treeOrder } from './tree-order';
@@ -3129,13 +3130,18 @@ export function schedule(
     if (found === undefined) throw new Error(`no schedule for slice ${key}`);
     return found;
   };
-  return {
+  const plan: Schedule = {
     slices: scheduledSlices,
     workItems: projectOntoWorkItems(rows, index, slicesOf, scheduleOf),
     waitingForPerson: waiting.size,
     waitingForCapacity: waitingOnSlots.size,
     eventsVisited: leveled.eventsVisited,
   };
+  validateRealBoundaries(
+    { rows, edges, slices, notBefore, poolSizes, reach, deadlines, typed },
+    plan,
+  );
+  return plan;
 }
 
 /**

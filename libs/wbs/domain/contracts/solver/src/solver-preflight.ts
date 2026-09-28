@@ -60,7 +60,7 @@ const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
  * builder computed.
  *
  * **It is the FINISH, not the horizon, and the difference is load-bearing.**
- * `horizonUnits` bounds a slice's *start* (`solver-wire.v1.json` clause 1, and
+ * `horizonUnits` bounds a slice's *start* (`solver-wire.v2.json` clause 1, and
  * `model.py` builds the start domain from it); PRIORITY is `Σ w(s) · finish(s)`
  * and a finish past the horizon is legal — the makespan's business, not an
  * error. So the true ceiling exceeds `Σ w(s) × horizonUnits` by exactly

@@ -119,6 +119,30 @@ const noConstraints: LeafConstraintMaps = {
 };
 
 describe('quantisedFastBaseline', () => {
+  it('places the 0.030/0.021 FF successor after the strengthened unit bound', () => {
+    const rows = [row('A', 0), row('B', 1)];
+    const slices = [sliceOf('A', null, 0.03), sliceOf('B', null, 0.021)];
+    const typed = [
+      {
+        id: 'ff',
+        predecessor: { scope: 'whole' as const, workItemId: 'A' },
+        successor: { scope: 'whole' as const, workItemId: 'B' },
+        type: 'FF' as const,
+      },
+    ];
+    const offsets = quantisedFastBaseline(
+      rows,
+      [],
+      slices,
+      new Map(),
+      new Map(),
+      'whole-item',
+      typed,
+    );
+    // Proof: returning the raw quantised Fast placement puts both starts at 0;
+    // this test observed B=0 instead of a start at or past unit 1.
+    expect(offsets['B\u0000']).toBeGreaterThanOrEqual(offsets['A\u0000'] + 1);
+  });
   it('rounds up to whole units rather than carrying real Fast onto the wire', () => {
     const { rows, edges, slices } = fiveWide;
 
@@ -285,7 +309,7 @@ describe('quantisedFastBaseline', () => {
  * entrypoint's `jsonschema` validation, which is 2.x's and does not exist yet.
  * So the structural check below is `SOLVER_REQUEST_KEYS` and
  * `SOLVER_SLICE_KEYS` — constants `wire-types.test.ts` pins to
- * `solver-wire.v1.json` member for member — rather than a validator this
+ * `solver-wire.v2.json` member for member — rather than a validator this
  * package does not have. It catches a fixture that has drifted from the schema's
  * shape; it does not catch one that has drifted from its value ranges, and
  * saying otherwise would be claiming a gate that is not there.

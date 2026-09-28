@@ -96,6 +96,46 @@ class SchemaAcceptsTheBaseline(unittest.TestCase):
                     )
 
 
+class TypedEdgeBoundary(unittest.TestCase):
+    def test_the_request_entrypoint_refuses_malformed_typed_edges(self) -> None:
+        for edge in (
+            {"predecessorKey": KEY_A, "successorKey": KEY_B, "type": "SF"},
+            {"predecessorKey": KEY_A, "successorKey": KEY_B, "type": "FF"},
+            {"predecessorKey": KEY_A, "successorKey": KEY_B, "type": "SS", "startWeightUnits": 0},
+        ):
+            with self.subTest(edge=edge):
+                request = valid_request()
+                request["edges"] = [edge]
+                with self.assertRaises(RequestRejected):
+                    validate_request(json.dumps(request).encode("utf-8"))
+
+    def test_unsupported_type_is_rejected_before_model_build(self) -> None:
+        request = valid_request()
+        request["edges"][0]["type"] = "SF"
+        with self.assertRaisesRegex(RequestRejected, "unsupported dependency type"):
+            check_cross_field(request)
+
+    def test_ff_requires_an_integer_weight(self) -> None:
+        for weight in (None, 0.5, True):
+            with self.subTest(weight=weight):
+                request = valid_request()
+                request["edges"][0]["type"] = "FF"
+                request["edges"][0].pop("startWeightUnits", None)
+                if weight is not None:
+                    request["edges"][0]["startWeightUnits"] = weight
+                with self.assertRaisesRegex(RequestRejected, "startWeightUnits"):
+                    check_cross_field(request)
+
+    def test_fs_and_ss_reject_a_weight(self) -> None:
+        for edge_type in ("FS", "SS"):
+            with self.subTest(edge_type=edge_type):
+                request = valid_request()
+                request["edges"][0]["type"] = edge_type
+                request["edges"][0]["startWeightUnits"] = 0
+                with self.assertRaisesRegex(RequestRejected, "startWeightUnits"):
+                    check_cross_field(request)
+
+
 def leaf_types(value, path: str = "<root>") -> dict[str, str]:
     """Every scalar leaf's Python type, keyed by path. Order-insensitive."""
     if isinstance(value, dict):
