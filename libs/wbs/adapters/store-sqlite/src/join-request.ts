@@ -170,6 +170,7 @@ export class JoinRequestRepository implements JoinRequest {
               .run();
             return { ok: true, value: { invitationId, email } };
           },
+          // Proof: 2026-09-28, changing this transaction to deferred made `serializes overlapping approve/approve decisions across processes` fail with SQLITE_BUSY under a competing writer lock.
           { behavior: 'immediate' },
         ),
       ),
@@ -219,6 +220,7 @@ export class JoinRequestRepository implements JoinRequest {
               .run();
             return { ok: true, value: null };
           },
+          // Proof: 2026-09-28, changing this transaction to deferred made `serializes overlapping approve/deny decisions across processes` fail with SQLITE_BUSY under a competing writer lock.
           { behavior: 'immediate' },
         ),
       ),

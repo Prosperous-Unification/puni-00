@@ -1,10 +1,8 @@
 import { createHash } from 'node:crypto';
+import { existsSync, writeFileSync } from 'node:fs';
 
-import { JoinRequestRepository } from '@wbs/store-sqlite';
-import { openConnection } from '@wbs/store-sqlite/db';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { OPEN } from '../repository/gate';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 describe('organization join request decisions', () => {
@@ -295,64 +293,78 @@ describe('organization join request decisions', () => {
     );
   });
 
-  it('resolves competing decisions from independent SQLite connections once', async () => {
-    harness.activate();
-    const firstId = await submit();
-    const left = openConnection(harness.databasePath());
-    const right = openConnection(harness.databasePath());
-    const stamp = { at: Date.now(), by: harness.userId('owner') };
-    try {
-      const approving = new JoinRequestRepository(left.db, OPEN);
-      const denying = new JoinRequestRepository(right.db, OPEN);
-      const first = await Promise.all([
-        approving.approve(
-          'org',
-          stamp.by,
-          firstId,
-          'viewer',
-          'first-digest',
-          stamp.at + 1000,
-          stamp,
+  for (const pair of [
+    ['approve', 'approve'],
+    ['approve', 'deny'],
+  ] as const) {
+    it(`serializes overlapping ${pair[0]}/${pair[1]} decisions across processes`, async () => {
+      harness.activate();
+      const id = await submit();
+      const databasePath = harness.databasePath();
+      const workerPath = new URL('../testing/join-request-decision.worker.ts', import.meta.url)
+        .pathname;
+      const workers = pair.map((decision, lane) =>
+        Bun.spawn(
+          [
+            process.execPath,
+            workerPath,
+            databasePath,
+            harness.userId('owner'),
+            id,
+            decision,
+            `${databasePath}.${String(lane)}`,
+          ],
+          { stdout: 'pipe', stderr: 'pipe' },
         ),
-        denying.approve(
-          'org',
-          stamp.by,
-          firstId,
-          'viewer',
-          'second-digest',
-          stamp.at + 1000,
-          stamp,
-        ),
-      ]);
-      expect(first.filter((decision) => decision.ok)).toHaveLength(1);
-      expect(first.filter((decision) => !decision.ok)).toEqual([
-        { ok: false, refusal: 'request_resolved' },
-      ]);
-      const secondId = await submit();
-      const second = await Promise.all([
-        approving.approve(
-          'org',
-          stamp.by,
-          secondId,
-          'viewer',
-          'third-digest',
-          stamp.at + 1000,
-          stamp,
-        ),
-        denying.deny('org', stamp.by, secondId, stamp),
-      ]);
-      expect(second.filter((decision) => decision.ok)).toHaveLength(1);
-      expect(second.filter((decision) => !decision.ok)).toEqual([
-        { ok: false, refusal: 'request_resolved' },
-      ]);
-      expect(harness.sqlite.query('SELECT id FROM organization_invitation').all()).toHaveLength(
-        second[0].ok ? 2 : 1,
       );
-    } finally {
-      left.close();
-      right.close();
-    }
-  });
+      let locked = false;
+      try {
+        harness.sqlite.run('BEGIN IMMEDIATE');
+        locked = true;
+        for (let wait = 0; wait < 500; wait++) {
+          if (pair.every((_, lane) => existsSync(`${databasePath}.${String(lane)}.ready`))) break;
+          await Bun.sleep(10);
+        }
+        expect(pair.every((_, lane) => existsSync(`${databasePath}.${String(lane)}.ready`))).toBe(
+          true,
+        );
+        writeFileSync(`${databasePath}.go`, 'go');
+        for (let wait = 0; wait < 500; wait++) {
+          if (pair.every((_, lane) => existsSync(`${databasePath}.${String(lane)}.attempt`))) break;
+          await Bun.sleep(10);
+        }
+        expect(pair.every((_, lane) => existsSync(`${databasePath}.${String(lane)}.attempt`))).toBe(
+          true,
+        );
+        await Bun.sleep(150);
+        harness.sqlite.run('COMMIT');
+        locked = false;
+        const answers = await Promise.all(
+          workers.map(async (worker) => {
+            const exit = await worker.exited;
+            const body = await new Response(worker.stdout).text();
+            const errors = await new Response(worker.stderr).text();
+            expect(exit, errors).toBe(0);
+            expect(errors).toBe('');
+            return JSON.parse(body) as { ok: boolean; refusal?: string };
+          }),
+        );
+        expect(answers.map((answer) => answer.ok).sort()).toEqual([false, true]);
+        expect(answers.find((answer) => !answer.ok)?.refusal).toBe('request_resolved');
+        const request = harness.sqlite
+          .query('SELECT status, invitation_id FROM organization_join_request WHERE id = ?')
+          .get(id) as { status: string; invitation_id: string | null };
+        expect(request.status).toBe(pair[1] === 'approve' || answers[0].ok ? 'approved' : 'denied');
+        expect(harness.sqlite.query('SELECT id FROM organization_invitation').all()).toHaveLength(
+          request.status === 'approved' ? 1 : 0,
+        );
+        expect(request.invitation_id === null).toBe(request.status === 'denied');
+      } finally {
+        if (locked) harness.sqlite.run('ROLLBACK');
+        for (const worker of workers) worker.kill();
+      }
+    });
+  }
 
   it('leaves the request pending when invitation insertion aborts', async () => {
     harness.activate();
