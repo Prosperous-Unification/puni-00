@@ -2,6 +2,7 @@ import type { EmailChallengeAnswer, EmailVerification } from '@wbs/core';
 import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
+import { auditOnUpdate } from './audit';
 import type { Gate } from './gate';
 import { readOrganizationActivation } from './organization-activation';
 import { emailChallenge, externalIdentity, users } from './schema';
@@ -101,17 +102,21 @@ export class EmailVerificationRepository implements EmailVerification {
     });
   }
 
-  /** Consumes a delivered, current, address-bound proof in the same write as the user update. */
+  /** Consumes a delivered, current, address-bound proof in the same write as the user update. Reads time after acquiring the SQLite write lock. */
   async confirm(
     userId: string,
     email: string,
     digest: string,
-    now: number,
+    now: () => number,
   ): Promise<EmailChallengeAnswer<{ email: string; verified: true }>> {
     return this.gate.enter(async () =>
       Promise.resolve(
         this.db.transaction(
           (tx) => {
+            // Proof: 2026-09-28, sampling before BEGIN IMMEDIATE made
+            // `refuses a challenge that expires while confirmation waits for a separate writer`
+            // return 200 after the lock holder advanced expiry past that sample.
+            const checkedAt = now();
             // Proof: 2026-09-28, bypassing this marker failed `requires a password account and checks activation on confirmation`.
             if (readOrganizationActivation(tx) !== 'activated')
               return { ok: false, refusal: 'onboarding_inactive' };
@@ -141,14 +146,14 @@ export class EmailVerificationRepository implements EmailVerification {
             // Proof: 2026-09-28, accepting pending delivery, bypassing the user
             // binding, requested-address binding, expiry, revocation or
             // consumption separately failed the mounted mismatch, pending,
-            // wrong-account/race, reissue and replay cases.
+            // wrong-account, reissue and sequential replay cases.
             if (
               challenge?.userId !== userId ||
               challenge.email !== email ||
               challenge.deliveryState !== 'delivered' ||
               challenge.consumedAt !== null ||
               challenge.revokedAt !== null ||
-              challenge.expiresAt <= now
+              challenge.expiresAt <= checkedAt
             )
               return { ok: false, refusal: 'challenge_invalid' };
             // Proof: 2026-09-28, bypassing this collision read or omitting
@@ -162,18 +167,25 @@ export class EmailVerificationRepository implements EmailVerification {
             )
               return { ok: false, refusal: 'address_conflict' };
             tx.update(emailChallenge)
-              .set({ consumedAt: now })
+              .set({ consumedAt: checkedAt })
               .where(eq(emailChallenge.id, challenge.id))
               .run();
             // Proof: 2026-09-28, an abort trigger on this update left
             // consumption uncommitted; omitting this update failed both the
             // mounted ID-preservation and rollback tests.
             tx.update(users)
-              .set({ email: challenge.email, emailVerified: true })
+              .set({
+                email: challenge.email,
+                emailVerified: true,
+                ...auditOnUpdate({ at: checkedAt }),
+              })
               .where(eq(users.id, userId))
               .run();
             return { ok: true, value: { email: challenge.email, verified: true } };
           },
+          // Proof: 2026-09-28, replacing IMMEDIATE with DEFERRED and holding
+          // both readers after challenge lookup made `serializes competing address
+          // confirmations across processes` fail when a worker exited on SQLITE_BUSY.
           { behavior: 'immediate' },
         ),
       ),

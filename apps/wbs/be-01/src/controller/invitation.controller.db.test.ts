@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
+import { existsSync, writeFileSync } from 'node:fs';
 
+import { type Gate, InvitationRepository, openConnection } from '@wbs/store-sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -59,7 +61,7 @@ describe('organization invitations', () => {
     ).not.toContain(token);
   });
 
-  it('accepts once for the current verified recipient and refuses a concurrent replay', async () => {
+  it('accepts once for the current verified recipient and refuses a serialized replay', async () => {
     harness.activate();
     await harness.call('owner', 'POST', '/api/organization/invitations', {
       email: 'recipient@example.org',
@@ -82,6 +84,163 @@ describe('organization invitations', () => {
         .query('SELECT role FROM organization_membership WHERE user_id = ?')
         .get(harness.userId('recipient')),
     ).toEqual({ role: 'member' });
+  });
+
+  it('refuses an invitation that expires while acceptance waits for the write gate', async () => {
+    harness.activate();
+    await harness.call('owner', 'POST', '/api/organization/invitations', {
+      email: 'recipient@example.org',
+      role: 'member',
+    });
+    const digest = createHash('sha256')
+      .update(harness.deliveredEmailToken('recipient@example.org'))
+      .digest('hex');
+    harness.sqlite.run('UPDATE organization_invitation SET created_at = 1, expires_at = 200');
+    let release!: () => void;
+    const waiting = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const gate: Gate = { enter: (work) => waiting.then(work) };
+    const connection = openConnection(harness.databasePath());
+    try {
+      let now = 100;
+      const acceptance = new InvitationRepository(connection.db, gate).accept(
+        harness.userId('recipient'),
+        digest,
+        harness.userId('recipient'),
+        () => now,
+      );
+      now = 300;
+      release();
+      expect(await acceptance).toEqual({ ok: false, refusal: 'invitation_invalid' });
+      expect(harness.sqlite.query('SELECT consumed_at FROM organization_invitation').get()).toEqual(
+        {
+          consumed_at: null,
+        },
+      );
+    } finally {
+      release();
+      connection.close();
+    }
+  });
+
+  it('records acceptance at the time the write gate opens', async () => {
+    harness.activate();
+    await harness.call('owner', 'POST', '/api/organization/invitations', {
+      email: 'recipient@example.org',
+      role: 'member',
+    });
+    const digest = createHash('sha256')
+      .update(harness.deliveredEmailToken('recipient@example.org'))
+      .digest('hex');
+    harness.sqlite.run('UPDATE organization_invitation SET created_at = 1, expires_at = 500');
+    let release!: () => void;
+    const waiting = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const gate: Gate = { enter: (work) => waiting.then(work) };
+    const connection = openConnection(harness.databasePath());
+    try {
+      let now = 100;
+      const acceptance = new InvitationRepository(connection.db, gate).accept(
+        harness.userId('recipient'),
+        digest,
+        harness.userId('recipient'),
+        () => now,
+      );
+      now = 300;
+      release();
+      expect(await acceptance).toEqual({
+        ok: true,
+        value: { organizationId: 'org', role: 'member' },
+      });
+      expect(
+        harness.sqlite.query('SELECT consumed_at, updated_at FROM organization_invitation').get(),
+      ).toEqual({
+        consumed_at: 300,
+        updated_at: 300,
+      });
+    } finally {
+      release();
+      connection.close();
+    }
+  });
+
+  it('lists only invitations in the active organization', async () => {
+    harness.activate();
+    await harness.call('owner', 'POST', '/api/organization/invitations', {
+      email: 'recipient@example.org',
+      role: 'viewer',
+    });
+    harness.organization('foreign');
+    harness.member('foreign', 'other', 'super_admin');
+    harness.bind('other', 'foreign');
+    await harness.call('other', 'POST', '/api/organization/invitations', {
+      email: 'other@example.org',
+      role: 'member',
+    });
+    const listed = await harness.call('owner', 'GET', '/api/organization/invitations');
+    expect(listed.status).toBe(200);
+    expect(
+      (listed.body as { invitations: { email: string }[] }).invitations.map((offer) => offer.email),
+    ).toEqual(['recipient@example.org']);
+  });
+
+  it('consumes once across independent SQLite processes', async () => {
+    harness.activate();
+    await harness.call('owner', 'POST', '/api/organization/invitations', {
+      email: 'recipient@example.org',
+      role: 'member',
+    });
+    const digest = createHash('sha256')
+      .update(harness.deliveredEmailToken('recipient@example.org'))
+      .digest('hex');
+    const databasePath = harness.databasePath();
+    const workerPath = new URL('../testing/invitation-accept.worker.ts', import.meta.url).pathname;
+    const lanes = ['0', '1'];
+    const workers = lanes.map((lane) =>
+      Bun.spawn(
+        [
+          process.execPath,
+          workerPath,
+          databasePath,
+          harness.userId('recipient'),
+          digest,
+          `${databasePath}.${lane}`,
+        ],
+        {
+          stdout: 'pipe',
+          stderr: 'pipe',
+        },
+      ),
+    );
+    try {
+      for (let wait = 0; wait < 500; wait++) {
+        if (lanes.every((lane) => existsSync(`${databasePath}.${lane}.ready`))) break;
+        await Bun.sleep(10);
+      }
+      expect(lanes.every((lane) => existsSync(`${databasePath}.${lane}.ready`))).toBe(true);
+      writeFileSync(`${databasePath}.go`, 'go');
+      const answers = await Promise.all(
+        workers.map(async (worker) => {
+          const exit = await worker.exited;
+          const body = await new Response(worker.stdout).text();
+          const errors = await new Response(worker.stderr).text();
+          expect(exit).toBe(0);
+          expect(errors).toBe('');
+          return JSON.parse(body) as { ok: boolean; refusal?: string };
+        }),
+      );
+      expect(answers.map((answer) => answer.ok).sort()).toEqual([false, true]);
+      expect(answers.find((answer) => !answer.ok)?.refusal).toBe('invitation_invalid');
+      expect(
+        harness.sqlite
+          .query('SELECT COUNT(*) AS count FROM organization_membership WHERE user_id = ?')
+          .get(harness.userId('recipient')),
+      ).toEqual({ count: 1 });
+    } finally {
+      for (const worker of workers) worker.kill();
+    }
   });
 
   it("refuses an admin's admin invitation and a removed issuer", async () => {

@@ -66,6 +66,7 @@ export class InvitationRepository implements Invitation {
           value: tx
             .select()
             .from(organizationInvitation)
+            // Proof: 2026-09-28, removing this organization predicate made `lists only invitations in the active organization` return both tenants' offers.
             .where(eq(organizationInvitation.organizationId, organizationId))
             .all()
             .map(summary),
@@ -101,9 +102,10 @@ export class InvitationRepository implements Invitation {
               role,
               tokenDigest: digest,
               expiresAt,
-              ...auditOnCreate(stamp),
             };
-            tx.insert(organizationInvitation).values(row).run();
+            tx.insert(organizationInvitation)
+              .values({ ...row, ...auditOnCreate(stamp) })
+              .run();
             return {
               ok: true,
               value: { id: row.id, email, role, expiresAt, revokedAt: null, consumedAt: null },
@@ -168,7 +170,8 @@ export class InvitationRepository implements Invitation {
         (tx) => {
           const changed = tx
             .update(organizationInvitation)
-            .set({ revokedAt: now, updatedAt: now })
+            // Proof: 2026-09-28, replacing the helper with a direct `updatedAt` made `stamps every update with auditOnUpdate` report this invitation update.
+            .set({ revokedAt: now, ...auditOnUpdate({ at: now }) })
             .where(and(eq(organizationInvitation.id, id), isNull(organizationInvitation.revokedAt)))
             .run();
           // Proof: 2026-09-28, bypassing this changed-row check failed `throws if the invitation disappears before failed delivery is recorded`.
@@ -181,16 +184,19 @@ export class InvitationRepository implements Invitation {
     });
   }
 
-  /** Consumes before membership insert in one immediate transaction; rollback restores both. */
+  /** Samples expiry after acquiring the write lock, then consumes with membership insertion in one immediate transaction. */
   accept(
     userId: string,
     digest: string,
-    stamp: WriteStamp,
+    actorId: string,
+    now: () => number,
   ): Promise<InvitationAnswer<{ organizationId: string; role: OrganizationRole }>> {
     return this.gate.enter(async () =>
       Promise.resolve(
         this.db.transaction(
           (tx) => {
+            // Proof: 2026-09-28, sampling now() before gate.enter made both `refuses an invitation that expires while acceptance waits for the write gate` and `records acceptance at the time the write gate opens` fail; the latter stored consumed_at and updated_at at 100 after the gate opened at 300.
+            const acceptedStamp: WriteStamp = { at: now(), by: actorId };
             // Proof: 2026-09-28, bypassing this read failed `checks activation during acceptance, even with a planted valid offer`.
             // Bypassing the read with absent, unreadable and malformed markers failed all three `throws for an activation marker during acceptance` cases.
             if (readOrganizationActivation(tx) !== 'activated')
@@ -201,9 +207,9 @@ export class InvitationRepository implements Invitation {
               .where(eq(organizationInvitation.tokenDigest, digest))
               .get();
             if (invitation === undefined) return { ok: false, refusal: 'not_found' };
-            // Proof: 2026-09-28, skipping this state check failed `refuses expired, revoked and replayed invitations`.
+            // Proof: 2026-09-28, the pre-gate clock mutation above accepted an expired offer. Skipping this state check failed `refuses expired, revoked and replayed invitations`.
             if (
-              invitation.expiresAt <= stamp.at ||
+              invitation.expiresAt <= acceptedStamp.at ||
               invitation.revokedAt !== null ||
               invitation.consumedAt !== null
             )
@@ -231,19 +237,23 @@ export class InvitationRepository implements Invitation {
               .get();
             if (existing !== undefined && !ORGANIZATION_ROLES.includes(existing.role))
               throw new Error('malformed existing membership role');
-            // Proof: 2026-09-28, bypassing consumption failed `accepts once for the current verified recipient and refuses a concurrent replay`.
+            // Proof: 2026-09-28, removing this update made `consumes once across independent SQLite processes` return two successes; the separate processes used distinct connections to the same WAL database.
             tx.update(organizationInvitation)
-              .set({ consumedAt: stamp.at, consumedBy: userId, ...auditOnUpdate(stamp) })
+              .set({
+                consumedAt: acceptedStamp.at,
+                consumedBy: userId,
+                ...auditOnUpdate(acceptedStamp),
+              })
               .where(eq(organizationInvitation.id, invitation.id))
               .run();
             if (existing === undefined) {
-              // Proof: 2026-09-28, an injected membership-insert abort failed `rolls consumption back when membership insertion fails` with HTTP 500 and null consumed_at.
+              // Proof: 2026-09-28, `rolls consumption back when membership insertion fails` injects a membership-insert abort and observes HTTP 500 with null consumed_at; this test checks rollback, while the independent-process test above checks replay.
               tx.insert(organizationMembership)
                 .values({
                   organizationId: invitation.organizationId,
                   userId,
                   role: invitation.role,
-                  ...auditOnCreate(stamp),
+                  ...auditOnCreate(acceptedStamp),
                 })
                 .run();
             }
@@ -255,6 +265,7 @@ export class InvitationRepository implements Invitation {
               },
             };
           },
+          // Proof: 2026-09-28, changing acceptance to DEFERRED made `consumes once across independent SQLite processes` fail: one worker exited 1 instead of returning a typed refusal.
           { behavior: 'immediate' },
         ),
       ),

@@ -42,9 +42,11 @@ export interface Invitation {
   ): Promise<InvitationAnswer<null>>;
   /** Marks an unsent invitation unusable after the injected delivery port throws. */
   failDelivery(id: string, now: number): Promise<void>;
+  /** Samples `now` under the store's write lock so gate or SQLite contention cannot age an offer after the expiry check. */
   accept(
     userId: string,
     digest: string,
-    stamp: WriteStamp,
+    actorId: string,
+    now: () => number,
   ): Promise<InvitationAnswer<{ organizationId: string; role: OrganizationRole }>>;
 }

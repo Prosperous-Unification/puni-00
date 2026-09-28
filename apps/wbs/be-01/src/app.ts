@@ -25,6 +25,7 @@ import { Elysia } from 'elysia';
 
 import { authOidcEndpoints } from './controller/auth-oidc-endpoints';
 import { authPasswordEndpoints } from './controller/auth-password-endpoints';
+import { bearerContextRoutes } from './controller/bearer-context.routes';
 import { calendarMarkerRoutes } from './controller/calendar-marker.routes';
 import { directoryRoutes } from './controller/directory.routes';
 import { historyRoutes } from './controller/history.routes';
@@ -44,6 +45,7 @@ import type { BoundEndpoint } from './http/endpoint';
 import { identityResolver } from './http/identity';
 import { openApiPlugin } from './openapi/openapi-plugin';
 import type { DatabaseHealth } from './repository/health-probe';
+import { type IssueBearerContext, REFUSE_BEARER_CONTEXT } from './runtime/bearer-context';
 import { nodeDigest } from './runtime/bun-runtime';
 import { type DelegationVerifier, REFUSE_DELEGATIONS } from './runtime/delegation';
 import type { AuthService } from './service/auth.service';
@@ -160,6 +162,8 @@ export interface AppOptions {
    * so the path stays inert. Configuring keys alone never activates it.
    */
   delegation?: DelegationVerifier;
+  /** Direct bearer issuance stays refusing unless explicitly wired after activation. */
+  bearerContext?: IssueBearerContext;
   /**
    * Required for the same reason as `auth`, and for one more: the stub this
    * replaced answered every resume with `replaying, count: 0`, which no client
@@ -273,9 +277,10 @@ export function mountedEndpoints(
       scrapeMetrics: runtime.scrapeMetrics,
     }),
     ...authPasswordEndpoints(opts.auth, opts.oidc, passwordThrottle),
+    ...bearerContextRoutes(opts.bearerContext ?? REFUSE_BEARER_CONTEXT),
     // Proof: removing this spread made app.routes.test.ts receive 40 bindings
     // instead of the 44 required by the OIDC composition.
-    ...(opts.oidc === undefined ? [] : authOidcEndpoints(opts.auth, opts.oidc)),
+    ...(opts.oidc === undefined ? [] : authOidcEndpoints(opts.auth, opts.oidc, passwordThrottle)),
     // Proof: omitting this binding made “binds each shared HTTP shape once”
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
