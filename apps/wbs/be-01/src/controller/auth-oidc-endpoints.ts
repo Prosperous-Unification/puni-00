@@ -411,7 +411,11 @@ export function authOidcEndpoints(
       // Proof: 2026-09-28, removing this refusal made `refuses a link start without a password session before throttle admission` receive 500 instead of 401.
       if (account === null)
         return { ok: false, status: 401, body: { error: 'invalid_credentials' } };
-      const throttleIp = clientIpOf(request.headers) ?? 'local-direct';
+      const throttleIp = clientIpOf(request.headers);
+      // This route exists only behind OIDC, so a missing edge IP is refused as
+      // login refuses it rather than pooled into one shared throttle bucket.
+      // Proof: 2026-09-28, defaulting to 'local-direct' again made `refuses a link start without an edge client address before throttle admission` receive 302 instead of 400.
+      if (throttleIp === null) return { ok: false, status: 400, body: { error: 'invalid_client' } };
       // Proof: 2026-09-28, bypassing reserve made `admits at most five held fresh-password verifications and releases capacity` observe six verifiers.
       const release = passwordThrottle.reserve(account.username, throttleIp);
       // Proof: 2026-09-28, removing the exhausted-capacity refusal made `admits at most five held fresh-password verifications and releases capacity` observe six verifiers.

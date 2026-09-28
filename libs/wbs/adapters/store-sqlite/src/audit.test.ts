@@ -169,6 +169,7 @@ interface Write {
 }
 
 function auditedWrites(): Write[] {
+  const schema = readFileSync(join(FOLDER, 'schema.ts'), 'utf8');
   const found: Write[] = [];
   for (const { name, text } of repositorySources()) {
     for (const hit of text.matchAll(/\.(insert|update)\((\w+)\)/g)) {
@@ -178,6 +179,11 @@ function auditedWrites(): Write[] {
       // input can reach.
       const table = hit[2];
       if (EXEMPT.has(table)) continue;
+      // Only a declared drizzle table is a write: `hash.update(asset)` in
+      // `public-email-policy.ts` is not.
+      // Proof: 2026-09-28, dropping this check made `stamps every update with
+      // auditOnUpdate` fail with `public-email-policy.ts: update of asset`.
+      if (tableDeclaration(schema, table) === null) continue;
       const end = text.indexOf(';', hit.index);
       found.push({
         file: name,

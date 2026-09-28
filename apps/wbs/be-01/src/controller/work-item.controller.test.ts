@@ -20,6 +20,7 @@ import { testDirectoryService } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
   refusingInvitations,
+  refusingJoinRequests,
   refusingTestEmailDelivery,
 } from '../testing/email-verification-fixture';
 import { inMemoryServices } from '../testing/harness';
@@ -28,6 +29,7 @@ import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
+  refusingDomains,
   refusingMemberships,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
@@ -86,8 +88,10 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
   const app = buildApp({
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    domains: refusingDomains,
     emailVerification: refusingEmailVerification,
     invitations: refusingInvitations,
+    joinRequests: refusingJoinRequests,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),

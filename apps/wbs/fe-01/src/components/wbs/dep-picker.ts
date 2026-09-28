@@ -1,4 +1,4 @@
-import type { WorkItemStatus } from '@wbs/domain/progress';
+import type { ProgressStatus } from '@wbs/domain/progress';
 
 import { type EdgeRefusal, type GraphRow, indexDepGraph, refusalFor } from './dep-graph';
 
@@ -7,7 +7,7 @@ export interface PickableRow extends GraphRow {
   number: string;
   name: string;
   /** The row's status, so a finished predecessor is marked on the list (`status-polish`). */
-  status: WorkItemStatus;
+  status: ProgressStatus;
 }
 
 /**
