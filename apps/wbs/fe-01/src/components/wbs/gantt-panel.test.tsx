@@ -668,6 +668,56 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
       ).toBe(false);
     }
   });
+  itDom('shows an undrawn typed dependency while keeping the chart visible', () => {
+    const chart = planOf({
+      rows: [rowAt('A', 0, 3), rowAt('B', 3, 5), rowAt('C', 5, 7)],
+      steps: [
+        { id: 'dev', name: 'Dev' },
+        { id: 'qa', name: 'QA' },
+      ],
+      slices: [
+        sliceAt('A-dev', 'A', 0, 2),
+        sliceAt('A-qa', 'A', 1, 3, { stepId: 'qa' }),
+        sliceAt('B-dev', 'B', 3, 5),
+        sliceAt('C-dev', 'C', 5, 7),
+      ],
+      typedDependencies: [
+        {
+          id: 'blocked',
+          type: 'FS',
+          predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+        },
+        {
+          id: 'clear',
+          type: 'FS',
+          predecessor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+          successor: { scope: 'node', workItemId: 'C', stepId: 'dev' },
+        },
+      ],
+    });
+    render(
+      <GanttPanel
+        plan={chart}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    pressTheDetail();
+    expect(document.querySelector('[data-gantt-chart]')).not.toBeNull();
+    expect(document.querySelector('[data-gantt-bar="B-dev"]')).not.toBeNull();
+    expect(document.querySelector('[data-gantt-typed-arrow="clear"]')).not.toBeNull();
+    expect(document.querySelector('[data-gantt-typed-arrow="blocked"]')).toBeNull();
+    const notice = document.querySelector('[role="status"][data-gantt-unroutable]');
+    expect(notice?.textContent).toContain('1 dependency could not be drawn');
+    expect(notice?.getAttribute('aria-label')).toContain('A');
+    expect(notice?.getAttribute('aria-label')).toContain('B');
+  });
   itDom('routes out of an unknown origin without crossing its placeholder', () => {
     const chart = planOf({
       rows: [rowAt('A', 0, 0), rowAt('B', 1, 3)],

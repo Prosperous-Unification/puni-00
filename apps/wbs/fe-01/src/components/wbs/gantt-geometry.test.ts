@@ -2391,8 +2391,14 @@ describe('routing an arrow past the bars it does not join', () => {
   const rectOf = (placed: PlacedBar) => ({
     left: placed.x,
     right: placed.x + placed.width,
-    top: placed.bar.rowIndex + CLEARANCE.barInset,
-    bottom: placed.bar.rowIndex + 1 - CLEARANCE.barInset,
+    top:
+      placed.bar.rowIndex +
+      CLEARANCE.barInset +
+      (placed.bar.lane * (1 - 2 * CLEARANCE.barInset)) / placed.bar.lanes,
+    bottom:
+      placed.bar.rowIndex +
+      CLEARANCE.barInset +
+      ((placed.bar.lane + 1) * (1 - 2 * CLEARANCE.barInset)) / placed.bar.lanes,
   });
 
   /**
@@ -2430,6 +2436,49 @@ describe('routing an arrow past the bars it does not join', () => {
 
   const asItRoutes: Router = (arrow, drawn) => routeArrow(arrow, drawn, CLEARANCE);
 
+  it('routes a reversed typed lane below its contiguous next step', () => {
+    const placed = placeOnWorkdays(
+      layOutGantt(
+        planOf({
+          rows: [rowAt('B', 1, 3), rowAt('A', 0, 3)],
+          steps: [
+            { id: 'one', name: 'One' },
+            { id: 'two', name: 'Two' },
+            { id: 'dev', name: 'Dev' },
+            { id: 'qa', name: 'QA' },
+          ],
+          slices: [
+            sliceAt('A-one', 'A', 0, 0, { stepId: 'one', estimated: false }),
+            sliceAt('A-two', 'A', 0, 0, { stepId: 'two', estimated: false }),
+            sliceAt('A-dev', 'A', 0, 1),
+            sliceAt('A-qa', 'A', 1, 3, { stepId: 'qa' }),
+            sliceAt('B-dev', 'B', 1, 3),
+          ],
+          typedDependencies: [
+            {
+              id: 'edge',
+              type: 'FS',
+              predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+              successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+            },
+          ],
+        }),
+      ),
+    );
+    const route = routeArrow(placed.typedArrows[0], placed.bars, CLEARANCE, {
+      boundaryEntry: true,
+    });
+    expect(route).not.toBeNull();
+    if (route === null) throw new Error('expected the lower gap to be routable');
+    expect(route.some((corner) => corner.y > 1.5)).toBe(true);
+    for (const bar of placed.bars) {
+      expect(
+        route.slice(1).some((corner, index) => runsInside(route[index], corner, rectOf(bar))),
+        bar.bar.sliceId,
+      ).toBe(false);
+    }
+  });
+
   it('enters a later contiguous target at its boundary without crossing either bar', () => {
     const placed = placeOnWorkdays(
       layOutGantt(
@@ -2458,6 +2507,7 @@ describe('routing an arrow past the bars it does not join', () => {
     const route = routeArrow(placed.typedArrows[0], placed.bars, CLEARANCE, {
       boundaryEntry: true,
     });
+    if (route === null) throw new Error('expected a clear boundary route');
     const crossings = placed.bars.flatMap((bar) =>
       route
         .slice(1)
@@ -2489,6 +2539,7 @@ describe('routing an arrow past the bars it does not join', () => {
     const route = routeArrow(placed.typedArrows[0], placed.bars, CLEARANCE, {
       boundaryEntry: true,
     });
+    if (route === null) throw new Error('expected a clear origin route');
     const crossings = placed.bars.flatMap((bar) =>
       route
         .slice(1)

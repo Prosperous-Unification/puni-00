@@ -1557,13 +1557,13 @@ const bandedToBoundary = (frame: ArrowFrame, exit: number, column: number): Arro
  * and one approach clear of either edge of every bar on the rows the route may
  * cross. Each is tried as a plain elbow (when there is room to turn at it),
  * then as a banded route stepping out past the predecessor, leaving on its own
- * edge, or leaving beyond a bar on its row. The last exit lets a lower slice
- * route above its row's other lanes without ascending through their drawings.
+ * edge, or leaving beyond a bar on its row. Typed arrows try both bands beside
+ * the source row; legacy arrows keep their original source-side band.
  *
  * A legacy arrow with no clear candidate retains the older banded route from
  * its source edge around the leftmost column. A typed arrow has no such
- * unchecked fallback: impossible overlapping drawings are reported instead
- * of rendering a line through a bar.
+ * unchecked fallback: impossible overlapping drawings return `null` so the
+ * chart can disclose an undrawn dependency without losing the rest of the chart.
  *
  * `boundaryEntry` adds an arrival down the target's left edge from the row
  * gap. Typed arrows use it when a preceding contiguous step fills the normal
@@ -1574,8 +1574,20 @@ export function routeArrow(
   arrow: PlacedArrow,
   bars: readonly PlacedBar[],
   clearance: ArrowClearance,
+  options: { boundaryEntry: true },
+): ArrowPoint[] | null;
+export function routeArrow(
+  arrow: PlacedArrow,
+  bars: readonly PlacedBar[],
+  clearance: ArrowClearance,
+  options?: { boundaryEntry?: false },
+): ArrowPoint[];
+export function routeArrow(
+  arrow: PlacedArrow,
+  bars: readonly PlacedBar[],
+  clearance: ArrowClearance,
   options: { boundaryEntry?: boolean } = {},
-): ArrowPoint[] {
+): ArrowPoint[] | null {
   const frame = frameOf(arrow, clearance);
   const firstRow = Math.min(arrow.fromRowIndex, arrow.toRowIndex);
   const lastRow = Math.max(arrow.fromRowIndex, arrow.toRowIndex);
@@ -1623,15 +1635,29 @@ export function routeArrow(
       const elbow = elbowThrough(frame, column);
       if (isClear(elbow)) return elbow;
     }
-    for (const exit of [...new Set(exits)]) {
-      const banded = bandedThrough(frame, exit, column);
-      if (isClear(banded)) return banded;
-      // Proof: without this candidate, `enters a later contiguous target at
-      // its boundary without crossing either bar` found two segments inside
-      // B-dev. Watched 2026-09-28.
-      if (options.boundaryEntry) {
-        const boundary = bandedToBoundary(frame, exit, column);
-        if (isClear(boundary)) return boundary;
+    // Proof: removing the opposite source band made `routes a reversed typed
+    // lane below its contiguous next step` receive null. Watched 2026-09-28.
+    const sourceBands = options.boundaryEntry
+      ? [
+          frame.bandFrom,
+          arrow.fromRowIndex +
+            (frame.bandFrom < arrow.fromRowIndex + ROW_MIDDLE
+              ? 1 - clearance.barInset / 2
+              : clearance.barInset / 2),
+        ]
+      : [frame.bandFrom];
+    for (const bandFrom of [...new Set(sourceBands)]) {
+      for (const exit of [...new Set(exits)]) {
+        const candidateFrame = { ...frame, bandFrom };
+        const banded = bandedThrough(candidateFrame, exit, column);
+        if (isClear(banded)) return banded;
+        // Proof: without this candidate, `enters a later contiguous target at
+        // its boundary without crossing either bar` found two segments inside
+        // B-dev. Watched 2026-09-28.
+        if (options.boundaryEntry) {
+          const boundary = bandedToBoundary(candidateFrame, exit, column);
+          if (isClear(boundary)) return boundary;
+        }
       }
     }
   }
@@ -1640,7 +1666,7 @@ export function routeArrow(
   if (isClear(legacyRoute) || !options.boundaryEntry) return legacyRoute;
   // Proof: restoring the unchecked fallback made the reversed-row rendered
   // lane test cross A-one. Watched 2026-09-28.
-  throw new GanttDataError('No clear route for typed Gantt dependency');
+  return null;
 }
 
 /**

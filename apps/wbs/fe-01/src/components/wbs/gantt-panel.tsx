@@ -737,12 +737,34 @@ export function typedArrowLabel(
  * painted slice lanes. Later-step targets can be entered down the target's
  * left boundary from the row gap; the head follows that final run.
  */
+interface DrawnArrowRoute {
+  kind: 'routed';
+  elbow: string;
+  head: string;
+}
+interface UndrawnArrowRoute {
+  kind: 'unroutable';
+}
+type TypedArrowRoute = DrawnArrowRoute | UndrawnArrowRoute;
+
+function arrowRoute(
+  arrow: PlacedArrow,
+  barsByRow: ReadonlyMap<number, PlacedBar[]>,
+  dayPx: number,
+  typed: true,
+): TypedArrowRoute;
+function arrowRoute(
+  arrow: PlacedArrow,
+  barsByRow: ReadonlyMap<number, PlacedBar[]>,
+  dayPx: number,
+  typed?: false,
+): DrawnArrowRoute;
 function arrowRoute(
   arrow: PlacedArrow,
   barsByRow: ReadonlyMap<number, PlacedBar[]>,
   dayPx: number,
   typed = false,
-): { elbow: string; head: string } {
+): TypedArrowRoute {
   const at = (x: number, y: number): string => `${String(x)} ${String(y)}`;
   // Both of these turn a **pixel** length into the user space's own unit, so
   // the rung has to be the one in force: at 4px/day an approach of ten pixels
@@ -765,21 +787,22 @@ function arrowRoute(
     // A-dev (true instead of false). Watched 2026-09-28.
     obstacles.push(...(barsByRow.get(row) ?? []));
   }
-  const route = routeArrow(
-    arrow,
-    obstacles,
-    {
-      approach: ARROW_APPROACH_PX / dayPx,
-      barInset: BAR_INSET,
-    },
-    { boundaryEntry: typed },
-  );
+  const clearance = { approach: ARROW_APPROACH_PX / dayPx, barInset: BAR_INSET };
+  const route = typed
+    ? routeArrow(arrow, obstacles, clearance, { boundaryEntry: true })
+    : routeArrow(arrow, obstacles, clearance);
+  // A dependency arrow is optional chart detail. Overlapping source slices can
+  // leave no clear first segment, while the bars and remaining links still draw.
+  // Proof: throwing here made `shows an undrawn typed dependency while keeping
+  // the chart visible` fail with GanttDataError. Watched 2026-09-28.
+  if (route === null) return { kind: 'unroutable' };
   const headX = ARROW_HEAD_PX / dayPx;
   const headY = ARROW_HEAD_HALF_PX / ROW_PX;
   const tip = route[route.length - 1];
   const beforeTip = route[route.length - 2];
   const arrivesVertically = beforeTip.x === tip.x;
   return {
+    kind: 'routed',
     elbow: route
       .map((corner, index) => `${index === 0 ? 'M' : 'L'} ${at(corner.x, corner.y)}`)
       .join(' '),
@@ -3862,6 +3885,21 @@ function GanttChart({
       barsByRow,
     };
   }, [drawnBars]);
+  const typedRoutes = useMemo(
+    () => placed.typedArrows.map((arrow) => arrowRoute(arrow, drawn.barsByRow, dayPx, true)),
+    [placed.typedArrows, drawn.barsByRow, dayPx],
+  );
+  const undrawn = typedRoutes.flatMap((route, index) =>
+    route.kind === 'unroutable'
+      ? [
+          {
+            relationshipIds: placed.typedArrows[index].relationshipIds,
+            name: typedArrowLabel(plan, placed.typedArrows[index]),
+          },
+        ]
+      : [],
+  );
+  const undrawnCount = new Set(undrawn.flatMap(({ relationshipIds }) => relationshipIds)).size;
   /**
    * The rows this chart can light, by id.
    *
@@ -4740,7 +4778,8 @@ function GanttChart({
           })}
         {detailShown &&
           placed.typedArrows.map((arrow, index) => {
-            const route = arrowRoute(arrow, drawn.barsByRow, dayPx, true);
+            const route = typedRoutes[index];
+            if (route.kind === 'unroutable') return null;
             const markId = `${arrow.relationshipId}-${String(index)}`;
             const relationship = plan.typedDependencies?.find(
               (dependency) => dependency.id === arrow.relationshipId,
@@ -5252,6 +5291,7 @@ function GanttChart({
       onPickRow,
       pad,
       placed,
+      typedRoutes,
       plan,
       depLights,
       activeTypedId,
@@ -5353,6 +5393,17 @@ function GanttChart({
 
   const chartAndItsControls = (
     <>
+      {detailShown && undrawnCount > 0 && (
+        <p
+          role="status"
+          data-gantt-unroutable
+          aria-label={`${String(undrawnCount)} ${undrawnCount === 1 ? 'dependency' : 'dependencies'} could not be drawn: ${undrawn.map(({ name }) => name).join('; ')}`}
+          title={undrawn.map(({ name }) => name).join('; ')}
+          className="text-destructive text-sm"
+        >
+          {undrawnCount} {undrawnCount === 1 ? 'dependency' : 'dependencies'} could not be drawn
+        </p>
+      )}
       <section
         ref={scrollport}
         data-gantt-panel
