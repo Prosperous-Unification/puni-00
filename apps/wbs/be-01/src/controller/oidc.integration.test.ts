@@ -521,6 +521,8 @@ describe('OIDC browser routes', () => {
     const f = fixture({ ...claims, wbs_groups: ['dev:wbs:read'] });
     const publicProtocolRoutes = new Set([
       '/api/auth/login',
+      // Exchanges a credential for a bounded context; it writes no domain state.
+      '/api/auth/context',
       '/api/auth/logout',
       '/api/auth/refresh',
       '/api/auth/register',

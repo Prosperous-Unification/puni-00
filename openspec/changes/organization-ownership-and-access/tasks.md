@@ -38,11 +38,13 @@
     - A refused delegation answers 401 and never falls back to session authentication. After activation `OrganizationAccess.resolve(principal)` takes the delegation's organization and rechecks membership.
     - Production wires `REFUSE_DELEGATIONS`, so every delegation is refused until WBS issues them.
   - Slice 25 (2.5b, done 2026-09-28): dedicated RSA key-pair validation, a credential-bound issuer port and signing primitive, the gateway project access check, and durable single-use `jti` consumption for gateway and MCP bearers. The paired additive `20260928030000_add_delegation_use` migration refuses rollback after activation or while a live use remains. Production still wires `REFUSE_DELEGATIONS` and `REFUSE_DELEGATION_ISSUANCE` even with keys.
+  - Slice 27 (2.5 remainder, 2026-09-28): `POST /api/auth/context` has a fixed `wbs-be-01/direct` audience, a native WBS session credential adapter for browser cookie or Bearer, explicit `first_party` signed identity without invented upstream claims, verified credential expiry, current membership admission and per-request membership recheck. It gives 401 `invalid_binding` and 403 `context_inactive`/`forbidden`; malformed authority-bearing bodies give 400. Production still binds refusing issuance and verification, so this route is inert until activation. Direct contexts are capped at five minutes and reusable; MCP/gateway delegations remain one-use.
   - Open:
-    - trusted browser/bearer/MCP credential-binding adapters and activation of issuance/verification;
+    - task 2.4's durable browser session organization binding, active-selection routes, token rotation and mounted substitution/revocation tests; Slice 27's browser cookie is only the credential extraction seam;
+    - verified upstream bearer binding with its issuer/subject and credential expiry, plus activation of issuance/verification after owner-approved keys and inventory; the current OIDC identity port does not expose expiry;
     - gateway subscription, presence, replay and command enforcement and leases (6.1–6.3); the one project access check is only a primitive;
-    - bearer clients' own WBS context;
-    - MCP consent binding and epoch (6.4–6.6).
+    - task 6.4's organization-bound MCP consent, code, grant, family and session; task 6.5's drain, fence and credential epoch; task 6.6's direct upstream-token refusal and refresh-retry delegation preservation.
+  - BLOCKED outside this inert slice: production activation/key provisioning, real production identity and tenant inventory, and Dany's identity/rights approval require owner evidence and operations excluded from Slice 27. No real email or DNS was used.
 - [x] 2.6 Make activation marker durable and validate absent, unreadable and malformed trusted marker states separately. Red: each state is refused with its own explicit error and an activated or broken marker refuses the marker migration's reversal. Fault: default one broken state to inactive; observe the reader test fail, restore and add `Proof:`. The swap preflight that reads the marker moves to 7.3 (Astra, 2026-09-27): a target image's missing CLI proves nothing about database state.
 
 ## 3. Resource authorization, one boundary at a time
