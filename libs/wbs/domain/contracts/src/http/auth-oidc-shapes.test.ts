@@ -1,9 +1,11 @@
 import { expect, test } from 'bun:test';
 
 import {
+  completeAuth0Link,
   completeOidcLogin,
   logoutOidcSession,
   refreshOidcSession,
+  startAuth0Link,
   startOidcLogin,
 } from './auth-oidc-shapes';
 import { documentFromShapes } from './document-from-shapes';
@@ -26,4 +28,13 @@ test('declares four OIDC operations, open provider queries and empty redirects',
   expect(callback?.responses['500']).toEqual({ description: 'Refusal' });
   expect(callback?.responses['503']).toEqual({ description: 'Refusal' });
   expect(callback?.parameters).toMatchObject([{ in: 'query', style: 'form', explode: true }]);
+});
+
+test('declares separate password-link start and callback with typed refusals', () => {
+  const paths = documentFromShapes([startAuth0Link, completeAuth0Link]).paths;
+  expect(startAuth0Link.path).toBe('/api/auth/link/auth0');
+  expect(completeAuth0Link.path).toBe('/api/auth/link/auth0/callback');
+  expect(paths['/api/auth/link/auth0']?.['post']?.responses).toHaveProperty('401');
+  expect(paths['/api/auth/link/auth0']?.['post']?.responses).toHaveProperty('403');
+  expect(paths['/api/auth/link/auth0/callback']?.['get']?.responses).toHaveProperty('409');
 });

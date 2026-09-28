@@ -157,3 +157,51 @@ it('falls back from invalid OIDC only when password sessions are enabled', async
     scopes: ['read', 'write', 'editor'],
   });
 });
+
+it('admits a password session as link proof only when password sessions are explicitly enabled', async () => {
+  const legacyUser = {
+    id: 'legacy',
+    username: 'legacy',
+    passwordHash: await Bun.password.hash('legacy-password'),
+    email: null,
+    idpIssuer: null,
+    idpSub: null,
+    createdAt: 1,
+  };
+  const users: UserStore = {
+    create: () => Promise.resolve(legacyUser),
+    findByUsername: () => Promise.resolve(legacyUser),
+    findById: () => Promise.resolve(legacyUser),
+  };
+  const key = 'x'.repeat(32);
+  const legacy = new AuthService({
+    clock: testClock,
+    users,
+    tokens: joseTokenCodec(key),
+    passwords: bunPasswordHasher,
+  });
+  const login = await legacy.login('legacy', 'legacy-password');
+  if (!login.ok) throw new Error('legacy fixture did not issue a token');
+  const invalidOidc = { verify: () => Promise.resolve(null) };
+  // Ordinary authentication refuses this cookie when OIDC is configured and
+  // the policy is omitted, so link proof must too.
+  const omitted = new AuthService({
+    clock: testClock,
+    users,
+    tokens: joseTokenCodec(key),
+    passwords: bunPasswordHasher,
+    oidc: invalidOidc,
+  });
+  const enabled = new AuthService({
+    clock: testClock,
+    users,
+    tokens: joseTokenCodec(key),
+    passwords: bunPasswordHasher,
+    oidc: invalidOidc,
+    passwordSessions: true,
+  });
+
+  expect(await omitted.authenticate(login.value.token)).toBeNull();
+  expect(await omitted.passwordSessionUser(login.value.token)).toBeNull();
+  expect((await enabled.passwordSessionUser(login.value.token))?.id).toBe('legacy');
+});

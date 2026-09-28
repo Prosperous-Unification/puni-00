@@ -51,13 +51,16 @@ beforeEach(async () => {
   dnsRecords = new Error('DNS unavailable');
   beforeDnsReply = undefined;
   dnsBarrier = undefined;
-  harness = OrganizationHarness.open(undefined, copyPolicy(), {
-    lookupTxt: async () => {
-      beforeDnsReply?.();
-      await dnsBarrier;
-      if (dnsRecords === 'hang') return Promise.withResolvers<readonly string[]>().promise;
-      if (dnsRecords instanceof Error) throw dnsRecords;
-      return dnsRecords;
+  harness = OrganizationHarness.open({
+    policyDirectory: copyPolicy(),
+    resolver: {
+      lookupTxt: async () => {
+        beforeDnsReply?.();
+        await dnsBarrier;
+        if (dnsRecords === 'hang') return Promise.withResolvers<readonly string[]>().promise;
+        if (dnsRecords instanceof Error) throw dnsRecords;
+        return dnsRecords;
+      },
     },
   });
   await harness.register('owner');
@@ -736,8 +739,9 @@ describe('mounted organization domain challenges', () => {
   it('refuses a delegated caller even with current super-admin membership', async () => {
     const keys = await generateKeyPair('RS256');
     let dnsValue = '';
-    const delegated = OrganizationHarness.open(keys.publicKey, undefined, {
-      lookupTxt: () => Promise.resolve([dnsValue]),
+    const delegated = OrganizationHarness.open({
+      delegationKey: keys.publicKey,
+      resolver: { lookupTxt: () => Promise.resolve([dnsValue]) },
     });
     try {
       await delegated.register('delegated-owner');

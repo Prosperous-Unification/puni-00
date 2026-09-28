@@ -104,3 +104,51 @@ export const submitOnboardingJoinRequest = defineEndpointShape({
   ],
   document: { summary: 'Request membership in the matching organization.' },
 });
+
+/** Requests a password account's address challenge through an injected mail sink. */
+export const createEmailChallenge = defineEndpointShape({
+  method: 'POST',
+  path: '/api/onboarding/email-challenges',
+  operationId: 'postApiOnboardingEmailChallenges',
+  policies: writePolicies,
+  body: requestSchema(type({ email: 'string' })),
+  responses: [{ kind: 'json', status: 201, schema: responseSchema(type({ expiresAt: 'number' })) }],
+  refusals: [
+    ...common,
+    {
+      status: 403,
+      schema: responseSchema(type({ error: "'invalid_origin' | 'password_account_required'" })),
+    },
+    { status: 409, schema: responseSchema(type({ error: "'address_conflict'" })) },
+    { status: 503, schema: responseSchema(type({ error: "'delivery_failed'" })) },
+  ],
+  document: { summary: 'Send a password account email challenge.' },
+});
+
+/** Confirms a delivered, single-use challenge for the signed-in account. */
+export const confirmEmailChallenge = defineEndpointShape({
+  method: 'POST',
+  path: '/api/onboarding/email-challenges/confirm',
+  operationId: 'postApiOnboardingEmailChallengesConfirm',
+  policies: writePolicies,
+  body: requestSchema(type({ email: 'string', token: 'string' })),
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(type({ email: 'string', verified: 'boolean' })),
+    },
+  ],
+  refusals: [
+    ...common,
+    {
+      status: 403,
+      schema: responseSchema(type({ error: "'invalid_origin' | 'password_account_required'" })),
+    },
+    {
+      status: 409,
+      schema: responseSchema(type({ error: "'challenge_invalid' | 'address_conflict'" })),
+    },
+  ],
+  document: { summary: 'Confirm a password account email challenge.' },
+});
