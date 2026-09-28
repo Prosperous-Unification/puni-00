@@ -320,6 +320,7 @@ describe('the dependency-card pointer bridge', () => {
       toJSON: () => ({}),
     });
     expect(typed.style.pointerEvents).toBe('auto');
+    expect(typed.getAttribute('data-depends-card-target')).toBe('typed:typed');
     fireEvent.pointerMove(typed, { clientX: 150, clientY: 26 });
     expect(onPointEntry).toHaveBeenCalledWith(null);
     expect(depLights.activeTypedId()).toBe('typed');

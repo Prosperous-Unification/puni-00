@@ -289,6 +289,11 @@ export function DependsCard({
             else targets.current.set(`typed:${dependency.id}`, target);
           }}
           className="typed-dependency-card-entry"
+          // One line of the card like a legacy entry, so a count of the card's
+          // lines reads both kinds.
+          // Proof: removing it made `keeps typed Edit and Remove clickable while
+          // the pointer crosses the card` read null. Watched 2026-09-28.
+          data-depends-card-target={`typed:${dependency.id}`}
           role="group"
           aria-label={dependency.label}
           // Proof: disconnecting this read made `syncs typed entry hover and
