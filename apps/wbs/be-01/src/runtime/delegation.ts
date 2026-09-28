@@ -33,13 +33,13 @@ export type DelegationVerifier = (
   audience: DelegationAudience,
 ) => Promise<DelegationOutcome>;
 
-/** Atomically records one verified token use; false means a replay. */
+/** Resolves after one verified use commits; false means a replay. */
 export type ConsumeDelegation = (
   issuer: string,
   jti: string,
   expiresAt: number,
   now: number,
-) => boolean;
+) => Promise<boolean>;
 
 /** Whether `token` declares itself a delegation, without believing anything else it says. */
 export function declaresDelegation(token: string): boolean {
@@ -109,16 +109,18 @@ export function delegationVerifier(
     if (claims === null) return { kind: 'refused' };
     // jose accepts audience arrays for general JWTs; WBS issues exactly one
     // scalar audience and refuses any broader shape here.
+    // Proof (2026-09-28): removing this check made `refuses a signed array
+    // audience that includes the MCP route` answer 200 instead of 401.
     if (payload['aud'] !== audience) return { kind: 'refused' };
     const mapped = await mappedUserOf(claims.upstream);
     // Proof: accepting any mapped upstream identity made `refuses a delegation
     // whose upstream identity maps to someone else` in
     // `delegation.controller.db.test.ts` fail; watched 2026-09-28.
     if (mapped?.id !== claims.userId) return { kind: 'refused' };
-    // Proof: bypassing consumption made `consumes an MCP delegation once even
-    // when the project is missing` answer 404 twice (2026-09-28). The store's
-    // unique-key mutation separately failed the two-connection race test.
-    if (!consume(DELEGATION_ISSUER, claims.jti, claims.expiresAt, Math.floor(now() / 1000)))
+    // Proof (2026-09-28): removing this await made `consumes an MCP delegation
+    // once even when the project is missing` answer 404 twice. The store's
+    // conflict mutation separately failed the two-connection race test.
+    if (!(await consume(DELEGATION_ISSUER, claims.jti, claims.expiresAt, Math.floor(now() / 1000))))
       return { kind: 'refused' };
     return {
       kind: 'verified',

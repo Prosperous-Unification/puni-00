@@ -17,7 +17,6 @@ import type { WriteCoordinator } from './repository/gate';
 import { runMigrations } from './repository/migrate';
 import { allocateGeneration, readGeneration } from './repository/optimization-generation';
 import { DELEGATION_TOKEN_TYPE, REFUSE_DELEGATIONS } from './runtime/delegation';
-import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
 import type { AuthenticatedUser } from './service/auth.service';
 
 /**
@@ -246,11 +245,11 @@ describe('bootBe01', () => {
         )
       ).status,
     ).toBe(401);
-    // Proof: replacing the production refusing issuer with the signer made
-    // this configured-key boot mint a token (2026-09-28).
+    // Proof (2026-09-28): replacing boot's returned issuer with an accepting
+    // function made this test receive no `inactive` refusal.
     let issuanceFailure: unknown;
     try {
-      await REFUSE_DELEGATION_ISSUANCE('verified-credential', 'wbs-be-01/via-gw-01', ['read']);
+      await running.delegationIssuer('verified-credential', 'wbs-be-01/via-gw-01', ['read']);
     } catch (failure) {
       issuanceFailure = failure;
     }

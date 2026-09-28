@@ -7,6 +7,7 @@ import { sql } from 'drizzle-orm';
 
 import { openConnection, openReadOnlyConnection } from './db';
 import { SqliteDelegationUse } from './delegation-use';
+import { WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 
@@ -23,6 +24,43 @@ afterEach(() => {
   rmSync(folder, { recursive: true, force: true });
 });
 
+it('commits an admitted use after a concurrent command rolls back', async () => {
+  const connection = openConnection(path);
+  const gate = new WriteCoordinator();
+  let releaseCommand: (() => void) | undefined;
+  let commandStarted: (() => void) | undefined;
+  const started = new Promise<void>((resolve) => {
+    commandStarted = resolve;
+  });
+  const release = new Promise<void>((resolve) => {
+    releaseCommand = resolve;
+  });
+  try {
+    const command = gate.enter(async () => {
+      connection.db.run(sql`BEGIN`);
+      commandStarted?.();
+      await release;
+      connection.db.run(sql`ROLLBACK`);
+    });
+    await started;
+    const uses = new SqliteDelegationUse(connection.db, gate);
+    let admitted = false;
+    const consumption = Promise.resolve(uses.consume('wbs', 'held', 200, 100)).then((accepted) => {
+      admitted = true;
+      return accepted;
+    });
+    await Promise.resolve();
+    expect(admitted).toBe(false);
+    releaseCommand?.();
+    await command;
+    expect(await consumption).toBe(true);
+    expect(await Promise.resolve(uses.consume('wbs', 'held', 200, 100))).toBe(false);
+  } finally {
+    releaseCommand?.();
+    connection.close();
+  }
+});
+
 it('admits exactly one use across two connections', async () => {
   const barrier = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 2);
   const state = new Int32Array(barrier);
@@ -37,9 +75,13 @@ it('admits exactly one use across two connections', async () => {
         worker.onerror = reject;
       });
     const admissions = Promise.all([admission(first), admission(second)]);
-    first.postMessage({ path, barrier });
-    second.postMessage({ path, barrier });
     const deadline = Date.now() + 5_000;
+    first.postMessage({ path, barrier });
+    while (Atomics.load(state, 0) < 1 && Date.now() < deadline) {
+      await Bun.sleep(5);
+    }
+    expect(Atomics.load(state, 0)).toBe(1);
+    second.postMessage({ path, barrier });
     while (Atomics.load(state, 0) < 2 && Date.now() < deadline) {
       await Bun.sleep(5);
     }
@@ -57,37 +99,67 @@ it('admits exactly one use across two connections', async () => {
   }
 });
 
-it('prunes expired uses without removing live uses, and fails on missing storage', () => {
+it('prunes expired uses without removing live uses', async () => {
   const connection = openConnection(path);
   try {
-    const uses = new SqliteDelegationUse(connection.db);
-    expect(uses.consume('wbs', 'expired', 101, 100)).toBe(true);
-    expect(uses.consume('wbs', 'live', 200, 100)).toBe(true);
-    expect(uses.consume('wbs', 'next', 200, 102)).toBe(true);
-    expect(uses.consume('wbs', 'live', 200, 102)).toBe(false);
+    const uses = new SqliteDelegationUse(connection.db, new WriteCoordinator());
+    expect(await uses.consume('wbs', 'expired', 101, 100)).toBe(true);
+    expect(await uses.consume('wbs', 'live', 200, 100)).toBe(true);
+    expect(await uses.consume('wbs', 'next', 200, 102)).toBe(true);
+    expect(await uses.consume('wbs', 'live', 200, 102)).toBe(false);
     expect(connection.db.all(sql`SELECT jti FROM delegation_use ORDER BY jti`)).toEqual([
       { jti: 'live' },
       { jti: 'next' },
     ]);
-    connection.db.run(sql`DROP TABLE delegation_use`);
-    expect(() => uses.consume('wbs', 'new', 200, 102)).toThrow();
   } finally {
     connection.close();
   }
 });
 
-it('fails when the use table is read-only', () => {
+it('fails when the use table is missing', async () => {
+  const connection = openConnection(path);
+  try {
+    connection.db.run(sql`DROP TABLE delegation_use`);
+    let failure: unknown;
+    try {
+      await new SqliteDelegationUse(connection.db, new WriteCoordinator()).consume(
+        'wbs',
+        'new',
+        200,
+        100,
+      );
+    } catch (cause) {
+      failure = cause;
+    }
+    expect(failure).toBeInstanceOf(Error);
+  } finally {
+    connection.close();
+  }
+});
+
+it('fails when the use table is read-only', async () => {
   const connection = openReadOnlyConnection(path);
   try {
-    // Proof: ignoring a failed prune/write made this admission appear usable
-    // against a read-only database (2026-09-28).
-    expect(() => new SqliteDelegationUse(connection.db).consume('wbs', 'new', 200, 100)).toThrow();
+    // Proof (2026-09-28): bypassing storage resolved admission against this
+    // read-only database instead of rejecting.
+    let failure: unknown;
+    try {
+      await new SqliteDelegationUse(connection.db, new WriteCoordinator()).consume(
+        'wbs',
+        'new',
+        200,
+        100,
+      );
+    } catch (cause) {
+      failure = cause;
+    }
+    expect(failure).toBeInstanceOf(Error);
   } finally {
     connection.close();
   }
 });
 
-it('prunes no more than 1,000 expired rows per consumption', () => {
+it('prunes no more than 1,000 expired rows per consumption', async () => {
   const connection = openConnection(path);
   try {
     for (let index = 0; index < 1_001; index += 1) {
@@ -96,23 +168,42 @@ it('prunes no more than 1,000 expired rows per consumption', () => {
     }
     connection.db.run(sql`INSERT INTO delegation_use (issuer, jti, expires_at)
       VALUES ('wbs', 'live', 200)`);
-    expect(new SqliteDelegationUse(connection.db).consume('wbs', 'next', 200, 100)).toBe(true);
+    expect(
+      await new SqliteDelegationUse(connection.db, new WriteCoordinator()).consume(
+        'wbs',
+        'next',
+        200,
+        100,
+      ),
+    ).toBe(true);
     expect(
       connection.db.all<{ count: number }>(
         sql`SELECT COUNT(*) AS count FROM delegation_use WHERE expires_at <= 100`,
       ),
     ).toEqual([{ count: 1 }]);
-    expect(new SqliteDelegationUse(connection.db).consume('wbs', 'live', 200, 100)).toBe(false);
+    expect(
+      await new SqliteDelegationUse(connection.db, new WriteCoordinator()).consume(
+        'wbs',
+        'live',
+        200,
+        100,
+      ),
+    ).toBe(false);
   } finally {
     connection.close();
   }
 });
 
-it('refuses rollback after activation or while a live use remains', () => {
+it('refuses rollback after activation or while a live use remains', async () => {
   const connection = openConnection(path);
   try {
-    const uses = new SqliteDelegationUse(connection.db);
-    uses.consume('wbs', 'live', Math.floor(Date.now() / 1000) + 120, Math.floor(Date.now() / 1000));
+    const uses = new SqliteDelegationUse(connection.db, new WriteCoordinator());
+    await uses.consume(
+      'wbs',
+      'live',
+      Math.floor(Date.now() / 1000) + 120,
+      Math.floor(Date.now() / 1000),
+    );
     expect(() => rollbackTo(path, FOLDER, '20260928010000_add_project_solution')).toThrow();
     connection.db.run(sql`DELETE FROM delegation_use`);
     connection.db.run(

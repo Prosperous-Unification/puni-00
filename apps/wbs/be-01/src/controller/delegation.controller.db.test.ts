@@ -40,7 +40,7 @@ afterEach(() => {
 interface Claims {
   readonly username?: string;
   readonly org?: string;
-  readonly aud?: string;
+  readonly aud?: string | string[];
   readonly upstream?: string;
   readonly lifetime?: number;
   readonly issuedAgo?: number;
@@ -194,6 +194,27 @@ describe('after activation', () => {
         status: 401,
       });
     }
+  });
+
+  it('refuses a signed array audience that includes the MCP route', async () => {
+    expect(
+      await h.callWith(
+        await delegation({ aud: ['wbs-be-01/via-mcp-01', 'wbs-be-01/via-gw-01'] }),
+        'GET',
+        '/api/projects',
+      ),
+    ).toMatchObject({ status: 401 });
+  });
+
+  it('refuses a gateway bearer beside a session cookie', async () => {
+    const projectId = await project('ada', 'Cookie check');
+    const token = await delegation({ aud: 'wbs-be-01/via-gw-01' });
+    expect(
+      await h.callWith(token, 'POST', `/internal/gateway/projects/${projectId}/access`, undefined, {
+        'x-internal-auth': 'x'.repeat(32),
+        cookie: `__Host-wbs_access=${h.token('ada')}`,
+      }),
+    ).toMatchObject({ status: 401 });
   });
 
   it('refuses an expired, re-signed or forged-organization delegation', async () => {

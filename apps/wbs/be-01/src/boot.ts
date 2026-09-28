@@ -316,6 +316,8 @@ export async function bootBe01(
 
   return {
     services,
+    // Proof (2026-09-28): replacing this binding with an accepting function
+    // failed boot.db.test.ts's configured-key issuer refusal assertion.
     delegationIssuer: REFUSE_DELEGATION_ISSUANCE,
     port: app.server?.port ?? opts.port,
     /**

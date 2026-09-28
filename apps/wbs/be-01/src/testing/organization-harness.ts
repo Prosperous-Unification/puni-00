@@ -21,7 +21,7 @@ import { openDatabase, openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
-import { OPEN } from '../repository/gate';
+import { OPEN, WriteCoordinator } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { StepRepository } from '../repository/step';
@@ -91,6 +91,7 @@ export class OrganizationHarness {
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
     const db = openDrizzle(path);
+    const gate = new WriteCoordinator();
     const bound = new Map<string, string>();
     const projects = new ProjectRepository(db, OPEN);
     const directoryStore = new DirectoryRepository(db, OPEN);
@@ -161,7 +162,7 @@ export class OrganizationHarness {
                 return new UserRepository(db, OPEN).findById(userId);
               },
               (issuer, jti, expiresAt, now) =>
-                new SqliteDelegationUse(db).consume(issuer, jti, expiresAt, now),
+                new SqliteDelegationUse(db, gate).consume(issuer, jti, expiresAt, now),
             ),
           }),
       history: testHistoryService(),

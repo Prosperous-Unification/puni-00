@@ -36,6 +36,8 @@ export function identityResolver(
         return { ok: false, status: 401, body: { error: 'unauthorized' } };
       const authorization = request.headers.get('authorization');
       const token = authorization?.startsWith('Bearer ') === true ? authorization.slice(7) : null;
+      // Proof (2026-09-28): removing the cookie condition made `refuses a
+      // gateway bearer beside a session cookie` answer 204 instead of 401.
       if (
         token === null ||
         !declaresDelegation(token) ||
