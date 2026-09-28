@@ -82,6 +82,7 @@ Five rules govern this repo:
   there or check out the SHA first.
 - Trust the printed `h2puni gate: running on <sha>`, not intent. Exit 65 means the shared
   gate tree is dirty; move or commit named files and rerun—never unattended `git clean`.
+  Exit 66 names tracked paths closed to other users; rerun with `H2PUNI_GATE_REPAIR_MODES=1`.
 - A held lock queues for 30 minutes; `HEAVY_LOCK_WAIT_SECONDS=0` opts into refusal.
   Format needs `--all`; the base-ref default is empty on main.
 - Gate also runs `openspec validate --all --json`. CI adds secrets and migration lint;
