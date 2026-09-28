@@ -23,9 +23,10 @@ import { recordCalls } from '@/testing/record-calls';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import { createDepLights } from './dep-light-store';
+import { GanttFaultBoundary } from './gantt-fault';
 import { MONDAY_START, planOf, pointedAtRow, rowAt, sliceAt } from './gantt-fixtures';
 import type { GanttPlan } from './gantt-geometry';
-import { DONE_BAR_STROKE } from './gantt-geometry';
+import { DONE_BAR_STROKE, layOutGantt } from './gantt-geometry';
 import { inkOn, PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR } from './gantt-geometry';
 import {
   appliedGanttHeight,
@@ -55,6 +56,7 @@ import {
   monthWords,
   ROW_PX,
   rowWords,
+  typedArrowLabel,
   workdayAxis,
 } from './gantt-panel';
 import type * as InitialsModule from './initials';
@@ -373,6 +375,243 @@ describe('the chart’s row labels read a name as the plan reads it', () => {
 });
 
 describe('every mark on the chart lands on the calendar day its workday is', () => {
+  it('refuses missing label metadata on the typed arrow label path', () => {
+    const chart = planOf({
+      rows: [rowAt('A', 0, 2), rowAt('B', 2, 4)],
+      slices: [sliceAt('A-dev', 'A', 0, 2), sliceAt('B-dev', 'B', 2, 4)],
+      typedDependencies: [
+        {
+          id: 'edge',
+          type: 'FS',
+          predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+        },
+      ],
+    });
+    const arrow = layOutGantt(chart).typedArrows[0];
+    expect(() => typedArrowLabel({ ...chart, rows: chart.rows.slice(1) }, arrow)).toThrow(
+      'missing chart row A',
+    );
+    expect(() => typedArrowLabel({ ...chart, steps: [] }, arrow)).toThrow('missing chart step dev');
+    expect(() => typedArrowLabel({ ...chart, typedDependencies: [] }, arrow)).toThrow(
+      'missing chart relationship edge',
+    );
+  });
+  itDom('discloses malformed typed endpoint data and recovers on the next chart read', () => {
+    const base = planOf({
+      rows: [rowAt('A', 0, 2), rowAt('B', 2, 4)],
+      slices: [sliceAt('A-dev', 'A', 0, 2), sliceAt('B-dev', 'B', 2, 4)],
+    });
+    const invalid = {
+      ...base,
+      typedDependencies: [
+        {
+          id: 'edge',
+          type: 'FS' as const,
+          predecessor: { scope: 'node' as const, workItemId: 'A', stepId: 'missing' },
+          successor: { scope: 'node' as const, workItemId: 'B', stepId: 'dev' },
+        },
+      ],
+    };
+    const chart = (plan: GanttPlan, generation: number) => (
+      <GanttFaultBoundary generation={generation}>
+        <GanttPanel
+          plan={plan}
+          startDate={null}
+          scheduleError={null}
+          generation={generation}
+          heightPx={null}
+          onPickRow={() => undefined}
+          onPointRow={() => undefined}
+          pointed={pointedAtRow(null)}
+        />
+      </GanttFaultBoundary>
+    );
+    const { rerender } = render(chart(invalid, 0));
+    expect(document.querySelector('[data-gantt-fault]')?.textContent).toContain(
+      'missing chart step missing in A',
+    );
+    rerender(chart(base, 1));
+    expect(document.querySelector('[data-gantt-fault]')).toBeNull();
+    expect(document.querySelector('[data-gantt-chart]')).not.toBeNull();
+  });
+  itDom(
+    'names distinct typed endpoints and lights only the active grouped relationship slices',
+    () => {
+      const depLights = createDepLights();
+      depLights.setTypedDependencies([
+        { id: 'dev', predecessor: { workItemId: 'P' }, successor: { workItemId: 'B' } },
+        { id: 'qa', predecessor: { workItemId: 'P' }, successor: { workItemId: 'B' } },
+      ]);
+      const chart = planOf({
+        rows: [
+          rowAt('P', 0, 2, { leaf: false, number: '010', name: 'Parent' }),
+          rowAt('B', 2, 6, { number: '020', name: 'Build' }),
+        ],
+        tree: [
+          { id: 'P', parentId: null },
+          { id: 'A', parentId: 'P' },
+          { id: 'B', parentId: null },
+        ],
+        steps: [
+          { id: 'dev', name: 'Dev' },
+          { id: 'qa', name: 'QA' },
+        ],
+        slices: [
+          sliceAt('A-dev', 'A', 0, 2),
+          sliceAt('B-dev', 'B', 2, 4),
+          sliceAt('B-qa', 'B', 4, 6, { stepId: 'qa' }),
+        ],
+        typedDependencies: [
+          {
+            id: 'dev',
+            type: 'FS',
+            predecessor: { scope: 'whole', workItemId: 'P' },
+            successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+          },
+          {
+            id: 'qa',
+            type: 'FS',
+            predecessor: { scope: 'whole', workItemId: 'P' },
+            successor: { scope: 'node', workItemId: 'B', stepId: 'qa' },
+          },
+        ],
+      });
+      render(
+        <GanttPanel
+          plan={chart}
+          depLights={depLights}
+          startDate={null}
+          scheduleError={null}
+          generation={0}
+          heightPx={null}
+          onPickRow={() => undefined}
+          onPointRow={() => undefined}
+          pointed={pointedAtRow(null)}
+        />,
+      );
+      pressTheDetail();
+      const arrow = document.querySelector('[data-gantt-typed-arrow="dev"]');
+      expect(arrow?.getAttribute('aria-label')).toContain('010 - Parent whole');
+      expect(arrow?.getAttribute('aria-label')).toContain('020 - Build Dev');
+      expect(arrow?.getAttribute('aria-label')).toContain('2 links');
+      act(() => {
+        depLights.updateHover(() => ({ rowId: 'B', pillId: 'qa' }));
+      });
+      expect(arrow?.getAttribute('data-dependency-lit')).toBe('true');
+      expect(
+        document.querySelector('[data-gantt-bar="B-qa"]')?.getAttribute('data-dependency-lit'),
+      ).toBe('true');
+      expect(
+        document.querySelector('[data-gantt-bar="B-dev"]')?.getAttribute('data-dependency-lit'),
+      ).toBeNull();
+    },
+  );
+
+  itDom('routes a typed arrow into a later step without crossing the earlier bar', () => {
+    const chart = planOf({
+      rows: [rowAt('A', 0, 2), rowAt('B', 2, 6)],
+      steps: [
+        { id: 'dev', name: 'Dev' },
+        { id: 'qa', name: 'QA' },
+      ],
+      slices: [
+        sliceAt('A-dev', 'A', 0, 2),
+        sliceAt('B-dev', 'B', 2, 4),
+        sliceAt('B-qa', 'B', 4, 6, { stepId: 'qa' }),
+      ],
+      typedDependencies: [
+        {
+          id: 'qa',
+          type: 'FS',
+          predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'qa' },
+        },
+      ],
+    });
+    render(
+      <GanttPanel
+        plan={chart}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    pressTheDetail();
+    const path = markAttribute('[data-gantt-typed-arrow="qa"]', 'd');
+    const corners = [...path.matchAll(/[ML] ([\d.-]+) ([\d.-]+)/g)].map((match) => ({
+      x: Number(match[1]),
+      y: Number(match[2]),
+    }));
+    const earlier = document.querySelector('[data-gantt-bar="B-dev"]');
+    const left = Number(earlier?.getAttribute('x'));
+    const right = left + Number(earlier?.getAttribute('width'));
+    const top = Number(earlier?.getAttribute('y'));
+    const bottom = top + Number(earlier?.getAttribute('height'));
+    expect(
+      corners.slice(1).some((corner, index) => {
+        const before = corners[index];
+        return (
+          Math.max(before.x, corner.x) > left &&
+          Math.min(before.x, corner.x) < right &&
+          Math.max(before.y, corner.y) > top &&
+          Math.min(before.y, corner.y) < bottom
+        );
+      }),
+    ).toBe(false);
+  });
+  itDom('routes out of an unknown origin without crossing its placeholder', () => {
+    const chart = planOf({
+      rows: [rowAt('A', 0, 0), rowAt('B', 1, 3)],
+      slices: [sliceAt('A-dev', 'A', 0, 0, { estimated: false }), sliceAt('B-dev', 'B', 1, 3)],
+      typedDependencies: [
+        {
+          id: 'tick',
+          type: 'FS',
+          predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+        },
+      ],
+    });
+    render(
+      <GanttPanel
+        plan={chart}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    pressTheDetail();
+    const path = markAttribute('[data-gantt-typed-arrow="tick"]', 'd');
+    const corners = [...path.matchAll(/[ML] ([\d.-]+) ([\d.-]+)/g)].map((match) => ({
+      x: Number(match[1]),
+      y: Number(match[2]),
+    }));
+    const placeholder = document.querySelector('[data-gantt-bar="A-dev"]');
+    const left = Number(placeholder?.getAttribute('x'));
+    const right = left + Number(placeholder?.getAttribute('width'));
+    const top = Number(placeholder?.getAttribute('y'));
+    const bottom = top + Number(placeholder?.getAttribute('height'));
+    expect(
+      corners.slice(1).some((corner, index) => {
+        const before = corners[index];
+        return (
+          Math.max(before.x, corner.x) > left &&
+          Math.min(before.x, corner.x) < right &&
+          Math.max(before.y, corner.y) > top &&
+          Math.min(before.y, corner.y) < bottom
+        );
+      }),
+    ).toBe(false);
+  });
   itDom(
     'draws an authored FS arrow from an unknown node tick and names a collapsed proxy count',
     () => {
@@ -413,6 +652,7 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
       pressTheDetail();
       expect(markAttribute('[data-gantt-typed-arrow="dep"]', 'd')).toMatch(/^M 0 /);
       expect(document.querySelector('[data-gantt-proxy-count="dep"]')?.textContent).toBe('1');
+      expect(markAttribute('[data-gantt-typed-arrow="dep"]', 'aria-label')).toContain('1 link');
       fireEvent.focus(document.querySelector('[data-gantt-typed-arrow="dep"]')!);
       expect(
         document

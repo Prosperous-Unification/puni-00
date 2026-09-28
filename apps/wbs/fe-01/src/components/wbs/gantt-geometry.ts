@@ -640,6 +640,12 @@ export interface TypedChartDependency {
 export interface TypedGanttArrow extends GanttDependencyArrow {
   relationshipId: string;
   relationshipIds: string[];
+  /** Every authored pair in this connector; highlight membership is independent of its first anchor. */
+  relationshipSlices: {
+    relationshipId: string;
+    predecessorSliceId: string;
+    successorSliceId: string;
+  }[];
   predecessorSliceId: string;
   successorSliceId: string;
   count: number;
@@ -1192,6 +1198,7 @@ export interface PlacedGantt {
       TypedGanttArrow,
       | 'relationshipId'
       | 'relationshipIds'
+      | 'relationshipSlices'
       | 'predecessorSliceId'
       | 'successorSliceId'
       | 'count'
@@ -1256,6 +1263,7 @@ function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset
     toX: startOf(arrow.toStart),
     relationshipId: arrow.relationshipId,
     relationshipIds: arrow.relationshipIds,
+    relationshipSlices: arrow.relationshipSlices,
     predecessorSliceId: arrow.predecessorSliceId,
     successorSliceId: arrow.successorSliceId,
     count: arrow.count,
@@ -1497,6 +1505,18 @@ const bandedThrough = (frame: ArrowFrame, exit: number, column: number): ArrowPo
     { x: frame.toX, y: frame.toY },
   ]);
 
+/** Enter a later step down its left boundary, where the row gap is still clear. */
+const bandedToBoundary = (frame: ArrowFrame, exit: number, column: number): ArrowPoint[] =>
+  trimmed([
+    { x: frame.fromX, y: frame.fromY },
+    { x: exit, y: frame.fromY },
+    { x: exit, y: frame.bandFrom },
+    { x: column, y: frame.bandFrom },
+    { x: column, y: frame.bandTo },
+    { x: frame.toX, y: frame.bandTo },
+    { x: frame.toX, y: frame.toY },
+  ]);
+
 /**
  * The corners one dependency arrow is drawn through: out of the predecessor's
  * anchor, across, and into the successor's left edge from outside it — through
@@ -1531,13 +1551,16 @@ const bandedThrough = (frame: ArrowFrame, exit: number, column: number): ArrowPo
  * route can leave without crossing; the banded fallback is returned as it
  * stands rather than a route being searched for that cannot exist.
  *
- * `bars` is what the panel actually paints, which since `gantt-declutter` is
- * the estimated ones: a bar nothing draws is not something to dodge.
+ * `boundaryEntry` adds an arrival down the target's left edge from the row
+ * gap. Typed arrows use it when a preceding contiguous step fills the normal
+ * horizontal approach. `bars` is what the panel actually paints, including
+ * visible unknown placeholders when detail is open.
  */
 export function routeArrow(
   arrow: PlacedArrow,
   bars: readonly PlacedBar[],
   clearance: ArrowClearance,
+  options: { boundaryEntry?: boolean } = {},
 ): ArrowPoint[] {
   const frame = frameOf(arrow, clearance);
   const firstRow = Math.min(arrow.fromRowIndex, arrow.toRowIndex);
@@ -1583,6 +1606,13 @@ export function routeArrow(
     for (const exit of [arrow.fromX + clearance.approach, arrow.fromX]) {
       const banded = bandedThrough(frame, exit, column);
       if (isClear(banded)) return banded;
+      // Proof: without this candidate, `enters a later contiguous target at
+      // its boundary without crossing either bar` found two segments inside
+      // B-dev. Watched 2026-09-28.
+      if (options.boundaryEntry) {
+        const boundary = bandedToBoundary(frame, exit, column);
+        if (isClear(boundary)) return boundary;
+      }
     }
   }
 

@@ -34,6 +34,7 @@ import {
   droppedLinkWords,
   type EstimateTrio,
   type GanttBar,
+  GanttDataError,
   type GanttPlan,
   type GanttRowLabel,
   hasTags,
@@ -47,6 +48,7 @@ import {
   ROW_MIDDLE,
   type ServiceTeamLabel,
   type TagLabel,
+  type TypedGanttArrow,
 } from './gantt-geometry';
 import { type AnchorRect, HoverCard } from './hover-card';
 import { initialsOf } from './initials';
@@ -628,6 +630,55 @@ const HEAVIEST_STROKE_PX = 2;
 export const CHART_PAD_PX = Math.max(ARROW_APPROACH_PX, NOT_BEFORE_LENGTH_PX) + HEAVIEST_STROKE_PX;
 
 /**
+ * Name the visible rows and every distinct authored scope behind a connector.
+ * @throws GanttDataError if a row, relationship or step promised by the chart is missing.
+ */
+export function typedArrowLabel(
+  plan: GanttPlan,
+  arrow: Pick<
+    TypedGanttArrow,
+    'predecessorId' | 'successorId' | 'relationshipIds' | 'count' | 'proxy'
+  >,
+): string {
+  const rowOf = (rowId: string) => {
+    const row = plan.rows.find((candidate) => candidate.id === rowId);
+    // Proof: returning empty words for an absent row made `refuses missing
+    // label metadata on the typed arrow label path` fail on "did not throw".
+    // Watched 2026-09-28.
+    if (row === undefined) throw new GanttDataError(`missing chart row ${rowId}`);
+    return rowWords(row.number, row.name);
+  };
+  const scopesOf = (side: 'predecessor' | 'successor') =>
+    [
+      ...new Set(
+        arrow.relationshipIds.map((relationshipId) => {
+          const dependency = plan.typedDependencies?.find(
+            (candidate) => candidate.id === relationshipId,
+          );
+          // Proof: treating an absent relationship as whole made `refuses missing
+          // label metadata on the typed arrow label path` fail on "did not throw".
+          // Watched 2026-09-28.
+          if (dependency === undefined)
+            throw new GanttDataError(`missing chart relationship ${relationshipId}`);
+          const endpoint = dependency[side];
+          if (endpoint.scope === 'whole') return 'whole';
+          const step = plan.steps.find((candidate) => candidate.id === endpoint.stepId);
+          // Proof: accepting an absent step as "unknown" made `refuses missing
+          // label metadata on the typed arrow label path` fail on "did not throw".
+          // Watched 2026-09-28.
+          if (step === undefined)
+            throw new GanttDataError(`missing chart step ${String(endpoint.stepId)}`);
+          return endpoint.scope === 'descendant-step' ? `descendant ${step.name}` : step.name;
+        }),
+      ),
+    ].join(', ');
+  // Proof: omitting the singular proxy count made `draws an authored FS arrow
+  // from an unknown node tick and names a collapsed proxy count` miss "1 link"
+  // in its accessible name. Watched 2026-09-28.
+  return `FS dependency from ${rowOf(arrow.predecessorId)} ${scopesOf('predecessor')} to ${rowOf(arrow.successorId)} ${scopesOf('successor')}${arrow.proxy || arrow.count > 1 ? `, ${String(arrow.count)} ${arrow.count === 1 ? 'link' : 'links'}` : ''}`;
+}
+
+/**
  * The two paths one dependency arrow is drawn from: the elbow, and the filled
  * head at the end of it.
  *
@@ -675,14 +726,16 @@ export const CHART_PAD_PX = Math.max(ARROW_APPROACH_PX, NOT_BEFORE_LENGTH_PX) + 
  * path in the detail-on state. Written down here and in that change's
  * `verify.md` rather than fixed. Cross-review, 2026-08-12.
  *
- * Either way the last run is horizontal and arrives at the successor's start,
- * so the head always points right and never has to be rotated.
+ * Typed arrows retain their unknown origin placeholder as an obstacle and can
+ * leave vertically along its edge. Their later-step targets can be entered
+ * down the target's left boundary from the row gap. A plain route's last run
+ * remains horizontal; every arrowhead points right at the successor's start.
  */
 function arrowRoute(
   arrow: PlacedArrow,
   barsByRow: ReadonlyMap<number, PlacedBar[]>,
   dayPx: number,
-  originSliceId?: string,
+  typed = false,
 ): { elbow: string; head: string } {
   const at = (x: number, y: number): string => `${String(x)} ${String(y)}`;
   const toY = arrow.toRowIndex + ROW_MIDDLE;
@@ -702,18 +755,20 @@ function arrowRoute(
     row <= Math.max(arrow.fromRowIndex, arrow.toRowIndex);
     row += 1
   ) {
-    // A zero-time anchor sits on the left edge of its own two-day placeholder.
-    // Exclude only that placeholder; every other visible bar remains an obstacle.
-    obstacles.push(
-      ...(barsByRow.get(row) ?? []).filter(
-        ({ bar }) => bar.sliceId !== originSliceId || bar.estimated,
-      ),
-    );
+    // Proof: filtering out the unknown origin placeholder made `routes out of an
+    // unknown origin without crossing its placeholder` observe a segment inside
+    // A-dev (true instead of false). Watched 2026-09-28.
+    obstacles.push(...(barsByRow.get(row) ?? []));
   }
-  const route = routeArrow(arrow, obstacles, {
-    approach: ARROW_APPROACH_PX / dayPx,
-    barInset: BAR_INSET,
-  });
+  const route = routeArrow(
+    arrow,
+    obstacles,
+    {
+      approach: ARROW_APPROACH_PX / dayPx,
+      barInset: BAR_INSET,
+    },
+    { boundaryEntry: typed },
+  );
   const headX = ARROW_HEAD_PX / dayPx;
   const headY = ARROW_HEAD_HALF_PX / ROW_PX;
   return {
@@ -4665,7 +4720,7 @@ function GanttChart({
           })}
         {detailShown &&
           placed.typedArrows.map((arrow, index) => {
-            const route = arrowRoute(arrow, drawn.barsByRow, dayPx, arrow.predecessorSliceId);
+            const route = arrowRoute(arrow, drawn.barsByRow, dayPx, true);
             const markId = `${arrow.relationshipId}-${String(index)}`;
             const relationship = plan.typedDependencies?.find(
               (dependency) => dependency.id === arrow.relationshipId,
@@ -4714,7 +4769,11 @@ function GanttChart({
                       current?.pillId === arrow.relationshipId ? null : current,
                     )
                   }
-                  aria-label={`FS dependency from ${arrow.predecessorId} to ${arrow.successorId}${arrow.count > 1 ? `, ${String(arrow.count)} links` : ''}`}
+                  // Proof: the old ID-only label made `names distinct typed
+                  // endpoints and lights only the active grouped relationship
+                  // slices` receive "FS dependency from P to B, 2 links".
+                  // Watched 2026-09-28.
+                  aria-label={typedArrowLabel(plan, arrow)}
                 />
                 <path
                   d={route.elbow}
@@ -4854,11 +4913,17 @@ function GanttChart({
             data-gantt-bar={bar.sliceId}
             data-dependency-lit={
               activeTypedId !== null &&
-              placed.typedArrows.some(
-                (arrow) =>
-                  arrow.relationshipIds.includes(activeTypedId) &&
-                  (arrow.predecessorSliceId === bar.sliceId ||
-                    arrow.successorSliceId === bar.sliceId),
+              placed.typedArrows.some((arrow) =>
+                arrow.relationshipSlices.some(
+                  (pair) =>
+                    // Proof: dropping this membership check made `names distinct
+                    // typed endpoints and lights only the active grouped
+                    // relationship slices` light B-dev for the QA edge.
+                    // Watched 2026-09-28.
+                    pair.relationshipId === activeTypedId &&
+                    (pair.predecessorSliceId === bar.sliceId ||
+                      pair.successorSliceId === bar.sliceId),
+                ),
               )
                 ? 'true'
                 : undefined

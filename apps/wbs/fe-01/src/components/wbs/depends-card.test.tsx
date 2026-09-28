@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createDepLights } from './dep-light-store';
@@ -15,6 +15,45 @@ const rect = (left: number, top: number, right: number, bottom: number): Pointer
 });
 
 describe('the dependency-card pointer bridge', () => {
+  itDom('syncs typed entry hover and focus with the shared relationship light', () => {
+    const depLights = createDepLights();
+    depLights.setTypedDependencies([
+      { id: 'edge', predecessor: { workItemId: 'A' }, successor: { workItemId: 'B' } },
+    ]);
+    render(
+      <DependsCard
+        number="020"
+        entries={[]}
+        typedEntries={[
+          {
+            id: 'edge',
+            label: '010 Dev FS → 020 QA',
+            onEdit: () => undefined,
+            onRemove: () => undefined,
+          },
+        ]}
+        depLights={depLights}
+        rowId="B"
+        onPointEntry={() => undefined}
+        onPointerOutside={() => undefined}
+      />,
+    );
+    const entry = screen.getByText('010 Dev FS → 020 QA').parentElement;
+    expect(entry).not.toBeNull();
+    expect(entry?.getAttribute('data-dependency-lit')).toBeNull();
+    fireEvent.pointerEnter(entry!);
+    expect(depLights.activeTypedId()).toBe('edge');
+    fireEvent.pointerLeave(entry!);
+    expect(depLights.activeTypedId()).toBeNull();
+    fireEvent.focus(screen.getByRole('button', { name: 'Edit 010 Dev FS → 020 QA' }));
+    expect(depLights.activeTypedId()).toBe('edge');
+    fireEvent.blur(screen.getByRole('button', { name: 'Edit 010 Dev FS → 020 QA' }));
+    expect(depLights.activeTypedId()).toBeNull();
+    act(() => {
+      depLights.updateHover(() => ({ rowId: 'B', pillId: 'edge' }));
+    });
+    expect(entry?.getAttribute('data-dependency-lit')).toBe('true');
+  });
   // The sideways geometry the card has since 2026-09-09: the card's left edge
   // is its cell's right edge, its top is the cell's, and its lines sit inside
   // it with the card's own 6px padding around them.

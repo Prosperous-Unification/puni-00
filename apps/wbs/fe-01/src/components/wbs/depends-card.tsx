@@ -161,6 +161,7 @@ export function DependsCard({
   onPointerOutside,
 }: DependsCardProps) {
   const emphasisedId = useSyncExternalStore(depLights.subscribe, () => depLights.pillFor(rowId));
+  const activeTypedId = useSyncExternalStore(depLights.subscribe, depLights.activeTypedId);
   const targets = useRef(new Map<string, HTMLDivElement>());
 
   useEffect(() => {
@@ -264,7 +265,39 @@ export function DependsCard({
     // corridor's bounding box (see {@link dependencyPointerRegion}).
     <HoverCard label={`What ${number} waits for`}>
       {typedEntries.map((dependency) => (
-        <div key={dependency.id} className="typed-dependency-card-entry">
+        <div
+          key={dependency.id}
+          className="typed-dependency-card-entry"
+          role="group"
+          aria-label={dependency.label}
+          // Proof: disconnecting this read made `syncs typed entry hover and
+          // focus with the shared relationship light` receive null instead
+          // of "true" after an external light update. Watched 2026-09-28.
+          data-dependency-lit={activeTypedId === dependency.id ? 'true' : undefined}
+          style={
+            activeTypedId === dependency.id ? { background: 'var(--card-dep-lit)' } : undefined
+          }
+          // Proof: without this publication, `syncs typed entry hover and focus
+          // with the shared relationship light` read null after pointer enter.
+          // Watched 2026-09-28.
+          onPointerEnter={() => {
+            depLights.updateHover(() => ({ rowId, pillId: dependency.id }));
+          }}
+          onPointerLeave={() => {
+            depLights.updateHover((current) =>
+              current?.pillId === dependency.id ? null : current,
+            );
+          }}
+          onFocus={() => {
+            depLights.updateFocus(() => ({ rowId, pillId: dependency.id }));
+          }}
+          onBlur={(event) => {
+            if (event.currentTarget.contains(event.relatedTarget)) return;
+            depLights.updateFocus((current) =>
+              current?.pillId === dependency.id ? null : current,
+            );
+          }}
+        >
           <span>{dependency.label}</span>
           <button type="button" onClick={dependency.onEdit} aria-label={`Edit ${dependency.label}`}>
             Edit
