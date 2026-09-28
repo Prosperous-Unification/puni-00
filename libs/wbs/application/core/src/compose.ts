@@ -156,7 +156,15 @@ interface CommonServices extends WritingServices {
   readonly gatewayBroadcaster: GatewayBroadcaster;
   readonly replayBuffer: ReplayBuffer;
   readonly uow: Source['uow'];
-  readonly batch: (scope: Scope, broadcast: Broadcaster) => WritingServices;
+  /**
+   * One batch's writing graph over the scope its unit of work admitted, with
+   * the admission that unit of work established; see {@link EditAdmission}.
+   */
+  readonly batch: (
+    scope: Scope,
+    broadcast: Broadcaster,
+    admission: EditAdmission,
+  ) => WritingServices;
   readonly history: HistoryService;
   readonly plans: SavedPlanService;
   readonly savedPlans: SavedPlanService;
@@ -238,12 +246,12 @@ export function composeServices(
     scheduler: runtime.scheduler,
     admission: CREATOR_ADMISSION,
   });
-  const batch = (scope: Scope, broadcast: Broadcaster) =>
+  const batch = (scope: Scope, broadcast: Broadcaster, admission: EditAdmission) =>
     servicesOver(scope.stores, {
       clock: runtime.clock,
       broadcast,
       scheduler: runtime.scheduler,
-      admission: CREATOR_ADMISSION,
+      admission,
     });
   const { savedPlans } = installSavedPlans({
     digest: runtime.digest,
@@ -267,7 +275,9 @@ export function composeServices(
       scheduler: runtime.scheduler,
       uow: source.uow,
       announcements,
-      batchServices: batch,
+      // An import writes only the project it creates for its importer, whom
+      // the creator rule admits.
+      batchServices: (scope, broadcast) => batch(scope, broadcast, CREATOR_ADMISSION),
     }).imports,
     commands: installPlanCommands({
       batchServices: batch,

@@ -179,4 +179,67 @@ describe('the organization audit', () => {
     );
     expect(answer).toBeNull();
   });
+
+  describe('admitting a write inside the unit of work', () => {
+    const admit = (actorId: string, organizationId = 'org-a') =>
+      new ProjectRepository(openDrizzle(path), OPEN).admitEditInOrganization(
+        'p1',
+        organizationId,
+        actorId,
+        { commands: ['patchWorkItem'] },
+      );
+
+    it('records one recovery by a super-admin of a restricted project, keeping its creator', async () => {
+      member('sam', 'super_admin');
+      expect(await admit('sam')).toBe('recovery');
+      expect(state()).toEqual({
+        project: { name: 'Plan', revision: 0 },
+        audits: [{ actor_id: 'sam', detail: '{"commands":["patchWorkItem"]}' }],
+      });
+    });
+
+    it('admits the creator and an unrestricted project without a record', async () => {
+      member('ada', 'member');
+      member('sam', 'member');
+      expect(await admit('ada')).toBe('ordinary');
+      raw((db) => db.run('UPDATE project SET restricted = 0'));
+      expect(await admit('sam')).toBe('ordinary');
+      expect(state().audits).toEqual([]);
+    });
+
+    it('refuses a viewer, a non-creator admin and a non-member, recording nothing', async () => {
+      member('ada', 'viewer');
+      member('sam', 'admin');
+      expect(await admit('ada')).toBe('forbidden');
+      expect(await admit('sam')).toBe('forbidden');
+      expect(await admit('nobody')).toBe('forbidden');
+      expect(state().audits).toEqual([]);
+    });
+
+    it('answers a project of another organization as absent, before any permission', async () => {
+      raw((db) => {
+        db.run("INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)");
+      });
+      member('sam', 'viewer');
+      expect(await admit('sam', 'org-b')).toBeNull();
+    });
+
+    // Proof: skipping `recordRecovery` in `admitEditInOrganization` made the
+    // first case of this block receive no audit (and this one resolve);
+    // watched 2026-09-28.
+    it('fails when its audit record cannot be written', async () => {
+      member('sam', 'super_admin');
+      raw((db) =>
+        db.run(
+          "CREATE TRIGGER audit_refused BEFORE INSERT ON organization_audit BEGIN SELECT RAISE(ABORT, 'audit refused'); END",
+        ),
+      );
+      const failure = await admit('sam').then(
+        () => null,
+        (error: unknown) => error,
+      );
+      expect(String(failure)).toContain('Failed query: insert into "organization_audit"');
+      expect(state().audits).toEqual([]);
+    });
+  });
 });

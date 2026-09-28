@@ -156,6 +156,95 @@ describe('after activation', () => {
     expect(rowOf(own).name).toBe('Renamed');
   });
 
+  describe('super-admin recovery of a restricted project', () => {
+    /** Every audit record, without its generated id and time. */
+    const audits = () =>
+      h.sqlite
+        .query(
+          'SELECT organization_id, actor_id, action, subject_kind, subject_id, detail FROM organization_audit ORDER BY rowid',
+        )
+        .all();
+    const recovery = (username: string, detail: string) => ({
+      organization_id: 'org-a',
+      actor_id: h.userId(username),
+      action: 'restricted_project_recovery',
+      subject_kind: 'project',
+      subject_id: own,
+      detail,
+    });
+
+    beforeEach(async () => {
+      // nell as the super-admin, vic promoted to admin: only a super-admin recovers.
+      h.member('org-a', 'nell', 'super_admin');
+      h.bind('nell', 'org-a');
+      h.sqlite.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = ?", [
+        h.userId('vic'),
+      ]);
+      expect(
+        (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+      ).toBe(200);
+    });
+
+    it('recovers a restricted project through a batch, undo and redo, one record each', async () => {
+      const row = rowOf(own);
+      expect(
+        (
+          await batch('nell', own, [
+            { kind: 'patchWorkItem', workItemId: row.id, patch: { name: 'Kept' } },
+          ])
+        ).status,
+      ).toBe(200);
+      expect(rowOf(own).name).toBe('Kept');
+      expect((await h.call('nell', 'POST', `/api/projects/${own}/undo`)).status).toBe(200);
+      expect((await h.call('nell', 'POST', `/api/projects/${own}/redo`)).status).toBe(200);
+      expect(rowOf(own).name).toBe('Kept');
+      expect(audits()).toEqual([
+        recovery('nell', '{"commands":["patchWorkItem"]}'),
+        recovery('nell', '{"journal":"undo"}'),
+        recovery('nell', '{"journal":"redo"}'),
+      ]);
+      const creator = h.sqlite
+        .query<{ owner_id: string }, [string]>('SELECT owner_id FROM project WHERE id = ?')
+        .get(own);
+      expect(creator).toEqual({ owner_id: h.userId('ada') });
+    });
+
+    it('keeps no record of a refused batch, and none of an ordinary one', async () => {
+      const before = snapshot();
+      expect(
+        await batch('nell', own, [
+          { kind: 'patchWorkItem', workItemId: rowOf(own).id, patch: { name: 'Half' } },
+          { kind: 'patchWorkItem', workItemId: 'no-such-row', patch: { name: 'x' } },
+        ]),
+      ).toMatchObject({ status: 404 });
+      expect(await batch('vic', own, [])).toEqual({ status: 403, body: { error: 'forbidden' } });
+      // nell has nothing to undo: the walk fails and takes its record back.
+      expect((await h.call('nell', 'POST', `/api/projects/${own}/undo`)).status).toBe(409);
+      expect(snapshot()).toEqual(before);
+      expect(audits()).toEqual([]);
+      expect(
+        (
+          await batch('ada', own, [
+            { kind: 'patchWorkItem', workItemId: rowOf(own).id, patch: { name: 'Mine' } },
+          ])
+        ).status,
+      ).toBe(200);
+      expect(audits()).toEqual([]);
+    });
+
+    it('refuses a super-admin removed or demoted before the batch', async () => {
+      h.sqlite.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = ?", [
+        h.userId('nell'),
+      ]);
+      expect(await batch('nell', own, [])).toEqual({ status: 403, body: { error: 'forbidden' } });
+      expect(await h.call('nell', 'POST', `/api/projects/${own}/undo`)).toEqual({
+        status: 403,
+        body: { error: 'forbidden' },
+      });
+      expect(audits()).toEqual([]);
+    });
+  });
+
   it('refuses an unbound session and a removed member before any batch', async () => {
     const before = snapshot();
     expect(

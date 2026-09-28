@@ -34,10 +34,14 @@ export const PROJECT_CROSS_REFERENCE_KINDS = [
 
 export type ProjectCrossReferenceKind = (typeof PROJECT_CROSS_REFERENCE_KINDS)[number];
 
-/** What an audited recovery records about the edit: the patched fields, sorted. */
-export interface RecoveryAuditDetail {
-  readonly fields: readonly string[];
-}
+/**
+ * What an audited recovery records about the edit: a project PATCH's fields,
+ * sorted; a command batch's command kinds, in order; or which journal walk.
+ */
+export type RecoveryAuditDetail =
+  | { readonly fields: readonly string[] }
+  | { readonly commands: readonly string[] }
+  | { readonly journal: 'undo' | 'redo' };
 
 /** One reference that leaves the project or its organization; see {@link ProjectStore.findCrossReferences}. */
 export interface ProjectCrossReference {
@@ -159,6 +163,22 @@ export interface ProjectStore {
     organizationId: string,
     editor: { readonly actorId: string; readonly auditId: string },
   ): Promise<Project | null | 'forbidden' | 'solution_taken'>;
+  /**
+   * Authorizes `actorId`'s write to `projectId` in `organizationId` from the
+   * membership and project as they stand inside the caller's open unit of
+   * work, whose transaction must enclose the write: null, before any
+   * permission is judged, when the organization does not own the project;
+   * `forbidden` for a refused writer; `ordinary`; or `recovery`, a
+   * super-admin's write to someone else's restricted project, after appending
+   * one `organization_audit` record with `detail` to that transaction. A
+   * rollback of the unit of work takes the record back with the write.
+   */
+  admitEditInOrganization(
+    projectId: string,
+    organizationId: string,
+    actorId: string,
+    detail: RecoveryAuditDetail,
+  ): Promise<'ordinary' | 'recovery' | 'forbidden' | null>;
   stepsOf(projectId: string): Promise<Step[]>;
   /**
    * Sets one step's allowance, moves that step's allowance revision by one and

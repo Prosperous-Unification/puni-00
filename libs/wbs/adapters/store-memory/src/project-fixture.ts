@@ -101,6 +101,9 @@ export function inMemoryProjects(
     editInOrganization() {
       return Promise.reject(new Error('the in-memory project store has no organization edits'));
     },
+    admitEditInOrganization() {
+      return Promise.reject(new Error('the in-memory project store has no organization edits'));
+    },
     findInOrganization(id, organizationId) {
       return owning.get(id) === organizationId ? store.findById(id) : Promise.resolve(null);
     },

@@ -518,6 +518,31 @@ Astra review 2 raised 1 Important finding, fixed: an empty solution slug or url 
 
 The race holder is a second `bun` process holding `BEGIN IMMEDIATE` while it inserts the competing link. The row-count predicate of the down check is shadowed by the marker's single-row trigger.
 
+## Slice 19 — edit-admission seam (task 3.7, part 2b, mechanical)
+
+Branch `batch-9/010-5-2-orgs-17` (#164), stacked on slice 18. `WorkItemService`, `CapacityService` and `PriorityBandService` ask an injected `EditAdmission` at their nine former `canEditProject` sites, and every graph passes `CREATOR_ADMISSION`. There is no behaviour change and no migration.
+
+| Check                                     | Injected fault                                          | Observed failure (2026-09-28)                                                                  |
+| ----------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Each module wires the supplied admission  | the resource handed `{ admits: () => true }`            | each module's `asks the admission install… wires before a … write`: `ok: true`                 |
+| `servicesOver` forwards its admission     | one installer handed `CREATOR_ADMISSION`, one at a time | `compose.test.ts` `hands its admission to every gated writing service it installs`: `ok: true` |
+| A graph without an admission fails closed | `shared.admission ?? CREATOR_ADMISSION`                 | `fails closed on a write through a graph built without an admission`: resolved                 |
+
+## Slice 20 — audited recovery through command batches, undo and redo (task 3.7, part 2b)
+
+Branch `batch-9/010-5-2-orgs-18`, stacked on slice 19. There is no migration, because slice 16's `organization_audit` table holds the records.
+
+| Check                                      | Injected fault                                        | Observed failure (2026-09-28)                                                                                                                            |
+| ------------------------------------------ | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recovery recorded in the unit of work      | `recordRecovery` skipped in `admitEditInOrganization` | `organization-audit.db.test.ts` `records one recovery …` and `fails when its audit record cannot be written`; the mounted recovery case found no record  |
+| Scoped graph uses the unit of work's grant | `admissionOf` answers `CREATOR_ADMISSION` when scoped | mounted `recovers a restricted project through a batch, undo and redo, one record each`: 403; `never falls back to the creator rule under scoped access` |
+| Refused writers stay refused               | `forbidden` from the admission ignored                | `refuses a viewer every batch, undo and redo`, `refuses a super-admin removed or demoted before the batch`, `keeps no record of a refused batch …`: 200  |
+| The grant ends with its batch              | `expire` skipped in `execute`                         | `plan-command-admission.test.ts` `admits the granted actor on the granted project only while its unit of work runs`: still admitted                      |
+| The grant ends with its journal walk       | `expire` skipped in `walk`                            | `grants a journal walk until it settles, and its repair nothing`: still admitted                                                                         |
+| A journal repair is granted nothing        | the repair graph built with the walk's grant          | same case                                                                                                                                                |
+
+The grant is refused for another actor or another project (`plan-command-admission.test.ts`). The mounted cases show three more things: a batch that fails at its second command, a refused batch and a failed undo each leave no record, and a creator's ordinary batch leaves none.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

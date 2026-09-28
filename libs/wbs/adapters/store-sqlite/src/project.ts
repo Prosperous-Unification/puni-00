@@ -24,7 +24,7 @@ import {
   PertWeights,
 } from '@wbs/domain';
 import { type } from '@wbs/validation';
-import { and, desc, eq, inArray, ne, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, or, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import {
@@ -872,6 +872,57 @@ export class ProjectRepository implements ProjectStore {
     }
   }
 
+  /**
+   * Runs as a savepoint inside the caller's unit of work, whose `BEGIN
+   * IMMEDIATE` holds the write lock from before this read until the batch
+   * commits or rolls back, the audit record with it. The record is dated by
+   * this adapter, not a service clock: the unit of work hands its act no
+   * clock.
+   *
+   * Proof, watched 2026-09-28: skipping the audit insert made `records one
+   * recovery by a super-admin of a restricted project, keeping its creator`
+   * and `fails when its audit record cannot be written` in
+   * `organization-audit.db.test.ts` fail, and `recovers a restricted project
+   * through a batch, undo and redo, one record each` in
+   * `command-organization.controller.db.test.ts` find no record.
+   */
+  async admitEditInOrganization(
+    projectId: string,
+    organizationId: string,
+    actorId: string,
+    detail: RecoveryAuditDetail,
+  ): Promise<'ordinary' | 'recovery' | 'forbidden' | null> {
+    const addressed = and(
+      eq(project.id, projectId),
+      inArray(
+        project.id,
+        this.db
+          .select({ id: projectOrganization.resourceId })
+          .from(projectOrganization)
+          .where(eq(projectOrganization.organizationId, organizationId)),
+      ),
+    );
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction((tx) => {
+        const classified = classifyWithin(tx, addressed, organizationId, actorId);
+        if (classified === null) return null;
+        if (classified === 'refused') return 'forbidden';
+        if (classified === 'recovery') {
+          recordRecovery(tx, {
+            id: crypto.randomUUID(),
+            organizationId,
+            actorId,
+            projectId,
+            detail,
+            at: Date.now(),
+          });
+        }
+        return classified;
+      });
+    });
+  }
+
   private async write(
     id: string,
     patch: ProjectPatch,
@@ -933,30 +984,10 @@ export class ProjectRepository implements ProjectStore {
         (tx) => {
           let edit: 'ordinary' | 'recovery' = 'ordinary';
           if (editor !== null && organizationId !== null) {
-            const current = tx
-              .select({ restricted: project.restricted, ownerId: project.ownerId })
-              .from(project)
-              .where(addressed)
-              .get();
+            const classified = classifyWithin(tx, addressed, organizationId, editor.actorId);
             // Not the organization's (any more): null, as for an absent project,
             // before any permission is judged.
-            if (current === undefined) return null;
-            const membership = tx
-              .select({ role: organizationMembership.role })
-              .from(organizationMembership)
-              .where(
-                and(
-                  eq(organizationMembership.organizationId, organizationId),
-                  eq(organizationMembership.userId, editor.actorId),
-                ),
-              )
-              .get();
-            if (membership === undefined) throw new EditRefused();
-            const classified = classifyProjectEdit(current, {
-              organizationId,
-              userId: editor.actorId,
-              role: storedRole(membership.role, organizationId),
-            });
+            if (classified === null) return null;
             if (classified === 'refused') throw new EditRefused();
             edit = classified;
           }
@@ -1030,18 +1061,14 @@ export class ProjectRepository implements ProjectStore {
                 .map(([field]) => field)
                 .sort(),
             };
-            tx.insert(organizationAudit)
-              .values({
-                id: editor.auditId,
-                organizationId,
-                actorId: editor.actorId,
-                action: 'restricted_project_recovery',
-                subjectKind: 'project',
-                subjectId: id,
-                detail: JSON.stringify(detail),
-                createdAt: stamp.at,
-              })
-              .run();
+            recordRecovery(tx, {
+              id: editor.auditId,
+              organizationId,
+              actorId: editor.actorId,
+              projectId: id,
+              detail,
+              at: stamp.at,
+            });
           }
 
           if (turnedOff) {
@@ -1162,6 +1189,69 @@ export class ProjectRepository implements ProjectStore {
         .orderBy(step.position, step.id)
     );
   }
+}
+
+type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
+
+/**
+ * `actorId`'s write to the project `addressed` selects, classified from the
+ * membership and project as `tx` reads them (see `classifyProjectEdit`):
+ * null when the organization does not own the project.
+ */
+function classifyWithin(
+  tx: Transaction,
+  addressed: SQL | undefined,
+  organizationId: string,
+  actorId: string,
+): 'ordinary' | 'recovery' | 'refused' | null {
+  const current = tx
+    .select({ restricted: project.restricted, ownerId: project.ownerId })
+    .from(project)
+    .where(addressed)
+    .get();
+  if (current === undefined) return null;
+  const membership = tx
+    .select({ role: organizationMembership.role })
+    .from(organizationMembership)
+    .where(
+      and(
+        eq(organizationMembership.organizationId, organizationId),
+        eq(organizationMembership.userId, actorId),
+      ),
+    )
+    .get();
+  if (membership === undefined) return 'refused';
+  return classifyProjectEdit(current, {
+    organizationId,
+    userId: actorId,
+    role: storedRole(membership.role, organizationId),
+  });
+}
+
+/** Appends one recovery record to `tx`, so it commits or rolls back with the write. */
+function recordRecovery(
+  tx: Transaction,
+  record: {
+    id: string;
+    organizationId: string;
+    actorId: string;
+    projectId: string;
+    detail: RecoveryAuditDetail;
+    at: number;
+  },
+): void {
+  tx.insert(organizationAudit)
+    .values({
+      id: record.id,
+      organizationId: record.organizationId,
+      actorId: record.actorId,
+      action: 'restricted_project_recovery',
+      subjectKind: 'project',
+      subjectId: record.projectId,
+      detail: JSON.stringify(record.detail),
+      createdAt: record.at,
+    })
+    .run();
 }
 
 /** An organization edit its in-transaction classification refused; rolls the write back. */

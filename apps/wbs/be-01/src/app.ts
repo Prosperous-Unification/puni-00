@@ -1,6 +1,7 @@
 import type {
   Broadcaster,
   Clock,
+  EditAdmission,
   HistoryService,
   ImportService,
   MembershipAdministration,
@@ -169,9 +170,10 @@ export interface AppOptions {
      * announcements are its own (D24). These are
      * **not** the services beside them in these options: those take a turn per
      * write and publish straight through, which is what keeps a route write —
-     * and a route event — out of an open batch.
+     * and a route event — out of an open batch. The admission is the one the
+     * batch's own unit of work established (see `EditAdmission`).
      */
-    batch: (scope: Scope, broadcast: Broadcaster) => WritingServices;
+    batch: (scope: Scope, broadcast: Broadcaster, admission: EditAdmission) => WritingServices;
     /**
      * Where a batch's collected announcements go once it has committed and let
      * go of its turn, and where every route publishes directly.

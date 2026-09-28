@@ -14,7 +14,7 @@ import {
   type WritingServices,
 } from './compose';
 import { clockOf } from './ports/clock';
-import { CREATOR_ADMISSION } from './ports/edit-admission';
+import { CREATOR_ADMISSION, type EditAdmission } from './ports/edit-admission';
 import { LEGACY_ACCESS } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
 import type { Scope } from './ports/unit-of-work';
@@ -372,11 +372,11 @@ describe('composeServices', () => {
         return act(scope);
       });
     const observedGraph = graph as typeof graph & {
-      batch: (scope: Scope, broadcast: Broadcaster) => WritingServices;
+      batch: (scope: Scope, broadcast: Broadcaster, admission: EditAdmission) => WritingServices;
     };
-    observedGraph.batch = (scope: Scope, broadcast: Broadcaster) => {
+    observedGraph.batch = (scope: Scope, broadcast: Broadcaster, admission: EditAdmission) => {
       broadcasts.push(broadcast);
-      const services = originalBatch(scope, broadcast);
+      const services = originalBatch(scope, broadcast, admission);
       graphs.push(services);
       return services;
     };

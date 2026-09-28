@@ -63,7 +63,10 @@
     - The additive migration `20260927220000_add_organization_audit` has a `down.sql` that refuses while any record exists.
     - `projectEditIn` classifies a write as ordinary, recovery or refused.
     - `ProjectStore.recoverInOrganization` rechecks, in the write's own transaction, that the actor is still a super-admin and the project still restricted and someone else's. It then writes the patch and one audit record. The creator stays recorded.
-  - Part 2b (open): recovery for the other write families: steps, markers, batches, undo and redo, saved plans, and optimizer retry. Until then they refuse a non-creator super-admin.
+  - Part 2b, slices 19 and 20 (Astra design call option C, 2026-09-28):
+    - Slice 19 (mechanical): the gated writing services ask an injected `EditAdmission` rather than `canEditProject`. Every graph passed `CREATOR_ADMISSION`, so behaviour did not change.
+    - Slice 20: command batches, undo and redo. `ProjectStore.admitEditInOrganization` classifies the write in the unit of work's own transaction and appends the audit record there. The batch graph is then built with `grantAdmission(project, actor)`, which expires when the unit of work settles. Scoped access never falls back to the creator rule.
+  - Part 2c (open): steps, markers, saved plans and optimizer retry. Until then they refuse a non-creator super-admin.
 
 ## 4. Onboarding state transitions
 

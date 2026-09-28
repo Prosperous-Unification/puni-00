@@ -93,3 +93,11 @@ WBS SHALL enforce the role matrix below against current membership; Auth0 groups
 - **GIVEN** a super-admin's recovery edit of a restricted project
 - **WHEN** its audit record cannot be written
 - **THEN** the edit is rolled back and nothing is changed
+
+#### Scenario: Recovery through a command batch or an undo or redo
+
+- **GIVEN** a restricted project created by someone else
+- **WHEN** a super-admin applies a command batch to it, or undoes or redoes one of their own commands in it
+- **THEN** the batch or walk succeeds with the creator still recorded, and exactly one audit record naming the super-admin, the project and the command kinds or the journal direction is written in the same transaction
+- **AND** a batch or walk that fails at any point, or is refused, leaves no audit record and no partial effect
+- **AND** no other actor, project or later request can use that recovery authority
