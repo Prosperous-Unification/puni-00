@@ -172,10 +172,10 @@ describe('scoped solution links', () => {
         db.run('UPDATE organization_activation SET activated_at = 5');
       });
       expect(() => rollbackTo(path, FOLDER, AUDIT)).toThrow();
-      expect(applied()).toBe('20260928030000_add_delegation_use');
+      expect(applied()).toBe(SOLUTION);
       raw((db) => db.run('DELETE FROM organization_activation'));
       expect(() => rollbackTo(path, FOLDER, AUDIT)).toThrow();
-      expect(applied()).toBe('20260928030000_add_delegation_use');
+      expect(applied()).toBe(SOLUTION);
       expect(raw((db) => db.query('SELECT COUNT(*) AS n FROM project_solution').get())).toEqual({
         n: 0,
       });

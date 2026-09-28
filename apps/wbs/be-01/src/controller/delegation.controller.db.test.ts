@@ -188,16 +188,21 @@ describe('after activation', () => {
     h.sqlite.run("UPDATE users SET email = 'newcomer@else.org', email_verified = 1 WHERE id = ?", [
       h.userId('newcomer'),
     ]);
-    const newcomer = await delegation({ username: 'newcomer' });
-    expect(await h.callWith(newcomer, 'GET', '/api/onboarding')).toMatchObject({ status: 403 });
+    // A delegation is single-use per request, so each call presents a fresh one.
+    const newcomer = () => delegation({ username: 'newcomer' });
+    expect(await h.callWith(await newcomer(), 'GET', '/api/onboarding')).toMatchObject({
+      status: 403,
+    });
     expect(
-      await h.callWith(newcomer, 'POST', '/api/onboarding/organizations', { name: 'Unexpected' }),
+      await h.callWith(await newcomer(), 'POST', '/api/onboarding/organizations', {
+        name: 'Unexpected',
+      }),
     ).toMatchObject({ status: 403 });
     h.sqlite.run(
       "INSERT INTO organization_domain_claim (id, organization_id, domain, status, proof_digest, last_success_at, created_at) VALUES ('claim-else', 'org-a', 'else.org', 'verified', 'proof', 1, 1)",
     );
     expect(
-      await h.callWith(newcomer, 'POST', '/api/onboarding/join-requests', {
+      await h.callWith(await newcomer(), 'POST', '/api/onboarding/join-requests', {
         organizationId: 'org-a',
       }),
     ).toMatchObject({ status: 403 });
