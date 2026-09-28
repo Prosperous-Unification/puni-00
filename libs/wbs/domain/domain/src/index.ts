@@ -57,6 +57,10 @@ export * from './priority-band';
 // it is WORTH relative to the others in one plan.
 export * from './priority-weight';
 export * from './progress';
+// The two readings a hold adds to a plan: which successors it stops (from the
+// full graph) and the smaller schedule input it leaves (ADR 0033).
+export * from './blocked-by-proxy';
+export * from './without-held-subtrees';
 // The one write gate every resource and feature asks: `canEditProject`. Domain
 // code rather than a Project-resource export, because a resource importing a
 // sibling resource for it is the sideways edge K6 forbids.

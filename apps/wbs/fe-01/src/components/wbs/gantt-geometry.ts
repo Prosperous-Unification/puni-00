@@ -1,6 +1,6 @@
 import { ASSUMED_SLICE_WORKDAYS } from '@wbs/domain/assumed-duration';
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
-import type { WorkItemStatus } from '@wbs/domain/progress';
+import type { ProgressStatus } from '@wbs/domain/progress';
 import {
   addWorkdays,
   calendarDaysBetween,
@@ -344,7 +344,7 @@ export interface GanttRow {
    * than derived here (there are no statements on this chart to fold). `done`
    * is what turns a leaf's slices into one done bar; see {@link GanttBar.done}.
    */
-  status: WorkItemStatus;
+  status: ProgressStatus;
   /**
    * The workday the row's fact start stands on, or null where it has none or
    * the plan has no calendar to place it on — `notBeforeOffset`'s conversion,

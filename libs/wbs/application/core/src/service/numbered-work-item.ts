@@ -1,4 +1,4 @@
-import type { IsoDate, Scheduled, StepState, WorkItemStatus } from '@wbs/domain';
+import type { IsoDate, ProgressStatus, Scheduled, StepState } from '@wbs/domain';
 
 import type { LabelledWorkItem } from '../ports/work-item-store';
 
@@ -65,7 +65,7 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    * one that matters most, one step finished and another silent. See
    * `rollUpWorkItemStatuses`.
    */
-  status: WorkItemStatus;
+  status: ProgressStatus;
   /**
    * The figures that are not days: **metric first, then step**, its own if it is
    * a leaf and the sum of its descendants' if it is not.

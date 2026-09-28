@@ -18,8 +18,11 @@ This file is the shape.
 
 `WorkItemStatus` widens to eight words. New closed sets `READINESSES` (`draft`, `ready`) and
 `HOLDS` (`on_hold`, `blocked`) with `isReadiness` and `isHold` boundary guards;
-`SETTABLE_STATUSES` becomes the seven words the menu offers, in menu order. `agree` and
-`statusOf` stay as the step-progress fold only.
+`SETTABLE_STATUSES` becomes the seven words the menu offers, in menu order, in slice 3, when
+they can be stored. `agree` and `statusOf` stay as the step-progress fold only and return
+`ProgressStatus` (`unknown | StepState`); core's roll-up and fe-01's wire type use it until the
+work item contract widens in slices 3 and 6, so a reader cannot meet a status its `Record`
+cannot name.
 
 ## D2 — Leaf fold, proxy and parent fold
 

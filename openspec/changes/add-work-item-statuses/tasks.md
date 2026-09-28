@@ -5,21 +5,23 @@
 
 ## 1. Vocabulary and folds in `@wbs/domain` (nothing produces the values yet)
 
-- [ ] 1.1 Red: `progress.test.ts` for the widened vocabulary guards and `leafStatusOf`'s order
+- [x] 1.1 Red: `progress.test.ts` for the readiness and hold guards and `leafStatusOf`'s order
       (done over hold, hold over in progress, in progress over readiness).
-- [ ] 1.2 Red: `status-fold.test.ts` and `status-fold.property.test.ts` for `foldStatuses`
-      (examples from the spec; fast-check: folding any partition of leaves equals folding all).
-- [ ] 1.3 Red: `blocked-by-proxy.test.ts` and property test: soundness (every proxy leaf has a
-      proxy-or-stopped predecessor), completeness (every eligible leaf behind a stopped one is
-      proxy), transitivity through `A → B → C`, stop at running work, leaf-level cycle, typed
-      endpoints of every scope.
-- [ ] 1.4 Red: `without-held-subtrees.test.ts`: held leaf, fully held parent, partly held parent,
-      legacy and typed edges, not-before and deadlines; `schedule()` runs on the result and a
-      successor starts at day zero.
-- [ ] 1.5 Green: implement. Negatives: drop the transitive spread and the case
+- [x] 1.2 Red: `progress.test.ts` and `progress.property.test.ts` for `foldStatuses`
+      (examples from the spec; fast-check: folding any tree equals folding its leaves).
+- [x] 1.3 Red: `blocked-by-proxy.test.ts` and property test against a brute-force least fixed
+      point (soundness and completeness at once), transitivity through `A → B → C`, stop at
+      running work, leaf-level cycle, typed endpoints of every scope, refusals.
+- [x] 1.4 Red: `without-held-subtrees.test.ts`: held leaf, held assignee, fully held parent,
+      partly held parent, legacy and typed edges, not-before and deadlines; `schedule()` runs
+      on the result and a successor starts at day zero.
+- [x] 1.5 Green: implement. Negatives: drop the transitive spread and the case
       `C behind a held A through B` reddens; drop the ancestor removal and a parent of held
-      leaves keeps a zero-time boundary slice; drop a fold clause and the partition property
-      reddens. Adjacent `Proof:` comments.
+      leaves stays in the rows; drop `blocked_by_proxy` from the stopped set and the partition
+      property reddens; each refusal disabled reddens its case. Adjacent `Proof:` comments.
+- [x] 1.6 `agree` and `statusOf` return `ProgressStatus`; core's roll-up and fe-01's wire type
+      keep that three-word type until slices 3 and 6 widen the contract and every reader
+      together. `SETTABLE_STATUSES` stays `unknown`, `done` until slice 3 can store the rest.
 
 ## 2. Swap guard (tools + be-01 CLI printing `holdKinds: []`)
 

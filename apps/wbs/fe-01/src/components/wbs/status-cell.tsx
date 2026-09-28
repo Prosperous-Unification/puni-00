@@ -1,11 +1,11 @@
-import { SETTABLE_STATUSES, type SettableStatus, type WorkItemStatus } from '@wbs/domain/progress';
+import { type ProgressStatus, SETTABLE_STATUSES, type SettableStatus } from '@wbs/domain/progress';
 import { type KeyboardEvent, useEffect, useState } from 'react';
 
 import { STATUS_HINT } from './column-hints';
 import { PickerList } from './creatable-picker';
 
 /** The word each status reads as, in the cell and on its list. */
-export const STATUS_LABEL: Readonly<Record<WorkItemStatus, string>> = {
+export const STATUS_LABEL: Readonly<Record<ProgressStatus, string>> = {
   unknown: 'Unknown',
   in_progress: 'In progress',
   done: 'Done',
@@ -22,14 +22,14 @@ export const STATUS_LABEL: Readonly<Record<WorkItemStatus, string>> = {
  * fact card, two boxes for one word (Dany, 2026-09-13: "remove the system grey
  * hint"), and a combobox takes no `aria-description` per `jsx-a11y`.
  */
-export const STATUS_GLYPH: Readonly<Record<WorkItemStatus, string>> = {
+export const STATUS_GLYPH: Readonly<Record<ProgressStatus, string>> = {
   unknown: '○',
   in_progress: '◐',
   done: '✓',
 };
 
 /** The colour each status is said in — the strip's, the tint's and this cell's. */
-const STATUS_COLOR: Readonly<Record<WorkItemStatus, string>> = {
+const STATUS_COLOR: Readonly<Record<ProgressStatus, string>> = {
   unknown: 'var(--muted-foreground)',
   in_progress: 'var(--status-in-progress)',
   done: 'var(--status-done)',
@@ -43,7 +43,7 @@ const STATUS_COLOR: Readonly<Record<WorkItemStatus, string>> = {
  * 2026-09-13: "hint pop-up must show the full name of the status or even write
  * status: unknown".
  */
-const STATUS_WORDS: Readonly<Record<WorkItemStatus, string>> = {
+const STATUS_WORDS: Readonly<Record<ProgressStatus, string>> = {
   unknown: `Status: ${STATUS_LABEL.unknown}. Nobody has said where this work has got to.`,
   in_progress: `Status: ${STATUS_LABEL.in_progress}. Its steps disagree — one has finished, or one has said nothing — so the row is part-way through. Set it per step, or choose Done for all of it.`,
   done: `Status: ${STATUS_LABEL.done}. Every step of this work item says finished. The chart draws it over its fact span, the row is tinted, and its name is struck through.`,
@@ -53,7 +53,7 @@ export interface StatusCellProps {
   cellKey: string;
   rowNumber: string;
   rowId: string;
-  status: WorkItemStatus;
+  status: ProgressStatus;
   choose: (status: SettableStatus) => void;
   onGridKey: (event: KeyboardEvent<HTMLInputElement>) => void;
   /**
