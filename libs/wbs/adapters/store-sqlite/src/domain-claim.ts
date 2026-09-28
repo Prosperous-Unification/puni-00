@@ -316,30 +316,42 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
       if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
         return 'stale';
       if (isRotation || isRecovery) {
-        if (claim.proofDigest === null || (isRotation && claim.previousProofValidUntil === null))
+        // Proof: 2026-09-28, planting NULL last_checked_at on a suspended owner
+        // made mounted `throws when a suspended claim lacks retained timestamps at capture`
+        // return 200 without this validation.
+        if (
+          claim.proofDigest === null ||
+          claim.lastSuccessAt === null ||
+          claim.lastCheckedAt === null
+        )
           throw new Error(`rotating domain ${claim.id} lacks retained proof`);
-        return {
-          kind: 'rotation',
+        const retained = {
           id: claim.id,
           domain: claim.domain,
           challengeDigest: claim.proofDigest,
-          challengeExpiresAt: isRotation ? claim.previousProofValidUntil : null,
-          phase: isRotation ? 'rotation' : 'recovery',
           previousProofDigest: claim.previousProofDigest,
           previousProofValidUntil: claim.previousProofValidUntil,
         };
+        if (isRotation) {
+          if (claim.previousProofDigest === null || claim.previousProofValidUntil === null)
+            throw new Error(`rotating domain ${claim.id} lacks previous proof`);
+          return {
+            ...retained,
+            phase: 'rotation',
+            previousProofDigest: claim.previousProofDigest,
+            previousProofValidUntil: claim.previousProofValidUntil,
+          };
+        }
+        return { ...retained, phase: 'recovery' };
       }
       if (claim.challengeDigest === null || claim.challengeExpiresAt === null)
         throw new Error(`pending domain ${claim.id} lacks challenge`);
       return {
-        kind: 'initial',
         id: claim.id,
         domain: claim.domain,
         challengeDigest: claim.challengeDigest,
         challengeExpiresAt: claim.challengeExpiresAt,
         phase: 'pending',
-        previousProofDigest: null,
-        previousProofValidUntil: null,
       };
     });
   }
@@ -396,6 +408,19 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
             )
               throw new Error(`pending domain claim ${current.id} lacks challenge proof`);
             if (claim.phase === 'rotation' || claim.phase === 'recovery') {
+              // Proof: 2026-09-28, clearing a suspended owner's retained digest
+              // during DNS lookup made mounted `throws when a suspended claim loses
+              // its retained digest during DNS lookup` answer stale 409 without this guard.
+              if (
+                (current.status === 'verified' || current.status === 'suspended') &&
+                (current.proofDigest === null ||
+                  current.lastSuccessAt === null ||
+                  current.lastCheckedAt === null ||
+                  (claim.phase === 'rotation' &&
+                    (current.previousProofDigest === null ||
+                      current.previousProofValidUntil === null)))
+              )
+                throw new Error(`owned domain ${current.id} lacks retained proof state`);
               // Proof: 2026-09-28, omitting this branch made mounted `confirms a
               // rotated proof through verify before the overlap ends` answer stale.
               // Proof: 2026-09-28, bypassing the overlap-deadline snapshot
@@ -432,11 +457,9 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
             // Proof: 2026-09-28, omitting the digest snapshot comparison let the mounted reissue-during-lookup test promote the old challenge.
             if (
               current.status !== 'pending' ||
-              claim.kind !== 'initial' ||
               current.domain !== claim.domain ||
               current.challengeDigest !== claim.challengeDigest ||
               current.challengeExpiresAt !== claim.challengeExpiresAt ||
-              current.challengeExpiresAt === null ||
               // Proof: 2026-09-28, bypassing this expiry recheck made mounted
               // `rechecks challenge expiry and maintained policy after DNS lookup` promote after a 1.2-second lookup crossed expiry (200 instead of 409).
               // Proof: 2026-09-28, replacing this transaction-time read with
@@ -484,6 +507,9 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
   ): Promise<'released' | 'forbidden' | 'not_found' | 'stale' | 'inactive'> {
     return this.gate.enter(async () => {
       await Promise.resolve();
+      // Proof: 2026-09-28, removing this transaction and injecting an
+      // owner-delete abort made mounted `rolls back pending proof deletion
+      // when owner deletion fails` lose the pending claim.
       return this.db.transaction(
         (tx) => {
           // Proof: 2026-09-28, bypassing this marker made mounted
@@ -525,6 +551,9 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
           // Proof: 2026-09-28, keeping pre-release pending rows made mounted
           // `releases ownership and requires a fresh claim before another organization can verify`
           // accept B's old proof instead of returning 404.
+          // Proof: 2026-09-28, removing the domain predicate made mounted
+          // `keeps unrelated pending claims when an owner releases its domain`
+          // delete org-b's example.net claim.
           tx.delete(organizationDomainClaim)
             .where(
               and(
