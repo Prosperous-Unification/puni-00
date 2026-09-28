@@ -274,7 +274,8 @@ type BareRefusalCode =
   // dependency cycle. Outside a batch, so it carries no command position.
   | 'dependency_cycle';
 
-type SharedCommandCode = 'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use';
+type SharedCommandCode =
+  'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use' | 'calendar_range';
 
 /**
  * Details by finite code. Undefined means no detail, never an open object bag.
@@ -296,6 +297,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     not_found: { savedPlanId?: string } | { field?: 'markerId' } | CommandContext;
     forbidden: undefined | CommandContext;
     name_required: undefined | CommandContext;
+    /** Bare from a step PATCH's allowance; with its command context from a batch. */
+    calendar_range: undefined | CommandContext;
     taken: undefined | { field?: 'markerId' } | CommandRefusalDetail['taken'];
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
     /** The typed dependencies naming a step that a removal would take away. */
