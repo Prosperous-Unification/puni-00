@@ -313,9 +313,21 @@ describe('weighted Fast relationships', () => {
     expect(part(fast, 'B').earliestStart).toBe(3);
     expect(part(fast, 'B').capacityTeamId).toBe('beta');
     const pins = new Map([...fast.slices].map(([key, slice]) => [key, slice.earliestStart]));
-    expect(
-      schedule(rows, [], slices, new Map(), sizes, 'whole-item', new Map(), typed, pins),
-    ).toEqual(fast);
+    const replay = schedule(
+      rows,
+      [],
+      slices,
+      new Map(),
+      sizes,
+      'whole-item',
+      new Map(),
+      typed,
+      pins,
+    );
+    // The replay also asks each pin's pools whether it may start there, which
+    // Fast never asks; that work is counted, so only the counter differs.
+    expect(replay.eventsVisited).toBeGreaterThan(fast.eventsVisited);
+    expect({ ...replay, eventsVisited: fast.eventsVisited }).toEqual(fast);
   });
 
   it('rejects a pinned person overlap even when an earlier gap is free', () => {

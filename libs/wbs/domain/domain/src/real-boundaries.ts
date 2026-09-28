@@ -58,7 +58,7 @@ export function validateRealBoundaries(input: ScheduleInput, plan: Schedule): vo
     if (observed < boundary) {
       throw new ScheduleInvalidOptimizedStartError(
         afterKey,
-        `violates ${edge.type} materialized boundary`,
+        `violates ${edge.type} real boundary on publication`,
       );
     }
   }

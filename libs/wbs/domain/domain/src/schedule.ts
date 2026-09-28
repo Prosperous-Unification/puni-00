@@ -1896,6 +1896,50 @@ function findResourceWindow(
   }
 }
 
+/**
+ * Where a pinned slice's person and pools let it start: the pin itself, or a
+ * release within {@link withinDrift} after it, whose own double is returned
+ * for the caller to move the pin onto (see {@link pinFloor} for why the
+ * release's double and not the pin's).
+ *
+ * Throws {@link ScheduleInvalidOptimizedStartError} naming the person
+ * reservation or the pool when the pin sits inside one by more than drift —
+ * at least one solver unit, since pins are whole units.
+ */
+function holdPinnedResources(
+  key: string,
+  intervals: readonly { node: number; start: number; finish: number }[],
+  profile: ReturnType<typeof capacityProfile>,
+  poolIds: readonly string[],
+  width: number,
+  start: number,
+  duration: number,
+): number {
+  const held = findResourceWindow(intervals, profile, poolIds, width, start, duration).start;
+  // Proof: comparing these three with `===`/`!==` instead of drift made
+  // `accepts every person-abutting answer on the solver axis` and `…every
+  // pool-abutting answer…` each report 1438 of 9216 refusals through
+  // materialiseOptimized (44 pass / 2 fail). Returning `held` without the
+  // refusals below moved a pin a whole unit and accepted it: `rejects a pinned
+  // person overlap even when an earlier gap is free`, `rejects a pinned pool
+  // overlap in resource-order replay` and both `still refuses a person-/pool-
+  // sharing answer one solver unit early` did not throw (42 pass / 4 fail).
+  // Watched 2026-09-28.
+  if (withinDrift(held, start)) return held;
+  // Only a refusal pays for naming its cause, so the common path costs one
+  // joint search.
+  if (!withinDrift(findPersonWindow(intervals, start, duration).start, start)) {
+    throw new ScheduleInvalidOptimizedStartError(key, 'overlaps a resource reservation');
+  }
+  const blocked = poolIds.find(
+    (poolId) => !withinDrift(profile.jointWindowFor([poolId], width, duration, start).start, start),
+  );
+  throw new ScheduleInvalidOptimizedStartError(
+    key,
+    blocked === undefined ? 'overlaps its joint pools' : `overlaps pool ${blocked}`,
+  );
+}
+
 /** Rebuild actual chronological resource edges, independent of Kahn placement order. */
 function rebuildResourceOrder(
   graph: SliceGraph,
@@ -1962,9 +2006,10 @@ function rebuildResourceOrder(
         taken += 1;
       }
       if (taken !== graph.nodes[at].slice.width) {
-        // Proof: deleting this refusal made `rejects a pinned pool overlap in
-        // resource-order replay` return A [5,7) and B [6,7) on a size-1
-        // pool; watched 2026-09-28 (12 pass / 1 fail).
+        // An invariant now, not the refusal: {@link holdPinnedResources}
+        // refuses a pinned pool overlap during the replay, before this runs.
+        // Disabling this branch left wbs-domain and wbs-contracts green
+        // (791 / 430 pass), 2026-09-28; the watched refusal is that one's.
         throw new ScheduleInvalidOptimizedStartError(
           graph.nodes[at].key,
           `overlaps pool ${poolId}`,
@@ -1984,6 +2029,13 @@ function rebuildResourceOrder(
  * `k / SOLVER_QUANTUM` while the boundary accumulated `start + days`; a real
  * violation is short by at least one solver unit and still throws
  * {@link ScheduleInvalidOptimizedStartError}.
+ *
+ * The resource replay applies the same rule to a person's or pool's release:
+ * a pin within drift of it is moved onto the release's own double, as
+ * {@link pinFloor} does, rather than left one ulp inside a live reservation.
+ * A move shifts that slice's finish and so every boundary downstream of it, so
+ * placement reruns from the moved starts until no replay moves anything; the
+ * starts only rise, by drift each time, and `round` bounds the reruns.
  */
 function placeWeightedSlices(
   graph: SliceGraph,
@@ -1992,6 +2044,7 @@ function placeWeightedSlices(
   withResources: boolean,
   sizes: PoolSizes,
   pinned?: readonly number[],
+  round = 0,
 ): {
   order: number[];
   placed: Placed[];
@@ -2084,7 +2137,7 @@ function placeWeightedSlices(
         if (pinned !== undefined && !withinDrift(observed, boundary)) {
           throw new ScheduleInvalidOptimizedStartError(
             node.key,
-            `violates ${edge.type} materialized boundary`,
+            `violates ${edge.type} materialized boundary at placement`,
           );
         }
         required = Math.max(required, edge.type === 'FF' ? boundary - duration : boundary);
@@ -2136,10 +2189,43 @@ function placeWeightedSlices(
     chronology.forEach((node, at) => {
       chronologicalAt[node] = at;
     });
+    const reserveReplayed = (at: number, from: number, until: number): void => {
+      const { slice } = nodes[at];
+      if (durationOf(slice) === 0) return;
+      if (slice.personId !== null) {
+        const assigned = replayPeople.get(slice.personId) ?? [];
+        assigned.push({ node: at, start: from, finish: until });
+        replayPeople.set(slice.personId, assigned);
+      }
+      replayProfile.reserve(slice.poolIds, at, slice.width, from, until);
+    };
+    const moved = new Map<number, number>();
     for (const taken of chronology) {
       const node = nodes[taken];
       const duration = durationOf(node.slice);
       const start = placed[taken].start;
+      const personId = duration > 0 ? node.slice.personId : null;
+      const intervals = personId === null ? [] : (replayPeople.get(personId) ?? []);
+      const actualDuration = placed[taken].finish - start;
+      const held =
+        pinned === undefined
+          ? start
+          : holdPinnedResources(
+              node.key,
+              intervals,
+              replayProfile,
+              node.slice.poolIds,
+              node.slice.width,
+              start,
+              actualDuration,
+            );
+      if (held !== start) moved.set(taken, held);
+      if (moved.size > 0) {
+        // This round is discarded; it only reserves, so later slices meet the
+        // moved intervals and move in the same rerun.
+        reserveReplayed(taken, held, placed[taken].finish + (held - start));
+        continue;
+      }
       let planFloor = node.notBefore;
       let planKind: ScheduleFloor = node.notBefore > 0 ? 'notBefore' : 'projectStart';
       for (const edge of incoming[taken]) {
@@ -2164,9 +2250,6 @@ function placeWeightedSlices(
         }
       }
       planFloor = Math.max(0, planFloor);
-      const personId = duration > 0 ? node.slice.personId : null;
-      const intervals = personId === null ? [] : (replayPeople.get(personId) ?? []);
-      const actualDuration = placed[taken].finish - start;
       const { person, pool } = findResourceWindow(
         intervals,
         replayProfile,
@@ -2175,13 +2258,6 @@ function placeWeightedSlices(
         planFloor,
         actualDuration,
       );
-      // Proof: deleting this exact pinned-person refusal made `rejects a
-      // pinned person overlap even when an earlier gap is free` return A
-      // [5,7) and B [6,7), with A float -1; watched 2026-09-28
-      // (13 pass / 1 fail).
-      if (findPersonWindow(intervals, start, actualDuration).start !== start) {
-        throw new ScheduleInvalidOptimizedStartError(node.key, 'overlaps a resource reservation');
-      }
       const candidates: FloorCandidate[] = [{ at: planFloor, kind: planKind }];
       if (person.start > planFloor) candidates.push({ at: person.start, kind: 'person' });
       if (pool.start > Math.max(planFloor, person.start))
@@ -2207,20 +2283,29 @@ function placeWeightedSlices(
         placed[taken].capacityTeamId = annotation.capacityTeamId;
         placed[taken].resourcePredecessor = annotation.referent;
       }
-      if (duration > 0) {
-        if (personId !== null) {
-          const assigned = replayPeople.get(personId) ?? [];
-          assigned.push({ node: taken, start, finish: placed[taken].finish });
-          replayPeople.set(personId, assigned);
-        }
-        replayProfile.reserve(
-          node.slice.poolIds,
-          taken,
-          node.slice.width,
-          start,
-          placed[taken].finish,
+      reserveReplayed(taken, start, placed[taken].finish);
+    }
+    if (pinned !== undefined && moved.size > 0) {
+      const [first] = moved.keys();
+      // Bounded convergence, not a proven check: no input is known to reach
+      // it, because a rerun pins every moved start onto the double that moved
+      // it. It exists so a replay that kept moving would refuse, not recurse.
+      if (round >= 16) {
+        throw new ScheduleInvalidOptimizedStartError(
+          nodes[first].key,
+          'resource releases did not converge within drift',
         );
       }
+      const repinned = placed.map((slice, at) => moved.get(at) ?? slice.start);
+      return placeWeightedSlices(
+        graph,
+        edges,
+        goesFirst,
+        withResources,
+        sizes,
+        repinned,
+        round + 1,
+      );
     }
     const resourceEdges = rebuildResourceOrder(graph, placed, sizes);
     const resourceSuccessors = nodes.map((): number[] => []);
