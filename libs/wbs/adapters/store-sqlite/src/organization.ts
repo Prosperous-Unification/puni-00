@@ -1,5 +1,5 @@
-import type { WriteStamp } from '@wbs/core';
-import type { OrganizationRole } from '@wbs/domain';
+import type { MembershipAdministered, MembershipAdministration, WriteStamp } from '@wbs/core';
+import { mayAdministerMembership, ORGANIZATION_ROLES, type OrganizationRole } from '@wbs/domain';
 import { and, count, eq, ne } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -28,7 +28,7 @@ type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0
  * the reads a guard depends on, so blue and green cannot both pass the same
  * check.
  */
-export class OrganizationRepository {
+export class OrganizationRepository implements MembershipAdministration {
   constructor(
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
@@ -142,6 +142,69 @@ export class OrganizationRepository {
     });
   }
 
+  /**
+   * {@link MembershipAdministration.administer}: the actor's role, the
+   * target's role and the final super-admin guard are read in the write's own
+   * immediate transaction.
+   *
+   * Proof, each watched 2026-09-27 in
+   * `membership-organization.controller.db.test.ts`: reading the actor's role
+   * outside the policy (admitting any member) made `refuses a member and a
+   * viewer every membership change` answer 200; skipping the final
+   * super-admin guard made `refuses demoting or removing the last
+   * super-admin` answer 200 and leave no super-admin; answering an absent
+   * target as removed made `answers a foreign or absent member as not found,
+   * changing nothing` answer 500 instead of 404.
+   *
+   * Proof, each watched 2026-09-27 in `organization-records.db.test.ts`:
+   * - Skipping the super-admin recheck made `lets exactly one of two
+   *   super-admins leave when both try across two connections` remove both.
+   * - Trusting the actor as a super-admin instead of reading the role in the
+   *   transaction made `refuses an actor demoted on another connection after
+   *   the request's access resolved` answer ok.
+   * - Scoping the UPDATE, and separately the DELETE, by user alone made
+   *   `changes and removes only the membership in the given organization`
+   *   change or drop the org-b membership.
+   */
+  async administer(
+    organizationId: string,
+    actorId: string,
+    targetUserId: string,
+    requested: OrganizationRole | null,
+    stamp: WriteStamp,
+  ): Promise<MembershipAdministered> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction(
+        (tx): MembershipAdministered => {
+          const actor = roleIn(tx, organizationId, actorId);
+          // Removed since the request resolved its access: nothing to authorize.
+          if (actor === null) return { ok: false, refusal: 'forbidden' };
+          const current = roleIn(tx, organizationId, targetUserId);
+          if (current === null) return { ok: false, refusal: 'not_found' };
+          if (!mayAdministerMembership(actor, current, requested)) {
+            return { ok: false, refusal: 'forbidden' };
+          }
+          const guarded = guardFinalSuperAdmin(tx, organizationId, targetUserId, requested);
+          if (guarded === 'last-super-admin') return { ok: false, refusal: 'last_super_admin' };
+          if (guarded === 'not-member') return { ok: false, refusal: 'not_found' };
+          if (requested === null) {
+            tx.delete(organizationMembership)
+              .where(membershipOf(organizationId, targetUserId))
+              .run();
+            return { ok: true, membership: null };
+          }
+          tx.update(organizationMembership)
+            .set({ role: requested, ...auditOnUpdate(stamp) })
+            .where(membershipOf(organizationId, targetUserId))
+            .run();
+          return { ok: true, membership: { userId: targetUserId, role: requested } };
+        },
+        { behavior: 'immediate' },
+      );
+    });
+  }
+
   /** A user's current memberships, ordered by organization id. */
   async listMemberships(userId: string): Promise<Membership[]> {
     await Promise.resolve();
@@ -155,6 +218,27 @@ export class OrganizationRepository {
       .orderBy(organizationMembership.organizationId)
       .all();
   }
+}
+
+/**
+ * A user's current role in an organization, or null for no membership.
+ *
+ * @throws when the stored role is not one of {@link ORGANIZATION_ROLES}: an
+ * unknown role reaching the policy must never be read as a privileged one.
+ */
+function roleIn(tx: Transaction, organizationId: string, userId: string): OrganizationRole | null {
+  const found = tx
+    .select({ role: organizationMembership.role })
+    .from(organizationMembership)
+    .where(membershipOf(organizationId, userId))
+    .get();
+  if (found === undefined) return null;
+  const known: readonly string[] = ORGANIZATION_ROLES;
+  if (!known.includes(found.role)) {
+    throw new Error(`membership in organization "${organizationId}" has a malformed role`);
+  }
+  // Narrowed by the membership test above, which is the boundary this is.
+  return found.role;
 }
 
 function membershipOf(organizationId: string, userId: string) {

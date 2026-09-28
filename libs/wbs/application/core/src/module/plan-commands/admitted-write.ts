@@ -1,4 +1,5 @@
 import { AnnouncementCollector } from '../../ports/announcement-collector';
+import { type EditAdmission, NO_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
 import type { ProjectService } from '../../service/project.service';
@@ -13,7 +14,16 @@ export interface AdmittedServices {
 /** What a host supplies: the source's unit of work, the per-scope graph and the direct broadcaster. */
 export interface AdmittedWriteSource {
   readonly uow: UnitOfWork;
-  readonly batch: (scope: Scope, broadcast: Broadcaster) => AdmittedServices;
+  /**
+   * The per-scope graph. It is built with {@link NO_ADMISSION}: the two writes
+   * here authorize through the caller's access themselves and ask no
+   * admission, so any gated service reached through this graph is refused.
+   */
+  readonly batch: (
+    scope: Scope,
+    broadcast: Broadcaster,
+    admission: EditAdmission,
+  ) => AdmittedServices;
   readonly announcements: Broadcaster;
 }
 
@@ -33,7 +43,7 @@ export function admittedWrites(source: AdmittedWriteSource) {
   ): Promise<T> => {
     const collector = new AnnouncementCollector(source.announcements);
     const outcome = await source.uow.run<T>(async (scope) => {
-      const value = await act(source.batch(scope, collector));
+      const value = await act(source.batch(scope, collector, NO_ADMISSION));
       return value.ok ? { commit: true, value } : { commit: false, value };
     });
     if (outcome.ok) await collector.send();

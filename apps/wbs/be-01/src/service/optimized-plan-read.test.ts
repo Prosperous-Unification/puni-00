@@ -1,3 +1,4 @@
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { type Schedule, schedule, sliceKey, type SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { beforeEach, describe, expect, it } from 'bun:test';
@@ -46,6 +47,7 @@ beforeEach(async () => {
   const harness = inMemoryServices();
   ({ projects, workItems } = harness.stores);
   serviceOptions = {
+    admission: CREATOR_ADMISSION,
     clock: testClock,
     ...harness.stores,
     broadcast: harness.broadcast,

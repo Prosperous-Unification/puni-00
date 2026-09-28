@@ -272,7 +272,7 @@ export function calendarMarkerRoutes(
 ) {
   return [
     bind(listCalendarMarkers, async ({ params, principal }) => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       const outcome = await markers.listWithin(params.id, resolved.access);
       return outcome.ok
@@ -284,7 +284,7 @@ export function calendarMarkerRoutes(
       async ({ params, body, principal }) => {
         const created = createProblem(body);
         if (isCreateProblem(created)) return refuse(created);
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const outcome = await markers.createWithin(
           params.id,
@@ -308,7 +308,7 @@ export function calendarMarkerRoutes(
       async ({ params, body, principal }) => {
         const change = patchProblem(body);
         if (isProblem(change)) return refuse(change);
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const outcome =
           change.kind === 'name'
@@ -333,7 +333,7 @@ export function calendarMarkerRoutes(
       { classifyRequestFailure: (failure) => classify(failure, false) },
     ),
     bind(removeCalendarMarker, async ({ params, principal }) => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       const outcome = await markers.removeWithin(
         params.id,

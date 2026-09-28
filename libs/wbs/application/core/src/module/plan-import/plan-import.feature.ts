@@ -284,17 +284,22 @@ export class ImportService {
       const solutionRef =
         requested === null
           ? 'none'
-          : // Proof: keeping a slug under scoped access made `leaves a solution
-            // reference off, revealing nothing` in
-            // `import-export-organization.controller.db.test.ts` answer `kept`;
-            // watched 2026-09-27.
-            access.kind === 'scoped'
-            ? 'left-off'
-            : // Proof: skipping this admitted lookup made concurrent memory imports both
-              // answer `kept` and leaked SQLite's `project.solution_slug` uniqueness error.
-              (await scope.stores.projects.findBySolutionSlug(requested.slug)) === null
-              ? 'kept'
-              : 'left-off';
+          : // Under scoped access only the organization's own slugs collide, so
+            // another organization's link neither blocks the slug nor shows.
+            // Proof: looking the slug up deployment-wide made `keeps a slug
+            // only another organization holds` in
+            // `import-export-organization.controller.db.test.ts` answer
+            // `left-off`; watched 2026-09-28.
+            // Proof: skipping this admitted lookup made concurrent memory imports both
+            // answer `kept` and leaked SQLite's `project.solution_slug` uniqueness error.
+            (access.kind === 'scoped'
+                ? await scope.stores.projects.findBySolutionSlugInOrganization(
+                    requested.slug,
+                    access.scope.organizationId,
+                  )
+                : await scope.stores.projects.findBySolutionSlug(requested.slug)) === null
+            ? 'kept'
+            : 'left-off';
       const stamp = this.opts.clock.stampFor(actorId);
       const projectId = this.opts.clock.newId();
       const settings = prepared.settings;

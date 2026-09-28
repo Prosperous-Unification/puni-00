@@ -83,3 +83,9 @@ WBS SHALL map each supported verified issuer/subject pair to one stable local us
 - **GIVEN** an issuer/subject pair already maps to user A
 - **WHEN** migration or login attempts to map it to user B
 - **THEN** the collision is refused without merging users by email
+
+#### Scenario: Organization selection preview
+
+- **GIVEN** a copy of a WBS database before sessions bind an active organization
+- **WHEN** the organization selection preview runs over it
+- **THEN** it reports, for every local user, onboarding when they have no membership and an explicit choice among their memberships otherwise, never choosing one; it opens the file read-only and refuses any write; and a missing file, a broken activation marker, a malformed role or a membership naming a missing user or organization fails the preview instead of producing a report

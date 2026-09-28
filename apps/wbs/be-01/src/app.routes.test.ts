@@ -21,7 +21,10 @@ import { testClock } from './testing/clock-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
 import { testHistoryService } from './testing/history-fixture';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
-import { legacyOrganizationAccess } from './testing/organization-access-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingMemberships,
+} from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { inMemoryProjects, testProjectService } from './testing/project-fixture';
 import { testReplay } from './testing/replay-fixture';
@@ -33,6 +36,7 @@ import { testWrites } from './testing/writes-fixture';
 function options(): AppOptions {
   return {
     organizations: legacyOrganizationAccess,
+    memberships: refusingMemberships,
     appOrigin: 'http://localhost',
     loginThrottle: testLoginThrottle(),
     clock: testClock,
@@ -119,6 +123,7 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postApiSmokeEcho: { text: 'reachable' },
   postApiProjectsByIdSteps: { name: 'Reachable step' },
   patchApiProjectsByIdStepsByStepId: { name: 'Renamed step' },
+  patchApiOrganizationMembersByUserId: { role: 'member' },
   postApiProjects: { name: 'Reachable plan' },
   postApiProjectsImport: planDocumentFixture(),
   patchApiProjectsById: {
@@ -198,9 +203,11 @@ const SIGNED_IN_OPERATIONS = [
 ] as const;
 const READ_SCOPE_OPERATIONS = ['getApiProjectsByIdExport', 'getPlansBy-solutionBySlug'] as const;
 const WRITE_SCOPE_OPERATIONS = [
+  'deleteApiOrganizationMembersByUserId',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',
   'deleteApiSaved-plansById',
+  'patchApiOrganizationMembersByUserId',
   'patchApiProjectsById',
   'patchApiProjectsByIdCalendar-markersByMarkerId',
   'patchApiProjectsByIdStepsByStepId',
@@ -220,10 +227,12 @@ const WRITE_SCOPE_OPERATIONS = [
 const INTERNAL_OPERATIONS = ['postInternalForward', 'postInternalResume'] as const;
 const ALWAYS_ORIGIN_OPERATIONS = ['postApiAuthLogin', 'postApiAuthRegister'] as const;
 const COOKIE_ORIGIN_OPERATIONS = [
+  'deleteApiOrganizationMembersByUserId',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',
   'deleteApiSaved-plansById',
   'getApiProjectsByIdHistory',
+  'patchApiOrganizationMembersByUserId',
   'patchApiProjectsById',
   'patchApiProjectsByIdCalendar-markersByMarkerId',
   'patchApiProjectsByIdStepsByStepId',

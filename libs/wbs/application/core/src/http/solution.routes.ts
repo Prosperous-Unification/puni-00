@@ -16,7 +16,7 @@ import { organizationRefusal } from './organization-refusal';
 export function solutionRoutes(projects: ProjectService, organizations: OrganizationAccess) {
   return [
     bind(readSolution, async ({ params, principal }): Promise<HttpReply<typeof readSolution>> => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       const found = await projects.readBySolutionSlugWithin(params.slug, resolved.access);
       return found === null

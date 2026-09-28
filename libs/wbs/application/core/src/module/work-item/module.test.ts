@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { installWorkItem } from './check';
@@ -40,6 +41,7 @@ async function seeded() {
       subtrees: stores.subtrees,
       journal: stores.journal,
       broadcast,
+      admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: clockOf({ now: () => 2, newId: () => `item-${String(++next)}` }),
     },
@@ -75,6 +77,9 @@ const hostRequirements = () => {
     subtreeStore: DiBag.createProvider(() => stores.subtrees, { factoryReturnKind: 'sync-value' }),
     journalStore: DiBag.createProvider(() => stores.journal, { factoryReturnKind: 'sync-value' }),
     broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
+      factoryReturnKind: 'sync-value',
+    }),
+    editAdmission: DiBag.createProvider(() => CREATOR_ADMISSION, {
       factoryReturnKind: 'sync-value',
     }),
     scheduler: DiBag.createProvider(() => fastScheduler, { factoryReturnKind: 'sync-value' }),
@@ -117,6 +122,23 @@ describe('the Work item module', () => {
         event.type === 'tree_replaced' ? event.workItems.map((row) => row.name) : event.type,
       ),
     ).toEqual([['Scope']]);
+  });
+
+  // Proof: handing the resource `{ admits: () => true }` instead of the
+  // supplied admission made this test receive `ok: true` (5 pass, 1 fail);
+  // watched 2026-09-28.
+  it('asks the admission installWorkItem wires before a work item write', async () => {
+    const { broadcast, requirements } = await seeded();
+    const { workItems } = installWorkItem({ ...requirements, admission: { admits: () => false } });
+
+    const created = await workItems.create(PROJECT, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'Scope',
+    });
+
+    expect(created).toEqual({ ok: false, reason: 'forbidden' });
+    expect(broadcast.published).toEqual([]);
   });
 
   /**
