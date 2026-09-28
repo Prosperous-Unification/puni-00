@@ -349,7 +349,13 @@ describe('DomainClaimRepository', () => {
     const verification = claims.verifyClaim(
       'org-a',
       'u-a',
-      { id: 'c-a', domain: 'example.org', challengeDigest: 'digest-c-a', challengeExpiresAt: 1000 },
+      {
+        kind: 'initial',
+        id: 'c-a',
+        domain: 'example.org',
+        challengeDigest: 'digest-c-a',
+        challengeExpiresAt: 1000,
+      },
       'digest-c-a',
       stamp('u-a', now),
       () => now,
@@ -384,6 +390,7 @@ describe('DomainClaimRepository', () => {
         'org-a',
         'u-a',
         {
+          kind: 'initial',
           id: 'c-a',
           domain: 'example.org',
           challengeDigest: 'digest-c-a',

@@ -103,7 +103,10 @@ export function domainRoutes(
           return { ok: false, status: 404, body: { error: 'not_found' } };
         if (pending === 'stale') return { ok: false, status: 409, body: { error: 'stale' } };
         const now = clock.now();
-        if (pending.challengeExpiresAt <= now)
+        // Proof: 2026-09-28, applying the old-proof overlap deadline to a
+        // replacement made mounted `confirms a replacement proof after the
+        // old-proof overlap ends` answer 409 instead of verifying the new TXT.
+        if (pending.kind === 'initial' && pending.challengeExpiresAt <= now)
           return { ok: false, status: 409, body: { error: 'stale' } };
         // Proof: 2026-09-28, raising this bound to 50 seconds made mounted
         // `refuses malformed and timed-out resolver answers` observe 50,000

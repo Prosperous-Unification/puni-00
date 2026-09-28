@@ -90,11 +90,12 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
     });
   }
 
-  /** Records a check only while the same verified ownership snapshot survives. */
+  /** Records a check under the surviving snapshot, rechecking old-proof expiry at commit. */
   async finishProofCheck(
     proof: RetainedDomainProof,
     matched: 'current' | 'previous' | null,
     at: number,
+    now: () => number,
   ): Promise<'checked' | 'stale'> {
     return this.gate.enter(async () => {
       await Promise.resolve();
@@ -132,10 +133,18 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
             throw new Error(`verified domain ${current.id} is no longer claimable`);
           if (current.lastSuccessAt === null)
             throw new Error(`owned domain ${current.id} lacks last successful proof`);
+          const overlapDeadline = current.previousProofValidUntil;
+          // Proof: 2026-09-28, bypassing this commit-time deadline made mounted
+          // `does not accept an old proof when its overlap expires during DNS lookup`
+          // advance lastSuccessAt to the run time after the injected clock crossed expiry.
+          const accepted =
+            matched === 'previous' && overlapDeadline !== null && now() >= overlapDeadline
+              ? null
+              : matched;
           tx.update(organizationDomainClaim)
             .set({
               lastCheckedAt: at,
-              ...(matched
+              ...(accepted
                 ? { lastSuccessAt: at }
                 : // Proof: 2026-09-28, leaving status verified made mounted `suspends
                   // without releasing domain ownership or memberships` fail on day 14.
@@ -144,7 +153,7 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
                   : {}),
               // Proof: 2026-09-28, bypassing this clear made mounted `ends
               // old-proof overlap when the replacement succeeds` retain the old digest.
-              ...(matched === 'current' && current.previousProofDigest !== null
+              ...(accepted === 'current' && current.previousProofDigest !== null
                 ? { previousProofDigest: null, previousProofValidUntil: null }
                 : {}),
               ...auditOnUpdate({ at }),
@@ -158,7 +167,9 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
     });
   }
 
-  /** Replaces an owned proof with a 24-hour overlap under current authority. */
+  /** Replaces an owned proof with a 24-hour overlap under current authority.
+   * @throws when verified ownership lacks its retained digest.
+   */
   async rotateClaim(
     organizationId: string,
     actorId: string,
@@ -200,8 +211,12 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
             )
             .get();
           if (claim === undefined) return { kind: 'not_found' } as const;
-          if (claim.status !== 'verified' || claim.proofDigest === null)
-            return { kind: 'stale' } as const;
+          if (claim.status !== 'verified') return { kind: 'stale' } as const;
+          // Proof: 2026-09-28, treating this trusted corruption as stale made
+          // mounted `throws for a verified claim with a missing retained proof
+          // digest on rotation` return 409 after the stored digest was forced NULL.
+          if (claim.proofDigest === null)
+            throw new Error(`verified domain ${claim.id} lacks retained proof digest`);
           if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
             return { kind: 'stale' } as const;
           const dnsValue = `wbs-domain-verification=${organizationId}:${claim.domain}:${token}`;
@@ -247,7 +262,7 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
     });
   }
 
-  /** Reads only a current organization's pending claim after current role and marker checks. */
+  /** Reads the current initial or replacement proof after role and marker checks. */
   async readPendingClaim(
     organizationId: string,
     actorId: string,
@@ -293,15 +308,17 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
         if (claim.proofDigest === null || claim.previousProofValidUntil === null)
           throw new Error(`rotating domain ${claim.id} lacks retained proof`);
         return {
+          kind: 'rotation',
           id: claim.id,
           domain: claim.domain,
           challengeDigest: claim.proofDigest,
-          challengeExpiresAt: claim.previousProofValidUntil,
+          previousProofValidUntil: claim.previousProofValidUntil,
         };
       }
       if (claim.challengeDigest === null || claim.challengeExpiresAt === null)
         throw new Error(`pending domain ${claim.id} lacks challenge`);
       return {
+        kind: 'initial',
         id: claim.id,
         domain: claim.domain,
         challengeDigest: claim.challengeDigest,
@@ -353,13 +370,14 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
             if (current.status === 'verified' && current.previousProofDigest !== null) {
               // Proof: 2026-09-28, omitting this branch made mounted `confirms a
               // rotated proof through verify before the overlap ends` answer stale.
-              // Proof: 2026-09-28, bypassing the overlap snapshot and deadline
-              // made mounted `rechecks rotation snapshot after DNS lookup` return 200 after expiry.
+              // Proof: 2026-09-28, bypassing the overlap-deadline snapshot
+              // comparison made mounted `rechecks rotation snapshot after DNS
+              // lookup` return 200 after the stored deadline changed during DNS.
               if (
                 current.domain !== claim.domain ||
+                claim.kind !== 'rotation' ||
                 current.proofDigest !== claim.challengeDigest ||
-                current.previousProofValidUntil !== claim.challengeExpiresAt ||
-                current.previousProofValidUntil <= stamp.at ||
+                current.previousProofValidUntil !== claim.previousProofValidUntil ||
                 observedDigest !== claim.challengeDigest
               )
                 return 'stale' as const;
@@ -382,6 +400,7 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
             // Proof: 2026-09-28, omitting the digest snapshot comparison let the mounted reissue-during-lookup test promote the old challenge.
             if (
               current.status !== 'pending' ||
+              claim.kind !== 'initial' ||
               current.domain !== claim.domain ||
               current.challengeDigest !== claim.challengeDigest ||
               current.challengeExpiresAt !== claim.challengeExpiresAt ||

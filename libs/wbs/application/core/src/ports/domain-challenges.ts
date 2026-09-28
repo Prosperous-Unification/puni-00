@@ -11,13 +11,17 @@ export interface DomainClaimSummary {
   readonly proofWarning: boolean;
 }
 
-/** A pending, authorized claim captured before an external DNS lookup. */
-export interface PendingDomainClaim {
+/** An authorized proof captured before an external DNS lookup. */
+interface CapturedDomainClaim {
   readonly id: string;
   readonly domain: string;
   readonly challengeDigest: string;
-  readonly challengeExpiresAt: number;
 }
+
+/** Initial proof expires after 24 hours; a replacement carries only the old proof's overlap deadline. */
+export type PendingDomainClaim =
+  | (CapturedDomainClaim & { readonly kind: 'initial'; readonly challengeExpiresAt: number })
+  | (CapturedDomainClaim & { readonly kind: 'rotation'; readonly previousProofValidUntil: number });
 
 /** Authoritative TXT records, one DNS TXT record per string; failure throws. */
 export interface DomainResolver {
@@ -39,10 +43,12 @@ export interface RetainedDomainProof {
 export interface DomainProofChecks {
   readonly resolver: DomainResolver;
   readDueProofs(at: number): Promise<readonly RetainedDomainProof[]>;
+  /** Rechecks an old match against `now` inside the committing transaction. */
   finishProofCheck(
     proof: RetainedDomainProof,
     matched: 'current' | 'previous' | null,
     at: number,
+    now: () => number,
   ): Promise<'checked' | 'stale'>;
 }
 
