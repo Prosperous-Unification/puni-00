@@ -114,10 +114,22 @@ const EXEMPT = new Set([
   'savedPlan',
   'savedPlanBody',
   'calendarMarker',
-  // An ownership mapping, not an authored row: the project it maps carries the
-  // creation audit, and the bridge triggers write the same table without one.
+  // Ownership mappings, not authored rows: the root each maps carries the
+  // creation audit, and the bridge triggers write the same tables without one.
   'projectOrganization',
+  'savedPlanOrganization',
 ]);
+
+/**
+ * Files whose inserts put rows back **exactly as saved**, audit columns
+ * included. `typed-dependency-rollback.ts` restores typed dependencies that a
+ * rollback removed (`docs/runbook-prod-deploy.md#typed-dependency-rollback`):
+ * each row was stamped by `auditOnCreate` when it was first written, and
+ * stamping it again on restore would replace who drew the relationship and when
+ * with whoever ran the restore — a lossy restore. Only inserts are excused; the
+ * `it` below keeps the list to files that exist.
+ */
+const RESTORES = new Set(['typed-dependency-rollback.ts']);
 
 /** The files that hold writes — every repository, and not this test or the helper. */
 function repositorySources(): { name: string; text: string }[] {
@@ -215,9 +227,17 @@ describe('every write fills the audit columns', () => {
     ).toBeGreaterThan(40);
   });
 
+  // Proof: the entry misspelt `typed-dependency-restore.ts` made this case and
+  // `stamps every insert with auditOnCreate` fail; watched 2026-09-27.
+  it('excuses only restore files that exist', () => {
+    const present = new Set(repositorySources().map((source) => source.name));
+    expect([...RESTORES].filter((name) => !present.has(name))).toEqual([]);
+  });
+
   it('stamps every insert with auditOnCreate', () => {
     const missing = writes
       .filter((write) => write.kind === 'insert')
+      .filter((write) => !RESTORES.has(write.file))
       .filter((write) => !write.statement.includes('auditOnCreate('))
       // `users` and `project` date themselves, so their inserts carry the
       // variant that leaves their own `created_at` alone.

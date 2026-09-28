@@ -16,6 +16,7 @@ import { beginOptimizationDrain } from '../repository/optimization-drain';
 import { ProjectRepository } from '../repository/project';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { OptimizationCoordinator, type ReservedSpawnRequest } from './optimization-coordinator';
 import { ProjectService } from './project.service';
 import { runSolverChildLifecycle } from './solver-child-lifecycle';
@@ -60,6 +61,7 @@ function inputAt(revision: number): ScheduleInput {
     notBefore: new Map([['w-1', revision]]),
     poolSizes: new Map(),
     reach: 'whole-item',
+    typed: [],
     deadlines: new Map(),
   };
 }
@@ -796,6 +798,10 @@ class Toggle implements Command {
   async run(model: Model, world: World): Promise<void> {
     note(this.enabled ? 'enable' : 'cancel');
     const service = new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(
+        world.connections.west,
+        new ProjectRepository(world.connections.west, OPEN),
+      ),
       projects: new ProjectRepository(world.connections.west, OPEN),
       broadcast: recordingBroadcaster(),
       optimizerAvailable: () => true,
@@ -1073,6 +1079,10 @@ describe('OptimizationCoordinator production SQLite model', () => {
       expect(world.attempts).toHaveLength(2);
       expect(world.attempts.every((attempt) => attempt.verdicts.length === 0)).toBe(true);
       const service = new ProjectService({
+        dependencyGraph: sqliteDependencyGraph(
+          world.connections.west,
+          new ProjectRepository(world.connections.west, OPEN),
+        ),
         projects: new ProjectRepository(world.connections.west, OPEN),
         broadcast: recordingBroadcaster(),
         optimizerAvailable: () => true,

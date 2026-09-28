@@ -1,4 +1,5 @@
 import { clockOf } from '@wbs/core';
+import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -66,7 +67,9 @@ function buildHarness(
   // Returned below, so 3b.4's two event cases can read what a PATCH announced —
   // and, for the refused one, that it announced nothing.
   const broadcast = recordingBroadcaster();
+  const plan = buildWorkItemPlan(projectStore);
   const projects = new ProjectService({
+    dependencyGraph: new DependencyGraphGuard(plan.stores),
     projects: projectStore,
     broadcast,
     // Available unless a case says otherwise, because most of this suite is
@@ -83,7 +86,6 @@ function buildHarness(
       },
     }),
   });
-  const plan = buildWorkItemPlan(projectStore);
   const workItems = new WorkItemService({
     clock: testClock,
     ...plan.stores,

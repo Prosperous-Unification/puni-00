@@ -7,6 +7,7 @@ import {
   schedule,
   type Slice,
   SOLVER_QUANTUM,
+  type TypedDependency,
 } from '@wbs/domain';
 
 import type { SolverOffsetMap } from './wire-types';
@@ -96,6 +97,8 @@ export function quantisedFastBaseline(
   notBefore: ReadonlyMap<string, number>,
   poolSizes: PoolSizes,
   reach: DependencyReach,
+  /** The typed dependencies; required, so the baseline cannot drop one the request carries. */
+  typed: readonly TypedDependency[],
 ): SolverOffsetMap {
   const placed = schedule(
     rows,
@@ -104,6 +107,10 @@ export function quantisedFastBaseline(
     scaleFloors(notBefore),
     poolSizes,
     reach,
+    // No deadlines, as before typed dependencies took the eighth slot: the
+    // baseline is the unit-axis Fast placement the solver starts from.
+    new Map(),
+    typed,
   );
 
   const offsets: Record<string, number> = {};

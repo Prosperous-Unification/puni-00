@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { AnnouncementCollector } from '@wbs/core';
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -33,6 +34,7 @@ import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broa
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
@@ -136,10 +138,16 @@ beforeEach(async () => {
     // landed in a log nothing reads. Harmless while no step route mutates
     // project settings — and exactly the shape in which a future assertion
     // reads an empty log and passes. See {@link writes}.
-    projects: new ProjectService({ clock: testClock, projects, broadcast: announcements }),
+    projects: new ProjectService({
+      dependencyGraph: sqliteDependencyGraph(db, projects),
+      clock: testClock,
+      projects,
+      broadcast: announcements,
+    }),
     // The shared wrapper, as `services.ts` wires `StepService` — not a private
     // recorder. See {@link writes}.
     steps: new StepService({
+      dependencyGraph: sqliteDependencyGraph(db, projects),
       clock: testClock,
       projects,
       steps: stepStore,
@@ -155,6 +163,7 @@ beforeEach(async () => {
       measures,
       progress: progressStore,
       dependencies: new DependencyRepository(db, OPEN),
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
       directory,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),
