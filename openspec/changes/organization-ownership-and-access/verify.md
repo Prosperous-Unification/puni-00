@@ -618,6 +618,12 @@ Branch `batch-9/010-5-2-orgs-21`, stacked on slice 22. There is no migration.
 | No claim opened on a public domain | `openClaim` policy check skipped    | `organization-records.db.test.ts` `never opens or promotes a claim on a public domain` |
 | No planted public claim promoted   | `promoteClaim` policy check skipped | same case                                                                              |
 
+Astra review 1 raised 2 Important findings and 1 Minor:
+
+- **Important, malformed A-labels such as `xn--a.com` passed as canonical:** fixed. A WHATWG URL host round trip now refuses them, and removing it made `throws on a domain that is not canonical` accept `xn--a.com`.
+- **Important, a trailing newline passed:** rejected with a probe. JavaScript's `$` does not match before a final newline without the `m` flag (`/^a$/.test('a\n')` is false), and `gmail.com\n` is now a case of that test.
+- **Minor, stale `promoteClaim` JSDoc:** fixed.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.
