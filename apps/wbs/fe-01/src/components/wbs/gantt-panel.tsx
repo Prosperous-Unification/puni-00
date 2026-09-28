@@ -3412,12 +3412,12 @@ function GanttChart({
       watch.disconnect();
     };
   }, [measureTheFold, measureTheSpan, measureTheViewport]);
-  // Whether the chart's detail is drawn: the stored-dependency arrows, the
-  // parent rows' summary brackets and the unestimated slices' assumed bars, all
-  // three together. The key, the read, the state and the write are one file —
-  // {@link useGanttDetail} — and what is left here is the drawing: the three
-  // `detail.shown &&` gates over the marks, and the switch's own label.
-  const detail = useGanttDetail(plan.dependencies.length > 0);
+  // Dependency arrows and parent summary brackets open with detail shown when
+  // either legacy or typed dependencies exist. {@link useGanttDetail} owns the
+  // stored answer; this panel draws the marks and the switch.
+  const detail = useGanttDetail(
+    plan.dependencies.length > 0 || (plan.typedDependencies?.length ?? 0) > 0,
+  );
   const detailShown = detail.shown;
   // Whether the chart has taken the whole viewport. Chunk 4 of
   // `wbs-gantt-phone-scale`, and Dany's R8 #1 — built once, for both faces.
@@ -4789,6 +4789,7 @@ function GanttChart({
             return (
               <g key={markId}>
                 <path
+                  data-gantt-arrow={markId}
                   data-gantt-typed-arrow={arrow.relationshipId}
                   data-gantt-proxy={arrow.proxy ? 'true' : undefined}
                   data-dependency-lit={
@@ -4802,7 +4803,7 @@ function GanttChart({
                     arrow.proxy && '[stroke-dasharray:3_2]',
                     activeTypedId !== null && arrow.relationshipIds.includes(activeTypedId)
                       ? '[stroke-width:2]'
-                      : '[stroke-width:1.25] hover:[stroke-width:2] focus:[stroke-width:2]',
+                      : '[stroke-width:1.5] hover:[stroke-width:2] focus:[stroke-width:2]',
                   )}
                   vectorEffect="non-scaling-stroke"
                   tabIndex={0}
@@ -4851,7 +4852,11 @@ function GanttChart({
                     )
                   }
                 />
-                <path d={route.head} className="fill-foreground/70" />
+                <path
+                  data-gantt-arrow-head={markId}
+                  d={route.head}
+                  className="fill-foreground/70"
+                />
                 {activeTypedId !== null && arrow.relationshipIds.includes(activeTypedId) && (
                   <text
                     x={(arrow.fromX + arrow.toX) / 2}

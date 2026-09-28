@@ -518,7 +518,7 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
           pointed={pointedAtRow(null)}
         />,
       );
-      pressTheDetail();
+      askForTheDetail('[data-gantt-typed-arrow="dev"]');
       const arrow = document.querySelector('[data-gantt-typed-arrow="dev"]');
       expect(arrow?.getAttribute('aria-label')).toContain('010 - Parent whole');
       expect(arrow?.getAttribute('aria-label')).toContain('020 - Build Dev');
@@ -569,7 +569,7 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
         pointed={pointedAtRow(null)}
       />,
     );
-    pressTheDetail();
+    askForTheDetail('[data-gantt-typed-arrow="qa"]');
     const path = markAttribute('[data-gantt-typed-arrow="qa"]', 'd');
     const corners = [...path.matchAll(/[ML] ([\d.-]+) ([\d.-]+)/g)].map((match) => ({
       x: Number(match[1]),
@@ -638,7 +638,7 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
         pointed={pointedAtRow(null)}
       />,
     );
-    pressTheDetail();
+    askForTheDetail('[data-gantt-typed-arrow="dep"]');
     const path = markAttribute('[data-gantt-typed-arrow="dep"]', 'd');
     const corners = [...path.matchAll(/[ML] ([\d.-]+) ([\d.-]+)/g)].map((match) => ({
       x: Number(match[1]),
@@ -708,7 +708,7 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
         pointed={pointedAtRow(null)}
       />,
     );
-    pressTheDetail();
+    askForTheDetail('[data-gantt-typed-arrow="clear"]');
     expect(document.querySelector('[data-gantt-chart]')).not.toBeNull();
     expect(document.querySelector('[data-gantt-bar="B-dev"]')).not.toBeNull();
     expect(document.querySelector('[data-gantt-typed-arrow="clear"]')).not.toBeNull();
@@ -743,7 +743,7 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
         pointed={pointedAtRow(null)}
       />,
     );
-    pressTheDetail();
+    askForTheDetail('[data-gantt-typed-arrow="tick"]');
     const path = markAttribute('[data-gantt-typed-arrow="tick"]', 'd');
     const corners = [...path.matchAll(/[ML] ([\d.-]+) ([\d.-]+)/g)].map((match) => ({
       x: Number(match[1]),
@@ -803,7 +803,7 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
           pointed={pointedAtRow(null)}
         />,
       );
-      pressTheDetail();
+      askForTheDetail('[data-gantt-typed-arrow="dep"]');
       expect(markAttribute('[data-gantt-typed-arrow="dep"]', 'd')).toMatch(/^M 0 /);
       expect(document.querySelector('[data-gantt-proxy-count="dep"]')?.textContent).toBe('1');
       expect(markAttribute('[data-gantt-typed-arrow="dep"]', 'aria-label')).toContain('1 link');
@@ -4657,6 +4657,58 @@ describe('the detail switch', () => {
     if (!(toggle instanceof HTMLElement)) throw new Error('the detail switch is not on the panel');
     return toggle;
   }
+
+  itDom('opens typed-only whole dependencies with the shared arrow marks and leaf route', () => {
+    // Proof: counting only legacy dependencies opened this typed-only plan with
+    // aria-pressed="false"; after that was repaired, removing the shared arrow
+    // marker made the count at [data-gantt-arrow="whole-0"] be 0 instead of 1;
+    // removing the head marker made its count 0 instead of 1. Forcing a
+    // whole predecessor to use its first slice changed the route's first x
+    // from 4 to 2, and the route comparison failed. Watched 2026-09-28.
+    const leaves = planOf({
+      rows: [rowAt('A', 0, 4), rowAt('B', 4, 8)],
+      steps: [
+        { id: 'dev', name: 'Dev' },
+        { id: 'qa', name: 'QA' },
+      ],
+      slices: [
+        sliceAt('A-dev', 'A', 0, 2),
+        sliceAt('A-qa', 'A', 2, 4, { stepId: 'qa' }),
+        sliceAt('B-dev', 'B', 4, 6),
+        sliceAt('B-qa', 'B', 6, 8, { stepId: 'qa' }),
+      ],
+    });
+    drawEveryMark({
+      ...leaves,
+      typedDependencies: [
+        {
+          id: 'whole',
+          type: 'FS',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+      ],
+    });
+
+    expect(theSwitch().getAttribute('aria-pressed')).toBe('true');
+    expect(countOf('[data-gantt-typed-arrow="whole"]')).toBe(1);
+    expect(countOf('[data-gantt-arrow="whole-0"]')).toBe(1);
+    expect(countOf('[data-gantt-arrow-head="whole-0"]')).toBe(1);
+    const typedElbow = markAttribute('[data-gantt-arrow="whole-0"]', 'd');
+    const typedHead = markAttribute('[data-gantt-arrow-head="whole-0"]', 'd');
+    fireEvent.click(theSwitch());
+    expect(countOf('[data-gantt-arrow]')).toBe(0);
+    expect(countOf('[data-gantt-arrow-head]')).toBe(0);
+    fireEvent.click(theSwitch());
+
+    cleanup();
+    drawEveryMark({
+      ...leaves,
+      dependencies: [{ predecessorId: 'A', successorId: 'B' }],
+    });
+    expect(typedElbow).toBe(markAttribute('[data-gantt-arrow="A->B"]', 'd'));
+    expect(typedHead).toBe(markAttribute('[data-gantt-arrow-head="A->B"]', 'd'));
+  });
 
   itDom('opens with both families on a plan with edges, and hides them when asked', () => {
     drawEveryMark();
