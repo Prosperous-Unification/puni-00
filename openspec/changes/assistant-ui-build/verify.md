@@ -57,3 +57,11 @@ The legacy paid-save regression injected failure when inserting the assistant tu
 ## Final local integration
 
 After all review fixes, parent ran all four uncached FE Nx test/lint/typecheck/build targets successfully. FE tests report 10 passing tests and 29 assertions. Parent repeated the full fixture Home → saved request → app → local test identity → initial stream → reload → second turn → booking concept → mobile brief panel → manual follow-up journey. Reload left provider calls unchanged at 5; no page errors or horizontal overflow occurred. Final desktop and mobile screenshots were inspected. These are fixture observations, with no real Google identity or paid model. Independent source review reported no release blockers for backend, FE, site gateway or private recovery.
+
+## Host gate and release preparation
+
+The full h2puni gate at `32ab8e0569c50958ac7c5436be16de249e96c061` passed 148 tasks but failed `wbs-mcp-01:test`: two processes could both fail opening an absent store when its creator lost the WAL setup lock and its peer refused the still-empty schema. A local two-process harness reproduced the race. The narrow MCP repair and its proofs are recorded in the existing organization-ownership-and-access verification artifact; the full gate must rerun on the repaired head. No full-gate success is claimed for 32ab8e.
+
+Private commit `deb8503523ddbacbb7dd456d8b832c3a689f35a1` contains exact copies of all four public website project trees at 32ab8e and the same pinned app dependencies. All scoped checks pass, and the preview images built on h2puni with the original media publication scan. They are not yet activated. The MCP repair changes no website project or app dependency, so the four tree receipts remain the source-equivalence check for the prepared release.
+
+Trusted-wiki admission remains blocked: the three repository activation variables are absent, and the retained d334 activation certifies only its older candidate. It has intact checksums and runtime, but no real external review record for this candidate was found in the inspected trust store. No authority, selection or certification record was manufactured or changed.
