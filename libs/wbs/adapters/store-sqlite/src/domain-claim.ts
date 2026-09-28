@@ -367,6 +367,14 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
               )
               .get();
             if (current === undefined) return 'not_found' as const;
+            // Proof: 2026-09-28, removing this check made mounted `surfaces pending
+            // proof fields corrupted during DNS lookup as a server error` answer
+            // 409 stale for a pending row whose digest and expiry became NULL.
+            if (
+              current.status === 'pending' &&
+              (current.challengeDigest === null || current.challengeExpiresAt === null)
+            )
+              throw new Error(`pending domain claim ${current.id} lacks challenge proof`);
             if (current.status === 'verified' && current.previousProofDigest !== null) {
               // Proof: 2026-09-28, omitting this branch made mounted `confirms a
               // rotated proof through verify before the overlap ends` answer stale.

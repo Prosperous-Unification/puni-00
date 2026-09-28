@@ -713,6 +713,29 @@ describe('mounted organization domain challenges', () => {
       await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
     ).toEqual({ status: 500, body: 'Internal Server Error' });
   });
+  it('surfaces pending proof fields corrupted during DNS lookup as a server error', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    beforeDnsReply = () => {
+      beforeDnsReply = undefined;
+      harness.sqlite.run(
+        'UPDATE organization_domain_claim SET challenge_digest = NULL, challenge_expires_at = NULL WHERE id = ?',
+        [issued.id],
+      );
+    };
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
+    ).toEqual({ status: 500, body: 'Internal Server Error' });
+    expect(
+      harness.sqlite
+        .query('SELECT status, proof_digest FROM organization_domain_claim WHERE id = ?')
+        .get(issued.id),
+    ).toEqual({ status: 'pending', proof_digest: null });
+  });
   it('verifies only an exact current TXT value and retains its digest', async () => {
     harness.activate();
     const issued = await harness.call('owner', 'POST', path, { domain: 'example.org' });
