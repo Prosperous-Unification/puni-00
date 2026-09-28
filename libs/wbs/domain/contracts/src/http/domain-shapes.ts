@@ -39,7 +39,7 @@ export const listOrganizationDomains = defineEndpointShape({
   ],
   refusals: [
     ...common,
-    { status: 400, schema: responseSchema(type({ error: "'invalid_query'" })) },
+    { status: 400, schema: responseSchema(type({ error: "'invalid_query' | 'invalid_body'" })) },
     { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
   ],
   document: { summary: 'List domain claims in the active organization.' },

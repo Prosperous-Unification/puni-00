@@ -183,7 +183,8 @@ function readVerifiedEmail(tx: Transaction, userId: string): OnboardingAnswer<Re
     .get();
   if (account === undefined) throw new Error(`signed-in user ${userId} is absent`);
   // Proof: 2026-09-28, ignoring verified=0 failed `requires durable verified
-  // email for creation` with a stored address that had no OIDC evidence.
+  // email for creation` and slice-29's password challenge test with a stored
+  // unverified address (2026-09-28).
   if (!account.verified || account.email === null)
     return { ok: false, refusal: 'email_verification_required' };
   const parts = account.email.split('@');

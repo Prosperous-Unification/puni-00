@@ -25,7 +25,7 @@ function classifyCredentials(failure: RequestFailure) {
 }
 
 /** The network peer appended by the trusted edge, never an attacker-controlled left-side value. */
-function clientIpOf(headers: Headers): string | null {
+export function clientIpOf(headers: Headers): string | null {
   const forwarded = headers
     .get('x-forwarded-for')
     ?.split(',')

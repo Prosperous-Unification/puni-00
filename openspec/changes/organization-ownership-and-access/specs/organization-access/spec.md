@@ -39,6 +39,14 @@ An authenticated WBS request SHALL carry exactly one server-validated active org
 - **WHEN** an administrator removes the membership and the user calls a protected A route
 - **THEN** be-01 answers 403 without waiting for token expiry
 
+#### Scenario: Native bearer context binds one current organization
+
+- **GIVEN** a native WBS session credential and a current membership in A
+- **WHEN** its holder posts `/api/auth/context` selecting A
+- **THEN** an enabled composition issues a WBS-signed, at-most-five-minute `wbs-be-01/direct` bearer with an explicit first-party identity and no upstream identity claims
+- **AND** a forged organization header or caller-supplied audience cannot change its authority; a foreign or removed membership receives typed 403, and an invalid or substituted credential receives typed 401
+- **AND** before activation, and in the production composition pending activation, issuance remains refused
+
 #### Scenario: Foreign project is indistinguishable from an absent one
 
 - **GIVEN** an active member of A and a project owned by B
