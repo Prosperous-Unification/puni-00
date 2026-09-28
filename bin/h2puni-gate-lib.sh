@@ -178,21 +178,19 @@ gate_with_pinned_head() {
   # gates a COMMIT; anything else in the tree is a caller error with a name
   # printed next to it. Raised by the peer review of 75408058 (TASK-328).
   #
-  # The tree is also the Docker build context. The legacy builder on h2puni copies
-  # file modes verbatim, and solver-image-smoke runs its caller container as the
-  # host uid against root-owned files, so a 0600 tsconfig.base.json there made bun
-  # lose every path alias and the orphan proof time out after 25 s with no cause
-  # logged (2026-09-27 23:17Z to 2026-09-28 02:05Z, after a caller with umask 077
-  # checked shas out here). The payload therefore fixes its own umask, and refuses
-  # with 66 when a tracked file or directory is still closed to other users, which
-  # only an out-of-gate checkout can leave behind because git never rewrites the
-  # mode of a file the pinned sha does not change. Refused rather than repaired,
-  # for the same reason as the dirty tree: the listing names the damage and the
-  # repair command, and nothing unattended edits the shared tree.
-  # Proof: h2puni-gate.test.sh case 37 (umask 077 caller) failed with the umask
-  # line removed; case 38 exited 0 and ran the steps over a 0600 file with the
-  # file half removed, and exited 0 over a 0700 directory with the directory half
-  # removed.
+  # The tree is also the Docker build context, and solver-image-smoke reads it as
+  # the host uid through root-owned image files, so every tracked path must stay
+  # readable by other users. The payload fixes its own umask, which covers every
+  # path a checkout rewrites, and exits 66 naming tracked paths still closed to
+  # other users, which only an out-of-gate checkout can leave behind. The repair
+  # is opt-in, `H2PUNI_GATE_REPAIR_MODES=1`, so it runs under this same lock on
+  # the pinned tree and widens only tracked regular files and directories. See
+  # openspec/changes/gate-readable-checkout.
+  # Proof: h2puni-gate.test.sh case 37 failed with the umask line removed; case 38
+  # exited 0 over a 0600 file with the file scan removed and over a 0700
+  # directory with the directory scan removed; case 39 exited 0 and ran the steps
+  # when a failing file scan was folded into one substitution with the directory
+  # scan; case 40 exited 66 with the repair branch removed.
   with_heavy_lock "$lock_path" -- bash -c '
     set -euo pipefail
     repo=$1
@@ -275,16 +273,27 @@ EOF
       list_bounded "$dirty"
       exit 65
     fi
-    unreadable=$(
+    if [[ ${H2PUNI_GATE_REPAIR_MODES:-} == 1 ]]; then
+      (
+        cd "$repo"
+        git ls-tree -r -t -z --name-only HEAD |
+          xargs -0 -r sh -c "find -P \"\$@\" -maxdepth 0 \( -type f -o -type d \) -exec chmod go+rX {} +" repair-modes
+      )
+    fi
+    unreadable_files=$(
       cd "$repo"
       git ls-tree -r -z --name-only HEAD |
         xargs -0 -r sh -c "find -P \"\$@\" -maxdepth 0 -type f ! -perm -0004 -print" find-unreadable-files
+    )
+    closed_directories=$(
+      cd "$repo"
       git ls-tree -r -d -z --name-only HEAD |
         xargs -0 -r sh -c "find -P \"\$@\" -maxdepth 0 -type d ! -perm -0005 -print" find-closed-directories
     )
-    if [[ -n $unreadable ]]; then
-      printf "h2puni gate: %s has tracked paths other users cannot read after checking out %s; containers that run as the host uid would not see them. Repair with: git -C %s ls-tree -r -t -z --name-only HEAD | xargs -0 chmod go+rX\n" "$repo" "$pinned" "$repo" >&2
-      list_bounded "$unreadable"
+    if [[ -n $unreadable_files || -n $closed_directories ]]; then
+      printf "h2puni gate: %s has tracked paths other users cannot read after checking out %s; containers that run as the host uid would not see them. Rerun as H2PUNI_GATE_REPAIR_MODES=1 bin/h2puni-gate.sh %s to widen them under the lock:\n" "$repo" "$pinned" "$pinned" >&2
+      if [[ -n $unreadable_files ]]; then list_bounded "$unreadable_files"; fi
+      if [[ -n $closed_directories ]]; then list_bounded "$closed_directories"; fi
       exit 66
     fi
     printf "h2puni gate: running on %s\n" "$(git -C "$repo" rev-parse HEAD)" >&2

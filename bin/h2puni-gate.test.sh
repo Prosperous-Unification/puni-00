@@ -821,6 +821,53 @@ expect_status 66 "$status" 'a tracked directory closed to other users is refused
 if grep -q '^  sub$' "$scratch/closed-dir-stderr"; then pass 'the refusal names the closed directory'; else fail 'the refusal did not name the closed directory'; fi
 chmod 0755 "$perm_repo/sub"
 
+# 39. A scan that fails is a gate failure, not an empty listing. Only the file scan is broken
+# here, because a later scan that succeeds is what would hide it if both shared one substitution.
+shim_dir="$scratch/find-shim"
+mkdir -p "$shim_dir"
+real_find=$(command -v find)
+cat >"$shim_dir/find" <<SHIM
+#!/usr/bin/env bash
+for arg in "\$@"; do
+  if [[ \$arg == -type ]]; then next_is_type=1; continue; fi
+  if [[ \${next_is_type:-} == 1 && \$arg == f ]]; then exit 42; fi
+  next_is_type=
+done
+exec "$real_find" "\$@"
+SHIM
+chmod 0755 "$shim_dir/find"
+git -C "$perm_repo" checkout -q main
+status=0
+# shellcheck disable=SC2016 # Single quotes are the point: see case 1.
+PATH="$shim_dir:$PATH" run_gate "$perm_repo" "$lock" "$perm_c" bash -c 'echo ran >"$0"' "$scratch/ran-failed-scan" 2>/dev/null || status=$?
+# 123 is the xargs status for a command that exited 1-125.
+# Proof: folding both scans into one substitution was watched exiting 0 here and running the steps.
+expect_status 123 "$status" 'a failing file scan fails the gate'
+if [[ -e $scratch/ran-failed-scan ]]; then fail 'the steps ran after a failed scan'; else pass 'the steps never ran after a failed scan'; fi
+expect_equal main "$(git -C "$perm_repo" symbolic-ref --short HEAD 2>/dev/null)" 'a failed scan restores the pre-gate branch'
+
+# 40. The opt-in repair widens tracked regular files and directories under the lock, then lets the
+# steps run; it never follows a tracked symlink out of the tree.
+outside="$scratch/outside-secret"
+printf 'secret\n' >"$outside"
+chmod 0600 "$outside"
+git -C "$perm_repo" checkout -q --detach "$perm_c"
+ln -s "$outside" "$perm_repo/link"
+git -C "$perm_repo" add link
+git -C "$perm_repo" commit -qm link
+perm_d=$(git -C "$perm_repo" rev-parse HEAD)
+chmod 0600 "$perm_repo/f"
+chmod 0700 "$perm_repo/sub"
+status=0
+# shellcheck disable=SC2016 # Single quotes are the point: see case 1.
+H2PUNI_GATE_REPAIR_MODES=1 run_gate "$perm_repo" "$lock" "$perm_d" bash -c 'echo ran >"$0"' "$scratch/ran-repaired" 2>/dev/null || status=$?
+# Proof: removing the repair branch from h2puni-gate-lib.sh was watched failing here with exit 66.
+expect_status 0 "$status" 'the opt-in repair lets the gate run'
+if [[ -e $scratch/ran-repaired ]]; then pass 'the steps ran after the repair'; else fail 'the steps did not run after the repair'; fi
+expect_equal f "$(cd "$perm_repo" && find f -perm -0004)" 'the repair widened the tracked file'
+expect_equal sub "$(cd "$perm_repo" && find sub -maxdepth 0 -perm -0005)" 'the repair opened the tracked directory'
+expect_equal '' "$(find "$outside" -perm -0004)" 'the repair did not follow a tracked symlink out of the tree'
+
 if ((failures)); then
   printf '\n%d failing case(s)\n' "$failures" >&2
   exit 1
