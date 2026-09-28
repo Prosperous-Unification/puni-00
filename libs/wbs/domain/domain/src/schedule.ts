@@ -1974,7 +1974,11 @@ function rebuildResourceOrder(
   return edges;
 }
 
-/** Place weighted DAG nodes; pins materialize in plan order, then resources replay in actual time. */
+/**
+ * Place weighted DAG nodes; pins materialize in plan order, then resources replay in actual time.
+ * A pin must meet its explicit floor and the dependency's materialized boundary;
+ * nominal weighted sums can round above a valid fractional FF pin.
+ */
 function placeWeightedSlices(
   graph: SliceGraph,
   edges: readonly WeightedEdge[],
@@ -2005,15 +2009,21 @@ function placeWeightedSlices(
   for (let taken = eligible.take(); taken !== undefined; taken = eligible.take()) {
     const node = nodes[taken];
     const duration = durationOf(node.slice);
-    let floor = node.notBefore;
+    const explicitFloor = Math.max(0, node.notBefore);
+    let floor = explicitFloor;
     for (const edge of incoming[taken])
       floor = Math.max(floor, placed[edge.before].start + edge.weight);
-    floor = Math.max(0, floor);
     let start = pinned === undefined ? floor : pinned[taken];
-    if (pinned !== undefined && (!Number.isFinite(start) || start < floor)) {
+    // Proof: removing the finite check let NaN and Infinity pins return plans
+    // (1 pass / 2 fail); removing the explicit-floor check accepted B at 1
+    // despite its floor at 2 (0 pass / 1 fail). Restoring the nominal weighted
+    // comparison refused a valid FF replay at 1.6666666666666665 (0 pass / 1
+    // fail); both materialized finishes were 2.6666666666666665. Watched
+    // 2026-09-28 through schedule().
+    if (pinned !== undefined && (!Number.isFinite(start) || start < explicitFloor)) {
       throw new ScheduleInvalidOptimizedStartError(
         node.key,
-        'violates a weighted predecessor or floor',
+        'violates a weighted floor or has a non-finite start',
       );
     }
     let tiled: ReturnType<typeof tileFinish> | undefined;

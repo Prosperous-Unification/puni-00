@@ -70,4 +70,18 @@ Verification after restoring the faults:
 - `bunx @fission-ai/openspec@1.12.0 validate --all --json`: exit 0, 139 items passed, 0 failed; informational archive warnings remain.
 - The requested repository-root `env -u CLAUDECODE bun test libs/wbs/domain/domain libs/wbs/domain/contracts/solver libs/wbs/application/core` exited 1: 2,529 pass, 102 fail, 85 errors. It also collected generated `dist/out-tsc` tests that cannot resolve workspace aliases and unrelated root-sensitive tests. The project-root source runs above are the applicable source checks.
 
-The h2puni gate was not run: its SHA checkout would test a committed tree, while these changes must remain uncommitted. No commit or Git metadata write was attempted. Mounted DB tests and the full gate remain unverified in this review fix.
+At that review checkpoint, mounted DB tests, build, and the h2puni gate remained unverified.
+
+## 2026-09-28 fractional replay and read-contract review fixes
+
+Weighted Fast replay now checks finite pins and explicit floors before tiling, then checks FS/SS/FF dependencies against materialized boundaries. A two-step A beginning at day 2 with two `1/3`-day steps and a one-day FF successor B pinned at `1.6666666666666665` replays with both finishes at `2.6666666666666665`. The new regression failed before the fix at the nominal weighted floor (18 pass / 1 fail) and passed after it (19 pass / 0 fail). The all-FS Fast golden corpus reproduced every stored schedule value in the domain run.
+
+The SQLite read tests now accept stored SS and FF, and inject unsupported `SF` past the SQLite check constraint to test read and bulk-removal refusals. The rollback restore test was also updated: SS/FF restore and remain readable, while `SF` is refused atomically. Before correction, the repository suite had two stale SS refusal failures (7 pass / 2 fail), and the first full mounted store run had the stale rollback refusal (1,032 pass / 1 fail).
+
+Observed fault injections, each restored:
+
+- Removing `Number.isFinite(start)` made the `schedule()` non-finite pin cases fail for NaN and Infinity (1 pass / 2 fail); removing the explicit-floor comparison accepted B at day 1 below its day-2 floor (0 pass / 1 fail). Reinstating the nominal weighted comparison rejected the valid fractional FF replay (0 pass / 1 fail). The adjacent `Proof:` is at the weighted pin guard.
+- Bypassing `isRelationshipType` returned an injected `SF` row from `listByProject` (0 pass / 1 fail); masking `SF` as FS during bulk removal let removal succeed (0 pass / 1 fail). The adjacent `Proof:` comments are at the repository reads.
+- Masking saved `SF` as FS during rollback restore moved the refusal to SQLite's insert constraint, so the `unknown relationship type` assertion failed (0 pass / 1 fail). The adjacent `Proof:` is at the rollback read.
+
+Verification: repo-root `env -u CLAUDECODE bun test libs/wbs/domain/domain` reported 772 pass / 0 fail and 39,423 expectations; `env -u CLAUDECODE bun test libs/wbs/domain/contracts/solver` reported 274 pass / 0 fail and 604 expectations. With ignored generated `dist/out-tsc` removed, repo-root `env -u CLAUDECODE bun test libs/wbs/adapters/store-sqlite --timeout=30000` reported 1,034 pass / 0 fail and 9,702 expectations across 77 files. The same command with Bun's default five-second timeout reported 1,033 pass / 1 timeout in a saved-plan conformance case that took 7.8 seconds. An earlier root run also collected generated `dist/out-tsc` tests and failed because they could not resolve workspace aliases or migration paths. `bunx @fission-ai/openspec@1.12.0 validate --all --json` reported 139 passed / 0 failed. The `wbs-domain`, `wbs-contracts`, and `wbs-store-sqlite` `lint:fast` and `typecheck` targets each exited 0. Prettier check over the touched files exited 0. Build and the h2puni gate were not run.
