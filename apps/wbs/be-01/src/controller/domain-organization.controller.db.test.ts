@@ -171,6 +171,17 @@ describe('mounted organization domain challenges', () => {
     });
   });
 
+  it('refuses a domain whose complete TXT challenge hostname exceeds DNS length', async () => {
+    harness.activate();
+    const domain = `${'a'.repeat(57)}.${'b'.repeat(60)}.${'c'.repeat(60)}.${'d'.repeat(60)}.com`;
+    expect(domain).toHaveLength(244);
+    expect(await harness.call('owner', 'POST', path, { domain })).toEqual({
+      status: 400,
+      body: { error: 'invalid_domain' },
+    });
+    expect(harness.sqlite.query('SELECT id FROM organization_domain_claim').all()).toEqual([]);
+  });
+
   it('honors a checked suffix override beyond the pinned PSL', async () => {
     harness.activate();
     const directory = policyDirectory;
