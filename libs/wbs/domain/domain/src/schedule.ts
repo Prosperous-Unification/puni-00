@@ -2014,8 +2014,9 @@ function placeWeightedSlices(
     for (const edge of incoming[taken])
       floor = Math.max(floor, placed[edge.before].start + edge.weight);
     let start = pinned === undefined ? floor : pinned[taken];
-    // Proof: removing the finite check let NaN and Infinity pins return plans
-    // (1 pass / 2 fail); removing the explicit-floor check accepted B at 1
+    // Proof: removing the finite check let an Infinity pin return a plan and
+    // made a NaN pin throw `weighted boundary did not converge` instead of the
+    // named refusal (1 pass / 2 fail); removing the explicit-floor check accepted B at 1
     // despite its floor at 2 (0 pass / 1 fail). Restoring the nominal weighted
     // comparison refused a valid FF replay at 1.6666666666666665 (0 pass / 1
     // fail); both materialized finishes were 2.6666666666666665. Watched
