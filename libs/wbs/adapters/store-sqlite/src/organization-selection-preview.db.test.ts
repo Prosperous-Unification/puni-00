@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { sql } from 'drizzle-orm';
 
 import { openDatabase, openReadOnlyConnection } from './db';
 import { runMigrations } from './migrate';
@@ -110,5 +111,31 @@ describe('previewOrganizationSelection', () => {
       db.close();
     }
     expect(() => preview()).toThrow('malformed role');
+  });
+
+  it('fails on a membership of a missing user or organization', () => {
+    for (const statement of [
+      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'u-gone', 'member', 1)",
+      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-gone', 'u-one', 'member', 1)",
+    ]) {
+      const db = openDatabase(path);
+      try {
+        db.run('PRAGMA foreign_keys = OFF');
+        db.run('DELETE FROM organization_membership WHERE user_id IN (?, ?)', ['u-gone', 'u-one']);
+        db.run(statement);
+      } finally {
+        db.close();
+      }
+      expect(() => preview()).toThrow('names a missing user or organization');
+    }
+  });
+
+  it('refuses every write through the read-only connection', () => {
+    const connection = openReadOnlyConnection(path);
+    try {
+      expect(() => connection.db.run(sql`DELETE FROM organization_membership`)).toThrow();
+    } finally {
+      connection.close();
+    }
   });
 });

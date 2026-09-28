@@ -237,6 +237,9 @@ export function drizzleReadTransaction(db: Drizzle): {
  * throws.
  */
 export function openReadOnlyConnection(dbPath: string): Connection {
+  // Proof: opening without `readonly` made `refuses every write through the
+  // read-only connection` in `organization-selection-preview.db.test.ts`
+  // delete the memberships; watched 2026-09-28.
   const client = new Database(dbPath, { readonly: true, create: false });
   client.run(`PRAGMA busy_timeout = ${String(BUSY_TIMEOUT_MS)};`);
   return {

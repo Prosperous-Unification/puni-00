@@ -463,8 +463,15 @@ Branch `batch-9/010-5-2-orgs-15` (same PR as slice 16), a read-only dry run with
 | ------------------------------ | ------------------------- | --------------------------------------------------------------------------------------------------------- |
 | Stored roles validated         | every role accepted       | `fails on a malformed membership role`: no throw                                                          |
 | No membership means onboarding | onboarding never answered | `reports zero, one and several memberships, choosing for nobody`: `selection_required` with no candidates |
+| Membership references checked  | reference check skipped   | `fails on a membership of a missing user or organization`: reported                                       |
+| Read-only connection           | `readonly` dropped        | `refuses every write through the read-only connection`: the DELETE ran                                    |
 
 The file is left byte for byte as it was (`leaves the database file byte for byte as it was`), and the CLI fails without a database (`migration-cli.db.test.ts`).
+
+Astra review 1 raised 2 Important findings, both fixed: the references are now checked, and the read-only refusal is proven. Its 2 Minor findings were handled as follows:
+
+- The spec scenario is added.
+- The CLI header is kept. It follows the invocation comment on every sibling deploy CLI (`migrate-status-cli.ts`, `migrate-down-cli.ts`, `backfill-step-codes-cli.ts`), and a runbook entry belongs with the task 1.1 dry run.
 
 ## Pending gate output
 
