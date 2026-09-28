@@ -1,3 +1,4 @@
+import type { MembershipAdministration } from '../ports/membership-administration';
 import type { OrganizationAccess } from '../ports/organization-access';
 
 /**
@@ -8,4 +9,14 @@ import type { OrganizationAccess } from '../ports/organization-access';
  */
 export const legacyOrganizationAccess: OrganizationAccess = {
   resolve: () => Promise.resolve({ ok: true, access: { kind: 'legacy' } }),
+};
+
+/**
+ * Membership administration for suites that are not about organizations. The
+ * routes never reach it before activation, and these suites never activate,
+ * so a call is a wiring fault and throws.
+ */
+export const refusingMemberships: MembershipAdministration = {
+  administer: () =>
+    Promise.reject(new Error('membership administration was reached in a pre-activation suite')),
 };

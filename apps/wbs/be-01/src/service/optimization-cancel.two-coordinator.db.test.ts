@@ -151,7 +151,7 @@ describe('cross-coordinator cancellation', () => {
       expect(bindSolverSlot(blue, { ...slot, pid: child.pid })).toBe(true);
       const heartbeat = heartbeatGate();
       const lifecycle = runSolverChildLifecycle({
-        slots: createOptimizationRepository(blue, new DrizzleEventLogStore(blue, OPEN)),
+        slots: createOptimizationRepository(blue, new DrizzleEventLogStore(blue, OPEN), OPEN),
         slot,
         child,
         now: () => 50,
@@ -231,7 +231,7 @@ describe('cross-coordinator cancellation', () => {
     }[] = [];
     const errors: unknown[] = [];
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(blue, new DrizzleEventLogStore(blue, OPEN)),
+      repository: createOptimizationRepository(blue, new DrizzleEventLogStore(blue, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',

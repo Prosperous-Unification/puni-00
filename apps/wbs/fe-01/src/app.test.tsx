@@ -51,6 +51,12 @@ vi.mock('@/lib/api', async (importOriginal) => ({
   login,
 }));
 
+// The onboarding boundary has its own request-state suite. Existing session
+// lifecycle tests keep exercising the signed-in region under an inactive gate.
+vi.mock('@/components/onboarding/onboarding-screen', () => ({
+  OnboardingScreen: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 const { App, SignedInApp } = await import('./app');
 
 /**

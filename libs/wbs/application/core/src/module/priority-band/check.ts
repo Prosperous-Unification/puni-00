@@ -26,6 +26,9 @@ export function installPriorityBand(requirements: PriorityBandRequirements): Pri
       broadcast: DiBag.createProvider(() => requirements.broadcast, {
         factoryReturnKind: 'sync-value',
       }),
+      editAdmission: DiBag.createProvider(() => requirements.admission, {
+        factoryReturnKind: 'sync-value',
+      }),
       clock: DiBag.createProvider(() => requirements.clock, { factoryReturnKind: 'sync-value' }),
     })
     .buildContainer();

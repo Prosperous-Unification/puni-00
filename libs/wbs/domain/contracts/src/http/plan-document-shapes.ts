@@ -27,7 +27,13 @@ const planSettings = type({
   pertWeights: { optimistic: 'number', realistic: 'number', pessimistic: 'number' },
   estimateRounding: "'exact' | 'floor' | 'round' | 'ceil'",
   startDate: 'string | null',
-  solutionRef: type({ slug: 'string', url: 'string' }).or('null'),
+  // Non-empty, as a PATCH requires: a scoped import stores the link under
+  // `project_solution`'s length checks.
+  // Proof: accepting empty strings made `refuses an empty solution slug or url
+  // as input, importing nothing` in
+  // `import-export-organization.controller.db.test.ts` answer 500 instead of
+  // 400; watched 2026-09-28.
+  solutionRef: type({ slug: 'string > 0', url: 'string > 0' }).or('null'),
   optimizationEnabled: 'boolean',
   scheduleEngine: "'fast' | 'optimized'",
   scheduleObjective: "'pri' | 'time'",

@@ -29,6 +29,9 @@ export function installCalendarMarker(
       broadcast: DiBag.createProvider(() => requirements.broadcast, {
         factoryReturnKind: 'sync-value',
       }),
+      recoveryAdmission: DiBag.createProvider(() => requirements.recoveryAdmission, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
     .buildContainer();
   // Proof (2026-09-24): returning a structurally assignable `exposed` object with `bag` left the

@@ -5,6 +5,7 @@ import { DiBag } from 'di-bag';
 
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Scope } from '../../ports/unit-of-work';
@@ -31,7 +32,12 @@ async function seeded() {
   let next = 0;
   const clock = clockOf({ now: () => 2, newId: () => `item-${String(++next)}` });
   const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-    servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+    servicesOver(stores, {
+      admission: CREATOR_ADMISSION,
+      clock,
+      broadcast,
+      scheduler: fastScheduler,
+    });
   const announcements = recordingBroadcaster();
   const handed: Broadcaster[] = [];
   return {
@@ -53,7 +59,12 @@ const hostRequirements = () => {
   const source = openMemorySource();
   const clock = clockOf({ now: () => 0, newId: () => 'unused' });
   const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-    servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+    servicesOver(stores, {
+      admission: CREATOR_ADMISSION,
+      clock,
+      broadcast,
+      scheduler: fastScheduler,
+    });
   return {
     batchServices: DiBag.createProvider(
       () => (scope: Scope, broadcast: Broadcaster) => graphOver(scope.stores, broadcast),
@@ -184,7 +195,12 @@ describe('a step allowance edit over the memory source', () => {
     );
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
     const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const { commands } = installPlanCommands({
       batchServices: (scope: Scope, broadcast: Broadcaster) => graphOver(scope.stores, broadcast),
       publicServices: graphOver(source.stores, recordingBroadcaster()),

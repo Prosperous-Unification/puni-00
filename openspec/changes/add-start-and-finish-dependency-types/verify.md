@@ -73,7 +73,7 @@ The full Nx gate, host gate, build, CP-SAT wire, command/import SS/FF writes and
 
 ## 2026-09-28 solver-wire slice (groups 5, 6, 10)
 
-Wire v2 carries FS/SS/FF edges and FF's signed `startWeightUnits`. The one Bun derivation uses the maximum of integer finish difference and conservative real-duration ceiling in Q=48 units. CP-SAT enforces the corresponding typed inequalities. The Bun revalidator checks the wire edge set against the canonical graph and recomputes FF weights from canonical slices before it accepts any response status. Fast and optimized publication share a real-boundary validator. A rounded Fast baseline that misses the strengthened FF bound is replaced by a serial topological placement; Python installs its hint and stage-1 bound only after a pinned-start model proves that placement satisfies all active constraints, including deadlines. Stage-1 integer infeasibility is now `no-solution` for the fractional plan, so it does not create a persistent real-plan infeasibility certificate. The scheduler contract remains 14 from the Fast slice, and a type edit changes the canonical input hash. The review fix below advances the Python solver version to 0.1.4 to retire the previous cache key. The v2 schema copy matches the normative schema byte for byte (`cmp`, exit 0).
+Wire v2 carries FS/SS/FF edges and FF's signed `startWeightUnits`. The one Bun derivation uses the maximum of integer finish difference and conservative real-duration ceiling in Q=48 units. CP-SAT enforces the corresponding typed inequalities. The Bun revalidator checks the wire edge set against the canonical graph and recomputes FF weights from canonical slices before it accepts any response status. Fast and optimized publication share a real-boundary validator. A rounded Fast baseline that misses the strengthened FF bound is replaced by a serial topological placement; Python installs its hint and stage-1 bound only after a pinned-start model proves that placement satisfies all active constraints, including deadlines. The scheduler contract remains 14 from the Fast slice, and a type edit changes the canonical input hash. The review fix below advances the Python solver version to 0.1.4 to retire the previous cache key. The v2 schema copy matches the normative schema byte for byte (`cmp`, exit 0).
 
 Final observed scoped checks:
 
@@ -87,19 +87,18 @@ Final observed scoped checks:
 
 Observed fault injections, all restored with adjacent `Proof:` comments:
 
-| Removed or damaged production check                      | Observed negative                                                                                                            |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Return only `D_a-D_b` as FF weight                       | Contracts focused run: 56 pass / 2 fail; baseline put B at 0 instead of at least 1 and forged zero weight was accepted.      |
-| Bypass FF canonical weight comparison                    | Forged 0.030/0.021 request was accepted as `published:false` instead of `malformed-request`; revalidation: 47 pass / 1 fail. |
-| Bypass Bun edge type and misplaced-weight guards         | Unsupported SF and weighted SS edges were accepted; revalidation: 47 pass / 2 fail.                                          |
-| Bypass canonical edge-set comparison                     | Omitted SS edge was accepted; revalidation file: 47 pass / 1 fail, expected false, received true.                            |
-| Replace SS boundary check with false                     | Response with A start 1, B start 0 was accepted; revalidation file: 44 pass / 1 fail.                                        |
-| Drop Python SS or FF weight constraint                   | Each model golden changed from `INFEASIBLE` to `OPTIMAL`.                                                                    |
-| Install Python hints without feasible-baseline probe     | Hint count changed from `[0, 0, 0, 0]` to `[0, 2, 2, 2]`.                                                                    |
-| Disable materialized FF real-boundary comparison         | Domain publication test failed with `Received function did not throw`; 6 pass / 1 fail.                                      |
-| Remove relationship type from canonical hash             | Focused cache test failed: FS and FF canonical strings became equal (0 pass / 1 fail).                                       |
-| Certify integer infeasibility as real-plan infeasibility | Quantized-only 49-step case failed its expected `no-solution` outcome (0 pass / 1 fail).                                     |
-| Short-circuit on Fast's deadline miss                    | Feasible alternate resource order failed to publish (0 pass / 1 fail).                                                       |
+| Removed or damaged production check                  | Observed negative                                                                                                            |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Return only `D_a-D_b` as FF weight                   | Contracts focused run: 56 pass / 2 fail; baseline put B at 0 instead of at least 1 and forged zero weight was accepted.      |
+| Bypass FF canonical weight comparison                | Forged 0.030/0.021 request was accepted as `published:false` instead of `malformed-request`; revalidation: 47 pass / 1 fail. |
+| Bypass Bun edge type and misplaced-weight guards     | Unsupported SF and weighted SS edges were accepted; revalidation: 47 pass / 2 fail.                                          |
+| Bypass canonical edge-set comparison                 | Omitted SS edge was accepted; revalidation file: 47 pass / 1 fail, expected false, received true.                            |
+| Replace SS boundary check with false                 | Response with A start 1, B start 0 was accepted; revalidation file: 44 pass / 1 fail.                                        |
+| Drop Python SS or FF weight constraint               | Each model golden changed from `INFEASIBLE` to `OPTIMAL`.                                                                    |
+| Install Python hints without feasible-baseline probe | Hint count changed from `[0, 0, 0, 0]` to `[0, 2, 2, 2]`.                                                                    |
+| Disable materialized FF real-boundary comparison     | Domain publication test failed with `Received function did not throw`; 6 pass / 1 fail.                                      |
+| Remove relationship type from canonical hash         | Focused cache test failed: FS and FF canonical strings became equal (0 pass / 1 fail).                                       |
+| Short-circuit on Fast's deadline miss                | Feasible alternate resource order failed to publish (0 pass / 1 fail).                                                       |
 
 The full be-01 suite was attempted earlier in this slice: 1288 pass, 1 skip, 36 fail. Most failures were sandbox `EPERM` on socket listeners; one spawn-handshake test timed out. Two stale contract-version expectations were corrected afterward and their 10-test file passed; the full suite was not rerun. The host gate, full Nx gate and build were not run: the user explicitly excluded the full gate and prohibited commits, while this worktree's Git metadata is read-only. Other OpenSpec groups remain pending.
 
@@ -243,3 +242,9 @@ The Playwright Gantt spec's typed-chip selectors were updated and e2e was not ru
 - Collision proof: replacing the typed-route `isClear(route)` guard with unconditional acceptance made the focused FF unknown-QA regression fail because the returned route crossed `B-dev` (1 failed / 1 passed; 158 skipped). The guard was restored; its adjacent `Proof:` comment names the fault and failure.
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/codex-nx-ssff bunx nx run wbs-fe-01:lint:fast --skip-nx-cache --output-style=static`: target succeeded, exit 0. The same command for `wbs-fe-01:typecheck` succeeded with its module dependency, exit 0.
 - `bunx prettier --check` on the four touched frontend files and this verify file: exit 0. `git diff --check`: exit 0. The h2puni gate, build, full frontend suite, and browser/assistive-technology checks were not run.
+
+## 2026-09-28 integration with main round 24
+
+- Main's retry refusal for `plan-infeasible` rows (8.7d) conflicted with this slice's mapping of an infeasible CP-SAT verdict to `failed`/`no-solution`. The plan-infeasible certificate is restored. It is CP-SAT's verdict at the solver quantum (Q = 48, durations rounded up, FF start weights strengthened), documented as such on `evaluateSolverOutcome`, and not an unrestricted proof about fractional workdays. The cache retirement of old certificates still comes from the solver 0.1.4 key.
+- `solver-exit-outcome.test.ts` keeps main's certificate cases (wire v2 responses) and this slice's feasible-order publication case. From `apps/wbs/be-01`, `env -u CLAUDECODE bun test src/service`: 461 pass, 0 fail.
+- CI's solver-image smoke failed with `request wireVersion is not 1`. The host supervisor's start-frame decoder admitted only v1; it now admits v1 and v2 (`SOLVER_REQUEST_WIRE_VERSIONS`), because the host supervisor outlives either backend colour during a swap. Before the fix, the red test gave 6 pass / 4 fail on that message.

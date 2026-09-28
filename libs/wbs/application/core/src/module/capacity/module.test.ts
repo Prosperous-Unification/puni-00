@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { installCapacity } from './check';
 import { CAPACITY_LABEL } from './contract';
@@ -29,6 +30,7 @@ async function seeded() {
       capacity: source.stores.capacity,
       clock: clockOf({ now: () => 2, newId: () => 'unused' }),
       broadcast,
+      admission: CREATOR_ADMISSION,
     },
   };
 }
@@ -43,6 +45,9 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
+      factoryReturnKind: 'sync-value',
+    }),
+    editAdmission: DiBag.createProvider(() => CREATOR_ADMISSION, {
       factoryReturnKind: 'sync-value',
     }),
   };
@@ -78,6 +83,19 @@ describe('the Capacity module', () => {
     expect(broadcast.published).toEqual([
       { projectId: PROJECT, event: { type: 'capacity_changed' } },
     ]);
+  });
+
+  // Proof: handing the resource `{ admits: () => true }` instead of the
+  // supplied admission made this test receive `ok: true` (5 pass, 1 fail);
+  // watched 2026-09-28.
+  it('asks the admission installCapacity wires before a capacity write', async () => {
+    const { broadcast, requirements } = await seeded();
+    const { capacity } = installCapacity({ ...requirements, admission: { admits: () => false } });
+
+    const written = await capacity.set(PROJECT, OWNER, TEAM, 3);
+
+    expect(written).toEqual({ ok: false, reason: 'forbidden' });
+    expect(broadcast.published).toEqual([]);
   });
 
   /**

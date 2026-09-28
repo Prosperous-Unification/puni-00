@@ -16,6 +16,13 @@ Every project, directory person, team, service, tag, type, external system and s
 - **WHEN** both create a tag with the same name
 - **THEN** both tags exist and remain visible only in their owning organization
 
+#### Scenario: Solution slugs per organization
+
+- **GIVEN** a project in organization B linked to solution slug `s`
+- **WHEN** a writer in organization A links an A project to `s`
+- **THEN** the link is stored and the solution lookup answers each organization with its own project
+- **AND** a second A project linking `s` is refused with `409 solution_taken`, while a viewer or a foreign project is refused before any collision is judged
+
 ### Requirement: Active organization and current membership govern every route
 
 An authenticated WBS request SHALL carry exactly one server-validated active organization, selected from current memberships. A browser SHALL offer an organization switcher and clear or refetch organization-scoped state on switch. A user with no membership SHALL see onboarding without access to WBS resources. be-01 SHALL enforce organization and action permission on every protected route, including list, detail, mutation, export, import, history, scheduling, generated MCP tool and internal gateway routes. Missing or invalid credentials SHALL answer typed 401; absent or revoked membership and disallowed action SHALL answer typed 403; a foreign organization's resource SHALL answer typed 404 without exposing its existence. Missing or malformed trusted authorization state SHALL fail as a server error rather than grant access.
@@ -37,6 +44,13 @@ An authenticated WBS request SHALL carry exactly one server-validated active org
 - **GIVEN** an active member of A and a project owned by B
 - **WHEN** the member reads, exports, opens, edits or retries that project by its id
 - **THEN** be-01 answers the same typed 404 it answers for an id that names no project, and changes nothing
+
+#### Scenario: Gateway project access check
+
+- **GIVEN** a gateway bearer bound to organization A and a service credential
+- **WHEN** the gateway posts `/internal/gateway/projects/:projectId/access` for an A project
+- **THEN** be-01 requires both credentials, the gateway audience, read scope and current membership, and answers 204 without granting a lease
+- **AND** a foreign B project and an absent project answer identical 404s; context headers do not select the organization
 
 #### Scenario: Organization-unaware behaviour until activation
 
@@ -77,6 +91,30 @@ WBS SHALL enforce the role matrix below against current membership; Auth0 groups
 
 #### Scenario: Restricted project recovery
 
-- **GIVEN** a restricted project whose creator is no longer a member
-- **WHEN** a super-admin edits it
-- **THEN** the edit succeeds and the original creator remains recorded
+- **GIVEN** a restricted project created by someone else, whether or not that creator is still a member
+- **WHEN** a super-admin edits it, including clearing its restriction
+- **THEN** the edit succeeds, the original creator remains recorded, and one audit record naming the super-admin, the project and the edited fields is written in the same transaction
+
+#### Scenario: Recovery audit cannot be written
+
+- **GIVEN** a super-admin's recovery edit of a restricted project
+- **WHEN** its audit record cannot be written
+- **THEN** the edit is rolled back and nothing is changed
+
+#### Scenario: Recovery through a command batch or an undo or redo
+
+- **GIVEN** a restricted project created by someone else
+- **WHEN** a super-admin applies a command batch to it, or undoes or redoes one of their own commands in it
+- **THEN** the batch or walk succeeds with the creator still recorded, and exactly one audit record naming the super-admin, the project and the command kinds or the journal direction is written in the same transaction
+- **AND** a batch or walk that fails at any point, or is refused, leaves no audit record and no partial effect
+- **AND** no other actor, project or later request can use that recovery authority
+
+#### Scenario: Recovery through dependent project writes and optimizer Retry
+
+- **GIVEN** a restricted project created by someone else, and a current super-admin of its organization
+- **WHEN** that super-admin adds, renames or removes a step; creates, renames, recolors or removes a calendar marker; saves, renames or deletes a saved plan; or retries a failed optimization
+- **THEN** each successful operation writes exactly one audit record naming the actor, organization, project and operation in the same transaction as the write, and retains the project's creator
+- **AND** a failed, refused or non-retryable operation writes no recovery record and publishes nothing; audit insertion failure rolls the write back and publishes nothing
+- **AND** an ordinary creator write writes no recovery record, a non-creator member or admin and a viewer creator are refused, a foreign project answers 404, and a removed super-admin is refused
+- **AND** a recovered saved-plan rename or delete may touch another author's plan of that restricted project, while ordinary touches retain the author-or-project-creator rule
+- **AND** before activation these routes retain their legacy permissions and behavior

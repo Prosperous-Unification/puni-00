@@ -1,3 +1,4 @@
+import type { AuthenticatedUser } from '@wbs/contracts';
 import {
   canEditProject,
   canEditProjectInOrganization,
@@ -43,8 +44,16 @@ export type OrganizationAccessResolution =
  * malformed. That is a server fault and never a reason to answer `legacy`.
  */
 export interface OrganizationAccess {
-  resolve(userId: string): Promise<OrganizationAccessResolution>;
+  /**
+   * The access `principal` has for this request. After activation a verified
+   * delegation's organization is the one checked; otherwise the
+   * session's bound organization. Current membership is rechecked either way.
+   */
+  resolve(principal: OrganizationPrincipal): Promise<OrganizationAccessResolution>;
 }
+
+/** What {@link OrganizationAccess.resolve} reads of a principal. */
+export type OrganizationPrincipal = Pick<AuthenticatedUser, 'id' | 'delegation'>;
 
 /** The access every unscoped method uses: deployment-wide, as before organizations. */
 export const LEGACY_ACCESS: ResourceAccess = { kind: 'legacy' };

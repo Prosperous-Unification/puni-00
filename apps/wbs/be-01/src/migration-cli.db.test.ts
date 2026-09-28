@@ -109,6 +109,18 @@ describe('migration deploy entrypoints', () => {
     expect((await runCli('migrate-status-cli.ts', dbPath)).stdout.trim()).toBe(baseline);
   }, 60_000);
 
+  it('previews organization selection read-only, and fails without a database', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-selection-preview-cli-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    runMigrations(dbPath, MIGRATIONS);
+    const previewed = await runCli('organization-selection-preview-cli.ts', dbPath);
+    expect(previewed.exitCode).toBe(0);
+    expect(JSON.parse(previewed.stdout)).toEqual({ marker: 'pre_activation', users: [] });
+    const missing = await runCli('organization-selection-preview-cli.ts', join(root, 'none.db'));
+    expect(missing.exitCode).not.toBe(0);
+  }, 60_000);
+
   it('codes the steps an older release left uncoded, and codes nothing on a rerun', async () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-backfill-cli-'));
     roots.push(root);

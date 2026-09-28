@@ -3,6 +3,10 @@ import { materialiseOptimized } from '@wbs/contracts/solver/materialise-optimize
 import { publishOptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import { parseSolverResponse } from '@wbs/contracts/solver/parse-solver-response';
 import {
+  type PlanInfeasibleResult,
+  planInfeasibleResultOf,
+} from '@wbs/contracts/solver/plan-infeasible';
+import {
   revalidateOptimizedDeadlines,
   revalidateSolverResult,
 } from '@wbs/contracts/solver/revalidate-solver-result';
@@ -23,7 +27,9 @@ export type SolverProcessOutcome =
   | { readonly kind: 'response'; readonly stdout: string }
   | { readonly kind: 'failed'; readonly reason: SolverFailureReason };
 
-export type EvaluatedSolverOutcome = OptimizationOutcome;
+export type EvaluatedSolverOutcome =
+  | OptimizationOutcome
+  | { readonly kind: 'plan-infeasible'; readonly certificate: PlanInfeasibleResult };
 
 /**
  * Turn one classified child outcome into the exact cache value it earned.
@@ -74,16 +80,16 @@ export function evaluateSolverOutcome(
   }
   if (response.status !== 'feasible') {
     if (response.status === 'unknown') return { kind: 'failed', reason: 'no-solution' };
-    // Proof: removing this no-deadline refusal made the no-deadline
-    // infeasible-response test receive no-solution instead of invalid-output
-    // (2026-09-28, 3 pass / 1 fail in solver-exit-outcome.test.ts).
-    if (input.deadlines.size === 0) return { kind: 'failed', reason: 'invalid-output' };
-    // The integer model can be infeasible while the fractional plan is
-    // feasible. Its verdict cannot justify a persistent real-plan certificate.
-    // Proof: mapping this branch to plan-infeasible made the quantized-only
-    // outcome test fail: expected no-solution, received plan-infeasible
-    // (2026-09-28, 0 pass / 1 fail in the focused solver-exit-outcome test).
-    return { kind: 'failed', reason: 'no-solution' };
+    // The certificate is CP-SAT's verdict at the solver quantum (Q = 48 units a
+    // workday, durations rounded up, FF start weights strengthened), not an
+    // unrestricted proof about fractional workdays. It names the deadlines no
+    // schedule met at that resolution, which is what the plan-infeasible state
+    // reports; a plan feasible only between two quanta is the documented
+    // limitation (design.md, "Fast placement, replay and float").
+    const certificate = planInfeasibleResultOf(input);
+    return certificate.items.length === 0
+      ? { kind: 'failed', reason: 'invalid-output' }
+      : { kind: 'plan-infeasible', certificate };
   }
 
   // Proof: short-circuiting here when real Fast had a late slice made the

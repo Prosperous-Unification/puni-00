@@ -3,7 +3,10 @@ import type { SchemaShape } from './schema-shape';
 
 export type RequestPolicy =
   | { kind: 'origin'; when: 'always-unsafe-with-session-cookie' | 'always' }
-  | { kind: 'identity'; require: 'signed-in' | 'read-scope' | 'write-scope' | 'internal' };
+  | {
+      kind: 'identity';
+      require: 'signed-in' | 'read-scope' | 'write-scope' | 'internal' | 'gateway-delegation';
+    };
 
 /** Parameter names come from the declared path, including every nested segment. */
 export type ParamsOf<Path extends string> = Path extends `${string}:${infer Name}/${infer Tail}`
@@ -111,7 +114,10 @@ type CompatibleIdentity<S extends EndpointShape> =
     ? unknown
     : Extract<
           S['policies'][number],
-          { kind: 'identity'; require: 'signed-in' | 'read-scope' | 'write-scope' }
+          {
+            kind: 'identity';
+            require: 'signed-in' | 'read-scope' | 'write-scope' | 'gateway-delegation';
+          }
         > extends never
       ? unknown
       : never;
