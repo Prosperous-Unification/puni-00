@@ -7,6 +7,7 @@ import type {
   HistoryService,
   ImportService,
   Invitation,
+  JoinRequest,
   MembershipAdministration,
   Onboarding,
   OrganizationAccess,
@@ -15,6 +16,7 @@ import type {
 } from '@wbs/core';
 import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
 import { invitationRoutes } from '@wbs/core/http/invitation.routes';
+import { joinRequestRoutes } from '@wbs/core/http/join-request.routes';
 import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
@@ -96,6 +98,8 @@ export interface AppOptions {
   emailVerification: EmailVerification;
   /** Required invitation boundary, inert until activation. */
   invitations: Invitation;
+  /** Required join-request decision boundary. */
+  joinRequests: JoinRequest;
   /** Injected mail sink; production's current adapter refuses delivery visibly. */
   emailDelivery: EmailDelivery;
   /** Required for the same reason as `projects`. */
@@ -280,6 +284,13 @@ export function mountedEndpoints(
     ...emailVerificationRoutes(opts.emailVerification, opts.emailDelivery, opts.clock, nodeDigest),
     ...invitationRoutes(
       opts.invitations,
+      opts.organizations,
+      opts.emailDelivery,
+      opts.clock,
+      nodeDigest,
+    ),
+    ...joinRequestRoutes(
+      opts.joinRequests,
       opts.organizations,
       opts.emailDelivery,
       opts.clock,

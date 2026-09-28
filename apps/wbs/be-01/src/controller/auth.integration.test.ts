@@ -13,6 +13,7 @@ import { testDirectoryService } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
   refusingInvitations,
+  refusingJoinRequests,
   refusingTestEmailDelivery,
 } from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
@@ -39,6 +40,7 @@ function app(auth = testAuthService(), maxConcurrentLogins?: number) {
     memberships: refusingMemberships,
     emailVerification: refusingEmailVerification,
     invitations: refusingInvitations,
+    joinRequests: refusingJoinRequests,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(maxConcurrentLogins),
@@ -159,6 +161,7 @@ describe('GET /api/auth/me', () => {
       memberships: refusingMemberships,
       emailVerification: refusingEmailVerification,
       invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),

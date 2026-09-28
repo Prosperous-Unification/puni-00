@@ -40,6 +40,7 @@ import { testDirectoryService } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
   refusingInvitations,
+  refusingJoinRequests,
   refusingTestEmailDelivery,
 } from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
@@ -203,6 +204,7 @@ describe('the schedule identity guarantee', () => {
       memberships: refusingMemberships,
       emailVerification: refusingEmailVerification,
       invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),

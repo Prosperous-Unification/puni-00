@@ -37,6 +37,7 @@ import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import {
   refusingEmailVerification,
   refusingInvitations,
+  refusingJoinRequests,
   refusingTestEmailDelivery,
 } from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
@@ -147,6 +148,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       memberships: refusingMemberships,
       emailVerification: refusingEmailVerification,
       invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),

@@ -16,6 +16,7 @@ import { testDirectoryService } from './testing/directory-fixture';
 import {
   refusingEmailVerification,
   refusingInvitations,
+  refusingJoinRequests,
   refusingTestEmailDelivery,
 } from './testing/email-verification-fixture';
 import { testHistoryService } from './testing/history-fixture';
@@ -42,6 +43,7 @@ describe('GET /health', () => {
       memberships: refusingMemberships,
       emailVerification: refusingEmailVerification,
       invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       clock: testClock,
@@ -75,6 +77,7 @@ describe('GET /health', () => {
       memberships: refusingMemberships,
       emailVerification: refusingEmailVerification,
       invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       clock: testClock,
@@ -119,6 +122,7 @@ describe('/health tells the truth about the database', () => {
         memberships: refusingMemberships,
         emailVerification: refusingEmailVerification,
         invitations: refusingInvitations,
+        joinRequests: refusingJoinRequests,
         emailDelivery: refusingTestEmailDelivery,
         onboarding: refusingOnboarding,
         clock: testClock,
@@ -166,6 +170,7 @@ describe('/health tells the truth about the database', () => {
         memberships: refusingMemberships,
         emailVerification: refusingEmailVerification,
         invitations: refusingInvitations,
+        joinRequests: refusingJoinRequests,
         emailDelivery: refusingTestEmailDelivery,
         onboarding: refusingOnboarding,
         clock: testClock,
@@ -203,6 +208,7 @@ describe('/health tells the truth about the database', () => {
       memberships: refusingMemberships,
       emailVerification: refusingEmailVerification,
       invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       clock: testClock,

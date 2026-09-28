@@ -243,6 +243,8 @@ type BareRefusalCode =
   | 'already_member'
   | 'domain_matched'
   | 'join_request_pending'
+  | 'request_resolved'
+  | 'domain_changed'
   /** Authenticated, but the bound organization no longer lists the user. */
   | 'not_a_member'
   | 'invalid_origin'

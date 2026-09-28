@@ -29,6 +29,7 @@ import {
   listInvitations,
   revokeInvitation,
 } from './invitation-shapes';
+import { approveJoinRequest, denyJoinRequest, listJoinRequests } from './join-request-shapes';
 import {
   confirmEmailChallenge,
   createEmailChallenge,
@@ -87,6 +88,9 @@ export const httpShapes = [
   createInvitation,
   revokeInvitation,
   acceptInvitation,
+  listJoinRequests,
+  approveJoinRequest,
+  denyJoinRequest,
   readOnboarding,
   createOnboardingOrganization,
   submitOnboardingJoinRequest,

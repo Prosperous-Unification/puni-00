@@ -20,6 +20,7 @@ import { testDirectoryService } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
   refusingInvitations,
+  refusingJoinRequests,
   refusingTestEmailDelivery,
 } from '../testing/email-verification-fixture';
 import { inMemoryServices } from '../testing/harness';
@@ -88,6 +89,7 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
     memberships: refusingMemberships,
     emailVerification: refusingEmailVerification,
     invitations: refusingInvitations,
+    joinRequests: refusingJoinRequests,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),

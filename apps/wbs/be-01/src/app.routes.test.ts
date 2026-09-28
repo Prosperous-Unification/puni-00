@@ -22,6 +22,7 @@ import { testDirectoryService } from './testing/directory-fixture';
 import {
   refusingEmailVerification,
   refusingInvitations,
+  refusingJoinRequests,
   refusingTestEmailDelivery,
 } from './testing/email-verification-fixture';
 import { testHistoryService } from './testing/history-fixture';
@@ -44,6 +45,7 @@ function options(): AppOptions {
     memberships: refusingMemberships,
     emailVerification: refusingEmailVerification,
     invitations: refusingInvitations,
+    joinRequests: refusingJoinRequests,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: {
       discover: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
@@ -138,6 +140,7 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postApiOnboardingEmailChallenges: { email: 'test@example.org' },
   postApiOnboardingEmailChallengesConfirm: { email: 'test@example.org', token: 'invalid' },
   postApiOrganizationInvitations: { email: 'test@example.org', role: 'viewer' },
+  postApiOrganizationJoinRequestsByIdApprove: { role: 'viewer' },
   postApiOnboardingInvitationsAccept: { token: 'invalid' },
   postApiSmokeEcho: { text: 'reachable' },
   postApiProjectsByIdSteps: { name: 'Reachable step' },
@@ -207,6 +210,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiExternal-systems',
   'getApiOnboarding',
   'getApiOrganizationInvitations',
+  'getApiOrganizationJoinRequests',
   'getApiPeople',
   'getApiProjects',
   'getApiProjectsById',
@@ -241,6 +245,8 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiOnboardingJoinRequests',
   'postApiOnboardingOrganizations',
   'postApiOrganizationInvitations',
+  'postApiOrganizationJoinRequestsByIdApprove',
+  'postApiOrganizationJoinRequestsByIdDeny',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -264,6 +270,8 @@ const ALWAYS_ORIGIN_OPERATIONS = [
   'postApiOnboardingJoinRequests',
   'postApiOnboardingOrganizations',
   'postApiOrganizationInvitations',
+  'postApiOrganizationJoinRequestsByIdApprove',
+  'postApiOrganizationJoinRequestsByIdDeny',
 ] as const;
 const COOKIE_ORIGIN_OPERATIONS = [
   'deleteApiOrganizationMembersByUserId',
@@ -298,6 +306,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiExternal-systems',
   'getApiOnboarding',
   'getApiOrganizationInvitations',
+  'getApiOrganizationJoinRequests',
   'getApiPeople',
   'getApiProjects',
   'getApiProjectsById',

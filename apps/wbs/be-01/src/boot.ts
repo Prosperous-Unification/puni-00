@@ -4,6 +4,7 @@ import type { Logger } from '@wbs/observability';
 import {
   EmailVerificationRepository,
   InvitationRepository,
+  JoinRequestRepository,
   NO_BOUND_ORGANIZATION,
   OnboardingRepository,
   openSqliteSource,
@@ -210,6 +211,7 @@ export async function bootBe01(
               onboarding: new OnboardingRepository(db, services.gate),
               emailVerification: new EmailVerificationRepository(db, services.gate),
               invitations: new InvitationRepository(db, services.gate),
+              joinRequests: new JoinRequestRepository(db, services.gate),
               emailDelivery: refusingEmailDelivery,
               steps: services.steps,
               calendarMarkers: services.calendarMarkers,

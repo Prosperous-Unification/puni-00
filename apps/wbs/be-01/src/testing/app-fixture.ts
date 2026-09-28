@@ -7,6 +7,7 @@ import { testDirectoryService } from './directory-fixture';
 import {
   refusingEmailVerification,
   refusingInvitations,
+  refusingJoinRequests,
   refusingTestEmailDelivery,
 } from './email-verification-fixture';
 import { testHistoryService } from './history-fixture';
@@ -52,6 +53,7 @@ export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof 
     memberships: refusingMemberships,
     emailVerification: refusingEmailVerification,
     invitations: refusingInvitations,
+    joinRequests: refusingJoinRequests,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     appOrigin: 'http://localhost',

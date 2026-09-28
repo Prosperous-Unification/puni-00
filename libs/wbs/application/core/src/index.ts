@@ -75,6 +75,7 @@ export * from './ports/typed-dependency-store';
 export * from './ports/email-delivery';
 export * from './ports/email-verification';
 export * from './ports/invitation';
+export * from './ports/join-request';
 export * from './ports/membership-administration';
 export * from './ports/onboarding';
 export * from './ports/organization-access';

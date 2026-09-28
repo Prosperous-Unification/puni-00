@@ -8,6 +8,7 @@ import {
   EmailVerificationRepository,
   ExternalIdentityRepository,
   InvitationRepository,
+  JoinRequestRepository,
   OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
@@ -173,6 +174,7 @@ export class OrganizationHarness {
       onboarding: new OnboardingRepository(db, OPEN),
       emailVerification: new EmailVerificationRepository(db, OPEN),
       invitations: new InvitationRepository(db, OPEN),
+      joinRequests: new JoinRequestRepository(db, OPEN),
       emailDelivery: {
         deliver: (address, token) => {
           mail.beforeDelivery?.();
@@ -261,6 +263,7 @@ export class OrganizationHarness {
       onboarding: new OnboardingRepository(source.db, services.gate),
       emailVerification: new EmailVerificationRepository(source.db, services.gate),
       invitations: new InvitationRepository(source.db, services.gate),
+      joinRequests: new JoinRequestRepository(source.db, services.gate),
       emailDelivery: {
         deliver: () => Promise.reject(new Error('composed harness mail sink refuses delivery')),
       },

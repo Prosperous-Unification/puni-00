@@ -10,6 +10,7 @@ import { testDirectoryService } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
   refusingInvitations,
+  refusingJoinRequests,
   refusingTestEmailDelivery,
 } from '../testing/email-verification-fixture';
 import { inMemoryPlanEvents, testHistoryService } from '../testing/history-fixture';
@@ -79,6 +80,7 @@ describe('one plan’s history, over HTTP', () => {
       memberships: refusingMemberships,
       emailVerification: refusingEmailVerification,
       invitations: refusingInvitations,
+      joinRequests: refusingJoinRequests,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
