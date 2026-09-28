@@ -47,6 +47,7 @@ test('pins every generated MCP operation name independently of the registry', ()
       .map((tool) => tool.name)
       .sort(),
   ).toEqual([
+    'deleteApiOrganizationDomainsById',
     'deleteApiOrganizationMembersByUserId',
     'deleteApiProjectsByIdCalendar-markersByMarkerId',
     'deleteApiProjectsByIdStepsByStepId',

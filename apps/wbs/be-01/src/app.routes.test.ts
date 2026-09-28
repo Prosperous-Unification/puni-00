@@ -215,6 +215,7 @@ const SIGNED_IN_OPERATIONS = [
 ] as const;
 const READ_SCOPE_OPERATIONS = ['getApiProjectsByIdExport', 'getPlansBy-solutionBySlug'] as const;
 const WRITE_SCOPE_OPERATIONS = [
+  'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationMembersByUserId',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',
@@ -250,6 +251,7 @@ const ALWAYS_ORIGIN_OPERATIONS = [
   'postApiOnboardingOrganizations',
 ] as const;
 const COOKIE_ORIGIN_OPERATIONS = [
+  'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationMembersByUserId',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',

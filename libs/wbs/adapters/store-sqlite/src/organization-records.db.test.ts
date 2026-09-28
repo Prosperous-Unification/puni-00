@@ -344,7 +344,7 @@ describe('DomainClaimRepository', () => {
       },
       stamp('u-a'),
     );
-    expect(await claims.readPendingClaim('org-a', 'u-a', 'c-a')).toBe('inactive');
+    expect(await claims.readClaimForVerification('org-a', 'u-a', 'c-a')).toBe('inactive');
     expect(
       await claims.verifyClaim(
         'org-a',
@@ -354,6 +354,9 @@ describe('DomainClaimRepository', () => {
           domain: 'example.org',
           challengeDigest: 'digest-c-a',
           challengeExpiresAt: 1000,
+          phase: 'pending',
+          previousProofDigest: null,
+          previousProofValidUntil: null,
         },
         'digest-c-a',
         stamp('u-a', 20),

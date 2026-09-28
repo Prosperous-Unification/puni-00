@@ -156,3 +156,26 @@ export const rotateDomainProof = defineEndpointShape({
   ],
   document: { summary: 'Rotate an owned domain TXT proof.' },
 });
+
+/** Releases a claim under current super-admin authority, invalidating outstanding proofs. */
+export const releaseDomainClaim = defineEndpointShape({
+  method: 'DELETE',
+  path: '/api/organization/domains/:id',
+  operationId: 'deleteApiOrganizationDomainsById',
+  policies: writePolicy,
+  params: requestSchema(type({ id: 'string' })),
+  responses: [{ kind: 'empty', status: 204 }],
+  refusals: [
+    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
+    organizationRefusal,
+    {
+      status: 403,
+      schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
+    },
+    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+    { status: 409, schema: responseSchema(type({ error: "'stale'" })) },
+  ],
+  document: { summary: 'Release a domain claim and invalidate its proof.' },
+});

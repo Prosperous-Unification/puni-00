@@ -11,12 +11,16 @@ export interface DomainClaimSummary {
   readonly proofWarning: boolean;
 }
 
-/** A pending, authorized claim captured before an external DNS lookup. */
-export interface PendingDomainClaim {
+/** An authorized claim snapshot captured before an external DNS lookup. */
+export interface DomainVerificationSnapshot {
   readonly id: string;
   readonly domain: string;
   readonly challengeDigest: string;
-  readonly challengeExpiresAt: number;
+  /** Null only for a retained ownership proof, which does not expire as an initial challenge. */
+  readonly challengeExpiresAt: number | null;
+  readonly phase: 'pending' | 'rotation' | 'recovery';
+  readonly previousProofDigest: string | null;
+  readonly previousProofValidUntil: number | null;
 }
 
 /** Authoritative TXT records, one DNS TXT record per string; failure throws. */
@@ -64,15 +68,15 @@ export interface DomainChallenges {
     | { kind: 'issued'; id: string }
     | { kind: 'forbidden' | 'unclaimable' | 'already_claimed' | 'inactive' }
   >;
-  readPendingClaim(
+  readClaimForVerification(
     organizationId: string,
     actorId: string,
     claimId: string,
-  ): Promise<PendingDomainClaim | 'forbidden' | 'not_found' | 'stale' | 'inactive'>;
+  ): Promise<DomainVerificationSnapshot | 'forbidden' | 'not_found' | 'stale' | 'inactive'>;
   verifyClaim(
     organizationId: string,
     actorId: string,
-    claim: PendingDomainClaim,
+    claim: DomainVerificationSnapshot,
     observedDigest: string,
     stamp: WriteStamp,
   ): Promise<'verified' | 'forbidden' | 'not_found' | 'stale' | 'taken' | 'inactive'>;
@@ -86,6 +90,11 @@ export interface DomainChallenges {
     | { kind: 'issued'; domain: string; dnsValue: string }
     | { kind: 'forbidden' | 'not_found' | 'stale' | 'inactive' }
   >;
+  releaseClaim(
+    organizationId: string,
+    actorId: string,
+    claimId: string,
+  ): Promise<'released' | 'forbidden' | 'not_found' | 'stale' | 'inactive'>;
   /** Reads current claim status; approval must still recheck in its own write transaction. */
   isVerifiedDomain(organizationId: string, domain: string): Promise<boolean>;
 }

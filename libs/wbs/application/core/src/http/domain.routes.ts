@@ -1,6 +1,7 @@
 import {
   createDomainChallenge,
   listOrganizationDomains,
+  releaseDomainClaim,
   rotateDomainProof,
   verifyDomainClaim,
 } from '@wbs/contracts';
@@ -9,7 +10,7 @@ import { isCanonicalDomain } from '@wbs/domain';
 import type { Clock } from '../ports/clock';
 import type { DomainChallenges } from '../ports/domain-challenges';
 import type { OrganizationAccess } from '../ports/organization-access';
-import { bind, type HttpReply } from './endpoint';
+import { bind, EMPTY, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 
 /** Turns a submitted Unicode host into one exact lower-case IDNA DNS name. */
@@ -35,6 +36,36 @@ export function domainRoutes(
   clock: Pick<Clock, 'now'>,
 ) {
   return [
+    bind(
+      releaseDomainClaim,
+      async ({ principal, params }): Promise<HttpReply<typeof releaseDomainClaim>> => {
+        // Proof: 2026-09-28, bypassing this guard made mounted
+        // `refuses a delegated caller even with current super-admin membership`
+        // answer not_found rather than insufficient_scope for domain release.
+        if (principal.delegation !== undefined)
+          return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
+        const released = await challenges.releaseClaim(
+          resolved.access.scope.organizationId,
+          principal.id,
+          params.id,
+        );
+        switch (released) {
+          case 'inactive':
+            return organizationRefusal('no_active_organization');
+          case 'forbidden':
+            return { ok: false, status: 403, body: { error: 'forbidden' } };
+          case 'not_found':
+            return { ok: false, status: 404, body: { error: 'not_found' } };
+          case 'stale':
+            return { ok: false, status: 409, body: { error: 'stale' } };
+          case 'released':
+            return { ok: true, status: 204, body: EMPTY };
+        }
+      },
+    ),
     bind(
       rotateDomainProof,
       async ({ principal, params }): Promise<HttpReply<typeof rotateDomainProof>> => {
@@ -89,15 +120,20 @@ export function domainRoutes(
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
         const organizationId = resolved.access.scope.organizationId;
-        const pending = await challenges.readPendingClaim(organizationId, principal.id, params.id);
-        if (pending === 'inactive') return organizationRefusal('no_active_organization');
-        if (pending === 'forbidden')
-          return { ok: false, status: 403, body: { error: 'forbidden' } };
-        if (pending === 'not_found')
-          return { ok: false, status: 404, body: { error: 'not_found' } };
-        if (pending === 'stale') return { ok: false, status: 409, body: { error: 'stale' } };
+        const claim = await challenges.readClaimForVerification(
+          organizationId,
+          principal.id,
+          params.id,
+        );
+        if (claim === 'inactive') return organizationRefusal('no_active_organization');
+        if (claim === 'forbidden') return { ok: false, status: 403, body: { error: 'forbidden' } };
+        if (claim === 'not_found') return { ok: false, status: 404, body: { error: 'not_found' } };
+        if (claim === 'stale') return { ok: false, status: 409, body: { error: 'stale' } };
         const now = clock.now();
-        if (pending.challengeExpiresAt <= now)
+        // Proof: 2026-09-28, treating a retained proof's null expiry as zero made mounted
+        // `restores a suspended claim through retained TXT proof without changing owner`
+        // return stale 409 instead of checking authoritative TXT.
+        if (claim.challengeExpiresAt !== null && claim.challengeExpiresAt <= now)
           return { ok: false, status: 409, body: { error: 'stale' } };
         // Proof: 2026-09-28, raising this bound to 50 seconds made mounted
         // `refuses malformed and timed-out resolver answers` exceed its 8-second test deadline.
@@ -106,7 +142,7 @@ export function domainRoutes(
         try {
           // The resolver port must query authoritative DNS and reject malformed replies.
           records = await Promise.race([
-            challenges.resolver.lookupTxt(`_wbs-verification.${pending.domain}`, signal),
+            challenges.resolver.lookupTxt(`_wbs-verification.${claim.domain}`, signal),
             new Promise<never>((_resolve, reject) => {
               signal.addEventListener(
                 'abort',
@@ -125,7 +161,7 @@ export function domainRoutes(
           return { ok: false, status: 503, body: { error: 'dns_unavailable' } };
         }
         // Exact full TXT record matching prevents prefixes, fragments and old tokens.
-        const prefix = `wbs-domain-verification=${organizationId}:${pending.domain}:`;
+        const prefix = `wbs-domain-verification=${organizationId}:${claim.domain}:`;
         const matching = records.filter(
           (record) =>
             record.startsWith(prefix) &&
@@ -142,18 +178,18 @@ export function domainRoutes(
           ),
         );
         // Proof: 2026-09-28, bypassing the exact digest match made mounted `verifies only an exact current TXT value` promote a prefix-plus-extra TXT value (200 instead of 409).
-        if (!digests.includes(pending.challengeDigest))
+        if (!digests.includes(claim.challengeDigest))
           return { ok: false, status: 409, body: { error: 'proof_mismatch' } };
         const verified = await challenges.verifyClaim(
           organizationId,
           principal.id,
-          pending,
-          pending.challengeDigest,
+          claim,
+          claim.challengeDigest,
           { at: clock.now(), by: principal.id },
         );
         switch (verified) {
           case 'verified':
-            return { ok: true, status: 200, body: { id: pending.id, status: 'verified' } };
+            return { ok: true, status: 200, body: { id: claim.id, status: 'verified' } };
           case 'inactive':
             return organizationRefusal('no_active_organization');
           case 'forbidden':
