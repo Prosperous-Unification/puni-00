@@ -26,6 +26,11 @@ import { type RefCallback, useCallback, useEffect, useState } from 'react';
  * by the platform, not the document, so choosing from one fires no `pointerdown`
  * here and cannot close the panel underneath it.
  *
+ * A dialog opened from inside the panel counts as inside it. Radix portals the dialog to
+ * `<body>`, so a click on its Copy button is outside the `<details>` by containment; closing the
+ * panel then hid the trigger that Radix returns the focus to on close (Export / Import → Import
+ * with AI). The trigger names its dialog by `aria-controls`, which is how ownership is read.
+ *
  * The callback ref makes the mounted node an effect dependency. Some controls,
  * including Export, are absent until their boundary read succeeds; a one-shot
  * effect that reads `ref.current` can run before that `<details>` exists and
@@ -45,6 +50,9 @@ export function useClosedByPointerOutside(): RefCallback<HTMLDetailsElement> {
       if (!panel.open) return;
       const { target } = event;
       if (target instanceof Node && panel.contains(target)) return;
+      // Proof: on 2026-09-27, dropping this check failed `keeps Export / Import open while its
+      // Import with AI dialog is used` (plan-toolbar.test.tsx) on the closed menu.
+      if (target instanceof Element && isInsideOwnedDialog(panel, target)) return;
       panel.open = false;
     };
 
@@ -55,4 +63,13 @@ export function useClosedByPointerOutside(): RefCallback<HTMLDetailsElement> {
   }, [panel]);
 
   return rememberPanel;
+}
+
+/** Whether `target` sits in an open dialog whose trigger (`aria-controls`) is inside `panel`. */
+function isInsideOwnedDialog(panel: HTMLDetailsElement, target: Element): boolean {
+  const dialog = target.closest('[role="dialog"]');
+  if (dialog === null || dialog.id === '') return false;
+  return [...panel.querySelectorAll('[aria-controls]')].some(
+    (trigger) => trigger.getAttribute('aria-controls') === dialog.id,
+  );
 }
