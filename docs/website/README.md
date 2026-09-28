@@ -27,7 +27,7 @@ Manual submission does not require a visitor account. Choosing AI requires sign-
 - [WBS](https://dev.wbs.bulletpoints.club/): select **PUNI platform plan**, project `558ec5c7-f561-4181-9d9b-055b06bc9796`. Existing website `060`, intake `080.12` and deployment `110` carry the work; WBS product `040`/`050` remain separate.
 - [Intent](../../openspec/changes/puni-website-funnel/proposal.md), [technical design](../../openspec/changes/puni-website-funnel/design.md), [implementation slices](../../openspec/changes/puni-website-funnel/tasks.md), and [verification](../../openspec/changes/puni-website-funnel/verify.md).
 - [WBS work-item mapping](../../openspec/changes/puni-website-funnel/evidence/wbs-mapping.md) and [verified write receipt](../../openspec/changes/puni-website-funnel/evidence/wbs-verification.json).
-- [Domain language](CONTEXT.md) and [OpenRouter research](openrouter-research.md).
+- [Domain language](CONTEXT.md), [OpenRouter research](openrouter-research.md), and [frontend agent libraries](frontend-agent-libraries.md).
 - [Interactive local walkthrough](prototypes/funnel.html) and [instructions](prototypes/README.md). Open the HTML file directly; it uses no accounts, network, model or real submission.
 
 The proposed budget values and turn limits live in the design. They are pilot assumptions; this planning work does not activate paid inference or deploy a public funnel.
