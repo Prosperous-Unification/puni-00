@@ -343,16 +343,25 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     if (!isObject(body) || body['token_endpoint_auth_method'] !== 'none') {
       return oauthError('invalid_client_metadata');
     }
-    const redirectUris = body['redirect_uris'];
+    const requestedRedirects: unknown = body['redirect_uris'];
     if (
-      !Array.isArray(redirectUris) ||
-      redirectUris.length === 0 ||
-      redirectUris.length > MAX_REDIRECT_URIS ||
-      redirectUris.some(
-        (value) => typeof value !== 'string' || bytes(value) > MAX_REDIRECT_URI_BYTES,
-      ) ||
-      !redirectUris.every(isRedirect)
+      !Array.isArray(requestedRedirects) ||
+      requestedRedirects.length === 0 ||
+      requestedRedirects.length > MAX_REDIRECT_URIS ||
+      // Proof: on 2026-09-27, dropping this check failed the 17 `refuses the whole list when one
+      // callback carries …` cases then present, null to planted error_uri (`Received: 201`) (oauth.test.ts).
+      requestedRedirects.some(isMalformedRedirect)
     ) {
+      return oauthError('invalid_redirect_uri');
+    }
+    // RFC 7591 §3.2.1: a well-formed but unlisted callback is dropped, and the response names
+    // only what was registered; authorization still demands one of these exact strings.
+    // Proof: on 2026-09-27, registering `requestedRedirects` unfiltered failed `registers only the
+    // listed callbacks of a mixed list and refuses the dropped one` (oauth.test.ts).
+    const redirectUris = requestedRedirects.filter(isListedRedirect);
+    // Proof: on 2026-09-27, dropping this check failed `refuses a list whose every callback is
+    // unlisted` and every `refuses the near-miss callback` case (`Received: 201`) (oauth.test.ts).
+    if (redirectUris.length === 0) {
       return oauthError('invalid_redirect_uri');
     }
     this.cleanup();
@@ -531,6 +540,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     });
     const target = new URL(pending.authorization.redirectUri);
     target.searchParams.set('code', code);
+    target.searchParams.set('iss', this.issuer);
     if (pending.authorization.state !== undefined) {
       target.searchParams.set('state', pending.authorization.state);
     }
@@ -545,6 +555,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     await this.revokeRefreshToken(refreshToken);
     const target = new URL(authorization.redirectUri);
     target.searchParams.set('error', error);
+    target.searchParams.set('iss', this.issuer);
     if ('state' in authorization && authorization.state !== undefined) {
       target.searchParams.set('state', authorization.state);
     }
@@ -609,6 +620,8 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       grant.expiresAt <= this.now() ||
       form.get('grant_type') !== 'authorization_code' ||
       stringField(form, 'client_id') !== grant.clientId ||
+      // Proof: on 2026-09-27, removing this comparison failed `refuses a token exchange that
+      // substitutes another registered redirect, and burns the code` with 200 (oauth.test.ts).
       stringField(form, 'redirect_uri') !== grant.redirectUri ||
       verifier === undefined ||
       !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier) ||
@@ -683,17 +696,37 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const refreshToken = stringField(form, 'refresh_token');
     const clientId = stringField(form, 'client_id');
     if (refreshToken === undefined || clientId === undefined) return oauthError('invalid_grant');
+    const requestedScope = form.get('scope');
+    // Proof: on 2026-09-27, reading scope through stringField failed `refuses a refresh whose scope
+    // is not text`: a multipart file scope was treated as omitted, not 400 (oauth.test.ts).
+    if (requestedScope !== null && typeof requestedScope !== 'string')
+      return oauthError('invalid_request');
     const now = this.now();
-    if (this.store.sessionCount(now) >= this.sessionLimit)
-      return oauthError('temporarily_unavailable', undefined, 429);
     const expiresAt = now + this.accessTtlMs;
     let prepared: ReturnType<McpSessionStore['prepareRefresh']>;
     try {
       prepared = this.store.prepareRefresh(refreshToken, clientId, now);
-    } catch {
-      return oauthError('invalid_grant');
+    } catch (cause) {
+      // Only an undecryptable family (already revoked by the store) is the caller's dead grant;
+      // any other store failure propagates rather than posing as a refused credential.
+      // Proof: on 2026-09-27, a catch-all here failed `surfaces a store failure during refresh
+      // instead of refusing the grant`: a closed store answered 400 invalid_grant (oauth.test.ts).
+      if (cause instanceof McpRefreshFamilyCorrupt) return oauthError('invalid_grant');
+      throw cause;
     }
+    // The token is judged before capacity, so a replay revokes its family even when full.
+    // Proof: on 2026-09-27, checking capacity first failed `ends the family on replay even when
+    // sessions are at capacity` with 429 (oauth.test.ts).
     if (prepared.outcome !== 'ok') return oauthError('invalid_grant');
+    const scope = narrowScope(
+      prepared.family.scope,
+      requestedScope === null || requestedScope === '' ? undefined : requestedScope,
+    );
+    // Proof: on 2026-09-27, ignoring the requested scope failed `refuses a refresh that asks for
+    // more than the family holds` (200, not 400) and the subset-narrowing test (oauth.test.ts).
+    if (scope === undefined) return oauthError('invalid_scope');
+    if (this.store.sessionCount(now) >= this.sessionLimit)
+      return oauthError('temporarily_unavailable', undefined, 429);
     const boundedExpiresAt = Math.min(expiresAt, prepared.family.absoluteExpiresAt);
     if (boundedExpiresAt <= now) return oauthError('invalid_grant');
     const successor = this.random();
@@ -702,7 +735,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       const family = await this.refreshUpstreamIfNeeded(prepared.family);
       const token = await this.issueAccessToken(
         family.subject,
-        family.scope,
+        scope,
         jti,
         family.familyId,
         boundedExpiresAt,
@@ -717,7 +750,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
         now,
       );
       if (consumed.outcome !== 'ok') return oauthError('invalid_grant');
-      return tokenResponse(token, successor, family.scope, boundedExpiresAt - now);
+      return tokenResponse(token, successor, scope, boundedExpiresAt - now);
     } catch (cause) {
       return cause instanceof UpstreamRefreshRefused || cause instanceof McpRefreshFamilyCorrupt
         ? oauthError('invalid_grant')
@@ -845,25 +878,29 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private async revoke(request: Request): Promise<Response> {
     const token = stringField(await request.formData(), 'token');
     if (token !== undefined) {
+      // RFC 7009 answers 200 whether or not the token was valid, so an unverifiable token falls
+      // through to the refresh-token lookup. A store failure is not an unknown token: it throws.
+      // Proof: on 2026-09-27, wrapping this in a catch-all failed `surfaces a store failure during
+      // revocation instead of reporting success` (resolved with 200, oauth.test.ts).
+      let payload: JWTPayload | null;
       try {
-        let family: FamilyRecord | null = null;
-        try {
-          const payload = await this.verifyRevocationSignature(token);
-          family =
-            typeof payload['mcp_family_id'] === 'string'
-              ? this.store.family(payload['mcp_family_id'])
-              : typeof payload.jti === 'string'
-                ? this.store.familyForSessionId(payload.jti)
-                : null;
-        } catch {
-          family = this.store.familyForRefreshToken(token);
-        }
-        if (family !== null) {
-          this.store.revokeFamily(family.familyId, this.now());
-          await this.revokeRefreshToken(family.upstreamRefreshToken);
-        }
+        payload = await this.verifyRevocationSignature(token);
       } catch {
-        // RFC 7009 does not reveal whether the presented token was valid.
+        payload = null;
+      }
+      const family =
+        payload === null
+          ? this.store.familyForRefreshToken(token)
+          : typeof payload['mcp_family_id'] === 'string'
+            ? this.store.family(payload['mcp_family_id'])
+            : typeof payload.jti === 'string'
+              ? this.store.familyForSessionId(payload.jti)
+              : null;
+      if (family !== null) {
+        // Proof: on 2026-09-27, skipping this failed `ends access and refresh when the refresh
+        // token is revoked`: the later write answered 200, not 401 (oauth.test.ts).
+        this.store.revokeFamily(family.familyId, this.now());
+        await this.revokeRefreshToken(family.upstreamRefreshToken);
       }
     }
     return new Response(null, { status: 200 });
@@ -1083,6 +1120,20 @@ function evidenceGrantType(value: unknown): string {
   return value === 'authorization_code' || value === 'refresh_token' ? value : 'other';
 }
 
+/**
+ * The scope one refreshed access token carries (RFC 6749 §6): the family's own when `requested`
+ * is absent, else the requested subset in the family's order. Undefined when `requested` names a
+ * scope the family was not granted, or nothing. The family itself keeps its original grant.
+ */
+function narrowScope(granted: string, requested: string | undefined): string | undefined {
+  if (requested === undefined) return granted;
+  const grantedScopes = granted.split(' ').filter(Boolean);
+  const requestedScopes = new Set(requested.split(' ').filter(Boolean));
+  if (requestedScopes.size === 0) return undefined;
+  for (const scope of requestedScopes) if (!grantedScopes.includes(scope)) return undefined;
+  return grantedScopes.filter((scope) => requestedScopes.has(scope)).join(' ');
+}
+
 function stringField(form: FormData, name: string): string | undefined {
   const value = form.get(name);
   return typeof value === 'string' && value !== '' ? value : undefined;
@@ -1096,24 +1147,88 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isRedirect(value: unknown): value is string {
-  if (typeof value !== 'string') return false;
+/**
+ * Reviewed hosted callbacks, admitted only as these exact strings: a parsed comparison would let
+ * `https://VSCODE.dev:443/a/../redirect` normalize into an entry. Every other hosted callback,
+ * including Copilot Studio installations, needs its own reviewed entry here. Cursor's
+ * `cursor://anysphere.cursor-mcp/oauth/callback` stays out: RFC 8252 §7.1 wants a reverse-domain
+ * private-use scheme, any local app may claim `cursor:`, and the MCP authorization spec requires
+ * HTTPS or loopback. ChatGPT is not admitted yet: authorization responses now carry the RFC 9207
+ * issuer it requires, but its stable `https://chatgpt.com/connector_platform_oauth_redirect` (or a
+ * `https://chatgpt.com/connector/oauth/{callback_id}`) enters only once a connection is observed
+ * displaying that exact URI (design.md, "Redirect policy").
+ */
+const HOSTED_REDIRECTS: ReadonlySet<string> = new Set([
+  'https://claude.ai/api/mcp/auth_callback',
+  'https://claude.com/api/mcp/auth_callback',
+  'https://vscode.dev/redirect',
+  'https://insiders.vscode.dev/redirect',
+  'https://www.perplexity.ai/rest/connections/oauth_callback',
+  'https://enterprise.perplexity.ai/rest/connections/oauth_callback',
+]);
+
+/**
+ * A native-client loopback callback (RFC 8252 §7.3) spelled literally: `127.1`, `LOCALHOST`,
+ * port `0` or a zero-padded port do not match, and nothing may precede the host.
+ */
+const LOOPBACK_REDIRECT =
+  /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::[1-9][0-9]{0,4})?(?:\/[^#]*)?$/;
+
+/**
+ * RFC 3986 URI characters, `#` aside, with percent escapes well formed. `new URL` repairs
+ * spaces, control characters and `%ZZ`, so it cannot be the syntax check.
+ */
+const URI_CHARACTERS = /^(?:[A-Za-z0-9\-._~:/?[\]@!$&'()*+,;=]|%[0-9A-Fa-f]{2})*$/;
+
+/** Authorization-response fields a callback's own query must not pre-set. */
+const RESPONSE_FIELDS = ['code', 'state', 'iss', 'error', 'error_description', 'error_uri'];
+
+/**
+ * A requested callback that refuses the whole registration instead of being dropped: not a
+ * bounded RFC 3986 absolute URI, or carrying credentials, a fragment or a pre-set response field. A
+ * pre-set `state` is refused too, so Continue's `http://localhost:3000/?state=…` stays out; it
+ * would not help, because Continue then authorizes with the bare `http://localhost:3000`.
+ */
+function isMalformedRedirect(value: unknown): boolean {
+  if (typeof value !== 'string' || bytes(value) > MAX_REDIRECT_URI_BYTES) return true;
+  // Proof: on 2026-09-27, dropping this fragment test failed `refuses the whole list when one
+  // callback carries an empty fragment`, which `URL.hash` reports as '' (oauth.test.ts).
+  if (value.includes('#')) return true;
+  // Proof: on 2026-09-27, dropping this test failed `refuses the whole list when one callback
+  // carries …` for `%ZZ`, a space, a loopback space, a newline, a tab and `é` (oauth.test.ts).
+  if (!URI_CHARACTERS.test(value)) return true;
+  let url: URL;
   try {
-    const url = new URL(value);
-    if (url.username !== '' || url.password !== '' || url.hash !== '') return false;
-    const isClaudeConnector =
-      url.protocol === 'https:' &&
-      url.port === '' &&
-      (url.hostname === 'claude.ai' || url.hostname === 'claude.com') &&
-      url.pathname === '/api/mcp/auth_callback' &&
-      url.search === '';
-    const isLoopback =
-      (url.protocol === 'http:' || url.protocol === 'https:') &&
-      (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]');
-    return isClaudeConnector || isLoopback;
+    url = new URL(value);
   } catch {
-    return false;
+    return true;
   }
+  return (
+    url.username !== '' ||
+    url.password !== '' ||
+    // Proof: on 2026-09-27, dropping this failed `refuses the whole list when one callback
+    // carries …` for every planted and percent-encoded response field (oauth.test.ts).
+    RESPONSE_FIELDS.some((field) => url.searchParams.has(field))
+  );
+}
+
+/**
+ * A callback on the reviewed list; exact authorization matching happens later. Runs only on
+ * values {@link isMalformedRedirect} passed, so a pattern-matching loopback always parses.
+ */
+function isListedRedirect(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  // Proof: on 2026-09-27, a parsed `hostname.endsWith` match here failed `refuses the near-miss
+  // callback` for evilvscode.dev, VSCODE.dev, :443 and the dot-segment path (oauth.test.ts).
+  if (HOSTED_REDIRECTS.has(value)) return true;
+  // Proof: on 2026-09-27, skipping this pattern failed `refuses the near-miss callback` for
+  // 127.1, LOCALHOST, ports 0 and 080, and javascript://localhost (oauth.test.ts).
+  if (!LOOPBACK_REDIRECT.test(value)) return false;
+  const url = new URL(value);
+  return (
+    (url.protocol === 'http:' || url.protocol === 'https:') &&
+    ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+  );
 }
 
 function bytes(value: string): number {

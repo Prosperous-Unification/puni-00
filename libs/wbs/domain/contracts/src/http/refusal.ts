@@ -217,6 +217,10 @@ export type CommandRefusalDetail = {
 type BareRefusalCode =
   | 'unauthenticated'
   | 'insufficient_scope'
+  /** Authenticated, but the session is bound to no organization (after activation). */
+  | 'no_active_organization'
+  /** Authenticated, but the bound organization no longer lists the user. */
+  | 'not_a_member'
   | 'invalid_origin'
   | 'unauthorized'
   | 'invalid_body'
@@ -281,6 +285,11 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     nothing_to_undo: { detail: string | null };
     stale_undo: { detail: string | null };
     stale_address_revision: { addressRevision: string };
+    /**
+     * A plan export of a project holding steps an older writer left uncoded:
+     * each such step, and the be-01 backfill command that codes them.
+     */
+    uncoded_steps: { steps: { id: string; name: string }[]; command: string };
     unresolvable_reference: {
       reason:
         | 'malformed'

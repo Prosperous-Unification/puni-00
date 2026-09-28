@@ -2,6 +2,7 @@ import { inMemoryDirectory } from '@wbs/store-memory/directory-fixture';
 import { testDirectoryService } from '@wbs/store-memory/testing/service-fixtures';
 import { expect, spyOn, test } from 'bun:test';
 
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { directoryRoutes } from './directory.routes';
 
 const input = {
@@ -19,7 +20,10 @@ test('direct directory bindings return every service list without inventing a pr
   await service.addTag('owner', 'Tag');
   await service.addService('owner', 'Service');
   await service.addWorkItemType('owner', 'Type');
-  const [teams, people, tags, services, types, systems] = directoryRoutes(service);
+  const [teams, people, tags, services, types, systems] = directoryRoutes(
+    service,
+    legacyOrganizationAccess,
+  );
   expect(await teams.handle(input)).toEqual({
     ok: true,
     status: 200,
@@ -66,7 +70,7 @@ test('every direct directory binding rejects the original unknown store failure'
   ] as const) {
     const fault = spyOn(store, method).mockRejectedValue(failure);
     try {
-      const endpoint = directoryRoutes(service).find(
+      const endpoint = directoryRoutes(service, legacyOrganizationAccess).find(
         (entry) =>
           entry.shape.operationId ===
           {

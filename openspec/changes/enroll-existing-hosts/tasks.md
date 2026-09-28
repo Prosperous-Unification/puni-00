@@ -17,3 +17,7 @@
       preflight refuses removal while another account connects.
 - [x] 7. Runbook `docs/infra/enroll-h4claw-h3mon.md` with ordered commands, backups and rollback.
 - [ ] 8. Real hosts: run the runbook after Dany authorizes it; record results here.
+  - [x] 8a. Before-enrollment preflight on both hosts; machine IDs and containers committed.
+  - [x] 8b. `bootstrap.yml` on h4claw twice, second pass `changed=0`; after-enrollment preflight.
+  - [ ] 8c. Join tokens into the controller vars, `join.yml` on h3mon twice, validation, final
+        preflight (not run: see verify.md, "Real hosts").

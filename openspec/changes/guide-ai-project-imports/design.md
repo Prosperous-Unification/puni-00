@@ -4,7 +4,7 @@
 
 Publish `docs/import-with-ai.md` through an accessible help page. Export / Import → Import with AI opens the same canonical content: choose a client; copy its connection configuration and the verified public `/mcp` URL; sign in, confirm the selected grant-bound destination organization and current role permit project creation, and confirm read/write access; provide source material; copy the prompt; review the mapping; approve the destination organization and write; reconcile the new WBS project. Troubleshoot connection, login, insufficient scope and rejected import separately. Do not offer a token-copy workflow. Explain client account or admin requirements where known and distinguish a one-time copy from synchronization.
 
-The guide carries this client matrix; **status describes documentation, not a successful WBS connection**. Every row begins untested until the live evidence record exists. `U` means the verified public MCP URL. Include a version/date column in the published guide and update it when verified.
+The guide carries this client matrix; **status describes documentation, not a successful WBS connection**. Every row begins untested until the live evidence record exists. A row whose callback WBS refuses today is `Unsupported` (ChatGPT until its exact callback is admitted). `U` means the verified public MCP URL. Include a version/date column in the published guide and update it when verified.
 
 | Client                      | Status before live WBS test | Connection/fallback to document                                                                         |
 | --------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -33,7 +33,7 @@ The guide carries this client matrix; **status describes documentation, not a su
 | Mistral Le Chat / Work      | Unverified                  | Custom MCP Connector URL U; exact callback and WBS interoperability unverified                          |
 | Microsoft Copilot Studio    | Unverified                  | Dynamic-discovery MCP tool; installation-specific exact callback required                               |
 
-For desktop stdio clients, document a **pinned and tested** `mcp-remote` bridge with HTTP-only transport and static metadata requesting `wbs:read wbs:write`; adapt the outer wrapper to each client. Do not publish an unexecuted `bunx` snippet as tested. Hosted clients without stdio support do not inherit this fallback.
+For desktop stdio clients, document a **pinned** `mcp-remote` bridge, labelled untested until it has the same live record a client needs, with HTTP-only transport and static metadata requesting `wbs:read wbs:write`; adapt the outer wrapper to each client. Do not publish an unexecuted `bunx` snippet as tested. Hosted clients without stdio support do not inherit this fallback.
 
 ## Copyable prompt
 

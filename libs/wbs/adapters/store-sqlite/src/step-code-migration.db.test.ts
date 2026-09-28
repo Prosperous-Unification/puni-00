@@ -19,6 +19,8 @@ const ORGANIZATION_OWNERSHIP = '20260927130000_add_organization_ownership';
 const ORGANIZATION_ACTIVATION = '20260927180000_add_organization_activation';
 /** The legacy bridge, stamped after the marker and so reversed before it. */
 const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
+/** The ownership freeze, stamped after the bridge and so reversed first. */
+const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
 
 let dir: string;
 let path: string;
@@ -129,6 +131,7 @@ describe(STEP_CODE, () => {
     const before = readStepColumns().map((column) => column.name);
 
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+      ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
       STEP_ALLOWANCE,

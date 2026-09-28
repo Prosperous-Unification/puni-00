@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
+import { organizationRefusal } from './organization-refusal';
 import { requestSchema, responseSchema } from './schema-shape';
 
 const projectParams = requestSchema(type({ id: 'string' }));
@@ -34,6 +35,7 @@ const common = [
     schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
   },
   { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  organizationRefusal,
 ] as const;
 const collection = [
   ...common,

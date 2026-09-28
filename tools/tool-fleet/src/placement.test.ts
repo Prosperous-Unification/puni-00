@@ -115,7 +115,12 @@ describe('the committed production placement', () => {
   });
 
   it('refuses every operation on an unresolved operator input', async () => {
-    const fleet = decodeFleet(await readDesiredInput());
+    // The committed IDs are resolved since the 2026-09-27 preflight; restore the placeholder.
+    const input = await readDesiredInput();
+    for (const node of input['nodes'] as { id: string; provider: Record<string, unknown> }[]) {
+      node.provider['machineId'] = `operator-input:${node.id} /etc/machine-id`;
+    }
+    const fleet = decodeFleet(input);
     for (const nodeId of ['h4claw', 'h3mon']) {
       expect(() =>
         planOperation(

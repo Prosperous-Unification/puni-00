@@ -1,4 +1,4 @@
-import { canEditProject, type IsoDate } from '@wbs/domain';
+import type { IsoDate } from '@wbs/domain';
 
 import type {
   CalendarMarkerListOutcome,
@@ -6,6 +6,12 @@ import type {
 } from '../../ports/calendar-marker-read';
 import type { CalendarMarker, CalendarMarkerStore } from '../../ports/calendar-marker-store';
 import type { Clock } from '../../ports/clock';
+import {
+  findProjectWithin,
+  LEGACY_ACCESS,
+  mayEditProjectWithin,
+  type ResourceAccess,
+} from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
 
@@ -73,8 +79,13 @@ export class CalendarMarkerService {
     this.clock = opts.clock;
   }
 
-  async list(projectId: string): Promise<CalendarMarkerListOutcome> {
-    const project = await this.opts.projects.findById(projectId);
+  list(projectId: string): Promise<CalendarMarkerListOutcome> {
+    return this.listWithin(projectId, LEGACY_ACCESS);
+  }
+
+  /** {@link list} through the caller's access: a foreign project is `not_found`. */
+  async listWithin(projectId: string, access: ResourceAccess): Promise<CalendarMarkerListOutcome> {
+    const project = await findProjectWithin(this.opts.projects, projectId, access);
     if (project === null) return { ok: false, reason: 'not_found', about: 'project' };
     return { ok: true, value: await this.opts.markers.listFor(projectId) };
   }
@@ -87,12 +98,22 @@ export class CalendarMarkerService {
    * tie with it, which is why two markers written by one act must not read the
    * clock twice.
    */
-  async create(
+  create(
     projectId: string,
     actorId: string,
     marker: NewCalendarMarker,
   ): Promise<CalendarMarkerOutcome> {
-    const gate = await this.gate(projectId, actorId);
+    return this.createWithin(projectId, actorId, marker, LEGACY_ACCESS);
+  }
+
+  /** {@link create} through the caller's access. */
+  async createWithin(
+    projectId: string,
+    actorId: string,
+    marker: NewCalendarMarker,
+    access: ResourceAccess,
+  ): Promise<CalendarMarkerOutcome> {
+    const gate = await this.gate(projectId, actorId, access);
     if (!gate.ok) return gate;
 
     const row: CalendarMarker = {
@@ -121,13 +142,24 @@ export class CalendarMarkerService {
     return { ok: true, value: written.marker };
   }
 
-  async rename(
+  rename(
     projectId: string,
     id: string,
     actorId: string,
     name: string,
   ): Promise<CalendarMarkerOutcome> {
-    const gate = await this.gate(projectId, actorId);
+    return this.renameWithin(projectId, id, actorId, name, LEGACY_ACCESS);
+  }
+
+  /** {@link rename} through the caller's access. */
+  async renameWithin(
+    projectId: string,
+    id: string,
+    actorId: string,
+    name: string,
+    access: ResourceAccess,
+  ): Promise<CalendarMarkerOutcome> {
+    const gate = await this.gate(projectId, actorId, access);
     if (!gate.ok) return gate;
 
     const written = await this.opts.markers.rename(projectId, id, name);
@@ -136,13 +168,24 @@ export class CalendarMarkerService {
     return { ok: true, value: written.marker };
   }
 
-  async recolor(
+  recolor(
     projectId: string,
     id: string,
     actorId: string,
     color: string | null,
   ): Promise<CalendarMarkerOutcome> {
-    const gate = await this.gate(projectId, actorId);
+    return this.recolorWithin(projectId, id, actorId, color, LEGACY_ACCESS);
+  }
+
+  /** {@link recolor} through the caller's access. */
+  async recolorWithin(
+    projectId: string,
+    id: string,
+    actorId: string,
+    color: string | null,
+    access: ResourceAccess,
+  ): Promise<CalendarMarkerOutcome> {
+    const gate = await this.gate(projectId, actorId, access);
     if (!gate.ok) return gate;
 
     const written = await this.opts.markers.recolor(projectId, id, color);
@@ -151,8 +194,18 @@ export class CalendarMarkerService {
     return { ok: true, value: written.marker };
   }
 
-  async remove(projectId: string, id: string, actorId: string): Promise<CalendarMarkerOutcome> {
-    const gate = await this.gate(projectId, actorId);
+  remove(projectId: string, id: string, actorId: string): Promise<CalendarMarkerOutcome> {
+    return this.removeWithin(projectId, id, actorId, LEGACY_ACCESS);
+  }
+
+  /** {@link remove} through the caller's access. */
+  async removeWithin(
+    projectId: string,
+    id: string,
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<CalendarMarkerOutcome> {
+    const gate = await this.gate(projectId, actorId, access);
     if (!gate.ok) return gate;
 
     const written = await this.opts.markers.remove(projectId, id);
@@ -183,10 +236,15 @@ export class CalendarMarkerService {
   private async gate(
     projectId: string,
     actorId: string,
+    access: ResourceAccess,
   ): Promise<{ ok: true } | CalendarMarkerRefused> {
-    const project = await this.opts.projects.findById(projectId);
+    // Proof: finding the project unscoped here, and separately in `listWithin`,
+    // failed `answers 404 alike for a foreign and an absent project on every
+    // step and marker route` in `step-marker-organization.controller.db.test.ts`;
+    // watched 2026-09-27.
+    const project = await findProjectWithin(this.opts.projects, projectId, access);
     if (project === null) return { ok: false, reason: 'not_found', about: 'project' };
-    if (!canEditProject(project, actorId))
+    if (!mayEditProjectWithin(project, actorId, access))
       return { ok: false, reason: 'forbidden', about: 'project' };
     return { ok: true };
   }
