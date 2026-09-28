@@ -111,6 +111,16 @@ Each fault was injected into the production code, the named test run, and the fi
 | the store writes a statement only on a leaf        | `NOT EXISTS (child)` condition dropped          | `refuses a readiness or hold on a row that has children, in the write itself`                 | `ok: true` with the parent holding `hold: "on_hold"`                             |
 | a move's inverse moves back first                  | statement inverses ordered before the move-back | `clears the readiness and hold of a leaf another row moves under, and one undo restores them` | `Expected: true, Received: false`: the undo was refused                          |
 
+### Readiness swap guard (follow-up to #207)
+
+| Check                              | Fault injected                              | Test that observed it                                                             | Observed                          |
+| ---------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------- |
+| the swap compares stored readiness | `READINESS_VOCABULARY` left out of the list | `refuses an image that reads no readiness while readiness is stored`              | 1 pass, 1 fail                    |
+| save version                       | version check disabled                      | `refuses a malformed save`                                                        | `Received function did not throw` |
+| remove matches both columns        | comparison reduced to lengths               | `refuses to remove a save that no longer matches the table`                       | `Received function did not throw` |
+| restore only on leaves             | leaf check disabled                         | `refuses the whole restore when a saved work item is gone or has become a parent` | `Received function did not throw` |
+| CLI usage                          | guard bypassed                              | `saves, removes and restores readiness and holds through the rollback CLI`        | `Expected: not 0`                 |
+
 ## Not run
 
 - The h2puni host gate; the orchestrator runs it on the integration branch.

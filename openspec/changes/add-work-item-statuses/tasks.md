@@ -36,7 +36,7 @@
       `hold-kinds-cli.ts` reads as no holds.
 - [x] 2.3 Negatives: the hold vocabulary left out of the swap's list makes four swap cases fail;
       the hold CLI's directory check replaced by an unconditional `[]` makes the missing `src`
-      case fail. The runbook section `#work-item-hold-rollback` the refusal names lands with the
+      case fail. The runbook section `#work-item-status-facts-rollback` the refusal names lands with the
       rollback CLI in slice 3.
 
 ## 3. Storage and command
@@ -48,7 +48,7 @@
       duplicate; route refusal for `blocked_by_proxy`.
 - [x] 3.2 Green: migration `20260928200000_add_work_item_status_facts` (after
       `20260928040000` on the orgs stack, rechecked 2026-09-29), guarded `down.sql`,
-      `work-item-hold-rollback-cli.ts`, `hold-kinds-cli.ts` printing `HOLDS`, widened
+      `work-item-status-facts-rollback-cli.ts`, `hold-kinds-cli.ts` printing `HOLDS`, widened
       `setStatus`, `SETTABLE_STATUSES` and contract, the three `in_progress` cases and
       `409 no_steps` for `done` too. fe-01 reads every status and still offers only Unknown and
       Done (`OFFERED_STATUSES`) until slice 6. Moving a row under a leaf clears that leaf's
@@ -58,6 +58,14 @@
       statement guard removed in the read, each `setStatus` refusal removed, the hold inverse
       dropped, `parseStatus` cast, `isSettableStatus` admitting `blocked_by_proxy`, each
       structural write skipped, the copy keeping its hold. See `verify.md`.
+
+- [x] 3.4 Fable review (2026-09-29): a statement is never written on a parent (`apply` and the
+      store's conditional `UPDATE`), a move's inverse moves back first, the delete undo test
+      asserts the restored leaf.
+- [x] 3.5 Readiness joins the swap guard (`readiness-kinds-cli.ts`, `READINESS_VOCABULARY`); the
+      rollback CLI becomes `work-item-status-facts-rollback-cli.ts` and saves both columns.
+      Negatives: the vocabulary left out of the swap's list; the CLI's usage guard, the save's
+      version check, the remove's comparison and the restore's leaf check each disabled.
 
 ## 4. Engine reduction
 

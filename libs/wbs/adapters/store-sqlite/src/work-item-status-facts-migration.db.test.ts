@@ -115,7 +115,7 @@ describe(STATUS_FACTS, () => {
     });
     if (BASELINE === undefined) throw new Error('no migration below the status facts');
     expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(
-      'docs/runbook-prod-deploy.md#work-item-hold-rollback',
+      'docs/runbook-prod-deploy.md#work-item-status-facts-rollback',
     );
     withDatabase((sqlite) => {
       expect(

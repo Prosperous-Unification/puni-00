@@ -751,7 +751,7 @@ b294bd5775c3cae2d474d8771f99984a3f6e3b1a apps/be-01/drizzle/20260928020000_add_e
 979808a15d6219e69dd4c61378e79b9bd0a74373 apps/be-01/drizzle/20260928020000_add_email_verification/migration.sql
 fe552f3276769d4f7419f788bdd85ad5e7258c40 apps/be-01/drizzle/20260928030000_add_delegation_use/down.sql
 5016984af80a5d12915612af4ceb43093a5840fc apps/be-01/drizzle/20260928030000_add_delegation_use/migration.sql
-689ab9199c366081bd9268f7075304b33bc41cc5 apps/be-01/drizzle/20260928200000_add_work_item_status_facts/down.sql
+eb3976e18a7a3a6eb251f13da66db748f445941f apps/be-01/drizzle/20260928200000_add_work_item_status_facts/down.sql
 bf53dea896fa4ad365539c8f61d26c0ac39cd1cd apps/be-01/drizzle/20260928200000_add_work_item_status_facts/migration.sql
 ```
 

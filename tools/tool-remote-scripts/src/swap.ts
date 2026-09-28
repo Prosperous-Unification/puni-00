@@ -39,11 +39,13 @@ import {
   NETWORK,
   PORT,
   psColorsFrom,
+  readinessKindsCommand,
   relationshipTypesCommand,
   revokeAliasCommands,
   ROOT,
   SHARED_ENV_PATH,
   storedHoldsCommand,
+  storedReadinessesCommand,
   storedRelationshipTypesCommand,
   tierComposeContext,
   tierComposeFile,
@@ -565,17 +567,36 @@ const HOLD_KINDS_VOCABULARY: StoredVocabulary = {
   key: 'kind',
   supportedCommand: holdKindsCommand,
   storedCommand: storedHoldsCommand,
-  recoveryCli: 'work-item-hold-rollback-cli.ts',
-  runbookAnchor: 'work-item-hold-rollback',
+  recoveryCli: 'work-item-status-facts-rollback-cli.ts',
+  runbookAnchor: 'work-item-status-facts-rollback',
+};
+
+/**
+ * Work item readiness (`add-work-item-statuses`). A release that cannot read
+ * `work_item.readiness` can make a ready leaf a parent without clearing it, and
+ * the status read then refuses the plan (design.md, decided after the slice 3
+ * review), so a stored readiness it does not name refuses the swap too.
+ */
+const READINESS_VOCABULARY: StoredVocabulary = {
+  name: 'readinesses',
+  key: 'kind',
+  supportedCommand: readinessKindsCommand,
+  storedCommand: storedReadinessesCommand,
+  recoveryCli: 'work-item-status-facts-rollback-cli.ts',
+  runbookAnchor: 'work-item-status-facts-rollback',
 };
 
 // Proof: `HOLD_KINDS_VOCABULARY` left out of this list made four cases fail,
 // among them `refuses an image that reads no holds while holds are stored, and
 // stops green` and `refuses a hold written after the first check once blue
 // stops`: the swap went on to migrate over held rows; watched 2026-09-28.
+// Proof: `READINESS_VOCABULARY` left out of this list made `refuses an image
+// that reads no readiness while readiness is stored` fail — the swap went on to
+// migrate; watched 2026-09-29.
 const STORED_VOCABULARIES: readonly StoredVocabulary[] = [
   RELATIONSHIP_TYPES_VOCABULARY,
   HOLD_KINDS_VOCABULARY,
+  READINESS_VOCABULARY,
 ];
 
 /** Parses the incoming release's supported values at the Docker output boundary. */

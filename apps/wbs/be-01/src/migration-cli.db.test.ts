@@ -68,8 +68,8 @@ describe('migration deploy entrypoints', () => {
         ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/typed-dependency-rollback'"],
       ],
       [
-        'work-item-hold-rollback-cli.ts',
-        ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/work-item-hold-rollback'"],
+        'work-item-status-facts-rollback-cli.ts',
+        ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/work-item-status-facts-rollback'"],
       ],
     ]);
     for (const [file, imports] of expectedImports) {
@@ -165,7 +165,7 @@ describe('migration deploy entrypoints', () => {
     expect(failed.stderr).toContain('no such table: step');
   }, 60_000);
 
-  it('saves, removes and restores holds through the rollback CLI', async () => {
+  it('saves, removes and restores readiness and holds through the rollback CLI', async () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-hold-cli-'));
     roots.push(root);
     const dbPath = join(root, 'plan.db');
@@ -185,19 +185,25 @@ describe('migration deploy entrypoints', () => {
     } finally {
       sqlite.close();
     }
-    expect(await runCli('work-item-hold-rollback-cli.ts', dbPath, 'save', savedPath)).toEqual({
+    expect(
+      await runCli('work-item-status-facts-rollback-cli.ts', dbPath, 'save', savedPath),
+    ).toEqual({
       exitCode: 0,
-      stdout: 'work item holds saved: 1\n',
+      stdout: 'work item status facts saved: 1\n',
       stderr: '',
     });
-    expect(await runCli('work-item-hold-rollback-cli.ts', dbPath, 'remove', savedPath)).toEqual({
+    expect(
+      await runCli('work-item-status-facts-rollback-cli.ts', dbPath, 'remove', savedPath),
+    ).toEqual({
       exitCode: 0,
-      stdout: 'work item holds removed: 1\n',
+      stdout: 'work item status facts removed: 1\n',
       stderr: '',
     });
-    expect(await runCli('work-item-hold-rollback-cli.ts', dbPath, 'restore', savedPath)).toEqual({
+    expect(
+      await runCli('work-item-status-facts-rollback-cli.ts', dbPath, 'restore', savedPath),
+    ).toEqual({
       exitCode: 0,
-      stdout: 'work item holds restored: 1\n',
+      stdout: 'work item status facts restored: 1\n',
       stderr: '',
     });
     const restored = openDatabase(dbPath);
@@ -210,10 +216,19 @@ describe('migration deploy entrypoints', () => {
     } finally {
       restored.close();
     }
-    const invalid = await runCli('work-item-hold-rollback-cli.ts', dbPath, 'erase', savedPath);
+    const invalid = await runCli(
+      'work-item-status-facts-rollback-cli.ts',
+      dbPath,
+      'erase',
+      savedPath,
+    );
     expect(invalid.exitCode).not.toBe(0);
     expect(invalid.stderr).toContain('usage:');
-    const missingArgument = await runCli('work-item-hold-rollback-cli.ts', dbPath, 'restore');
+    const missingArgument = await runCli(
+      'work-item-status-facts-rollback-cli.ts',
+      dbPath,
+      'restore',
+    );
     expect(missingArgument.exitCode).not.toBe(0);
     expect(missingArgument.stderr).toContain('usage:');
   }, 60_000);

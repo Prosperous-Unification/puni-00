@@ -53,7 +53,7 @@ Fast, the solver request builder and saved-plan schedules share.
 As the ADR and spec state: two nullable CHECKed columns, vocabularies in
 `stored-vocabularies.ts`; `setStatus` widened with a verbatim journal inverse; read shape adds
 `readiness`, `hold`, `schedule: Scheduled | null`; plan document v6 and saved-plan schema 4 with
-`[3, withNoHolds]` in `PLAN_INPUT_UPGRADES`; rollback CLI `work-item-hold-rollback-cli.ts
+`[3, withNoHolds]` in `PLAN_INPUT_UPGRADES`; rollback CLI `work-item-status-facts-rollback-cli.ts
 save|remove|restore`; the swap's `relationship-types` step generalises to a stored-vocabularies
 step reading `supported-vocabularies-cli.ts`.
 
