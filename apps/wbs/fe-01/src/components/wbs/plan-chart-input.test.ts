@@ -1,6 +1,7 @@
 import { addWorkdays } from '@wbs/domain/workday';
 import { describe, expect, it } from 'vitest';
 
+import { GanttDataError } from './gantt-geometry';
 import { chartTypedDependencies, factEndStopOf, notBeforeOffsetOf } from './plan-chart-input';
 
 it('refuses an unknown typed chart relationship', () => {
@@ -13,7 +14,7 @@ it('refuses an unknown typed chart relationship', () => {
         successor: { scope: 'whole', workItemId: 'B' },
       },
     ]),
-  ).toThrow('unsupported chart dependency SS');
+  ).toThrow(GanttDataError);
 });
 
 /** A Monday, so the weekend cases below have one to roll over. */

@@ -54,6 +54,77 @@ describe('the dependency-card pointer bridge', () => {
     });
     expect(entry?.getAttribute('data-dependency-lit')).toBe('true');
   });
+  itDom('keeps a typed entry interactive and tracks a real pointer move through the card', () => {
+    const depLights = createDepLights();
+    depLights.setTypedDependencies([
+      { id: 'edge', predecessor: { workItemId: 'A' }, successor: { workItemId: 'B' } },
+    ]);
+    const onPointerOutside = vi.fn();
+    render(
+      <table>
+        <tbody>
+          <tr>
+            <td data-testid="typed-owner">
+              <DependsCard
+                number="020"
+                entries={[]}
+                typedEntries={[
+                  {
+                    id: 'edge',
+                    label: '010 Dev FS → 020 QA',
+                    onEdit: () => undefined,
+                    onRemove: () => undefined,
+                  },
+                ]}
+                depLights={depLights}
+                rowId="B"
+                onPointEntry={() => undefined}
+                onPointerOutside={onPointerOutside}
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>,
+    );
+    const entry = screen.getByRole('group', { name: '010 Dev FS → 020 QA' });
+    const tooltip = screen.getByRole('tooltip');
+    expect(entry.style.pointerEvents).toBe('auto');
+    expect(getComputedStyle(entry).pointerEvents).toBe('auto');
+    vi.spyOn(screen.getByTestId('typed-owner'), 'getBoundingClientRect').mockReturnValue({
+      ...rect(10, 10, 110, 40),
+      x: 10,
+      y: 10,
+      width: 100,
+      height: 30,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(tooltip, 'getBoundingClientRect').mockReturnValue({
+      ...rect(110, 10, 280, 90),
+      x: 110,
+      y: 10,
+      width: 170,
+      height: 80,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(entry, 'getBoundingClientRect').mockReturnValue({
+      ...rect(116, 16, 274, 36),
+      x: 116,
+      y: 16,
+      width: 158,
+      height: 20,
+      toJSON: () => ({}),
+    });
+    fireEvent.pointerEnter(entry);
+    expect(depLights.activeTypedId()).toBe('edge');
+    act(() => {
+      depLights.updateHover(() => null);
+    });
+    fireEvent.pointerMove(entry, { clientX: 150, clientY: 25 });
+    expect(depLights.activeTypedId()).toBe('edge');
+    expect(onPointerOutside).not.toHaveBeenCalled();
+    fireEvent.pointerMove(entry, { clientX: 400, clientY: 100 });
+    expect(onPointerOutside).toHaveBeenCalledTimes(1);
+  });
   // The sideways geometry the card has since 2026-09-09: the card's left edge
   // is its cell's right edge, its top is the cell's, and its lines sit inside
   // it with the card's own 6px padding around them.

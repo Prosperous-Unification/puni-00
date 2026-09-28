@@ -1769,7 +1769,6 @@ export function WbsTable({
     cellCards,
   });
   const { ganttPlan, floorByRow } = usePlanChartInput({
-    typedDependencies,
     shownRows,
     startDate,
     effectiveTeamLabelOf,
@@ -3007,6 +3006,7 @@ export function WbsTable({
         <GanttFaultBoundary generation={chartRead.generation}>
           <GanttPanel
             plan={ganttPlan}
+            typedDependencies={typedDependencies}
             depLights={depLights}
             startDate={startDate}
             scheduleError={scheduleError}

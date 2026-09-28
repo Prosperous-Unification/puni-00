@@ -24,11 +24,17 @@ import {
 
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { CalendarMarkerView, NewCalendarMarkerView, PriorityBandView } from '@/lib/wbs-api';
+import type {
+  CalendarMarkerView,
+  NewCalendarMarkerView,
+  PriorityBandView,
+  TypedDependencyView,
+} from '@/lib/wbs-api';
 
 import type { DepLights } from './dep-light-store';
 import { useGanttDetail } from './gantt-detail';
 import {
+  BAR_INSET,
   CAPACITY_LINK_COLOR,
   DONE_BAR_STROKE,
   droppedLinkWords,
@@ -54,6 +60,7 @@ import { type AnchorRect, HoverCard } from './hover-card';
 import { initialsOf } from './initials';
 import { InlineMarkdown } from './inline-markdown';
 import { markerRulesAreTooDense } from './marker-rule-density';
+import { chartTypedDependencies } from './plan-chart-input';
 import type { PointedRows } from './pointed-row-store';
 import { priorityBandStyleOf } from './priority-band-style';
 import { recordGanttScrollCommit } from './scroll-performance';
@@ -433,7 +440,6 @@ export function appliedGanttHeight(claimPx: number | null, roomPx: number | null
  * so this is the only unit available inside it — and it stays correct at any
  * {@link ROW_PX}.
  */
-const BAR_INSET = 0.18;
 const BAR_HEIGHT = 1 - 2 * BAR_INSET;
 
 /**
@@ -727,9 +733,9 @@ export function typedArrowLabel(
  * `verify.md` rather than fixed. Cross-review, 2026-08-12.
  *
  * Typed arrows retain their unknown origin placeholder as an obstacle and can
- * leave vertically along its edge. Their later-step targets can be entered
- * down the target's left boundary from the row gap. A plain route's last run
- * remains horizontal; every arrowhead points right at the successor's start.
+ * leave vertically along its edge. Their endpoints and obstacles use the
+ * painted slice lanes. Later-step targets can be entered down the target's
+ * left boundary from the row gap; the head follows that final run.
  */
 function arrowRoute(
   arrow: PlacedArrow,
@@ -738,7 +744,6 @@ function arrowRoute(
   typed = false,
 ): { elbow: string; head: string } {
   const at = (x: number, y: number): string => `${String(x)} ${String(y)}`;
-  const toY = arrow.toRowIndex + ROW_MIDDLE;
   // Both of these turn a **pixel** length into the user space's own unit, so
   // the rung has to be the one in force: at 4px/day an approach of ten pixels
   // is two and a half days of user space, not the third of a day it is at 28.
@@ -771,14 +776,19 @@ function arrowRoute(
   );
   const headX = ARROW_HEAD_PX / dayPx;
   const headY = ARROW_HEAD_HALF_PX / ROW_PX;
+  const tip = route[route.length - 1];
+  const beforeTip = route[route.length - 2];
+  const arrivesVertically = beforeTip.x === tip.x;
   return {
     elbow: route
       .map((corner, index) => `${index === 0 ? 'M' : 'L'} ${at(corner.x, corner.y)}`)
       .join(' '),
-    head:
-      `M ${at(arrow.toX, toY)} ` +
-      `L ${at(arrow.toX - headX, toY - headY)} ` +
-      `L ${at(arrow.toX - headX, toY + headY)} Z`,
+    // Proof: a right-facing head after vertical boundary entry failed
+    // `routes a typed arrow into a later step without crossing the earlier bar`.
+    // Watched 2026-09-28.
+    head: arrivesVertically
+      ? `M ${at(tip.x, tip.y)} L ${at(tip.x - headX, tip.y - Math.sign(tip.y - beforeTip.y) * headY)} L ${at(tip.x + headX, tip.y - Math.sign(tip.y - beforeTip.y) * headY)} Z`
+      : `M ${at(tip.x, tip.y)} L ${at(tip.x - headX, tip.y - headY)} L ${at(tip.x - headX, tip.y + headY)} Z`,
   };
 }
 
@@ -2808,9 +2818,16 @@ export function ganttSvgFileName(now: Date): string {
  */
 export const GanttPanel = memo(
   function GanttPanel(props: GanttProps) {
+    // Proof: an unsupported wire type sent through this prop made
+    // `contains an unsupported chart relationship inside the chart fault boundary`
+    // show a generic error when validation threw plain Error. Watched 2026-09-28.
+    const plan =
+      props.typedDependencies === undefined
+        ? props.plan
+        : { ...props.plan, typedDependencies: chartTypedDependencies(props.typedDependencies) };
     return (
       <Profiler id="gantt-panel" onRender={recordGanttScrollCommit}>
-        <GanttPanelContent {...props} />
+        <GanttPanelContent {...props} plan={plan} />
       </Profiler>
     );
   },
@@ -2824,6 +2841,7 @@ export const GanttPanel = memo(
     before.labelsShown === after.labelsShown &&
     before.pointed === after.pointed &&
     before.markers === after.markers &&
+    before.typedDependencies === after.typedDependencies &&
     before.plan.narrowedByFilter === after.plan.narrowedByFilter &&
     before.plan.rows.length === after.plan.rows.length &&
     before.plan.rows.every((row, index) => row.id === after.plan.rows[index]?.id),
@@ -2908,6 +2926,8 @@ function GanttPanelContent({
 /** What the panel is given: one chart read, and what to do with a click on it. */
 interface GanttProps {
   plan: GanttPlan;
+  /** Raw wire relationships; validated while the chart fault boundary is mounted. */
+  typedDependencies?: readonly TypedDependencyView[];
   depLights?: DepLights;
   /** The day the plan begins, or null while it is not on a calendar. */
   startDate: IsoDate | null;

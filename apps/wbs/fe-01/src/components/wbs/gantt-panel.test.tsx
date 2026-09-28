@@ -435,6 +435,34 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
     expect(document.querySelector('[data-gantt-fault]')).toBeNull();
     expect(document.querySelector('[data-gantt-chart]')).not.toBeNull();
   });
+  itDom('contains an unsupported chart relationship inside the chart fault boundary', () => {
+    const chart = planOf({ rows: [rowAt('A', 0, 1)], slices: [sliceAt('A-dev', 'A', 0, 1)] });
+    render(
+      <GanttFaultBoundary generation={0}>
+        <GanttPanel
+          plan={chart}
+          typedDependencies={[
+            {
+              id: 'future',
+              type: 'SS',
+              predecessor: { scope: 'whole', workItemId: 'A' },
+              successor: { scope: 'whole', workItemId: 'A' },
+            },
+          ]}
+          startDate={null}
+          scheduleError={null}
+          generation={0}
+          heightPx={null}
+          onPickRow={() => undefined}
+          onPointRow={() => undefined}
+          pointed={pointedAtRow(null)}
+        />
+      </GanttFaultBoundary>,
+    );
+    expect(document.querySelector('[data-gantt-fault]')?.textContent).toContain(
+      'unsupported chart dependency SS',
+    );
+  });
   itDom(
     'names distinct typed endpoints and lights only the active grouped relationship slices',
     () => {
@@ -552,6 +580,76 @@ describe('every mark on the chart lands on the calendar day its workday is', () 
     const right = left + Number(earlier?.getAttribute('width'));
     const top = Number(earlier?.getAttribute('y'));
     const bottom = top + Number(earlier?.getAttribute('height'));
+    expect(
+      corners.slice(1).some((corner, index) => {
+        const before = corners[index];
+        return (
+          Math.max(before.x, corner.x) > left &&
+          Math.min(before.x, corner.x) < right &&
+          Math.max(before.y, corner.y) > top &&
+          Math.min(before.y, corner.y) < bottom
+        );
+      }),
+    ).toBe(false);
+    const head = markAttribute('[data-gantt-typed-arrow="qa"] ~ path:last-of-type', 'd');
+    const headCorners = [...head.matchAll(/[ML] ([\d.-]+) ([\d.-]+)/g)].map((match) => ({
+      x: Number(match[1]),
+      y: Number(match[2]),
+    }));
+    expect(corners.at(-2)?.x).toBe(corners.at(-1)?.x);
+    expect(headCorners[1].y).toBeLessThan(headCorners[0].y);
+    expect(headCorners[2].y).toBeLessThan(headCorners[0].y);
+  });
+  itDom('routes from a lane without crossing the middle unknown placeholder', () => {
+    const chart = planOf({
+      rows: [rowAt('A', 0, 1), rowAt('B', 1, 3)],
+      steps: [
+        { id: 'one', name: 'One' },
+        { id: 'two', name: 'Two' },
+        { id: 'dev', name: 'Dev' },
+      ],
+      slices: [
+        sliceAt('A-one', 'A', 0, 0, { stepId: 'one', estimated: false }),
+        sliceAt('A-two', 'A', 0, 0, { stepId: 'two', estimated: false }),
+        sliceAt('A-dev', 'A', 0, 1, { stepId: 'dev' }),
+        sliceAt('B-dev', 'B', 1, 3, { stepId: 'dev' }),
+      ],
+      typedDependencies: [
+        {
+          id: 'dep',
+          type: 'FS',
+          predecessor: { scope: 'node', workItemId: 'A', stepId: 'dev' },
+          successor: { scope: 'node', workItemId: 'B', stepId: 'dev' },
+        },
+      ],
+    });
+    render(
+      <GanttPanel
+        plan={chart}
+        startDate={null}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    pressTheDetail();
+    const path = markAttribute('[data-gantt-typed-arrow="dep"]', 'd');
+    const corners = [...path.matchAll(/[ML] ([\d.-]+) ([\d.-]+)/g)].map((match) => ({
+      x: Number(match[1]),
+      y: Number(match[2]),
+    }));
+    const placeholder = document.querySelector('[data-gantt-bar="A-two"]');
+    const origin = document.querySelector('[data-gantt-bar="A-dev"]');
+    expect(corners[0].y).toBe(
+      Number(origin?.getAttribute('y')) + Number(origin?.getAttribute('height')) / 2,
+    );
+    const left = Number(placeholder?.getAttribute('x'));
+    const right = left + Number(placeholder?.getAttribute('width'));
+    const top = Number(placeholder?.getAttribute('y'));
+    const bottom = top + Number(placeholder?.getAttribute('height'));
     expect(
       corners.slice(1).some((corner, index) => {
         const before = corners[index];

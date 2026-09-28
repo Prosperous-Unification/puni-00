@@ -1139,6 +1139,9 @@ export interface PlacedArrow {
   fromX: number;
   toRowIndex: number;
   toX: number;
+  /** Slice lane centres, when the endpoints are authored step slices. */
+  fromY?: number;
+  toY?: number;
 }
 
 /** One person's hand-off as it is drawn, in the colour of whoever made it. */
@@ -1254,6 +1257,13 @@ function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset
     toRowIndex: arrow.toRowIndex,
     toX: startOf(arrow.toStart),
   }));
+  const barBySlice = new Map(bars.map((placed) => [placed.bar.sliceId, placed.bar]));
+  const laneMiddle = (sliceId: string): number | undefined => {
+    const bar = barBySlice.get(sliceId);
+    return bar === undefined
+      ? undefined
+      : bar.rowIndex + BAR_INSET + ((bar.lane + 0.5) * BAR_HEIGHT) / bar.lanes;
+  };
   const typedArrows = chart.typedArrows.map((arrow) => ({
     predecessorId: arrow.predecessorId,
     successorId: arrow.successorId,
@@ -1261,6 +1271,8 @@ function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset
     fromX: stopOf(arrow.fromStart, arrow.fromFinish),
     toRowIndex: arrow.toRowIndex,
     toX: startOf(arrow.toStart),
+    fromY: laneMiddle(arrow.predecessorSliceId),
+    toY: laneMiddle(arrow.successorSliceId),
     relationshipId: arrow.relationshipId,
     relationshipIds: arrow.relationshipIds,
     relationshipSlices: arrow.relationshipSlices,
@@ -1358,6 +1370,9 @@ export function placeOnWorkdays(chart: GanttGeometry): PlacedGantt {
  * up on different heights.
  */
 export const ROW_MIDDLE = 0.5;
+/** Vertical inset shared by painted bars and their routing rectangles. */
+export const BAR_INSET = 0.18;
+const BAR_HEIGHT = 1 - 2 * BAR_INSET;
 
 /** A corner of a dependency arrow's route: `x` in the placed unit, `y` in rows. */
 export interface ArrowPoint {
@@ -1395,8 +1410,13 @@ interface BarRect {
 const rectOf = (placed: PlacedBar, barInset: number): BarRect => ({
   left: placed.x,
   right: placed.x + placed.width,
-  top: placed.bar.rowIndex + barInset,
-  bottom: placed.bar.rowIndex + 1 - barInset,
+  // Proof: a full-row obstacle made `routes from a lane without crossing the
+  // middle unknown placeholder` report a crossing through A-two. Watched 2026-09-28.
+  top: placed.bar.rowIndex + barInset + (placed.bar.lane * (1 - 2 * barInset)) / placed.bar.lanes,
+  bottom:
+    placed.bar.rowIndex +
+    barInset +
+    ((placed.bar.lane + 1) * (1 - 2 * barInset)) / placed.bar.lanes,
 });
 
 /**
@@ -1453,9 +1473,9 @@ const frameOf = (arrow: PlacedArrow, clearance: ArrowClearance): ArrowFrame => {
   const bandFrom = descending ? arrow.fromRowIndex + 1 - band : arrow.fromRowIndex + band;
   return {
     fromX: arrow.fromX,
-    fromY: arrow.fromRowIndex + ROW_MIDDLE,
+    fromY: arrow.fromY ?? arrow.fromRowIndex + ROW_MIDDLE,
     toX: arrow.toX,
-    toY: arrow.toRowIndex + ROW_MIDDLE,
+    toY: arrow.toY ?? arrow.toRowIndex + ROW_MIDDLE,
     turn: arrow.toX - clearance.approach,
     bandFrom,
     bandTo:

@@ -224,6 +224,15 @@ export function DependsCard({
         const target = targets.current.get(entry.id);
         return target === undefined ? [] : [{ id: entry.id, rect: target.getBoundingClientRect() }];
       });
+      const typedIds = new Set(typedEntries.map((entry) => entry.id));
+      for (const dependency of typedEntries) {
+        const target = targets.current.get(dependency.id);
+        // Proof: omitting this target made `keeps a typed entry interactive and
+        // tracks a real pointer move through the card` receive null rather
+        // than edge after a pointermove. Watched 2026-09-28.
+        if (target !== undefined)
+          rows.push({ id: dependency.id, rect: target.getBoundingClientRect() });
+      }
       const region = dependencyPointerRegion(
         { x: event.clientX, y: event.clientY },
         owner.getBoundingClientRect(),
@@ -231,8 +240,11 @@ export function DependsCard({
         cardRectOf(first),
       );
       if (region.kind === 'owner') onPointEntry(null);
-      else if (region.kind === 'row') onPointEntry(region.id);
-      else if (region.kind === 'outside') onPointerOutside();
+      else if (region.kind === 'row') {
+        if (typedIds.has(region.id)) {
+          depLights.updateHover(() => ({ rowId, pillId: region.id }));
+        } else onPointEntry(region.id);
+      } else if (region.kind === 'outside') onPointerOutside();
     };
     document.addEventListener('pointermove', move, { passive: true });
     document.addEventListener('pointercancel', clear, { passive: true });
@@ -244,7 +256,7 @@ export function DependsCard({
       window.removeEventListener('scroll', clear, true);
       window.removeEventListener('resize', clear);
     };
-  }, [entries, onPointEntry, onPointerOutside]);
+  }, [entries, typedEntries, depLights, rowId, onPointEntry, onPointerOutside]);
 
   return (
     // **Beside its cell, not under it**, which is the links card's scheme and
@@ -267,6 +279,10 @@ export function DependsCard({
       {typedEntries.map((dependency) => (
         <div
           key={dependency.id}
+          ref={(target) => {
+            if (target === null) targets.current.delete(dependency.id);
+            else targets.current.set(dependency.id, target);
+          }}
           className="typed-dependency-card-entry"
           role="group"
           aria-label={dependency.label}
@@ -274,9 +290,13 @@ export function DependsCard({
           // focus with the shared relationship light` receive null instead
           // of "true" after an external light update. Watched 2026-09-28.
           data-dependency-lit={activeTypedId === dependency.id ? 'true' : undefined}
-          style={
-            activeTypedId === dependency.id ? { background: 'var(--card-dep-lit)' } : undefined
-          }
+          // Proof: without pointerEvents auto, `keeps a typed entry interactive
+          // and tracks a real pointer move through the card` received an empty
+          // computed pointer-events style. Watched 2026-09-28.
+          style={{
+            pointerEvents: 'auto',
+            ...(activeTypedId === dependency.id ? { background: 'var(--card-dep-lit)' } : {}),
+          }}
           // Proof: without this publication, `syncs typed entry hover and focus
           // with the shared relationship light` read null after pointer enter.
           // Watched 2026-09-28.
