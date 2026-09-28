@@ -55,6 +55,46 @@ export const completeOidcLogin = defineEndpointShape({
   ],
   document: { summary: 'Complete one browser OIDC login.' },
 });
+
+/** Starts a separate Auth0 proof for the already signed-in password account. */
+export const startAuth0Link = defineEndpointShape({
+  method: 'POST',
+  path: '/api/auth/link/auth0',
+  operationId: 'postApiAuthLinkAuth0',
+  policies: [{ kind: 'origin', when: 'always-unsafe-with-session-cookie' }],
+  body: requestSchema(type({ password: 'string' })),
+  responses: [{ kind: 'empty', status: 302 }],
+  refusals: [
+    malformed,
+    invalidOrigin,
+    { status: 401, schema: responseSchema(type({ error: "'invalid_credentials'" })) },
+    { status: 403, schema: responseSchema(type({ error: "'onboarding_inactive'" })) },
+  ],
+  document: { summary: 'Prove the password session and start an explicit Auth0 link.' },
+});
+
+/** Consumes the bound Auth0 proof without entering normal login resolution. */
+export const completeAuth0Link = defineEndpointShape({
+  method: 'GET',
+  path: '/api/auth/link/auth0/callback',
+  operationId: 'getApiAuthLinkAuth0Callback',
+  policies: [],
+  query: requestSchema(type({ '[string]': 'string' })),
+  queryMode: 'arbitrary-singleton',
+  responses: [{ kind: 'empty', status: 302 }],
+  refusals: [
+    malformed,
+    { status: 400, schema: responseSchema(type({ error: "'duplicate_parameter'" })) },
+    { status: 405, schema: responseSchema(type({ error: "'method_not_allowed'" })) },
+    { kind: 'empty', status: 400 },
+    { kind: 'empty', status: 401 },
+    { kind: 'empty', status: 403 },
+    { kind: 'empty', status: 409 },
+    { kind: 'empty', status: 500 },
+    { kind: 'empty', status: 503 },
+  ],
+  document: { summary: 'Complete an explicit Auth0 link for the originating password session.' },
+});
 /** Refreshes from the browser session correlation, including an expired access token. */
 export const refreshOidcSession = defineEndpointShape({
   method: 'POST',

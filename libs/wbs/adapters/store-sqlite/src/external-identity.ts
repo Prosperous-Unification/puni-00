@@ -1,9 +1,13 @@
+import { randomUUID } from 'node:crypto';
+
+import { normalizeEmail } from '@wbs/auth';
 import type { WriteStamp } from '@wbs/core';
 import { and, eq, isNotNull, or, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate } from './audit';
 import type { Gate } from './gate';
+import { readOrganizationActivation } from './organization-activation';
 import { externalIdentity, users } from './schema';
 
 /** A verified identity-provider account: the pair a token proves, never an email. */
@@ -15,17 +19,123 @@ export interface IssuerSubject {
 /** Whether a pair now maps to the requested user, or already belongs to another. */
 export type IdentityMapping = { kind: 'mapped' } | { kind: 'collision'; userId: string };
 
+/** Expected outcomes of an explicit, password-account-only Auth0 link. */
+export type PasswordIdentityLink =
+  | { kind: 'linked' }
+  | {
+      kind:
+        'inactive' | 'unverified' | 'identity_collision' | 'email_collision' | 'invalid_account';
+    };
+
 /**
  * The `(issuer, subject)` → local user mapping of `organization-migration`'s
- * "External identity mapping is stable". Inert until the identity slice (task
- * 2.3) routes logins through it; `users.idp_issuer`/`idp_sub` still resolve
- * logins today.
+ * "External identity mapping is stable". Activated logins resolve through it;
+ * explicit password-account links use a separate immediate transaction.
  */
 export class ExternalIdentityRepository {
   constructor(
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
   ) {}
+
+  /** Reads the durable marker on each start request; malformed trusted state throws. */
+  async isLinkActive(): Promise<boolean> {
+    await Promise.resolve();
+    return readOrganizationActivation(this.db) === 'activated';
+  }
+
+  /** Commits a proved user's mapping and verified email in one immediate transaction.
+   * Proof: 2026-09-28, bypassing pair ownership made `refuses an existing pair or email belonging to another user without changing either account` receive `linked` for the owned pair.
+   * Proof: 2026-09-28, bypassing email ownership made the same test throw a SQLite uniqueness error instead of returning typed `email_collision`.
+   */
+  async linkPasswordIdentity(
+    userId: string,
+    identity: IssuerSubject & { readonly email: string | null; readonly emailVerified: boolean },
+    stamp: WriteStamp,
+  ): Promise<PasswordIdentityLink> {
+    return this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction(
+        (tx): PasswordIdentityLink => {
+          // Proof: 2026-09-28, bypassing the transaction marker made `refuses unverified identity and an inactive marker without creating a mapping` receive linked.
+          if (readOrganizationActivation(tx) !== 'activated') return { kind: 'inactive' };
+          if (identity.issuer === '' || identity.subject === '')
+            throw new Error('verified Auth0 identity has an empty pair');
+          const email = identity.email === null ? null : normalizeEmail(identity.email);
+          // Proof: 2026-09-28, accepting unverified email made the same store test receive linked.
+          if (!identity.emailVerified || email === null) return { kind: 'unverified' };
+          const account = tx
+            .select({
+              passwordHash: users.passwordHash,
+              idpIssuer: users.idpIssuer,
+              idpSub: users.idpSub,
+            })
+            .from(users)
+            .where(eq(users.id, userId))
+            .get();
+          // Proof: 2026-09-28, bypassing this check made `refuses a link after the password credential is removed` receive linked.
+          if (account === undefined) return { kind: 'invalid_account' };
+          if (account.passwordHash === null) return { kind: 'invalid_account' };
+          // Proof: 2026-09-28, bypassing this invariant made `throws on a partial legacy identity pair before linking` resolve with an ordinary collision.
+          if ((account.idpIssuer === null) !== (account.idpSub === null))
+            throw new Error(`password account ${userId} has a partial legacy identity pair`);
+          // Proof: 2026-09-28, omitting this check made `refuses a new pair on an account with a different legacy OIDC pair` receive linked and create a mapping normal login cannot resolve.
+          if (
+            account.idpIssuer !== null &&
+            (account.idpIssuer !== identity.issuer || account.idpSub !== identity.subject)
+          )
+            return { kind: 'identity_collision' };
+          const owner = tx
+            .select({ userId: externalIdentity.userId })
+            .from(externalIdentity)
+            .where(
+              and(
+                eq(externalIdentity.issuer, identity.issuer),
+                eq(externalIdentity.subject, identity.subject),
+              ),
+            )
+            .get();
+          const legacyOwner = tx
+            .select({ id: users.id })
+            .from(users)
+            .where(and(eq(users.idpIssuer, identity.issuer), eq(users.idpSub, identity.subject)))
+            .get();
+          // Proof: 2026-09-28, omitting this check made `throws when activation left the account legacy pair unmapped` and `throws when another account holds an unmapped legacy pair` silently insert repair mappings.
+          if (legacyOwner !== undefined && legacyOwner.id !== owner?.userId)
+            throw new Error(
+              owner === undefined
+                ? `external identity ${identity.issuer} ${identity.subject} legacy pair has no mapping`
+                : `external identity ${identity.issuer} ${identity.subject} legacy pair disagrees with mapping`,
+            );
+          if (owner !== undefined && owner.userId !== userId) return { kind: 'identity_collision' };
+          const emailOwner = tx
+            .select({ id: users.id })
+            .from(users)
+            .where(
+              sql`(lower(${users.email}) = ${email} OR lower(${users.username}) = ${email}) AND ${users.id} <> ${userId}`,
+            )
+            .get();
+          if (emailOwner !== undefined) return { kind: 'email_collision' };
+          if (owner === undefined)
+            tx.insert(externalIdentity)
+              .values({
+                id: randomUUID(),
+                userId,
+                issuer: identity.issuer,
+                subject: identity.subject,
+                ...auditOnCreate(stamp),
+              })
+              .run();
+          tx.update(users)
+            .set({ email, emailVerified: true, updatedAt: stamp.at })
+            .where(eq(users.id, userId))
+            .run();
+          return { kind: 'linked' };
+        },
+        { behavior: 'immediate' },
+      );
+    });
+  }
 
   /**
    * Maps a pair to a user, or reports the user it already belongs to.

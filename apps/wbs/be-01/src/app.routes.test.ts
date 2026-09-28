@@ -1,10 +1,12 @@
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import {
+  completeAuth0Link,
   completeOidcLogin,
   httpShapes,
   logoutOidcSession,
   refreshOidcSession,
   type RequestPolicy,
+  startAuth0Link,
   startOidcLogin,
 } from '@wbs/contracts';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
@@ -119,10 +121,13 @@ const INTERNAL_SECRET = 'x'.repeat(32);
 const OIDC_SHAPES = new Set<(typeof httpShapes)[number]>([
   startOidcLogin,
   completeOidcLogin,
+  startAuth0Link,
+  completeAuth0Link,
   refreshOidcSession,
   logoutOidcSession,
 ]);
 const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
+  postApiAuthLinkAuth0: { password: 'valid-password' },
   postApiAuthRegister: { username: 'route-probe', password: 'valid-password' },
   postApiAuthLogin: { username: 'route-probe', password: 'valid-password' },
   postApiOnboardingOrganizations: { name: 'Reachable organization' },
@@ -180,12 +185,14 @@ const REQUEST_BOUNDARY_ERRORS = new Set([
   'insufficient_scope',
 ]);
 const PUBLIC_OPERATIONS = [
+  'getApiAuthLinkAuth0Callback',
   'getApiAuthLogin',
   'getApiAuthMe',
   'getApiAuthOktaCallback',
   'getHealth',
   'getMetrics',
   'postApiAuthLogin',
+  'postApiAuthLinkAuth0',
   'postApiAuthLogout',
   'postApiAuthRefresh',
   'postApiAuthRegister',
@@ -253,6 +260,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'patchApiProjectsByIdCalendar-markersByMarkerId',
   'patchApiProjectsByIdStepsByStepId',
   'patchApiSaved-plansById',
+  'postApiAuthLinkAuth0',
   'postApiAuthLogout',
   'postApiAuthRefresh',
   'postApiDirectoryCommands',
@@ -269,6 +277,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiSmokeEcho',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
+  'getApiAuthLinkAuth0Callback',
   'getApiAuthLogin',
   'getApiAuthMe',
   'getApiAuthOktaCallback',

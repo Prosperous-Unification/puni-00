@@ -8,6 +8,7 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnCreateBesidesCreatedAt, auditOnUpdate } from './audit';
 import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
+import { ExternalIdentityRepository } from './external-identity';
 import type { Gate } from './gate';
 import { readOrganizationActivation } from './organization-activation';
 import { externalIdentity, users } from './schema';
@@ -48,6 +49,24 @@ export class UserRepository implements UserStore {
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
   ) {}
+
+  /** The activation marker is read afresh for each explicit link start. */
+  isLinkActive(): Promise<boolean> {
+    return new ExternalIdentityRepository(this.db, this.gate).isLinkActive();
+  }
+
+  /** One explicit link, separate from login resolution and its account-creation branch. */
+  linkPasswordIdentity(
+    userId: string,
+    identity: Pick<OidcIdentity, 'issuer' | 'subject' | 'email' | 'emailVerified'>,
+    stamp: WriteStamp,
+  ) {
+    return new ExternalIdentityRepository(this.db, this.gate).linkPasswordIdentity(
+      userId,
+      identity,
+      stamp,
+    );
+  }
 
   /**
    * Makes the fixed local-mode identity a real owner before any project write

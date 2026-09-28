@@ -1,7 +1,9 @@
 import {
+  completeAuth0Link,
   completeOidcLogin,
   logoutOidcSession,
   refreshOidcSession,
+  startAuth0Link,
   startOidcLogin,
 } from './auth-oidc-shapes';
 import { loginPassword, readPasswordSession, registerPassword } from './auth-password-shapes';
@@ -67,6 +69,8 @@ export const httpShapes = [
   readPasswordSession,
   startOidcLogin,
   completeOidcLogin,
+  startAuth0Link,
+  completeAuth0Link,
   refreshOidcSession,
   logoutOidcSession,
   smokeEcho,
