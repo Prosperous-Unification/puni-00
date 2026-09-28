@@ -226,6 +226,8 @@ describe('the saved-plan routes', () => {
             deadline: null,
             factStart: null,
             factEnd: null,
+            readiness: null,
+            hold: null,
             revision: 0,
           },
           [],

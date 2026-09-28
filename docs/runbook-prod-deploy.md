@@ -120,3 +120,32 @@ any endpoint no longer fits its project or work-item shape:
 ```sh
 docker exec be-01-<colour> bun run src/typed-dependency-rollback-cli.ts restore /data/typed-dependency-<date>.json
 ```
+
+## Work item hold rollback
+
+**Code rollback with stored holds.** The `be` swap's `stored-vocabularies` step compares
+the hold kinds the incoming binary reads (`hold-kinds-cli.ts`) with the `work_item.hold`
+values stored, before migration and again after stopping the outgoing colour, exactly as
+it does for relationship types. An older image without `hold-kinds-cli.ts` reads no holds,
+so any stored hold refuses it and the error lists each kind and its count. Such an image
+would schedule held work as if nothing were held (ADR 0032). Redeploy a release that reads
+holds, or save and remove the holds with the commands below and rerun the deploy.
+
+Rolling back past `20260928200000_add_work_item_status_facts` refuses while any hold is
+stored; the refusal reads `CHECK constraint failed: work item holds exist: …`. Readiness is
+dropped without a guard, as fact dates are. Run the commands inside the incoming container
+with the same `DB_PATH`, after writers have stopped.
+
+```sh
+docker exec be-01-<colour> bun run src/work-item-hold-rollback-cli.ts save /data/work-item-holds-<date>.json
+docker exec be-01-<colour> bun run src/work-item-hold-rollback-cli.ts remove /data/work-item-holds-<date>.json
+docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
+```
+
+`remove` refuses unless the saved holds match the table exactly. After a later forward
+migration, restore them; restore refuses the whole set if a saved work item is gone or has
+become a parent:
+
+```sh
+docker exec be-01-<colour> bun run src/work-item-hold-rollback-cli.ts restore /data/work-item-holds-<date>.json
+```

@@ -55,6 +55,8 @@ describe("listing a project's saved plans", () => {
     deadline: null,
     factStart: null,
     factEnd: null,
+    readiness: null,
+    hold: null,
     revision: 0,
   });
 

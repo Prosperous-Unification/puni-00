@@ -206,6 +206,8 @@ export function inMemoryWorkItems(
         deadline: patch.deadline === undefined ? existing.deadline : patch.deadline,
         factStart: patch.factStart === undefined ? existing.factStart : patch.factStart,
         factEnd: patch.factEnd === undefined ? existing.factEnd : patch.factEnd,
+        readiness: patch.readiness === undefined ? existing.readiness : patch.readiness,
+        hold: patch.hold === undefined ? existing.hold : patch.hold,
         priority: patch.priority === undefined ? existing.priority : patch.priority,
         serviceTeamId:
           wantedTeamIds !== undefined

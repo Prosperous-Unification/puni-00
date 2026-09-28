@@ -156,6 +156,8 @@ async function leaf(
       deadline: null,
       factStart: null,
       factEnd: null,
+      readiness: null,
+      hold: null,
       serviceTeamId,
       serviceId: null,
       maxParallel: 1,

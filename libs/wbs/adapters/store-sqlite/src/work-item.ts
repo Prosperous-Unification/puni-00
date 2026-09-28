@@ -115,6 +115,10 @@ export const WORK_ITEM_COLUMNS = {
   // column an undo of a delete puts back as null.
   factStart: workItem.factStart,
   factEnd: workItem.factEnd,
+  // Both statements, for `deadline`'s reason: a column missing here is a
+  // column an undo of a delete puts back as null.
+  readiness: workItem.readiness,
+  hold: workItem.hold,
   priority: workItem.priority,
   serviceTeamId: workItem.serviceTeamId,
   serviceId: workItem.serviceId,
@@ -415,6 +419,12 @@ export class WorkItemRepository implements WorkItemStore {
         // the deadline line's own red, two columns over.
         patch.factStart === undefined &&
         patch.factEnd === undefined &&
+        // Proof: these two lines deleted and `writes a readiness and a hold and
+        // reads them back…` failed on its `[readiness, hold]` pair (Expected
+        // `ready, on_hold`, Received the nulls it read) — the fact dates' red,
+        // two columns over; watched 2026-09-29.
+        patch.readiness === undefined &&
+        patch.hold === undefined &&
         patch.priority === undefined &&
         patch.serviceTeamId === undefined &&
         patch.teamIds === undefined &&

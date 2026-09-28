@@ -400,6 +400,10 @@ export class ImportService {
           deadline: row.deadline,
           factStart: row.factStart,
           factEnd: row.factEnd,
+          // Plan document v6 carries both (slice 5); until then an import says
+          // nothing about readiness or holds.
+          readiness: null,
+          hold: null,
           priority: row.priority,
           serviceTeamId:
             row.serviceTeamFileId === null

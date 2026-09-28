@@ -2,11 +2,13 @@ import {
   allowanceHundredthsOf,
   type AllowancePercent,
   DOMAIN_CLAIM_STATUSES,
+  HOLDS,
   INVITABLE_ROLES,
   JOIN_REQUEST_STATUSES,
   MEASURE_METRICS,
   ORGANIZATION_ROLES,
   PERSON_KINDS,
+  READINESSES,
   SOLVER_FAILURE_REASONS,
   SOLVER_OBJECTIVES,
 } from '@wbs/domain';
@@ -517,6 +519,20 @@ export const workItem = sqliteTable(
      * argues the shape; ADR 0024 the decision.
      */
     factEnd: text('fact_end'),
+    /**
+     * What the planner has said about whether this leaf is ready to start, or
+     * null where nobody has said. `READINESSES` in `@wbs/domain`; the column's
+     * CHECK in `20260928200000_add_work_item_status_facts` refuses anything
+     * else. Null on every parent: a parent's status is folded, never stated.
+     */
+    readiness: text('readiness', { enum: READINESSES }),
+    /**
+     * The planner's hold on this leaf, or null for none. `HOLDS` in
+     * `@wbs/domain`, CHECKed like {@link readiness}. `on_hold` takes the leaf
+     * out of the schedule input and `blocked` does not (ADR 0032); rollback
+     * past the migration refuses while any row holds one.
+     */
+    hold: text('hold', { enum: HOLDS }),
     /**
      * How important this work is, or null for "nobody has said" — an integer of
      * 1 or more, smaller being more important.

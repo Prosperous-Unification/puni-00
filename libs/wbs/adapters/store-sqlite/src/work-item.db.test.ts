@@ -93,6 +93,8 @@ function row(parentId: string | null, position: number, name: string): WorkItem 
     deadline: null,
     factStart: null,
     factEnd: null,
+    readiness: null,
+    hold: null,
     serviceTeamId: null,
     serviceId: null,
     maxParallel: 1,
@@ -391,6 +393,27 @@ describe('the team set beside the column', () => {
     const read = await repo.listByProject(projectId);
     expect(read.at(0)?.startNoEarlierThan).toBe('2026-09-12');
     expect(read.at(0)?.startNoEarlierThanReason).toBe('waiting on client sign-off');
+  });
+
+  it('writes a readiness and a hold and reads them back, and clears them with nulls', async () => {
+    const strip = row(null, 10, 'Strip');
+    await repo.insert(strip, [], wrote());
+    expect([strip.readiness, strip.hold]).toEqual([null, null]);
+
+    const written = await repo.patch(strip.id, { readiness: 'ready', hold: 'on_hold' }, wrote());
+
+    expect(written.ok).toBe(true);
+    expect(written.ok ? [written.workItem.readiness, written.workItem.hold] : null).toEqual([
+      'ready',
+      'on_hold',
+    ]);
+    const read = (await repo.listByProject(projectId)).at(0);
+    expect([read?.readiness, read?.hold]).toEqual(['ready', 'on_hold']);
+
+    const cleared = await repo.patch(strip.id, { readiness: null, hold: null }, wrote());
+    expect(cleared.ok).toBe(true);
+    const after = (await repo.listByProject(projectId)).at(0);
+    expect([after?.readiness, after?.hold]).toEqual([null, null]);
   });
 
   it('writes both fact dates and reads them back, and clears them with nulls', async () => {

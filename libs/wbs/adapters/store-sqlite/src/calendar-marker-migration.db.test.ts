@@ -237,6 +237,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20260928200000_add_work_item_status_facts',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
       '20260928010000_add_project_solution',

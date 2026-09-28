@@ -313,6 +313,8 @@ function rowShape(row: DocumentRow): WorkItem {
     deadline: row.deadline,
     factStart: row.factStart,
     factEnd: row.factEnd,
+    readiness: null,
+    hold: null,
     priority: row.priority,
     serviceTeamId: row.serviceTeamId,
     serviceId: row.serviceId,

@@ -43,6 +43,10 @@ export function scheduleInputOfCaptured(reads: PlanInputReads): ScheduleInput {
     ...row,
     factStart: null,
     factEnd: null,
+    // Saved-plan input schema 4 captures both (slice 5); until then a saved
+    // plan reads as nothing said.
+    readiness: null,
+    hold: null,
   }));
   const rule: EstimateRule = {
     method: reads.project.estimateMethod,

@@ -86,6 +86,8 @@ describe('projecting the live plan as a comparison side', () => {
     deadline: null,
     factStart: null,
     factEnd: null,
+    readiness: null,
+    hold: null,
     revision: 0,
   });
 

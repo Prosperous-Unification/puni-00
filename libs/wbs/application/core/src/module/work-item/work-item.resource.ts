@@ -1100,6 +1100,8 @@ function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
   // columns over.
   if (patch.factStart !== undefined) named.push('factStart');
   if (patch.factEnd !== undefined) named.push('factEnd');
+  if (patch.readiness !== undefined) named.push('readiness');
+  if (patch.hold !== undefined) named.push('hold');
   // Proof: this line and the matching one in {@link revertTo} each deleted in
   // turn, and both `puts a replaced priority back, and leaves a priority a rename
   // did not name` and `takes a first priority away again, rather than leaving a
@@ -1190,6 +1192,8 @@ function revertTo(before: LabelledWorkItem, patch: WorkItemPatch): WorkItemPatch
   // `patch` step too, so its inverse is `factEnd: null` through this same line.
   if (patch.factStart !== undefined) out.factStart = before.factStart;
   if (patch.factEnd !== undefined) out.factEnd = before.factEnd;
+  if (patch.readiness !== undefined) out.readiness = before.readiness;
+  if (patch.hold !== undefined) out.hold = before.hold;
   if (patch.priority !== undefined) out.priority = before.priority;
   if (patch.serviceTeamId !== undefined) out.serviceTeamId = before.serviceTeamId;
   if (patch.teamIds !== undefined) out.teamIds = before.teamIds;
@@ -2254,6 +2258,9 @@ export class WorkItemService {
       deadline: null,
       factStart: null,
       factEnd: null,
+      // Nothing said about a new row: its status reads unknown.
+      readiness: null,
+      hold: null,
       priority,
       serviceTeamId: null,
       // Unlabelled, in the third dimension as in the other two: a new row states
@@ -2854,6 +2861,9 @@ export class WorkItemService {
         // no statements either (`step_progress` is not copied, below). ADR 0024.
         factStart: null,
         factEnd: null,
+        // A copy has a definition, not a history: it keeps the original's
+        // readiness and never its hold (`add-work-item-statuses`).
+        hold: null,
         // Not the original's count. A copy is a new row that has never been
         // changed, and carrying the original's revision across would have a
         // reader's precondition on one row pass against the other.
