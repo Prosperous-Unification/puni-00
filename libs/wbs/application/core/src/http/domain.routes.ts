@@ -36,6 +36,9 @@ export function domainRoutes(
     bind(
       verifyDomainClaim,
       async ({ principal, params }): Promise<HttpReply<typeof verifyDomainClaim>> => {
+        // Proof: 2026-09-28, removing this guard made mounted `refuses a
+        // delegated caller even with current super-admin membership` promote
+        // a matching claim, 200 instead of 403.
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
         const resolved = await organizations.resolve(principal);
@@ -103,6 +106,7 @@ export function domainRoutes(
           pending,
           pending.challengeDigest,
           { at: clock.now(), by: principal.id },
+          () => clock.now(),
         );
         switch (verified) {
           case 'verified':

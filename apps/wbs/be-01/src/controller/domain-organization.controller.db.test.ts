@@ -13,6 +13,7 @@ let harness: OrganizationHarness;
 let policyDirectory: string | undefined;
 let dnsRecords: readonly string[] | Error | 'hang' = new Error('DNS unavailable');
 let beforeDnsReply: (() => void) | undefined;
+let dnsBarrier: Promise<void> | undefined;
 const assetSource = new URL('../../../../../libs/wbs/domain/domain/src/', import.meta.url);
 
 function copyPolicy(): string {
@@ -33,12 +34,14 @@ function pinAsset(directory: string, content: string): void {
 beforeEach(async () => {
   dnsRecords = new Error('DNS unavailable');
   beforeDnsReply = undefined;
+  dnsBarrier = undefined;
   harness = OrganizationHarness.open(undefined, copyPolicy(), {
-    lookupTxt: () => {
+    lookupTxt: async () => {
       beforeDnsReply?.();
+      await dnsBarrier;
       if (dnsRecords === 'hang') return Promise.withResolvers<readonly string[]>().promise;
-      if (dnsRecords instanceof Error) return Promise.reject(dnsRecords);
-      return Promise.resolve(dnsRecords);
+      if (dnsRecords instanceof Error) throw dnsRecords;
+      return dnsRecords;
     },
   });
   await harness.register('owner');
@@ -58,6 +61,19 @@ afterEach(() => {
 const path = '/api/organization/domains/challenges';
 
 describe('mounted organization domain challenges', () => {
+  it('surfaces corrupt pending proof fields as a server error', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+    };
+    harness.sqlite.run(
+      'UPDATE organization_domain_claim SET challenge_digest = NULL, challenge_expires_at = NULL WHERE id = ?',
+      [issued.id],
+    );
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
+    ).toEqual({ status: 500, body: 'Internal Server Error' });
+  });
   it('verifies only an exact current TXT value and retains its digest', async () => {
     harness.activate();
     const issued = await harness.call('owner', 'POST', path, { domain: 'example.org' });
@@ -207,6 +223,52 @@ describe('mounted organization domain challenges', () => {
     ).toEqual({ status: 409, body: { error: 'domain_taken' } });
   });
 
+  it('settles concurrent DNS lookups with one owner and an untouched losing proof', async () => {
+    await harness.register('owner-b');
+    harness.organization('org-b');
+    harness.member('org-b', 'owner-b', 'super_admin');
+    harness.bind('owner-b', 'org-b');
+    harness.activate();
+    const first = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    const second = (await harness.call('owner-b', 'POST', path, { domain: 'example.org' }))
+      .body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [first.dnsValue, second.dnsValue];
+    const bothLooking = Promise.withResolvers<undefined>();
+    const releaseDns = Promise.withResolvers<undefined>();
+    dnsBarrier = releaseDns.promise;
+    let lookups = 0;
+    beforeDnsReply = () => {
+      lookups += 1;
+      if (lookups === 2) bothLooking.resolve(undefined);
+    };
+    const answers = [
+      harness.call('owner', 'POST', `/api/organization/domains/${first.id}/verify`),
+      harness.call('owner-b', 'POST', `/api/organization/domains/${second.id}/verify`),
+    ];
+    await bothLooking.promise;
+    releaseDns.resolve(undefined);
+    const settled = await Promise.all(answers);
+    expect(settled.map((answer) => answer.status).sort()).toEqual([200, 409]);
+    const loser = settled[0]?.status === 409 ? first : second;
+    expect(
+      harness.sqlite
+        .query(
+          'SELECT status, challenge_digest, proof_digest FROM organization_domain_claim WHERE id = ?',
+        )
+        .get(loser.id),
+    ).toEqual({
+      status: 'pending',
+      challenge_digest: createHash('sha256').update(loser.dnsValue).digest('hex'),
+      proof_digest: null,
+    });
+  });
+
   it('refuses malformed and timed-out resolver answers', async () => {
     harness.activate();
     const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
@@ -324,7 +386,10 @@ describe('mounted organization domain challenges', () => {
 
   it('refuses a delegated caller even with current super-admin membership', async () => {
     const keys = await generateKeyPair('RS256');
-    const delegated = OrganizationHarness.open(keys.publicKey);
+    let dnsValue = '';
+    const delegated = OrganizationHarness.open(keys.publicKey, undefined, {
+      lookupTxt: () => Promise.resolve([dnsValue]),
+    });
     try {
       await delegated.register('delegated-owner');
       delegated.organization('delegated-org');
@@ -335,6 +400,12 @@ describe('mounted organization domain challenges', () => {
         ['delegated-map', delegated.userId('delegated-owner'), 'https://idp.test', 'delegated-sub'],
       );
       delegated.activate();
+      const issued = await delegated.call('delegated-owner', 'POST', path, {
+        domain: 'example.org',
+      });
+      expect(issued.status).toBe(201);
+      const claim = issued.body as { id: string; dnsValue: string };
+      dnsValue = claim.dnsValue;
       const token = async () =>
         new SignJWT({
           username: 'delegated-owner',
@@ -360,6 +431,13 @@ describe('mounted organization domain challenges', () => {
         status: 403,
         body: { error: 'insufficient_scope' },
       });
+      expect(
+        await delegated.callWith(
+          await token(),
+          'POST',
+          `/api/organization/domains/${claim.id}/verify`,
+        ),
+      ).toEqual({ status: 403, body: { error: 'insufficient_scope' } });
     } finally {
       delegated.close();
     }

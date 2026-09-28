@@ -331,6 +331,39 @@ describe('OrganizationRepository.administer', () => {
 });
 
 describe('DomainClaimRepository', () => {
+  it('refuses a challenge that expires while verification waits for the write gate', async () => {
+    await twoOrganizationsClaiming('example.org');
+    connection.db.run(
+      sql`UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1`,
+    );
+    const gate = new WriteCoordinator();
+    const claims = new DomainClaimRepository(connection.db, gate);
+    const entered = Promise.withResolvers<undefined>();
+    const release = Promise.withResolvers<undefined>();
+    const batch = gate.enter(async () => {
+      entered.resolve(undefined);
+      await release.promise;
+    });
+    await entered.promise;
+    let now = 100;
+    const verification = claims.verifyClaim(
+      'org-a',
+      'u-a',
+      { id: 'c-a', domain: 'example.org', challengeDigest: 'digest-c-a', challengeExpiresAt: 1000 },
+      'digest-c-a',
+      stamp('u-a', now),
+      () => now,
+    );
+    now = 1000;
+    release.resolve(undefined);
+    await batch;
+    expect(await verification).toBe('stale');
+    expect(
+      connection.db.all(
+        sql`SELECT status, challenge_digest FROM organization_domain_claim WHERE id = 'c-a'`,
+      ),
+    ).toEqual([{ status: 'pending', challenge_digest: 'digest-c-a' }]);
+  });
   it('keeps both verification phases inert before activation', async () => {
     const organizations = new OrganizationRepository(connection.db, OPEN);
     await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
@@ -358,6 +391,7 @@ describe('DomainClaimRepository', () => {
         },
         'digest-c-a',
         stamp('u-a', 20),
+        () => 20,
       ),
     ).toBe('inactive');
   });

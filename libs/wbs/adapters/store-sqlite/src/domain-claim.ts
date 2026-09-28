@@ -29,7 +29,8 @@ export interface OpenedDomainClaim {
 /**
  * Domain claims and their single verified owner. Initial challenge issuance
  * is mounted only after activation and checks current super-admin authority;
- * DNS verification and the remaining ownership lifecycle are still unwired.
+ * DNS verification uses the injected resolver; production currently binds a
+ * refusing resolver. The remaining ownership lifecycle is still unwired.
  */
 export class DomainClaimRepository implements DomainChallenges {
   constructor(
@@ -74,12 +75,12 @@ export class DomainClaimRepository implements DomainChallenges {
         )
         .get();
       if (claim === undefined) return 'not_found';
-      if (
-        claim.status !== 'pending' ||
-        claim.challengeDigest === null ||
-        claim.challengeExpiresAt === null
-      )
-        return 'stale';
+      if (claim.status !== 'pending') return 'stale';
+      // Proof: 2026-09-28, returning stale here made mounted `surfaces corrupt
+      // pending proof fields as a server error` answer 409 for a pending row
+      // with both required fields null.
+      if (claim.challengeDigest === null || claim.challengeExpiresAt === null)
+        throw new Error(`pending domain claim ${claim.id} lacks challenge proof`);
       if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
         return 'stale';
       return {
@@ -98,6 +99,7 @@ export class DomainClaimRepository implements DomainChallenges {
     claim: PendingDomainClaim,
     observedDigest: string,
     stamp: WriteStamp,
+    now: () => number,
   ): Promise<'verified' | 'forbidden' | 'not_found' | 'stale' | 'taken' | 'inactive'> {
     return this.gate.enter(async () => {
       await Promise.resolve();
@@ -138,9 +140,10 @@ export class DomainClaimRepository implements DomainChallenges {
               current.domain !== claim.domain ||
               current.challengeDigest !== claim.challengeDigest ||
               current.challengeExpiresAt !== claim.challengeExpiresAt ||
-              // Proof: 2026-09-28, bypassing this expiry recheck made mounted
-              // `rechecks challenge expiry and maintained policy after DNS lookup` promote after a 1.2-second lookup crossed expiry (200 instead of 409).
-              current.challengeExpiresAt <= stamp.at ||
+              // Proof: 2026-09-28, replacing this transaction-time read with
+              // stamp.at made `refuses a challenge that expires while verification
+              // waits for the write gate` promote the expired claim.
+              current.challengeExpiresAt <= now() ||
               observedDigest !== claim.challengeDigest
             )
               return 'stale' as const;
@@ -148,7 +151,9 @@ export class DomainClaimRepository implements DomainChallenges {
             // `rechecks challenge expiry and maintained policy after DNS lookup` promote a newly denied domain (200 instead of 409).
             if (!isClaimableDomain(current.domain, loadPublicEmailPolicy(this.policyDirectory)))
               return 'stale' as const;
-            // Proof: 2026-09-28, the mounted two-owner test failed when unique ownership was bypassed; the database index decides the race.
+            // Proof: 2026-09-28, dropping organization_domain_claim_owner made
+            // mounted `settles concurrent DNS lookups with one owner and an
+            // untouched losing proof` verify both claims (200, 200).
             tx.update(organizationDomainClaim)
               .set({
                 status: 'verified',
