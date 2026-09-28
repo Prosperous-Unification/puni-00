@@ -6,6 +6,7 @@ import { testClock } from './clock-fixture';
 import { testDirectoryService } from './directory-fixture';
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
+import { legacyOrganizationAccess } from './organization-access-fixture';
 import { testPriorityBandService } from './priority-band-fixture';
 import { testProjectService } from './project-fixture';
 import { testReplay } from './replay-fixture';
@@ -41,6 +42,7 @@ export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof 
   const steps = overrides.steps ?? testStepService();
   const calendarMarkers = overrides.calendarMarkers ?? testCalendarMarkerService();
   return buildApp({
+    organizations: legacyOrganizationAccess,
     appOrigin: 'http://localhost',
     loginThrottle: testLoginThrottle(),
     auth: testAuthService(),

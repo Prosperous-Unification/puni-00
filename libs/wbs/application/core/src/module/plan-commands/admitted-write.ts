@@ -6,8 +6,8 @@ import type { StepService } from '../../service/step.service';
 
 /** The two route writes that validate the combined dependency graph before they write. */
 export interface AdmittedServices {
-  readonly projects: Pick<ProjectService, 'update'>;
-  readonly steps: Pick<StepService, 'remove'>;
+  readonly projects: Pick<ProjectService, 'updateWithin'>;
+  readonly steps: Pick<StepService, 'removeWithin'>;
 }
 
 /** What a host supplies: the source's unit of work, the per-scope graph and the direct broadcaster. */
@@ -40,9 +40,9 @@ export function admittedWrites(source: AdmittedWriteSource) {
     return outcome;
   };
   return {
-    updateProject: (...args: Parameters<ProjectService['update']>) =>
-      admit((graph) => graph.projects.update(...args)),
-    removeStep: (...args: Parameters<StepService['remove']>) =>
-      admit((graph) => graph.steps.remove(...args)),
+    updateProjectWithin: (...args: Parameters<ProjectService['updateWithin']>) =>
+      admit((graph) => graph.projects.updateWithin(...args)),
+    removeStepWithin: (...args: Parameters<StepService['removeWithin']>) =>
+      admit((graph) => graph.steps.removeWithin(...args)),
   };
 }

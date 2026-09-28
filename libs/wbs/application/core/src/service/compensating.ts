@@ -192,7 +192,8 @@ export interface RestoreSubtree {
    * New journals carry the whole team set; old journals omit it and restore
    * the singleton projected in `serviceTeamId`.
    */
-  rows: (WorkItem & { teamIds?: readonly string[] })[];
+  /** Rows as {@link SubtreeCopy} inserts them, their team and type links included. */
+  rows: (WorkItem & { teamIds?: readonly string[]; typeIds?: readonly string[] })[];
   /** Where the root sat among its siblings, which is how the restore finds its slot again. */
   rootPosition: number;
   /** Rows to put back under the restored branch, at the positions they had before. */
@@ -480,6 +481,147 @@ export function touchedBy(command: CompensatingCommand): string[] {
       // Every entity any step wrote to, once: a step left out here is a row an
       // undo would overwrite without checking its revision.
       return [...new Set(command.steps.flatMap(touchedBy))];
+  }
+}
+
+/**
+ * Every identity one compensating command names, nested batches included:
+ * the rows it writes or places against, the projects its restored rows and
+ * dependencies claim, the steps its per-step rows sit on, and the directory
+ * entries its labels, links and assignments name.
+ *
+ * Not {@link touchedBy}, which is the revision-tracked set and leaves out
+ * restored satellites, placement siblings and every directory id: an
+ * authorization check needs the whole write set.
+ */
+export interface CompensatingReferences {
+  workItems: string[];
+  projects: string[];
+  steps: string[];
+  people: string[];
+  teams: string[];
+  services: string[];
+  tags: string[];
+  types: string[];
+  systems: string[];
+}
+
+/** {@link CompensatingReferences} of one command. */
+export function referencesOf(command: CompensatingCommand): CompensatingReferences {
+  const found: CompensatingReferences = {
+    workItems: [],
+    projects: [],
+    steps: [],
+    people: [],
+    teams: [],
+    services: [],
+    tags: [],
+    types: [],
+    systems: [],
+  };
+  collectReferences(command, found);
+  return found;
+}
+
+function collectReferences(command: CompensatingCommand, found: CompensatingReferences): void {
+  const rows = (...ids: (string | null)[]): void => {
+    for (const id of ids) if (id !== null) found.workItems.push(id);
+  };
+  const onStep = (each: { workItemId: string; stepId: string }): void => {
+    rows(each.workItemId);
+    found.steps.push(each.stepId);
+  };
+  const placed = (each: Reparented): void => {
+    rows(each.id, each.parentId);
+  };
+  switch (command.do) {
+    case 'patch': {
+      rows(command.workItemId);
+      const { patch } = command;
+      if (patch.serviceTeamId !== undefined && patch.serviceTeamId !== null) {
+        found.teams.push(patch.serviceTeamId);
+      }
+      found.teams.push(...(patch.teamIds ?? []));
+      found.services.push(...(patch.serviceIds ?? []));
+      found.tags.push(...(patch.tagIds ?? []));
+      found.types.push(...(patch.typeIds ?? []));
+      found.systems.push(...(patch.externalRefs ?? []).map((each) => each.systemId));
+      return;
+    }
+    case 'set_estimate':
+    case 'clear_estimate':
+    case 'set_actual':
+    case 'clear_actual':
+    case 'set_measure':
+    case 'clear_measure':
+    case 'set_progress':
+    case 'clear_progress':
+      onStep(command);
+      return;
+    case 'assign':
+      onStep(command);
+      if (command.personId !== null) found.people.push(command.personId);
+      return;
+    case 'add_dependency':
+    case 'remove_dependency':
+      rows(command.successorId, command.predecessorId);
+      return;
+    case 'move':
+      rows(command.workItemId, command.parentId, command.afterId);
+      return;
+    case 'set_positions':
+      command.placements.forEach(placed);
+      rows(...command.moved);
+      return;
+    case 'set_frozen':
+      rows(...command.updates.map((each) => each.id));
+      return;
+    case 'delete_subtree':
+      rows(command.rootId, ...command.expectedSubtree, ...command.remove);
+      command.reparented.forEach(placed);
+      [
+        ...command.setEstimates,
+        ...command.setActuals,
+        ...command.setProgress,
+        ...command.setMeasures,
+      ].forEach(onStep);
+      return;
+    case 'restore_subtree':
+      for (const row of command.rows) {
+        rows(row.id, row.parentId);
+        found.projects.push(row.projectId);
+        if (row.serviceTeamId !== null) found.teams.push(row.serviceTeamId);
+        if (row.serviceId !== null) found.services.push(row.serviceId);
+        found.teams.push(...(row.teamIds ?? []));
+        // Proof: dropping this line made `… a restored row carrying a foreign
+        // type, cleared again in the same replay` in
+        // `command-organization.controller.db.test.ts` answer 200 instead of
+        // 404; watched 2026-09-27.
+        found.types.push(...(row.typeIds ?? []));
+      }
+      command.reparented.forEach(placed);
+      [
+        ...command.estimates,
+        ...command.actuals,
+        ...command.progress,
+        ...command.measures,
+        ...command.removedEstimates,
+        ...command.removedActuals,
+        ...command.removedProgress,
+        ...command.removedMeasures,
+      ].forEach(onStep);
+      for (const assignment of command.assignments) {
+        onStep(assignment);
+        found.people.push(assignment.personId);
+      }
+      for (const edge of [...command.internalDependencies, ...command.externalDependencies]) {
+        rows(edge.predecessorId, edge.successorId);
+        found.projects.push(edge.projectId);
+      }
+      return;
+    case 'batch':
+      for (const step of command.steps) collectReferences(step, found);
+      return;
   }
 }
 
