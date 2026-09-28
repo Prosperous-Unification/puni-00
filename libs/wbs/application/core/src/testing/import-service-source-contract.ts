@@ -359,6 +359,8 @@ function heldSolutionUnitOfWork(
             stored.createInOrganization(project, steps, stamp, organizationId),
           findById: (id) => stored.findById(id),
           findInOrganization: (id, organizationId) => stored.findInOrganization(id, organizationId),
+          recoverInOrganization: (id, patch, stamp, organizationId, recovery) =>
+            stored.recoverInOrganization(id, patch, stamp, organizationId, recovery),
           findCrossReferences: (projectId, organizationId) =>
             stored.findCrossReferences(projectId, organizationId),
           listForInOrganization: (userId, organizationId) =>

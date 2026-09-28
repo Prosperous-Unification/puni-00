@@ -118,6 +118,9 @@ const EXEMPT = new Set([
   // creation audit, and the bridge triggers write the same tables without one.
   'projectOrganization',
   'savedPlanOrganization',
+  // An audit record is its own authorship: `actor_id` and `created_at` are
+  // the act it records, not audit columns about the row.
+  'organizationAudit',
 ]);
 
 /** The files that hold writes — every repository, and not this test or the helper. */

@@ -653,6 +653,7 @@ describe('readMigrationFolders', () => {
       ORGANIZATION_ACTIVATION,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_FROZEN,
+      '20260927220000_add_organization_audit',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -777,11 +778,13 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_FROZEN,
+        '20260927220000_add_organization_audit',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20260927220000_add_organization_audit',
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -906,6 +909,7 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_FROZEN,
+        '20260927220000_add_organization_audit',
       ]);
     } finally {
       db.cleanup();
@@ -976,6 +980,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        '20260927220000_add_organization_audit',
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -1072,6 +1077,7 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20260927220000_add_organization_audit',
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -1153,6 +1159,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20260927220000_add_organization_audit',
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,

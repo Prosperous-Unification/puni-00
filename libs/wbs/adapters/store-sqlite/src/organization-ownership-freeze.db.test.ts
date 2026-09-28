@@ -129,7 +129,10 @@ describe.each(SIDES)('%s', (side, root, id, catalog) => {
 
 it('rolls back to the bridge and reapplies', () => {
   db.close();
-  expect(rollbackTo(path, FOLDER, ORGANIZATION_BRIDGE)).toEqual([ORGANIZATION_FROZEN]);
+  expect(rollbackTo(path, FOLDER, ORGANIZATION_BRIDGE)).toEqual([
+    '20260927220000_add_organization_audit',
+    ORGANIZATION_FROZEN,
+  ]);
   db = openDatabase(path);
   db.run("UPDATE tag_organization SET organization_id = 'org-b' WHERE resource_id = 't1'");
   db.run("UPDATE tag_organization SET organization_id = 'org-a' WHERE resource_id = 't1'");

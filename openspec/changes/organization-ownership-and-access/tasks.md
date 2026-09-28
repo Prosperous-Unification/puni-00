@@ -50,10 +50,11 @@
     - `PATCH` and `DELETE /api/organization/members/:userId` act in the active organization from the session alone. Before activation they answer `no_active_organization`.
     - `mayAdministerMembership` implements the role matrix. `OrganizationRepository.administer` reads the actor's role, the target's role and the final-super-admin count in the write's own immediate transaction.
     - `mayInvite` defines invitation authority: an admin invites viewers and members, a super-admin also admins, and no invitation grants super-admin. Issuing and accepting invitations stays with 4.4.
-  - Part 2 (open): audited super-admin recovery of restricted projects.
-    - It needs an additive `organization_audit` migration, stamped after every queued one.
-    - It needs a transactional project-write boundary that appends one audit record per recovery write.
-    - It is enabled family by family: project PATCH, then steps and markers, batches and undo, and saved plans. Until then, recovery stays refused.
+  - Part 2a, slice 16 (audited super-admin recovery through the project PATCH):
+    - The additive migration `20260927220000_add_organization_audit` has a `down.sql` that refuses while any record exists.
+    - `projectEditIn` classifies a write as ordinary, recovery or refused.
+    - `ProjectStore.recoverInOrganization` rechecks, in the write's own transaction, that the actor is still a super-admin and the project still restricted and someone else's. It then writes the patch and one audit record. The creator stays recorded.
+  - Part 2b (open): recovery for the other write families: steps, markers, batches, undo and redo, saved plans, and optimizer retry. Until then they refuse a non-creator super-admin.
 
 ## 4. Onboarding state transitions
 

@@ -427,6 +427,23 @@ Branch `batch-9/010-5-2-orgs-14`, stacked on slice 14.
 | No administration before activation    | legacy access administered                              | `has no organization to administer`: 200                                                                          |
 | Invitation authority                   | `mayInvite` lets an admin invite any role               | `organization-access.test.ts` `lets an admin invite viewers and members, a super-admin any role, and nobody else` |
 
+## Slice 16 — audited recovery through the project PATCH (task 3.7, part 2a)
+
+Branch `batch-9/010-5-2-orgs-15`, stacked on slice 15. Migration `20260927220000_add_organization_audit` sorts after every migration on main and in the queue (newest queued: `20260927213000_add_typed_dependency`).
+
+| Check                               | Injected fault                       | Observed failure (2026-09-27)                                                                                          |
+| ----------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Audit action vocabulary             | `action` CHECK dropped               | `organization-audit.db.test.ts` `refuses an unknown action or subject kind`                                            |
+| Audit subject vocabulary            | `subject_kind` CHECK dropped         | same case                                                                                                              |
+| Audit organization reference        | `organization_id` REFERENCES dropped | `refuses a record of no organization`                                                                                  |
+| Rollback keeps evidence             | `down.sql` CHECK made `CHECK (1)`    | `refuses to roll back over a recorded act`: the migration reversed                                                     |
+| Recheck in the recovery transaction | refusal skipped                      | `refuses a recovery by an actor who is not the organization's super-admin`: the project written                        |
+| Audit record written                | audit insert skipped                 | `project-organization.controller.db.test.ts` `recovers a restricted project as an audited super-admin edit`: no record |
+| Recovery classified                 | `projectEditIn` answers `ordinary`   | same case: no record; `organization-access.test.ts` `calls a super-admin's edit … a recovery`                          |
+| Recovery admitted                   | service refuses `recovery`           | same mounted case: 403 instead of 200                                                                                  |
+
+Not run: failing the audit insert after the project update inside one transaction, to watch the edit roll back. The insert and the update share the drizzle transaction, and the recheck case above shows a throw there rolls back the write.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

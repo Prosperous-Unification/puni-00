@@ -95,6 +95,11 @@ export function inMemoryProjects(
     },
     // No dependent rows live in this store, so nothing it holds can cross.
     findCrossReferences: () => Promise.resolve([]),
+    // Audited recovery exists only over SQLite, where the audit table and the
+    // membership it rechecks live; scoped access never arises here.
+    recoverInOrganization() {
+      return Promise.reject(new Error('the in-memory project store has no audited recovery'));
+    },
     findInOrganization(id, organizationId) {
       return owning.get(id) === organizationId ? store.findById(id) : Promise.resolve(null);
     },

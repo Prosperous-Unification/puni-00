@@ -91,3 +91,26 @@ export function mayInvite(actor: OrganizationRole, role: OrganizationRole): bool
   if (actor === 'super_admin') return true;
   return actor === 'admin' && ORDINARY_ROLES.includes(role);
 }
+
+/**
+ * How the scoped user's write to a project is authorized: `ordinary` under
+ * the role and restricted-creator rules, `recovery` for a super-admin's
+ * write to a restricted project someone else created, which is permitted
+ * only as an audited act in the write's own transaction, and `refused`
+ * otherwise. Any restricted project qualifies, whether or not its creator is
+ * still a member; the creator stays recorded.
+ *
+ * Proof: answering `ordinary` for the super-admin case made `calls a
+ * super-admin's edit of someone else's restricted project a recovery` fail,
+ * and made `recovers a restricted project as an audited super-admin edit` in
+ * `project-organization.controller.db.test.ts` write no audit record;
+ * watched 2026-09-27.
+ */
+export function projectEditIn(
+  project: ProjectOwnership,
+  scope: OrganizationScope,
+): 'ordinary' | 'recovery' | 'refused' {
+  if (canEditProjectInOrganization(project, scope)) return 'ordinary';
+  if (scope.role === 'super_admin' && project.restricted) return 'recovery';
+  return 'refused';
+}

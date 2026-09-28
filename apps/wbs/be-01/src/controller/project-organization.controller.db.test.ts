@@ -27,6 +27,15 @@ afterEach(() => {
 
 const call = (username: string, method: string, path: string, body?: unknown) =>
   h.call(username, method, path, body);
+/** Every audit record, without its generated id and time. */
+function audits(): unknown[] {
+  return h.sqlite
+    .query(
+      'SELECT organization_id, actor_id, action, subject_kind, subject_id, detail FROM organization_audit ORDER BY rowid',
+    )
+    .all();
+}
+
 const activate = () => {
   h.activate();
 };
@@ -140,17 +149,61 @@ describe('after activation', () => {
     expect(await listedNames('ada')).toEqual(['A plan']);
   });
 
-  it('lets only the creator edit a restricted project, super-admin included', async () => {
+  it('lets only the creator edit a restricted project, a super-admin only as recovery', async () => {
     activate();
+    // vic as an admin here: only a super-admin recovers.
+    h.sqlite.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = ?", [
+      userId('vic'),
+    ]);
     const id = await create('ada', 'A plan');
     expect((await call('ada', 'PATCH', `/api/projects/${id}`, { restricted: true })).status).toBe(
       200,
     );
-    expect(await call('sam', 'PATCH', `/api/projects/${id}`, { name: 'Recovered' })).toEqual({
+    expect(await call('vic', 'PATCH', `/api/projects/${id}`, { name: 'Taken' })).toEqual({
       status: 403,
       body: { error: 'forbidden' },
     });
     expect((await call('ada', 'PATCH', `/api/projects/${id}`, { name: 'Mine' })).status).toBe(200);
+    expect(audits()).toEqual([]);
+  });
+
+  it('recovers a restricted project as an audited super-admin edit', async () => {
+    activate();
+    const id = await create('ada', 'A plan');
+    await call('ada', 'PATCH', `/api/projects/${id}`, { restricted: true });
+    const recovered = await call('sam', 'PATCH', `/api/projects/${id}`, {
+      name: 'Recovered',
+      restricted: false,
+    });
+    expect(recovered.status).toBe(200);
+    expect((recovered.body as { project: { ownerId: string } }).project.ownerId).toBe(
+      userId('ada'),
+    );
+    expect(audits()).toEqual([
+      {
+        organization_id: 'org-a',
+        actor_id: userId('sam'),
+        action: 'restricted_project_recovery',
+        subject_kind: 'project',
+        subject_id: id,
+        detail: '{"fields":["name","restricted"]}',
+      },
+    ]);
+    // Only the project PATCH recovers so far; other write families still refuse.
+    await call('ada', 'PATCH', `/api/projects/${id}`, { restricted: true });
+    expect(
+      (await call('sam', 'POST', `/api/projects/${id}/steps`, { name: 'Review' })).status,
+    ).toBe(403);
+    expect(audits()).toHaveLength(1);
+  });
+
+  it('records nothing for a recovery that changes nothing, or an edit refused', async () => {
+    activate();
+    const id = await create('ada', 'A plan');
+    await call('ada', 'PATCH', `/api/projects/${id}`, { restricted: true });
+    expect((await call('sam', 'PATCH', `/api/projects/${id}`, {})).status).toBe(200);
+    expect((await call('vic', 'PATCH', `/api/projects/${id}`, { name: 'No' })).status).toBe(403);
+    expect(audits()).toEqual([]);
   });
 
   it('refuses a removed member on the next request', async () => {

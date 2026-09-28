@@ -134,6 +134,22 @@ export interface ProjectStore {
     stamp: WriteStamp,
     organizationId: string,
   ): Promise<Project | null>;
+  /**
+   * {@link updateInOrganization} as a super-admin's recovery of a restricted
+   * project: in one transaction it rechecks that `recovery.actorId` is still
+   * a super-admin of `organizationId` and the project still restricted and
+   * someone else's, writes the patch, and appends one `organization_audit`
+   * record naming the actor, the project and the patched fields. `forbidden`
+   * when the recheck fails; null when not the organization's. A patch that
+   * changes nothing writes nothing and records nothing.
+   */
+  recoverInOrganization(
+    id: string,
+    patch: ProjectPatch,
+    stamp: WriteStamp,
+    organizationId: string,
+    recovery: { readonly auditId: string; readonly actorId: string },
+  ): Promise<Project | null | 'forbidden'>;
   stepsOf(projectId: string): Promise<Step[]>;
   /**
    * Sets one step's allowance, moves that step's allowance revision by one and

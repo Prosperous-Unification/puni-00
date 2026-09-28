@@ -2890,3 +2890,29 @@ export const savedPlanOrganization = sqliteTable(
   },
   (t) => [index('saved_plan_organization_organization').on(t.organizationId)],
 );
+
+/**
+ * One audited act per row, written in the act's own transaction; see
+ * `20260927220000_add_organization_audit`. `subject_id` references nothing
+ * so the record outlives its subject.
+ */
+export const organizationAudit = sqliteTable(
+  'organization_audit',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    actorId: text('actor_id').notNull(),
+    action: text('action').notNull(),
+    subjectKind: text('subject_kind').notNull(),
+    subjectId: text('subject_id').notNull(),
+    detail: text('detail').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    check('organization_audit_action', sql`${t.action} IN ('restricted_project_recovery')`),
+    check('organization_audit_subject_kind', sql`${t.subjectKind} IN ('project')`),
+    index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
+  ],
+);

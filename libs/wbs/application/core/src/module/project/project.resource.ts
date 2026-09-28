@@ -4,6 +4,7 @@ import {
   DEFAULT_ESTIMATE_RULE,
   isIsoDate,
   PertWeights,
+  projectEditIn,
 } from '@wbs/domain';
 import { NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCodes } from '@wbs/domain';
 import { type } from '@wbs/validation';
@@ -380,9 +381,22 @@ export class ProjectService {
     if (patch.pertWeights !== undefined && PertWeights(patch.pertWeights) instanceof type.errors) {
       return { ok: false, reason: 'bad_pert_weights' };
     }
-    const authorization = await this.authorizeEdit(id, actorId, access);
-    if (!authorization.ok) return authorization;
-    const { project } = authorization;
+    const found = await this.find(id, access);
+    if (found === null) return { ok: false, reason: 'not_found' };
+    // Under scoped access a super-admin may also recover a restricted project
+    // someone else created, as an audited act (task 3.7); every other write
+    // family still refuses it through `mayEditProjectWithin`.
+    // Proof: refusing the recovery made `recovers a restricted project as an
+    // audited super-admin edit` in `project-organization.controller.db.test.ts`
+    // answer 403; watched 2026-09-27.
+    const edit =
+      access.kind === 'scoped'
+        ? projectEditIn(found, access.scope)
+        : mayEditProjectWithin(found, actorId, access)
+          ? 'ordinary'
+          : 'refused';
+    if (edit === 'refused') return { ok: false, reason: 'forbidden' };
+    const project = found;
     // Solution slugs are still unique across the deployment, so after
     // activation a link collision would reveal another organization's project.
     // Linking is refused until task 3.5 scopes solution references; clearing a
@@ -400,15 +414,27 @@ export class ProjectService {
       return { ok: false, reason: 'optimizer_unavailable' };
     }
     const stamp = this.clock.stampFor(actorId);
-    const updated =
-      access.kind === 'scoped'
-        ? await this.opts.projects.updateInOrganization(
-            id,
-            patch,
-            stamp,
-            access.scope.organizationId,
-          )
-        : await this.opts.projects.update(id, patch, stamp);
+    const written =
+      access.kind === 'legacy'
+        ? await this.opts.projects.update(id, patch, stamp)
+        : edit === 'recovery'
+          ? await this.opts.projects.recoverInOrganization(
+              id,
+              patch,
+              stamp,
+              access.scope.organizationId,
+              { auditId: this.clock.newId(), actorId },
+            )
+          : await this.opts.projects.updateInOrganization(
+              id,
+              patch,
+              stamp,
+              access.scope.organizationId,
+            );
+    // The recovery's own recheck failed: demoted, or the project changed hands
+    // or restriction, since the request was read.
+    if (written === 'forbidden') return { ok: false, reason: 'forbidden' };
+    const updated = written;
     // Gone between the read and the write. Reporting success would tell the
     // caller their rename landed on a project that no longer exists.
     if (updated === null) return { ok: false, reason: 'not_found' };

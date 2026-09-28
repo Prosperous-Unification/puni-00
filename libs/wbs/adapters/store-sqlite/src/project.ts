@@ -34,6 +34,8 @@ import { isScheduleEngine, isSolverObjective, unknownStoredValue } from './optim
 import { bumpedProject, bumpProject } from './revision';
 import {
   optimizationGeneration,
+  organizationAudit,
+  organizationMembership,
   project,
   projectAccess,
   projectOrganization,
@@ -768,11 +770,36 @@ export class ProjectRepository implements ProjectStore {
     return await this.write(id, patch, stamp, organizationId);
   }
 
+  /**
+   * Proof, each watched 2026-09-27: skipping the audit insert made `recovers
+   * a restricted project as an audited super-admin edit` in
+   * `project-organization.controller.db.test.ts` find no record, and skipping
+   * the in-transaction recheck made `refuses a recovery by an actor who is not
+   * the organization's super-admin` in `organization-audit.db.test.ts` write
+   * the project instead of answering `forbidden`.
+   */
+  async recoverInOrganization(
+    id: string,
+    patch: ProjectPatch,
+    stamp: WriteStamp,
+    organizationId: string,
+    recovery: { readonly auditId: string; readonly actorId: string },
+  ): Promise<Project | null | 'forbidden'> {
+    try {
+      return await this.write(id, patch, stamp, organizationId, recovery);
+    } catch (refused) {
+      // The modeled refusal, raised inside the transaction so it rolls back.
+      if (refused instanceof RecoveryRefused) return 'forbidden';
+      throw refused;
+    }
+  }
+
   private async write(
     id: string,
     patch: ProjectPatch,
     stamp: WriteStamp,
     organizationId: string | null,
+    recovery: { readonly auditId: string; readonly actorId: string } | null = null,
   ): Promise<Project | null> {
     const addressed =
       organizationId === null
@@ -819,6 +846,31 @@ export class ProjectRepository implements ProjectStore {
         revision: bumpedProject,
       };
       return this.db.transaction((tx) => {
+        if (recovery !== null && organizationId !== null) {
+          const current = tx
+            .select({ restricted: project.restricted, ownerId: project.ownerId })
+            .from(project)
+            .where(eq(project.id, id))
+            .get();
+          const actor = tx
+            .select({ role: organizationMembership.role })
+            .from(organizationMembership)
+            .where(
+              and(
+                eq(organizationMembership.organizationId, organizationId),
+                eq(organizationMembership.userId, recovery.actorId),
+              ),
+            )
+            .get();
+          if (
+            current === undefined ||
+            !current.restricted ||
+            current.ownerId === recovery.actorId ||
+            actor?.role !== 'super_admin'
+          ) {
+            throw new RecoveryRefused();
+          }
+        }
         // Claim the ON→OFF edge with a write, not a read followed by a write.
         // Two backend processes can PATCH one SQLite file during a blue/green
         // swap; the conditional UPDATE serializes them so exactly one advances
@@ -842,6 +894,25 @@ export class ProjectRepository implements ProjectStore {
           .all()
           .at(0);
         if (updated === undefined) return null;
+        if (recovery !== null && organizationId !== null) {
+          tx.insert(organizationAudit)
+            .values({
+              id: recovery.auditId,
+              organizationId,
+              actorId: recovery.actorId,
+              action: 'restricted_project_recovery',
+              subjectKind: 'project',
+              subjectId: id,
+              detail: JSON.stringify({
+                fields: Object.entries(patch)
+                  .filter(([, value]) => value !== undefined)
+                  .map(([field]) => field)
+                  .sort(),
+              }),
+              createdAt: stamp.at,
+            })
+            .run();
+        }
 
         if (turnedOff) {
           tx.update(optimizationGeneration)
@@ -943,5 +1014,13 @@ export class ProjectRepository implements ProjectStore {
         .where(eq(step.projectId, projectId))
         .orderBy(step.position, step.id)
     );
+  }
+}
+
+/** A recovery whose in-transaction recheck failed; rolls the write back. */
+class RecoveryRefused extends Error {
+  constructor() {
+    super('the recovery no longer holds: not a super-admin or not a restricted project');
+    this.name = 'RecoveryRefused';
   }
 }

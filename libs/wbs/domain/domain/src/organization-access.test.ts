@@ -5,6 +5,7 @@ import {
   canWriteInOrganization,
   mayAdministerMembership,
   mayInvite,
+  projectEditIn,
 } from './organization-access';
 import { ORGANIZATION_ROLES } from './stored-vocabularies';
 
@@ -84,5 +85,24 @@ describe('mayInvite', () => {
     expect(invitable('admin')).toEqual(['member', 'viewer']);
     expect(invitable('member')).toEqual([]);
     expect(invitable('viewer')).toEqual([]);
+  });
+});
+
+describe('projectEditIn', () => {
+  const open = { ownerId: 'grace', restricted: false };
+  const restricted = { ownerId: 'grace', restricted: true };
+
+  it("calls a super-admin's edit of someone else's restricted project a recovery", () => {
+    expect(projectEditIn(restricted, scope('super_admin'))).toBe('recovery');
+    expect(projectEditIn(restricted, scope('super_admin', 'grace'))).toBe('ordinary');
+    expect(projectEditIn(open, scope('super_admin'))).toBe('ordinary');
+  });
+
+  it('refuses every other non-creator of a restricted project, and every viewer', () => {
+    for (const role of ['admin', 'member', 'viewer'] as const) {
+      expect(projectEditIn(restricted, scope(role))).toBe('refused');
+    }
+    expect(projectEditIn(open, scope('viewer'))).toBe('refused');
+    expect(projectEditIn(restricted, scope('viewer', 'grace'))).toBe('refused');
   });
 });
