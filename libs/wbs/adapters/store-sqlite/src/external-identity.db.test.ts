@@ -63,11 +63,13 @@ describe('backfillExternalIdentities', () => {
     ]);
   });
 
-  it('refuses a half or empty legacy pair, mapping nothing', () => {
+  it('refuses a half, empty or non-text legacy pair, mapping nothing', () => {
     user('ada', 'https://issuer', 'sub-ada');
     user('half', 'https://issuer', null);
     expect(backfill).toThrow('partial or empty legacy identity pair');
     raw("UPDATE users SET idp_sub = '' WHERE id = 'half'");
+    expect(backfill).toThrow('partial or empty legacy identity pair');
+    raw("UPDATE users SET idp_sub = x'616263' WHERE id = 'half'");
     expect(backfill).toThrow('partial or empty legacy identity pair');
     expect(mappings()).toEqual([]);
   });
