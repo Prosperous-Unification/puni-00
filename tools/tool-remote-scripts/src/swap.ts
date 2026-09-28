@@ -31,6 +31,7 @@ import {
   EDGE_CONTAINER,
   type EnvLayout,
   grantAliasCommands,
+  holdKindsCommand,
   manifestInspectArgs,
   migrateCommand,
   migrateDownCommand,
@@ -42,6 +43,7 @@ import {
   revokeAliasCommands,
   ROOT,
   SHARED_ENV_PATH,
+  storedHoldsCommand,
   storedRelationshipTypesCommand,
   tierComposeContext,
   tierComposeFile,
@@ -500,14 +502,14 @@ export async function startGreen(
 // Steps at or before `reload` are still reversible: nothing client-facing has
 // switched over yet (or, for `reload` itself, the switch is what's failing).
 // A failure anywhere in this window must delegate to `abortSwap`. Steps after
-// `reload` (`drain`, `revoke-alias`, `stop-blue`, `relationship-types-after-stop`,
+// `reload` (`drain`, `revoke-alias`, `stop-blue`, `stored-vocabularies-after-stop`,
 // `backfill-step-codes`, `commit`) are NOT reversible
 // by this mechanism: routing has already moved to `to`, which is now the
 // legitimately live colour, so rolling back to `from` would be exactly
 // backwards. See the boundary enforced in `execute`'s per-step try/catch.
 const ABORTABLE_STEPS: ReadonlySet<SwapStep> = new Set<SwapStep>([
   'start-green',
-  'relationship-types',
+  'stored-vocabularies',
   'migrate',
   'health-gate',
   'grant-alias',
@@ -529,78 +531,144 @@ export interface SwapExecutionIo {
 
 const PRODUCTION_SWAP_IO: SwapExecutionIo = { sh, readPhase, writePhase, writeAtomic };
 
-/** Parses the incoming release's declared relationship types at the Docker output boundary. */
-function parseSupportedTypes(output: string): string[] {
+/**
+ * A closed set the database stores and a release must be able to read before
+ * it may serve that database: its name in messages, the key a stored row
+ * names its value by, and the recovery a refusal names.
+ */
+interface StoredVocabulary {
+  name: string;
+  key: 'type' | 'kind';
+  supportedCommand: (container: string) => string[];
+  storedCommand: (container: string) => string[];
+  recoveryCli: string;
+  runbookAnchor: string;
+}
+
+const RELATIONSHIP_TYPES_VOCABULARY: StoredVocabulary = {
+  name: 'relationship types',
+  key: 'type',
+  supportedCommand: relationshipTypesCommand,
+  storedCommand: storedRelationshipTypesCommand,
+  recoveryCli: 'typed-dependency-rollback-cli.ts',
+  runbookAnchor: 'typed-dependency-rollback',
+};
+
+/**
+ * Work item holds (`add-work-item-statuses`). A release that cannot read
+ * `work_item.hold` schedules held work as if nothing were held (ADR 0032), so
+ * a stored hold it does not name refuses the swap exactly as an unknown
+ * relationship type does.
+ */
+const HOLD_KINDS_VOCABULARY: StoredVocabulary = {
+  name: 'hold kinds',
+  key: 'kind',
+  supportedCommand: holdKindsCommand,
+  storedCommand: storedHoldsCommand,
+  recoveryCli: 'work-item-hold-rollback-cli.ts',
+  runbookAnchor: 'work-item-hold-rollback',
+};
+
+// Proof: `HOLD_KINDS_VOCABULARY` left out of this list made four cases fail,
+// among them `refuses an image that reads no holds while holds are stored, and
+// stops green` and `refuses a hold written after the first check once blue
+// stops`: the swap went on to migrate over held rows; watched 2026-09-28.
+const STORED_VOCABULARIES: readonly StoredVocabulary[] = [
+  RELATIONSHIP_TYPES_VOCABULARY,
+  HOLD_KINDS_VOCABULARY,
+];
+
+/** Parses the incoming release's supported values at the Docker output boundary. */
+function parseSupported(output: string, vocabulary: StoredVocabulary): string[] {
   const parsed: unknown = JSON.parse(output);
   if (!Array.isArray(parsed))
-    throw new Error('incoming release reported malformed supported relationship types');
-  return parsed.map((type: unknown) => {
+    throw new Error(`incoming release reported malformed supported ${vocabulary.name}`);
+  return parsed.map((value: unknown) => {
     // Proof: disabling this type check made `rejects a non-string supported relationship type`
     // fail on `Unable to find property` for the expected malformed-output error.
-    if (typeof type !== 'string')
-      throw new Error('incoming release reported malformed supported relationship types');
-    return type;
+    if (typeof value !== 'string')
+      throw new Error(`incoming release reported malformed supported ${vocabulary.name}`);
+    return value;
   });
 }
 
-interface StoredRelationshipType {
-  type: string;
+interface StoredValue {
+  value: string;
   count: number;
 }
 
-/** Parses distinct SQLite types and counts at the Docker output boundary. */
-function parseStoredTypes(output: string): StoredRelationshipType[] {
+/** Parses distinct stored values and counts at the Docker output boundary. */
+function parseStored(output: string, vocabulary: StoredVocabulary): StoredValue[] {
   const parsed: unknown = JSON.parse(output);
   if (!Array.isArray(parsed))
-    throw new Error('database reported malformed stored relationship types');
+    throw new Error(`database reported malformed stored ${vocabulary.name}`);
   return parsed.map((row: unknown) => {
+    if (row === null || typeof row !== 'object')
+      throw new Error(`database reported malformed stored ${vocabulary.name}`);
+    const value: unknown = Reflect.get(row, vocabulary.key);
+    const count: unknown = Reflect.get(row, 'count');
     if (
-      row === null ||
-      typeof row !== 'object' ||
-      !('type' in row) ||
-      typeof row.type !== 'string' ||
-      !('count' in row) ||
-      typeof row.count !== 'number' ||
+      typeof value !== 'string' ||
+      typeof count !== 'number' ||
       // Proof: disabling the integer check made `rejects a stored relationship with a fractional count`
       // fail: it received `stored relationship types unsupported ... FF (1.5)` instead of malformed output.
-      !Number.isSafeInteger(row.count) ||
-      row.count <= 0
+      !Number.isSafeInteger(count) ||
+      count <= 0
     ) {
-      throw new Error('database reported malformed stored relationship types');
+      throw new Error(`database reported malformed stored ${vocabulary.name}`);
     }
-    return { type: row.type, count: row.count };
+    return { value, count };
   });
 }
 
-/** Refuses a release whose reader cannot interpret types currently stored in the shared DB. */
-async function assertSupportedRelationshipTypes(
+/** Refuses a release that cannot read a value of `vocabulary` currently stored in the shared DB. */
+async function assertSupported(
+  vocabulary: StoredVocabulary,
   container: string,
   shCommand: SwapExecutionIo['sh'],
   afterStop: boolean,
 ): Promise<void> {
-  const supported = parseSupportedTypes(await shCommand(relationshipTypesCommand(container)));
-  const stored = parseStoredTypes(await shCommand(storedRelationshipTypesCommand(container)));
+  const supported = parseSupported(
+    await shCommand(vocabulary.supportedCommand(container)),
+    vocabulary,
+  );
+  const stored = parseStored(await shCommand(vocabulary.storedCommand(container)), vocabulary);
   // Proof: replacing this comparison with `stored.filter(() => false)` made
   // `refuses FS-only code with stored FF before migration and stops green`
   // fail on `Expected value: StringContaining "FF (2)"; Unable to find property`.
-  const unsupported = stored.filter((row) => !supported.includes(row.type));
+  const unsupported = stored.filter((row) => !supported.includes(row.value));
   if (unsupported.length === 0) return;
 
-  const types = unsupported.map((row) => `${row.type} (${String(row.count)})`).join(', ');
+  const values = unsupported.map((row) => `${row.value} (${String(row.count)})`).join(', ');
+  const runbook = `docs/runbook-prod-deploy.md#${vocabulary.runbookAnchor}`;
   if (afterStop) {
     throw new Error(
-      `stored relationship types unsupported by ${container} after the outgoing colour stopped: ${types}. ` +
-        'The new colour is serving and this swap cannot commit. Redeploy a release that understands these types, ' +
-        'or save and remove the rows with typed-dependency-rollback-cli.ts save|remove as described in ' +
-        'docs/runbook-prod-deploy.md#typed-dependency-rollback',
+      `stored ${vocabulary.name} unsupported by ${container} after the outgoing colour stopped: ${values}. ` +
+        `The new colour is serving and this swap cannot commit. Redeploy a release that understands these ${vocabulary.name}, ` +
+        `or save and remove the rows with ${vocabulary.recoveryCli} save|remove as described in ${runbook}`,
     );
   }
   throw new Error(
-    `stored relationship types unsupported by ${container}: ${types}. ` +
-      'Save and remove these rows losslessly with typed-dependency-rollback-cli.ts save|remove, ' +
+    `stored ${vocabulary.name} unsupported by ${container}: ${values}. ` +
+      `Save and remove these rows losslessly with ${vocabulary.recoveryCli} save|remove, ` +
       'then rerun deploy; restore after redeploying a compatible release. ' +
-      'See docs/runbook-prod-deploy.md#typed-dependency-rollback',
+      `See ${runbook}`,
   );
+}
+
+/**
+ * The `stored-vocabularies` steps: every {@link STORED_VOCABULARIES} entry the
+ * incoming release must read, checked before migrating and again after the
+ * outgoing colour stops, when nothing else can write.
+ */
+async function assertSupportedVocabularies(
+  container: string,
+  shCommand: SwapExecutionIo['sh'],
+  afterStop: boolean,
+): Promise<void> {
+  for (const vocabulary of STORED_VOCABULARIES) {
+    await assertSupported(vocabulary, container, shCommand, afterStop);
+  }
 }
 
 export async function execute(
@@ -769,8 +837,8 @@ export async function execute(
           break;
         }
 
-        case 'relationship-types': {
-          await assertSupportedRelationshipTypes(greenName, io.sh, false);
+        case 'stored-vocabularies': {
+          await assertSupportedVocabularies(greenName, io.sh, false);
           break;
         }
 
@@ -953,10 +1021,10 @@ export async function execute(
           if (from !== null) await io.sh(['stop', containerName(tier, from)]);
           break;
 
-        case 'relationship-types-after-stop':
+        case 'stored-vocabularies-after-stop':
           // Proof: omitting this recheck made `refuses FF inserted after the first check`
           // fail on `Received message: "step-code backfill failed..."` after running past stop-blue.
-          await assertSupportedRelationshipTypes(greenName, io.sh, true);
+          await assertSupportedVocabularies(greenName, io.sh, true);
           break;
 
         case 'backfill-step-codes':
@@ -982,7 +1050,7 @@ export async function execute(
         await abortSwap(`${tier}-${to} failed during '${step}'`, e);
       }
       // Steps after `reload` (`drain`, `revoke-alias`, `stop-blue`,
-      // `relationship-types-after-stop`, `backfill-step-codes`, `commit`): routing has already moved onto `to`, which is now the
+      // `stored-vocabularies-after-stop`, `backfill-step-codes`, `commit`): routing has already moved onto `to`, which is now the
       // legitimately live colour — that is the explicit boundary
       // `ABORTABLE_STEPS` draws. Rolling back to `from` here would be
       // exactly backwards: Caddy and (for `be`) gw's forward alias already

@@ -17,6 +17,11 @@ Red before implementation: the five new or extended test files ran 0 pass, 5 fai
 'foldStatuses' not found`). Green after: 36 example cases and 2 properties (2,000 runs each)
 pass; the whole `libs/wbs/domain/domain` suite reported 819 pass, 0 fail.
 
+## Slice 2 — swap guard
+
+Red: `swap.test.ts`, `lib/docker.test.ts` and `lib/reconcile.test.ts` ran 15 pass, 2 fail
+(`Export named 'holdKindsCommand' not found`). Green after: 165 pass, 0 fail.
+
 ## Commands
 
 | Slice | Command                                                                     | Result                                                                                                                                                                                                                                                                                 |
@@ -40,6 +45,13 @@ Each fault was injected into the production function, the named test run, and th
 | readiness guard                            | `isReadiness` reduced to `typeof value === 'string'`          | `admit exactly their own closed sets`                                                          | 19 pass, 1 fail; `Expected: false, Received: true`                                                          |
 | hold guard                                 | `isHold` reduced to `typeof value === 'string'`               | `admit exactly their own closed sets`                                                          | 19 pass, 1 fail; `Expected: false, Received: true`                                                          |
 | no status is given for a parent            | the non-leaf status check disabled                            | `refuses a status for anything but a leaf`                                                     | 9 pass, 1 fail; `Received function did not throw`                                                           |
+
+### Slice 2 proofs
+
+| Check                                                         | Fault injected                                            | Test that observed it                                                                      | Observed                    |
+| ------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------- |
+| the swap compares stored holds                                | `HOLD_KINDS_VOCABULARY` left out of `STORED_VOCABULARIES` | `refuses an image that reads no holds while holds are stored, and stops green`, three more | 62 pass, 4 fail             |
+| only an absent hold CLI under a readable `src` means no holds | the directory check replaced by an unconditional `[]`     | `does not treat a missing source directory as an older release` (hold kind commands)       | `Expected: 74, Received: 0` |
 
 ## Astra review (2026-09-28)
 
