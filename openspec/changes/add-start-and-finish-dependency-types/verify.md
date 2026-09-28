@@ -255,3 +255,10 @@ The Playwright Gantt spec's typed-chip selectors were updated and e2e was not ru
 - Main's retry refusal for `plan-infeasible` rows (8.7d) conflicted with this slice's mapping of an infeasible CP-SAT verdict to `failed`/`no-solution`. The plan-infeasible certificate is restored. It is CP-SAT's verdict at the solver quantum (Q = 48, durations rounded up, FF start weights strengthened), documented as such on `evaluateSolverOutcome`, and not an unrestricted proof about fractional workdays. The cache retirement of old certificates still comes from the solver 0.1.4 key.
 - `solver-exit-outcome.test.ts` keeps main's certificate cases (wire v2 responses) and this slice's feasible-order publication case. From `apps/wbs/be-01`, `env -u CLAUDECODE bun test src/service`: 461 pass, 0 fail.
 - CI's solver-image smoke failed with `request wireVersion is not 1`. The host supervisor's start-frame decoder admitted only v1; it now admits v1 and v2 (`SOLVER_REQUEST_WIRE_VERSIONS`), because the host supervisor outlives either backend colour during a swap. Before the fix, the red test gave 6 pass / 4 fail on that message.
+
+## 2026-09-29 pin-drift fix merged in, commands-path publication
+
+- `batch-9/010-4-7-weighted-pin-drift` (#196, `d82e642b`) and main `8957bda9` were merged into the commands branch without conflicts.
+- `typed-dependency-commands.controller.db.test.ts` "publishes a tight solver answer for an SS/FF plan written through the commands" writes estimates and FS/SS relationships through `/commands` (project rounding `exact`, X 1 day → A 5/6 day → B, X→B SS). It builds the solver request pair from the project's schedule input and feeds `evaluateSolverOutcome` the quantised Fast baseline (A at unit 48, B at 88) as a feasible answer. It expects `ok`.
+- Proof: with `schedule.ts` and `real-boundaries.ts` reverted to their pre-#196 state, the test failed with `{ kind: 'failed', reason: 'invalid-output' }` (0 pass / 1 fail); with the fix it passes.
+- `env -u CLAUDECODE bunx nx affected -t typecheck test lint --base=origin/main` succeeded for 19 projects (61 tasks, 15 from cache).

@@ -6,6 +6,7 @@ import {
   classifyOidcFailure,
   consumeBrowserBinding,
   type HeldBrowserBinding,
+  InMemoryOidcLinkStore,
   isOidcCallbackRefused,
   MAX_BROWSER_BINDINGS,
   type OidcFailureKind,
@@ -13,9 +14,11 @@ import {
   selectBrowserBindings,
 } from '@wbs/auth';
 import {
+  completeAuth0Link,
   completeOidcLogin,
   logoutOidcSession,
   refreshOidcSession,
+  startAuth0Link,
   startOidcLogin,
 } from '@wbs/contracts';
 
@@ -29,6 +32,8 @@ import {
 } from '../http/endpoint';
 import { cookiesIn, cookieValue } from '../middleware/authenticated';
 import type { AuthService } from '../service/auth.service';
+import type { LoginThrottle } from '../service/login-throttle';
+import { clientIpOf } from './auth-password-endpoints';
 import type { OidcRouteOptions } from './oidc-options';
 
 const reportable = new Set([
@@ -92,13 +97,29 @@ function callbackFailure(
     return { ok: false, status: 400, body: { error: 'duplicate_parameter' } };
   return { ok: false, status: 400, body: { error: failure.code } };
 }
+
+/** The link callback shares the singleton query rule without consuming proof on pollution. */
+function linkCallbackFailure(
+  failure: RequestFailure,
+): Extract<HttpReply<typeof completeAuth0Link>, { ok: false }> {
+  // Proof: 2026-09-28, omitting this classifier made `rejects duplicate callback state without spending the link proof` answer invalid_query instead of duplicate_parameter.
+  if (failure.part === 'query' && failure.duplicate !== undefined)
+    return { ok: false, status: 400, body: { error: 'duplicate_parameter' } };
+  return { ok: false, status: 400, body: { error: failure.code } };
+}
 /**
  * Browser OIDC bindings. Composition registers these only when OIDC options exist.
  * Exchange failures carry their owned classification; account and token-store failures remain throws.
  */
-export function authOidcEndpoints(auth: AuthService, options: OidcRouteOptions) {
+export function authOidcEndpoints(
+  auth: AuthService,
+  options: OidcRouteOptions,
+  passwordThrottle: LoginThrottle,
+) {
   const now = options.now ?? Date.now;
   const random = options.random ?? (() => randomBytes(32).toString('base64url'));
+  const links = new InMemoryOidcLinkStore(now);
+  const linkRedirectUri = new URL('/api/auth/link/auth0/callback', options.redirectUri).href;
   return [
     bind(startOidcLogin, async ({ request }) => {
       const browserBinding = random();
@@ -381,5 +402,119 @@ export function authOidcEndpoints(auth: AuthService, options: OidcRouteOptions) 
       if (record !== null) await options.client.revoke(record.refreshToken);
       return { ok: true, status: 204, body: EMPTY, headers: clearSession() };
     }),
+    bind(startAuth0Link, async ({ body, request }) => {
+      // Proof: 2026-09-28, skipping this marker check made `refuses link start before activation` redirect to Auth0.
+      if (!(await auth.isLinkActive()))
+        return { ok: false, status: 403, body: { error: 'onboarding_inactive' } };
+      const session = cookieValue(request.headers.get('cookie') ?? undefined, '__Host-wbs_access');
+      const account = await auth.passwordSessionUser(session);
+      // Proof: 2026-09-28, removing this refusal made `refuses a link start without a password session before throttle admission` receive 500 instead of 401.
+      if (account === null)
+        return { ok: false, status: 401, body: { error: 'invalid_credentials' } };
+      const throttleIp = clientIpOf(request.headers) ?? 'local-direct';
+      // Proof: 2026-09-28, bypassing reserve made `admits at most five held fresh-password verifications and releases capacity` observe six verifiers.
+      const release = passwordThrottle.reserve(account.username, throttleIp);
+      // Proof: 2026-09-28, removing the exhausted-capacity refusal made `admits at most five held fresh-password verifications and releases capacity` observe six verifiers.
+      if (release === null)
+        return { ok: false, status: 429, body: { error: 'invalid_credentials' } };
+      let user;
+      try {
+        user = await auth.provePasswordSession(session, body.password);
+        if (user === null) passwordThrottle.recordFailure(account.username, throttleIp);
+        else passwordThrottle.recordSuccess(account.username);
+      } finally {
+        // Proof: 2026-09-28, omitting release made `admits at most five held fresh-password verifications and releases capacity` and `releases fresh-password admission after verifier errors` receive 429 for the next start instead of 302.
+        release();
+      }
+      // Proof: 2026-09-28, accepting an unmatched password made `refuses a wrong fresh password` redirect to Auth0.
+      if (user === null || session === null)
+        return { ok: false, status: 401, body: { error: 'invalid_credentials' } };
+      const binding = random();
+      const state = random();
+      const nonce = random();
+      const verifier = random();
+      links.save(binding, { userId: user.id, session, state, nonce, verifier });
+      const location = await options.client.authorizationUrl({
+        nonce,
+        state,
+        verifier,
+        redirectUri: linkRedirectUri,
+        prompt: 'login',
+      });
+      return {
+        ok: true,
+        status: 302,
+        body: EMPTY,
+        headers: [
+          cookie('__Host-wbs_link', binding, OIDC_BINDING_TTL_SECONDS),
+          ['location', location.href],
+        ],
+      };
+    }),
+    bind(
+      completeAuth0Link,
+      async ({ request }) => {
+        const sent = request.url.searchParams;
+        const binding = cookieValue(request.headers.get('cookie') ?? undefined, '__Host-wbs_link');
+        const session = cookieValue(
+          request.headers.get('cookie') ?? undefined,
+          '__Host-wbs_access',
+        );
+        const state = sent.get('state');
+        if (
+          state === null ||
+          (sent.get('code') ?? '') === '' ||
+          sent.has('error') ||
+          OTHER_RESPONSE_MODE_PARAMS.some((name) => sent.has(name))
+        )
+          return { ok: false, status: 400, body: EMPTY };
+        // Proof: 2026-09-28, classifying an absent binding as malformed made `returns bodyless 401 for absent link cookie and 400 for malformed provider parameters` receive 400.
+        if (binding === null || session === null) return { ok: false, status: 401, body: EMPTY };
+        const proof = links.consume(binding, state, session);
+        // Proof: 2026-09-28, retaining the consumed transaction made `refuses a replayed link callback` answer 302 twice.
+        if (proof === null) return { ok: false, status: 401, body: EMPTY };
+        const user = await auth.passwordSessionUser(session);
+        // Proof: 2026-09-28, skipping this recheck made `refuses a link whose originating account lost its password credential` answer 500 instead of 401.
+        if (user?.id !== proof.userId) return { ok: false, status: 401, body: EMPTY };
+        // Proof: 2026-09-28, bypassing this per-callback marker read made `refuses a callback after activation is lost before contacting Auth0` contact the provider once.
+        if (!(await auth.isLinkActive())) return { ok: false, status: 403, body: EMPTY };
+        const callbackUrl = new URL(linkRedirectUri);
+        callbackUrl.search = request.url.search;
+        let tokens;
+        try {
+          tokens = await options.client.exchange(
+            new Request(callbackUrl, { headers: request.headers, method: request.method }),
+            // Proof: 2026-09-28, replacing the retained PKCE verifier with `wrong` made `links a verified Auth0 identity only through the password session that began the flow` fail its exchange-check assertion.
+            { nonce: proof.nonce, state, verifier: proof.verifier },
+          );
+        } catch (error) {
+          if (isOidcCallbackRefused(error)) return { ok: false, status: 400, body: EMPTY };
+          const failure = classifyOidcFailure(error);
+          return { ok: false, status: STATUS_FOR_OIDC_FAILURE[failure.kind], body: EMPTY };
+        }
+        if (tokens.idTokenClaims === undefined) return { ok: false, status: 401, body: EMPTY };
+        let identity;
+        try {
+          identity = oidcIdentityFromClaims(tokens.idTokenClaims, {
+            groupPrefix: options.groupPrefix,
+            groupsClaim: options.groupsClaim,
+          });
+        } catch {
+          return { ok: false, status: 401, body: EMPTY };
+        }
+        const linked = await auth.linkOidcIdentity(user.id, identity);
+        if (linked.kind === 'inactive') return { ok: false, status: 403, body: EMPTY };
+        if (linked.kind === 'identity_collision' || linked.kind === 'email_collision')
+          return { ok: false, status: 409, body: EMPTY };
+        if (linked.kind !== 'linked') return { ok: false, status: 401, body: EMPTY };
+        return {
+          ok: true,
+          status: 302,
+          body: EMPTY,
+          headers: [cookie('__Host-wbs_link', '', 0), ['location', '/?auth_link=linked']],
+        };
+      },
+      { prevalidate: callbackAdmission, classifyRequestFailure: linkCallbackFailure },
+    ),
   ] as const;
 }
