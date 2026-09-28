@@ -1,13 +1,22 @@
-import type { PlanCommandKind } from '@wbs/contracts';
+import { commandDefinitions, type PlanCommandKind } from '@wbs/contracts';
+import { canWriteInOrganization, type OrganizationScope } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type {
+  DirectoryCatalog,
   Person,
   PersonWithTeams,
   ServiceTeam,
   TeamWithServices,
 } from '../../ports/directory-store';
+import {
+  LEGACY_ACCESS,
+  mayEditProjectWithin,
+  type ResourceAccess,
+} from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
+import type { ProjectCrossReferenceKind } from '../../ports/project-store';
+import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
 import type { Service, Tag, WorkItemType } from '../../ports/work-item-store';
 import type { CapacityService } from '../../service/capacity.service';
@@ -106,6 +115,19 @@ export type ServiceRefusal =
 export type BatchOutcome =
   { ok: true; results: AppliedCommand[]; undoable: boolean; redoable: boolean } | BatchRefusal;
 
+/**
+ * A batch refused whole under scoped access, before any command ran: the
+ * organization does not own the project (answered exactly as for an absent
+ * one), or the caller's role or the restricted-creator rule forbids writing.
+ */
+export interface WholeBatchRefusal {
+  ok: false;
+  refusal: 'not_found' | 'forbidden';
+}
+
+/** What a batch run through the caller's access answers. */
+export type ScopedBatchOutcome = BatchOutcome | WholeBatchRefusal;
+
 export interface PlanCommandRunnerOptions {
   /**
    * The batch's own service graph, built **per batch** over the admitted scope
@@ -170,7 +192,35 @@ export class PlanCommandRunner {
   constructor(private readonly opts: PlanCommandRunnerOptions) {}
 
   run(projectId: string, actorId: string, commands: readonly PlanCommand[]): Promise<BatchOutcome> {
-    return this.execute(projectId, actorId, commands);
+    return this.execute(projectId, actorId, commands, LEGACY_ACCESS).then(legacyOutcome);
+  }
+
+  /**
+   * {@link run} through the caller's access. Under scoped access the project
+   * and the role are checked inside the batch's own unit of work, and every
+   * command is held to the organization: see {@link applyAll}.
+   */
+  runWithin(
+    projectId: string,
+    actorId: string,
+    commands: readonly PlanCommand[],
+    access: ResourceAccess,
+  ): Promise<ScopedBatchOutcome> {
+    return this.execute(projectId, actorId, commands, access);
+  }
+
+  /**
+   * {@link runDirectory} through the caller's access. Under scoped access every
+   * directory command is refused as `forbidden` at its index until
+   * organization-local directory writes land (task 3.4, part 2): a global
+   * create or rename would write a name another organization shares.
+   */
+  runDirectoryWithin(
+    actorId: string,
+    commands: readonly PlanCommand[],
+    access: ResourceAccess,
+  ): Promise<ScopedBatchOutcome> {
+    return this.execute(null, actorId, commands, access);
   }
 
   /**
@@ -181,7 +231,7 @@ export class PlanCommandRunner {
    * `project_required` at its index.
    */
   runDirectory(actorId: string, commands: readonly PlanCommand[]): Promise<BatchOutcome> {
-    return this.execute(null, actorId, commands);
+    return this.execute(null, actorId, commands, LEGACY_ACCESS).then(legacyOutcome);
   }
 
   /**
@@ -215,14 +265,22 @@ export class PlanCommandRunner {
     projectId: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
-  ): Promise<BatchOutcome> {
+    access: ResourceAccess,
+  ): Promise<ScopedBatchOutcome> {
     // This batch's own collector and its own graph over it. Two batches never
     // share either, and no route's graph is built over this one.
     // Proof: reusing a constructor-owned collector made compose.test.ts receive
     // the same AnnouncementCollector for two batches at its identity assertion.
     const collector = new AnnouncementCollector(this.opts.announcements);
-    type Applied = BatchOutcome | Collected<AppliedCommand[]>;
+    type Applied = ScopedBatchOutcome | Collected<AppliedCommand[]>;
     const done = await this.opts.uow.run<Applied>(async (scope): Promise<Decision<Applied>> => {
+      if (access.kind === 'scoped') {
+        // Proof: skipping this admission made `answers 404 alike for a foreign
+        // and an absent project` in `command-organization.controller.db.test.ts`
+        // answer 200 instead of 404; watched 2026-09-27.
+        const refusal = await refuseOutsideScope(scope.stores, projectId, actorId, access.scope);
+        if (refusal !== null) return { commit: false, value: { ok: false, refusal } };
+      }
       const workingPlan = projectId === null ? undefined : createWorkingPlan(scope, projectId);
       // Proof: building from publicServices let the refused write survive:
       // expected [], received ["rolled back"] (2026-09-09).
@@ -256,7 +314,7 @@ export class PlanCommandRunner {
         }
         let applied: Applied;
         const collected = await graph.workItems.collect(() =>
-          this.applyAll(graph, projectId, actorId, commands),
+          this.applyAll(graph, scope.stores, projectId, actorId, commands, access),
         );
         if (projectId !== null) {
           const needsCalendarPreflight = commands.some(({ kind }) =>
@@ -318,11 +376,34 @@ export class PlanCommandRunner {
   }
 
   undo(projectId: string, actorId: string): Promise<UndoOutcome> {
-    return this.walk(projectId, (graph) => graph.workItems.undo(projectId, actorId));
+    return this.walk(projectId, actorId, LEGACY_ACCESS, (graph) =>
+      graph.workItems.undo(projectId, actorId),
+    );
   }
 
   redo(projectId: string, actorId: string): Promise<UndoOutcome> {
-    return this.walk(projectId, (graph) => graph.workItems.redo(projectId, actorId));
+    return this.walk(projectId, actorId, LEGACY_ACCESS, (graph) =>
+      graph.workItems.redo(projectId, actorId),
+    );
+  }
+
+  /**
+   * {@link undo} through the caller's access. Under scoped access the project
+   * and role are checked in the unit of work, the entry may not write a row of
+   * another project, and a replay that leaves the project referencing
+   * anything outside the organization is rolled back as `not_found`.
+   */
+  undoWithin(projectId: string, actorId: string, access: ResourceAccess): Promise<UndoOutcome> {
+    return this.walk(projectId, actorId, access, (graph) =>
+      graph.workItems.undoWithin(projectId, actorId, access),
+    );
+  }
+
+  /** {@link redo} through the caller's access; see {@link undoWithin}. */
+  redoWithin(projectId: string, actorId: string, access: ResourceAccess): Promise<UndoOutcome> {
+    return this.walk(projectId, actorId, access, (graph) =>
+      graph.workItems.redoWithin(projectId, actorId, access),
+    );
   }
 
   /**
@@ -333,6 +414,8 @@ export class PlanCommandRunner {
    */
   private async walk(
     projectId: string,
+    actorId: string,
+    access: ResourceAccess,
     step: (graph: PlanCommandServices) => Promise<UndoOutcome>,
   ): Promise<UndoOutcome> {
     const collector = new AnnouncementCollector(this.opts.announcements);
@@ -340,9 +423,38 @@ export class PlanCommandRunner {
     // `execute` gives: the push happens after the turn is let go.
     const walked = await this.opts.uow.run<Collected<UndoOutcome>>(
       async (scope): Promise<Decision<Collected<UndoOutcome>>> => {
+        const refuse = (reason: 'not_found' | 'forbidden') => ({
+          commit: false as const,
+          value: {
+            result: { ok: false as const, reason, detail: null },
+            recordings: [],
+            dirty: false,
+          },
+        });
+        if (access.kind === 'scoped') {
+          // Proof: skipping this admission made `refuses undo and redo of a
+          // foreign project as of an absent one` in
+          // `command-organization.controller.db.test.ts` answer the foreign
+          // undo with 409 instead of 404; watched 2026-09-27.
+          const refusal = await refuseOutsideScope(scope.stores, projectId, actorId, access.scope);
+          if (refusal !== null) return refuse(refusal);
+        }
         const graph = this.opts.batchServices(scope, collector);
         const { workItems } = graph;
         const collected = await workItems.collect(() => step(graph));
+        if (collected.result.ok && access.kind === 'scoped') {
+          // A backstop behind `undoWithin`'s own reference check, which refuses
+          // every case the suite plants first.
+          // Proof: skipping this closure check together with that reference
+          // check made `rolls back an undo that would restore a foreign label`
+          // in `command-organization.controller.db.test.ts` answer 200 instead
+          // of 404; watched 2026-09-27.
+          const crossing = await scope.stores.projects.findCrossReferences(
+            projectId,
+            access.scope.organizationId,
+          );
+          if (crossing.length > 0) return refuse('not_found');
+        }
         if (collected.result.ok) return { commit: true, value: collected };
         const entryId = collected.result.entryId;
         return {
@@ -376,11 +488,21 @@ export class PlanCommandRunner {
     return walked.result;
   }
 
+  /**
+   * Applies every command in order. Under scoped access each command is also
+   * held to the organization: a directory command is refused (part 2 of task
+   * 3.4 owns organization-local directory writes), every work item, step,
+   * parent, sibling and predecessor it names must be this project's, and after
+   * it runs the project may reference nothing outside the organization — the
+   * closure the schedule read checks — or the batch is refused at its index.
+   */
   private async applyAll(
     graph: PlanCommandServices,
+    stores: PlanTransactionalStores,
     projectId: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
+    access: ResourceAccess,
   ): Promise<AppliedCommand[]> {
     const refs = new Map<string, string>();
     const bindings = bindCommands(graph);
@@ -417,8 +539,223 @@ export class PlanCommandRunner {
         );
         if (refusal !== null) context.refuse({ reason: refusal });
       }
+      if (access.kind === 'scoped') {
+        // Proof: skipping this refusal made `refuses every directory command
+        // until organization-local writes land` in
+        // `command-organization.controller.db.test.ts` answer 200 with the
+        // created `urgent` tag instead of 403; watched 2026-09-27.
+        if (commandDefinitions[command.kind].scope === 'directory') {
+          context.refuse({ reason: 'forbidden' });
+        }
+        if (projectId !== null) {
+          await refuseForeignReferences(graph, projectId, command, context, access.scope);
+        }
+      }
       applied.push(await applyCommand(bindings, command, context));
+      if (access.kind === 'scoped' && projectId !== null) {
+        // Proof: skipping this check made `refuses a foreign service, team,
+        // tag, type, person and predecessor, all or none` in
+        // `command-organization.controller.db.test.ts` answer 200 instead of
+        // 404 `unknown_service` for the first case; watched 2026-09-27.
+        const crossing = await stores.projects.findCrossReferences(
+          projectId,
+          access.scope.organizationId,
+        );
+        const first = crossing.at(0);
+        if (first !== undefined) context.refuse({ reason: crossingRefusal(first.kind) });
+      }
     }
     return applied;
+  }
+}
+
+/** A legacy run can never be refused whole: that refusal exists only under scoped access. */
+function legacyOutcome(outcome: ScopedBatchOutcome): BatchOutcome {
+  if ('refusal' in outcome) throw new Error('a legacy batch was refused as out of scope');
+  return outcome;
+}
+
+/**
+ * Why a scoped caller may not run a batch, undo or redo at all, checked in the
+ * act's own unit of work: a project the organization does not own is
+ * `not_found`, exactly as an absent one; a viewer, or anyone but the creator
+ * of a restricted project, is `forbidden`. A directory batch needs only a
+ * writing role.
+ *
+ * @throws when the project already references something outside the
+ * organization: corrupt trusted state that activation should have refused,
+ * never a base to write on.
+ */
+async function refuseOutsideScope(
+  stores: PlanTransactionalStores,
+  projectId: string | null,
+  actorId: string,
+  scope: OrganizationScope,
+): Promise<'not_found' | 'forbidden' | null> {
+  if (projectId === null) return canWriteInOrganization(scope.role) ? null : 'forbidden';
+  const project = await stores.projects.findInOrganization(projectId, scope.organizationId);
+  if (project === null) return 'not_found';
+  // Proof: skipping the role check made `refuses a viewer every batch, undo
+  // and redo` in `command-organization.controller.db.test.ts` answer 200;
+  // watched 2026-09-27.
+  if (!mayEditProjectWithin(project, actorId, { kind: 'scoped', scope })) return 'forbidden';
+  const crossing = await stores.projects.findCrossReferences(projectId, scope.organizationId);
+  // Proof: skipping this check made `fails closed on a project that already
+  // crosses its organization` in `command-organization.controller.db.test.ts`
+  // answer 200 instead of 500; watched 2026-09-27.
+  if (crossing.length > 0) {
+    const kinds = [...new Set(crossing.map((reference) => reference.kind))].sort();
+    throw new Error(
+      `project "${projectId}" holds references outside its organization: ${kinds.join(', ')}`,
+    );
+  }
+  return null;
+}
+
+/**
+ * Refuses a command naming a row or step outside the project, for the
+ * references a command can name without leaving them in the project's final
+ * state — a removed dependency's predecessor, a cleared value's step, a
+ * placement's parent or sibling — which the closure check after the command
+ * would never see — and a capacity's team, which a cleared capacity leaves
+ * nowhere at all.
+ */
+async function refuseForeignReferences(
+  graph: PlanCommandServices,
+  projectId: string,
+  command: PlanCommand,
+  context: CommandContext,
+  scope: OrganizationScope,
+): Promise<void> {
+  const named = (id: unknown, ref: unknown): string | null =>
+    context.id(typeof id === 'string' ? id : undefined, typeof ref === 'string' ? ref : undefined);
+  const rows = [
+    'predecessorId' in command || 'predecessorRef' in command
+      ? named(
+          'predecessorId' in command ? command.predecessorId : undefined,
+          'predecessorRef' in command ? command.predecessorRef : undefined,
+        )
+      : null,
+    'parentId' in command || 'parentRef' in command
+      ? named(
+          'parentId' in command ? command.parentId : undefined,
+          'parentRef' in command ? command.parentRef : undefined,
+        )
+      : null,
+    'afterId' in command || 'afterRef' in command
+      ? named(
+          'afterId' in command ? command.afterId : undefined,
+          'afterRef' in command ? command.afterRef : undefined,
+        )
+      : null,
+  ];
+  // Proof: skipping this check made `refuses a foreign predecessor, parent,
+  // sibling and step even where the final state would not show it` in
+  // `command-organization.controller.db.test.ts` answer 200 instead of 404
+  // for the removed foreign dependency; watched 2026-09-27.
+  for (const id of rows) {
+    if (id !== null && !(await graph.workItems.hasWorkItemInProject(projectId, id))) {
+      context.refuse({ reason: 'not_found' });
+    }
+  }
+  // Proof: skipping this check made `refuses clearing a foreign team's
+  // capacity as it refuses an absent team's` in
+  // `command-organization.controller.db.test.ts` answer 200 instead of 404;
+  // watched 2026-09-27.
+  // Proof: skipping this check made `refuses a foreign directory id exactly as
+  // an absent one, before anything is written` in
+  // `command-organization.controller.db.test.ts` answer `unknown_tag` for a
+  // foreign team beside an absent tag and `unknown_team` for an absent team
+  // beside it, telling the two apart; watched 2026-09-27.
+  for (const [catalog, ids, reason] of directoryReferencesOf(command, context)) {
+    if (ids.length === 0) continue;
+    const owned = new Set(
+      (await graph.directory.listWithin(catalog, { kind: 'scoped', scope })).map(
+        (entry) => entry.id,
+      ),
+    );
+    if (ids.some((id) => !owned.has(id))) context.refuse({ reason });
+  }
+  if (command.kind === 'setCapacity') {
+    const teamId = context.required(command.teamId, command.teamRef);
+    const owned = await graph.directory.listWithin('teams', {
+      kind: 'scoped',
+      scope,
+    });
+    // `not_found`, the answer the capacity service gives a team nobody holds.
+    if (!owned.some((team) => team.id === teamId)) context.refuse({ reason: 'not_found' });
+  }
+  // Proof: skipping the step check alone made the same test answer 200 instead
+  // of 404 `unknown_step` for the foreign-step `clearEstimate`; watched
+  // 2026-09-27.
+  if (
+    'stepId' in command &&
+    typeof command.stepId === 'string' &&
+    !(await graph.workItems.hasStepInProject(projectId, command.stepId))
+  ) {
+    context.refuse({ reason: 'unknown_step' });
+  }
+}
+
+/**
+ * The directory entries a project command names, refs resolved, each with the
+ * refusal an entry nobody holds already earns. Checked before the command runs:
+ * the services validate these globally, so a foreign id would otherwise be
+ * told apart from an absent one, and a label a patch sets and then drops (a
+ * `serviceTeamId` beside `teamRefs: []`) would leave nothing for the closure.
+ */
+function directoryReferencesOf(
+  command: PlanCommand,
+  context: CommandContext,
+): [DirectoryCatalog, readonly string[], PlainReason][] {
+  if (command.kind === 'setAssignee') {
+    const person = context.id(command.personId, command.personRef);
+    return [['people', person === null ? [] : [person], 'unknown_person']];
+  }
+  if (command.kind !== 'patchWorkItem') return [];
+  const { patch } = command;
+  const teams = context.ids(patch.teamIds, patch.teamRefs);
+  if (patch.serviceTeamId !== undefined && patch.serviceTeamId !== null) {
+    teams.push(patch.serviceTeamId);
+  }
+  return [
+    ['teams', teams, 'unknown_team'],
+    ['tags', context.ids(patch.tagIds, patch.tagRefs), 'unknown_tag'],
+    ['services', context.ids(patch.serviceIds, patch.serviceRefs), 'unknown_service'],
+    ['workItemTypes', context.ids(patch.typeIds, patch.typeRefs), 'unknown_type'],
+    ['externalSystems', (patch.externalRefs ?? []).map((each) => each.systemId), 'unknown_system'],
+  ];
+}
+
+/** The refusal a command earns for leaving the project referencing `kind` outside it. */
+function crossingRefusal(kind: ProjectCrossReferenceKind): PlainReason {
+  switch (kind) {
+    case 'estimate_step':
+    case 'actual_step':
+    case 'step_progress_step':
+    case 'step_measure_step':
+    case 'assignment_step':
+      return 'unknown_step';
+    case 'assignment_person':
+      return 'unknown_person';
+    case 'work_item_tag':
+      return 'unknown_tag';
+    case 'work_item_team':
+    case 'work_item_service_team':
+    case 'project_team_capacity':
+      return 'unknown_team';
+    case 'work_item_type':
+      return 'unknown_type';
+    case 'work_item_service_link':
+    case 'work_item_service':
+      return 'unknown_service';
+    case 'work_item_external_ref':
+      return 'unknown_system';
+    case 'work_item_parent':
+    case 'dependency_endpoint':
+    case 'incoming_step_row':
+    case 'incoming_parent':
+    case 'incoming_dependency':
+      return 'not_found';
   }
 }

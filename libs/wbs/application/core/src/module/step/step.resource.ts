@@ -1,12 +1,12 @@
-import {
-  type AllowancePercent,
-  canEditProject,
-  isReservedStepCode,
-  isStepCode,
-  stepIsInUse,
-} from '@wbs/domain';
+import { type AllowancePercent, isReservedStepCode, isStepCode, stepIsInUse } from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
+import {
+  findProjectWithin,
+  LEGACY_ACCESS,
+  mayEditProjectWithin,
+  type ResourceAccess,
+} from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
 import type { Step, StepStore, StepUsageRows } from '../../ports/step-store';
@@ -154,12 +154,24 @@ export class StepService {
    * `refuses a code outside the grammar, and one the project already holds`
    * failed the same way, the step written as `Design`. Both watched 2026-09-27.
    */
-  async add(
+  add(
     projectId: string,
     actorId: string,
     name: string,
     allowancePercent: AllowancePercent,
     code?: string,
+  ): Promise<StepOutcome> {
+    return this.addWithin(projectId, actorId, name, allowancePercent, code, LEGACY_ACCESS);
+  }
+
+  /** {@link add} through the caller's access: a foreign project is `not_found`. */
+  async addWithin(
+    projectId: string,
+    actorId: string,
+    name: string,
+    allowancePercent: AllowancePercent,
+    code: string | undefined,
+    access: ResourceAccess,
   ): Promise<StepOutcome> {
     const clean = cleanName(name);
     // Before the project is read: a step called nothing would sit in every
@@ -169,9 +181,9 @@ export class StepService {
     if (code !== undefined && isReservedStepCode(code)) {
       return { ok: false, reason: 'reserved_code' };
     }
-    const project = await this.opts.projects.findById(projectId);
+    const project = await findProjectWithin(this.opts.projects, projectId, access);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!mayEditProjectWithin(project, actorId, access)) return { ok: false, reason: 'forbidden' };
 
     const written = await this.opts.steps.add(
       code === undefined
@@ -184,18 +196,29 @@ export class StepService {
     return { ok: true, value: written.step };
   }
 
-  async rename(
+  rename(projectId: string, stepId: string, actorId: string, name: string): Promise<StepOutcome> {
+    return this.renameWithin(projectId, stepId, actorId, name, LEGACY_ACCESS);
+  }
+
+  /** {@link rename} through the caller's access. */
+  async renameWithin(
     projectId: string,
     stepId: string,
     actorId: string,
     name: string,
+    access: ResourceAccess,
   ): Promise<StepOutcome> {
     const clean = cleanName(name);
     if (clean === null) return { ok: false, reason: 'name_required' };
-    const gate = await this.gate(projectId, stepId, actorId);
+    const gate = await this.gate(projectId, stepId, actorId, access);
     if (!gate.ok) return gate;
 
-    const written = await this.opts.steps.rename(stepId, clean, this.clock.stampFor(actorId));
+    const written = await this.opts.steps.rename(
+      projectId,
+      stepId,
+      clean,
+      this.clock.stampFor(actorId),
+    );
     if (!written.ok) return { ok: false, reason: written.reason };
     await this.opts.broadcast.publish(projectId, { type: 'step_renamed', step: written.step });
     return { ok: true, value: written.step };
@@ -229,13 +252,24 @@ export class StepService {
    * `not_found` branch below made to publish anyway, `refuses the loser of two
    * removals, bumping and announcing nothing` sees a phantom event (2026-08-09).
    */
-  async remove(
+  remove(
     projectId: string,
     stepId: string,
     actorId: string,
     cascade: boolean,
   ): Promise<RemoveStepOutcome> {
-    const gate = await this.gate(projectId, stepId, actorId);
+    return this.removeWithin(projectId, stepId, actorId, cascade, LEGACY_ACCESS);
+  }
+
+  /** {@link remove} through the caller's access. */
+  async removeWithin(
+    projectId: string,
+    stepId: string,
+    actorId: string,
+    cascade: boolean,
+    access: ResourceAccess,
+  ): Promise<RemoveStepOutcome> {
+    const gate = await this.gate(projectId, stepId, actorId, access);
     if (!gate.ok)
       return { ok: false, reason: gate.reason === 'forbidden' ? 'forbidden' : 'not_found' };
 
@@ -265,8 +299,22 @@ export class StepService {
    * The step as it is now, when it is this project's and the caller may edit
    * the project — the reply a route owes after a write it delegated elsewhere.
    */
-  async find(projectId: string, stepId: string, actorId: string): Promise<StepOutcome> {
-    const gate = await this.gate(projectId, stepId, actorId);
+  find(projectId: string, stepId: string, actorId: string): Promise<StepOutcome> {
+    return this.findWithin(projectId, stepId, actorId, LEGACY_ACCESS);
+  }
+
+  /**
+   * {@link find} through the caller's access: a foreign project, or a step of
+   * another project, is `not_found`. It is also the check a route makes before
+   * delegating a step write elsewhere, such as the allowance command.
+   */
+  async findWithin(
+    projectId: string,
+    stepId: string,
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<StepOutcome> {
+    const gate = await this.gate(projectId, stepId, actorId, access);
     if (!gate.ok) return gate;
     const found = await this.opts.steps.findById(stepId);
     if (found === null) return { ok: false, reason: 'not_found' };
@@ -287,10 +335,15 @@ export class StepService {
     projectId: string,
     stepId: string,
     actorId: string,
+    access: ResourceAccess,
   ): Promise<{ ok: true } | { ok: false; reason: 'not_found' | 'forbidden' }> {
-    const project = await this.opts.projects.findById(projectId);
+    // Proof: finding the project unscoped here, and separately in `addWithin`,
+    // failed `answers 404 alike for a foreign and an absent project on every
+    // step and marker route` in `step-marker-organization.controller.db.test.ts`;
+    // watched 2026-09-27.
+    const project = await findProjectWithin(this.opts.projects, projectId, access);
     if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    if (!mayEditProjectWithin(project, actorId, access)) return { ok: false, reason: 'forbidden' };
     const step = await this.opts.steps.findById(stepId);
     if (step?.projectId !== projectId) return { ok: false, reason: 'not_found' };
     return { ok: true };
