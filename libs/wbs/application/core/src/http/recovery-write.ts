@@ -1,5 +1,5 @@
 import type { WritingServices } from '../compose';
-import { type EditAdmission, grantAdmission } from '../ports/edit-admission';
+import { CREATOR_ADMISSION, type EditAdmission, grantAdmission } from '../ports/edit-admission';
 import type { ResourceAccess } from '../ports/organization-access';
 import type { Broadcaster, ProjectEvent } from '../ports/project-event';
 import type { RecoveryAuditDetail } from '../ports/project-store';
@@ -17,8 +17,9 @@ export interface RecoveryWriteBoundary {
 }
 
 /**
- * Classifies one scoped project write inside its own unit of work. A refusal
- * rolls its audit obligation back; events leave only after a committed write.
+ * Classifies a scoped project write inside its own unit of work, or runs a
+ * legacy combined write under creator admission. A refusal rolls its audit
+ * obligation back; events leave only after a committed write.
  */
 export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
   boundary: RecoveryWriteBoundary,
@@ -29,26 +30,32 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
   perform: (services: WritingServices) => Promise<T>,
   refuse: (reason: 'not_found' | 'forbidden') => T,
 ): Promise<T> {
-  if (access.kind !== 'scoped') throw new Error('recovery boundary requires scoped access');
   const pending: { projectId: string; event: ProjectEvent }[] = [];
   const outcome = await boundary.uow.run(async (scope) => {
-    // Proof: forcing `ordinary` here skipped transactional classification;
-    // `audits each super-admin step and marker recovery while keeping the creator`
-    // found no audit record (0 pass, 1 fail); watched 2026-09-28.
-    const admitted = await scope.stores.projects.admitEditInOrganization(
-      projectId,
-      access.scope.organizationId,
-      actorId,
-      detail,
-    );
+    // Proof (2026-09-28): forcing `ordinary` here made `refuses a super-admin
+    // revoked after access resolution before step admission` return 200 instead
+    // of 403 (1 fail). The earlier force-ordinary mutation made the mounted
+    // recovery matrix find no audit, which proved audit presence only.
+    const admitted =
+      access.kind === 'scoped'
+        ? await scope.stores.projects.admitEditInOrganization(
+            projectId,
+            access.scope.organizationId,
+            actorId,
+            detail,
+          )
+        : 'ordinary';
     // Proof: skipping this refusal let a non-creator member add a step to a
     // restricted project (200 instead of 403) in the mounted refusal case;
     // watched 2026-09-28.
     if (admitted === null || admitted === 'forbidden')
       return { commit: false, value: refuse(admitted === null ? 'not_found' : 'forbidden') };
-    // Proof: granting `wrong-project` made the mounted step recovery answer
-    // 403 instead of 200 (0 pass, 1 fail); watched 2026-09-28.
-    const grant = grantAdmission(projectId, actorId);
+    // Proof (2026-09-28): granting `wrong-project` made mounted step recovery
+    // answer 403 instead of 200; that established correct grant plumbing.
+    // Removing project equality, actor equality and expiry separately made
+    // `scoped step service cannot borrow a recovery grant for another project,
+    // actor, or settled unit` fail through the real StepService (one fail each).
+    const grant = access.kind === 'scoped' ? grantAdmission(projectId, actorId) : null;
     try {
       const services = boundary.batch(
         scope,
@@ -59,12 +66,12 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
           },
           latestSeq: (subscription) => boundary.announcements.latestSeq(subscription),
         },
-        grant.admission,
+        grant?.admission ?? CREATOR_ADMISSION,
       );
       const written = await perform(services);
       return { commit: written.ok, value: written };
     } finally {
-      grant.expire();
+      grant?.expire();
     }
   });
   if (outcome.ok) {

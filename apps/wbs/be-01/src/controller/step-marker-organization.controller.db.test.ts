@@ -13,11 +13,17 @@ let own: string;
 let foreign: string;
 let foreignStep: string;
 let foreignMarker: string;
+let revokeAfterResolution = false;
 const MARKER = '6b0d9f3e-4c1a-4c77-9a53-1b2f0e6d7c11';
 const FOREIGN_MARKER = '0f3c7a2e-8d14-4b6e-a1c9-5e2d7b3f9a40';
 
 beforeEach(async () => {
-  h = OrganizationHarness.openComposed();
+  revokeAfterResolution = false;
+  h = OrganizationHarness.openComposed(false, () => {
+    if (!revokeAfterResolution) return;
+    revokeAfterResolution = false;
+    h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('nell')]);
+  });
   for (const username of ['ada', 'grace', 'vic', 'nell']) await h.register(username);
   h.organization('org-a');
   h.organization('org-b');
@@ -89,6 +95,31 @@ async function foreignState(): Promise<Answer[]> {
 }
 
 describe('before activation', () => {
+  it('rolls a legacy combined step rename back when its allowance write fails', async () => {
+    h.close();
+    h = OrganizationHarness.openComposed();
+    await h.register('ada');
+    const projectId = await create('ada', 'Legacy combined');
+    const stepId = await firstStep('ada', projectId);
+    h.sqlite.run(
+      "CREATE TRIGGER allowance_refused BEFORE UPDATE OF allowance_bps ON step BEGIN SELECT RAISE(ABORT, 'allowance refused'); END",
+    );
+    expect(
+      (
+        await h.call('ada', 'PATCH', `/api/projects/${projectId}/steps/${stepId}`, {
+          name: 'Rolled back',
+          allowancePercent: 10,
+        })
+      ).status,
+    ).toBe(500);
+    const found = await h.call('ada', 'GET', `/api/projects/${projectId}`);
+    expect(
+      (found.body as { steps: { id: string; name: string }[] }).steps.find(
+        (candidate) => candidate.id === stepId,
+      )?.name,
+    ).not.toBe('Rolled back');
+    expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
+  });
   it('keeps deployment-wide step and marker access across organizations', async () => {
     h.close();
     h = OrganizationHarness.openComposed();
@@ -199,6 +230,46 @@ describe('after activation', () => {
     expect(
       h.sqlite.query<{ detail: string }, []>('SELECT detail FROM organization_audit').all(),
     ).toEqual([{ detail: '{"commands":["setStepAllowance"]}' }]);
+  });
+
+  it('commits a combined recovered step patch once and rolls its rename back when allowance fails', async () => {
+    h.member('org-a', 'nell', 'super_admin');
+    h.bind('nell', 'org-a');
+    const step = await firstStep('ada', own);
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+    ).toBe(200);
+    const path = `/api/projects/${own}/steps/${step}`;
+    expect(
+      await h.call('nell', 'PATCH', path, { name: 'Recovered', allowancePercent: 15 }),
+    ).toMatchObject({
+      status: 200,
+      body: { step: { name: 'Recovered', allowancePercent: 15 } },
+    });
+    expect(h.sqlite.query('SELECT detail FROM organization_audit').all()).toHaveLength(1);
+    expect(
+      (await h.call('ada', 'POST', `/api/projects/${own}/steps`, { name: 'Taken' })).status,
+    ).toBe(200);
+    expect(
+      (await h.call('nell', 'PATCH', path, { name: 'Taken', allowancePercent: 20 })).status,
+    ).toBe(409);
+    expect(h.sqlite.query('SELECT detail FROM organization_audit').all()).toHaveLength(1);
+    const beforeEvents = h.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all();
+    h.sqlite.run(
+      "CREATE TRIGGER allowance_refused BEFORE UPDATE OF allowance_bps ON step BEGIN SELECT RAISE(ABORT, 'allowance refused'); END",
+    );
+    expect(
+      (await h.call('nell', 'PATCH', path, { name: 'Must roll back', allowancePercent: 20 }))
+        .status,
+    ).toBe(500);
+    const after = await h.call('ada', 'GET', `/api/projects/${own}`);
+    expect(
+      (
+        after.body as { steps: { id: string; name: string; allowancePercent: number }[] }
+      ).steps.find((candidate) => candidate.id === step),
+    ).toMatchObject({ name: 'Recovered', allowancePercent: 15 });
+    expect(h.sqlite.query('SELECT detail FROM organization_audit').all()).toHaveLength(1);
+    expect(h.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all()).toEqual(beforeEvents);
   });
 
   it('rolls back a recovered step and marker write when the audit insert fails', async () => {
@@ -325,6 +396,20 @@ describe('after activation', () => {
       ).status,
     ).toBe(403);
     expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
+  });
+
+  it('refuses a super-admin revoked after access resolution before step admission', async () => {
+    h.member('org-a', 'nell', 'super_admin');
+    h.bind('nell', 'org-a');
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+    ).toBe(200);
+    revokeAfterResolution = true;
+    expect(
+      (await h.call('nell', 'POST', `/api/projects/${own}/steps`, { name: 'Revoked' })).status,
+    ).toBe(403);
+    expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
+    expect(h.sqlite.query("SELECT id FROM step WHERE name = 'Revoked'").all()).toEqual([]);
   });
 
   it('records no recovery for step and marker writes the store refuses', async () => {

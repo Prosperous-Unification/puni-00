@@ -406,13 +406,13 @@ export class OptimizationCoordinator {
    * same immediate write as its retry admission. The retained marker remains
    * the read authority until this attempt commits.
    */
-  readonly retry = (ask: {
+  readonly retry = async (ask: {
     readonly projectId: string;
     readonly objective: SolverObjectiveName;
     readonly inputHash: string;
     readonly input: ScheduleInput;
     readonly scoped?: { readonly organizationId: string; readonly actorId: string };
-  }): OptimizationRetryResult => {
+  }): Promise<OptimizationRetryResult> => {
     const currentInputHash = this.options.hashInput(ask.input);
     if (ask.inputHash !== currentInputHash) {
       return { kind: 'stale-input-hash', currentInputHash };
@@ -424,7 +424,7 @@ export class OptimizationCoordinator {
       budgetMs: this.options.budgetMs,
     };
     const now = this.options.now();
-    const decision = this.options.repository.admitRetry({
+    const decision = await this.options.repository.admitRetry({
       key,
       objective: ask.objective,
       ownerId: this.options.ownerId,

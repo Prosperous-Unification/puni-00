@@ -234,7 +234,7 @@ function coordinator(world: World, owner: Owner): OptimizationCoordinator {
   const db = world.connections[owner];
   const incarnation = world.incarnations[owner];
   return new OptimizationCoordinator({
-    repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+    repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
     contractVersion: CONTRACT,
     solverVersion: '0.1.0',
     budgetMs: BUDGET,
@@ -959,7 +959,7 @@ class Retry implements Command {
   async run(model: Model, world: World): Promise<void> {
     note('retry');
     const expected = predictRetry(model, world, this.owner);
-    const decision = world.coordinators[this.owner].retry({
+    const decision = await world.coordinators[this.owner].retry({
       projectId: 'p-1',
       objective: 'pri',
       inputHash: scheduleInputHash(inputAt(model.revision)),
@@ -1182,6 +1182,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
       const repository = createOptimizationRepository(
         world.connections.west,
         new DrizzleEventLogStore(world.connections.west, OPEN),
+        OPEN,
       );
       expect(
         repository.enqueueRequest({

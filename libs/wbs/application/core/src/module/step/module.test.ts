@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
+import { NO_ADMISSION } from '../../ports/edit-admission';
 import { DependencyGraphGuard } from '../../service/dependency-graph';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { installStep } from './check';
@@ -152,6 +153,9 @@ describe('the Step module', () => {
           factoryReturnKind: 'sync-value',
         }),
         broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
+          factoryReturnKind: 'sync-value',
+        }),
+        recoveryAdmission: DiBag.createProvider(() => NO_ADMISSION, {
           factoryReturnKind: 'sync-value',
         }),
       }) as unknown as { buildContainer: () => { resolve: (key: string) => unknown } };

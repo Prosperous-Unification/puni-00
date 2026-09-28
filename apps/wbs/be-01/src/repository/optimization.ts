@@ -1,4 +1,5 @@
 import type { RecordedEvent } from '@wbs/core';
+import type { Gate } from '@wbs/store-sqlite/gate';
 import {
   bindSolverSlot,
   heartbeatSolverSlot,
@@ -86,10 +87,15 @@ function enrichAdmission(
   return projected.kind === 'reserved' ? projected : null;
 }
 
-/** SQLite implementation of the Optimization persistence contract. */
+/**
+ * SQLite implementation of the Optimization persistence contract. Retry takes
+ * `gate` before its immediate transaction so an accepted decision means its
+ * reservation and any recovery audit have committed outside another unit of work.
+ */
 export function createOptimizationRepository(
   db: Drizzle,
   eventLog: EventLogTransactionalWrite,
+  gate: Gate,
 ): OptimizationRepository {
   return {
     allocateGeneration: (projectId, contractVersion, inputHash, now) =>
@@ -156,100 +162,108 @@ export function createOptimizationRepository(
         event: envelope.event,
       };
     },
-    admitRetry: (ask): OptimizationRetryDecision =>
-      db.transaction(
-        (tx) => {
-          // Proof: forcing `ordinary` here let the production Retry store
-          // accept a removed super-admin ("accepted" instead of "forbidden")
-          // in the mounted suite's store-path negative; watched 2026-09-28.
-          const classified =
-            ask.scoped === undefined
-              ? 'ordinary'
-              : classifyProjectWriteIn(
-                  tx,
-                  ask.key.projectId,
-                  ask.scoped.organizationId,
-                  ask.scoped.actorId,
-                );
-          // Proof: skipping either refusal let the store-path foreign or removed
-          // actor Retry answer accepted rather than not_found or forbidden,
-          // respectively; each fault failed the mounted suite, watched 2026-09-28.
-          if (classified === null) return { kind: 'not_found' } as const;
-          if (classified === 'refused') return { kind: 'forbidden' } as const;
-          const current = readGeneration(tx, ask.key.projectId, ask.key.contractVersion);
-          if (current?.inputHash !== ask.key.inputHash) {
-            return { kind: 'not-retryable', state: 'idle' } as const;
-          }
-          const accepted = (admission: ReservedSolverAdmission | null) => {
-            // Proof: skipping this insert made the mounted accepted Retry find
-            // no audit record (0 pass, 1 fail); watched 2026-09-28.
-            if (classified === 'recovery' && ask.scoped !== undefined) {
-              recordRecovery(tx, {
-                id: crypto.randomUUID(),
-                organizationId: ask.scoped.organizationId,
-                actorId: ask.scoped.actorId,
+    // Proof (2026-09-28): replacing the coordinator turn with immediate execution
+    // made `waits for an overlapping rolled-back unit of work before accepting
+    // Retry` observe an early decision before the outer rollback (1 fail).
+    // Restored and reran green; the test then found the audit and slot committed.
+    admitRetry: (ask): Promise<OptimizationRetryDecision> =>
+      gate.enter(() =>
+        Promise.resolve(
+          db.transaction(
+            (tx) => {
+              // Proof: forcing `ordinary` here let the production Retry store
+              // accept a removed super-admin ("accepted" instead of "forbidden")
+              // in the mounted suite's store-path negative; watched 2026-09-28.
+              const classified =
+                ask.scoped === undefined
+                  ? 'ordinary'
+                  : classifyProjectWriteIn(
+                      tx,
+                      ask.key.projectId,
+                      ask.scoped.organizationId,
+                      ask.scoped.actorId,
+                    );
+              // Proof: skipping either refusal let the store-path foreign or removed
+              // actor Retry answer accepted rather than not_found or forbidden,
+              // respectively; each fault failed the mounted suite, watched 2026-09-28.
+              if (classified === null) return { kind: 'not_found' } as const;
+              if (classified === 'refused') return { kind: 'forbidden' } as const;
+              const current = readGeneration(tx, ask.key.projectId, ask.key.contractVersion);
+              if (current?.inputHash !== ask.key.inputHash) {
+                return { kind: 'not-retryable', state: 'idle' } as const;
+              }
+              const accepted = (admission: ReservedSolverAdmission | null) => {
+                // Proof: skipping this insert made the mounted accepted Retry find
+                // no audit record (0 pass, 1 fail); watched 2026-09-28.
+                if (classified === 'recovery' && ask.scoped !== undefined) {
+                  recordRecovery(tx, {
+                    id: crypto.randomUUID(),
+                    organizationId: ask.scoped.organizationId,
+                    actorId: ask.scoped.actorId,
+                    projectId: ask.key.projectId,
+                    detail: { optimizer: 'retry' },
+                    at: ask.now,
+                  });
+                }
+                return { kind: 'accepted', generation: current.generation, admission } as const;
+              };
+              const outcome = readOptimizedPair(tx, ask.key)[ask.objective];
+              const live = optimizedVariantIsLive(
+                tx,
+                ask.key,
+                current.generation,
+                ask.objective,
+                ask.now,
+              );
+              if (outcome.kind !== 'failed' && outcome.kind !== 'corrupt') {
+                return {
+                  kind: 'not-retryable',
+                  state: optimizationVariantState(outcome, live).state,
+                } as const;
+              }
+              // Proof: minting a token on this live branch made the focused Retry
+              // test observe two tokens instead of one.
+              if (live) return { kind: 'already-running' } as const;
+              // Retry owns the SQLite writer before it observes eligibility, and
+              // stamps replacement strictly after the retained failure marker.
+              const admittedAt = Math.max(ask.now, outcome.createdAt + 1);
+              const request = {
                 projectId: ask.key.projectId,
-                detail: { optimizer: 'retry' },
-                at: ask.now,
+                contractVersion: ask.key.contractVersion,
+                generation: current.generation,
+                objective: ask.objective,
+                budgetMs: ask.key.budgetMs,
+                ownerId: ask.ownerId,
+                attemptToken: ask.attemptToken(),
+                now: admittedAt,
+              };
+              const admission = reserveSolverSlotIn(tx, request);
+              if (admission.kind === 'already-present') return { kind: 'already-running' } as const;
+              if (admission.kind === 'closed') {
+                return { kind: 'not-retryable', state: outcome.kind } as const;
+              }
+              if (admission.kind === 'reserved') {
+                return accepted(enrichAdmission(admission, ask.key.budgetMs));
+              }
+              const queued = enqueueSolverRequestIn(tx, {
+                projectId: ask.key.projectId,
+                contractVersion: ask.key.contractVersion,
+                generation: current.generation,
+                objective: ask.objective,
+                budgetMs: ask.key.budgetMs,
+                enqueuedAt: admittedAt,
               });
-            }
-            return { kind: 'accepted', generation: current.generation, admission } as const;
-          };
-          const outcome = readOptimizedPair(tx, ask.key)[ask.objective];
-          const live = optimizedVariantIsLive(
-            tx,
-            ask.key,
-            current.generation,
-            ask.objective,
-            ask.now,
-          );
-          if (outcome.kind !== 'failed' && outcome.kind !== 'corrupt') {
-            return {
-              kind: 'not-retryable',
-              state: optimizationVariantState(outcome, live).state,
-            } as const;
-          }
-          // Proof: minting a token on this live branch made the focused Retry
-          // test observe two tokens instead of one.
-          if (live) return { kind: 'already-running' } as const;
-          // Retry owns the SQLite writer before it observes eligibility, and
-          // stamps replacement strictly after the retained failure marker.
-          const admittedAt = Math.max(ask.now, outcome.createdAt + 1);
-          const request = {
-            projectId: ask.key.projectId,
-            contractVersion: ask.key.contractVersion,
-            generation: current.generation,
-            objective: ask.objective,
-            budgetMs: ask.key.budgetMs,
-            ownerId: ask.ownerId,
-            attemptToken: ask.attemptToken(),
-            now: admittedAt,
-          };
-          const admission = reserveSolverSlotIn(tx, request);
-          if (admission.kind === 'already-present') return { kind: 'already-running' } as const;
-          if (admission.kind === 'closed') {
-            return { kind: 'not-retryable', state: outcome.kind } as const;
-          }
-          if (admission.kind === 'reserved') {
-            return accepted(enrichAdmission(admission, ask.key.budgetMs));
-          }
-          const queued = enqueueSolverRequestIn(tx, {
-            projectId: ask.key.projectId,
-            contractVersion: ask.key.contractVersion,
-            generation: current.generation,
-            objective: ask.objective,
-            budgetMs: ask.key.budgetMs,
-            enqueuedAt: admittedAt,
-          });
-          if (queued.kind === 'closed') {
-            return { kind: 'not-retryable', state: outcome.kind } as const;
-          }
-          if (queued.kind === 'already-present') return { kind: 'already-running' } as const;
-          return accepted(null);
-        },
-        // Proof: deleting immediate mode made the two-connection writer ownership
-        // test fail with DrizzleQueryError on the deferred slot-reclaim delete.
-        { behavior: 'immediate' },
+              if (queued.kind === 'closed') {
+                return { kind: 'not-retryable', state: outcome.kind } as const;
+              }
+              if (queued.kind === 'already-present') return { kind: 'already-running' } as const;
+              return accepted(null);
+            },
+            // Proof: deleting immediate mode made the two-connection writer ownership
+            // test fail with DrizzleQueryError on the deferred slot-reclaim delete.
+            { behavior: 'immediate' },
+          ),
+        ),
       ),
   };
 }

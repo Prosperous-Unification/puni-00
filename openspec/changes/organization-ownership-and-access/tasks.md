@@ -89,7 +89,7 @@
   - Part 2b, slices 19 and 20 (Astra design call option C, 2026-09-28):
     - Slice 19 (mechanical): the gated writing services ask an injected `EditAdmission` rather than `canEditProject`. Every graph passed `CREATOR_ADMISSION`, so behaviour did not change.
     - Slice 20: command batches, undo and redo. `ProjectStore.admitEditInOrganization` classifies the write in the unit of work's own transaction and appends the audit record there. The batch graph is then built with `grantAdmission(project, actor)`, which expires when the unit of work settles. Scoped access never falls back to the creator rule.
-  - Part 2c, slice 24: steps, markers, saved plans and optimizer Retry. Scoped writes reclassify current authority in their own unit of work or SQLite write transaction, keep each recovery audit atomic with its operation, and publish after commit. Legacy access remains unchanged. Saved-plan touch keeps author-or-project-creator authority for ordinary writes and admits an audited restricted-project recovery.
+  - Part 2c, slice 24: steps, markers, saved plans and optimizer Retry. Scoped writes reclassify current authority in their own unit of work or SQLite write transaction, keep each recovery audit atomic with its operation, and publish after commit. Optimizer Retry takes the shared write coordinator before its immediate transaction. A combined step name and allowance PATCH uses one unit of work in both scoped and legacy modes; the standalone allowance PATCH remains a command batch. Saved-plan touch keeps author-or-project-creator authority for ordinary writes and admits an audited restricted-project recovery.
 
 ## 4. Onboarding state transitions
 

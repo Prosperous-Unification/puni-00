@@ -67,9 +67,10 @@ function renamedReply(outcome: StepOutcome): HttpReply<typeof renameStep> {
  * `refuses an unbound session and a removed member before any lookup` in
  * `step-marker-organization.controller.db.test.ts`; watched 2026-09-27.
  *
- * An allowance edit is not StepService's: it runs as the `setStepAllowance`
- * command through `commands`, so HTTP, a command batch and MCP share one
- * journalled mutation and one undo.
+ * An allowance-only edit runs the `setStepAllowance` command through `commands`.
+ * A combined name and allowance edit invokes the same WorkItemService operation
+ * inside its shared step unit of work, preserving the allowance's journal entry
+ * and one undo while settling the rename and allowance together.
  */
 export function stepRoutes(
   steps: Pick<StepService, 'addWithin' | 'findWithin' | 'removeWithin' | 'renameWithin'>,
@@ -158,6 +159,61 @@ export function stepRoutes(
           ),
         );
       }
+      // Proof (2026-09-28): bypassing this combined branch made scoped recovery
+      // answer 403; the legacy failure kept its rename after the allowance
+      // abort. Both focused mounted tests failed, then passed on restore.
+      if (body.name !== undefined) {
+        // Proof (2026-09-28): bypassing this dependency check made `combined
+        // step patch refuses a missing unit of work boundary` throw an
+        // untyped nullish error instead of naming the missing boundary.
+        if (recovery === undefined) throw new Error('combined step write has no recovery boundary');
+        const name = body.name;
+        const patched = await runRecoveryWrite(
+          recovery,
+          resolved.access,
+          params.id,
+          principal.id,
+          { step: 'rename' },
+          async (services): Promise<StepOutcome> => {
+            const renamed = await services.steps.renameWithin(
+              params.id,
+              params.stepId,
+              principal.id,
+              name,
+              resolved.access,
+            );
+            // Proof (2026-09-28): continuing after a duplicate-name refusal
+            // made the mounted combined PATCH answer 200 instead of 409.
+            if (!renamed.ok) return renamed;
+            const allowed = await services.workItems.setStepAllowance(
+              params.id,
+              principal.id,
+              params.stepId,
+              allowance,
+            );
+            // Proof (2026-09-28): ignoring a modeled allowance refusal made
+            // `combined step patch refuses a modeled allowance failure after
+            // rename and discards its event` answer 200 instead of 403.
+            if (!allowed.ok) {
+              // Proof (2026-09-28): accepting an injected unmodelled reason
+              // made that test resolve instead of rejecting with the reason.
+              if (allowed.reason === 'not_found' || allowed.reason === 'forbidden')
+                return { ok: false, reason: allowed.reason };
+              throw new Error(
+                `setStepAllowance refused with an unmodelled reason: ${allowed.reason}`,
+              );
+            }
+            return services.steps.findWithin(
+              params.id,
+              params.stepId,
+              principal.id,
+              resolved.access,
+            );
+          },
+          (reason): StepOutcome => ({ ok: false, reason }),
+        );
+        return renamedReply(patched);
+      }
       // The project, the step and the caller's role are checked here first,
       // through the caller's access, before the rename or the command writes
       // anything; the command batch then holds itself to the same access.
@@ -175,16 +231,6 @@ export function stepRoutes(
         resolved.access,
       );
       if (!admitted.ok) return renamedReply(admitted);
-      if (body.name !== undefined) {
-        const renamed = await steps.renameWithin(
-          params.id,
-          params.stepId,
-          principal.id,
-          body.name,
-          resolved.access,
-        );
-        if (!renamed.ok) return renamedReply(renamed);
-      }
       const outcome = await runCommandBatch(commands, {
         projectId: params.id,
         actor: principal,

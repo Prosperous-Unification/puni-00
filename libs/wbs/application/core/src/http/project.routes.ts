@@ -23,14 +23,14 @@ import { bind, EMPTY, type HttpReply, type RequestFailure } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 
 export interface OptimizationRetry {
-  /** Retries through an immediate store transaction; `scoped` rechecks the actor there. */
+  /** Awaits Retry admission after its shared writer turn commits; `scoped` rechecks the actor in that transaction. */
   retry(ask: {
     readonly projectId: string;
     readonly objective: SolverObjectiveName;
     readonly inputHash: string;
     readonly input: ScheduleInput;
     readonly scoped?: { readonly organizationId: string; readonly actorId: string };
-  }):
+  }): Promise<
     | { readonly kind: 'forbidden' | 'not_found' }
     | { readonly kind: 'stale-input-hash'; readonly currentInputHash: string }
     | { readonly kind: 'not-retryable'; readonly state: OptimizationVariantState['state'] }
@@ -40,7 +40,8 @@ export interface OptimizationRetry {
         readonly state: 'retrying';
         readonly generation: number;
         readonly inputHash: string;
-      };
+      }
+  >;
 }
 
 interface ExportedWorkItem {
@@ -266,7 +267,7 @@ export function projectRoutes(
             body: { code: 'not-retryable', state: 'idle' },
           };
         }
-        const outcome = optimizer.retry({
+        const outcome = await optimizer.retry({
           projectId: params.id,
           ...body,
           input,

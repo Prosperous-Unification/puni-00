@@ -188,7 +188,7 @@ export class OrganizationHarness {
    * rolled back exactly as in production. The command suites need this; the
    * fixtures {@link open} wires cannot roll a batch back.
    */
-  static openComposed(withOptimizer = false): OrganizationHarness {
+  static openComposed(withOptimizer = false, afterResolve?: () => void): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
@@ -211,6 +211,9 @@ export class OrganizationHarness {
           }
         : {}),
     });
+    const organizationAccess = new SqliteOrganizationAccess(source.db, (userId) =>
+      Promise.resolve(bound.get(userId) ?? null),
+    );
     const app = buildApp({
       appOrigin: 'http://localhost',
       clock: services.clock,
@@ -218,9 +221,13 @@ export class OrganizationHarness {
       auth: services.auth,
       loginThrottle: services.loginThrottle,
       projects: services.projects,
-      organizations: new SqliteOrganizationAccess(source.db, (userId) =>
-        Promise.resolve(bound.get(userId) ?? null),
-      ),
+      organizations: {
+        resolve: async (principal) => {
+          const access = await organizationAccess.resolve(principal);
+          afterResolve?.();
+          return access;
+        },
+      },
       memberships: new OrganizationRepository(source.db, services.gate),
       steps: services.steps,
       calendarMarkers: services.calendarMarkers,
@@ -255,13 +262,15 @@ export class OrganizationHarness {
         const input = await services.workItems.scheduleInput(projectId);
         if (input === null) throw new Error(`project ${projectId} has no optimization input`);
         if (services.optimizer === undefined) throw new Error('harness optimizer is absent');
-        return services.optimizer.retry({
-          projectId,
-          objective: 'pri',
-          inputHash,
-          input,
-          scoped: { organizationId, actorId },
-        }).kind;
+        return (
+          await services.optimizer.retry({
+            projectId,
+            objective: 'pri',
+            inputHash,
+            input,
+            scoped: { organizationId, actorId },
+          })
+        ).kind;
       },
     );
   }

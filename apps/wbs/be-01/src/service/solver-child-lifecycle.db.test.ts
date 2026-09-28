@@ -128,7 +128,7 @@ describe('runSolverChildLifecycle', () => {
     process.exit(0);
 
     const result = await runSolverChildLifecycle({
-      slots: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      slots: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       slot,
       child: process.child,
       now: () => 20,
@@ -156,7 +156,7 @@ describe('runSolverChildLifecycle', () => {
     let handled = 0;
 
     const running = runSolverChildLifecycle({
-      slots: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      slots: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       slot,
       child: process.child,
       now: () => 20,
@@ -194,7 +194,7 @@ describe('runSolverChildLifecycle', () => {
     const process = deferredChild();
 
     const running = runSolverChildLifecycle({
-      slots: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      slots: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       slot,
       child: process.child,
       now: () => first.admittedDeadlineAt + 2,

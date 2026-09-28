@@ -3,6 +3,7 @@ import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture'
 import { inMemorySteps, stepRow } from '@wbs/store-memory/step-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
+import type { EditAdmission } from '../ports/edit-admission';
 import { DependencyGraphGuard } from '../service/dependency-graph';
 import type { PlanCommand } from '../service/plan-command';
 import { StepService } from '../service/step.service';
@@ -63,6 +64,183 @@ test('publishes a dependent recovery only after its unit of work commits', async
     ),
   ).toEqual({ ok: true });
   expect(order).toEqual(['write', 'commit', 'publish']);
+});
+
+test('scoped step service cannot borrow a recovery grant for another project, actor, or settled unit', async () => {
+  const projects = inMemoryProjects();
+  await projects.createInOrganization(
+    projectRow({ id: 'granted', restricted: true }),
+    [],
+    { at: 1, by: 'owner' },
+    'org-a',
+  );
+  await projects.createInOrganization(
+    projectRow({ id: 'other', restricted: true }),
+    [],
+    { at: 1, by: 'owner' },
+    'org-a',
+  );
+  const stored = inMemorySteps([]);
+  const access = {
+    kind: 'scoped' as const,
+    scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin' as const },
+  };
+  let retained: StepService | undefined;
+  const boundary = {
+    uow: {
+      run: async (act: (scope: unknown) => Promise<{ value: { ok: boolean } }>) =>
+        (
+          await act({
+            stores: { projects: { admitEditInOrganization: () => Promise.resolve('recovery') } },
+          })
+        ).value,
+    },
+    batch: (
+      _scope: unknown,
+      broadcast: RecoveryWriteBoundary['announcements'],
+      admission: EditAdmission,
+    ) => {
+      const service = new StepService({
+        projects,
+        steps: stored,
+        broadcast,
+        clock: testClock,
+        dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects }),
+        recoveryAdmission: admission,
+      });
+      retained = service;
+      return { steps: service };
+    },
+    announcements: recordingBroadcaster(),
+  } as unknown as RecoveryWriteBoundary;
+  await runRecoveryWrite<{ ok: true } | { ok: false }>(
+    boundary,
+    access,
+    'granted',
+    'sam',
+    { step: 'add' },
+    async (services) => {
+      expect(
+        await services.steps.addWithin('other', 'sam', 'Wrong project', 0, undefined, access),
+      ).toEqual({ ok: false, reason: 'forbidden' });
+      expect(
+        await services.steps.addWithin(
+          'granted',
+          'other-actor',
+          'Wrong actor',
+          0,
+          undefined,
+          access,
+        ),
+      ).toEqual({ ok: false, reason: 'forbidden' });
+      return { ok: true as const };
+    },
+    () => ({ ok: false as const }),
+  );
+  if (retained === undefined) throw new Error('batch did not build a step service');
+  expect(await retained.addWithin('granted', 'sam', 'Expired', 0, undefined, access)).toEqual({
+    ok: false,
+    reason: 'forbidden',
+  });
+  expect(await stored.listByProject('granted')).toEqual([]);
+  expect(await stored.listByProject('other')).toEqual([]);
+});
+
+test('combined step patch refuses a modeled allowance failure after rename and discards its event', async () => {
+  const step = stepRow({ id: 'step', projectId: 'project', name: 'Review' });
+  const commits: boolean[] = [];
+  const published: string[] = [];
+  let allowanceRefusal = 'forbidden';
+  const boundary = {
+    uow: {
+      run: async (act: (scope: unknown) => Promise<{ commit: boolean; value: unknown }>) => {
+        const decision = await act({
+          stores: { projects: { admitEditInOrganization: () => Promise.resolve('recovery') } },
+        });
+        commits.push(decision.commit);
+        return decision.value;
+      },
+    },
+    batch: (_scope: unknown, broadcast: RecoveryWriteBoundary['announcements']) => ({
+      steps: {
+        renameWithin: async () => {
+          await broadcast.publish('project', { type: 'step_renamed', step });
+          return { ok: true, value: step };
+        },
+        findWithin: () => Promise.resolve({ ok: true, value: step }),
+      },
+      workItems: {
+        setStepAllowance: () => Promise.resolve({ ok: false, reason: allowanceRefusal }),
+      },
+    }),
+    announcements: {
+      publish: (projectId: string) => {
+        published.push(projectId);
+        return Promise.resolve();
+      },
+      latestSeq: () => Promise.resolve(-1),
+    },
+  } as unknown as RecoveryWriteBoundary;
+  const [, rename] = stepRoutes(
+    {
+      addWithin: () => Promise.reject(new Error('unexpected add')),
+      removeWithin: () => Promise.reject(new Error('unexpected remove')),
+      renameWithin: () => Promise.reject(new Error('public rename')),
+      findWithin: () => Promise.reject(new Error('public lookup')),
+    },
+    {
+      runWithin: () => Promise.reject(new Error('command batch')),
+      runDirectoryWithin: () => Promise.reject(new Error('directory batch')),
+    },
+    {
+      resolve: () =>
+        Promise.resolve({
+          ok: true,
+          access: {
+            kind: 'scoped',
+            scope: { organizationId: 'org-a', userId: principal.id, role: 'super_admin' },
+          },
+        }),
+    },
+    boundary,
+  );
+  expect(
+    await rename.handle({
+      params: { id: 'project', stepId: 'step' },
+      query: undefined,
+      body: { name: 'Renamed', allowancePercent: 10 },
+      principal,
+      request,
+    }),
+  ).toEqual({ ok: false, status: 403, body: { error: 'forbidden' } });
+  expect(commits).toEqual([false]);
+  expect(published).toEqual([]);
+  allowanceRefusal = 'unmodelled';
+  expect(
+    rename.handle({
+      params: { id: 'project', stepId: 'step' },
+      query: undefined,
+      body: { name: 'Renamed', allowancePercent: 10 },
+      principal,
+      request,
+    }),
+  ).rejects.toThrow('setStepAllowance refused with an unmodelled reason: unmodelled');
+  expect(published).toEqual([]);
+});
+
+test('combined step patch refuses a missing unit of work boundary', async () => {
+  const {
+    endpoints: [, rename],
+  } = await fixture();
+  expect(
+    rename.handle({
+      params: { id: 'project', stepId: 'step' },
+      query: undefined,
+      body: { name: 'Renamed', allowancePercent: 10 },
+      principal,
+      request,
+    }),
+  ).rejects.toThrow('combined step write has no recovery boundary');
 });
 
 async function fixture(restricted = false) {

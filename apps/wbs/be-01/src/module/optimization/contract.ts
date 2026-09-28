@@ -277,7 +277,7 @@ export interface OptimizationRepository extends SolverSlotRepository {
     readonly attemptToken: string;
     readonly now: number;
   }): OptimizationDequeued;
-  /** Decide eligibility, scoped project authority and recovery audit in one immediate transaction; mint the token only after writer ownership and the live check. */
+  /** Await one owned immediate transaction before answering Retry; mint the token only after writer ownership and the live check, and return accepted only after its audit and reservation commit. */
   admitRetry(ask: {
     readonly key: OptimizationCacheKey;
     readonly objective: SolverObjectiveName;
@@ -285,7 +285,7 @@ export interface OptimizationRepository extends SolverSlotRepository {
     readonly now: number;
     readonly attemptToken: () => string;
     readonly scoped?: { readonly organizationId: string; readonly actorId: string };
-  }): OptimizationRetryDecision;
+  }): Promise<OptimizationRetryDecision>;
   /** Atomically write the outcome and durable event; a superseded attempt publishes neither. Slot release is separate. */
   recordOutcome(write: OptimizationOutcomeWrite): RecordedOptimizationOutcome;
   reconcileDrains(now: number): {
