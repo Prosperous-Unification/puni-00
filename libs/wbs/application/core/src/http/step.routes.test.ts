@@ -2,6 +2,10 @@ import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture'
 import { inMemorySteps, stepRow } from '@wbs/store-memory/step-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
+import type {
+  BatchPrelude,
+  PlanCommandServices,
+} from '../module/plan-commands/plan-commands.feature';
 import type { PlanCommand } from '../service/plan-command';
 import { StepService } from '../service/step.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
@@ -29,12 +33,21 @@ async function fixture(restricted = false) {
   const broadcast = recordingBroadcaster();
   const service = new StepService({ clock: testClock, projects, steps: stored, broadcast });
   const commandsRun: unknown[] = [];
+  // The fake runs the prelude over the fixture's own step service, as the
+  // runner runs it over the batch's graph; the batch itself only records.
   const commands = {
-    runWithin: (projectId: string, actorId: string, batch: readonly PlanCommand[]) => {
+    runAfterWithin: async <R>(
+      projectId: string,
+      actorId: string,
+      prelude: BatchPrelude<R>,
+      batch: readonly PlanCommand[],
+    ) => {
+      // A partial graph: this prelude reads only `steps`.
+      const refused = await prelude({ steps: service } as unknown as PlanCommandServices);
+      if (refused !== null) return { ok: false as const, prelude: refused };
       commandsRun.push({ projectId, actorId, batch });
-      return Promise.resolve({ ok: true as const, results: [], undoable: true, redoable: false });
+      return { ok: true as const, results: [], undoable: true, redoable: false };
     },
-    runDirectoryWithin: () => Promise.reject(new Error('a step route ran a directory batch')),
   };
   return {
     projects,
@@ -158,10 +171,7 @@ test('typed removal carries every usage field and only literal true confirms cas
   });
   const remove = stepRoutes(
     service,
-    {
-      runWithin: () => Promise.reject(new Error('a removal ran a command batch')),
-      runDirectoryWithin: () => Promise.reject(new Error('a removal ran a directory batch')),
-    },
+    { runAfterWithin: () => Promise.reject(new Error('a removal ran a command batch')) },
     legacyOrganizationAccess,
   )[2];
   for (const cascade of [undefined, '1', 'TRUE', 'false']) {
@@ -329,5 +339,34 @@ test('a patched allowance runs as the one journalled setStepAllowance command', 
       request,
     }),
   ).toEqual({ ok: false, status: 422, body: { error: 'invalid_body' } });
+  expect(commandsRun).toHaveLength(1);
+});
+
+test('a rename sent with an allowance is the batch prelude, and its refusal runs no command', async () => {
+  const {
+    endpoints: [, patch],
+    commandsRun,
+    stored,
+  } = await fixture();
+  expect(
+    await patch.handle({
+      params: { id: 'project', stepId: 'step' },
+      query: undefined,
+      body: { name: 'QA', allowancePercent: 30 },
+      principal,
+      request,
+    }),
+  ).toEqual({ ok: false, status: 409, body: { error: 'taken' } });
+  expect(commandsRun).toEqual([]);
+
+  const renamed = await patch.handle({
+    params: { id: 'project', stepId: 'step' },
+    query: undefined,
+    body: { name: 'Review', allowancePercent: 30 },
+    principal,
+    request,
+  });
+  expect(renamed.ok).toBe(true);
+  expect((await stored.findById('step'))?.name).toBe('Review');
   expect(commandsRun).toHaveLength(1);
 });

@@ -101,7 +101,8 @@ export const addStep = defineEndpointShape({
 /**
  * Renames the addressed project step, sets its estimate allowance, or both.
  * The allowance edit is the journalled `setStepAllowance` command — one undo —
- * applied after the rename.
+ * and a rename sent with it settles with it: both, or neither. An allowance
+ * that would place the plan past the supported calendar is `calendar_range`.
  */
 export const renameStep = defineEndpointShape({
   method: 'PATCH',
@@ -112,7 +113,10 @@ export const renameStep = defineEndpointShape({
   body: patchBody,
   bodyMedia: ['application/json', 'application/x-www-form-urlencoded', 'multipart/form-data'],
   responses: [{ kind: 'json', status: 200, schema: stepReply }],
-  refusals: nameRefusals,
+  refusals: [
+    ...nameRefusals,
+    { status: 422, schema: responseSchema(type({ error: "'calendar_range'" })) },
+  ] as const,
   document: { summary: 'Rename a project step or set its estimate allowance.' },
 });
 

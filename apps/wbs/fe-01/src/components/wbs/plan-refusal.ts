@@ -198,7 +198,9 @@ function markerRemoveCode(
   }
 }
 
-function stepWriteCode(refusal: RefusalOf<'postApiProjectsByIdSteps'>): string {
+function stepWriteCode(
+  refusal: RefusalOf<'postApiProjectsByIdSteps'> | RefusalOf<'patchApiProjectsByIdStepsByStepId'>,
+): string {
   switch (refusal.error) {
     case 'name_required':
     case 'invalid_query':
@@ -219,6 +221,9 @@ function stepWriteCode(refusal: RefusalOf<'postApiProjectsByIdSteps'>): string {
     case 'code_taken':
       // fe-01 sends no code yet, so the last three cannot arrive from the step
       // header; named so a caller that does send one reads the refusal.
+      return refusal.error;
+    case 'calendar_range':
+      // An allowance edit that would place the plan past the supported calendar.
       return refusal.error;
     default:
       return unreachable(refusal);
