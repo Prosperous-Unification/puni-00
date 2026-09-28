@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
+import type { DomainResolver } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -480,6 +481,72 @@ describe('bootBe01', () => {
     await be.stop();
     expect(be.services.retention.isRunning()).toBe(false);
     running = null;
+  });
+
+  it('keeps domain DNS refusing and the proof worker stopped by default', async () => {
+    const dir = tempDir('wbs-boot-domains-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    let resolver: DomainResolver | undefined;
+    running = await bootBe01(bootOptions(dbPath, 0), {
+      openSource: openSqliteSource,
+      makeApp: (options) => {
+        resolver = options.domains.resolver;
+        const app = buildApp(options);
+        app.stop = () => Promise.resolve(app);
+        return app;
+      },
+      startListener: (_app, _port, ready) => {
+        ready();
+      },
+    });
+
+    expect(running.domainProofWorker).toBeNull();
+    if (resolver === undefined) throw new Error('boot did not compose domains');
+    const refusal = await resolver
+      .lookupTxt('_wbs-verification.example.org', new AbortController().signal)
+      .catch((error: unknown) => (error instanceof Error ? error.message : 'non-Error'));
+    expect(refusal).toBe('authoritative DNS resolver unavailable');
+  });
+
+  it('wires the configured domain resolver and runs, then stops, the proof worker', async () => {
+    const dir = tempDir('wbs-boot-domains-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const configured: DomainResolver = { lookupTxt: () => Promise.resolve([]) };
+    let resolver: DomainResolver | undefined;
+    let workerAtClose: boolean | undefined;
+    const be = await bootBe01(
+      { ...bootOptions(dbPath, 0), domainResolver: configured, domainProofIntervalMs: 60_000 },
+      {
+        openSource: (options) => {
+          const source = openSqliteSource(options);
+          return {
+            ...source,
+            close: async () => {
+              workerAtClose = be.domainProofWorker?.isRunning();
+              await source.close();
+            },
+          };
+        },
+        makeApp: (options) => {
+          resolver = options.domains.resolver;
+          const app = buildApp(options);
+          app.stop = () => Promise.resolve(app);
+          return app;
+        },
+        startListener: (_app, _port, ready) => {
+          ready();
+        },
+      },
+    );
+    running = be;
+
+    expect(resolver).toBe(configured);
+    expect(be.domainProofWorker?.isRunning()).toBe(true);
+    await be.stop();
+    running = null;
+    expect(workerAtClose).toBe(false);
   });
 
   it('mounts the composed login throttle instead of constructing another public graph', async () => {

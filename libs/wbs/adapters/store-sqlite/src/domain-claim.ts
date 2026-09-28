@@ -34,7 +34,9 @@ export interface OpenedDomainClaim {
  * Domain claims and their single verified owner. Initial challenge issuance
  * is mounted only after activation and checks current super-admin authority;
  * DNS verification and retained proof checks are available through injected
- * ports; the periodic worker remains stopped in production.
+ * ports. be-01 injects its two-resolver DNS-over-HTTPS adapter only when
+ * `WBS_DOMAIN_DNS=doh` and starts the periodic worker only when
+ * `WBS_DOMAIN_PROOF_WORKER=on`; otherwise lookups refuse and the worker stays stopped.
  */
 export class DomainClaimRepository implements DomainChallenges, DomainProofChecks {
   constructor(

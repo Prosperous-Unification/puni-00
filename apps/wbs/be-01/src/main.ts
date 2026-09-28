@@ -5,6 +5,8 @@ import { loadConfig } from './config';
 import { oidcRouteOptionsFromEnv } from './controller/oidc-options';
 import { installSolverLauncher } from './module/solver-launcher/check';
 import { installSolverSupervisor } from './module/solver-supervisor/check';
+import { dohDomainResolver } from './runtime/doh-resolver';
+import { DOMAIN_PROOF_INTERVAL_MS } from './runtime/domain-proof-worker';
 
 const cfg = loadConfig();
 const logger = createLogger({ service: 'be-01', level: cfg.LOG_LEVEL });
@@ -41,6 +43,8 @@ try {
         : undefined,
     version: process.env['VERSION'],
     migrateOnStartup: process.env['MIGRATE_ON_STARTUP'] === 'true',
+    domainResolver: cfg.domainDns === 'doh' ? dohDomainResolver(globalThis.fetch) : undefined,
+    domainProofIntervalMs: cfg.domainProofWorker === 'on' ? DOMAIN_PROOF_INTERVAL_MS : undefined,
     optimizer: {
       solverVersion,
       budgetMs: cfg.SOLVER_BUDGET_MS,

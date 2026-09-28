@@ -19,6 +19,11 @@ export const BeConfig = type({
   'SOLVER_BUDGET_MS?': 'string.integer.parse',
   'SOLVER_SEARCH_WORKERS?': 'string.integer.parse',
   'SOLVER_MEMORY_LIMIT_MB?': 'string.integer.parse',
+  // Proof: 2026-09-28, adding `system` to the DNS literal union made `keeps
+  // domain DNS refusing and the proof worker stopped unless explicitly
+  // enabled` report that loading did not throw.
+  'WBS_DOMAIN_DNS?': "'refuse'|'doh'",
+  'WBS_DOMAIN_PROOF_WORKER?': "'off'|'on'",
 });
 export type BeConfig = Omit<
   typeof BeConfig.infer,
@@ -35,9 +40,21 @@ export interface DelegationKeys {
   readonly verifyKey: string;
 }
 
+/**
+ * Domain-claim DNS and the periodic proof worker, both off unless the
+ * environment names them. `doh` selects the two-resolver DNS-over-HTTPS
+ * adapter; the worker needs it, because checks through the refusing resolver
+ * all fail and would suspend every owned domain after 14 days. Before 7.x
+ * activation the routes refuse and the worker finds no verified claims either way.
+ */
+export interface DomainProofConfig {
+  readonly domainDns: 'refuse' | 'doh';
+  readonly domainProofWorker: 'off' | 'on';
+}
+
 export const loadConfig = (
   envSource: Record<string, string | undefined> = process.env,
-): BeConfig & { appOrigin: string; delegationKeys?: DelegationKeys } => {
+): BeConfig & DomainProofConfig & { appOrigin: string; delegationKeys?: DelegationKeys } => {
   const mode = authModeOf(envSource);
   const config = defineConfig(BeConfig, envSource);
   const signingKey = envSource['WBS_DELEGATION_SIGNING_KEY'];
@@ -63,10 +80,18 @@ export const loadConfig = (
   if (solverMemoryLimitMb <= 0) {
     throw new Error('SOLVER_MEMORY_LIMIT_MB must be greater than zero');
   }
+  const domainDns = config.WBS_DOMAIN_DNS ?? 'refuse';
+  const domainProofWorker = config.WBS_DOMAIN_PROOF_WORKER ?? 'off';
+  // Proof: 2026-09-28, deleting this guard made `refuses a running proof worker
+  // without the agreeing DNS-over-HTTPS resolver` report that loading did not throw.
+  if (domainProofWorker === 'on' && domainDns !== 'doh')
+    throw new Error('WBS_DOMAIN_PROOF_WORKER=on requires WBS_DOMAIN_DNS=doh');
   const appOrigin =
     mode === 'oidc' ? oidcCallbackUrlFromEnv(envSource).origin : localAppOriginFromEnv(envSource);
   return {
     ...config,
+    domainDns,
+    domainProofWorker,
     delegationKeys,
     appOrigin,
     SOLVER_BUDGET_MS: solverBudgetMs,

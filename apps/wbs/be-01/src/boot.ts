@@ -1,5 +1,5 @@
 import { buildOidcVerifier } from '@wbs/auth';
-import type { DelegationIssuer } from '@wbs/core';
+import type { DelegationIssuer, DomainResolver } from '@wbs/core';
 import type { Logger } from '@wbs/observability';
 import {
   DomainClaimRepository,
@@ -24,9 +24,11 @@ import { OPEN } from './repository/gate';
 import { probeSchema } from './repository/health-probe';
 import { runMigrations } from './repository/migrate';
 import { UserRepository } from './repository/user';
+import { systemInterval } from './runtime/bun-runtime';
 import { REFUSE_DELEGATIONS } from './runtime/delegation';
 import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
 import { importDelegationKeys } from './runtime/delegation-keys';
+import { DomainProofSchedule } from './runtime/domain-proof-worker';
 import { refusingEmailDelivery } from './runtime/email-delivery';
 import type { AuthenticatedUser } from './service/auth.service';
 import { type BeServices, buildServices, type OptimizerRuntime } from './services';
@@ -66,12 +68,18 @@ export interface BootOptions {
   commitDir?: string;
   /** The installed solver process boundary, absent only in tests that do not exercise it. */
   optimizer?: OptimizerRuntime;
+  /** Domain-claim TXT lookups; absent keeps the repository's refusing resolver. */
+  domainResolver?: DomainResolver;
+  /** Starts the retained-proof worker at this interval; absent keeps it stopped. */
+  domainProofIntervalMs?: number;
 }
 
 export interface RunningBe {
   services: BeServices;
   /** Remains refusing even when a matching delegation key pair is configured. */
   delegationIssuer: DelegationIssuer;
+  /** Null unless `domainProofIntervalMs` started it. */
+  domainProofWorker: DomainProofSchedule | null;
   port: number;
   stop: () => Promise<void>;
 }
@@ -114,6 +122,7 @@ export async function bootBe01(
   // configured pair cannot hide until a later activation.
   if (opts.delegationKeys !== undefined) await importDelegationKeys(opts.delegationKeys);
   const state = { migrationsApplied: false };
+  let domainProofWorker: DomainProofSchedule | null = null;
   const bag = await DiBag.createBuilder()
     .withServices({
       // One connection for the process, opened through `openDrizzle` so the
@@ -190,6 +199,15 @@ export async function bootBe01(
             factoryCtx,
           ): BuiltApp => {
             const db = source.db;
+            // Proof: 2026-09-28, dropping `opts.domainResolver` here made
+            // `wires the configured domain resolver and runs, then stops, the
+            // proof worker` receive the refusing resolver.
+            const domains = new DomainClaimRepository(
+              db,
+              services.gate,
+              undefined,
+              opts.domainResolver,
+            );
             const app = (dependencies.makeApp ?? buildApp)({
               appOrigin: opts.appOrigin,
               clock: services.clock,
@@ -209,7 +227,7 @@ export async function bootBe01(
               // of 403; watched 2026-09-27.
               organizations: new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION),
               memberships: new OrganizationRepository(db, services.gate),
-              domains: new DomainClaimRepository(db, services.gate),
+              domains,
               onboarding: new OnboardingRepository(db, services.gate),
               emailVerification: new EmailVerificationRepository(db, services.gate),
               invitations: new InvitationRepository(db, services.gate),
@@ -305,6 +323,28 @@ export async function bootBe01(
             factoryCtx.pushDisposer(async () => {
               await services.optimizer?.stop();
             });
+            if (opts.domainProofIntervalMs !== undefined) {
+              const worker = new DomainProofSchedule({
+                checks: domains,
+                intervals: systemInterval,
+                intervalMs: opts.domainProofIntervalMs,
+                now: Date.now,
+                onChecked: (counts) => {
+                  opts.logger.info(counts, 'domain proofs checked');
+                },
+                onError: (err: unknown) => {
+                  opts.logger.error({ err }, 'domain proof check failed');
+                },
+              });
+              worker.start();
+              // Pushed after the optimizer's, so it stops before the optimizer
+              // and long before the source closes under a proof commit.
+              // Proof: 2026-09-28, dropping this disposer made `wires the
+              // configured domain resolver and runs, then stops, the proof
+              // worker` find it running at source close.
+              factoryCtx.pushDisposer(() => worker.stop());
+              domainProofWorker = worker;
+            }
             state.migrationsApplied = true;
             if (opts.migrateOnStartup === true) opts.logger.info('migrations applied');
             return app;
@@ -331,6 +371,7 @@ export async function bootBe01(
     // Proof (2026-09-28): replacing this binding with an accepting function
     // failed boot.db.test.ts's configured-key issuer refusal assertion.
     delegationIssuer: REFUSE_DELEGATION_ISSUANCE,
+    domainProofWorker,
     port: app.server?.port ?? opts.port,
     /**
      * Releases in the reverse of the start order: the listener stops accepting,

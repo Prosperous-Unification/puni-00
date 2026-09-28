@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { generateKeyPair, SignJWT } from 'jose';
 
 import { DELEGATION_TOKEN_TYPE } from '../runtime/delegation';
+import { dohDomainResolver } from '../runtime/doh-resolver';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 let harness: OrganizationHarness;
@@ -1512,5 +1513,51 @@ describe('mounted organization domain challenges', () => {
     writeFileSync(asset, original.toString('utf8').replace('gmail.com', 'gmaix.com'));
     expect((await harness.call('owner', 'POST', path, { domain: 'example.org' })).status).toBe(500);
     expect(harness.sqlite.query('SELECT id FROM organization_domain_claim').all()).toEqual([]);
+  });
+});
+
+describe('mounted domain verification through DNS-over-HTTPS', () => {
+  it('verifies only when both public resolvers agree on the exact TXT proof', async () => {
+    const published: Record<string, string[]> = { '1.1.1.1': [], '8.8.8.8': [] };
+    const dohFetch = ((input: RequestInfo | URL) => {
+      const host = new URL(input instanceof Request ? input.url : input).host;
+      const records = published[host] ?? [];
+      return Promise.resolve(
+        Response.json({
+          Status: 0,
+          TC: false,
+          Answer: records.map((text) => ({ type: 16, data: `"${text}"` })),
+        }),
+      );
+    }) as typeof fetch;
+    const doh = OrganizationHarness.open({
+      policyDirectory: copyPolicy(),
+      resolver: dohDomainResolver(dohFetch),
+    });
+    try {
+      await doh.register('doh-owner');
+      doh.organization('doh-org');
+      doh.member('doh-org', 'doh-owner', 'super_admin');
+      doh.bind('doh-owner', 'doh-org');
+      doh.activate();
+      const issued = await doh.call('doh-owner', 'POST', path, { domain: 'example.org' });
+      const claim = issued.body as { id: string; dnsValue: string };
+      const verify = `/api/organization/domains/${claim.id}/verify`;
+      published['1.1.1.1'] = [claim.dnsValue];
+      expect(await doh.call('doh-owner', 'POST', verify)).toEqual({
+        status: 503,
+        body: { error: 'dns_unavailable' },
+      });
+      expect(
+        doh.sqlite.query('SELECT status FROM organization_domain_claim WHERE id = ?').get(claim.id),
+      ).toEqual({ status: 'pending' });
+      published['8.8.8.8'] = [claim.dnsValue];
+      expect(await doh.call('doh-owner', 'POST', verify)).toEqual({
+        status: 200,
+        body: { id: claim.id, status: 'verified' },
+      });
+    } finally {
+      doh.close();
+    }
   });
 });

@@ -38,6 +38,14 @@ The active organization's domain list SHALL be visible only to a current super-a
 - **AND** a missing or foreign claim answers identical `404 not_found`; a stale or changed challenge, mismatched proof or another verified owner answers typed 409; unavailable, timed-out or malformed authoritative DNS answers `503 dns_unavailable` without promoting
 - **AND** current super-admin authority, activation, challenge expiry and maintained policy are rechecked before the write
 
+#### Scenario: Production DNS requires two agreeing public resolvers
+
+- **GIVEN** be-01 runs with `WBS_DOMAIN_DNS=doh`
+- **WHEN** a verification or retained check looks up `_wbs-verification.<domain>`
+- **THEN** WBS queries the DNS-over-HTTPS JSON endpoints at 1.1.1.1 and 8.8.8.8 and trusts the TXT records only when both answer and their record multisets are equal; NXDOMAIN at both is an agreed empty answer
+- **AND** a failed, truncated, non-NOERROR or malformed answer from either, or any disagreement, is a typed refusal that answers `503 dns_unavailable` or records a failed check, never a pass
+- **AND** without `WBS_DOMAIN_DNS=doh` lookups keep refusing, and the periodic worker starts only with `WBS_DOMAIN_PROOF_WORKER=on`, which configuration refuses unless `WBS_DOMAIN_DNS=doh`
+
 #### Scenario: Old token after rotation
 
 - **GIVEN** a domain challenge was rotated

@@ -21,6 +21,23 @@ describe('BeConfig', () => {
       loadConfig({ ...VALID, WBS_DELEGATION_SIGNING_KEY: '', WBS_DELEGATION_VERIFY_KEY: '' }),
     ).toThrow();
   });
+  it('keeps domain DNS refusing and the proof worker stopped unless explicitly enabled', () => {
+    expect(loadConfig(VALID)).toMatchObject({ domainDns: 'refuse', domainProofWorker: 'off' });
+    expect(
+      loadConfig({ ...VALID, WBS_DOMAIN_DNS: 'doh', WBS_DOMAIN_PROOF_WORKER: 'on' }),
+    ).toMatchObject({ domainDns: 'doh', domainProofWorker: 'on' });
+    expect(() => loadConfig({ ...VALID, WBS_DOMAIN_DNS: 'system' })).toThrow();
+    expect(() => loadConfig({ ...VALID, WBS_DOMAIN_PROOF_WORKER: 'true' })).toThrow();
+  });
+
+  it('refuses a running proof worker without the agreeing DNS-over-HTTPS resolver', () => {
+    // A worker checking through the refusing resolver records only failures and
+    // would suspend every owned domain after 14 days.
+    expect(() => loadConfig({ ...VALID, WBS_DOMAIN_PROOF_WORKER: 'on' })).toThrow(
+      'WBS_DOMAIN_PROOF_WORKER=on requires WBS_DOMAIN_DNS=doh',
+    );
+  });
+
   it('defaults the one solver budget to sixty seconds and accepts an explicit millisecond override', () => {
     // Proof: remove the default and the first read is undefined; ignore the
     // environment key and the second stays 60000. Both would key cache rows and
