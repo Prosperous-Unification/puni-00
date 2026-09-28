@@ -49,7 +49,7 @@ import type { PriorityBand } from '@wbs/domain/priority-band';
 // build time. It is here rather than restated as `string` because a marker's
 // date being absolute — never a workday number — is the whole of task 7.4, and
 // a `string` on this seam would be the one place that claim is not written down.
-import type { ProgressStatus, SettableStatus } from '@wbs/domain/progress';
+import type { SettableStatus, WorkItemStatus } from '@wbs/domain/progress';
 import type { IsoDate } from '@wbs/domain/workday';
 
 import { browserClient, unreachable } from './http';
@@ -328,15 +328,13 @@ export interface WorkItemView {
    */
   deadline: string | null;
   /**
-   * What this work item reads as — `unknown`, `in_progress` or `done` — folded
-   * by be-01 from its steps' progress and, for a parent, from its children.
-   * Never stored and never computed here: the Status cell shows it, and setting
-   * it goes through {@link ProjectApi.setStatus}, which writes every step.
-   * Typed as the progress fold's three words because that is all the work
-   * item contract carries until `add-work-item-statuses` widens both to
-   * `WorkItemStatus` together.
+   * What this work item reads as — one of the eight statuses — folded by be-01
+   * from its steps' progress, hold, readiness and predecessors and, for a
+   * parent, from its children. Never stored and never computed here: the
+   * Status cell shows it, and setting it goes through
+   * {@link ProjectApi.setStatus}.
    */
-  status: ProgressStatus;
+  status: WorkItemStatus;
   /**
    * The day work on this item actually began, or null where nobody has said.
    * Date-only like the two constraints above it; read by no engine, drawn as the

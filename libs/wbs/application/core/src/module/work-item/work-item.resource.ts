@@ -37,6 +37,7 @@ import {
   type StepState,
   UNKNOWN,
   workdaysBetween,
+  type WorkItemStatus,
 } from '@wbs/domain';
 import { MEASURE_METRICS, SOLVER_OBJECTIVES, type SolverObjectiveName } from '@wbs/domain';
 import { byTreeOrder, type StepNodeCycle, treeOrder, type TypedDependency } from '@wbs/domain';
@@ -122,6 +123,17 @@ import {
   rollUpWorkItemStatuses,
   workedStepsOf,
 } from '../../service/roll-up';
+import { workItemStatusesOf } from '../../service/work-item-statuses';
+
+/**
+ * A row's folded status. Every row of the tree is folded, so a miss is a row
+ * the fold was never handed — an invariant break, never "nobody has said".
+ */
+function statusOfRow(statuses: ReadonlyMap<string, WorkItemStatus>, id: string): WorkItemStatus {
+  const status = statuses.get(id);
+  if (status === undefined) throw new Error(`no status folded for ${id}`);
+  return status;
+}
 
 /**
  * What a work item shows before any schedule could be computed for it.
@@ -1892,7 +1904,16 @@ export class WorkItemService {
     // The row's own reading, folded over its **children** rather than over its
     // rolled-up steps — see `rollUpWorkItemStatuses` for why the two differ and which
     // one is true.
-    const itemStatuses = rollUpWorkItemStatuses(rows, statedTotals);
+    // A legacy edge naming a work item from another project is stored state
+    // the schema does not prevent and the read already hides (`dependsOn`
+    // below); it cannot hold a leaf of this plan back, so the status fold is
+    // handed only edges between rows it holds. Typed dependencies are checked
+    // against the project when written, so a stray one there throws.
+    const rowIds = new Set(rows.map((row) => row.id));
+    const itemStatuses = workItemStatusesOf(rows, rollUpWorkItemStatuses(rows, statedTotals), {
+      edges: edges.filter((edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId)),
+      typed: authored,
+    });
     // The write path refuses an edge that would close a cycle, but two clients
     // drawing conflicting edges at the same instant are each checked against the
     // graph as they read it. If one ever lands, every read of this project must
@@ -2128,12 +2149,10 @@ export class WorkItemService {
             (entry): entry is [string, StepState] => entry[1] !== UNKNOWN,
           ),
         ),
-        // The row's own reading, **derived from its steps and never stored**:
-        // `done` when every step with work on it says so, `unknown` when
-        // none of them has said anything, and `in_progress` for every
-        // disagreement in between — including the one that matters most, one
-        // step finished and another silent. `@wbs/domain`'s `agree`.
-        status: itemStatuses.get(row.id) ?? UNKNOWN,
+        // The row's own reading, **derived and never stored**: a leaf's from
+        // its steps' progress, its hold, its readiness and its predecessors, a
+        // parent's from its children — `workItemStatusesOf`.
+        status: statusOfRow(itemStatuses, row.id),
         // A parent's charged days are the **sum of its descendants' rounded
         // figures**, not its rolled-up triple put through the method once. The
         // two agreed while days were fractional and part company the moment a

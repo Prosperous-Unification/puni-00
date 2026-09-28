@@ -37,6 +37,8 @@ const numberedWorkItem = type({
   deadline: 'string | null',
   factStart: 'string | null',
   factEnd: 'string | null',
+  readiness: "'draft' | 'ready' | null",
+  hold: "'on_hold' | 'blocked' | null",
   priority: 'number | null',
   serviceTeamId: 'string | null',
   serviceId: 'string | null',
@@ -56,7 +58,8 @@ const numberedWorkItem = type({
   rolledUp: 'boolean',
   actuals: numbers,
   progress: type({ '[string]': "'in_progress' | 'done'" }),
-  status: "'unknown' | 'in_progress' | 'done'",
+  status:
+    "'unknown' | 'draft' | 'ready' | 'in_progress' | 'blocked_by_proxy' | 'on_hold' | 'blocked' | 'done'",
   measures: type({ '[string]': numbers }),
   dependsOn: 'string[]',
   finalDays: numbers,
