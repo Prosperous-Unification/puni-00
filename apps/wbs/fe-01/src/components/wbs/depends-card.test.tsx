@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createDepLights } from './dep-light-store';
@@ -153,6 +153,66 @@ describe('the dependency-card pointer bridge', () => {
     const targets = screen.getAllByTestId('depends-card-target');
     expect(targets.map((target) => target.style.pointerEvents)).toEqual(['auto', 'auto']);
     expect(targets.map((target) => target.getAttribute('tabindex'))).toEqual([null, null]);
+  });
+
+  itDom('keeps typed Edit and Remove clickable while the pointer crosses the card', () => {
+    const onEdit = vi.fn();
+    const onRemove = vi.fn();
+    const onPointEntry = vi.fn();
+    const onPointerOutside = vi.fn();
+    render(
+      <table>
+        <tbody>
+          <tr>
+            <td data-testid="owner">
+              <DependsCard
+                number="020"
+                entries={[{ id: 'w1', number: '010', name: 'Strip', status: 'unknown' }]}
+                typedEntries={[{ id: 'typed', label: '010 Strip', onEdit, onRemove }]}
+                depLights={createDepLights()}
+                rowId="row"
+                onPointEntry={onPointEntry}
+                onPointerOutside={onPointerOutside}
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>,
+    );
+    const typed = screen.getByText('010 Strip').parentElement;
+    if (!(typed instanceof HTMLElement)) throw new Error('Missing typed entry');
+    vi.spyOn(screen.getByTestId('owner'), 'getBoundingClientRect').mockReturnValue({
+      ...rect(10, 10, 110, 40),
+      x: 10,
+      y: 10,
+      width: 100,
+      height: 30,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(typed, 'getBoundingClientRect').mockReturnValue({
+      ...rect(116, 16, 274, 36),
+      x: 116,
+      y: 16,
+      width: 158,
+      height: 20,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(screen.getByRole('tooltip'), 'getBoundingClientRect').mockReturnValue({
+      ...rect(110, 10, 280, 90),
+      x: 110,
+      y: 10,
+      width: 170,
+      height: 80,
+      toJSON: () => ({}),
+    });
+    expect(typed.style.pointerEvents).toBe('auto');
+    fireEvent.pointerMove(typed, { clientX: 150, clientY: 26 });
+    expect(onPointEntry).toHaveBeenCalledWith(null);
+    expect(onPointerOutside).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit 010 Strip' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove 010 Strip' }));
+    expect(onEdit).toHaveBeenCalledOnce();
+    expect(onRemove).toHaveBeenCalledOnce();
   });
 
   itDom('moves owner to row, widens on return and clears outside', () => {

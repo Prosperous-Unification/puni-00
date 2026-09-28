@@ -3895,6 +3895,32 @@ describe('setting what a card waits for', () => {
     expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
     expect(added).toEqual([]);
   });
+  itDom('shows a stale phone Add when its predecessor vanishes before Save', async () => {
+    const api = dependencyApi();
+    const source = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    await api.createWorkItem('p1', { parentId: null, afterId: source.id, name: 'Sand' });
+    const readPlan = api.tree.bind(api);
+    let predecessorDeleted = false;
+    api.tree = async (projectId) => {
+      const plan = await readPlan(projectId);
+      return predecessorDeleted
+        ? { ...plan, workItems: plan.workItems.filter((row) => row.id !== source.id) }
+        : plan;
+    };
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    await openTheSheetOn('020');
+    fireEvent.click(screen.getByRole('button', { name: 'Customize 010 - Strip' }));
+    predecessorDeleted = true;
+    const name = screen.getByLabelText('Name of 020');
+    fireEvent.change(name, { target: { value: 'Sand again' } });
+    fireEvent.blur(name);
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('predecessor was removed'),
+    );
+    expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
+  });
   itDom('opens phone Customize as a bottom sheet without writing', async () => {
     const api = dependencyApi();
     const predecessor = await api.createWorkItem('p1', {

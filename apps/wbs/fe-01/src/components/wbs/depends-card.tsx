@@ -223,14 +223,24 @@ export function DependsCard({
         const target = targets.current.get(entry.id);
         return target === undefined ? [] : [{ id: entry.id, rect: target.getBoundingClientRect() }];
       });
+      // Proof: removing typed-row registration made `keeps typed Edit and Remove
+      // clickable while the pointer crosses the card` miss onPointEntry(null)
+      // over the typed row; watched 2026-09-28.
+      const typedRows = typedEntries.flatMap((dependency) => {
+        const target = targets.current.get(`typed:${dependency.id}`);
+        return target === undefined
+          ? []
+          : [{ id: `typed:${dependency.id}`, rect: target.getBoundingClientRect() }];
+      });
       const region = dependencyPointerRegion(
         { x: event.clientX, y: event.clientY },
         owner.getBoundingClientRect(),
-        rows,
+        [...rows, ...typedRows],
         cardRectOf(first),
       );
       if (region.kind === 'owner') onPointEntry(null);
-      else if (region.kind === 'row') onPointEntry(region.id);
+      else if (region.kind === 'row')
+        onPointEntry(region.id.startsWith('typed:') ? null : region.id);
       else if (region.kind === 'outside') onPointerOutside();
     };
     document.addEventListener('pointermove', move, { passive: true });
@@ -243,7 +253,7 @@ export function DependsCard({
       window.removeEventListener('scroll', clear, true);
       window.removeEventListener('resize', clear);
     };
-  }, [entries, onPointEntry, onPointerOutside]);
+  }, [entries, typedEntries, onPointEntry, onPointerOutside]);
 
   return (
     // **Beside its cell, not under it**, which is the links card's scheme and
@@ -264,7 +274,17 @@ export function DependsCard({
     // corridor's bounding box (see {@link dependencyPointerRegion}).
     <HoverCard label={`What ${number} waits for`}>
       {typedEntries.map((dependency) => (
-        <div key={dependency.id} className="typed-dependency-card-entry">
+        <div
+          key={dependency.id}
+          ref={(target) => {
+            if (target === null) targets.current.delete(`typed:${dependency.id}`);
+            else targets.current.set(`typed:${dependency.id}`, target);
+          }}
+          className="typed-dependency-card-entry"
+          // Proof: without the override, the pointer component test read an empty
+          // pointerEvents style under HoverCard's none; watched 2026-09-28.
+          style={{ pointerEvents: 'auto' }}
+        >
           <span>{dependency.label}</span>
           <button type="button" onClick={dependency.onEdit} aria-label={`Edit ${dependency.label}`}>
             Edit
