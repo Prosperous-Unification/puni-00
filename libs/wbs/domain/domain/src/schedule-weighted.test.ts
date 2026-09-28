@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import type { PlannedRow } from './derive-numbers';
-import { schedule, type Slice, sliceKey } from './schedule';
+import { relaxWeightedStarts, schedule, type Slice, sliceKey } from './schedule';
 import type { RelationshipType, TypedDependency } from './typed-dependency';
 
 const row = (id: string, position: number): PlannedRow => ({
@@ -216,6 +216,18 @@ describe('weighted Fast relationships', () => {
     ]).toEqual([10, 0, 9]);
   });
 
+  it('refuses a positive cycle in the production backward relaxation', () => {
+    expect(() => {
+      relaxWeightedStarts(
+        [0, 0],
+        [
+          { before: 0, after: 1, weight: 1 },
+          { before: 1, after: 0, weight: 1 },
+        ],
+      );
+    }).toThrow('positive-weight resource constraint cycle');
+  });
+
   it('finds a whole interval accepted by every pool and replays its resource evidence', () => {
     const rows = [row('A', 10), row('B', 20), row('C', 30), row('D', 40)];
     const slices = [
@@ -236,5 +248,127 @@ describe('weighted Fast relationships', () => {
     expect(
       schedule(rows, [], slices, new Map(), sizes, 'whole-item', new Map(), typed, pins),
     ).toEqual(fast);
+  });
+
+  it('rejects a pinned person overlap even when an earlier gap is free', () => {
+    const rows = [row('A', 10), row('Z', 20), row('B', 30)];
+    const slices = [work('A', 2, 'kat'), work('Z', 0), work('B', 1, 'kat')];
+    const pins = new Map([
+      [sliceKey('A', null), 5],
+      [sliceKey('Z', null), 0],
+      [sliceKey('B', null), 6],
+    ]);
+    expect(() =>
+      schedule(
+        rows,
+        [],
+        slices,
+        new Map(),
+        new Map(),
+        'whole-item',
+        new Map(),
+        [link('Z', 'B', 'SS')],
+        pins,
+      ),
+    ).toThrow('overlaps a resource reservation');
+  });
+
+  it('rejects a pinned pool overlap in resource-order replay', () => {
+    const rows = [row('A', 10), row('Z', 20), row('B', 30)];
+    const slices = [
+      { ...work('A', 2), poolIds: ['team'] },
+      work('Z', 0),
+      { ...work('B', 1), poolIds: ['team'] },
+    ];
+    const pins = new Map([
+      [sliceKey('A', null), 5],
+      [sliceKey('Z', null), 0],
+      [sliceKey('B', null), 6],
+    ]);
+    expect(() =>
+      schedule(
+        rows,
+        [],
+        slices,
+        new Map(),
+        new Map([['team', 1]]),
+        'whole-item',
+        new Map(),
+        [link('Z', 'B', 'SS')],
+        pins,
+      ),
+    ).toThrow('overlaps pool team');
+  });
+
+  it('explains a person delay after a pool delay', () => {
+    const rows = [
+      row('A', 10),
+      { ...row('B', 20), priority: -10 },
+      row('Z', 30),
+      { ...row('C', 40), priority: 10 },
+    ];
+    const slices = [
+      { ...work('A', 3), poolIds: ['team'] },
+      work('B', 2, 'kat'),
+      work('Z', 0),
+      { ...work('C', 1, 'kat'), poolIds: ['team'] },
+    ];
+    const plan = schedule(
+      rows,
+      [],
+      slices,
+      new Map([['B', 3]]),
+      new Map([['team', 1]]),
+      'whole-item',
+      new Map(),
+      [link('Z', 'C', 'SS')],
+    );
+    expect(part(plan, 'C')).toMatchObject({
+      earliestStart: 5,
+      boundBy: 'person',
+      resourcePredecessorId: sliceKey('B', null),
+    });
+    expect(plan.waitingForPerson).toBe(1);
+  });
+
+  it('reconciles a tiled fractional interval before reserving a pool', () => {
+    const rows = [
+      { ...row('A', 10), priority: 10 },
+      { ...row('B', 20), priority: -10 },
+      { ...row('C', 30), priority: -10 },
+      row('Z', 40),
+    ];
+    const slices = [
+      { ...work('A', 1 / 3), stepId: 'first', poolIds: ['team'] },
+      { ...work('A', 1 / 3), stepId: 'last', poolIds: ['team'] },
+      { ...work('B', 1), poolIds: ['team'] },
+      { ...work('C', 1), poolIds: ['team'] },
+      work('Z', 0),
+    ];
+    const typed: TypedDependency[] = [
+      {
+        id: 'Z-A.last',
+        predecessor: { scope: 'whole', workItemId: 'Z' },
+        successor: { scope: 'node', workItemId: 'A', stepId: 'last' },
+        type: 'SS',
+      },
+    ];
+    const plan = schedule(
+      rows,
+      [],
+      slices,
+      new Map([
+        ['A', 7],
+        ['B', 7.666666666666666],
+        ['C', 7.666666666666666],
+      ]),
+      new Map([['team', 2]]),
+      'whole-item',
+      new Map(),
+      typed,
+    );
+    expect(plan.slices.get(sliceKey('A', 'last'))?.earliestStart).toBeGreaterThanOrEqual(
+      part(plan, 'B').earliestFinish,
+    );
   });
 });

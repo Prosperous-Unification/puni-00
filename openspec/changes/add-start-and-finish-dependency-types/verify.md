@@ -53,3 +53,25 @@ The full Nx gate, host gate, build, CP-SAT wire, command/import SS/FF writes and
 Commit attempt: `git add` could not create `/home/df/wd/puni/puni-00/.git/worktrees/b9-010-4-7-step-deps-b/index.lock` (`Read-only file system`, exit 128). A direct write probe to that Git worktree metadata directory also returned `Read-only file system` (exit 1). All source and artifact edits remain in this worktree, unstaged; no commits or push were made.
 
 The requested Astra math review was attempted with `codex exec -m gpt-6-astra -c model_reasoning_effort=high --skip-git-repo-check` and the schedule/design file paths. It exited 1 because workspace routing discovery and HTTPS requests failed; no review answer was returned. The production tests and mutation proofs above remain the available evidence.
+
+## 2026-09-28 weighted Fast review fixes (uncommitted)
+
+The weighted Fast path now checks a pinned person's actual interval, repeats person and pool searches during explanation, and searches with the tiled interval before reserving a resource. Invalid pinned pool intervals reach the actual-width slot replay refusal. The cyclic backward relaxation is a named production function so a synthetic positive cycle can directly exercise its refusal. All-FS dispatch remains on the original path; the Fast golden corpus and digest passed unchanged.
+
+Observed negatives, each with the fault restored and an adjacent `Proof:` comment in `schedule.ts`:
+
+- Removed the exact pinned-person refusal: `rejects a pinned person overlap even when an earlier gap is free` failed, returning A `[5,7)` and B `[6,7)` with A float `-1` (13 pass / 1 fail).
+- Removed the materialized resource-window search: `reconciles a tiled fractional interval before reserving a pool` failed with `C waited for capacity with nothing holding the pool` during replay (13 pass / 1 fail). The fixture makes two size-2 pool reservations start at `7.666666666666666` while a tiled predecessor finishes at `7.666666666666667`.
+- Reduced the shared person/pool search to one pass: `explains a person delay after a pool delay` failed; C started at 5 but was labeled `optimizer` with no person predecessor (13 pass / 1 fail).
+- Removed the pool slot-overlap refusal: `rejects a pinned pool overlap in resource-order replay` failed, returning A `[5,7)` and B `[6,7)` on a size-1 pool (12 pass / 1 fail).
+- Removed the positive-cycle refusal: `refuses a positive cycle in the production backward relaxation` failed because the two-node positive cycle returned without throwing (13 pass / 1 fail). This test calls the same `relaxWeightedStarts` function used by the production weighted late-time path; it does not construct the cycle through public `schedule()` input. A separate public-input attempt with large-offset rounding returned a valid schedule and did not reach the guard.
+
+Verification after restoring the faults:
+
+- `env -u CLAUDECODE bun test libs/wbs/domain/domain/src/schedule-weighted.test.ts`: 14 pass, 0 fail, 25 expectations.
+- Project-root source runs: domain `bun test src` 767 pass / 0 fail, 39,417 expectations; solver contracts `bun test solver/src` 274 pass / 0 fail, 604 expectations; application core `bun test src` 713 pass / 0 fail, 2,186 expectations. Domain's FS golden corpus and digest passed in its source run.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-domain:lint:fast` and `:typecheck`: both exited 0. `bunx prettier --check` on the three touched files exited 0.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: exit 0, 139 items passed, 0 failed; informational archive warnings remain.
+- The requested repository-root `env -u CLAUDECODE bun test libs/wbs/domain/domain libs/wbs/domain/contracts/solver libs/wbs/application/core` exited 1: 2,529 pass, 102 fail, 85 errors. It also collected generated `dist/out-tsc` tests that cannot resolve workspace aliases and unrelated root-sensitive tests. The project-root source runs above are the applicable source checks.
+
+The h2puni gate was not run: its SHA checkout would test a committed tree, while these changes must remain uncommitted. No commit or Git metadata write was attempted. Mounted DB tests and the full gate remain unverified in this review fix.
