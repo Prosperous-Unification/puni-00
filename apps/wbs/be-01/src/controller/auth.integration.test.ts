@@ -12,6 +12,7 @@ import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
   refusingMemberships,
@@ -31,6 +32,7 @@ function app(auth = testAuthService(), maxConcurrentLogins?: number) {
   return buildApp({
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(maxConcurrentLogins),
     appOrigin: 'http://localhost',
     clock: testClock,
@@ -147,6 +149,7 @@ describe('GET /api/auth/me', () => {
     const res = await buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
       appOrigin: 'http://localhost',
       clock: testClock,

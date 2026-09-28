@@ -21,6 +21,7 @@ import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
   refusingMemberships,
@@ -111,6 +112,7 @@ function buildHarness(
   const app = buildApp({
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
     clock: testClock,
     appOrigin: 'http://localhost',
@@ -1156,7 +1158,7 @@ describe('projects', () => {
     const { register, send } = buildHarness({
       retry: (ask) => {
         asks.push(ask);
-        return outcome;
+        return Promise.resolve(outcome);
       },
     });
     const token = await register('owner');
@@ -1257,7 +1259,7 @@ describe('projects', () => {
     const { register, send } = buildHarness({
       retry: (ask) => {
         asks.push(ask);
-        return { kind: 'already-running' };
+        return Promise.resolve({ kind: 'already-running' });
       },
     });
     const owner = await register('owner');

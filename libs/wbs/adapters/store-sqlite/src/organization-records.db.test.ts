@@ -515,6 +515,7 @@ describe('20260927120000_add_organization_records', () => {
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
       '20260928030000_add_delegation_use',
+      '20260928020000_add_email_verification',
       '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
       TYPED_DEPENDENCY,

@@ -77,7 +77,7 @@
     - A plan saved after activation is mapped to its project's organization in the save's own transaction.
   - The journal (undo and redo) was scoped in 3.4. Generated events are published only to the acting project, and to the organization's projects for an import's `directory_changed`. Gateway subscribe and replay authorization is 6.1–6.2.
   - Not applicable here: history labels and saved snapshots written after activation carry directory names as the writer read them. Those can be opaque root names for entries created after activation, which is a display concern for the switch to local names, not an isolation one.
-- [ ] 3.7 Enforce role changes, invitations authority, recovery audit and last-super-admin protection at the service boundary. Red: admin promotion, viewer mutation, recovery and final-owner matrix. Fault: bypass role guard; observe mounted unauthorized mutation test fail, restore and add `Proof:`.
+- [x] 3.7 Enforce role changes, invitations authority, recovery audit and last-super-admin protection at the service boundary. Red: admin promotion, viewer mutation, recovery and final-owner matrix. Fault: bypass role guard; observe mounted unauthorized mutation test fail, restore and add `Proof:`.
   - Part 1, slice 15 (Astra design call, 2026-09-27):
     - `PATCH` and `DELETE /api/organization/members/:userId` act in the active organization from the session alone. Before activation they answer `no_active_organization`.
     - `mayAdministerMembership` implements the role matrix. `OrganizationRepository.administer` reads the actor's role, the target's role and the final-super-admin count in the write's own immediate transaction.
@@ -89,16 +89,18 @@
   - Part 2b, slices 19 and 20 (Astra design call option C, 2026-09-28):
     - Slice 19 (mechanical): the gated writing services ask an injected `EditAdmission` rather than `canEditProject`. Every graph passed `CREATOR_ADMISSION`, so behaviour did not change.
     - Slice 20: command batches, undo and redo. `ProjectStore.admitEditInOrganization` classifies the write in the unit of work's own transaction and appends the audit record there. The batch graph is then built with `grantAdmission(project, actor)`, which expires when the unit of work settles. Scoped access never falls back to the creator rule.
-  - Part 2c (open): steps, markers, saved plans and optimizer retry. Until then they refuse a non-creator super-admin.
+  - Part 2c, slice 24: steps, markers, saved plans and optimizer Retry. Scoped writes reclassify current authority in their own unit of work or SQLite write transaction, keep each recovery audit atomic with its operation, and publish after commit. Optimizer Retry takes the shared write coordinator before its immediate transaction. A combined step name and allowance PATCH uses one unit of work in both scoped and legacy modes; the standalone allowance PATCH remains a command batch. Saved-plan touch keeps author-or-project-creator authority for ordinary writes and admits an audited restricted-project recovery.
 
 ## 4. Onboarding state transitions
 
 - [ ] 4.1 Let a signed-in password-only account add and verify email using an expiring, single-use address challenge while retaining its local ID. Red: missing/unverified email, wrong address, replay, expiry and failed delivery. Fault: accept an unverified address; observe mounted onboarding refusal fail, restore and add `Proof:`.
 - [ ] 4.2 Link Auth0 to an existing password account only after proving both sessions and verified Auth0 email, preserving local ID. Red: issuer/subject collision and same-email different-user case. Fault: merge by email; observe mounted identity test fail, restore and add `Proof:`.
-- [ ] 4.3 Route verified email by exact currently verified domain and atomically create an unmatched organization with first super-admin. Red: matching-domain creation refusal and concurrent creation. Fault: skip domain match; observe mounted creation test fail, restore and add `Proof:`.
+- [x] 4.3 Route verified email by exact currently verified domain and atomically create an unmatched organization with first super-admin. Slice 26 adds durable OIDC verification, discovery and creation. Separate-process tests cover creation and promotion committing before an onboarding request under write-lock contention, and promotion committing after creation. Moving the membership recheck before the immediate transaction made both contended tests fail. Matching-domain refusal is mounted; task 4.1 remains open for password accounts.
 - [ ] 4.4 Issue/revoke invitations, then accept with current verified recipient email in one consuming transaction. Red: wrong address, expiry, concurrent accept and replay. Fault: disable consumption; observe replay test fail, restore and add `Proof:`.
 - [ ] 4.5 Submit, approve or deny join requests; approval rechecks domain, email and admin role and only issues an invitation. Red: suspended domain and concurrent approval. Fault: skip domain recheck; observe mounted approval test fail, restore and add `Proof:`.
+  - Slice 26: submission is done, including duplicate-pending and suspended-domain refusals. Approval and denial remain open.
 - [ ] 4.6 Render onboarding, password-email verification, link collision/recovery, switcher, members and domain settings with loading, empty, failure and lost-access states. Red: stale tab after switch or removal. Fault: retain organization cache; observe browser test fail, restore and add `Proof:`.
+  - Slice 26: verification-required, create, matching-organization join, pending-request, selection-required, loading and query-failure screens landed. Password challenge, link recovery, switcher, members, domain settings and lost-access behavior remain open.
 
 ## 5. Domain ownership lifecycle
 

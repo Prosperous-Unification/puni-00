@@ -21,6 +21,7 @@ import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
   refusingMemberships,
@@ -111,6 +112,7 @@ describe('the OIDC callback after activation', () => {
     return buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
       clock: testClock,
       appOrigin: oidc.appOrigin,
@@ -177,7 +179,7 @@ describe('the OIDC callback after activation', () => {
     expect(all('SELECT * FROM external_identity')).toEqual([]);
   });
 
-  it('signs a mapped identity into its own account', async () => {
+  it('refuses a mapped identity when its refreshed email belongs to another account', async () => {
     sql(
       "INSERT INTO users (id, username, password_hash, email, idp_issuer, idp_sub, created_at) VALUES ('mapped', 'dany-oidc', NULL, 'old@puni.show', 'https://idp.test', 'subject-1', 1)",
     );
@@ -189,8 +191,27 @@ describe('the OIDC callback after activation', () => {
 
     const res = await callback();
 
+    expect(res.status).toBe(409);
+    expect(res.headers.get('set-cookie') ?? '').not.toContain('__Host-wbs_access=');
+    expect(all("SELECT idp_sub FROM users WHERE id = 'legacy'")).toEqual([{ idp_sub: null }]);
+    expect(all("SELECT email, email_verified FROM users WHERE id = 'mapped'")).toEqual([
+      { email: 'old@puni.show', email_verified: 0 },
+    ]);
+  });
+
+  it('signs a mapped identity in and refreshes its verified address', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, email, idp_issuer, idp_sub, created_at) VALUES ('mapped', 'dany-oidc', NULL, 'old@puni.show', 'https://idp.test', 'subject-1', 1)",
+    );
+    sql(
+      "INSERT INTO external_identity (id, user_id, issuer, subject, created_at) VALUES ('m1', 'mapped', 'https://idp.test', 'subject-1', 1)",
+    );
+    activate();
+    const res = await callback();
     expect(res.status).toBe(302);
     expect(res.headers.get('set-cookie')).toContain('__Host-wbs_access=');
-    expect(all("SELECT idp_sub FROM users WHERE id = 'legacy'")).toEqual([{ idp_sub: null }]);
+    expect(all("SELECT email, email_verified FROM users WHERE id = 'mapped'")).toEqual([
+      { email: 'dany@puni.show', email_verified: 1 },
+    ]);
   });
 });

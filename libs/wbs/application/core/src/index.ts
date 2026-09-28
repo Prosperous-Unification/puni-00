@@ -73,6 +73,7 @@ export * from './ports/progress-store';
 export * from './ports/typed-dependency-store';
 // The neutral project-event port: `Broadcaster`, `ProjectEvent` and `subscriptionFor`.
 export * from './ports/membership-administration';
+export * from './ports/onboarding';
 export * from './ports/organization-access';
 export * from './ports/project-event';
 export * from './ports/project-store';
@@ -89,6 +90,7 @@ export type {
   SavedPlanTouchOutcome,
   SavedPlanWrite,
   SavedPlanWriteOutcome,
+  ScopedSavedPlanWrite,
   StoredSavedPlan,
 } from './ports/saved-plan-store';
 export * from './ports/scheduler';

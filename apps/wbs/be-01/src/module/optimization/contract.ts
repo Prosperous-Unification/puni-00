@@ -231,6 +231,7 @@ export type RecordedOptimizationOutcome =
     }
   | { readonly kind: 'superseded' | 'already-recorded' };
 export type OptimizationRetryDecision =
+  | { readonly kind: 'forbidden' | 'not_found' }
   | {
       readonly kind: 'not-retryable';
       readonly state: OptimizationVariantState['state'];
@@ -276,14 +277,15 @@ export interface OptimizationRepository extends SolverSlotRepository {
     readonly attemptToken: string;
     readonly now: number;
   }): OptimizationDequeued;
-  /** Decide eligibility and admission in one immediate transaction; mint the token only after writer ownership and the live check. */
+  /** Await one owned immediate transaction before answering Retry; mint the token only after writer ownership and the live check, and return accepted only after its audit and reservation commit. */
   admitRetry(ask: {
     readonly key: OptimizationCacheKey;
     readonly objective: SolverObjectiveName;
     readonly ownerId: string;
     readonly now: number;
     readonly attemptToken: () => string;
-  }): OptimizationRetryDecision;
+    readonly scoped?: { readonly organizationId: string; readonly actorId: string };
+  }): Promise<OptimizationRetryDecision>;
   /** Atomically write the outcome and durable event; a superseded attempt publishes neither. Slot release is separate. */
   recordOutcome(write: OptimizationOutcomeWrite): RecordedOptimizationOutcome;
   reconcileDrains(now: number): {

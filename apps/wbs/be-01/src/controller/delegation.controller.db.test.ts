@@ -173,6 +173,39 @@ describe('after activation', () => {
     ).toBe(401);
   });
 
+  it('refuses delegated onboarding discovery and writes', async () => {
+    h.sqlite.run("UPDATE users SET email = 'ada@example.org', email_verified = 1 WHERE id = ?", [
+      h.userId('ada'),
+    ]);
+    const signed = await delegation();
+    expect(await h.callWith(signed, 'GET', '/api/onboarding')).toMatchObject({ status: 403 });
+
+    await h.register('newcomer');
+    h.sqlite.run(
+      "INSERT INTO external_identity (id, user_id, issuer, subject, created_at) VALUES ('map-newcomer', ?, ?, 'sub-newcomer', 1)",
+      [h.userId('newcomer'), ISSUER],
+    );
+    h.sqlite.run("UPDATE users SET email = 'newcomer@else.org', email_verified = 1 WHERE id = ?", [
+      h.userId('newcomer'),
+    ]);
+    const newcomer = await delegation({ username: 'newcomer' });
+    expect(await h.callWith(newcomer, 'GET', '/api/onboarding')).toMatchObject({ status: 403 });
+    expect(
+      await h.callWith(newcomer, 'POST', '/api/onboarding/organizations', { name: 'Unexpected' }),
+    ).toMatchObject({ status: 403 });
+    h.sqlite.run(
+      "INSERT INTO organization_domain_claim (id, organization_id, domain, status, proof_digest, last_success_at, created_at) VALUES ('claim-else', 'org-a', 'else.org', 'verified', 'proof', 1, 1)",
+    );
+    expect(
+      await h.callWith(newcomer, 'POST', '/api/onboarding/join-requests', {
+        organizationId: 'org-a',
+      }),
+    ).toMatchObject({ status: 403 });
+    expect(h.sqlite.query("SELECT id FROM organization WHERE name = 'Unexpected'").all()).toEqual(
+      [],
+    );
+  });
+
   it('lists only the delegated organization’s projects', async () => {
     const answer = await h.callWith(await delegation(), 'GET', '/api/projects');
 

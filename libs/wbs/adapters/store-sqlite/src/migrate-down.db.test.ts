@@ -657,6 +657,7 @@ describe('readMigrationFolders', () => {
       TYPED_DEPENDENCY,
       '20260927220000_add_organization_audit',
       '20260928010000_add_project_solution',
+      '20260928020000_add_email_verification',
       '20260928030000_add_delegation_use',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
@@ -785,6 +786,7 @@ describe('rollbackTo, against a real database', () => {
         TYPED_DEPENDENCY,
         '20260927220000_add_organization_audit',
         '20260928010000_add_project_solution',
+        '20260928020000_add_email_verification',
         '20260928030000_add_delegation_use',
       ]);
 
@@ -792,6 +794,7 @@ describe('rollbackTo, against a real database', () => {
 
       expect(reversed).toEqual([
         '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
         '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
@@ -922,6 +925,7 @@ describe('rollbackTo, against a real database', () => {
         TYPED_DEPENDENCY,
         '20260927220000_add_organization_audit',
         '20260928010000_add_project_solution',
+        '20260928020000_add_email_verification',
         '20260928030000_add_delegation_use',
       ]);
     } finally {
@@ -994,6 +998,7 @@ describe('rollbackTo, against a real database', () => {
 
       expect(reversed).toEqual([
         '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
         '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
@@ -1094,6 +1099,7 @@ describe('rollbackTo, against a real database', () => {
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
         '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
         '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,
@@ -1179,6 +1185,7 @@ describe('rollbackTo, against a real database', () => {
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
         '20260928030000_add_delegation_use',
+        '20260928020000_add_email_verification',
         '20260928010000_add_project_solution',
         '20260927220000_add_organization_audit',
         TYPED_DEPENDENCY,

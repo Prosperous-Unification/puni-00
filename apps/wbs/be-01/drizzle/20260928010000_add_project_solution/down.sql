@@ -5,13 +5,12 @@
 -- or the marker is anything but one well-formed `pre_activation` row. The
 -- rollback runner reverts this script and its ledger row in one transaction.
 -- Only then are the table and the index dropped.
--- Proof, observed 2026-09-28 in `project-solution.db.test.ts`: dropping the
--- emptiness predicate failed `refuses while a link is recorded`, and dropping
--- the marker predicates failed `refuses after activation even with no link`.
--- Checking only for an activated row failed `refuses with a missing or
--- malformed marker, keeping the table and the ledger`, as did dropping the
--- `activated_at IS NULL` predicate alone. The row-count predicate is
--- shadowed by the marker's `organization_activation_single_row` trigger.
+-- Proof, observed 2026-09-28 in `project-solution.db.test.ts` after first
+-- rolling back the newer email-verification migration: dropping the emptiness
+-- predicate failed `refuses while a link is recorded`; dropping the exact
+-- marker predicate failed `refuses with a missing or malformed marker, keeping
+-- the table and the ledger` and `refuses after activation even with no link`.
+-- The row-count predicate is shadowed by the single-row marker trigger.
 CREATE TEMP TABLE `project_solution_down_check` (
 	`reversible` integer NOT NULL,
 	CONSTRAINT `project_solution_must_be_reversible` CHECK (`reversible` = 1)

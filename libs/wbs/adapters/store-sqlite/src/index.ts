@@ -20,6 +20,7 @@ export * from './gate';
 export * from './health-probe';
 export * from './migrate';
 export * from './migrate-down';
+export * from './onboarding';
 export * from './optimization-admission';
 export * from './optimization-drain';
 export * from './optimization-generation';

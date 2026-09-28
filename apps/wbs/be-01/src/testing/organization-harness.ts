@@ -6,8 +6,10 @@ import { CREATOR_ADMISSION } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import {
   ExternalIdentityRepository,
+  OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
+  scheduleInputHash,
   SqliteDelegationUse,
   SqliteOrganizationAccess,
 } from '@wbs/store-sqlite';
@@ -79,6 +81,13 @@ export class OrganizationHarness {
     /** A raw connection the app does not hold, as a second process would. */
     readonly sqlite: ReturnType<typeof openDatabase>,
     private readonly bound: Map<string, string>,
+    private readonly retryHash?: (projectId: string) => Promise<string>,
+    private readonly retryDecision?: (
+      projectId: string,
+      organizationId: string,
+      actorId: string,
+      inputHash: string,
+    ) => Promise<string>,
   ) {}
 
   /**
@@ -151,6 +160,7 @@ export class OrganizationHarness {
         Promise.resolve(bound.get(userId) ?? null),
       ),
       memberships: new OrganizationRepository(db, OPEN),
+      onboarding: new OnboardingRepository(db, OPEN),
       ...(delegationKey === undefined
         ? {}
         : {
@@ -187,7 +197,7 @@ export class OrganizationHarness {
    * rolled back exactly as in production. The command suites need this; the
    * fixtures {@link open} wires cannot roll a batch back.
    */
-  static openComposed(): OrganizationHarness {
+  static openComposed(withOptimizer = false, afterResolve?: () => void): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
@@ -200,7 +210,19 @@ export class OrganizationHarness {
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
       pushFetch: () => Promise.resolve(Response.json({ delivered_to_sockets: 0 })),
+      ...(withOptimizer
+        ? {
+            optimizer: {
+              solverVersion: '0.1.0',
+              budgetMs: 60_000,
+              spawn: () => new Promise<never>(() => undefined),
+            },
+          }
+        : {}),
     });
+    const organizationAccess = new SqliteOrganizationAccess(source.db, (userId) =>
+      Promise.resolve(bound.get(userId) ?? null),
+    );
     const app = buildApp({
       appOrigin: 'http://localhost',
       clock: services.clock,
@@ -208,10 +230,15 @@ export class OrganizationHarness {
       auth: services.auth,
       loginThrottle: services.loginThrottle,
       projects: services.projects,
-      organizations: new SqliteOrganizationAccess(source.db, (userId) =>
-        Promise.resolve(bound.get(userId) ?? null),
-      ),
+      organizations: {
+        resolve: async (principal) => {
+          const access = await organizationAccess.resolve(principal);
+          afterResolve?.();
+          return access;
+        },
+      },
       memberships: new OrganizationRepository(source.db, services.gate),
+      onboarding: new OnboardingRepository(source.db, services.gate),
       steps: services.steps,
       calendarMarkers: services.calendarMarkers,
       workItems: services.workItems,
@@ -231,12 +258,58 @@ export class OrganizationHarness {
       },
       internalAuthSecret: 'x'.repeat(32),
     });
-    return new OrganizationHarness(dir, app, openDatabase(path), bound);
+    return new OrganizationHarness(
+      dir,
+      app,
+      openDatabase(path),
+      bound,
+      async (projectId) => {
+        const input = await services.workItems.scheduleInput(projectId);
+        if (input === null) throw new Error(`project ${projectId} has no optimization input`);
+        return scheduleInputHash(input);
+      },
+      async (projectId, organizationId, actorId, inputHash) => {
+        const input = await services.workItems.scheduleInput(projectId);
+        if (input === null) throw new Error(`project ${projectId} has no optimization input`);
+        if (services.optimizer === undefined) throw new Error('harness optimizer is absent');
+        return (
+          await services.optimizer.retry({
+            projectId,
+            objective: 'pri',
+            inputHash,
+            input,
+            scoped: { organizationId, actorId },
+          })
+        ).kind;
+      },
+    );
+  }
+
+  /** Hashes the same current schedule input the mounted Retry route rebuilds. */
+  async optimizationHash(projectId: string): Promise<string> {
+    if (this.retryHash === undefined) throw new Error('harness has no composed schedule input');
+    return this.retryHash(projectId);
+  }
+
+  /** Calls the production retry admission without HTTP's earlier role check. */
+  async retryAtStore(
+    projectId: string,
+    organizationId: string,
+    actorId: string,
+    inputHash: string,
+  ): Promise<string> {
+    if (this.retryDecision === undefined) throw new Error('harness has no composed optimizer');
+    return this.retryDecision(projectId, organizationId, actorId, inputHash);
   }
 
   close(): void {
     this.sqlite.close();
     rmSync(this.dir, { recursive: true, force: true });
+  }
+
+  /** The fixture database path for a separate-process contention probe. */
+  databasePath(): string {
+    return join(this.dir, 'test.db');
   }
 
   async register(username: string): Promise<void> {
@@ -312,6 +385,7 @@ export class OrganizationHarness {
       new Request(`http://localhost${path}`, {
         method,
         headers: {
+          ...(method === 'GET' ? {} : { origin: 'http://localhost' }),
           ...extraHeaders,
           authorization: `Bearer ${token}`,
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),

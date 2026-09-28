@@ -5,10 +5,12 @@ import type {
   HistoryService,
   ImportService,
   MembershipAdministration,
+  Onboarding,
   OrganizationAccess,
   ReplayOrchestrator,
   SavedPlanService,
 } from '@wbs/core';
+import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
@@ -83,6 +85,8 @@ export interface AppOptions {
    * 404 on the membership routes, which reads as a release without them.
    */
   memberships: MembershipAdministration;
+  /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
+  onboarding: Onboarding;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
   /** The manual Retry admission seam; absent only in optimizer-less deployments and tests. */
@@ -220,7 +224,7 @@ export function mountedEndpoints(
     logger: createLogger({ service: 'be-01', version: opts.version }),
     scrapeMetrics: opts.metricsScrape ?? (() => scrapeMetrics('be-01')),
   },
-) {
+): readonly BoundEndpoint[] {
   const passwordThrottle = opts.loginThrottle;
   const commands = new PlanCommandRunner({
     batchServices: opts.writes.batch,
@@ -260,6 +264,7 @@ export function mountedEndpoints(
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
+    ...onboardingRoutes(opts.onboarding, opts.clock),
     ...stepRoutes(
       {
         addWithin: (...args) => opts.steps.addWithin(...args),
@@ -269,6 +274,7 @@ export function mountedEndpoints(
       },
       commands,
       opts.organizations,
+      opts.writes,
     ),
     ...directoryRoutes(opts.directory, opts.organizations),
     ...historyRoutes(opts.history, opts.projects, opts.organizations),
@@ -277,7 +283,7 @@ export function mountedEndpoints(
     ...importRoutes(opts.writes.imports, opts.organizations),
     ...projectRoutes(
       {
-        authorizeEdit: (...args) => opts.projects.authorizeEdit(...args),
+        authorizeRetry: (...args) => opts.projects.authorizeRetry(...args),
         createWithin: (...args) => opts.projects.createWithin(...args),
         listWithin: (...args) => opts.projects.listWithin(...args),
         openWithin: (...args) => opts.projects.openWithin(...args),
@@ -292,7 +298,7 @@ export function mountedEndpoints(
       opts.optimizer,
     ),
     ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),
-    ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations),
+    ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
     ...savedPlanRoutes(
       opts.savedPlans,
       opts.projects,

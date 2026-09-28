@@ -6,6 +6,7 @@ import type {
   SavedPlanTouchOutcome,
   SavedPlanWrite,
   SavedPlanWriteOutcome,
+  ScopedSavedPlanWrite,
   StoredSavedPlan,
 } from '../../ports/saved-plan-store';
 import type { SavedPlanQuota, SavedPlanQuotaRefusal } from '../../service/saved-plan-quota';
@@ -109,6 +110,7 @@ export class SavedPlanResource {
   writePlan(
     plan: SavedPlanWrite,
     quota: SavedPlanQuota,
+    scoped?: ScopedSavedPlanWrite,
   ): Promise<SavedPlanWriteOutcome<SavedPlanQuotaRefusal>> {
     return this.opts.plans.write<SavedPlanQuotaRefusal>(
       plan,
@@ -116,6 +118,7 @@ export class SavedPlanResource {
       // concurrent last-slot retry answer `saved` instead of `refused`
       // (`admits only one of two concurrent saves`, 0 pass, 1 fail).
       (holding, incoming) => Promise.resolve(holdingRefusal(holding, incoming, quota)),
+      scoped,
     );
   }
 
@@ -124,31 +127,40 @@ export class SavedPlanResource {
     return (await this.opts.plans.principalsOf(savedPlanId))?.projectId ?? null;
   }
 
-  /** Authorize from principal headers, so corrupt plans remain renameable. */
+  /** Check legacy principals here; a scoped writer rechecks them in its write transaction. */
   async renamePlan(
     savedPlanId: string,
     actorId: string,
     name: string,
+    scoped?: ScopedSavedPlanWrite,
   ): Promise<SavedPlanTouchResult> {
-    const checked = await this.refuseUnauthorisedTouch(savedPlanId, actorId);
+    const checked = await this.refuseUnauthorisedTouch(savedPlanId, actorId, scoped);
     if ('refused' in checked) return checked.refused;
     return touchResultOf(
-      await this.opts.plans.renameTo(savedPlanId, name),
+      await this.opts.plans.renameTo(savedPlanId, name, scoped),
       checked.principals.projectId,
     );
   }
 
-  /** Authorize from principal headers, so corrupt plans remain deletable. */
-  async deletePlan(savedPlanId: string, actorId: string): Promise<SavedPlanTouchResult> {
-    const checked = await this.refuseUnauthorisedTouch(savedPlanId, actorId);
+  /** Check legacy principals here; a scoped writer rechecks them in its write transaction. */
+  async deletePlan(
+    savedPlanId: string,
+    actorId: string,
+    scoped?: ScopedSavedPlanWrite,
+  ): Promise<SavedPlanTouchResult> {
+    const checked = await this.refuseUnauthorisedTouch(savedPlanId, actorId, scoped);
     if ('refused' in checked) return checked.refused;
-    return touchResultOf(await this.opts.plans.deleteOf(savedPlanId), checked.principals.projectId);
+    return touchResultOf(
+      await this.opts.plans.deleteOf(savedPlanId, scoped),
+      checked.principals.projectId,
+    );
   }
 
-  /** Read the immutable principals once for both touch authorization and announcement scope. */
+  /** Read immutable principals for announcement scope and legacy authorization. */
   private async refuseUnauthorisedTouch(
     savedPlanId: string,
     actorId: string,
+    scoped?: ScopedSavedPlanWrite,
   ): Promise<{ refused: SavedPlanTouchResult } | { principals: SavedPlanPrincipals }> {
     const principals = await this.opts.plans.principalsOf(savedPlanId);
     // Proof (2026-09-27): forcing this guard false failed `answers not_found
@@ -156,7 +168,8 @@ export class SavedPlanResource {
     if (principals === null) return { refused: { outcome: 'not_found' } };
     // Proof (2026-09-27): bypassing this guard failed `refuses a third party,
     // and writes nothing` in the SQLite touch suite (0 pass, 1 fail).
-    if (!mayTouchSavedPlan(principals, actorId)) return { refused: { outcome: 'forbidden' } };
+    if (scoped === undefined && !mayTouchSavedPlan(principals, actorId))
+      return { refused: { outcome: 'forbidden' } };
     return { principals };
   }
 }

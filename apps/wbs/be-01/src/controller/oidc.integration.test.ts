@@ -16,6 +16,7 @@ import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
   refusingMemberships,
@@ -160,6 +161,7 @@ function fixture(
   const app = buildApp({
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
     clock: testClock,
     appOrigin: oidc.appOrigin,
@@ -545,9 +547,15 @@ describe('OIDC browser routes', () => {
     expect(mutations.length).toBeGreaterThanOrEqual(10);
     for (const route of mutations) {
       const path = route.path.replace(/:[^/]+/g, 'test-id');
+      const body =
+        route.path === '/api/onboarding/organizations'
+          ? { name: 'Example' }
+          : route.path === '/api/onboarding/join-requests'
+            ? { organizationId: 'test-id' }
+            : {};
       const res = await f.app.handle(
         new Request(`https://dev.wbs.test${path}`, {
-          body: route.method === 'DELETE' ? undefined : '{}',
+          body: route.method === 'DELETE' ? undefined : JSON.stringify(body),
           headers: {
             'content-type': 'application/json',
             cookie: '__Host-wbs_access=reader-token',
