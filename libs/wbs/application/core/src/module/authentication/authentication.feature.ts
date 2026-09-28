@@ -72,6 +72,8 @@ export class AuthService {
 
   /** Verify a first-party password JWT and re-read its account; Auth0 tokens cannot pass. */
   async passwordSessionUser(token: string | null): Promise<User | null> {
+    // Proof: 2026-09-28, removing this policy check made `refuses link start and callback after password sessions are disabled` receive 302 at start.
+    if (this.opts.passwordSessions === false) return null;
     if (token === null) return null;
     const claims = await this.opts.tokens.verify(token);
     if (claims === null) return null;

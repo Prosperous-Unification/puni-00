@@ -169,6 +169,81 @@ describe('explicit Auth0 link', () => {
     check.close();
   });
 
+  it('refuses an IDNA-equivalent email owned by another account', async () => {
+    const db = openDatabase(path);
+    db.run("UPDATE users SET email = 'u@xn--bcher-kva.example' WHERE id = 'v'");
+    db.close();
+    const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
+    expect(
+      await store.linkPasswordIdentity(
+        'u',
+        {
+          issuer: 'https://idp.test',
+          subject: 'idna',
+          email: 'u@bücher.example',
+          emailVerified: true,
+        },
+        { at: 2, by: 'u' },
+      ),
+    ).toEqual({ kind: 'email_collision' });
+    const check = openDatabase(path);
+    expect(check.query('SELECT COUNT(*) AS count FROM external_identity').get()).toEqual({
+      count: 0,
+    });
+    check.close();
+  });
+
+  it('refuses a malformed provider email domain before inserting a mapping', async () => {
+    const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
+    expect(
+      await store.linkPasswordIdentity(
+        'u',
+        {
+          issuer: 'https://idp.test',
+          subject: 'bad',
+          email: 'u@site.example/path',
+          emailVerified: true,
+        },
+        { at: 2, by: 'u' },
+      ),
+    ).toEqual({ kind: 'unverified' });
+    const db = openDatabase(path);
+    expect(db.query('SELECT COUNT(*) AS count FROM external_identity').get()).toEqual({ count: 0 });
+    db.close();
+  });
+
+  it('rolls mapping insertion back when the email update aborts', async () => {
+    const db = openDatabase(path);
+    db.run(
+      "CREATE TRIGGER reject_link_email BEFORE UPDATE OF email ON users BEGIN SELECT RAISE(ABORT, 'email rejected'); END",
+    );
+    const before = db.query("SELECT * FROM users WHERE id = 'u'").get();
+    db.close();
+    const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
+    const failure = await store
+      .linkPasswordIdentity(
+        'u',
+        {
+          issuer: 'https://idp.test',
+          subject: 'rollback',
+          email: 'u@test.example',
+          emailVerified: true,
+        },
+        { at: 2, by: 'u' },
+      )
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+    expect(String(failure)).toContain('Failed query: update');
+    const check = openDatabase(path);
+    expect(check.query("SELECT * FROM users WHERE id = 'u'").get()).toEqual(before);
+    expect(check.query('SELECT COUNT(*) AS count FROM external_identity').get()).toEqual({
+      count: 0,
+    });
+    check.close();
+  });
+
   it('refuses unverified identity and an inactive marker without creating a mapping', async () => {
     const store = new ExternalIdentityRepository(openDrizzle(path), OPEN);
     expect(

@@ -2,11 +2,11 @@ import { createHash } from 'node:crypto';
 
 import { normalizeEmail, type OidcIdentity } from '@wbs/auth';
 import type { User, UserStore, WriteStamp } from '@wbs/core';
-import { isCanonicalDomain } from '@wbs/domain';
 import { and, eq, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnCreateBesidesCreatedAt, auditOnUpdate } from './audit';
+import { canonicalOidcEmail } from './canonical-oidc-email';
 import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
 import { ExternalIdentityRepository } from './external-identity';
 import type { Gate } from './gate';
@@ -415,27 +415,4 @@ function availableOidcUsername(
 
 function looksLikeEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-/** Rejects URL-shaped domains before normalizing an activated OIDC address to ASCII IDNA. */
-function canonicalOidcEmail(email: string | null): string | null {
-  if (email === null) return null;
-  const normalized = normalizeEmail(email);
-  if (normalized === null) return null;
-  const separator = normalized.lastIndexOf('@');
-  const mailbox = normalized.slice(0, separator);
-  const domain = normalized.slice(separator + 1);
-  // Proof: 2026-09-28, skipping this check made `does not route a URL-shaped
-  // callback email to a claimed organization` admit a path as a domain.
-  if (!/^[\p{L}\p{M}\p{N}.-]+$/u.test(domain)) return null;
-  let host: string;
-  try {
-    // Proof: 2026-09-28, retaining the Unicode domain here failed `stores
-    // activated OIDC domains in canonical ASCII IDNA form`.
-    host = new URL(`http://${domain}`).hostname;
-  } catch {
-    return null;
-  }
-  if (!isCanonicalDomain(host)) return null;
-  return `${mailbox}@${host}`;
 }

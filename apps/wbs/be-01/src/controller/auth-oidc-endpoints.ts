@@ -32,6 +32,8 @@ import {
 } from '../http/endpoint';
 import { cookiesIn, cookieValue } from '../middleware/authenticated';
 import type { AuthService } from '../service/auth.service';
+import type { LoginThrottle } from '../service/login-throttle';
+import { clientIpOf } from './auth-password-endpoints';
 import type { OidcRouteOptions } from './oidc-options';
 
 const reportable = new Set([
@@ -109,7 +111,11 @@ function linkCallbackFailure(
  * Browser OIDC bindings. Composition registers these only when OIDC options exist.
  * Exchange failures carry their owned classification; account and token-store failures remain throws.
  */
-export function authOidcEndpoints(auth: AuthService, options: OidcRouteOptions) {
+export function authOidcEndpoints(
+  auth: AuthService,
+  options: OidcRouteOptions,
+  passwordThrottle: LoginThrottle,
+) {
   const now = options.now ?? Date.now;
   const random = options.random ?? (() => randomBytes(32).toString('base64url'));
   const links = new InMemoryOidcLinkStore(now);
@@ -401,7 +407,25 @@ export function authOidcEndpoints(auth: AuthService, options: OidcRouteOptions) 
       if (!(await auth.isLinkActive()))
         return { ok: false, status: 403, body: { error: 'onboarding_inactive' } };
       const session = cookieValue(request.headers.get('cookie') ?? undefined, '__Host-wbs_access');
-      const user = await auth.provePasswordSession(session, body.password);
+      const account = await auth.passwordSessionUser(session);
+      // Proof: 2026-09-28, removing this refusal made `refuses a link start without a password session before throttle admission` receive 500 instead of 401.
+      if (account === null)
+        return { ok: false, status: 401, body: { error: 'invalid_credentials' } };
+      const throttleIp = clientIpOf(request.headers) ?? 'local-direct';
+      // Proof: 2026-09-28, bypassing reserve made `admits at most five held fresh-password verifications and releases capacity` observe six verifiers.
+      const release = passwordThrottle.reserve(account.username, throttleIp);
+      // Proof: 2026-09-28, removing the exhausted-capacity refusal made `admits at most five held fresh-password verifications and releases capacity` observe six verifiers.
+      if (release === null)
+        return { ok: false, status: 429, body: { error: 'invalid_credentials' } };
+      let user;
+      try {
+        user = await auth.provePasswordSession(session, body.password);
+        if (user === null) passwordThrottle.recordFailure(account.username, throttleIp);
+        else passwordThrottle.recordSuccess(account.username);
+      } finally {
+        // Proof: 2026-09-28, omitting release made `admits at most five held fresh-password verifications and releases capacity` and `releases fresh-password admission after verifier errors` receive 429 for the next start instead of 302.
+        release();
+      }
       // Proof: 2026-09-28, accepting an unmatched password made `refuses a wrong fresh password` redirect to Auth0.
       if (user === null || session === null)
         return { ok: false, status: 401, body: { error: 'invalid_credentials' } };
@@ -438,13 +462,14 @@ export function authOidcEndpoints(auth: AuthService, options: OidcRouteOptions) 
         );
         const state = sent.get('state');
         if (
-          binding === null ||
           state === null ||
           (sent.get('code') ?? '') === '' ||
           sent.has('error') ||
           OTHER_RESPONSE_MODE_PARAMS.some((name) => sent.has(name))
         )
           return { ok: false, status: 400, body: EMPTY };
+        // Proof: 2026-09-28, classifying an absent binding as malformed made `returns bodyless 401 for absent link cookie and 400 for malformed provider parameters` receive 400.
+        if (binding === null || session === null) return { ok: false, status: 401, body: EMPTY };
         const proof = links.consume(binding, state, session);
         // Proof: 2026-09-28, retaining the consumed transaction made `refuses a replayed link callback` answer 302 twice.
         if (proof === null) return { ok: false, status: 401, body: EMPTY };

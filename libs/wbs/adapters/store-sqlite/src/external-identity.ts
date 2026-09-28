@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
-import { normalizeEmail } from '@wbs/auth';
 import type { WriteStamp } from '@wbs/core';
 import { and, eq, isNotNull, or, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
-import { auditOnCreate } from './audit';
+import { auditOnCreate, auditOnUpdate } from './audit';
+import { canonicalOidcEmail } from './canonical-oidc-email';
 import type { Gate } from './gate';
 import { readOrganizationActivation } from './organization-activation';
 import { externalIdentity, users } from './schema';
@@ -55,13 +55,15 @@ export class ExternalIdentityRepository {
   ): Promise<PasswordIdentityLink> {
     return this.gate.enter(async () => {
       await Promise.resolve();
+      // Proof: 2026-09-28, replacing the transaction with direct writes made `rolls mapping insertion back when the email update aborts` leave one external_identity row after the update trigger aborted.
       return this.db.transaction(
         (tx): PasswordIdentityLink => {
-          // Proof: 2026-09-28, bypassing the transaction marker made `refuses unverified identity and an inactive marker without creating a mapping` receive linked.
+          // Proof: 2026-09-28, bypassing the activation check made `refuses unverified identity and an inactive marker without creating a mapping` receive linked while inactive.
           if (readOrganizationActivation(tx) !== 'activated') return { kind: 'inactive' };
           if (identity.issuer === '' || identity.subject === '')
             throw new Error('verified Auth0 identity has an empty pair');
-          const email = identity.email === null ? null : normalizeEmail(identity.email);
+          // Proof: 2026-09-28, using normalizeEmail here made `refuses an IDNA-equivalent email owned by another account` link and `refuses a malformed provider email domain before inserting a mapping` link.
+          const email = canonicalOidcEmail(identity.email);
           // Proof: 2026-09-28, accepting unverified email made the same store test receive linked.
           if (!identity.emailVerified || email === null) return { kind: 'unverified' };
           const account = tx
@@ -127,7 +129,7 @@ export class ExternalIdentityRepository {
               })
               .run();
           tx.update(users)
-            .set({ email, emailVerified: true, updatedAt: stamp.at })
+            .set({ email, emailVerified: true, ...auditOnUpdate(stamp) })
             .where(eq(users.id, userId))
             .run();
           return { kind: 'linked' };

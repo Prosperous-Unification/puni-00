@@ -65,6 +65,9 @@ describe('the OIDC callback after activation', () => {
     prompt?: 'login';
   } | null;
   let exchangeChecks: { nonce: string; state: string; verifier: string } | null;
+  let passwordVerifyHold: Promise<void> | null;
+  let passwordVerifications: number;
+  let passwordVerifyFault: boolean;
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-oidc-identity-'));
@@ -73,6 +76,9 @@ describe('the OIDC callback after activation', () => {
     exchanges = 0;
     linkAuthorization = null;
     exchangeChecks = null;
+    passwordVerifyHold = null;
+    passwordVerifications = 0;
+    passwordVerifyFault = false;
   });
 
   afterEach(() => {
@@ -149,7 +155,15 @@ describe('the OIDC callback after activation', () => {
       users,
       identities: users,
       tokens: joseTokenCodec(randomBytes(32).toString('base64url')),
-      passwords: bunPasswordHasher,
+      passwords: {
+        hash: (password) => bunPasswordHasher.hash(password),
+        verify: async (password, hash) => {
+          passwordVerifications++;
+          if (passwordVerifyFault) throw new Error('password verifier unavailable');
+          if (passwordVerifyHold !== null) await passwordVerifyHold;
+          return bunPasswordHasher.verify(password, hash);
+        },
+      },
       oidc: buildOidcVerifier(oidc.verifier, oidc),
       passwordSessions: true,
     });
@@ -157,7 +171,7 @@ describe('the OIDC callback after activation', () => {
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       onboarding: refusingOnboarding,
-      loginThrottle: testLoginThrottle(),
+      loginThrottle: testLoginThrottle(5),
       clock: testClock,
       appOrigin: oidc.appOrigin,
       auth,
@@ -338,6 +352,105 @@ describe('the OIDC callback after activation', () => {
     expect(all('SELECT * FROM external_identity')).toEqual([]);
   });
 
+  it('refuses a link start without a password session before throttle admission', async () => {
+    activate();
+    const app = mounted();
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/link/auth0', {
+        method: 'POST',
+        headers: { origin: 'https://dev.wbs.test', 'content-type': 'application/json' },
+        body: JSON.stringify({ password: 'fresh-password' }),
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(passwordVerifications).toBe(0);
+  });
+
+  it('refuses link start and callback after password sessions are disabled', async () => {
+    activate();
+    const app = mounted();
+    const registration = await auth.register('password_user', 'fresh-password');
+    if (!registration.ok) throw new Error('test registration refused');
+    const policy = auth as unknown as { opts: { passwordSessions: boolean } };
+    policy.opts.passwordSessions = false;
+    expect((await startLink(app, registration.value.token, 'fresh-password')).status).toBe(401);
+    policy.opts.passwordSessions = true;
+    const start = await startLink(app, registration.value.token, 'fresh-password');
+    expect(start.status).toBe(302);
+    policy.opts.passwordSessions = false;
+    expect((await linkCallback(app, start, registration.value.token)).status).toBe(401);
+    expect(all('SELECT * FROM external_identity')).toEqual([]);
+    expect(exchanges).toBe(0);
+  });
+
+  it('returns bodyless 401 for absent link cookie and 400 for malformed provider parameters', async () => {
+    activate();
+    const app = mounted();
+    const registration = await auth.register('password_user', 'fresh-password');
+    if (!registration.ok) throw new Error('test registration refused');
+    const start = await startLink(app, registration.value.token, 'fresh-password');
+    const state = new URL(start.headers.get('location') ?? 'https://invalid.test').searchParams.get(
+      'state',
+    );
+    if (state === null) throw new Error('link state missing');
+    const absent = await app.handle(
+      new Request(`https://dev.wbs.test/api/auth/link/auth0/callback?code=c&state=${state}`, {
+        headers: { cookie: `__Host-wbs_access=${registration.value.token}` },
+      }),
+    );
+    expect(absent.status).toBe(401);
+    expect(await absent.text()).toBe('');
+    const malformed = await app.handle(
+      new Request(`https://dev.wbs.test/api/auth/link/auth0/callback?state=${state}`, {
+        headers: { cookie: `__Host-wbs_access=${registration.value.token}` },
+      }),
+    );
+    expect(malformed.status).toBe(400);
+    expect(await malformed.text()).toBe('');
+    expect((await linkCallback(app, start, registration.value.token)).status).toBe(302);
+  });
+
+  it('admits at most five held fresh-password verifications and releases capacity', async () => {
+    activate();
+    const app = mounted();
+    const registration = await auth.register('password_user', 'fresh-password');
+    if (!registration.ok) throw new Error('test registration refused');
+    let releaseVerify: (() => void) | undefined;
+    passwordVerifyHold = new Promise<void>((resolve) => {
+      releaseVerify = resolve;
+    });
+    const held = Array.from({ length: 5 }, () =>
+      startLink(app, registration.value.token, 'fresh-password'),
+    );
+    for (let attempt = 0; attempt < 100 && passwordVerifications < 5; attempt++) await Bun.sleep(1);
+    expect(passwordVerifications).toBe(5);
+    const sixth = startLink(app, registration.value.token, 'fresh-password');
+    await Bun.sleep(20);
+    const admitted = passwordVerifications;
+    releaseVerify?.();
+    const refused = await sixth;
+    expect(admitted).toBe(5);
+    expect(refused.status).toBe(429);
+    expect((await Promise.all(held)).map((response) => response.status)).toEqual([
+      302, 302, 302, 302, 302,
+    ]);
+    passwordVerifyHold = null;
+    expect((await startLink(app, registration.value.token, 'fresh-password')).status).toBe(302);
+  });
+
+  it('releases fresh-password admission after verifier errors', async () => {
+    activate();
+    const app = mounted();
+    const registration = await auth.register('password_user', 'fresh-password');
+    if (!registration.ok) throw new Error('test registration refused');
+    passwordVerifyFault = true;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      expect((await startLink(app, registration.value.token, 'fresh-password')).status).toBe(500);
+    }
+    passwordVerifyFault = false;
+    expect((await startLink(app, registration.value.token, 'fresh-password')).status).toBe(302);
+  });
+
   it('refuses a swapped originating password session without changing either account', async () => {
     activate();
     const app = mounted();
@@ -443,6 +556,29 @@ describe('the OIDC callback after activation', () => {
     expect((await linkCallback(app, start, registration.value.token)).status).toBe(409);
     expect(all('SELECT * FROM users ORDER BY id')).toEqual(before);
     expect(all('SELECT user_id FROM external_identity')).toEqual([{ user_id: 'other' }]);
+  });
+
+  it('refuses a mounted link when another account owns the canonical IDNA email', async () => {
+    activate();
+    const app = mounted({ ...claims, email: 'u@bücher.example' });
+    const registration = await auth.register('password_user', 'fresh-password');
+    if (!registration.ok) throw new Error('test registration refused');
+    sql(
+      "INSERT INTO users (id, username, password_hash, email, created_at) VALUES ('other', 'other_user', 'hash', 'u@xn--bcher-kva.example', 1)",
+    );
+    const start = await startLink(app, registration.value.token, 'fresh-password');
+    expect((await linkCallback(app, start, registration.value.token)).status).toBe(409);
+    expect(all('SELECT * FROM external_identity')).toEqual([]);
+  });
+
+  it('refuses a mounted link with a URL-shaped provider email domain', async () => {
+    activate();
+    const app = mounted({ ...claims, email: 'u@site.example/path' });
+    const registration = await auth.register('password_user', 'fresh-password');
+    if (!registration.ok) throw new Error('test registration refused');
+    const start = await startLink(app, registration.value.token, 'fresh-password');
+    expect((await linkCallback(app, start, registration.value.token)).status).toBe(401);
+    expect(all('SELECT * FROM external_identity')).toEqual([]);
   });
 
   it('refuses a verified Auth0 email already held by another local user', async () => {

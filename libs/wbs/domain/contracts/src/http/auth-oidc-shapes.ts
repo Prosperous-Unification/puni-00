@@ -68,6 +68,7 @@ export const startAuth0Link = defineEndpointShape({
     malformed,
     invalidOrigin,
     { status: 401, schema: responseSchema(type({ error: "'invalid_credentials'" })) },
+    { status: 429, schema: responseSchema(type({ error: "'invalid_credentials'" })) },
     { status: 403, schema: responseSchema(type({ error: "'onboarding_inactive'" })) },
   ],
   document: { summary: 'Prove the password session and start an explicit Auth0 link.' },

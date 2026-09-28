@@ -260,7 +260,7 @@ export function mountedEndpoints(
     ...authPasswordEndpoints(opts.auth, opts.oidc, passwordThrottle),
     // Proof: removing this spread made app.routes.test.ts receive 40 bindings
     // instead of the 44 required by the OIDC composition.
-    ...(opts.oidc === undefined ? [] : authOidcEndpoints(opts.auth, opts.oidc)),
+    ...(opts.oidc === undefined ? [] : authOidcEndpoints(opts.auth, opts.oidc, passwordThrottle)),
     // Proof: omitting this binding made “binds each shared HTTP shape once”
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
