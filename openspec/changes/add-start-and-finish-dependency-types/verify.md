@@ -84,6 +84,8 @@ The full be-01 suite was attempted earlier in this slice: 1288 pass, 1 skip, 36 
 
 ## 2026-09-28 weighted Fast review fixes (uncommitted)
 
+## 2026-09-28 weighted Fast review fixes
+
 The weighted Fast path now checks a pinned person's actual interval, repeats person and pool searches during explanation, and searches with the tiled interval before reserving a resource. Invalid pinned pool intervals reach the actual-width slot replay refusal. The cyclic backward relaxation is a named production function so a synthetic positive cycle can directly exercise its refusal. All-FS dispatch remains on the original path; the Fast golden corpus and digest passed unchanged.
 
 Observed negatives, each with the fault restored and an adjacent `Proof:` comment in `schedule.ts`:
