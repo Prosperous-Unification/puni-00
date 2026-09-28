@@ -1,7 +1,27 @@
 import { leafDeadlinesOf, leafFloorsOf, SOLVER_QUANTUM } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import { deadlineUnitsOf, notBeforeUnitsOf } from './solver-units';
+import { deadlineUnitsOf, ffStartWeightUnits, notBeforeUnitsOf } from './solver-units';
+
+describe('ffStartWeightUnits', () => {
+  const slice = (days: number) => ({
+    workItemId: 'A',
+    stepId: null,
+    days,
+    width: 1,
+    personId: null,
+    poolIds: [],
+  });
+
+  it('ceilings a genuine tiny positive difference to one unit', () => {
+    expect(ffStartWeightUnits(slice(0.03 + 1e-12), slice(0.03))).toBe(1);
+  });
+
+  it('preserves the ceiling on both sides of a fractional unit boundary', () => {
+    expect(ffStartWeightUnits(slice(1 / 48 + 1e-12), slice(0))).toBe(2);
+    expect(ffStartWeightUnits(slice(1 / 48 - 1e-12), slice(0))).toBe(1);
+  });
+});
 
 describe('notBeforeUnitsOf', () => {
   it('converts a whole workday into units', () => {

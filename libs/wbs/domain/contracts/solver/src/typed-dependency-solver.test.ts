@@ -59,7 +59,7 @@ function requestFor(input: SolverRequestPlan) {
   );
   const built = buildSolverRequest(input, 'time', {
     baselineOffsets,
-    solverVersion: '0.1.3',
+    solverVersion: '0.1.4',
     budgetMs: 1_000,
   });
   if (!built.ok) throw new Error(`the request refused: ${JSON.stringify(built)}`);
@@ -80,6 +80,95 @@ const feasible = (offsets: Record<string, number>): SolverResponse => ({
 });
 
 describe('typed dependencies on the solver wire', () => {
+  it('keeps a tiny positive FF difference through the request and rejects equal starts', () => {
+    const input: SolverRequestPlan = {
+      rows: [row('A', null, 0), row('B', null, 1)],
+      edges: [],
+      slices: [
+        {
+          workItemId: 'A',
+          stepId: null,
+          days: 0.03 + 1e-12,
+          width: 1,
+          personId: null,
+          poolIds: [],
+        },
+        { workItemId: 'B', stepId: null, days: 0.03, width: 1, personId: null, poolIds: [] },
+      ],
+      notBefore: new Map(),
+      poolSizes: new Map(),
+      reach: 'whole-item',
+      deadlines: new Map(),
+      typed: [
+        {
+          id: 'ff',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+          type: 'FF',
+        },
+      ],
+    };
+    const request = requestFor(input);
+    expect(request.edges).toContainEqual({
+      predecessorKey: 'A\u0000',
+      successorKey: 'B\u0000',
+      type: 'FF',
+      startWeightUnits: 1,
+    });
+    expect(request.baselineOffsets['B\u0000']).toBeGreaterThanOrEqual(
+      request.baselineOffsets['A\u0000'] + 1,
+    );
+    const checked = revalidateSolverResult(
+      request,
+      feasible({ 'A\u0000': 0, 'B\u0000': 0 }),
+      input.slices,
+      input,
+    );
+    expect(checked).toMatchObject({ ok: false, failure: 'edge-violated' });
+  });
+
+  it('round-trips both sides of a fractional FF unit boundary through materialization', () => {
+    for (const [days, weight] of [
+      [1 / 48 - 1e-12, 1],
+      [1 / 48 + 1e-12, 2],
+    ] as const) {
+      const input: SolverRequestPlan = {
+        rows: [row('A', null, 0), row('B', null, 1)],
+        edges: [],
+        slices: [
+          { workItemId: 'A', stepId: null, days, width: 1, personId: null, poolIds: [] },
+          { workItemId: 'B', stepId: null, days: 0, width: 1, personId: null, poolIds: [] },
+        ],
+        notBefore: new Map(),
+        poolSizes: new Map(),
+        reach: 'whole-item',
+        deadlines: new Map(),
+        typed: [
+          {
+            id: 'ff',
+            predecessor: { scope: 'whole', workItemId: 'A' },
+            successor: { scope: 'whole', workItemId: 'B' },
+            type: 'FF',
+          },
+        ],
+      };
+      const request = requestFor(input);
+      expect(request.edges[0]).toMatchObject({ type: 'FF', startWeightUnits: weight });
+      const materialized = materialiseOptimized(
+        input.rows,
+        input.edges,
+        input.slices,
+        input.notBefore,
+        input.poolSizes,
+        input.reach,
+        input.typed,
+        request.baselineOffsets,
+      );
+      expect(materialized.slices.get('B\u0000')?.earliestStart).toBe(
+        request.baselineOffsets['B\u0000'] / 48,
+      );
+    }
+  });
   /**
    * Proof: `buildSolverRequest` handing `buildSolverEdges` an empty typed list
    * made this case fail on the two authored edges missing from the wire;

@@ -101,7 +101,7 @@
         },
         "durationUnits": {
           "$ref": "#/$defs/safeInteger",
-          "$comment": "units. ceil(duration(s) × quantum) with duration(s) computed by Fast's exact rule: ASSUMED_SLICE_WORKDAYS for a null days WITHOUT dividing by width, days / width otherwise WITHOUT snapWorkdays. Rounded UP, never down, so every quantised solution stays feasible in the real domain. Zero is legal: an explicit zero duration is a real plan state."
+          "$comment": "units. ceil(duration(s) × quantum) with duration(s) computed by Fast's exact rule: zero for null days, days / width otherwise; durationUnits applies its documented snap before ceiling. Rounded UP, never down, so every quantised solution stays feasible in the real domain. Zero is legal: an explicit zero duration is a real plan state."
         },
         "width": {
           "type": "integer",

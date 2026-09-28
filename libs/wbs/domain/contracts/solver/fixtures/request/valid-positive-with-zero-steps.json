@@ -7,7 +7,7 @@
     "work\u0000trailing": 96
   },
   "budgetMs": 30000,
-  "contractVersion": "14+0.1.3",
+  "contractVersion": "14+0.1.4",
   "edges": [
     { "predecessorKey": "work\u0000leading", "successorKey": "work\u0000dev", "type": "FS" },
     { "predecessorKey": "work\u0000dev", "successorKey": "work\u0000interior", "type": "FS" },
@@ -87,7 +87,7 @@
       "width": 1
     }
   ],
-  "solverVersion": "0.1.3",
+  "solverVersion": "0.1.4",
   "stageBudgetSplit": [0.6, 0.25, 0.15],
   "wireVersion": 2
 }

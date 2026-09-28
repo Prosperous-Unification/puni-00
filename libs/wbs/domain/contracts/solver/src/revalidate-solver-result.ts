@@ -392,8 +392,10 @@ export const revalidateSolverResult = (
         return refuse('malformed-request', 'FF edge has no canonical real slices');
       }
       const expected = ffStartWeightUnits(predecessor, successor);
-      // Proof: disabling this comparison accepted forged zero weight on the
-      // 0.030/0.021 pair; focused revalidation observed 47 pass / 1 fail.
+      // Proof (without canonicalInput): disabling this comparison accepted
+      // forged zero on the 0.030/0.021 pair. With canonicalInput, both this
+      // and the edge signature's weight were disabled: the focused production
+      // negative failed (expected false, received true).
       if (!Number.isSafeInteger(edge.startWeightUnits) || edge.startWeightUnits !== expected) {
         return refuse(
           'malformed-request',
