@@ -27,14 +27,23 @@ export class DnsLookupRefused extends Error {
 }
 
 const TXT = 16;
+const CNAME = 5;
 const NOERROR = 0;
 const NXDOMAIN = 3;
+/** The only TXT records compared across resolvers and returned. */
+const PROOF_PREFIX = 'wbs-domain-verification=';
 
 const DohAnswer = type({
   Status: 'number.integer',
   'TC?': 'boolean',
-  'Answer?': type({ type: 'number.integer', data: 'string' }).array(),
+  Question: type({ name: 'string', type: 'number.integer' }).array(),
+  'Answer?': type({ name: 'string', type: 'number.integer', data: 'string' }).array(),
 });
+
+/** DNS names compare case-insensitively and with or without the root dot. */
+function sameName(left: string, right: string): boolean {
+  return left.replace(/\.$/, '').toLowerCase() === right.replace(/\.$/, '').toLowerCase();
+}
 
 /**
  * DNS TXT presentation data: one or more quoted character-strings joined into
@@ -92,7 +101,14 @@ async function queryTxt(
   url.searchParams.set('type', 'TXT');
   let response: Response;
   try {
-    response = await fetchTxt(url, { headers: { accept: 'application/dns-json' }, signal });
+    // Proof: 2026-09-29, dropping `redirect: 'error'` made `asks both public
+    // resolvers for TXT records and returns their agreed proof records` see an
+    // undefined redirect mode; a redirect must not move the lookup to another host.
+    response = await fetchTxt(url, {
+      headers: { accept: 'application/dns-json' },
+      redirect: 'error',
+      signal,
+    });
   } catch (error) {
     throw new DnsLookupRefused('resolver_failed', `${url.host} did not answer`, { cause: error });
   }
@@ -126,11 +142,33 @@ async function queryTxt(
       'resolver_failed',
       `${url.host} answered status ${String(parsed.Status)}${parsed.TC === true ? ' truncated' : ''}`,
     );
+  // Proof: 2026-09-29, deleting this question check made `refuses an answer to
+  // a question it did not ask` fail its reason list for the foreign question.
+  // A missing `Question` is refused by the schema above.
+  const question = parsed.Question.length === 1 ? parsed.Question[0] : null;
+  if (question?.type !== TXT || !sameName(question.name, name))
+    throw new DnsLookupRefused('malformed_answer', `${url.host} answered another question`);
+  const answers = parsed.Answer ?? [];
+  const chain = [name];
+  for (const record of answers)
+    if (record.type === CNAME && chain.some((owner) => sameName(owner, record.name)))
+      chain.push(record.data);
   try {
-    return (parsed.Answer ?? [])
-      .filter((record) => record.type === TXT)
-      .map((record) => decodeTxt(record.data))
-      .sort();
+    return (
+      answers
+        // Proof: 2026-09-29, accepting TXT at any answer name made `joins
+        // multi-string TXT data, decodes escapes and follows only the asked
+        // CNAME chain` include the `unrelated.example.net.` record.
+        .filter(
+          (record) => record.type === TXT && chain.some((owner) => sameName(owner, record.name)),
+        )
+        .map((record) => decodeTxt(record.data))
+        // Proof: 2026-09-29, comparing every TXT record made `asks both public
+        // resolvers for TXT records and returns their agreed proof records`
+        // fail over resolvers holding different foreign SPF and site records.
+        .filter((text) => text.startsWith(PROOF_PREFIX))
+        .sort()
+    );
   } catch (error) {
     throw new DnsLookupRefused('malformed_answer', `${url.host} answered malformed TXT data`, {
       cause: error,
@@ -140,7 +178,10 @@ async function queryTxt(
 
 /**
  * A production {@link DomainResolver} over DNS-over-HTTPS that trusts an answer
- * only when both {@link PUBLIC_DOH_RESOLVERS} return the same TXT multiset.
+ * only when both {@link PUBLIC_DOH_RESOLVERS} return the same multiset of WBS
+ * proof records: TXT starting `wbs-domain-verification=` at the asked name or
+ * its CNAME chain. Other TXT records are ignored, so their TTL skew cannot
+ * refuse a lookup. Redirects are refused.
  *
  * Both are queried in parallel under the caller's signal. A failure,
  * malformed answer or disagreement from either rejects with

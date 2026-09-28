@@ -35,18 +35,32 @@ export interface DomainProofScheduleOptions {
 export class DomainProofSchedule {
   private cancel: (() => void) | null = null;
   private inFlight: Promise<void> | null = null;
+  private stopping = new AbortController();
 
   constructor(private readonly opts: DomainProofScheduleOptions) {}
 
+  /**
+   * Runs one check now and then every interval. The immediate run matters: a
+   * blue/green backend restarted more often than the interval would otherwise
+   * never check at all.
+   */
   start(): void {
     if (this.cancel !== null) return;
+    this.stopping = new AbortController();
     this.cancel = this.opts.intervals.every(this.opts.intervalMs, () => {
-      // Proof: 2026-09-28, removing this guard made `drops a tick while a run
-      // is in flight and stop waits for that run` observe two reads.
-      if (this.inFlight !== null) return;
-      this.inFlight = this.run().finally(() => {
-        this.inFlight = null;
-      });
+      this.tick();
+    });
+    // Proof: 2026-09-29, deleting this immediate tick made `checks once at
+    // start, without waiting a whole interval` observe no read.
+    this.tick();
+  }
+
+  private tick(): void {
+    // Proof: 2026-09-28, removing this guard made `drops a tick while a run
+    // is in flight and stop waits for that run` observe two reads.
+    if (this.inFlight !== null) return;
+    this.inFlight = this.run().finally(() => {
+      this.inFlight = null;
     });
   }
 
@@ -54,12 +68,19 @@ export class DomainProofSchedule {
     return this.cancel !== null;
   }
 
-  /** Cancels the schedule and waits for a run already in flight. */
+  /**
+   * Cancels the schedule and waits for a run already in flight. The run ends
+   * before its next proof, so the wait is bounded by one five-second lookup
+   * and its commit.
+   */
   async stop(): Promise<void> {
     if (this.cancel !== null) {
       this.cancel();
       this.cancel = null;
     }
+    // Proof: 2026-09-29, deleting this abort made `stops between proofs
+    // instead of finishing every due proof` finish both proofs.
+    this.stopping.abort();
     // Proof: 2026-09-28, returning without this wait made `drops a tick while
     // a run is in flight and stop waits for that run` find the run unfinished.
     await this.inFlight;
@@ -69,7 +90,12 @@ export class DomainProofSchedule {
     try {
       // Awaited before the optional call: `onChecked?.(await …)` skips its
       // argument, and so the whole run, when no reporter is given.
-      const counts = await checkDomainProofs(this.opts.checks, this.opts.now(), this.opts.now);
+      const counts = await checkDomainProofs(
+        this.opts.checks,
+        this.opts.now(),
+        this.opts.now,
+        this.stopping.signal,
+      );
       this.opts.onChecked?.(counts);
     } catch (error) {
       // Reported and the schedule kept: one failed run is a locked database or

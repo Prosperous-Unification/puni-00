@@ -57,11 +57,15 @@ describe('DomainProofSchedule', () => {
     schedule.start();
     schedule.start();
     expect([schedule.isRunning(), clock.scheduled()]).toEqual([true, 1]);
+    await Bun.sleep(0);
     clock.tick();
     await schedule.stop();
 
-    expect(reads).toEqual([1_000]);
-    expect(reports).toEqual([{ checked: 0, stale: 0 }]);
+    expect(reads).toEqual([1_000, 1_000]);
+    expect(reports).toEqual([
+      { checked: 0, stale: 0 },
+      { checked: 0, stale: 0 },
+    ]);
     expect([schedule.isRunning(), clock.cancelled()]).toEqual([false, 1]);
   });
 
@@ -76,13 +80,14 @@ describe('DomainProofSchedule', () => {
       onError: (error) => errors.push(error),
     });
     schedule.start();
+    await Bun.sleep(0);
     clock.tick();
-    await Promise.resolve();
-    await Promise.resolve();
+    await Bun.sleep(0);
     expect(schedule.isRunning()).toBe(true);
     await schedule.stop();
 
     expect(errors.map((error) => (error instanceof Error ? error.message : error))).toEqual([
+      'corrupt retained proof',
       'corrupt retained proof',
     ]);
   });
@@ -117,5 +122,70 @@ describe('DomainProofSchedule', () => {
     await stopped;
 
     expect(finished).toBe(true);
+  });
+
+  it('checks once at start, without waiting a whole interval', async () => {
+    const clock = manualIntervals();
+    const reads: number[] = [];
+    const schedule = new DomainProofSchedule({
+      checks: checksReading((at) => {
+        reads.push(at);
+        return Promise.resolve([]);
+      }),
+      intervals: clock.intervals,
+      intervalMs: 3_600_000,
+      now: () => 1_000,
+      onError: (error) => {
+        throw error;
+      },
+    });
+    schedule.start();
+    await schedule.stop();
+
+    expect(reads).toEqual([1_000]);
+  });
+
+  it('stops between proofs instead of finishing every due proof', async () => {
+    const clock = manualIntervals();
+    const looked = Promise.withResolvers<undefined>();
+    const answer = Promise.withResolvers<readonly string[]>();
+    const finished: string[] = [];
+    const proof = (id: string) => ({
+      id,
+      organizationId: 'org-a',
+      domain: `${id}.example.org`,
+      proofDigest: 'a'.repeat(64),
+      previousProofDigest: null,
+      previousProofValidUntil: null,
+      lastCheckedAt: 0,
+    });
+    const schedule = new DomainProofSchedule({
+      checks: {
+        resolver: {
+          lookupTxt: () => {
+            looked.resolve(undefined);
+            return answer.promise;
+          },
+        },
+        readDueProofs: () => Promise.resolve([proof('first'), proof('second')]),
+        finishProofCheck: (checked) => {
+          finished.push(checked.id);
+          return Promise.resolve('checked');
+        },
+      },
+      intervals: clock.intervals,
+      intervalMs: 3_600_000,
+      now: () => 1_000,
+      onError: (error) => {
+        throw error;
+      },
+    });
+    schedule.start();
+    await looked.promise;
+    const stopped = schedule.stop();
+    answer.resolve([]);
+    await stopped;
+
+    expect(finished).toEqual(['first']);
   });
 });

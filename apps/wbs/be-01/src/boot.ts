@@ -328,7 +328,7 @@ export async function bootBe01(
                 checks: domains,
                 intervals: systemInterval,
                 intervalMs: opts.domainProofIntervalMs,
-                now: Date.now,
+                now: () => services.clock.now(),
                 onChecked: (counts) => {
                   opts.logger.info(counts, 'domain proofs checked');
                 },
