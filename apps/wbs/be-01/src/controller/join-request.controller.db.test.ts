@@ -63,6 +63,36 @@ describe('organization join request decisions', () => {
     ).toEqual({ status: 200, body: { membership: { organizationId: 'org', role: 'viewer' } } });
   });
 
+  it('approves a mixed-case internationalized applicant with a byte-exact invitation', async () => {
+    harness.activate();
+    harness.sqlite.run(
+      "UPDATE users SET email = 'Applicant@xn--bcher-kva.example', email_verified = 1 WHERE id = ?",
+      [harness.userId('applicant')],
+    );
+    harness.sqlite.run(
+      "UPDATE organization_domain_claim SET domain = 'xn--bcher-kva.example' WHERE id = 'claim'",
+    );
+    const submitted = await harness.call('applicant', 'POST', '/api/onboarding/join-requests', {
+      organizationId: 'org',
+    });
+    expect(submitted.status).toBe(201);
+    const id = (submitted.body as { request: { id: string } }).request.id;
+    expect(
+      (
+        await harness.call('owner', 'POST', `/api/organization/join-requests/${id}/approve`, {
+          role: 'viewer',
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      harness.sqlite.query('SELECT recipient_email FROM organization_invitation').get(),
+    ).toEqual({ recipient_email: 'Applicant@xn--bcher-kva.example' });
+    const token = harness.deliveredEmailToken('Applicant@xn--bcher-kva.example');
+    expect(
+      await harness.call('applicant', 'POST', '/api/onboarding/invitations/accept', { token }),
+    ).toEqual({ status: 200, body: { membership: { organizationId: 'org', role: 'viewer' } } });
+  });
+
   it('rejects an admin approval role at the HTTP boundary', async () => {
     harness.activate();
     const id = await submit();

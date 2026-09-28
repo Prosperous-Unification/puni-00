@@ -48,11 +48,13 @@ export class EmailVerificationRepository implements EmailVerification {
               return { ok: false, refusal: 'password_account_required' };
             // Proof: 2026-09-28, querying another address or omitting lower()
             // separately failed `refuses failed delivery and address conflict without verifying either account`.
+            // Proof: 2026-09-28, omitting lower() on the submitted address made
+            // `refuses a case variant of an address another account holds` issue 201.
             if (
               tx
                 .select({ id: users.id })
                 .from(users)
-                .where(and(sql`lower(${users.email}) = ${email}`, ne(users.id, userId)))
+                .where(and(sql`lower(${users.email}) = lower(${email})`, ne(users.id, userId)))
                 .get() !== undefined
             )
               return { ok: false, refusal: 'address_conflict' };
@@ -158,11 +160,16 @@ export class EmailVerificationRepository implements EmailVerification {
               return { ok: false, refusal: 'challenge_invalid' };
             // Proof: 2026-09-28, bypassing this collision read or omitting
             // lower() failed `rechecks address ownership when confirming after another account adopts it`.
+            // Proof: 2026-09-28, omitting lower() on the challenge address made
+            // `refuses a case variant of an address another account holds` hit
+            // the users_email_normalized index (500, not 409).
             if (
               tx
                 .select({ id: users.id })
                 .from(users)
-                .where(and(sql`lower(${users.email}) = ${challenge.email}`, ne(users.id, userId)))
+                .where(
+                  and(sql`lower(${users.email}) = lower(${challenge.email})`, ne(users.id, userId)),
+                )
                 .get() !== undefined
             )
               return { ok: false, refusal: 'address_conflict' };

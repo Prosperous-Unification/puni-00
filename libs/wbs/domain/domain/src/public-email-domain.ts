@@ -25,6 +25,34 @@ export function isCanonicalDomain(domain: string): boolean {
 }
 
 /**
+ * Turns a submitted host into the one exact DNS name domain claims and email
+ * addresses share, or `null` when it is not a DNS name.
+ *
+ * Mapping is the WHATWG URL host parser's UTS #46 processing: non-transitional
+ * (`faß.de` becomes `xn--fa-hia.de`, not `fass.de`), NFC, width and case
+ * folded, punycoded to lowercase A-labels. The parser skips STD3 and hyphen
+ * checks and decodes `%` escapes, so URL delimiters, `%` and `\` are refused
+ * before it runs and {@link isCanonicalDomain} judges what it returns. One
+ * trailing dot is dropped; IPv4 literals and single ASCII labels are refused.
+ */
+export function canonicalDomain(submitted: string): string | null {
+  const raw = submitted.trim().replace(/\.$/, '');
+  // Proof: 2026-09-28, allowing `%` or `\\` separately made mounted
+  // `canonicalizes exact IDNA names and refuses malformed, provider, relay and
+  // suffix domains` accept a rewritten host with 201 instead of 400. Re-observed
+  // after the move here: allowing `%` made that test answer 201 and
+  // `refuses invalid IDNA labels, addresses and URL-shaped input` return example.com.
+  if (!/^[^\s:/?#@%\\]+$/.test(raw)) return null;
+  const host = URL.parse(`http://${raw}`)?.hostname;
+  if (host === undefined) return null;
+  if (/^\d+(?:\.\d+){3}$/.test(host) || (host === raw && !host.includes('.'))) return null;
+  // Proof: 2026-09-28, returning the parsed host unjudged made `refuses invalid
+  // IDNA labels, addresses and URL-shaped input` return -bad.example and mounted
+  // `rejects malformed addresses at both HTTP boundaries` issue 201.
+  return isCanonicalDomain(host) ? host : null;
+}
+
+/**
  * Whether an organization may ever claim `domain` as its own (tasks 5.x) and
  * route sign-ups by it (4.3). Never for a public mailbox provider, a public
  * suffix or a top-level domain, whose addresses belong to no organization.

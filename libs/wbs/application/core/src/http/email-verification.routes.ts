@@ -1,9 +1,11 @@
 import { confirmEmailChallenge, createEmailChallenge } from '@wbs/contracts';
+import { canonicalEmailAddress } from '@wbs/domain';
 
 import type { Clock } from '../ports/clock';
 import type { EmailDelivery } from '../ports/email-delivery';
 import type { EmailVerification } from '../ports/email-verification';
 import type { Digest } from '../ports/runtime';
+import { refusedAddress } from './email-address-refusal';
 import { bind, type HttpReply } from './endpoint';
 
 /** Creates a 256-bit opaque token; the injected digest port hashes it for storage. */
@@ -27,16 +29,9 @@ export function emailVerificationRoutes(
         // Proof: 2026-09-28, bypassing this guard failed `refuses delegated onboarding discovery and writes` on challenge issuance.
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
-        const address = body.email.trim();
-        // Proof: 2026-09-28, `rejects malformed addresses at both HTTP boundaries`
-        // received 201 when K was lowercased before this ASCII check.
-        if (
-          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address) ||
-          !/^[\x21-\x7e]+$/.test(address) ||
-          address.length > 254
-        )
-          return { ok: false, status: 400, body: { error: 'invalid_body' } };
-        const email = address.toLowerCase();
+        const canonical = canonicalEmailAddress(body.email);
+        if (!canonical.ok) return refusedAddress(canonical.refusal);
+        const email = canonical.address;
         const token = createToken();
         // Proof: 2026-09-28, storing the raw token failed `keeps the password account ID after a delivered single-use challenge`.
         const answer = await verification.issue(
@@ -74,16 +69,9 @@ export function emailVerificationRoutes(
         // Proof: 2026-09-28, bypassing this guard failed `refuses delegated onboarding discovery and writes` on confirmation.
         if (principal.delegation !== undefined)
           return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
-        const address = body.email.trim();
-        // Proof: 2026-09-28, `rejects malformed addresses at both HTTP boundaries`
-        // failed with 409 rather than 400 when the ASCII check was removed.
-        if (
-          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address) ||
-          !/^[\x21-\x7e]+$/.test(address) ||
-          address.length > 254
-        )
-          return { ok: false, status: 400, body: { error: 'invalid_body' } };
-        const email = address.toLowerCase();
+        const canonical = canonicalEmailAddress(body.email);
+        if (!canonical.ok) return refusedAddress(canonical.refusal);
+        const email = canonical.address;
         const answer = await verification.confirm(
           principal.id,
           email,

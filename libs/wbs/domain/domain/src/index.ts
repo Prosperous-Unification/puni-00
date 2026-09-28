@@ -19,9 +19,12 @@ export * from './contract-version';
 export * from './derive-numbers';
 // `effective-label` is deliberately absent: it is the walk the three dimensions
 // share, not a fourth thing to read a plan with.
+// The stored and delivered form of an address, sharing `canonicalDomain` with
+// domain claims so an address and a claim name one domain one way.
 export * from './effective-service';
 export * from './effective-tag';
 export * from './effective-team';
+export * from './email-address';
 export * from './estimate';
 export * from './external-system';
 // The eight Fast cases, published rather than left in a `.test.ts` because

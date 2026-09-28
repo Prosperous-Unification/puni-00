@@ -4,12 +4,14 @@ import {
   listInvitations,
   revokeInvitation,
 } from '@wbs/contracts';
+import { canonicalEmailAddress } from '@wbs/domain';
 
 import type { Clock } from '../ports/clock';
 import type { EmailDelivery } from '../ports/email-delivery';
 import type { Invitation, InvitationRefusal } from '../ports/invitation';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Digest } from '../ports/runtime';
+import { refusedAddress } from './email-address-refusal';
 import { bind, EMPTY, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 
@@ -73,14 +75,11 @@ export function invitationRoutes(
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
-        const email = body.email.trim().toLowerCase();
-        // Proof: 2026-09-28, bypassing syntax, ASCII and 254-byte checks separately failed `rejects malformed recipient addresses and a super-admin offer`.
-        if (
-          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-          !/^[\x21-\x7e]+$/.test(email) ||
-          email.length > 254
-        )
-          return { ok: false, status: 400, body: { error: 'invalid_body' } };
+        const canonical = canonicalEmailAddress(body.email);
+        // Proof: 2026-09-28, bypassing this refusal made mounted `rejects
+        // malformed recipient addresses and a super-admin offer` issue 201.
+        if (!canonical.ok) return refusedAddress(canonical.refusal);
+        const email = canonical.address;
         const token = createToken();
         const now = clock.now();
         const answer = await invitations.issue(

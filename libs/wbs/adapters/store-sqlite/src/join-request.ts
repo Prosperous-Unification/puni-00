@@ -1,5 +1,5 @@
 import type { JoinRequest, JoinRequestAnswer, JoinRequestSummary, WriteStamp } from '@wbs/core';
-import { JOIN_REQUEST_STATUSES, mayInvite, ORGANIZATION_ROLES } from '@wbs/domain';
+import { isSameMailbox, JOIN_REQUEST_STATUSES, mayInvite, ORGANIZATION_ROLES } from '@wbs/domain';
 import { and, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -123,11 +123,14 @@ export class JoinRequestRepository implements JoinRequest {
               .get();
             if (account === undefined)
               throw new Error(`join request user ${request.userId} is absent`);
-            const email = account.email?.toLowerCase();
+            const email = account.email;
             // Proof: 2026-09-28, bypassing current-email/verification failed `refuses a changed or unverified applicant`.
-            if (!account.verified || email === undefined || email !== request.email)
+            // Proof: 2026-09-28, lowercasing only the stored address made mounted
+            // `approves a mixed-case internationalized applicant with a
+            // byte-exact invitation` answer 409 rather than 200.
+            if (!account.verified || email === null || !isSameMailbox(email, request.email))
               return { ok: false, refusal: 'domain_changed' };
-            const parts = email.split('@');
+            const parts = email.toLowerCase().split('@');
             // Proof: 2026-09-28, treating a malformed trusted address as `domain_changed` failed `throws for a malformed trusted verified address`.
             if (parts.length !== 2 || parts[0]?.length === 0 || parts[1]?.length === 0)
               throw new Error(`verified user ${request.userId} has malformed email`);

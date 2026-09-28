@@ -47,13 +47,13 @@ describe('organization invitations', () => {
         })
       ).status,
     ).toBe(201);
-    const token = harness.deliveredEmailToken('recipient@example.org');
+    const token = harness.deliveredEmailToken('RECIPIENT@example.org');
     expect(
       harness.sqlite
         .query('SELECT recipient_email, token_digest FROM organization_invitation')
         .get(),
     ).toEqual({
-      recipient_email: 'recipient@example.org',
+      recipient_email: 'RECIPIENT@example.org',
       token_digest: createHash('sha256').update(token).digest('hex'),
     });
     expect(
@@ -267,7 +267,12 @@ describe('organization invitations', () => {
 
   it('rejects malformed recipient addresses and a super-admin offer', async () => {
     harness.activate();
-    for (const email of ['missing-at', 'étienne@example.org', `${'a'.repeat(250)}@x.org`]) {
+    for (const email of [
+      'missing-at',
+      `${'a'.repeat(250)}@x.org`,
+      'recipient@xn--a.example',
+      'recipient@-bad.example',
+    ]) {
       expect(
         await harness.call('owner', 'POST', '/api/organization/invitations', {
           email,
@@ -275,6 +280,13 @@ describe('organization invitations', () => {
         }),
       ).toEqual({ status: 400, body: { error: 'invalid_body' } });
     }
+    for (const email of ['étienne@example.org', '用户@example.org'])
+      expect(
+        await harness.call('owner', 'POST', '/api/organization/invitations', {
+          email,
+          role: 'viewer',
+        }),
+      ).toEqual({ status: 400, body: { error: 'unsupported_email' } });
     expect(
       await harness.call('owner', 'POST', '/api/organization/invitations', {
         email: 'recipient@example.org',
@@ -282,6 +294,29 @@ describe('organization invitations', () => {
       }),
     ).toEqual({ status: 400, body: { error: 'invalid_body' } });
     expect(harness.sqlite.query('SELECT id FROM organization_invitation').all()).toHaveLength(0);
+  });
+
+  it('invites an internationalized domain byte-exact and accepts its case-variant recipient', async () => {
+    harness.activate();
+    harness.sqlite.run(
+      "UPDATE users SET email = 'recipient@xn--bcher-kva.example', email_verified = 1 WHERE id = ?",
+      [harness.userId('recipient')],
+    );
+    expect(
+      (
+        await harness.call('owner', 'POST', '/api/organization/invitations', {
+          email: 'Recipient@Bücher.example',
+          role: 'member',
+        })
+      ).status,
+    ).toBe(201);
+    const token = harness.deliveredEmailToken('Recipient@xn--bcher-kva.example');
+    expect(
+      harness.sqlite.query('SELECT recipient_email FROM organization_invitation').get(),
+    ).toEqual({ recipient_email: 'Recipient@xn--bcher-kva.example' });
+    expect(
+      await harness.call('recipient', 'POST', '/api/onboarding/invitations/accept', { token }),
+    ).toEqual({ status: 200, body: { membership: { organizationId: 'org', role: 'member' } } });
   });
 
   it('limits listing and revocation to the current administrator role', async () => {

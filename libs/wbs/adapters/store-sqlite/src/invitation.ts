@@ -1,5 +1,5 @@
 import type { Invitation, InvitationAnswer, InvitationSummary, WriteStamp } from '@wbs/core';
-import { mayInvite, ORGANIZATION_ROLES, type OrganizationRole } from '@wbs/domain';
+import { isSameMailbox, mayInvite, ORGANIZATION_ROLES, type OrganizationRole } from '@wbs/domain';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
@@ -223,7 +223,10 @@ export class InvitationRepository implements Invitation {
             // Proof: 2026-09-28, bypassing verified/current-email checks failed `refuses an unverified or changed recipient without consuming`.
             if (!account.verified || account.email === null)
               return { ok: false, refusal: 'email_verification_required' };
-            if (account.email.toLowerCase() !== invitation.recipientEmail)
+            // Proof: 2026-09-28, lowercasing only the account address made
+            // mounted `invites an internationalized domain byte-exact and
+            // accepts its case-variant recipient` answer 403 recipient_mismatch.
+            if (!isSameMailbox(account.email, invitation.recipientEmail))
               return { ok: false, refusal: 'recipient_mismatch' };
             const existing = tx
               .select({ role: organizationMembership.role })

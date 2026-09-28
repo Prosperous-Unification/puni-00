@@ -31,6 +31,13 @@ const common = [
     schema: responseSchema(type({ error: "'onboarding_inactive' | 'insufficient_scope'" })),
   },
 ] as const;
+// Proof: 2026-09-28, dropping it from both challenge endpoints made mounted
+// `rejects malformed addresses at both HTTP boundaries` receive 500 for the
+// undeclared refusal.
+const unsupportedEmail = {
+  status: 400,
+  schema: responseSchema(type({ error: "'unsupported_email'" })),
+} as const;
 const writeRefusals = [
   { status: 400, schema: responseSchema(type({ error: "'invalid_json' | 'invalid_body'" })) },
   {
@@ -105,7 +112,10 @@ export const submitOnboardingJoinRequest = defineEndpointShape({
   document: { summary: 'Request membership in the matching organization.' },
 });
 
-/** Requests a password account's address challenge through an injected mail sink. */
+/**
+ * Requests a password account's address challenge through an injected mail sink.
+ * An address whose local part needs SMTPUTF8 answers 400 `unsupported_email`.
+ */
 export const createEmailChallenge = defineEndpointShape({
   method: 'POST',
   path: '/api/onboarding/email-challenges',
@@ -115,6 +125,7 @@ export const createEmailChallenge = defineEndpointShape({
   responses: [{ kind: 'json', status: 201, schema: responseSchema(type({ expiresAt: 'number' })) }],
   refusals: [
     ...common,
+    unsupportedEmail,
     {
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'password_account_required'" })),
@@ -141,6 +152,7 @@ export const confirmEmailChallenge = defineEndpointShape({
   ],
   refusals: [
     ...common,
+    unsupportedEmail,
     {
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'password_account_required'" })),

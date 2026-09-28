@@ -172,6 +172,33 @@ describe('onboarding routes', () => {
     });
   });
 
+  it('routes an internationalized verified address to the A-label domain claim', async () => {
+    harness.activate();
+    claim('xn--bcher-kva.example');
+    await harness.call('ada', 'POST', '/api/onboarding/email-challenges', {
+      email: 'Ada@Bücher.example',
+    });
+    expect(
+      (
+        await harness.call('ada', 'POST', '/api/onboarding/email-challenges/confirm', {
+          email: 'Ada@Bücher.example',
+          token: harness.deliveredEmailToken('Ada@xn--bcher-kva.example'),
+        })
+      ).status,
+    ).toBe(200);
+    expect((await harness.call('ada', 'GET', '/api/onboarding')).body).toMatchObject({
+      state: 'join_organization',
+      organization: { id: 'org-a' },
+    });
+    expect(
+      (
+        await harness.call('ada', 'POST', '/api/onboarding/join-requests', {
+          organizationId: 'org-a',
+        })
+      ).status,
+    ).toBe(201);
+  });
+
   it('submits a pending request with no membership and refuses a duplicate', async () => {
     harness.activate();
     verified();

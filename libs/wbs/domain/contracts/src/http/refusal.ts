@@ -238,6 +238,8 @@ type BareRefusalCode =
   | 'email_verification_required'
   | 'password_account_required'
   | 'address_conflict'
+  /** A well-formed address whose local part would need SMTPUTF8. */
+  | 'unsupported_email'
   | 'challenge_invalid'
   | 'invitation_invalid'
   | 'recipient_mismatch'

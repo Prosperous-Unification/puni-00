@@ -100,28 +100,82 @@ describe('password email verification', () => {
         token: 'invalid',
       }),
     ).toEqual({ status: 400, body: { error: 'invalid_body' } });
-    expect(
-      await harness.call('ada', 'POST', '/api/onboarding/email-challenges', {
-        email: 'étienne@example.org',
-      }),
-    ).toEqual({ status: 400, body: { error: 'invalid_body' } });
-    expect(
-      await harness.call('ada', 'POST', '/api/onboarding/email-challenges/confirm', {
-        email: 'étienne@example.org',
-        token: 'invalid',
-      }),
-    ).toEqual({ status: 400, body: { error: 'invalid_body' } });
     for (const route of [
       '/api/onboarding/email-challenges',
       '/api/onboarding/email-challenges/confirm',
     ]) {
-      expect(
-        await harness.call('ada', 'POST', route, {
-          email: 'K@example.org',
-          ...(route.endsWith('/confirm') ? { token: 'invalid' } : {}),
-        }),
-      ).toEqual({ status: 400, body: { error: 'invalid_body' } });
+      for (const email of ['étienne@example.org', '用户@example.org'])
+        expect(
+          await harness.call('ada', 'POST', route, {
+            email,
+            ...(route.endsWith('/confirm') ? { token: 'invalid' } : {}),
+          }),
+        ).toEqual({ status: 400, body: { error: 'unsupported_email' } });
+      for (const email of ['ada@xn--a.example', 'ada@-bad.example', 'ada@a\u200db.example'])
+        expect(
+          await harness.call('ada', 'POST', route, {
+            email,
+            ...(route.endsWith('/confirm') ? { token: 'invalid' } : {}),
+          }),
+        ).toEqual({ status: 400, body: { error: 'invalid_body' } });
     }
+    expect(harness.sqlite.query('SELECT id FROM email_challenge').all()).toHaveLength(0);
+  });
+
+  it('verifies an internationalized domain as A-labels with a byte-exact local part', async () => {
+    harness.activate();
+    expect(
+      (
+        await harness.call('ada', 'POST', '/api/onboarding/email-challenges', {
+          email: 'Ada.Lovelace+wbs@Bücher.example',
+        })
+      ).status,
+    ).toBe(201);
+    const token = harness.deliveredEmailToken('Ada.Lovelace+wbs@xn--bcher-kva.example');
+    expect(
+      await harness.call('ada', 'POST', '/api/onboarding/email-challenges/confirm', {
+        email: 'Ada.Lovelace+wbs@BU\u0308CHER.example',
+        token,
+      }),
+    ).toEqual({
+      status: 200,
+      body: { email: 'Ada.Lovelace+wbs@xn--bcher-kva.example', verified: true },
+    });
+    expect(
+      harness.sqlite.query('SELECT email FROM users WHERE id = ?').get(harness.userId('ada')),
+    ).toEqual({ email: 'Ada.Lovelace+wbs@xn--bcher-kva.example' });
+    expect(
+      (
+        await harness.call('ada', 'POST', '/api/onboarding/email-challenges', {
+          email: 'ada@faß.de',
+        })
+      ).status,
+    ).toBe(201);
+    expect(harness.deliveredEmailToken('ada@xn--fa-hia.de')).toBeString();
+  });
+
+  it('refuses a case variant of an address another account holds', async () => {
+    harness.activate();
+    await harness.register('bea');
+    await harness.call('ada', 'POST', '/api/onboarding/email-challenges', {
+      email: 'Ada@Bücher.example',
+    });
+    const token = harness.deliveredEmailToken('Ada@xn--bcher-kva.example');
+    harness.sqlite.run("UPDATE users SET email = 'ada@xn--bcher-kva.example' WHERE id = ?", [
+      harness.userId('bea'),
+    ]);
+    expect(
+      await harness.call('ada', 'POST', '/api/onboarding/email-challenges/confirm', {
+        email: 'Ada@Bücher.example',
+        token,
+      }),
+    ).toEqual({ status: 409, body: { error: 'address_conflict' } });
+    harness.sqlite.run('DELETE FROM email_challenge');
+    expect(
+      await harness.call('ada', 'POST', '/api/onboarding/email-challenges', {
+        email: 'Ada@Bücher.example',
+      }),
+    ).toEqual({ status: 409, body: { error: 'address_conflict' } });
     expect(harness.sqlite.query('SELECT id FROM email_challenge').all()).toHaveLength(0);
   });
 
