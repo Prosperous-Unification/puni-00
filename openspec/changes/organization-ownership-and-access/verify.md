@@ -413,6 +413,429 @@ Branch `batch-9/010-5-2-orgs-13`, stacked on slice 13.
 | Access resolved first              | save route skips resolution     | `refuses an unbound session and a removed member before any lookup`: 201                                 |
 | Saved plan mapped                  | mapping insert selects nothing  | `maps a plan saved after activation to its project's organization`: no mapping                           |
 
+## Slice 15 — membership administration (task 3.7, part 1)
+
+Branch `batch-9/010-5-2-orgs-14`, stacked on slice 14.
+
+| Check                                  | Injected fault                                          | Observed failure (`membership-organization.controller.db.test.ts` unless named, 2026-09-27)                       |
+| -------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Admin limited to viewer and member     | `mayAdministerMembership` lets an admin change any role | `refuses an admin promoting a member to admin, or changing or removing an admin`: 200 with the promoted admin     |
+| Members and viewers administer nothing | actor role only checked for viewers                     | `refuses a member and a viewer every membership change`: 200                                                      |
+| Final super-admin                      | guard result ignored                                    | `refuses demoting or removing the last super-admin`: 200                                                          |
+| Absent or foreign target               | an absent target answered as removed                    | `answers a foreign or absent member as not found, changing nothing`: 500 instead of 404                           |
+| Access resolved first                  | resolution failure ignored                              | `refuses an unbound session and a removed member`: `forbidden` instead of `no_active_organization`                |
+| No administration before activation    | legacy access administered                              | `has no organization to administer`: 200                                                                          |
+| Invitation authority                   | `mayInvite` lets an admin invite any role               | `organization-access.test.ts` `lets an admin invite viewers and members, a super-admin any role, and nobody else` |
+
+## Slice 16 — audited recovery through the project PATCH (task 3.7, part 2a)
+
+Branch `batch-9/010-5-2-orgs-15`, stacked on slice 15. Migration `20260927220000_add_organization_audit` sorts after every migration on main and in the queue (newest queued: `20260927213000_add_typed_dependency`).
+
+| Check                                    | Injected fault                           | Observed failure (2026-09-27)                                                                                            |
+| ---------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Audit action vocabulary                  | `action` CHECK dropped                   | `organization-audit.db.test.ts` `refuses an unknown action or subject kind`                                              |
+| Audit subject vocabulary                 | `subject_kind` CHECK dropped             | same case                                                                                                                |
+| Audit organization reference             | `organization_id` REFERENCES dropped     | `refuses a record of no organization`                                                                                    |
+| Rollback keeps evidence                  | `down.sql` CHECK made `CHECK (1)`        | `refuses to roll back over a recorded act`: the migration reversed                                                       |
+| Classified in the write's transaction    | classification forced to `ordinary`      | `organization-audit.db.test.ts` `audits a recovery the project became after the request read it`: written with no record |
+| Refused edits write nothing              | refusal skipped                          | `refuses an actor who is no longer a writing member`: the project written                                                |
+| A removed member is refused              | missing membership answered as absent    | same case: null instead of `forbidden`                                                                                   |
+| Foreign project absent before permission | absent project refused                   | `answers a project of another organization as absent, before any permission`: `forbidden`                                |
+| Audit failure rolls the edit back        | audit insert errors swallowed            | `rolls the edit back when its audit record cannot be written`: no failure, rename kept                                   |
+| Audit record written                     | audit insert skipped                     | `project-organization.controller.db.test.ts` `recovers a restricted project as an audited super-admin edit`: no record   |
+| Recovery classified                      | `classifyProjectEdit` answers `ordinary` | `organization-access.test.ts` `calls a super-admin's edit … a recovery`                                                  |
+| Recovery admitted                        | service refuses `recovery`               | the mounted recovery case: 403 instead of 200                                                                            |
+
+Astra review 1 raised 2 Important and 4 Minor findings, all fixed:
+
+- **Important:** classification now happens inside the write's own transaction, which closes the restriction race.
+- **Important:** the audit-failure rollback is now proven.
+- **Minor:** an absent or foreign project answers null.
+- **Minor:** the spec scenario is updated.
+- **Minor:** the detail is typed as `RecoveryAuditDetail`.
+- **Minor:** the classifier is renamed `classifyProjectEdit`.
+
+## Slice 17 — organization selection preview (task 2.4 groundwork)
+
+Branch `batch-9/010-5-2-orgs-15` (same PR as slice 16), a read-only dry run with no production access.
+
+| Check                          | Injected fault            | Observed failure (`organization-selection-preview.db.test.ts`, 2026-09-28)                                |
+| ------------------------------ | ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Stored roles validated         | every role accepted       | `fails on a malformed membership role`: no throw                                                          |
+| No membership means onboarding | onboarding never answered | `reports zero, one and several memberships, choosing for nobody`: `selection_required` with no candidates |
+| Membership references checked  | reference check skipped   | `fails on a membership of a missing user or organization`: reported                                       |
+| Read-only connection           | `readonly` dropped        | `refuses every write through the read-only connection`: the DELETE ran                                    |
+
+The file is left byte for byte as it was (`leaves the database file byte for byte as it was`), and the CLI fails without a database (`migration-cli.db.test.ts`).
+
+Astra review 1 raised 2 Important findings, both fixed: the references are now checked, and the read-only refusal is proven. Its 2 Minor findings were handled as follows:
+
+- The spec scenario is added.
+- The CLI header is kept. It follows the invocation comment on every sibling deploy CLI (`migrate-status-cli.ts`, `migrate-down-cli.ts`, `backfill-step-codes-cli.ts`), and a runbook entry belongs with the task 1.1 dry run.
+
+## Slice 18 — solution slugs per organization (task 3.5, part 2)
+
+Branch `batch-9/010-5-2-orgs-16`, stacked on slice 16/17 (#157). Design call: Astra, 2026-09-28.
+
+- The additive migration `20260928010000_add_project_solution` adds:
+  - a `project_solution` table, keyed by project and unique on (organization, slug);
+  - a composite reference to `project_organization`, so a link's organization is always its project's owner;
+  - a `down.sql` that refuses while any link exists or the marker is not one well-formed `pre_activation` row.
+- A scoped PATCH or import writes the link there and clears any legacy pair. The legacy `project.solution_slug` keeps serving links made before activation, and a project holding both fails its read.
+- Collisions are judged only among the organization's own projects, and only after authorization:
+  - PATCH answers `409 solution_taken`, inside one `BEGIN IMMEDIATE` transaction;
+  - import answers `left-off`.
+- The scoped lookup matches both representations within the organization.
+- Every project read joins the link, so capture, export and the project DTO carry the local slug.
+
+| Check                                 | Injected fault                           | Observed failure (2026-09-28)                                                                                                     |
+| ------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Link organization is the owner        | composite reference dropped              | `refuses a link naming an organization other than its project's owner`: no throw                                                  |
+| Rollback keeps links                  | emptiness predicate dropped              | `refuses while a link is recorded`: rolled back                                                                                   |
+| Rollback refused after activation     | marker predicates dropped                | `refuses after activation even with no link`: rolled back                                                                         |
+| Collision answered, nothing written   | in-transaction check skipped             | `refuses a slug another project of the organization holds, writing nothing`: SQLite uniqueness error                              |
+| Legacy slugs collide within the org   | legacy arm of the check dropped          | `refuses a slug a project of the organization kept from before activation`: linked                                                |
+| One representation per project        | both-present refusal dropped             | `refuses a project holding both a legacy and a scoped reference`: read succeeded                                                  |
+| Legacy pair cleared on a scoped link  | legacy columns left as they were         | `moves a legacy pair into the organization link, relinks and unlinks`: read threw                                                 |
+| Scoped lookup sees scoped links       | lookup on the legacy column alone        | `links a slug only another organization holds`: nothing found                                                                     |
+| Scoped import judges its own org only | import looks the slug up deployment-wide | `keeps a slug only another organization holds` (`import-export-organization.controller.db.test.ts`): `left-off` instead of `kept` |
+
+Store tests are in `project-solution.db.test.ts`. The mounted PATCH test in `project-organization.controller.db.test.ts` covers four cases: a viewer gets 403 and a foreign project gets 404, each before any collision is judged; a same-organization collision gets 409; and a slug held only in another organization links normally.
+
+Astra review 1 raised 3 Important findings, all fixed with new negatives, each faulted and seen failing on 2026-09-28:
+
+| Check                               | Injected fault                        | Observed failure                                                                            |
+| ----------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Cross-process collision is modeled  | deferred instead of `BEGIN IMMEDIATE` | `answers solution_taken to a link racing another process, writing nothing`: busy error      |
+| Link has a project                  | `NOT NULL` dropped from `project_id`  | `refuses a link of no project`: inserted                                                    |
+| Ambiguous lookup refused            | two matches let through               | `refuses a lookup two of the organization's projects answer`: one returned                  |
+| Slug unique in the organization     | plain index                           | `refuses a slug twice in one organization and allows it in two`: inserted                   |
+| Non-empty slug and url              | either length check dropped           | `refuses an empty slug or url`: inserted                                                    |
+| Rollback needs a well-formed marker | only an activated row checked         | `refuses with a missing or malformed marker, keeping the table and the ledger`: rolled back |
+| Marker time must be empty           | `activated_at IS NULL` dropped        | same case: rolled back                                                                      |
+
+Astra review 2 raised 1 Important finding, fixed: an empty solution slug or url in an imported document reached `project_solution`'s length checks as a 500. The plan-document schema now requires both to be non-empty, as a PATCH already did. Removing that made `refuses an empty solution slug or url as input, importing nothing` (`import-export-organization.controller.db.test.ts`) answer 500 instead of 400.
+
+The race holder is a second `bun` process holding `BEGIN IMMEDIATE` while it inserts the competing link. The row-count predicate of the down check is shadowed by the marker's single-row trigger.
+
+## Slice 19 — edit-admission seam (task 3.7, part 2b, mechanical)
+
+Branch `batch-9/010-5-2-orgs-17` (#164), stacked on slice 18. `WorkItemService`, `CapacityService` and `PriorityBandService` ask an injected `EditAdmission` at their nine former `canEditProject` sites, and every graph passes `CREATOR_ADMISSION`. There is no behaviour change and no migration.
+
+| Check                                     | Injected fault                                          | Observed failure (2026-09-28)                                                                  |
+| ----------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Each module wires the supplied admission  | the resource handed `{ admits: () => true }`            | each module's `asks the admission install… wires before a … write`: `ok: true`                 |
+| `servicesOver` forwards its admission     | one installer handed `CREATOR_ADMISSION`, one at a time | `compose.test.ts` `hands its admission to every gated writing service it installs`: `ok: true` |
+| A graph without an admission fails closed | `shared.admission ?? CREATOR_ADMISSION`                 | `fails closed on a write through a graph built without an admission`: resolved                 |
+
+## Slice 20 — audited recovery through command batches, undo and redo (task 3.7, part 2b)
+
+Branch `batch-9/010-5-2-orgs-18`, stacked on slice 19. There is no migration, because slice 16's `organization_audit` table holds the records.
+
+| Check                                      | Injected fault                                        | Observed failure (2026-09-28)                                                                                                                            |
+| ------------------------------------------ | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recovery recorded in the unit of work      | `recordRecovery` skipped in `admitEditInOrganization` | `organization-audit.db.test.ts` `records one recovery …` and `fails when its audit record cannot be written`; the mounted recovery case found no record  |
+| Scoped graph uses the unit of work's grant | `admissionOf` answers `CREATOR_ADMISSION` when scoped | mounted `recovers a restricted project through a batch, undo and redo, one record each`: 403; `never falls back to the creator rule under scoped access` |
+| Refused writers stay refused               | `forbidden` from the admission ignored                | `refuses a viewer every batch, undo and redo`, `refuses a super-admin removed or demoted before the batch`, `keeps no record of a refused batch …`: 200  |
+| The grant ends with its batch              | `expire` skipped in `execute`                         | `plan-command-admission.test.ts` `admits the granted actor on the granted project only while its unit of work runs`: still admitted                      |
+| The grant ends with its journal walk       | `expire` skipped in `walk`                            | `grants a journal walk until it settles, and its repair nothing`: still admitted                                                                         |
+| A journal repair is granted nothing        | the repair graph built with the walk's grant          | same case                                                                                                                                                |
+
+The grant is refused for another actor or another project: dropping the project equality or the actor equality in `grantAdmission`, each alone, failed `admits the granted actor on the granted project only while its unit of work runs` (Astra review 1, Important; watched 2026-09-28). The mounted cases show three more things: a batch that fails at its second command, a refused batch and a failed undo each leave no record, and a creator's ordinary batch leaves none.
+
+## Slice 21 — identity resolution after activation (task 2.3)
+
+Branch `batch-9/010-5-2-orgs-19`, stacked on slice 20. There is no migration.
+
+| Check                                        | Injected fault                            | Observed failure (2026-09-28)                                                                                                                                                      |
+| -------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Activated logins resolve through the mapping | marker branch skipped (legacy email link) | `oidc-identity.controller.db.test.ts` `refuses an unmapped identity whose verified email an account holds, issuing no session`: 302 as `legacy`; five `user-oidc.db.test.ts` cases |
+| Email never selects an account               | email-holder refusal skipped              | the same mounted case: 302 with a new account; `user-oidc.db.test.ts` store case                                                                                                   |
+| Legacy pair mapped at activation             | unmapped-legacy throw skipped             | `throws on a legacy pair activation never mapped`: a second account                                                                                                                |
+| Mapping names a user                         | dangling-owner throw skipped              | `throws on a mapping to no user and on one its user disagrees with`                                                                                                                |
+| Mapping agrees with the user's pair          | disagreement throw skipped                | same case                                                                                                                                                                          |
+| Issuer and subject non-empty                 | empty check skipped                       | `throws on an empty issuer or subject`: an account created                                                                                                                         |
+| Backfill refuses half or empty pairs         | check skipped                             | `external-identity.db.test.ts` `refuses a half or empty legacy pair, mapping nothing`                                                                                              |
+| Backfill refuses a pair owned by another     | owner check skipped                       | `refuses a pair already mapped to another user, mapping nothing`                                                                                                                   |
+
+Astra review 1 raised 3 Important findings, all fixed. Each fault below was watched failing on 2026-09-28:
+
+| Check                                  | Injected fault                      | Observed failure                                                     |
+| -------------------------------------- | ----------------------------------- | -------------------------------------------------------------------- |
+| One mapping per pair                   | duplicate check skipped             | `throws on a duplicate or malformed mapping`                         |
+| Mapping user id is text                | type check skipped                  | same case                                                            |
+| Pair is not another user's legacy pair | legacy-owner check skipped          | `throws when the pair maps to one user and is another's legacy pair` |
+| A user's own pair is whole or absent   | only the issuer compared with null  | `throws on a user whose own pair is half present`                    |
+| Backfill reads text pairs only         | values stringified before the check | `refuses a half, empty or non-text legacy pair, mapping nothing`     |
+
+Three more cases have no dedicated guard, because SQLite already refuses them:
+
+- a missing mapping table throws;
+- a failed mapping insert keeps no account (`keeps no account when its mapping cannot be written`);
+- two concurrent first logins of one pair create one account and one mapping.
+
+A broken marker throws before any resolution (`throws on a broken marker instead of resolving as before activation`). The marker is read on every call (`reads the marker on every call, so activation needs no restart`).
+
+## Slice 22 — delegation verifier (task 2.5, first slice)
+
+Branch `batch-9/010-5-2-orgs-20`, stacked on slice 21. There is no migration and no configuration change. Production wires `REFUSE_DELEGATIONS`.
+
+All faults were watched failing in `delegation.controller.db.test.ts` on 2026-09-28:
+
+| Check                                        | Injected fault                                              | Observed failure                                                                                                |
+| -------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Audience fixed by the route policy           | `audience` dropped from `jwtVerify`                         | `refuses a gateway or unknown audience`                                                                         |
+| A refused delegation stays refused           | JOSE refusal answered `not_delegation`                      | the audience case and `refuses an expired, re-signed or forged-organization delegation`                         |
+| No fallback to the session                   | identity resolver falls through on `refused`                | five cases, the session-key-signed delegation among them                                                        |
+| Upstream identity binds the user             | any mapped upstream identity accepted                       | `refuses a delegation whose upstream identity maps to someone else`                                             |
+| Lifetime capped at five minutes              | cap skipped                                                 | `refuses a delegation longer than five minutes`                                                                 |
+| No key, no delegation                        | `REFUSE_DELEGATIONS` answers `not_delegation`               | `refuses every delegation when no delegation key is configured`: 200                                            |
+| Delegation's organization is the one checked | session binding used instead                                | `lists only the delegated organization’s projects`; `refuses a delegation to an organization the user has left` |
+| No header selects authority                  | `x-wbs-organization` replaces the delegation's organization | `lets no header select the organization`: B's project read                                                      |
+
+Astra review 1 raised 4 Important and 2 Minor findings, all fixed. Each fault below was watched failing on 2026-09-28:
+
+| Check                                 | Injected fault                              | Observed failure                                                              |
+| ------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------- |
+| No legacy access through a delegation | pre-activation delegation answered `legacy` | `refuses a verified delegation before activation`                             |
+| Not issued in the future              | `iat` check skipped                         | `refuses a delegation issued in the future, of no lifetime, or with no grant` |
+| Grant or family bound                 | `grant` claim check skipped                 | same case                                                                     |
+| No delegation in the session cookie   | cookie-carrier refusal skipped              | `refuses a delegation carried in the session cookie, or beside one`           |
+| No delegation beside a session cookie | ambiguity refusal skipped                   | same case                                                                     |
+
+A lifetime of zero or less is refused by JOSE's `exp` check combined with the `iat` check, so it has no guard of its own. The `jti` must be non-empty text. The Minor findings are also fixed: `lets no header select the organization` now covers an unbound session with forged headers (403), and the verifier's JSDoc now sits on `delegationVerifier`.
+
+## Slice 23 — public domains are never claimable (task 5.1, first part)
+
+Branch `batch-9/010-5-2-orgs-21`, stacked on slice 22. There is no migration.
+
+| Check                              | Injected fault                      | Observed failure (2026-09-28)                                                          |
+| ---------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------- |
+| Public mailbox providers refused   | provider check dropped              | `public-email-domain.test.ts` `never lets a public mailbox provider be claimed`        |
+| Public suffixes refused            | suffix check dropped                | `never lets a public suffix or a top-level domain be claimed`                          |
+| Top-level domains refused          | single-label check dropped          | same case                                                                              |
+| Canonical input required           | canonical check skipped             | `throws on a domain that is not canonical`                                             |
+| No claim opened on a public domain | `openClaim` policy check skipped    | `organization-records.db.test.ts` `never opens or promotes a claim on a public domain` |
+| No planted public claim promoted   | `promoteClaim` policy check skipped | same case                                                                              |
+
+Astra review 1 raised 2 Important findings and 1 Minor:
+
+- **Important, malformed A-labels such as `xn--a.com` passed as canonical:** fixed. A WHATWG URL host round trip now refuses them, and removing it made `throws on a domain that is not canonical` accept `xn--a.com`.
+- **Important, a trailing newline passed:** rejected with a probe. JavaScript's `$` does not match before a final newline without the `m` flag (`/^a$/.test('a\n')` is false), and `gmail.com\n` is now a case of that test.
+- **Minor, stale `promoteClaim` JSDoc:** fixed.
+
+## Slice 24 — dependent recovery writes (task 3.7, part 2c)
+
+Branch `batch-9/010-5-2-orgs-22`, stacked on slice 23. There is no migration. Before activation, the four families keep legacy authority. A combined step name and allowance PATCH now shares one unit of work in both modes. Scoped steps and markers classify inside their unit of work; saved-plan writes and optimizer Retry classify inside their own immediate SQLite write transactions. Retry also waits for the shared write coordinator before that transaction. Each successful recovery commits one audit row with the write. Announcements follow commit. A recovered saved-plan touch can reach another author's plan; ordinary touches still require its author or project creator.
+
+TDD red was observed on 2026-09-28: mounted step add, saved-plan save and Retry each returned 403 before the recovery code; allowance recovery also returned 403 before its precommand lookup was opened. The mounted step/marker, saved-plan and project suites then passed with the implementation.
+
+Every injected fault below was watched failing on 2026-09-28 and restored. Adjacent `Proof:` comments identify the production checks.
+
+| Check                                   | Injected fault                              | Observed failing test                                                                                    |
+| --------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Dependent audit presence                | Force ordinary admission                    | Mounted recovery matrix found zero audit rows; this establishes audit presence, not membership freshness |
+| Grant plumbing                          | Grant a different project                   | Mounted recovery returned 403 for step add; this establishes the intended grant reaches the service      |
+| Step service consumes grant             | Disable grant                               | Same mounted recovery returned 403 for step add                                                          |
+| Marker service consumes grant           | Disable grant                               | Same mounted recovery returned 403 for marker create                                                     |
+| Allowance precommand read               | Disable super-admin lookup                  | Mounted allowance recovery returned 403                                                                  |
+| Dependent admission refusal             | Skip refusal                                | Mounted non-creator member step add returned 200 instead of 403                                          |
+| Publish after commit                    | Publish inside unit of work                 | Core `publishes a dependent recovery only after its unit of work commits` observed publish before commit |
+| Saved-plan save reclassification        | Force ordinary                              | Mounted save/rename/delete recovery found no save audit                                                  |
+| Saved-plan touch reclassification       | Force ordinary                              | Mounted super-admin rename returned 403                                                                  |
+| Ordinary touch author rule              | Skip author check                           | Mounted unrelated member renamed another author's unrestricted plan (200 instead of 403)                 |
+| Saved-plan save refusal                 | Skip refusal                                | Direct store-path removed actor save returned `written` instead of `forbidden`                           |
+| Saved-plan touch refusal                | Skip refusal                                | Direct store-path removed actor touch returned `touched` instead of `forbidden`                          |
+| Touch audit operation agrees with write | Skip operation check                        | Direct store test resolved instead of throwing                                                           |
+| Retry audit                             | Skip insert                                 | Mounted accepted Retry found no audit row                                                                |
+| Retry reclassification                  | Force ordinary                              | Store-path removed actor Retry returned `accepted` instead of `forbidden`                                |
+| Retry refusal                           | Skip foreign or forbidden branch separately | Store-path foreign or removed actor Retry returned `accepted`                                            |
+| Project tenant predicate                | Drop organization predicate                 | Store-path foreign Retry returned `forbidden` instead of `not_found`                                     |
+| Memory history has no scoped authority  | Skip scoped refusal                         | Memory store test resolved instead of throwing                                                           |
+
+Audit-insert abort triggers in the mounted suites also show that step, marker, saved-plan and Retry writes roll back with no published event. Ordinary creator writes leave no recovery audit. Removed super-admin, non-creator member/admin, viewer creator and foreign project cases are mounted negatives. The earlier step/marker removed-super-admin case revoked membership before the request, so it established access resolution refusal, not the write boundary's current-membership check.
+
+### Review fixes (2026-09-28)
+
+| Finding                                                    | Injection and observed negative                                                                                                                                                                                                                             | Restored observation                                                                                                                      |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Retry could accept inside another unit of work             | Replaced its shared coordinator turn with immediate execution: `waits for an overlapping rolled-back unit of work before accepting Retry` failed because the decision settled before rollback                                                               | The focused test passed; after the outer rollback, the scoped recovery audit and solver slot were present                                 |
+| Combined step PATCH bypassed recovery and split its writes | Bypassed the combined route branch: scoped `commits a combined recovered step patch once and rolls its rename back when allowance fails` answered 403, and `rolls a legacy combined step rename back when its allowance write fails` retained the rename    | Both focused mounted tests passed; the scoped test observed one audit and no rename or event after the injected allowance trigger aborted |
+| Proofs were too broad                                      | Removed project equality, actor equality and grant expiry separately: the production StepService test failed for each. Forced ordinary admission: `refuses a super-admin revoked after access resolution before step admission` returned 200 instead of 403 | The grant and mounted revocation tests passed after restoration; proof comments now state only observed properties                        |
+
+Review verification commands and observed results:
+
+| Command                                                                                                                        | Observed result                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `env -u CLAUDECODE bun test src/http/step.routes.test.ts src/http/project.routes.test.ts` in wbs-core                          | 10 pass, 0 fail at the focused stage; the added modeled-refusal test passed alone afterward                                                                                                                                                                                                              |
+| `env -u CLAUDECODE bun test` on 11 selected be-01 files                                                                        | 158 pass, 0 fail at the focused stage; the expanded combined-patch test passed alone afterward                                                                                                                                                                                                           |
+| `env -u CLAUDECODE bun test src` in wbs-core                                                                                   | 719 pass, 0 fail across 79 files. An initial run found one stale Step module test fixture missing round 20's required `recoveryAdmission`; adding the provider made that test and the full rerun pass                                                                                                    |
+| `env -u CLAUDECODE bun test src` in be-01                                                                                      | 1325 pass, 1 skip, 29 fail across 112 files. Twenty-eight listener/boot cases hit sandbox `EPERM: operation not permitted, listen`; one process handshake did not receive its child marker                                                                                                               |
+| `env -u CLAUDECODE bun test src/service/optimization-spawn-handshake.proc.db.test.ts`                                          | 0 pass, 1 fail alone: `spawn-handshake condition did not arrive`. A direct `Bun.spawn` probe succeeded when the child wrote a file, but `subprocess.stdin.write` to a child with `stdin: 'pipe'` raised sandbox `EPERM: operation not permitted, write`; this test uses that pipe to deliver its verdict |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast typecheck -p wbs-be-01 wbs-core --output-style=static` | All six targets passed, cache 0/6. Nx daemon/plugin sockets were disabled because this sandbox refuses them                                                                                                                                                                                              |
+| `git diff --name-only \| xargs bunx prettier --check`                                                                          | All touched files matched Prettier                                                                                                                                                                                                                                                                       |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                       | 139 passed, 0 failed                                                                                                                                                                                                                                                                                     |
+
+The full Nx gate and `h2puni-gate.sh` were not run because this slice's instruction forbids them. No migration files changed. No commit was attempted; this sandbox makes git metadata read-only.
+
+Verification on 2026-09-28 (all Bun runs used `env -u CLAUDECODE`):
+
+| Command                                                                                           | Observed outcome                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test` in `libs/wbs/adapters/store-memory`                                                    | 118 pass, 0 fail                                                                                                                                                                             |
+| `bun test` in `libs/wbs/application/core`                                                         | 700 pass, 3 fail, 1 error: two test assertions fixed and rerun green; Bun also collected `testing/portable-composition.spec.ts`, which is a Playwright spec                                  |
+| `bun test src` in `libs/wbs/application/core`                                                     | 702 pass, 0 fail; all Bun source tests, excluding the Playwright spec in `testing/`                                                                                                          |
+| `bun test` in `libs/wbs/adapters/store-sqlite`                                                    | 1049 pass, 3 fail, 1 error: a held-lock test and source-conformance case timed out under concurrent suites, and the cached-median performance test refused a changing repository HEAD/status |
+| `bun test` in `apps/wbs/be-01`                                                                    | 1279 pass, 1 skip, 29 fail: socket/boot cases could not listen (`EPERM`) in this sandbox; the coordinator spawn handshake also failed                                                        |
+| Focused mounted organization suites (three files)                                                 | 43 pass, 0 fail                                                                                                                                                                              |
+| Focused core route and module-boundary suites                                                     | 19 pass, 0 fail                                                                                                                                                                              |
+| Focused SQLite saved-plan organization suite                                                      | 5 pass, 0 fail                                                                                                                                                                               |
+| Focused SQLite held-lock test, run alone                                                          | 2 pass, 0 fail                                                                                                                                                                               |
+| Focused SQLite source-conformance case                                                            | Timed out at Bun's 5-second default alone; passed (1/1, 683 assertions) with `bun test --timeout 20000`                                                                                      |
+| `bunx nx run-many -t lint:fast typecheck -p wbs-store-sqlite wbs-core wbs-be-01 wbs-store-memory` | all targets pass, cache 0/10                                                                                                                                                                 |
+| `bunx prettier --check` on touched files                                                          | pass                                                                                                                                                                                         |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                          | 138 pass, 0 fail                                                                                                                                                                             |
+
+No new test file was added, so the tool-devsync README index check was not triggered. The full Nx gate and `h2puni-gate.sh` were not run, as this slice's task instruction explicitly forbids the full gate.
+
+### Second review (2026-09-28)
+
+Astra's re-review confirmed the three fixes and found one new Important: the combined name-and-allowance PATCH skipped the command batch's calendar preflight, so a +200% allowance on a plan at the calendar's edge answered 200. The combined unit of work now runs the same preflight after `setStepAllowance` and refuses the way the allowance-only path does, rolling the rename back. Proof: skipping the preflight made `combined step patch refuses an allowance that pushes the plan past the calendar` in `step.routes.test.ts` resolve instead of rejecting (10 pass, 1 fail); restored, 11 pass.
+
+Full suites outside the sandbox, `env -u CLAUDECODE bun test`, after main round 20 was merged: be-01 1362 pass, 0 fail; core 719 pass, 1 fail (the known Playwright spec collected by Bun); store-sqlite 1081 pass, 0 fail; store-memory 121 pass, 0 fail.
+
+### Reconciled with main's batch prelude (2026-09-28)
+
+Main (#161) now runs the combined name-and-allowance PATCH as one command batch with the rename as its `BatchPrelude`, and answers `calendar_range` as a typed 422. Slice 24's separate combined recovery write is dropped in favour of it. Under scoped access the batch's own unit of work classifies the edit and records one recovery (`{"commands":["setStepAllowance"]}`), and its graph carries the grant, so the prelude rename is admitted as recovery too.
+
+The public `steps.findWithin` pre-check refused a recovering super-admin before the batch ran, including an allowance-only edit. It now runs inside the prelude through the batch's graph. Proof: skipping it made `refuses an allowance edit of a foreign step or project, changing nothing` fail (16 pass, 1 fail). `commits a combined recovered step patch once and rolls its rename back when allowance fails` and the allowance-only recovery case pass.
+
+## Slice 26 — onboarding discovery, creation and join submission (tasks 4.3, 4.5 part, 4.6 part)
+
+The additive `20260928020000_add_email_verification` migration adds `users.email_verified` as a checked, default-false boolean. The existing `organization_join_request` table from slice 1 is reused; no request table is added. Its paired down migration refuses activated databases or retained verification evidence. No email is sent: validated OIDC evidence alone updates verification; the password-account challenge (4.1), link flow (4.2), approval and denial (4.5) remain open.
+
+Mounted routes are `GET /api/onboarding`, `POST /api/onboarding/organizations` and `POST /api/onboarding/join-requests`. The first has verification, selection, creation and matching-organization states; pending is carried in the matching-organization state. The two writes answer 201 for organization plus super-admin membership and for a pending request alone. The application reads activation and current evidence in SQLite, and each write uses an immediate transaction.
+
+Observed targeted results, 2026-09-28:
+
+- `env -u CLAUDECODE bun test` over the mounted onboarding, mounted OIDC, user OIDC, migration and solution rollback files: 60 passed, 0 failed across five files, including the malformed-marker case and the updated mapped-email collision contract.
+- `env -u CLAUDECODE bun test` in `libs/wbs/domain/contracts`: 399 passed, 0 failed after adding the GET `invalid_body` refusal. In `libs/wbs/domain/domain`: 746 passed, 0 failed.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: exit 0; all 13 spec items passed.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts apps/wbs/be-01/drizzle/20260928020000_add_email_verification/migration.sql`: exit 0.
+- `bunx nx test wbs-fe-01` could not reach its browser tier: `test:unit` failed on sandbox `spawnSync EPERM` in unrelated process-spawning tests. Direct targeted Vitest for `onboarding-screen.test.tsx` and `app.test.tsx`: 27 passed, 0 failed, including the visible mutation-refusal case.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast typecheck -p wbs-store-sqlite wbs-core wbs-contracts wbs-domain wbs-be-01 wbs-fe-01 --parallel=1`: exit 0, all 15 tasks successful; one typecheck cache hit. `bunx prettier --check` on every changed TS, TSX and Markdown file: exit 0.
+- Exact `env -u CLAUDECODE bun test` per Bun project: core 701 pass/1 fail (Bun collected a Playwright test); SQLite 1056 pass/2 fail (existing 5-second concurrency/conformance timeouts under load); contracts 399 pass/0 fail; domain 746 pass/0 fail; be-01 1275 pass/32 fail/1 skip (most boot/socket tests cannot listen in this sandbox; one prior mapped-email expectation was updated and its four-file callback suite now passes; remaining failures include process-handshake, hook-timeout and shared fixture setup). The targeted onboarding suite is green; a clean full be-01 run outside this sandbox remains unverified.
+- The required Astra identity consultation exited 1 because workspace routing discovery and model refresh could not connect; no answer arrived. The selected behavior refuses a mapped callback with 409 if its refreshed verified address is another account's email or email-shaped username, preserves both accounts, and has mounted success and collision tests.
+- `git add` for the first ordered migration commit exited 128 twice: `/home/df/wd/puni/puni-00/.git/worktrees/b9-010-5-2-orgs-8-s24/index.lock` is on a read-only filesystem. No commit or push was made. `git diff --check` passed; the implementation remains in this worktree for a writable Git metadata mount.
+
+Production-path negative injections, all restored and watched failing on 2026-09-28:
+
+| Guard               | Injected fault → named failing test                                                                                                                                                                                                                                        |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Migration CHECK     | Removing `IN (0, 1)` admitted value 2 with a non-null email; removing the email predicate admitted verified null email. Each independently failed `starts old accounts unverified and checks the boolean and email`.                                                       |
+| Down evidence       | Ignore verified rows → `refuses rollback with retained evidence`                                                                                                                                                                                                           |
+| Down activation     | Ignore marker state → `refuses rollback after activation even without verified rows`                                                                                                                                                                                       |
+| Activation          | Bypass marker read → `is inert before activation and throws on a broken marker`                                                                                                                                                                                            |
+| Stored verification | Ignore false verification on a stored email → `requires durable verified email for creation`                                                                                                                                                                               |
+| Current membership  | A second sequential create failed `creates the organization with its first super-admin together`; that test did not prove contention. The separate-process fault probe below does.                                                                                         |
+| Verified claim      | Bypass creation claim check → `routes exact verified domain but not subdomain or suspended claim`                                                                                                                                                                          |
+| Exact status        | Query suspended rather than verified claims → same routing test                                                                                                                                                                                                            |
+| Join target         | Bypass target equality → `uses one not-found answer for absent, mismatched, and suspended targets`                                                                                                                                                                         |
+| Duplicate pending   | Bypass pending check → `submits a pending request with no membership and refuses a duplicate`                                                                                                                                                                              |
+| Public domain       | Bypass public-domain policy with a planted gmail.com claim → `lets a public-email user create without matching a claim`                                                                                                                                                    |
+| OIDC IDNA           | Retain Unicode host instead of URL IDNA canonicalization → `stores activated OIDC domains in canonical ASCII IDNA form`                                                                                                                                                    |
+| OIDC mapped refresh | Existing red tests failed before the update: `answers the mapped user whatever email the token now carries`, `clears verification when a mapped callback lacks literal verified evidence`, `refuses a mapped email collision without changing the old address or identity` |
+| Frontend refusal    | Drop the create refusal message → `renders a creation refusal while keeping the form usable` failed in Vitest                                                                                                                                                              |
+| Write origin        | Require origin only for cookies → `refuses a foreign origin and malformed or authority-bearing bodies` failed for a bearer write                                                                                                                                           |
+| Write body          | Admit a caller `role` field → the same mounted authority-bearing-body test failed                                                                                                                                                                                          |
+
+### Review fixes — 2026-09-28
+
+The important review findings and the identity JSDoc correction were applied in the working tree. The review probes below use production routes or SQLite migrations. Each injected fault was restored after the named test failed.
+
+| Finding                         | Fault and observed failure                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Delegated onboarding            | Bypassing each of the three route guards separately failed `refuses delegated onboarding discovery and writes`: discovery leaked two memberships (200), creation made a super-admin (201), and join submission made a pending request (201). Omitting `insufficient_scope` from the GET refusal contract made the same test receive 500 for an undeclared refusal.                                                                                     |
+| Onboarding write scope          | Downgrading the write policy to signed-in failed `guards every registered user-facing mutation with write scope`: a read-only session reached onboarding instead of answering `insufficient_scope`. Valid onboarding bodies were used in the route-table probe.                                                                                                                                                                                        |
+| Mapped email collision          | Omitting verification revocation failed `revokes a verified mapped address after a colliding callback for an existing session`: the old claimed address stayed verified (1).                                                                                                                                                                                                                                                                           |
+| URL-shaped email                | Bypassing the domain-syntax check failed `does not route a URL-shaped callback email ... to a claimed organization`: `person@victim.org/attacker.example` became a verified `person@victim.org`. The restored test also covers port, query, fragment and backslash syntax.                                                                                                                                                                             |
+| Existing membership             | Checking verification before membership failed `offers an existing member selection without a verified email`: `verification_required` replaced `selection_required`.                                                                                                                                                                                                                                                                                  |
+| Concurrency                     | Moving the membership read before `BEGIN IMMEDIATE` failed both `rechecks membership after a separate process commits` cases: after a separate process committed creation or promotion while holding the write lock, the request returned 201 instead of 409. `keeps a first-owner creation when another process promotes membership afterward` covers the opposite commit order. The former two-connection test was sequential and has been replaced. |
+| Verification migration          | Dropping only `IN (0, 1)` failed the boolean test with a non-null email; dropping only the email predicate failed the null-email test. Both failures were observed in `starts old accounts unverified and checks the boolean and email`.                                                                                                                                                                                                               |
+| Project-solution down migration | After rolling the newer verification migration back first, dropping the exact marker predicate failed `refuses with a missing or malformed marker, keeping the table and the ledger` and `refuses after activation even with no link`: rollback wrongly succeeded.                                                                                                                                                                                     |
+
+Commands and observed results:
+
+- `env -u CLAUDECODE bun test` over the seven final focused mounted, route-inventory and SQLite files, excluding only the named raw-health listener case: 137 passed, 1 filtered out, 0 failed.
+- `env -u CLAUDECODE bun test $(rg --files -g '*.test.ts' -g '*.test.tsx' .)` from `libs/wbs/application/core`: 715 passed, 0 failed; from `libs/wbs/domain/contracts`: 404 passed, 0 failed.
+- The same command from `libs/wbs/adapters/store-sqlite`: 1092 passed, 0 failed. The initial be-01 project run: 1326 passed, 1 skipped, 35 failed. Isolated `oidc.integration.test.ts` exposed one real failure: the new onboarding writes used `signed-in` and the read-only route-table probe received `onboarding_inactive` instead of `insufficient_scope`. The policy is now `write-scope`; the named probe passes (1/1), and the pinned route-policy inventory was updated and passed in isolation (1/1). A final be-01 run excluding the four environment-blocked files and the named raw-health listener test passed 1320, skipped 1, failed 0 across 110 files.
+- The excluded files were `boot.db.test.ts`, `health.db.test.ts`, `solver-image-smoke.test.ts` and `optimization-spawn-handshake.proc.db.test.ts`; the remaining raw-health listener case lives in `app.routes.test.ts`. The isolated health-listener probe reported `Bun.serve` `listen` EPERM; image smoke reported Unix `Bun.listen` EPERM. The process-handshake probe could not deliver its child verdict: a direct `Bun.spawn` pipe-write probe failed with `EPERM: operation not permitted, write`. Those checks need a host that permits listeners and child-pipe writes.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast typecheck -p wbs-be-01 wbs-store-sqlite wbs-core wbs-contracts --parallel=1`: 10 tasks passed, 0 failed.
+- `bunx prettier --check` on touched TypeScript and OpenSpec files: exit 0.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 139 of 139 items valid, 0 failed.
+
+### Second review — 2026-09-28
+
+Astra's re-review confirmed findings 1–4 and 6 fixed and 5 now using separate processes, and found one new Important: fe-01 did not handle the new `insufficient_scope` refusal, so `wbs-fe-01:typecheck` failed and a read-only write would reach the Error Boundary. All three onboarding switches now show write-access copy. Proof: answering the generic retry copy made `renders a write-scope refusal on creation` fail in Vitest (1 failed, 4 passed); restored, 5 passed, and `wbs-fe-01` typecheck and lint:fast pass.
+
+- Minor, activation proof text: corrected. Removing `readReady`'s activation read answers `email_verification_required` rather than `onboarding_inactive`, observed in `is inert before activation and throws on a broken marker`.
+- Minor, contention timing: accepted. The separate-process test releases the lock after a fixed delay; a slow parent can run the two writes in sequence, which would make it pass without exercising overlap. The recheck-placement fault was still observed failing both contended cases.
+
+Full suites outside the sandbox, `env -u CLAUDECODE bun test`, after main round 20 was merged: be-01 1362 pass, 0 fail; core 715 pass, 1 fail (the known Playwright spec collected by Bun); store-sqlite 1092 pass, 0 fail; contracts 404 pass, 0 fail.
+
+## Slice 25 (2.5b) — inert issuance, gateway access and one-use delegations
+
+Branch `batch-9/010-5-2-orgs-23`, based on `orgs-21`. `20260928030000_add_delegation_use` adds the `(issuer,jti)` primary-key use table and expiry index. Its paired down script refuses after activation or while an unexpired use remains. No key material is committed; every key in a test is generated at runtime. Production validates configured PKCS#8/SPKI keys before opening the listener but retains both refusing delegation ports.
+
+Fault injections below were each run against the named production path, watched fail and restored on 2026-09-28. The adjacent `Proof:` comments identify the same injected faults.
+
+| Check                         | Injected fault                                                                                                                        | Failing test                                                                                                                                                                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Issuer lifetime               | Replace 300-second cap with 3600                                                                                                      | `delegation-issuer.test.ts`: `caps a verified source to five minutes and its credential expiry`                                                                                                                                      |
+| Originating credential expiry | Replace the source expiry with a five-minute value                                                                                    | the same issuer test failed for a source with 90 seconds remaining                                                                                                                                                                   |
+| Trusted source                | Skip missing-binding, delegated-source, membership and scope-ceiling checks separately                                                | `delegation-issuer.test.ts`: `refuses delegated, expired, unbound, over-scoped or nonmember sources` for each                                                                                                                        |
+| Trusted resolver              | Bypass source resolution and use the caller's forged claims object                                                                    | `delegation-issuer.test.ts`: `refuses forged source claims before signing` resolved a token instead of rejecting the unverified credential                                                                                           |
+| Key configuration             | Skip complete-pair guard                                                                                                              | `config.test.ts`: `refuses partial delegation key configuration`                                                                                                                                                                     |
+| Key strength and match        | Skip 2048-bit threshold; skip public/private signature match                                                                          | `delegation-keys.test.ts`: `refuses a 1024-bit RSA pair and a non-RSA pair`; `accepts a matching dedicated RSA pair and refuses a mismatch`                                                                                          |
+| Service credential            | Skip `x-internal-auth` comparison                                                                                                     | `delegation.controller.db.test.ts`: `admits one gateway project check with both credentials and refuses replay`                                                                                                                      |
+| Audience fixed by route       | Read `x-wbs-audience`                                                                                                                 | same mounted gateway test: MCP bearer passed the gateway route                                                                                                                                                                       |
+| Organization fixed by token   | Read `x-wbs-organization`                                                                                                             | `checks gateway membership and returns identical foreign and absent project 404s`: foreign project became 204                                                                                                                        |
+| Read scope                    | Bypass read-scope check                                                                                                               | mounted gateway test: write-only bearer became 204                                                                                                                                                                                   |
+| Current membership            | Bypass organization refusal                                                                                                           | `checks gateway membership and returns identical foreign and absent project 404s`: removed member became 204                                                                                                                         |
+| Scoped project                | Replace `readWithin` with unscoped `read`                                                                                             | same mounted test: foreign project became 204                                                                                                                                                                                        |
+| MCP replay                    | Bypass consumption                                                                                                                    | `consumes an MCP delegation once even when the project is missing`: second request answered 404 instead of 401                                                                                                                       |
+| Unique admission              | Make conflicting insert update/return a row                                                                                           | `delegation-use.db.test.ts`: `admits exactly one use across two connections` failed `[true,true]` after two independent workers crossed a shared barrier                                                                             |
+| Storage availability          | Return admission without writing                                                                                                      | `delegation-use.db.test.ts`: missing and read-only table tests both failed                                                                                                                                                           |
+| Pruning                       | Disable expired predicate; raise limit to 10,000                                                                                      | `prunes expired uses without removing live uses`; `prunes no more than 1,000 expired rows per consumption`                                                                                                                           |
+| Rollback                      | Disable unexpired-use predicate; disable pre-activation marker predicate; treat expired uses as live                                  | `refuses rollback after activation or while a live use remains` for the first two; `allows pre-activation rollback once every use has expired` for the last                                                                          |
+| Production refusal            | Replace boot's returned `delegationIssuer` with an accepting function; replace boot's `REFUSE_DELEGATIONS` with an accepting verifier | `boot.db.test.ts`: `validates configured delegation keys before opening storage and keeps issuance inactive`; the returned issuer mutation received no `inactive` refusal and the verifier mutation failed its composition assertion |
+| Gateway client                | Add a cookie; accept any 2xx                                                                                                          | `delegation-client.test.ts`: `presents service and bearer credentials without cookies`; `refuses a success-shaped body on any status other than 204`                                                                                 |
+
+Targeted mounted verifier, issuer, key, configuration and migration tests passed after restoration. Final focused runs: be-01 delegation/configuration 41/41 before the resolver proof was added, then issuer/boot 3/3; route inventory 4/4; gateway client 2/2; store replay and indexes 7/7, then replay 6/6 with concurrent workers; core route and authentication 12/12; contracts HTTP shapes 21/21. `bunx nx run-many -t lint:fast typecheck -p wbs-be-01 wbs-gw-01 wbs-store-sqlite wbs-core wbs-contracts` passed all 12 targets after the resolver and worker changes. `bunx prettier --check` passed all touched TS/Markdown/JSON files. `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts` on both new SQL files exited 0; `bun test --timeout 30000 tools/tool-devsync/src/module-labels.test.ts` passed 5 tests; `bunx @fission-ai/openspec@1.12.0 validate --all --json` reported 138/138 valid. Full project reruns against the final code: contracts 399/399 passed; store-sqlite 1,057/1,057 passed; be-01 1,276 passed, 1 skipped, 29 failed (listener `EPERM` and one process-spawn sandbox failure); gw-01 96 passed, 24 failed (listener `EPERM`); core 701 passed, 1 failed (Playwright spec collected by `bun test`). The earlier store-sqlite full run had timed out one unrelated saved-plan busy test under the five-second default; the isolated rerun passed 1/1, and the final full rerun passed all 1,057.
+
+The requested Astra consultation on source trust was attempted with `codex exec -m gpt-6-astra -c model_reasoning_effort=high --skip-git-repo-check -s read-only`; it returned no answer because workspace routing discovery failed. A read-only review then found that accepting structural source claims directly would permit forgery if the signer were later activated. The issuer now accepts a credential reference and calls its injected trusted resolver before signing; no caller-supplied claims are accepted. The binding resolver adapter and activation remain deferred by the design call.
+
+### Review fixes (2026-09-28)
+
+- `SqliteDelegationUse.consume` now waits on the source's shared write coordinator and resolves after its transaction commits. `env -u CLAUDECODE bun test libs/wbs/adapters/store-sqlite/src/delegation-use.db.test.ts -t 'commits an admitted use'` failed before the change (`admitted` was already true), passed after it, then failed again when the gate was bypassed (the rolled-back use was accepted twice). Restored test passed.
+- Removing the verifier's `await` on consumption made `env -u CLAUDECODE bun test apps/wbs/be-01/src/controller/delegation.controller.db.test.ts -t 'consumes an MCP delegation once'` fail: the replay answered 404 instead of 401. The await was restored.
+- The boot test calls `running.delegationIssuer`. Replacing that returned binding with an accepting function made `env -u CLAUDECODE bun test apps/wbs/be-01/src/boot.db.test.ts -t 'validates configured delegation keys'` fail: the expected `inactive` refusal was absent. Restored test passed. The earlier proof for mutating the exported refusal constant did not prove the boot binding.
+- Signed audience arrays and gateway bearer-plus-session-cookie requests have mounted negatives in `delegation.controller.db.test.ts`. Removing the scalar check made the array case answer 200 instead of 401; removing the gateway cookie condition made the cookie case answer 204 instead of 401. Both tests passed after restoration.
+- The store proof texts now name executable faults. Changing conflict handling to `DO UPDATE ... RETURNING` made the two-worker test receive `[true, true]`; bypassing storage made the missing and read-only tests fail because admission resolved. Removing only the primary key instead causes an `ON CONFLICT` clause error, and removing only pruning leaves the insert to fail on missing/read-only storage.
+- Focused command: `env -u CLAUDECODE bun test libs/wbs/adapters/store-sqlite/src/delegation-use.db.test.ts apps/wbs/be-01/src/controller/delegation.controller.db.test.ts apps/wbs/be-01/src/boot.db.test.ts -t 'commits an admitted|admits exactly one use|prunes expired uses|fails when the use table|prunes no more|refuses rollback|allows pre-activation|refuses a signed array|refuses a gateway bearer|validates configured delegation keys'` — 11 passed, 41 filtered, including all eight store-use cases.
+- The full touched verifier and store files, `env -u CLAUDECODE bun test libs/wbs/adapters/store-sqlite/src/delegation-use.db.test.ts apps/wbs/be-01/src/controller/delegation.controller.db.test.ts`, passed 24/24 after restoration.
+- A repeat of that two-file run first hit `SQLITE_BUSY_RECOVERY` while both race workers opened SQLite and set WAL at once. The test now waits for the first connection before opening the second, then releases both writers from the same barrier. The rerun passed 24/24; the race assertion still observes simultaneous write admission.
+- Full project commands were attempted as requested: `env -u CLAUDECODE bun test libs/wbs/adapters/store-sqlite/src` — 1,116 passed, 209 failed, 62 errors; `env -u CLAUDECODE bun test apps/wbs/be-01/src` — 1,357 passed, 1 skipped, 139 failed, 103 errors. An isolated `organization-activation.db.test.ts` case that failed in the store run passed alone; `env -u CLAUDECODE bun test apps/wbs/be-01/src/test-tiers.test.ts` also passed 2/2 after failing in the be-01 project run. The be-01 run includes listener `EPERM` failures; the other broad-run failures remain unverified. Neither full run is claimed green.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast typecheck -p wbs-be-01 wbs-store-sqlite --outputStyle=static` passed all five targets; `bunx prettier --check` passed the touched files; `bunx @fission-ai/openspec@1.12.0 validate --all --json` returned 139 valid, zero invalid.
+
+The commit is blocked in this session: `git add -A` failed to create the worktree `index.lock` with `Read-only file system`, and a direct write probe at that Git metadata path failed the same way. Source changes remain in the worktree, unstaged. No push or full Nx gate was attempted.
+
+### Second review — 2026-09-28
+
+Astra's re-review found no remaining Critical, Important or Minor finding: consumption waits on the shared write coordinator and survives a concurrent rollback, the boot proof calls `running.delegationIssuer`, and the audience-array and gateway-cookie negatives exist.
+
+Full suites outside the sandbox, `env -u CLAUDECODE bun test`, after main round 20 was merged: be-01 1357 pass, 0 fail; gw-01 130 pass, 0 fail; core 715 pass, 1 fail (the known Playwright spec collected by Bun); store-sqlite 1087 pass, 0 fail; contracts 404 pass, 0 fail. The sandbox's broad-run failures recorded above do not reproduce outside it.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

@@ -89,7 +89,7 @@ describe('optimized outcome events', () => {
     let launches = 0;
     let token = 0;
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -136,12 +136,12 @@ describe('optimized outcome events', () => {
     // passing preflight failures to `spawn` increments `launches` instead.
   });
 
-  it('records quantized infeasibility as a retryable unknown real-plan outcome', async () => {
+  it('records and pushes each plan-infeasible certificate with its full release identity', async () => {
     const { path, db } = database();
     const pushed: OptimizationOutcomeEvent[] = [];
     let token = 0;
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',
@@ -180,8 +180,7 @@ describe('optimized outcome events', () => {
 
     expect(pushed).toEqual([
       {
-        type: 'schedule_optimization_failed',
-        failureReason: 'no-solution',
+        type: 'schedule_optimization_infeasible',
         projectId: 'p-1',
         generation: 1,
         inputHash: scheduleInputHash(DEADLINED_INPUT),
@@ -190,8 +189,7 @@ describe('optimized outcome events', () => {
         budgetMs: BUDGET,
       },
       {
-        type: 'schedule_optimization_failed',
-        failureReason: 'no-solution',
+        type: 'schedule_optimization_infeasible',
         projectId: 'p-1',
         generation: 1,
         inputHash: scheduleInputHash(DEADLINED_INPUT),
@@ -205,13 +203,35 @@ describe('optimized outcome events', () => {
     try {
       expect(
         raw.query('SELECT status FROM optimized_schedule_cache ORDER BY objective').all(),
-      ).toEqual([{ status: 'failed' }, { status: 'failed' }]);
+      ).toEqual([{ status: 'plan-infeasible' }, { status: 'plan-infeasible' }]);
     } finally {
       raw.close();
     }
 
-    // A CP-SAT proof covers integer units only. The failed row permits an
-    // explicit retry; it cannot permanently certify the fractional plan.
+    // 8.6 / WATCHED RED W5, and the reason the refusal is asserted *here*
+    // rather than only in `optimization-coordinator.db.test.ts`: that suite
+    // inserts the `plan-infeasible` row itself, so it proves the refusal for a
+    // row a fixture wrote and can say nothing about how the row got its status.
+    // This row is the one the solve above just produced from a real
+    // `status: 'infeasible'` response, through `evaluateSolverOutcome`. W5's
+    // substitution — `response.status === 'unknown' || === 'infeasible'` in
+    // `solver-exit-outcome.ts` — therefore reaches this line: the row becomes
+    // `failed`, `failed` is exactly what Retry admits, and an infeasible plan
+    // starts offering a Retry that re-solves an unchanged input for the same
+    // proof. That is W5's own sentence, and no test could carry it until 8.7d
+    // gave the refusal a route to be refused at.
+    for (const objective of ['pri', 'time'] as const) {
+      expect(
+        await instance.retry({
+          projectId: 'p-1',
+          objective,
+          inputHash: scheduleInputHash(DEADLINED_INPUT),
+          input: DEADLINED_INPUT,
+        }),
+      ).toEqual({ kind: 'not-retryable', state: 'plan-infeasible' });
+    }
+    // Proof: restoring the plan-infeasible early return in
+    // `storeOptimizedOutcomeAndRecord` leaves both durable events and pushes absent.
   });
 
   it('records each new result once and pushes only after both durable rows commit', async () => {
@@ -222,7 +242,7 @@ describe('optimized outcome events', () => {
     }[] = [];
     let token = 0;
     const instance = new OptimizationCoordinator({
-      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
       solverVersion: '0.1.0',

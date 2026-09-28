@@ -14,6 +14,8 @@ export const BeConfig = type({
   // >=32 bound as gw-01's copy so a short key fails at both ends or neither.
   JWT_SIGNING_KEY_CURRENT: 'string>=32',
   AUTH_MODE: "'local'|'oidc'",
+  'WBS_DELEGATION_SIGNING_KEY?': 'string',
+  'WBS_DELEGATION_VERIFY_KEY?': 'string',
   'SOLVER_BUDGET_MS?': 'string.integer.parse',
   'SOLVER_SEARCH_WORKERS?': 'string.integer.parse',
   'SOLVER_MEMORY_LIMIT_MB?': 'string.integer.parse',
@@ -27,11 +29,30 @@ export type BeConfig = Omit<
   SOLVER_MEMORY_LIMIT_MB: number;
 };
 
+/** Dedicated literal PEM pair; absence keeps delegation disabled. */
+export interface DelegationKeys {
+  readonly signingKey: string;
+  readonly verifyKey: string;
+}
+
 export const loadConfig = (
   envSource: Record<string, string | undefined> = process.env,
-): BeConfig & { appOrigin: string } => {
+): BeConfig & { appOrigin: string; delegationKeys?: DelegationKeys } => {
   const mode = authModeOf(envSource);
   const config = defineConfig(BeConfig, envSource);
+  const signingKey = envSource['WBS_DELEGATION_SIGNING_KEY'];
+  const verifyKey = envSource['WBS_DELEGATION_VERIFY_KEY'];
+  // Proof: deleting this pair guard made `refuses partial delegation key
+  // configuration` accept a signing key alone (2026-09-28).
+  if (
+    (signingKey === undefined) !== (verifyKey === undefined) ||
+    signingKey === '' ||
+    verifyKey === ''
+  ) {
+    throw new Error('delegation keys must be a complete nonempty pair');
+  }
+  const delegationKeys =
+    signingKey === undefined || verifyKey === undefined ? undefined : { signingKey, verifyKey };
   const solverBudgetMs = config.SOLVER_BUDGET_MS ?? 60_000;
   if (solverBudgetMs <= 0) throw new Error('SOLVER_BUDGET_MS must be greater than zero');
   const solverSearchWorkers = config.SOLVER_SEARCH_WORKERS ?? 2;
@@ -46,6 +67,7 @@ export const loadConfig = (
     mode === 'oidc' ? oidcCallbackUrlFromEnv(envSource).origin : localAppOriginFromEnv(envSource);
   return {
     ...config,
+    delegationKeys,
     appOrigin,
     SOLVER_BUDGET_MS: solverBudgetMs,
     SOLVER_SEARCH_WORKERS: solverSearchWorkers,

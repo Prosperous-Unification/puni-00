@@ -73,6 +73,122 @@ async function foreignState(): Promise<Answer[]> {
 }
 
 describe('after activation', () => {
+  it('audits a super-admin save, rename and delete of another creator’s restricted project', async () => {
+    h.member('org-a', 'nell', 'super_admin');
+    h.bind('nell', 'org-a');
+    const original = await save('ada', own, 'Original');
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+    ).toBe(200);
+    const recovered = await save('nell', own, 'Recovered');
+    expect(
+      (await h.call('nell', 'PATCH', `/api/saved-plans/${original}`, { name: 'Renamed' })).status,
+    ).toBe(200);
+    expect((await h.call('nell', 'DELETE', `/api/saved-plans/${original}`)).status).toBe(204);
+    const audits = h.sqlite
+      .query<{ organization_id: string; actor_id: string; subject_id: string; detail: string }, []>(
+        'SELECT organization_id, actor_id, subject_id, detail FROM organization_audit ORDER BY rowid',
+      )
+      .all();
+    expect(audits.map((audit) => audit.detail)).toEqual([
+      '{"savedPlan":"save"}',
+      '{"savedPlan":"rename"}',
+      '{"savedPlan":"delete"}',
+    ]);
+    expect(
+      audits.every(
+        (audit) =>
+          audit.organization_id === 'org-a' &&
+          audit.actor_id === h.userId('nell') &&
+          audit.subject_id === own,
+      ),
+    ).toBe(true);
+    expect(
+      h.sqlite
+        .query<{ owner_id: string }, [string]>('SELECT owner_id FROM project WHERE id = ?')
+        .get(own),
+    ).toEqual({ owner_id: h.userId('ada') });
+    expect((await h.call('ada', 'GET', `/api/saved-plans/${recovered}`)).status).toBe(200);
+  });
+
+  it('refuses member, admin and viewer writers and leaves creator writes unaudited', async () => {
+    const planId = await save('ada', own, 'Original');
+    h.member('org-a', 'nell', 'member');
+    h.bind('nell', 'org-a');
+    expect(
+      (await h.call('nell', 'PATCH', `/api/saved-plans/${planId}`, { name: 'No' })).status,
+    ).toBe(403);
+    expect((await h.call('nell', 'DELETE', `/api/saved-plans/${planId}`)).status).toBe(403);
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+    ).toBe(200);
+    for (const role of ['member', 'admin'] as const) {
+      h.sqlite.run('UPDATE organization_membership SET role = ? WHERE user_id = ?', [
+        role,
+        h.userId('nell'),
+      ]);
+      expect(
+        (await h.call('nell', 'POST', `/api/projects/${own}/saved-plans`, { name: 'No' })).status,
+      ).toBe(403);
+      expect(
+        (await h.call('nell', 'PATCH', `/api/saved-plans/${planId}`, { name: 'No' })).status,
+      ).toBe(403);
+      expect((await h.call('nell', 'DELETE', `/api/saved-plans/${planId}`)).status).toBe(403);
+    }
+    const creatorPlan = await save('ada', own, 'Creator');
+    expect(
+      (await h.call('ada', 'PATCH', `/api/saved-plans/${creatorPlan}`, { name: 'Kept' })).status,
+    ).toBe(200);
+    expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
+    h.sqlite.run("UPDATE organization_membership SET role = 'viewer' WHERE user_id = ?", [
+      h.userId('ada'),
+    ]);
+    expect(
+      (await h.call('ada', 'POST', `/api/projects/${own}/saved-plans`, { name: 'No' })).status,
+    ).toBe(403);
+    expect((await h.call('ada', 'DELETE', `/api/saved-plans/${creatorPlan}`)).status).toBe(403);
+  });
+
+  it('rolls back every recovered saved-plan write when audit insertion fails', async () => {
+    const planId = await save('ada', own, 'Original');
+    h.member('org-a', 'nell', 'super_admin');
+    h.bind('nell', 'org-a');
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+    ).toBe(200);
+    const before = h.sqlite.query('SELECT id, name FROM saved_plan ORDER BY id').all();
+    const beforeEvents = h.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all();
+    h.sqlite.run(
+      "CREATE TRIGGER audit_refused BEFORE INSERT ON organization_audit BEGIN SELECT RAISE(ABORT, 'audit refused'); END",
+    );
+    expect(
+      (await h.call('nell', 'POST', `/api/projects/${own}/saved-plans`, { name: 'No' })).status,
+    ).toBe(500);
+    expect(
+      (await h.call('nell', 'PATCH', `/api/saved-plans/${planId}`, { name: 'No' })).status,
+    ).toBe(500);
+    expect((await h.call('nell', 'DELETE', `/api/saved-plans/${planId}`)).status).toBe(500);
+    expect(h.sqlite.query('SELECT id, name FROM saved_plan ORDER BY id').all()).toEqual(before);
+    expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
+    expect(h.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all()).toEqual(beforeEvents);
+  });
+
+  it('refuses a removed super-admin before touching a saved plan', async () => {
+    const planId = await save('ada', own, 'Original');
+    h.member('org-a', 'nell', 'super_admin');
+    h.bind('nell', 'org-a');
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+    ).toBe(200);
+    h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('nell')]);
+    expect(
+      (await h.call('nell', 'POST', `/api/projects/${own}/saved-plans`, { name: 'No' })).status,
+    ).toBe(403);
+    expect(
+      (await h.call('nell', 'PATCH', `/api/saved-plans/${planId}`, { name: 'No' })).status,
+    ).toBe(403);
+    expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
+  });
   it('answers 404 alike for a foreign and an absent project on every saved-plan and history route', async () => {
     const before = await foreignState();
     const toAbsent = projectRoutes('no-such-project');

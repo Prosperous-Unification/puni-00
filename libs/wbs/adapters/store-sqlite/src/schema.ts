@@ -90,6 +90,7 @@ export const users = sqliteTable(
     username: text('username').notNull(),
     passwordHash: text('password_hash'),
     email: text('email'),
+    emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
     idpIssuer: text('idp_issuer'),
     idpSub: text('idp_sub'),
     createdAt: integer('created_at').notNull(),
@@ -2932,7 +2933,55 @@ export const projectOrganization = sqliteTable(
       .notNull()
       .references(() => organization.id),
   },
-  (t) => [index('project_organization_organization').on(t.organizationId)],
+  (t) => [
+    index('project_organization_organization').on(t.organizationId),
+    // The parent of `project_solution`'s composite reference; see
+    // `20260928010000_add_project_solution`.
+    uniqueIndex('project_organization_resource_organization').on(t.resourceId, t.organizationId),
+  ],
+);
+
+/**
+ * A solution reference written after activation, unique within its
+ * organization rather than across the deployment; see
+ * `20260928010000_add_project_solution`. The composite reference holds
+ * `organization_id` equal to the project's owner. A project holds this row or
+ * the legacy `project.solution_slug` pair, never both.
+ */
+export const projectSolution = sqliteTable(
+  'project_solution',
+  {
+    projectId: text('project_id')
+      .primaryKey()
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').notNull(),
+    slug: text('slug').notNull(),
+    url: text('url').notNull(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.projectId, t.organizationId],
+      foreignColumns: [projectOrganization.resourceId, projectOrganization.organizationId],
+    }).onDelete('cascade'),
+    uniqueIndex('project_solution_organization_slug').on(t.organizationId, t.slug),
+    check('project_solution_slug', sql`length(${t.slug}) > 0`),
+    check('project_solution_url', sql`length(${t.url}) > 0`),
+  ],
+);
+
+/** Shared single-use delegation ledger, keyed across every be-01 process. */
+export const delegationUse = sqliteTable(
+  'delegation_use',
+  {
+    issuer: text('issuer').notNull(),
+    jti: text('jti').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.issuer, t.jti] }),
+    index('delegation_use_expires_at').on(t.expiresAt),
+  ],
 );
 
 export const savedPlanOrganization = sqliteTable(
@@ -2946,4 +2995,30 @@ export const savedPlanOrganization = sqliteTable(
       .references(() => organization.id),
   },
   (t) => [index('saved_plan_organization_organization').on(t.organizationId)],
+);
+
+/**
+ * One audited act per row, written in the act's own transaction; see
+ * `20260927220000_add_organization_audit`. `subject_id` references nothing
+ * so the record outlives its subject.
+ */
+export const organizationAudit = sqliteTable(
+  'organization_audit',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    actorId: text('actor_id').notNull(),
+    action: text('action').notNull(),
+    subjectKind: text('subject_kind').notNull(),
+    subjectId: text('subject_id').notNull(),
+    detail: text('detail').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    check('organization_audit_action', sql`${t.action} IN ('restricted_project_recovery')`),
+    check('organization_audit_subject_kind', sql`${t.subjectKind} IN ('project')`),
+    index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
+  ],
 );

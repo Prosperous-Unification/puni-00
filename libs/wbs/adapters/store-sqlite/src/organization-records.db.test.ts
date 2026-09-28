@@ -50,6 +50,9 @@ const ORGANIZATION_TABLES = [
   'person_organization',
   'project_organization',
   'saved_plan_organization',
+  'organization_audit',
+  'project_solution',
+  'delegation_use',
   'service_organization',
   'service_team_organization',
   'tag_organization',
@@ -244,6 +247,88 @@ describe('OrganizationRepository', () => {
   });
 });
 
+describe('OrganizationRepository.administer', () => {
+  /** org-a with u-a and u-b as super-admins and u-c as a member; u-c is also a member of org-b. */
+  async function seeded(): Promise<OrganizationRepository> {
+    const organizations = new OrganizationRepository(connection.db, OPEN);
+    await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
+    await organizations.addMember('org-a', 'u-b', 'super_admin', stamp('u-a'));
+    await organizations.addMember('org-a', 'u-c', 'member', stamp('u-a'));
+    const db = openDatabase(path);
+    try {
+      db.run("INSERT INTO organization (id, name, legacy, created_at) VALUES ('org-b', 'B', 0, 1)");
+      db.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-b', 'u-c', 'member', 1)",
+      );
+    } finally {
+      db.close();
+    }
+    return organizations;
+  }
+
+  it('lets exactly one of two super-admins leave when both try across two connections', async () => {
+    // bun:sqlite runs each immediate transaction to completion, so these
+    // serialize: this watches the recheck inside the transaction, which is
+    // what refuses the second leaver.
+    const organizations = await seeded();
+    const other = openConnection(path);
+    try {
+      const outcomes = await Promise.all([
+        organizations.administer('org-a', 'u-a', 'u-a', null, stamp('u-a')),
+        new OrganizationRepository(other.db, OPEN).administer(
+          'org-a',
+          'u-b',
+          'u-b',
+          null,
+          stamp('u-b'),
+        ),
+      ]);
+      expect(outcomes.map((each) => (each.ok ? 'removed' : each.refusal)).sort()).toEqual([
+        'last_super_admin',
+        'removed',
+      ]);
+    } finally {
+      other.close();
+    }
+  });
+
+  it("refuses an actor demoted on another connection after the request's access resolved", async () => {
+    const organizations = await seeded();
+    const other = openConnection(path);
+    try {
+      await new OrganizationRepository(other.db, OPEN).administer(
+        'org-a',
+        'u-b',
+        'u-a',
+        'member',
+        stamp('u-b'),
+      );
+      expect(await organizations.administer('org-a', 'u-a', 'u-c', 'viewer', stamp('u-a'))).toEqual(
+        { ok: false, refusal: 'forbidden' },
+      );
+    } finally {
+      other.close();
+    }
+  });
+
+  it('changes and removes only the membership in the given organization', async () => {
+    const organizations = await seeded();
+    expect((await organizations.administer('org-a', 'u-a', 'u-c', 'viewer', stamp('u-a'))).ok).toBe(
+      true,
+    );
+    expect(await organizations.listMemberships('u-c')).toEqual([
+      { organizationId: 'org-a', role: 'viewer' },
+      { organizationId: 'org-b', role: 'member' },
+    ]);
+    expect((await organizations.administer('org-a', 'u-a', 'u-c', null, stamp('u-a'))).ok).toBe(
+      true,
+    );
+    expect(await organizations.listMemberships('u-c')).toEqual([
+      { organizationId: 'org-b', role: 'member' },
+    ]);
+  });
+});
+
 describe('DomainClaimRepository', () => {
   async function twoOrganizationsClaiming(domain: string): Promise<DomainClaimRepository> {
     const organizations = new OrganizationRepository(connection.db, OPEN);
@@ -267,6 +352,39 @@ describe('DomainClaimRepository', () => {
     expect(await claims.promoteClaim('c-a', 'digest-c-a', stamp('u-a', 20))).toBe('verified');
     expect(await claims.promoteClaim('c-b', 'digest-c-b', stamp('u-b', 20))).toBe('taken');
     expect(await claims.findOwner('example.org')).toBe('org-a');
+  });
+
+  it('never opens or promotes a claim on a public domain', async () => {
+    const claims = await twoOrganizationsClaiming('example.org');
+
+    expect(
+      await claims.openClaim(
+        {
+          id: 'c-gmail',
+          organizationId: 'org-a',
+          domain: 'gmail.com',
+          challengeDigest: 'digest-gmail',
+          challengeExpiresAt: 1000,
+        },
+        stamp('u-a'),
+      ),
+    ).toBe('unclaimable');
+    const db = openDatabase(path);
+    try {
+      expect(
+        db.query("SELECT id FROM organization_domain_claim WHERE id = 'c-gmail'").all(),
+      ).toEqual([]);
+      db.run(
+        `INSERT INTO organization_domain_claim (id, organization_id, domain, status, challenge_digest, challenge_expires_at, created_at)
+         VALUES ('c-planted', 'org-a', 'outlook.com', 'pending', 'digest-planted', 1000, 1)`,
+      );
+    } finally {
+      db.close();
+    }
+    expect(await claims.promoteClaim('c-planted', 'digest-planted', stamp('u-a', 20))).toBe(
+      'unclaimable',
+    );
+    expect(await claims.findOwner('outlook.com')).toBeNull();
   });
 
   it('refuses promotion with a stale or expired challenge', async () => {
@@ -396,6 +514,10 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20260928030000_add_delegation_use',
+      '20260928020000_add_email_verification',
+      '20260928010000_add_project_solution',
+      '20260927220000_add_organization_audit',
       TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,

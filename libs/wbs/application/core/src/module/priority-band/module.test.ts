@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { installPriorityBand } from './check';
 import { PRIORITY_BAND_LABEL } from './contract';
@@ -27,6 +28,7 @@ async function seeded() {
       bands: source.stores.priorityBands,
       clock: clockOf({ now: () => 2, newId: () => 'unused' }),
       broadcast,
+      admission: CREATOR_ADMISSION,
     },
   };
 }
@@ -41,6 +43,9 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
+      factoryReturnKind: 'sync-value',
+    }),
+    editAdmission: DiBag.createProvider(() => CREATOR_ADMISSION, {
       factoryReturnKind: 'sync-value',
     }),
   };
@@ -78,6 +83,24 @@ describe('the Priority band module', () => {
     expect(broadcast.published).toEqual([
       { projectId: PROJECT, event: { type: 'priority_bands_changed' } },
     ]);
+  });
+
+  // Proof: handing the resource `{ admits: () => true }` instead of the
+  // supplied admission made this test receive `ok: true` (5 pass, 1 fail);
+  // watched 2026-09-28.
+  it('asks the admission installPriorityBand wires before a ladder write', async () => {
+    const { broadcast, requirements } = await seeded();
+    const { priorityBands } = installPriorityBand({
+      ...requirements,
+      admission: { admits: () => false },
+    });
+
+    const written = await priorityBands.set(PROJECT, OWNER, [
+      { startsAt: 1, label: 'Now', defaultValue: 10 },
+    ]);
+
+    expect(written).toEqual({ ok: false, reason: 'forbidden' });
+    expect(broadcast.published).toEqual([]);
   });
 
   /**

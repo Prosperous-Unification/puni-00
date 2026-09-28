@@ -23,7 +23,7 @@ function frame(overrides: Partial<SupervisorStartFrame> = {}): SupervisorStartFr
     childDeadlineAt: 20_000,
     searchWorkers: 2,
     memoryLimitMb: 512,
-    request: { wireVersion: 1, objective: 'pri' },
+    request: { wireVersion: 2, objective: 'pri' },
     ...overrides,
   };
 }
@@ -98,6 +98,17 @@ describe('decodeSupervisorStartFrame', () => {
     expect(() => decode(frame({ childDeadlineAt: 10_000 }))).toThrow(/deadline/);
   });
 
+  it('accepts both solver wire versions a rolling deploy can send and refuses any other', () => {
+    expect(decode(frame({ request: { wireVersion: 1, objective: 'pri' } })).request).toEqual({
+      wireVersion: 1,
+      objective: 'pri',
+    });
+    expect(decode(frame()).request).toEqual({ wireVersion: 2, objective: 'pri' });
+    expect(() => decode(frame({ request: { wireVersion: 3, objective: 'pri' } }))).toThrow(
+      /wireVersion/,
+    );
+  });
+
   it('rejects caller resource values above the host caps and mismatched work', () => {
     // Production break caught: taking either numeric field directly into the
     // Docker argv gives a compromised backend resource authority.
@@ -105,7 +116,7 @@ describe('decodeSupervisorStartFrame', () => {
     expect(() => decode(frame({ searchWorkers: 0 }))).toThrow(/searchWorkers/);
     expect(() => decode(frame({ memoryLimitMb: 513 }))).toThrow(/memoryLimitMb/);
     expect(() => decode(frame({ memoryLimitMb: 0 }))).toThrow(/memoryLimitMb/);
-    expect(() => decode(frame({ request: { wireVersion: 1, objective: 'time' } }))).toThrow(
+    expect(() => decode(frame({ request: { wireVersion: 2, objective: 'time' } }))).toThrow(
       /request objective/,
     );
   });

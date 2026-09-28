@@ -44,7 +44,7 @@ dependencies = [
   # The solver. CP-SAT only; nothing here uses the routing or graph libraries
   # that ship in the same wheel.
   "ortools==9.15.6755",
-  # Request validation against the copy of solver-wire.v1.json installed beside
+  # Request validation against the copy of solver-wire.v2.json installed beside
   # this package (design.md "Solver wire contract — one versioned schema, four
   # consumers"). Pinned because a resolver-chosen jsonschema is a resolver
   # chosen validation verdict.

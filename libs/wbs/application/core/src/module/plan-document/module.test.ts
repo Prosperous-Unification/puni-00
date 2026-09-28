@@ -6,6 +6,7 @@ import { servicesOver } from '../../compose';
 import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { CalendarMarker } from '../../ports/calendar-marker-store';
 import { clockOf } from '../../ports/clock';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
@@ -28,6 +29,7 @@ async function seeded() {
   let next = 0;
   const clock = clockOf({ now: () => EXPORTED_AT, newId: () => `id-${String(++next)}` });
   const services = servicesOver(source.stores, {
+    admission: CREATOR_ADMISSION,
     clock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,

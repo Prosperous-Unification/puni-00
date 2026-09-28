@@ -46,11 +46,19 @@ export interface SavedPlanWrite {
   readonly schedule: SavedPlanScheduleWrite;
 }
 
+/** Current scoped actor, reclassified inside the saved-plan writer's own transaction. */
+export interface ScopedSavedPlanWrite {
+  readonly organizationId: string;
+  readonly actorId: string;
+  readonly operation: 'save' | 'rename' | 'delete';
+}
+
 /** What the source did while trying to acquire and perform a saved-plan write. */
 export type SavedPlanWriteOutcome<Refusal> =
   | { readonly outcome: 'written' }
   | { readonly outcome: 'refused'; readonly refusal: Refusal }
-  | { readonly outcome: 'snapshot_busy' };
+  | { readonly outcome: 'snapshot_busy' }
+  | { readonly outcome: 'forbidden' | 'not_found' };
 
 /** A stored header and its independently stored bodies. */
 export interface StoredSavedPlan {
@@ -67,7 +75,7 @@ export interface SavedPlanHoldingRow {
   readonly bytes: number;
 }
 
-export type SavedPlanTouchOutcome = 'touched' | 'no_such_plan' | 'snapshot_busy';
+export type SavedPlanTouchOutcome = 'touched' | 'no_such_plan' | 'snapshot_busy' | 'forbidden';
 
 /** The identities used to authorize a rename or deletion. */
 export interface SavedPlanPrincipals {

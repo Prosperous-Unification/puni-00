@@ -1,3 +1,4 @@
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { builtByNonOwner, MAX_ESTIMATE_DAYS, type Schedule, schedule } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
@@ -19,7 +20,11 @@ import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
-import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
+import { refusingOnboarding } from '../testing/onboarding-fixture';
+import {
+  legacyOrganizationAccess,
+  refusingMemberships,
+} from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects, memoryProjectTables } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -47,12 +52,14 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
   const workItems =
     optimized === undefined
       ? new WorkItemService({
+          admission: CREATOR_ADMISSION,
           clock: testClock,
           ...plan.stores,
           broadcast: plan.broadcast,
           scheduler: plan.scheduler,
         })
       : new WorkItemService({
+          admission: CREATOR_ADMISSION,
           clock: testClock,
           ...plan.stores,
           broadcast: plan.broadcast,
@@ -73,6 +80,8 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
   });
   const app = buildApp({
     organizations: legacyOrganizationAccess,
+    memberships: refusingMemberships,
+    onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
     clock: testClock,
     appOrigin: 'http://localhost',

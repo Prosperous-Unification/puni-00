@@ -44,3 +44,71 @@ export function canEditProjectInOrganization(
 ): boolean {
   return canWriteInOrganization(scope.role) && canEditProject(project, scope.userId);
 }
+
+/** The roles an admin administers; every other role is a super-admin's alone. */
+const ORDINARY_ROLES: readonly OrganizationRole[] = ['member', 'viewer'];
+
+/**
+ * Whether `actor` may change a member's role from `current` to `requested`,
+ * or remove them when `requested` is null, per the role matrix in
+ * `organization-ownership-and-access/specs/organization-access`: an admin
+ * moves viewers and members between those two roles or removes them; only a
+ * super-admin grants, revokes or removes an admin or super-admin role. Never
+ * leaving the organization without a super-admin is the store's check, made
+ * in the same transaction as the write.
+ *
+ * Proof: letting an admin change any role made `refuses an admin promoting
+ * a member to admin, or changing or removing an admin` in
+ * `membership-organization.controller.db.test.ts` answer 200 with the
+ * promoted admin; watched 2026-09-27.
+ */
+export function mayAdministerMembership(
+  actor: OrganizationRole,
+  current: OrganizationRole,
+  requested: OrganizationRole | null,
+): boolean {
+  if (actor === 'super_admin') return true;
+  if (actor !== 'admin') return false;
+  return (
+    ORDINARY_ROLES.includes(current) && (requested === null || ORDINARY_ROLES.includes(requested))
+  );
+}
+
+/**
+ * Whether `actor` may invite someone into `role`: an admin invites viewers and
+ * members, a super-admin also admins, and no invitation grants super-admin
+ * (`organization-onboarding` spec, "Invitations are bound and single use";
+ * `organization_invitation.role` refuses it too). Issuing, revoking and
+ * accepting an invitation are onboarding's (task 4.4); this is the authority
+ * they check.
+ *
+ * Proof: letting an admin invite any role made `lets an admin invite viewers
+ * and members, a super-admin also admins, and nobody super-admins` fail, and
+ * so did dropping the super-admin refusal; watched 2026-09-27.
+ */
+export function mayInvite(actor: OrganizationRole, role: OrganizationRole): boolean {
+  if (role === 'super_admin') return false;
+  if (actor === 'super_admin') return true;
+  return actor === 'admin' && ORDINARY_ROLES.includes(role);
+}
+
+/**
+ * How the scoped user's write to a project is authorized: `ordinary` under
+ * the role and restricted-creator rules, `recovery` for a super-admin's
+ * write to a restricted project someone else created, which is permitted
+ * only as an audited act in the write's own transaction, and `refused`
+ * otherwise. Any restricted project qualifies, whether or not its creator is
+ * still a member; the creator stays recorded.
+ *
+ * Proof: answering `ordinary` for the super-admin case made `calls a
+ * super-admin's edit of someone else's restricted project a recovery` in
+ * `organization-access.test.ts` fail; watched 2026-09-27.
+ */
+export function classifyProjectEdit(
+  project: ProjectOwnership,
+  scope: OrganizationScope,
+): 'ordinary' | 'recovery' | 'refused' {
+  if (canEditProjectInOrganization(project, scope)) return 'ordinary';
+  if (scope.role === 'super_admin' && project.restricted) return 'recovery';
+  return 'refused';
+}

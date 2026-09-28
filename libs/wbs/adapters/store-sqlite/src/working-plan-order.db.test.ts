@@ -16,6 +16,7 @@ import {
   type UnitOfWork,
   type WriteStamp,
 } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
@@ -87,6 +88,7 @@ async function sqliteEstimateRunner(name: string) {
   );
   const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
   const publicGraph = servicesOver(source.stores, {
+    admission: CREATOR_ADMISSION,
     clock,
     broadcast: silentBroadcaster,
     scheduler: fastScheduler,
@@ -96,7 +98,12 @@ async function sqliteEstimateRunner(name: string) {
     announcements: silentBroadcaster,
     publicServices: publicGraph,
     batchServices: (scope, broadcast) =>
-      servicesOver(scope.stores, { clock, broadcast, scheduler: fastScheduler }),
+      servicesOver(scope.stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      }),
   });
   return {
     source,
@@ -372,7 +379,12 @@ it('advances SQLite assignment and directory cascades before the next runner com
 
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, silentBroadcaster);
     const assignmentObservations: { retained: number | undefined; stored: number | undefined }[] =
       [];
@@ -569,7 +581,12 @@ it('rolls back a successful directory write when its retained reload fails', asy
     };
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, silentBroadcaster);
     const runner = new PlanCommandRunner({
       uow: failingUow,
@@ -818,7 +835,12 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
       },
     });
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, silentBroadcaster);
     const admitted = captureAdmittedStores(source.uow);
     const runner = new PlanCommandRunner({
@@ -951,7 +973,12 @@ it('refreshes a dependency survivor before the next runner command and preserves
 
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, silentBroadcaster);
     let retainedBeforeNext: number | undefined;
     let authoritativeBeforeNext: number | undefined;
@@ -1067,7 +1094,12 @@ it('keeps every SQLite value group in source order after runner sets populate an
 
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, silentBroadcaster);
     let observations = 0;
     const admitted = captureAdmittedStores(source.uow);

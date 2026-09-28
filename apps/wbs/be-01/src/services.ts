@@ -8,6 +8,7 @@ import {
   type PlanTransactionalStores,
   servicesOver as coreServicesOver,
 } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { contractVersionOf } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
 import { type FetchLike, PushClient, systemTimers } from '@wbs/runtime-portable';
@@ -73,6 +74,7 @@ export interface SharedRuntime {
 /** Compatibility entrypoint over core's pure transactional half. */
 export function servicesOver(stores: PlanTransactionalStores, shared: SharedRuntime) {
   return coreServicesOver(stores, {
+    admission: CREATOR_ADMISSION,
     clock: shared.clock,
     broadcast: shared.broadcast,
     scheduler: shared.optimized.scheduler,
@@ -141,6 +143,7 @@ export function buildServices(options: ServicesOptions): BeServices {
       repository: createOptimizationRepository(
         source.db,
         new DrizzleEventLogStore(source.db, source.gate),
+        source.gate,
       ),
       contractVersion: contractVersionOf(optimizer.solverVersion),
       solverVersion: optimizer.solverVersion,

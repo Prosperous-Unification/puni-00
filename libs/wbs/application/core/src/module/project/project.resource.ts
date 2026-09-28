@@ -1,6 +1,7 @@
 import {
   canEditProject,
   canWriteInOrganization,
+  classifyProjectEdit,
   DEFAULT_ESTIMATE_RULE,
   isIsoDate,
   PertWeights,
@@ -55,6 +56,13 @@ export type UpdateOutcome =
          * and the same body will be accepted once TASK-220 wires the reader.
          */
         | 'optimizer_unavailable'
+        /**
+         * Under scoped access, another of the organization's projects holds
+         * the requested solution slug. Other organizations' slugs never
+         * collide, so this reveals nothing beyond the caller's own
+         * organization.
+         */
+        | 'solution_taken'
         /**
          * A `depReach` change that would move a dynamic legacy anchor into a
          * cycle with a typed dependency. Nothing is written.
@@ -300,23 +308,27 @@ export class ProjectService {
   }
 
   /**
-   * Finds `id` through the caller's access, then asks whether the caller may
-   * write it: the organization role and restricted-creator rule under scoped
-   * access, the creator rule alone under legacy access.
+   * Checks the Retry route before computing its schedule input. A scoped
+   * super-admin can pass the read for a restricted project; the optimizer's
+   * immediate transaction reclassifies any accepted retry and records its
+   * recovery there. Legacy access keeps the creator rule.
    *
    * Proof: returning the legacy `canEditProject` answer for scoped access (now
    * inside `mayEditProjectWithin`) failed
    * `refuses a viewer every project write and lets the viewer read and open` in
    * `project-organization.controller.db.test.ts`; watched 2026-09-27.
    */
-  async authorizeEdit(
+  async authorizeRetry(
     id: string,
     actorId: string,
     access: ResourceAccess,
   ): Promise<EditAuthorization> {
     const project = await this.find(id, access);
     if (project === null) return { ok: false, reason: 'not_found' };
-    return mayEditProjectWithin(project, actorId, access)
+    return mayEditProjectWithin(project, actorId, access) ||
+      (access.kind === 'scoped' &&
+        access.scope.userId === actorId &&
+        access.scope.role === 'super_admin')
       ? { ok: true, project }
       : { ok: false, reason: 'forbidden' };
   }
@@ -393,20 +405,22 @@ export class ProjectService {
     if (patch.pertWeights !== undefined && PertWeights(patch.pertWeights) instanceof type.errors) {
       return { ok: false, reason: 'bad_pert_weights' };
     }
-    const authorization = await this.authorizeEdit(id, actorId, access);
-    if (!authorization.ok) return authorization;
-    const { project } = authorization;
-    // Solution slugs are still unique across the deployment, so after
-    // activation a link collision would reveal another organization's project.
-    // Linking is refused until task 3.5 scopes solution references; clearing a
-    // link stays allowed.
-    // Proof: removing this refusal made `refuses a solution link that could
-    // reveal another organization's project` in
-    // `project-organization.controller.db.test.ts` answer 500 instead of 403
-    // for the foreign project's slug; watched 2026-09-27.
-    if (access.kind === 'scoped' && patch.solutionRef != null) {
-      return { ok: false, reason: 'forbidden' };
-    }
+    const found = await this.find(id, access);
+    if (found === null) return { ok: false, reason: 'not_found' };
+    // Under scoped access a super-admin may also recover a restricted project
+    // someone else created, as an audited act (task 3.7); every other write
+    // family still refuses it through `mayEditProjectWithin`.
+    // Proof: refusing the recovery made `recovers a restricted project as an
+    // audited super-admin edit` in `project-organization.controller.db.test.ts`
+    // answer 403; watched 2026-09-27.
+    const edit =
+      access.kind === 'scoped'
+        ? classifyProjectEdit(found, access.scope)
+        : mayEditProjectWithin(found, actorId, access)
+          ? 'ordinary'
+          : 'refused';
+    if (edit === 'refused') return { ok: false, reason: 'forbidden' };
+    const project = found;
     // After the authorization check, so a reader of a restricted project still
     // learns `forbidden` rather than a fact about how this box is wired.
     if (turnsTheOptimizerOn(project, patch) && !this.optimizerAvailable()) {
@@ -423,15 +437,24 @@ export class ProjectService {
       if (cycle !== null) return { ok: false, reason: 'dependency_cycle' };
     }
     const stamp = this.clock.stampFor(actorId);
-    const updated =
-      access.kind === 'scoped'
-        ? await this.opts.projects.updateInOrganization(
+    // Scoped writes are classified again inside the store's transaction, so a
+    // restriction or membership change since the read above cannot turn a
+    // recovery into an unaudited ordinary write.
+    const written =
+      access.kind === 'legacy'
+        ? await this.opts.projects.update(id, patch, stamp)
+        : await this.opts.projects.editInOrganization(
             id,
             patch,
             stamp,
             access.scope.organizationId,
-          )
-        : await this.opts.projects.update(id, patch, stamp);
+            { actorId, auditId: this.clock.newId() },
+          );
+    // The in-transaction classification refused: demoted, or the project
+    // changed hands or restriction, since the request was read.
+    if (written === 'forbidden') return { ok: false, reason: 'forbidden' };
+    if (written === 'solution_taken') return { ok: false, reason: 'solution_taken' };
+    const updated = written;
     // Gone between the read and the write. Reporting success would tell the
     // caller their rename landed on a project that no longer exists.
     if (updated === null) return { ok: false, reason: 'not_found' };

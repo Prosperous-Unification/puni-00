@@ -8,7 +8,11 @@ import {
 } from '@wbs/contracts';
 import { canWriteInOrganization } from '@wbs/domain';
 
-import type { OrganizationAccess, ResourceAccess } from '../ports/organization-access';
+import type {
+  OrganizationAccess,
+  OrganizationPrincipal,
+  ResourceAccess,
+} from '../ports/organization-access';
 import type { Broadcaster } from '../ports/project-event';
 import type { ProjectService } from '../service/project.service';
 import type {
@@ -101,8 +105,10 @@ function touchRefusal(outcome: Exclude<SavedPlanTouchResult['outcome'], 'touched
 }
 
 /**
- * Six saved-plan operations. Saves use project write access; rename/delete defer
- * to the service's creator-or-owner rule. Actor identity comes from policy admission.
+ * Six saved-plan operations. Saves use project write access; rename/delete use
+ * the creator-or-owner rule for ordinary edits and audited scoped recovery for
+ * a super-admin of another creator's restricted project. Actor identity comes
+ * from policy admission.
  * Successful mutations announce only after the service commits and releases its
  * turn, through the process's own broadcaster — a saved plan is never part of
  * a batch, so nothing collects its event. Refusals publish nothing.
@@ -149,8 +155,8 @@ export function savedPlanRoutes(
    * `saved-plan-organization.controller.db.test.ts` answer 200 for the
    * viewer's rename of a plan the viewer created; watched 2026-09-27.
    */
-  const refuseTouch = async (savedPlanId: string, userId: string) => {
-    const resolved = await organizations.resolve(userId);
+  const refuseTouch = async (savedPlanId: string, principal: OrganizationPrincipal) => {
+    const resolved = await organizations.resolve(principal);
     if (!resolved.ok) return organizationRefusal(resolved.refusal);
     if (!(await reachesPlan(savedPlanId, resolved.access)))
       return { ok: false, status: 404, body: { error: 'not_found' } } as const;
@@ -162,7 +168,7 @@ export function savedPlanRoutes(
     bind(
       savePlanShape,
       async ({ params, body, principal }): Promise<HttpReply<typeof savePlanShape>> => {
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         let outcome;
         try {
@@ -199,7 +205,7 @@ export function savedPlanRoutes(
     bind(
       listSavedPlans,
       async ({ params, principal }): Promise<HttpReply<typeof listSavedPlans>> => {
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         // Proof: reading the project unscoped here, and separately in the
         // compare route, made `answers 404 alike for a foreign and an absent
@@ -216,7 +222,7 @@ export function savedPlanRoutes(
     bind(
       compareSavedPlans,
       async ({ params, query, principal }): Promise<HttpReply<typeof compareSavedPlans>> => {
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         if ((await projects.readWithin(params.id, resolved.access)) === null)
           return { ok: false, status: 404, body: { error: 'not_found' } };
@@ -269,7 +275,7 @@ export function savedPlanRoutes(
       },
     ),
     bind(readSavedPlan, async ({ params, principal }): Promise<HttpReply<typeof readSavedPlan>> => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       if (!(await reachesPlan(params.id, resolved.access)))
         return { ok: false, status: 404, body: { error: 'not_found' } };
@@ -288,9 +294,21 @@ export function savedPlanRoutes(
     bind(
       renameSavedPlan,
       async ({ params, body, principal }): Promise<HttpReply<typeof renameSavedPlan>> => {
-        const refused = await refuseTouch(params.id, principal.id);
+        const refused = await refuseTouch(params.id, principal);
         if (refused !== null) return refused;
-        const called = await callSavedPlan(() => plans.rename(params.id, principal.id, body.name));
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        const scoped =
+          resolved.access.kind === 'scoped'
+            ? {
+                organizationId: resolved.access.scope.organizationId,
+                actorId: principal.id,
+                operation: 'rename' as const,
+              }
+            : undefined;
+        const called = await callSavedPlan(() =>
+          plans.rename(params.id, principal.id, body.name, scoped),
+        );
         if (!called.ok) return called;
         const outcome = called.value;
         if (outcome.outcome !== 'touched') return touchRefusal(outcome.outcome);
@@ -304,9 +322,19 @@ export function savedPlanRoutes(
     bind(
       deleteSavedPlan,
       async ({ params, principal }): Promise<HttpReply<typeof deleteSavedPlan>> => {
-        const refused = await refuseTouch(params.id, principal.id);
+        const refused = await refuseTouch(params.id, principal);
         if (refused !== null) return refused;
-        const called = await callSavedPlan(() => plans.delete(params.id, principal.id));
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        const scoped =
+          resolved.access.kind === 'scoped'
+            ? {
+                organizationId: resolved.access.scope.organizationId,
+                actorId: principal.id,
+                operation: 'delete' as const,
+              }
+            : undefined;
+        const called = await callSavedPlan(() => plans.delete(params.id, principal.id, scoped));
         if (!called.ok) return called;
         const outcome = called.value;
         if (outcome.outcome !== 'touched') return touchRefusal(outcome.outcome);
