@@ -168,6 +168,50 @@ describe('buildSolverRequest', () => {
     );
   });
 
+  it('keeps a weighted FF fallback and each finish inside the request horizon', () => {
+    const typed = [
+      {
+        id: 'ff',
+        predecessor: { scope: 'whole' as const, workItemId: 'A' },
+        successor: { scope: 'whole' as const, workItemId: 'B' },
+        type: 'FF' as const,
+      },
+    ];
+    const plan = planOf({
+      rows: [rowOf('A', null, null), rowOf('B', null, null)],
+      edges: [],
+      slices: [sliceOf('A', null, 1 / 48 + 1e-12), sliceOf('B', null, 0)],
+      notBefore: new Map(),
+      poolSizes: new Map(),
+      typed,
+    });
+    const baselineOffsets = quantisedFastBaseline(
+      plan.rows,
+      plan.edges,
+      plan.slices,
+      plan.notBefore,
+      plan.poolSizes,
+      plan.reach,
+      typed,
+    );
+    const request = requestOf(plan, spawnOf(plan, { baselineOffsets }));
+    expect(request.edges).toEqual([
+      {
+        predecessorKey: sliceKey('A', null),
+        successorKey: sliceKey('B', null),
+        type: 'FF',
+        startWeightUnits: 2,
+      },
+    ]);
+    expect(request.baselineOffsets[sliceKey('B', null)]).toBe(2);
+    expect(request.horizonUnits).toBe(2);
+    for (const slice of request.slices) {
+      expect(request.baselineOffsets[slice.key] + slice.durationUnits).toBeLessThanOrEqual(
+        request.horizonUnits,
+      );
+    }
+  });
+
   it('changes exactly one field between the two objectives', () => {
     // PRI and Time are two runs over one canonical input. Anything else that
     // differed would be two plans being compared rather than two objectives.

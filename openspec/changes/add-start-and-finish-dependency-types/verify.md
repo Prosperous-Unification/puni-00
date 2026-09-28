@@ -124,6 +124,14 @@ Final observed checks: repository-root `env -u CLAUDECODE bun test libs/wbs/doma
 
 At that review checkpoint, mounted DB tests, build, and the h2puni gate remained unverified.
 
+## 2026-09-28 weighted FF horizon review fix
+
+For A=`1/48 + 1e-12`, B=`0`, FF, the generated request has `startWeightUnits=2`, baseline B start `2`, and `horizonUnits=2`. Every baseline start plus duration is at most the horizon. Python accepts the matching two-slice request through `validate_request`; CP-SAT accepts the baseline with both starts pinned. The horizon is the latest floor plus all durations plus each positive FF weight excess over predecessor duration. Serial topological placement can pay every such excess and thus stays within the CP-SAT start domain when deadlines permit placement.
+
+Proof: before adding the FF placement gaps to preflight, `env -u CLAUDECODE bun test libs/wbs/domain/contracts/solver/src/build-solver-request.test.ts` reported 14 pass / 1 fail: the generated B baseline finish was 2 and the horizon was 1. With the gap included, the focused builder and preflight run reported 30 pass / 0 fail. The adjacent `Proof:` comment is on the horizon calculation.
+
+Observed checks: repository-root `env -u CLAUDECODE bun test libs/wbs/domain/contracts/solver libs/wbs/domain/domain` reported 1,067 pass / 0 fail across 80 files; `/home/df/wd/puni/puni-plan/venv-solver-py/bin/python -m unittest discover -s tests -t tests` from `libs/wbs/adapters/solver-py` reported 227 tests, OK. `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint:fast typecheck -p wbs-contracts wbs-domain --skip-nx-cache --output-style=static` reported four successful targets. `bunx prettier --check` on the modified TypeScript files and this verify file, and `git diff --check`, exited 0. The focused builder test after the final exact-horizon assertion reported 15 pass / 0 fail; the focused Python validation and CP-SAT test after matching its horizon to 2 reported 1 test, OK. The h2puni gate was not run because it checks out a committed SHA and this fix remains uncommitted.
+
 ## 2026-09-28 fractional replay and read-contract review fixes
 
 Weighted Fast replay now checks finite pins and explicit floors before tiling, then checks FS/SS/FF dependencies against materialized boundaries. A two-step A beginning at day 2 with two `1/3`-day steps and a one-day FF successor B pinned at `1.6666666666666665` replays with both finishes at `2.6666666666666665`. The new regression failed before the fix at the nominal weighted floor (18 pass / 1 fail) and passed after it (19 pass / 0 fail). The all-FS Fast golden corpus reproduced every stored schedule value in the domain run.

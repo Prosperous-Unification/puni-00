@@ -87,9 +87,8 @@ def a_request(
 ) -> dict[str, Any]:
     """A schema-valid request around a hand-built slice set.
 
-    `horizonUnits` defaults to the serial bound the builder computes,
-    `max(0, ...notBefore) + Σ duration`, so the default instance can always
-    serialise everything and no case is accidentally horizon-bound.
+    `horizonUnits` defaults to the unweighted serial bound. A test with an FF
+    weight exceeding predecessor duration supplies its horizon explicitly.
     `baselineOffsets` defaults to all-zero, which makes MOVEMENT equal to Σ start
     and keeps the movement cases readable.
     """
