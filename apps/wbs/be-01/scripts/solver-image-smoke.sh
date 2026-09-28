@@ -5,16 +5,54 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Proof: the fake-Docker production entrypoint test observed the old three-level ascent passing
 # `<workspace>/apps/apps/wbs/be-01/Dockerfile` and `<workspace>/apps` as its build inputs.
 repo_root="$(cd "$script_dir/../../../.." && pwd)"
-image="wbs-be-01:solver-smoke"
+attempt_token="$(cat /proc/sys/kernel/random/uuid)"
+# Every tag is unique to this attempt so cleanup removes only what this attempt created.
+image="wbs-be-01:solver-smoke-$attempt_token"
 request="$repo_root/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline.json"
 registry_name="wbs-solver-smoke-registry-$$"
 caller_name="wbs-solver-smoke-caller-$$"
-attempt_token="$(cat /proc/sys/kernel/random/uuid)"
 socket_directory="$(mktemp -d "/run/user/$(id -u)/wbs-solver-smoke.XXXXXX")"
 socket_path="$socket_directory/supervisor.sock"
 supervisor_pid=''
+created_images=()
+
+# Returns 0 when the image exists and 1 when Docker reports it absent; any other inspect
+# failure throws, so a broken daemon cannot pass for a removed image.
+image_exists() {
+  local inspect_error
+  if inspect_error="$(docker image inspect "$1" 2>&1 >/dev/null)"; then
+    return 0
+  fi
+  case "$inspect_error" in
+    *'No such image'*) return 1 ;;
+  esac
+  echo "[solver-image-smoke] cannot inspect image $1: $inspect_error" >&2
+  exit 1
+}
+
+# Removes every image this attempt tagged, newest first, then fails if any survived.
+remove_created_images() {
+  local index reference
+  local surviving=()
+  for ((index = ${#created_images[@]} - 1; index >= 0; index--)); do
+    reference="${created_images[index]}"
+    if image_exists "$reference" && ! docker image rm "$reference" >/dev/null; then
+      echo "[solver-image-smoke] could not remove image $reference" >&2
+    fi
+  done
+  for reference in "${created_images[@]}"; do
+    if image_exists "$reference"; then
+      surviving+=("$reference")
+    fi
+  done
+  if [ "${#surviving[@]}" -ne 0 ]; then
+    echo "[solver-image-smoke] images outlived the smoke: ${surviving[*]}" >&2
+    return 1
+  fi
+}
 
 cleanup() {
+  local status=$?
   if [ -n "$supervisor_pid" ]; then
     kill "$supervisor_pid" 2>/dev/null || true
     wait "$supervisor_pid" 2>/dev/null || true
@@ -23,9 +61,16 @@ cleanup() {
   docker container inspect "wbs-solver-$attempt_token" >/dev/null 2>&1 &&
     docker rm --force "wbs-solver-$attempt_token" >/dev/null
   rmdir "$socket_directory" 2>/dev/null || true
+  # Proof: with this call removed, or run only after a passing smoke, solver-image-smoke.test.ts
+  # observed the build and registry tags left in the fake Docker store.
+  if ! remove_created_images && [ "$status" -eq 0 ]; then
+    status=1
+  fi
+  exit "$status"
 }
 trap cleanup EXIT
 
+created_images+=("$image")
 docker build --file "$repo_root/apps/wbs/be-01/Dockerfile" --tag "$image" "$repo_root"
 
 docker run --rm --interactive --entrypoint wbs-solver "$image" <"$request" >/dev/null
@@ -41,7 +86,8 @@ for _attempt in 1 2 3 4 5 6 7 8 9 10; do
   sleep 1
 done
 curl --fail --silent --show-error --max-time 2 "http://$registry/v2/" >/dev/null
-registry_tag="$registry/wbs-be-01:solver-smoke"
+registry_tag="$registry/wbs-be-01:solver-smoke-$attempt_token"
+created_images+=("$registry_tag")
 docker tag "$image" "$registry_tag"
 docker push "$registry_tag" >/dev/null
 mapfile -t matching_digests < <(
@@ -85,7 +131,8 @@ docker run --rm --name "$caller_name" \
 # flag because its puni1 user session owns the persistent systemd timer used by
 # the real supervisor-restart proof.
 if [ "${WBS_RUN_SOLVER_ORPHAN_PROC:-0}" = '1' ]; then
-  orphan_registry_tag="$registry/wbs-be-01:solver-orphan"
+  orphan_registry_tag="$registry/wbs-be-01:solver-orphan-$attempt_token"
+  created_images+=("$orphan_registry_tag")
   docker build \
     --file "$repo_root/apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile" \
     --build-arg "SOLVER_BASE_IMAGE=$solver_image" \
