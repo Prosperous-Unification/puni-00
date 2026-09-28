@@ -179,8 +179,9 @@ function auditedWrites(): Write[] {
       // input can reach.
       const table = hit[2];
       if (EXEMPT.has(table)) continue;
-      // Only a declared drizzle table is a write: `hash.update(asset)` in
-      // `public-email-policy.ts` is not.
+      // Only a declared drizzle table is a write: the hash updates
+      // `createHash().update(asset)` in `public-email-policy.ts` and
+      // `createHash().update(dnsValue)` in `domain-claim.ts` are not.
       // Proof: 2026-09-28, dropping this check made `stamps every update with
       // auditOnUpdate` fail with `public-email-policy.ts: update of asset`.
       if (tableDeclaration(schema, table) === null) continue;
