@@ -42,8 +42,9 @@ export function isDependencyEndpointScope(value: unknown): value is DependencyEn
 /**
  * One end of a typed dependency.
  *
- * - `whole`: a work item. A leaf predecessor is left at its last step node and a
- *   leaf successor entered at its first; a parent means every descendant leaf.
+ * - `whole`: a work item. For each leaf, FS joins predecessor sinks to successor
+ *   sources (last to first), SS joins sources to sources (first to first), and
+ *   FF joins sinks to sinks (last to last); a parent means every descendant leaf.
  * - `node`: one leaf's step node, held as the pair the store keys it by. The
  *   wire spells it as a step node ID (`formatStepNodeId`).
  * - `descendant-step`: one project step in every leaf beneath a parent.

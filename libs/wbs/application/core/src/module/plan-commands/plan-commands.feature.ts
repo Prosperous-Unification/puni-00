@@ -644,9 +644,10 @@ export class PlanCommandRunner {
       // legacy anchor into a cycle` and `refuses a move that brings a
       // successor under its own whole predecessor` fail on `Expected: 409,
       // Received: 200`; watched 2026-09-27.
-      // Proof: omitting addDependency from this guard made `refuses a later legacy add
-      // that closes an SS cycle and rolls back the batch` receive 200 instead of 409;
-      // watched 2026-09-28.
+      // Proof: bypassing addDependency's service cycle refusal still left `refuses a
+      // later legacy add that closes an SS cycle and rolls back the batch` at 409;
+      // also omitting addDependency from this runner guard made it receive 200
+      // instead of 409. Both faults restored; watched 2026-09-28.
       if (projectId !== null && GRAPH_AFFECTING_KINDS.has(command.kind)) {
         const cycle = await graph.workItems.findDependencyCycle(projectId);
         if (cycle !== null) {
