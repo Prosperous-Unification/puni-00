@@ -68,7 +68,9 @@ export interface OptimizationCoordinatorOptions {
   readonly clearInterval?: (handle: unknown) => void;
 }
 
+/** A manual Retry decision, including current scoped-authority refusals. */
 export type OptimizationRetryResult =
+  | { readonly kind: 'forbidden' | 'not_found' }
   | { readonly kind: 'stale-input-hash'; readonly currentInputHash: string }
   | { readonly kind: 'not-retryable'; readonly state: OptimizationVariantState['state'] }
   | { readonly kind: 'already-running' }
@@ -400,13 +402,16 @@ export class OptimizationCoordinator {
 
   /**
    * Admit one manual Retry in the contract's stale → retryable → live → capacity order.
-   * The retained marker remains the read authority until this attempt commits.
+   * A scoped attempt reclassifies project authority and records recovery in the
+   * same immediate write as its retry admission. The retained marker remains
+   * the read authority until this attempt commits.
    */
   readonly retry = (ask: {
     readonly projectId: string;
     readonly objective: SolverObjectiveName;
     readonly inputHash: string;
     readonly input: ScheduleInput;
+    readonly scoped?: { readonly organizationId: string; readonly actorId: string };
   }): OptimizationRetryResult => {
     const currentInputHash = this.options.hashInput(ask.input);
     if (ask.inputHash !== currentInputHash) {
@@ -425,6 +430,7 @@ export class OptimizationCoordinator {
       ownerId: this.options.ownerId,
       now,
       attemptToken: this.options.attemptToken,
+      ...(ask.scoped === undefined ? {} : { scoped: ask.scoped }),
     });
 
     if (decision.kind !== 'accepted') return decision;

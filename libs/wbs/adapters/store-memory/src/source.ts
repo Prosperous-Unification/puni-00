@@ -6,6 +6,7 @@ import type {
   SavedPlanStore,
   SavedPlanWrite,
   SavedPlanWriteOutcome,
+  ScopedSavedPlanWrite,
   Source,
   StoredDependency,
   StoredSavedPlan,
@@ -518,12 +519,12 @@ function openMemorySourceWithSeams(
     );
   };
   const commandStagedSavedPlans: SavedPlanStore = {
-    write: (plan, check) => activeCommandHistory().write(plan, check),
+    write: (plan, check, scoped) => activeCommandHistory().write(plan, check, scoped),
     readOf: (id) => activeCommandHistory().readOf(id),
     listOf: (projectId) => activeCommandHistory().listOf(projectId),
     principalsOf: (id) => activeCommandHistory().principalsOf(id),
-    renameTo: (id, name) => activeCommandHistory().renameTo(id, name),
-    deleteOf: (id) => activeCommandHistory().deleteOf(id),
+    renameTo: (id, name, scoped) => activeCommandHistory().renameTo(id, name, scoped),
+    deleteOf: (id, scoped) => activeCommandHistory().deleteOf(id, scoped),
   };
 
   return {
@@ -766,6 +767,14 @@ function assertSavedPlanScheduleBoundary(
     throw new Error('saved-plan schedule boundary lacks complete header and input');
 }
 
+/** A memory history source has no membership or durable audit to admit scoped writes. */
+function refuseScopedSavedPlanWrite(scoped: ScopedSavedPlanWrite | undefined): void {
+  // Proof: skipping this refusal on rename made `refuses scoped saved-plan
+  // writes without a transactional membership source` receive a resolved
+  // Promise instead of a throw; watched 2026-09-28.
+  if (scoped !== undefined) throw new Error('memory saved plans cannot classify scoped writes');
+}
+
 function memorySavedPlans(
   state: HistoryState,
   stores: () => TransactionalStores,
@@ -773,7 +782,8 @@ function memorySavedPlans(
   lateWrite: MemoryLateWriteSeam,
 ): SavedPlanStore {
   return {
-    write: (plan, check) => {
+    write: (plan, check, scoped) => {
+      refuseScopedSavedPlanWrite(scoped);
       const expectedPlan = structuredClone(plan);
       return writeTurn(async () => {
         const rows = [...state.plans.values()].filter(
@@ -844,7 +854,8 @@ function memorySavedPlans(
         createdById: found.header.createdById,
       };
     },
-    renameTo(savedPlanId, name) {
+    renameTo(savedPlanId, name, scoped) {
+      refuseScopedSavedPlanWrite(scoped);
       const found = state.plans.get(savedPlanId);
       if (found === undefined) return Promise.resolve('no_such_plan');
       state.plans.set(savedPlanId, {
@@ -853,7 +864,8 @@ function memorySavedPlans(
       });
       return Promise.resolve('touched');
     },
-    deleteOf(savedPlanId) {
+    deleteOf(savedPlanId, scoped) {
+      refuseScopedSavedPlanWrite(scoped);
       return Promise.resolve(state.plans.delete(savedPlanId) ? 'touched' : 'no_such_plan');
     },
   };

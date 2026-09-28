@@ -8,6 +8,7 @@ import {
   ExternalIdentityRepository,
   openSqliteSource,
   OrganizationRepository,
+  scheduleInputHash,
   SqliteOrganizationAccess,
 } from '@wbs/store-sqlite';
 
@@ -76,6 +77,13 @@ export class OrganizationHarness {
     /** A raw connection the app does not hold, as a second process would. */
     readonly sqlite: ReturnType<typeof openDatabase>,
     private readonly bound: Map<string, string>,
+    private readonly retryHash?: (projectId: string) => Promise<string>,
+    private readonly retryDecision?: (
+      projectId: string,
+      organizationId: string,
+      actorId: string,
+      inputHash: string,
+    ) => Promise<string>,
   ) {}
 
   /**
@@ -175,7 +183,7 @@ export class OrganizationHarness {
    * rolled back exactly as in production. The command suites need this; the
    * fixtures {@link open} wires cannot roll a batch back.
    */
-  static openComposed(): OrganizationHarness {
+  static openComposed(withOptimizer = false): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
@@ -188,6 +196,15 @@ export class OrganizationHarness {
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
       pushFetch: () => Promise.resolve(Response.json({ delivered_to_sockets: 0 })),
+      ...(withOptimizer
+        ? {
+            optimizer: {
+              solverVersion: '0.1.0',
+              budgetMs: 60_000,
+              spawn: () => new Promise<never>(() => undefined),
+            },
+          }
+        : {}),
     });
     const app = buildApp({
       appOrigin: 'http://localhost',
@@ -219,7 +236,46 @@ export class OrganizationHarness {
       },
       internalAuthSecret: 'x'.repeat(32),
     });
-    return new OrganizationHarness(dir, app, openDatabase(path), bound);
+    return new OrganizationHarness(
+      dir,
+      app,
+      openDatabase(path),
+      bound,
+      async (projectId) => {
+        const input = await services.workItems.scheduleInput(projectId);
+        if (input === null) throw new Error(`project ${projectId} has no optimization input`);
+        return scheduleInputHash(input);
+      },
+      async (projectId, organizationId, actorId, inputHash) => {
+        const input = await services.workItems.scheduleInput(projectId);
+        if (input === null) throw new Error(`project ${projectId} has no optimization input`);
+        if (services.optimizer === undefined) throw new Error('harness optimizer is absent');
+        return services.optimizer.retry({
+          projectId,
+          objective: 'pri',
+          inputHash,
+          input,
+          scoped: { organizationId, actorId },
+        }).kind;
+      },
+    );
+  }
+
+  /** Hashes the same current schedule input the mounted Retry route rebuilds. */
+  async optimizationHash(projectId: string): Promise<string> {
+    if (this.retryHash === undefined) throw new Error('harness has no composed schedule input');
+    return this.retryHash(projectId);
+  }
+
+  /** Calls the production retry admission without HTTP's earlier role check. */
+  async retryAtStore(
+    projectId: string,
+    organizationId: string,
+    actorId: string,
+    inputHash: string,
+  ): Promise<string> {
+    if (this.retryDecision === undefined) throw new Error('harness has no composed optimizer');
+    return this.retryDecision(projectId, organizationId, actorId, inputHash);
   }
 
   close(): void {

@@ -35,6 +35,7 @@ import type {
 } from '../module/optimization/contract';
 import type { Drizzle } from './db';
 import type { EventLogTransactionalWrite } from './event-log';
+import { classifyProjectWriteIn, recordRecovery } from './project';
 
 function isRecordedEvent(value: unknown): value is RecordedEvent {
   return (
@@ -158,10 +159,42 @@ export function createOptimizationRepository(
     admitRetry: (ask): OptimizationRetryDecision =>
       db.transaction(
         (tx) => {
+          // Proof: forcing `ordinary` here let the production Retry store
+          // accept a removed super-admin ("accepted" instead of "forbidden")
+          // in the mounted suite's store-path negative; watched 2026-09-28.
+          const classified =
+            ask.scoped === undefined
+              ? 'ordinary'
+              : classifyProjectWriteIn(
+                  tx,
+                  ask.key.projectId,
+                  ask.scoped.organizationId,
+                  ask.scoped.actorId,
+                );
+          // Proof: skipping either refusal let the store-path foreign or removed
+          // actor Retry answer accepted rather than not_found or forbidden,
+          // respectively; each fault failed the mounted suite, watched 2026-09-28.
+          if (classified === null) return { kind: 'not_found' } as const;
+          if (classified === 'refused') return { kind: 'forbidden' } as const;
           const current = readGeneration(tx, ask.key.projectId, ask.key.contractVersion);
           if (current?.inputHash !== ask.key.inputHash) {
             return { kind: 'not-retryable', state: 'idle' } as const;
           }
+          const accepted = (admission: ReservedSolverAdmission | null) => {
+            // Proof: skipping this insert made the mounted accepted Retry find
+            // no audit record (0 pass, 1 fail); watched 2026-09-28.
+            if (classified === 'recovery' && ask.scoped !== undefined) {
+              recordRecovery(tx, {
+                id: crypto.randomUUID(),
+                organizationId: ask.scoped.organizationId,
+                actorId: ask.scoped.actorId,
+                projectId: ask.key.projectId,
+                detail: { optimizer: 'retry' },
+                at: ask.now,
+              });
+            }
+            return { kind: 'accepted', generation: current.generation, admission } as const;
+          };
           const outcome = readOptimizedPair(tx, ask.key)[ask.objective];
           const live = optimizedVariantIsLive(
             tx,
@@ -198,11 +231,7 @@ export function createOptimizationRepository(
             return { kind: 'not-retryable', state: outcome.kind } as const;
           }
           if (admission.kind === 'reserved') {
-            return {
-              kind: 'accepted',
-              generation: current.generation,
-              admission: enrichAdmission(admission, ask.key.budgetMs),
-            } as const;
+            return accepted(enrichAdmission(admission, ask.key.budgetMs));
           }
           const queued = enqueueSolverRequestIn(tx, {
             projectId: ask.key.projectId,
@@ -216,7 +245,7 @@ export function createOptimizationRepository(
             return { kind: 'not-retryable', state: outcome.kind } as const;
           }
           if (queued.kind === 'already-present') return { kind: 'already-running' } as const;
-          return { kind: 'accepted', generation: current.generation, admission: null } as const;
+          return accepted(null);
         },
         // Proof: deleting immediate mode made the two-connection writer ownership
         // test fail with DrizzleQueryError on the deferred slot-reclaim delete.

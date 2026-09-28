@@ -1,6 +1,7 @@
 import { DiBag } from 'di-bag';
 
 import type { Clock } from '../../ports/clock';
+import type { EditAdmission } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
 import type { StepStore } from '../../ports/step-store';
@@ -28,11 +29,13 @@ export const stepModule = DiBag.createBuilder()
         stepStore,
         broadcast,
         clock,
+        recoveryAdmission,
       }: {
         projectStore: ProjectStore;
         stepStore: StepStore;
         broadcast: Broadcaster;
         clock: Clock;
+        recoveryAdmission: EditAdmission | undefined;
       }): StepServiceOptions => ({
         projects: projectStore,
         steps: stepStore,
@@ -42,6 +45,7 @@ export const stepModule = DiBag.createBuilder()
         // failing (4 pass, 1 fail): it received `[]`.
         broadcast,
         clock,
+        recoveryAdmission,
       }),
       { factoryReturnKind: 'sync-value' },
     ),

@@ -255,7 +255,7 @@ export function mountedEndpoints(
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
-    ...stepRoutes(opts.steps, commands, opts.organizations),
+    ...stepRoutes(opts.steps, commands, opts.organizations, opts.writes),
     ...directoryRoutes(opts.directory, opts.organizations),
     ...historyRoutes(opts.history, opts.projects, opts.organizations),
     ...solutionRoutes(opts.projects, opts.organizations),
@@ -271,7 +271,7 @@ export function mountedEndpoints(
       opts.optimizer,
     ),
     ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),
-    ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations),
+    ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
     ...savedPlanRoutes(
       opts.savedPlans,
       opts.projects,

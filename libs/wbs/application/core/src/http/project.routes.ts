@@ -23,12 +23,15 @@ import { bind, EMPTY, type HttpReply, type RequestFailure } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 
 export interface OptimizationRetry {
+  /** Retries through an immediate store transaction; `scoped` rechecks the actor there. */
   retry(ask: {
     readonly projectId: string;
     readonly objective: SolverObjectiveName;
     readonly inputHash: string;
     readonly input: ScheduleInput;
+    readonly scoped?: { readonly organizationId: string; readonly actorId: string };
   }):
+    | { readonly kind: 'forbidden' | 'not_found' }
     | { readonly kind: 'stale-input-hash'; readonly currentInputHash: string }
     | { readonly kind: 'not-retryable'; readonly state: OptimizationVariantState['state'] }
     | { readonly kind: 'already-running' }
@@ -237,7 +240,7 @@ export function projectRoutes(
       async ({ params, body, principal }): Promise<HttpReply<typeof retryProjectOptimization>> => {
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
-        const authorization = await projects.authorizeEdit(
+        const authorization = await projects.authorizeRetry(
           params.id,
           principal.id,
           resolved.access,
@@ -258,8 +261,24 @@ export function projectRoutes(
             body: { code: 'not-retryable', state: 'idle' },
           };
         }
-        const outcome = optimizer.retry({ projectId: params.id, ...body, input });
+        const outcome = optimizer.retry({
+          projectId: params.id,
+          ...body,
+          input,
+          ...(resolved.access.kind === 'scoped'
+            ? {
+                scoped: {
+                  organizationId: resolved.access.scope.organizationId,
+                  actorId: principal.id,
+                },
+              }
+            : {}),
+        });
         switch (outcome.kind) {
+          case 'forbidden':
+            return { ok: false, status: 403, body: { error: 'forbidden' } };
+          case 'not_found':
+            return { ok: false, status: 404, body: { error: 'not_found' } };
           case 'stale-input-hash':
             return {
               ok: false,

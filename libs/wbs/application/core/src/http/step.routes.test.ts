@@ -8,6 +8,7 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { EMPTY } from './endpoint';
+import { type RecoveryWriteBoundary, runRecoveryWrite } from './recovery-write';
 import { stepRoutes } from './step.routes';
 
 const principal = { id: 'owner', username: 'owner', scopes: ['read', 'write'] as const };
@@ -16,6 +17,51 @@ const request = {
   url: new URL('https://app.example/steps'),
   headers: new Headers(),
 };
+
+test('publishes a dependent recovery only after its unit of work commits', async () => {
+  const order: string[] = [];
+  let held: RecoveryWriteBoundary['announcements'] | null = null;
+  const boundary = {
+    uow: {
+      run: async (act: (scope: unknown) => Promise<{ value: { ok: boolean } }>) => {
+        const decision = await act({
+          stores: { projects: { admitEditInOrganization: () => Promise.resolve('recovery') } },
+        });
+        order.push('commit');
+        return decision.value;
+      },
+    },
+    batch: (_scope: unknown, broadcast: RecoveryWriteBoundary['announcements']) => {
+      held = broadcast;
+      return {};
+    },
+    announcements: {
+      publish: () => {
+        order.push('publish');
+        return Promise.resolve();
+      },
+      latestSeq: () => Promise.resolve(-1),
+    },
+  } as unknown as RecoveryWriteBoundary;
+  expect(
+    await runRecoveryWrite<{ ok: true } | { ok: false; reason: 'not_found' | 'forbidden' }>(
+      boundary,
+      { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'sam', role: 'super_admin' } },
+      'project',
+      'sam',
+      { step: 'add' },
+      async () => {
+        const broadcast = held;
+        if (broadcast === null) throw new Error('batch did not receive a broadcaster');
+        await broadcast.publish('project', { type: 'step_removed', stepId: 'step' });
+        order.push('write');
+        return { ok: true };
+      },
+      (reason) => ({ ok: false, reason }),
+    ),
+  ).toEqual({ ok: true });
+  expect(order).toEqual(['write', 'commit', 'publish']);
+});
 
 async function fixture(restricted = false) {
   const projects = inMemoryProjects();

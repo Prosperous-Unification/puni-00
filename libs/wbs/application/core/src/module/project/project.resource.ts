@@ -295,23 +295,27 @@ export class ProjectService {
   }
 
   /**
-   * Finds `id` through the caller's access, then asks whether the caller may
-   * write it: the organization role and restricted-creator rule under scoped
-   * access, the creator rule alone under legacy access.
+   * Checks the Retry route before computing its schedule input. A scoped
+   * super-admin can pass the read for a restricted project; the optimizer's
+   * immediate transaction reclassifies any accepted retry and records its
+   * recovery there. Legacy access keeps the creator rule.
    *
    * Proof: returning the legacy `canEditProject` answer for scoped access (now
    * inside `mayEditProjectWithin`) failed
    * `refuses a viewer every project write and lets the viewer read and open` in
    * `project-organization.controller.db.test.ts`; watched 2026-09-27.
    */
-  async authorizeEdit(
+  async authorizeRetry(
     id: string,
     actorId: string,
     access: ResourceAccess,
   ): Promise<EditAuthorization> {
     const project = await this.find(id, access);
     if (project === null) return { ok: false, reason: 'not_found' };
-    return mayEditProjectWithin(project, actorId, access)
+    return mayEditProjectWithin(project, actorId, access) ||
+      (access.kind === 'scoped' &&
+        access.scope.userId === actorId &&
+        access.scope.role === 'super_admin')
       ? { ok: true, project }
       : { ok: false, reason: 'forbidden' };
   }

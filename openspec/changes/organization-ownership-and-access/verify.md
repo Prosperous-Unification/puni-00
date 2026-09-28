@@ -624,6 +624,59 @@ Astra review 1 raised 2 Important findings and 1 Minor:
 - **Important, a trailing newline passed:** rejected with a probe. JavaScript's `$` does not match before a final newline without the `m` flag (`/^a$/.test('a\n')` is false), and `gmail.com\n` is now a case of that test.
 - **Minor, stale `promoteClaim` JSDoc:** fixed.
 
+## Slice 24 — dependent recovery writes (task 3.7, part 2c)
+
+Branch `batch-9/010-5-2-orgs-22`, stacked on slice 23. There is no migration. Before activation, all four families keep their legacy path. Scoped steps and markers classify inside their unit of work; saved-plan writes and optimizer Retry classify inside their own immediate SQLite write transactions. Each successful recovery commits one audit row with the write. Announcements follow commit. A recovered saved-plan touch can reach another author's plan; ordinary touches still require its author or project creator.
+
+TDD red was observed on 2026-09-28: mounted step add, saved-plan save and Retry each returned 403 before the recovery code; allowance recovery also returned 403 before its precommand lookup was opened. The mounted step/marker, saved-plan and project suites then passed with the implementation.
+
+Every injected fault below was watched failing on 2026-09-28 and restored. Adjacent `Proof:` comments identify the production checks.
+
+| Check                                      | Injected fault                              | Observed failing test                                                                                      |
+| ------------------------------------------ | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Dependent write reclassification and audit | Force ordinary admission                    | Mounted `audits each super-admin step and marker recovery while keeping the creator` found zero audit rows |
+| Grant bound to project and actor           | Grant a different project                   | Same mounted recovery returned 403 for step add                                                            |
+| Step service consumes grant                | Disable grant                               | Same mounted recovery returned 403 for step add                                                            |
+| Marker service consumes grant              | Disable grant                               | Same mounted recovery returned 403 for marker create                                                       |
+| Allowance precommand read                  | Disable super-admin lookup                  | Mounted allowance recovery returned 403                                                                    |
+| Dependent admission refusal                | Skip refusal                                | Mounted non-creator member step add returned 200 instead of 403                                            |
+| Publish after commit                       | Publish inside unit of work                 | Core `publishes a dependent recovery only after its unit of work commits` observed publish before commit   |
+| Saved-plan save reclassification           | Force ordinary                              | Mounted save/rename/delete recovery found no save audit                                                    |
+| Saved-plan touch reclassification          | Force ordinary                              | Mounted super-admin rename returned 403                                                                    |
+| Ordinary touch author rule                 | Skip author check                           | Mounted unrelated member renamed another author's unrestricted plan (200 instead of 403)                   |
+| Saved-plan save refusal                    | Skip refusal                                | Direct store-path removed actor save returned `written` instead of `forbidden`                             |
+| Saved-plan touch refusal                   | Skip refusal                                | Direct store-path removed actor touch returned `touched` instead of `forbidden`                            |
+| Touch audit operation agrees with write    | Skip operation check                        | Direct store test resolved instead of throwing                                                             |
+| Retry audit                                | Skip insert                                 | Mounted accepted Retry found no audit row                                                                  |
+| Retry reclassification                     | Force ordinary                              | Store-path removed actor Retry returned `accepted` instead of `forbidden`                                  |
+| Retry refusal                              | Skip foreign or forbidden branch separately | Store-path foreign or removed actor Retry returned `accepted`                                              |
+| Project tenant predicate                   | Drop organization predicate                 | Store-path foreign Retry returned `forbidden` instead of `not_found`                                       |
+| Memory history has no scoped authority     | Skip scoped refusal                         | Memory store test resolved instead of throwing                                                             |
+
+Audit-insert abort triggers in the mounted suites also show that step, marker, saved-plan and Retry writes roll back with no published event. Ordinary creator writes leave no recovery audit. Removed super-admin, non-creator member/admin, viewer creator and foreign project cases are mounted negatives.
+
+Verification on 2026-09-28 (all Bun runs used `env -u CLAUDECODE`):
+
+| Command                                                                                           | Observed outcome                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test` in `libs/wbs/adapters/store-memory`                                                    | 118 pass, 0 fail                                                                                                                                                                             |
+| `bun test` in `libs/wbs/application/core`                                                         | 700 pass, 3 fail, 1 error: two test assertions fixed and rerun green; Bun also collected `testing/portable-composition.spec.ts`, which is a Playwright spec                                  |
+| `bun test src` in `libs/wbs/application/core`                                                     | 702 pass, 0 fail; all Bun source tests, excluding the Playwright spec in `testing/`                                                                                                          |
+| `bun test` in `libs/wbs/adapters/store-sqlite`                                                    | 1049 pass, 3 fail, 1 error: a held-lock test and source-conformance case timed out under concurrent suites, and the cached-median performance test refused a changing repository HEAD/status |
+| `bun test` in `apps/wbs/be-01`                                                                    | 1279 pass, 1 skip, 29 fail: socket/boot cases could not listen (`EPERM`) in this sandbox; the coordinator spawn handshake also failed                                                        |
+| Focused mounted organization suites (three files)                                                 | 43 pass, 0 fail                                                                                                                                                                              |
+| Focused core route and module-boundary suites                                                     | 19 pass, 0 fail                                                                                                                                                                              |
+| Focused SQLite saved-plan organization suite                                                      | 5 pass, 0 fail                                                                                                                                                                               |
+| Focused SQLite held-lock test, run alone                                                          | 2 pass, 0 fail                                                                                                                                                                               |
+| Focused SQLite source-conformance case                                                            | Timed out at Bun's 5-second default alone; passed (1/1, 683 assertions) with `bun test --timeout 20000`                                                                                      |
+| `bunx nx run-many -t lint:fast typecheck -p wbs-store-sqlite wbs-core wbs-be-01 wbs-store-memory` | all targets pass, cache 0/10                                                                                                                                                                 |
+| `bunx prettier --check` on touched files                                                          | pass                                                                                                                                                                                         |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                          | 138 pass, 0 fail                                                                                                                                                                             |
+
+No new test file was added, so the tool-devsync README index check was not triggered. The full Nx gate and `h2puni-gate.sh` were not run, as this slice's task instruction explicitly forbids the full gate.
+
+The requested commits are pending: `git add` could not create this worktree's `index.lock` because `/home/df/wd/puni/puni-00/.git/worktrees/b9-010-5-2-orgs-8` is mounted `ro` in this environment. No commit was created or pushed.
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

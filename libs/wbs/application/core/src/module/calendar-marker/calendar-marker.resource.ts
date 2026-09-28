@@ -6,6 +6,7 @@ import type {
 } from '../../ports/calendar-marker-read';
 import type { CalendarMarker, CalendarMarkerStore } from '../../ports/calendar-marker-store';
 import type { Clock } from '../../ports/clock';
+import type { EditAdmission } from '../../ports/edit-admission';
 import {
   findProjectWithin,
   LEGACY_ACCESS,
@@ -13,9 +14,11 @@ import {
   type ResourceAccess,
 } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
-import type { ProjectStore } from '../../ports/project-store';
+import type { Project, ProjectStore } from '../../ports/project-store';
 
 export interface CalendarMarkerServiceOptions {
+  /** A unit-of-work grant used only for scoped recovery. */
+  recoveryAdmission?: EditAdmission;
   projects: ProjectStore;
   markers: CalendarMarkerStore;
   /** The instant every marker is dated from and the ids it mints — see {@link Clock}. */
@@ -70,7 +73,8 @@ export interface NewCalendarMarker {
  *
  * Reading is not gated on write permission and that is deliberate: the project
  * routes already let a non-owner **read** a restricted project, and a marker is
- * part of what the axis draws. `canEditProject` gates the four writes only.
+ * part of what the axis draws. The ordinary project rule gates each write;
+ * a scoped recovery uses the unit of work's expiring admission instead.
  */
 export class CalendarMarkerService {
   private readonly clock: Clock;
@@ -244,8 +248,18 @@ export class CalendarMarkerService {
     // watched 2026-09-27.
     const project = await findProjectWithin(this.opts.projects, projectId, access);
     if (project === null) return { ok: false, reason: 'not_found', about: 'project' };
-    if (!mayEditProjectWithin(project, actorId, access))
+    if (!this.mayWrite(project, actorId, access))
       return { ok: false, reason: 'forbidden', about: 'project' };
     return { ok: true };
+  }
+
+  /** A scoped recovery uses only the admission this graph's unit of work granted. */
+  private mayWrite(project: Project, actorId: string, access: ResourceAccess): boolean {
+    return (
+      mayEditProjectWithin(project, actorId, access) ||
+      // Proof: disabling this grant made the mounted marker recovery answer
+      // 403 instead of 201 (0 pass, 1 fail); watched 2026-09-28.
+      (access.kind === 'scoped' && this.opts.recoveryAdmission?.admits(project, actorId) === true)
+    );
   }
 }

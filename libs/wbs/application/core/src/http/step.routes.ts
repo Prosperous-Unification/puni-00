@@ -4,10 +4,12 @@ import { allowancePercentOf, NO_ALLOWANCE } from '@wbs/domain';
 import type { PlanCommandRunner } from '../module/plan-commands/plan-commands.feature';
 import { runCommandBatch } from '../module/plan-commands/run-command-batch';
 import type { OrganizationAccess } from '../ports/organization-access';
+import type { ResourceAccess } from '../ports/organization-access';
 import type { Step } from '../ports/step-store';
 import type { StepOutcome, StepService } from '../service/step.service';
 import { bind, EMPTY, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
+import { type RecoveryWriteBoundary, runRecoveryWrite } from './recovery-write';
 
 /** Keeps each named-step domain refusal paired with its existing wire status. */
 function namedReply(
@@ -73,7 +75,29 @@ export function stepRoutes(
   steps: StepService,
   commands: Pick<PlanCommandRunner, 'runWithin' | 'runDirectoryWithin'>,
   organizations: OrganizationAccess,
+  recovery?: RecoveryWriteBoundary,
 ) {
+  /** Runs a scoped dependent write in the transaction that records its recovery. */
+  const write = <T extends { readonly ok: boolean }>(
+    access: ResourceAccess,
+    projectId: string,
+    actorId: string,
+    detail: { readonly step: 'add' | 'rename' | 'remove' },
+    perform: (service: StepService) => Promise<T>,
+    refuse: (reason: 'not_found' | 'forbidden') => T,
+  ): Promise<T> => {
+    if (access.kind === 'legacy') return perform(steps);
+    if (recovery === undefined) throw new Error('scoped step write has no recovery boundary');
+    return runRecoveryWrite(
+      recovery,
+      access,
+      projectId,
+      actorId,
+      detail,
+      (services) => perform(services.steps),
+      refuse,
+    );
+  };
   return [
     bind(addStep, async ({ params, body, principal }): Promise<HttpReply<typeof addStep>> => {
       const allowance =
@@ -89,13 +113,21 @@ export function stepRoutes(
       // Proof: catching the store failure as not_found returned a refusal object
       // instead of the original error in step.routes.test.ts's outage case.
       return addedReply(
-        await steps.addWithin(
+        await write(
+          resolved.access,
           params.id,
           principal.id,
-          body.name,
-          allowance,
-          body.code,
-          resolved.access,
+          { step: 'add' },
+          (service) =>
+            service.addWithin(
+              params.id,
+              principal.id,
+              body.name,
+              allowance,
+              body.code,
+              resolved.access,
+            ),
+          (reason): StepOutcome => ({ ok: false, reason }),
         ),
       );
     }),
@@ -113,13 +145,16 @@ export function stepRoutes(
         if (body.name === undefined) {
           return { ok: false, status: 422, body: { error: 'invalid_body' } };
         }
+        const name = body.name;
         return renamedReply(
-          await steps.renameWithin(
-            params.id,
-            params.stepId,
-            principal.id,
-            body.name,
+          await write(
             resolved.access,
+            params.id,
+            principal.id,
+            { step: 'rename' },
+            (service) =>
+              service.renameWithin(params.id, params.stepId, principal.id, name, resolved.access),
+            (reason): StepOutcome => ({ ok: false, reason }),
           ),
         );
       }
@@ -184,12 +219,20 @@ export function stepRoutes(
         // Proof: truthy cascade deleted on cascade=1 (204 instead of409); reading
         // the first raw duplicate deleted on true&false (204 instead of409), both
         // observed in step.controller.db.test.ts before restoring this comparison.
-        const outcome = await steps.removeWithin(
-          params.id,
-          params.stepId,
-          principal.id,
-          query.cascade === 'true',
+        const outcome = await write(
           resolved.access,
+          params.id,
+          principal.id,
+          { step: 'remove' },
+          (service) =>
+            service.removeWithin(
+              params.id,
+              params.stepId,
+              principal.id,
+              query.cascade === 'true',
+              resolved.access,
+            ),
+          (reason) => ({ ok: false, reason }) as const,
         );
         if (outcome.ok) return { ok: true, status: 204, body: EMPTY };
         switch (outcome.reason) {

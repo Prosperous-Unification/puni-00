@@ -88,6 +88,7 @@ export type {
   SavedPlanTouchOutcome,
   SavedPlanWrite,
   SavedPlanWriteOutcome,
+  ScopedSavedPlanWrite,
   StoredSavedPlan,
 } from './ports/saved-plan-store';
 export * from './ports/scheduler';

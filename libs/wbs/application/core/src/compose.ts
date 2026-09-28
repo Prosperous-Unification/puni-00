@@ -27,7 +27,7 @@ import type { SavedPlanService } from './module/saved-plans/saved-plans.feature'
 import { installStep } from './module/step/check';
 import { installWorkItem } from './module/work-item/check';
 import type { Clock } from './ports/clock';
-import { CREATOR_ADMISSION, type EditAdmission } from './ports/edit-admission';
+import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from './ports/edit-admission';
 import type { OidcVerifier } from './ports/oidc-verifier';
 import type { Broadcaster } from './ports/project-event';
 import type { PushTransport } from './ports/push-transport';
@@ -77,6 +77,8 @@ export interface ServicesOverOptions {
   readonly scheduler: Scheduler;
   /** Who may write a project through the built services; see {@link EditAdmission}. */
   readonly admission: EditAdmission;
+  /** Scoped dependent writes use this only after their own unit of work grants it. */
+  readonly recoveryAdmission?: EditAdmission;
 }
 
 /**
@@ -92,6 +94,7 @@ export interface ServicesOverOptions {
  */
 export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOverOptions) {
   const { clock, broadcast, scheduler, admission } = shared;
+  const recoveryAdmission = shared.recoveryAdmission ?? NO_ADMISSION;
   return {
     projects: installProject({
       clock,
@@ -111,6 +114,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       projects: stores.projects,
       markers: stores.calendarMarkers,
       broadcast,
+      recoveryAdmission,
     }).calendarMarkers,
     priorityBands: installPriorityBand({
       clock,
@@ -124,6 +128,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       projects: stores.projects,
       steps: stores.steps,
       broadcast,
+      recoveryAdmission,
     }).steps,
     directory: installDirectory({ clock, directory: stores.directory, broadcast }).directory,
     workItems: installWorkItem({
@@ -252,6 +257,7 @@ export function composeServices(
       broadcast,
       scheduler: runtime.scheduler,
       admission,
+      recoveryAdmission: admission,
     });
   const { savedPlans } = installSavedPlans({
     digest: runtime.digest,

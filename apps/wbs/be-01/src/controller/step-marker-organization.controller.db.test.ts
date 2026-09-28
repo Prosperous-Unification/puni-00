@@ -110,6 +110,247 @@ describe('before activation', () => {
 });
 
 describe('after activation', () => {
+  it('audits each super-admin step and marker recovery while keeping the creator', async () => {
+    h.member('org-a', 'nell', 'super_admin');
+    h.bind('nell', 'org-a');
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+    ).toBe(200);
+    const step = await firstStep('ada', own);
+    expect(
+      (await h.call('nell', 'POST', `/api/projects/${own}/steps`, { name: 'Recovery' })).status,
+    ).toBe(200);
+    expect(
+      (await h.call('nell', 'PATCH', `/api/projects/${own}/steps/${step}`, { name: 'Recovered' }))
+        .status,
+    ).toBe(200);
+    expect(
+      (await h.call('nell', 'DELETE', `/api/projects/${own}/steps/${step}?cascade=true`)).status,
+    ).toBe(204);
+    expect(
+      (
+        await h.call('nell', 'POST', `/api/projects/${own}/calendar-markers`, {
+          markerId: MARKER,
+          date: '2026-10-02',
+          name: 'Start',
+        })
+      ).status,
+    ).toBe(201);
+    expect(
+      (
+        await h.call('nell', 'PATCH', `/api/projects/${own}/calendar-markers/${MARKER}`, {
+          name: 'Moved',
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await h.call('nell', 'PATCH', `/api/projects/${own}/calendar-markers/${MARKER}`, {
+          color: '#5d6afe',
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await h.call('nell', 'DELETE', `/api/projects/${own}/calendar-markers/${MARKER}`)).status,
+    ).toBe(204);
+    const audits = h.sqlite
+      .query<{ organization_id: string; actor_id: string; subject_id: string; detail: string }, []>(
+        'SELECT organization_id, actor_id, subject_id, detail FROM organization_audit ORDER BY rowid',
+      )
+      .all();
+    expect(audits.map((audit) => audit.detail)).toEqual([
+      '{"step":"add"}',
+      '{"step":"rename"}',
+      '{"step":"remove"}',
+      '{"marker":"create"}',
+      '{"marker":"rename"}',
+      '{"marker":"recolor"}',
+      '{"marker":"remove"}',
+    ]);
+    expect(
+      audits.every(
+        (audit) =>
+          audit.organization_id === 'org-a' &&
+          audit.actor_id === h.userId('nell') &&
+          audit.subject_id === own,
+      ),
+    ).toBe(true);
+    expect(
+      h.sqlite
+        .query<{ owner_id: string }, [string]>('SELECT owner_id FROM project WHERE id = ?')
+        .get(own),
+    ).toEqual({ owner_id: h.userId('ada') });
+  });
+
+  it('admits an allowance command through the step lookup and records its recovery once', async () => {
+    h.member('org-a', 'nell', 'super_admin');
+    h.bind('nell', 'org-a');
+    const step = await firstStep('ada', own);
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+    ).toBe(200);
+    expect(
+      (
+        await h.call('nell', 'PATCH', `/api/projects/${own}/steps/${step}`, {
+          allowancePercent: 15,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      h.sqlite.query<{ detail: string }, []>('SELECT detail FROM organization_audit').all(),
+    ).toEqual([{ detail: '{"commands":["setStepAllowance"]}' }]);
+  });
+
+  it('rolls back a recovered step and marker write when the audit insert fails', async () => {
+    h.member('org-a', 'nell', 'super_admin');
+    h.bind('nell', 'org-a');
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+    ).toBe(200);
+    const beforeEvents = h.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all();
+    h.sqlite.run(
+      "CREATE TRIGGER audit_refused BEFORE INSERT ON organization_audit BEGIN SELECT RAISE(ABORT, 'audit refused'); END",
+    );
+    expect(
+      (await h.call('nell', 'POST', `/api/projects/${own}/steps`, { name: 'Refused' })).status,
+    ).toBe(500);
+    expect(
+      (
+        await h.call('nell', 'POST', `/api/projects/${own}/calendar-markers`, {
+          markerId: MARKER,
+          date: '2026-10-02',
+          name: 'Refused',
+        })
+      ).status,
+    ).toBe(500);
+    expect(
+      h.sqlite
+        .query<{ id: string }, [string, string]>(
+          'SELECT id FROM step WHERE project_id = ? AND name = ?',
+        )
+        .all(own, 'Refused'),
+    ).toEqual([]);
+    expect((await h.call('ada', 'GET', `/api/projects/${own}/calendar-markers`)).body).toEqual({
+      markers: [],
+    });
+    expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
+    expect(h.sqlite.query('SELECT * FROM event_log ORDER BY rowid').all()).toEqual(beforeEvents);
+  });
+
+  it('refuses other writers on a restricted project and records no ordinary creator write', async () => {
+    h.member('org-a', 'nell', 'member');
+    h.bind('nell', 'org-a');
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+    ).toBe(200);
+    const step = await firstStep('ada', own);
+    for (const writer of ['nell', 'vic']) {
+      expect(
+        (await h.call(writer, 'POST', `/api/projects/${own}/steps`, { name: 'Refused' })).status,
+      ).toBe(403);
+      expect(
+        (
+          await h.call(writer, 'POST', `/api/projects/${own}/calendar-markers`, {
+            markerId: MARKER,
+            date: '2026-10-02',
+            name: 'Refused',
+          })
+        ).status,
+      ).toBe(403);
+      expect(
+        (
+          await h.call(writer, 'PATCH', `/api/projects/${own}/steps/${step}`, {
+            allowancePercent: 15,
+          })
+        ).status,
+      ).toBe(403);
+    }
+    h.sqlite.run("UPDATE organization_membership SET role = 'admin' WHERE user_id = ?", [
+      h.userId('nell'),
+    ]);
+    expect(
+      (await h.call('nell', 'POST', `/api/projects/${own}/steps`, { name: 'Refused' })).status,
+    ).toBe(403);
+    expect(
+      (
+        await h.call('nell', 'POST', `/api/projects/${own}/calendar-markers`, {
+          markerId: MARKER,
+          date: '2026-10-02',
+          name: 'Refused',
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (await h.call('ada', 'POST', `/api/projects/${own}/steps`, { name: 'Creator' })).status,
+    ).toBe(200);
+    expect(
+      (
+        await h.call('ada', 'POST', `/api/projects/${own}/calendar-markers`, {
+          markerId: MARKER,
+          date: '2026-10-02',
+          name: 'Creator',
+        })
+      ).status,
+    ).toBe(201);
+    expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
+    h.sqlite.run("UPDATE organization_membership SET role = 'viewer' WHERE user_id = ?", [
+      h.userId('ada'),
+    ]);
+    expect((await h.call('ada', 'POST', `/api/projects/${own}/steps`, { name: 'No' })).status).toBe(
+      403,
+    );
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}/steps/${step}`, { allowancePercent: 15 }))
+        .status,
+    ).toBe(403);
+  });
+
+  it('refuses a removed super-admin and records nothing', async () => {
+    h.member('org-a', 'nell', 'super_admin');
+    h.bind('nell', 'org-a');
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+    ).toBe(200);
+    h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('nell')]);
+    expect(
+      (await h.call('nell', 'POST', `/api/projects/${own}/steps`, { name: 'No' })).status,
+    ).toBe(403);
+    expect(
+      (
+        await h.call('nell', 'POST', `/api/projects/${own}/calendar-markers`, {
+          markerId: MARKER,
+          date: '2026-10-02',
+          name: 'No',
+        })
+      ).status,
+    ).toBe(403);
+    expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
+  });
+
+  it('records no recovery for step and marker writes the store refuses', async () => {
+    h.member('org-a', 'nell', 'super_admin');
+    h.bind('nell', 'org-a');
+    expect(
+      (await h.call('ada', 'POST', `/api/projects/${own}/steps`, { name: 'Review' })).status,
+    ).toBe(200);
+    await marker('ada', own, MARKER);
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { restricted: true })).status,
+    ).toBe(200);
+    expect(
+      (await h.call('nell', 'POST', `/api/projects/${own}/steps`, { name: 'Review' })).status,
+    ).toBe(409);
+    expect(
+      (
+        await h.call('nell', 'POST', `/api/projects/${own}/calendar-markers`, {
+          markerId: MARKER,
+          date: '2026-10-03',
+          name: 'Duplicate',
+        })
+      ).status,
+    ).toBe(409);
+    expect(h.sqlite.query('SELECT id FROM organization_audit').all()).toEqual([]);
+  });
   it('answers 404 alike for a foreign and an absent project on every step and marker route', async () => {
     const before = await foreignState();
     const absent = routes('missing', foreignStep, foreignMarker);
