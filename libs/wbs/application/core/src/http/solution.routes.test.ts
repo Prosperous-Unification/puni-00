@@ -6,6 +6,7 @@ import { DependencyGraphGuard } from '../service/dependency-graph';
 import { ProjectService } from '../service/project.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { solutionRoutes } from './solution.routes';
 
 const input = {
@@ -45,6 +46,7 @@ test('direct solution binding reads the exact slug and complete project with ord
       projects: store,
       broadcast: recordingBroadcaster(),
     }),
+    legacyOrganizationAccess,
   );
   expect(await endpoint.handle(input)).toEqual({ ok: true, status: 200, body: { project, steps } });
   expect(await endpoint.handle({ ...input, params: { slug: 'other' } })).toEqual({
@@ -68,6 +70,7 @@ test('direct solution binding preserves unknown project and step store failures'
       projects: store,
       broadcast: recordingBroadcaster(),
     }),
+    legacyOrganizationAccess,
   );
   for (const method of ['findBySolutionSlug', 'stepsOf'] as const) {
     const failure = new Error(`${method} unavailable`);

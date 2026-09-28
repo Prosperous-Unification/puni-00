@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
+import { organizationRefusal } from './organization-refusal';
 import { planDocumentRequest } from './plan-document-shapes';
 import { responseSchema } from './schema-shape';
 
@@ -52,6 +53,9 @@ export const importProject = defineEndpointShape({
       status: 403,
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
     },
+    organizationRefusal,
+    // A viewer, after organization activation: reading is not importing.
+    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
     {
       kind: 'import-refusal',
       status: 409,

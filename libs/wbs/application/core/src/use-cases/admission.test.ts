@@ -90,7 +90,7 @@ describe('savePlan', () => {
     return {
       effects,
       value: {
-        projects: { read: () => Promise.resolve(project === null ? null : { project }) },
+        projects: { readWithin: () => Promise.resolve(project === null ? null : { project }) },
         plans: {
           save: () => {
             effects.push('save');
@@ -120,7 +120,12 @@ describe('savePlan', () => {
       const fixture = graph(project, 'saved');
       // Proof: deleting the owner check returned outcome:saved for the wrong-owner row.
       expect(
-        await savePlan(fixture.value as never, { projectId: 'p1', actor, name: 'Baseline' }),
+        await savePlan(fixture.value as never, {
+          projectId: 'p1',
+          actor,
+          name: 'Baseline',
+          access: LEGACY_ACCESS,
+        }),
       ).toEqual({
         outcome: error,
       });
@@ -131,12 +136,20 @@ describe('savePlan', () => {
   test('publishes exactly once after success and never for quota or busy refusals', async () => {
     for (const stored of ['refused', 'snapshot_busy'] as const) {
       const fixture = graph({ ownerId: 'owner', restricted: true }, stored);
-      await savePlan(fixture.value as never, { projectId: 'p1', actor: writer });
+      await savePlan(fixture.value as never, {
+        projectId: 'p1',
+        actor: writer,
+        access: LEGACY_ACCESS,
+      });
       // Proof: publishing before save produced ["publish", "save"] for the quota refusal.
       expect(fixture.effects).toEqual(['save']);
     }
     const fixture = graph({ ownerId: 'owner', restricted: true }, 'saved');
-    await savePlan(fixture.value as never, { projectId: 'p1', actor: writer });
+    await savePlan(fixture.value as never, {
+      projectId: 'p1',
+      actor: writer,
+      access: LEGACY_ACCESS,
+    });
     expect(fixture.effects).toEqual(['save', 'publish']);
   });
 });

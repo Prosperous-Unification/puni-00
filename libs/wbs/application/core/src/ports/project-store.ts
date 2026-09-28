@@ -80,6 +80,12 @@ export interface ProjectStore {
     organizationId: string,
   ): Promise<readonly ProjectCrossReference[]>;
   findBySolutionSlug(slug: string): Promise<Project | null>;
+  /**
+   * {@link findBySolutionSlug} confined to one organization, filtered before
+   * any row is decoded: a foreign project is null exactly like an absent slug,
+   * even when its row could not be read.
+   */
+  findBySolutionSlugInOrganization(slug: string, organizationId: string): Promise<Project | null>;
   /** Every project, newest first. Readable by any account, so it is not filtered by owner. */
   list(): Promise<Project[]>;
   /**

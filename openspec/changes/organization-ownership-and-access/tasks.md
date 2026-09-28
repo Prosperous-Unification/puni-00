@@ -23,11 +23,28 @@
 - [x] 3.3 Scope project steps, estimates, allowances and schedules. Red: a foreign step or allowance ID cannot influence an A schedule. Fault: remove step reference check; observe mounted schedule test fail, restore and add `Proof:`. Astra, 2026-09-27: allowances are not applicable, because no persisted allowance resource exists.
   - Slice 9: steps, calendar markers and the ownership freeze (`20260927200000_freeze_organization_ownership`).
   - Slice 10: the schedule read (`GET …/work-items`), the step-reference read, and the tree and input that export and optimizer retry use. Under scoped access these fail closed when any estimate, actual, progress, measure or assignment row names another project's step; when a work item's parent or dependency endpoint lies in another project; or when a team, service, tag, type, external system, assignee or capacity team is one the organization does not own.
-- [ ] 3.4 Scope dependencies and all batch commands, including indirect refs and atomic refusal. This includes the directory commands moved from 3.2: activated create and rename write an opaque, collision-checked root name and the display name only in the side table, create-by-name stays idempotent within the organization, and a foreign or missing target answers 404. Red: foreign service/predecessor in a batch leaves every command unchanged. Fault: bypass one reference check; observe mounted batch test fail, restore and add `Proof:`.
+- [x] 3.4 Scope dependencies and all batch commands, including indirect refs and atomic refusal. This includes the directory commands moved from 3.2: activated create and rename write an opaque, collision-checked root name and the display name only in the side table, create-by-name stays idempotent within the organization, and a foreign or missing target answers 404. Red: foreign service/predecessor in a batch leaves every command unchanged. Fault: bypass one reference check; observe mounted batch test fail, restore and add `Proof:`.
   - Part 1, slice 11 (Astra, 2026-09-27). Project batches, undo and redo are held to the organization inside their unit of work. That covers the project and role, a per-command closure check with index-accurate 404s, pre-checks of references the final state hides, and undo targets. Every directory command is refused as `forbidden` under scoped access until part 2.
-  - Part 2 (open): organization-local directory writes. These need opaque root names, create-by-name idempotence within the organization, and side-name renames. Targets and membership or ownership links must be checked, and usage, cascades and affected projects scoped.
+  - Part 2, slice 12: organization-local directory writes.
+    - A create is idempotent by the organization-local name; otherwise the root gets an opaque name (its own id, with bounded collision retry) and a side row holding the display name.
+    - A rename moves only the side name.
+    - A foreign or absent target answers the same 404. Membership and ownership links must stay inside the organization.
+    - Removal usage shows only the organization's projects under local names, and fails closed on a foreign project naming the entry.
 - [ ] 3.5 Scope project copy, import/export and external references. Red: cross-organization import/duplicate/reference refusal. Fault: remove import reference check; observe mounted foreign import test fail, restore and add `Proof:`.
-- [ ] 3.6 Scope saved plans, journal, history and generated events. Red: foreign detail and historical reads return 404 without revealing existence. Fault: omit saved-plan owner predicate; observe mounted history test fail, restore and add `Proof:`.
+  - Part 1, slice 13, covers the following:
+    - The JSON export reads the organization's own catalogs under local names. It fails closed on a person's or team's link into another organization, which is the assignee→team→service closure.
+    - Import creates the project in the organization. It resolves and creates directory names among the organization's entries and leaves a solution reference off. Only the organization's projects hear `directory_changed`, and a viewer is refused.
+    - The solution lookup answers a foreign slug as an absent one.
+    - Copies (`duplicateWorkItem`) and external references are held by 3.4's per-command checks.
+  - Part 2 (open): solution slugs scoped by organization. It needs an additive migration, because `project_solution_slug` is unique across the deployment. Until then, a scoped link is refused and a scoped import leaves the slug off.
+- [x] 3.6 Scope saved plans, journal, history and generated events. Red: foreign detail and historical reads return 404 without revealing existence. Fault: omit saved-plan owner predicate; observe mounted history test fail, restore and add `Proof:`.
+  - Done as slice 14. Every saved-plan route and the history read resolve organization access first.
+    - Routes addressed by a project read it through the caller's access.
+    - Routes addressed by a saved plan check the plan's project the same way, so a foreign plan answers exactly as an absent one.
+    - Under scoped access only a writing role saves, renames or deletes.
+    - A plan saved after activation is mapped to its project's organization in the save's own transaction.
+  - The journal (undo and redo) was scoped in 3.4. Generated events are published only to the acting project, and to the organization's projects for an import's `directory_changed`. Gateway subscribe and replay authorization is 6.1–6.2.
+  - Not applicable here: history labels and saved snapshots written after activation carry directory names as the writer read them. Those can be opaque root names for entries created after activation, which is a display concern for the switch to local names, not an isolation one.
 - [ ] 3.7 Enforce role changes, invitations authority, recovery audit and last-super-admin protection at the service boundary. Red: admin promotion, viewer mutation, recovery and final-owner matrix. Fault: bypass role guard; observe mounted unauthorized mutation test fail, restore and add `Proof:`.
 
 ## 4. Onboarding state transitions

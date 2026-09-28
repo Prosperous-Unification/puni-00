@@ -5,8 +5,8 @@ import { type Answer, OrganizationHarness } from '../testing/organization-harnes
 /**
  * Project command batches, undo and redo under organization isolation (task
  * 3.4, part 1), over be-01's production composition and real SQLite; see
- * {@link OrganizationHarness.openComposed}. Directory commands are refused
- * under scoped access until part 2 gives them organization-local writes.
+ * {@link OrganizationHarness.openComposed}. Directory commands have their own
+ * suite, `directory-command-organization.controller.db.test.ts`.
  *
  * Each organization owns one entry of every catalog, seeded as SQL with a
  * root name that differs from its local name.
@@ -286,22 +286,6 @@ describe('after activation', () => {
       });
       expect(snapshot()).toEqual(before);
     }
-  });
-
-  it('refuses every directory command until organization-local writes land', async () => {
-    const before = snapshot();
-    expect(
-      await batch('ada', own, [
-        { kind: 'createWorkItem', parentId: null, afterId: null, name: 'Kept?' },
-        { kind: 'createTag', name: 'urgent' },
-      ]),
-    ).toMatchObject({ status: 403, body: { error: 'forbidden', at: 1, kind: 'createTag' } });
-    expect(
-      await h.call('ada', 'POST', '/api/directory/commands', {
-        commands: [{ kind: 'patchTag', tagId: 'tg-a', name: 'renamed' }],
-      }),
-    ).toMatchObject({ status: 403, body: { error: 'forbidden', at: 0, kind: 'patchTag' } });
-    expect(snapshot()).toEqual(before);
   });
 
   it('fails closed on a project that already crosses its organization', async () => {

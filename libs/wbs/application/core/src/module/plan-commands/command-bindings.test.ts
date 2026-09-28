@@ -1,5 +1,6 @@
 import { expect, it } from 'bun:test';
 
+import { LEGACY_ACCESS } from '../../ports/organization-access';
 import {
   type AppliedFor,
   type CommandBindings,
@@ -8,7 +9,14 @@ import {
 } from './command-bindings';
 
 it('refuses an endpoint conflict missing its relationship ids at the command boundary', () => {
-  const context = new CommandContext('actor', 'project', 0, 'moveWorkItem', new Map());
+  const context = new CommandContext(
+    'actor',
+    'project',
+    0,
+    'moveWorkItem',
+    new Map(),
+    LEGACY_ACCESS,
+  );
   for (const reason of ['node_on_parent', 'descendant_step_on_leaf'] as const) {
     expect(() => {
       context.accept({ ok: false, reason });

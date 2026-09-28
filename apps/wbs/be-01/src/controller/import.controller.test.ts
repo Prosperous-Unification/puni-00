@@ -56,7 +56,7 @@ test('mounts the production import path and returns the typed 201 summary', asyn
     created: summary.created,
     solutionRef: summary.solutionRef,
   });
-  expect(imports).toHaveBeenCalledWith(document, 'actor');
+  expect(imports).toHaveBeenCalledWith(document, 'actor', { kind: 'legacy' });
 });
 
 test('returns mounted document paths and admitted conflicts through declared refusals', async () => {

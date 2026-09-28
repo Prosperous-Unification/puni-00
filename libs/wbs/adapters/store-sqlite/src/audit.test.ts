@@ -114,9 +114,10 @@ const EXEMPT = new Set([
   'savedPlan',
   'savedPlanBody',
   'calendarMarker',
-  // An ownership mapping, not an authored row: the project it maps carries the
-  // creation audit, and the bridge triggers write the same table without one.
+  // Ownership mappings, not authored rows: the root each maps carries the
+  // creation audit, and the bridge triggers write the same tables without one.
   'projectOrganization',
+  'savedPlanOrganization',
 ]);
 
 /**

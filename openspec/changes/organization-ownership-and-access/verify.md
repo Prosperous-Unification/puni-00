@@ -331,6 +331,88 @@ Branch `batch-9/010-5-2-orgs-10`, stacked on slice 10. Design call: Astra, 2026-
 | Incoming references (`incoming_step_row`, `incoming_parent`, `incoming_dependency`) | each arm disabled alone                           | `fails closed on a project another project reaches into, changing neither`: 200 instead of 500                                                                                                |
 | Access resolved first                                                               | project batch route skips resolution              | `refuses an unbound session and a removed member before any batch`: 200 instead of 403                                                                                                        |
 
+## Slice 12 — organization-local directory writes (task 3.4, part 2)
+
+Branch `batch-9/010-5-2-orgs-11`, stacked on slice 11.
+
+- Under scoped access, every directory command (both endpoints) goes through `DirectoryService.addWithin`, `renameWithin`, `patchTeamWithin`, `addPersonWithin`, `patchPersonWithin` and `removeWithin`.
+- **Creates** are idempotent by the organization-local name. Otherwise the root is inserted under an opaque name, its own id, retried on a collision up to three ids. It is then mapped with `mapInOrganization`.
+- **Renames** move only the side name, through `renameInOrganization`, which also answers `not_found` for a foreign entry and `taken` for a local clash.
+- **Links and targets.** A person's teams and a team's services must be the organization's. A foreign target answers exactly what an absent one does.
+- **Removal usage** shows local names. A foreign project naming the entry fails closed before anything is shown or removed.
+- Legacy access is unchanged. The in-memory directory rejects organization-local writes, which exist only over SQLite.
+- Astra review 1: 3 Important findings, all fixed. First, a cascade or a non-rename patch could change links that a foreign person, team or project holds; every scoped write of an existing entry now calls `foreignReferencesTo` first. Second, an opaque-name collision could add memberships to the colliding person; the root is now created alone.
+- Astra review 2: "One Important issue remains; no Critical issues found": the assignment arm ignored the step's organization. Fixed.
+
+| Check                                                                           | Injected fault                        | Observed failure (`directory-command-organization.controller.db.test.ts` unless named, 2026-09-27)                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scoped create                                                                   | legacy add under scoped access        | `creates the same names in two organizations, each finding only its own`: 404 `unknown_team`, because the new team was left unmapped                                                                                                                                                                              |
+| Opaque name collision                                                           | answered row accepted whatever its id | `directory.resource.test.ts` `retries an opaque root name another root holds, then gives up`: `id-1` instead of `id-2`                                                                                                                                                                                            |
+| Rename scoped to the organization                                               | side row found by resource id alone   | `answers a foreign entry exactly as an absent one, changing nothing`: 200, renaming B's tag                                                                                                                                                                                                                       |
+| Local name clash                                                                | name check removed                    | `renames only the organization-local name, refusing one another entry holds`: 500 from the freeze trigger instead of 409                                                                                                                                                                                          |
+| Rename of an entry a foreign project names                                      | check disabled                        | `fails closed on a directory entry a foreign project names`: 200 instead of 500                                                                                                                                                                                                                                   |
+| Team target                                                                     | ownership check disabled              | `answers a foreign entry …`: 500 instead of 404                                                                                                                                                                                                                                                                   |
+| Person target                                                                   | ownership check disabled              | same case: 500 instead of 404                                                                                                                                                                                                                                                                                     |
+| Removal target                                                                  | ownership check disabled              | same case: 200, deleting B's tag                                                                                                                                                                                                                                                                                  |
+| Team's services                                                                 | check disabled                        | `refuses a foreign service or team link exactly as an absent one`: 500 instead of 404 `unknown_service`                                                                                                                                                                                                           |
+| New person's teams                                                              | check disabled                        | same case: 200, creating a person in B's team                                                                                                                                                                                                                                                                     |
+| Person's teams                                                                  | check disabled                        | same case: 500 instead of 404 `unknown_team`                                                                                                                                                                                                                                                                      |
+| Usage projects                                                                  | check disabled                        | `fails closed on a directory entry a foreign project names`: 409 with B's project instead of 500                                                                                                                                                                                                                  |
+| Removed projects                                                                | check disabled                        | same case: 200 to the cascade instead of 500                                                                                                                                                                                                                                                                      |
+| Usage names                                                                     | rows returned unmapped                | `shows removal usage under organization-local names only`: `root-pe-a` shown                                                                                                                                                                                                                                      |
+| Incoming reach (`foreignReferencesTo`), before every write of an existing entry | check disabled                        | `fails closed on an entry another organization reaches, whatever the write`: 200 instead of 500, for example a cascade dropping B's person's membership                                                                                                                                                           |
+| Incoming reach, per arm                                                         | each arm disabled                     | same case: the assignment, capacity, foreign member, foreign owning team and both scalar label arms fail alone. The four label arms fail together with the rename's foreign-project check. The person-in-foreign-team and team-owning-foreign-service arms are shadowed by `listInOrganization`'s own link check. |
+| Opaque person created without teams first                                       | teams added in the colliding call     | `directory.resource.test.ts` `retries a colliding opaque person name without touching the person it collided with`: the colliding person joined `t`                                                                                                                                                               |
+| Assignment arm checks the step's project too                                    | step clause dropped                   | `fails closed on an entry another organization reaches …`: 200, deleting A's assignment on B's step                                                                                                                                                                                                               |
+
+## Slice 13 — import, JSON export and solution lookup (task 3.5, part 1)
+
+Branch `batch-9/010-5-2-orgs-12`, stacked on slice 12.
+
+- `PlanDocumentService.export` takes the caller's access. Under scoped access it reads `listInOrganization`, so every name is local and a crossing person-team or team-service link throws.
+- `ImportService.import` takes the caller's access. Under scoped access:
+  - a viewer answers 403 `forbidden`;
+  - names resolve and create through `DirectoryService.listWithin` and the `*Within` writes (external systems included);
+  - the project is created with `createInOrganization`;
+  - a solution reference is `left-off`;
+  - the `directory_changed` fan-out reaches only the organization's projects.
+- `GET /plans/by-solution/:slug` resolves access and answers a foreign slug with the absent slug's 404.
+- The import and solution contracts gain the organization refusals, and import gains `forbidden`.
+- Astra review 1: 2 Important findings, both fixed. First, a foreign slug whose row is unreadable answered 500; the slug is now filtered by organization before any decoding, through `findBySolutionSlugInOrganization`. Second, the fan-out filter lacked a proof.
+
+| Check                                         | Injected fault                                     | Observed failure (`import-export-organization.controller.db.test.ts`, 2026-09-27)                                         |
+| --------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Scoped export directory                       | legacy lists under scoped access                   | `exports only the organization's own directory, under its local names`: `root-pe-a`, `root-tm-a` and `root-sv-a` exported |
+| Viewer import                                 | refusal skipped                                    | `refuses a viewer's import`: 201                                                                                          |
+| Scoped name resolution                        | tags read through legacy access                    | `imports into the organization, resolving names among its own entries`: a second `Release` tag created                    |
+| Scoped project creation                       | project created unmapped                           | same case: the project missing from A's list                                                                              |
+| Solution reference left off                   | slug kept under scoped access                      | `leaves a solution reference off, revealing nothing`: `kept`                                                              |
+| Access resolved first                         | import route skips resolution                      | `refuses an unbound session and a removed member before any import`: 500 instead of 403                                   |
+| Scoped solution lookup                        | ownership check skipped                            | `answers a foreign solution slug as an absent one`: 200 with B's project                                                  |
+| Slug filtered by organization before decoding | slug found deployment-wide, then ownership checked | `answers a foreign solution slug as an absent one, even when its row is unreadable`: 500 instead of 404                   |
+| `directory_changed` fan-out scoped            | every project told                                 | `tells only the organization's projects that its directory changed`: B's project told                                     |
+
+## Slice 14 — saved plans and history (task 3.6)
+
+Branch `batch-9/010-5-2-orgs-13`, stacked on slice 13.
+
+- Save, list, compare and history read the project through `readWithin`: a foreign project answers exactly as an absent one.
+- Read, rename and delete check the saved plan's project through `SavedPlanService.projectOf` and `readWithin`. Rename and delete also need a writing role under scoped access.
+- `savePlan` takes the caller's access and applies `mayEditProjectWithin`.
+- The SQLite save maps the new plan to its project's organization inside its own transaction. `NOT EXISTS` defers to the pre-activation bridge trigger.
+- After activation, the save refuses a project without an owner and a plan already mapped elsewhere, and rolls back. Astra review 1 raised this as an Important finding.
+
+| Check                              | Injected fault                  | Observed failure (`saved-plan-organization.controller.db.test.ts`, 2026-09-27)                           |
+| ---------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Save scoped                        | project read with legacy access | `answers 404 alike for a foreign and an absent project on every saved-plan and history route`: 201       |
+| List scoped                        | same, in the list route         | same case: 200                                                                                           |
+| Compare scoped                     | same, in the compare route      | same case: 200                                                                                           |
+| History scoped                     | same, in the history route      | same case: 200                                                                                           |
+| Plan's project checked             | `reachesPlan` answers true      | `answers a foreign saved plan exactly as an absent one`: 200                                             |
+| Writing role for rename and delete | role check skipped              | `refuses a viewer every saved-plan write and lets the viewer read`: 200 for the demoted creator's rename |
+| Access resolved first              | save route skips resolution     | `refuses an unbound session and a removed member before any lookup`: 201                                 |
+| Saved plan mapped                  | mapping insert selects nothing  | `maps a plan saved after activation to its project's organization`: no mapping                           |
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.
