@@ -589,7 +589,6 @@ export class PlanCommandRunner {
   }
 }
 
-/** A legacy run can never be refused whole: that refusal exists only under scoped access. */
 /**
  * The admission a batch or journal walk's graph is built with: the creator
  * rule under legacy access; under scoped access the unit of work's own grant,
@@ -608,6 +607,7 @@ function admissionOf(access: ResourceAccess, grant: GrantedAdmission | null): Ed
   return grant === null ? NO_ADMISSION : grant.admission;
 }
 
+/** A legacy run can never be refused whole: that refusal exists only under scoped access. */
 function legacyOutcome(outcome: ScopedBatchOutcome): BatchOutcome {
   if ('refusal' in outcome) throw new Error('a legacy batch was refused as out of scope');
   return outcome;
@@ -617,10 +617,11 @@ function legacyOutcome(outcome: ScopedBatchOutcome): BatchOutcome {
  * Why a scoped caller may not run a batch, undo or redo at all, checked in the
  * act's own unit of work: a project the organization does not own is
  * `not_found`, exactly as an absent one; a viewer, or anyone but the creator
- * of a restricted project, is `forbidden`. A directory batch needs only a
- * writing role. The role and the project are read inside the unit of work,
- * and a super-admin's write to someone else's restricted project is admitted
- * as a recovery whose audit record (`detail`) commits or rolls back with it.
+ * of a restricted project other than a super-admin, is `forbidden`. A
+ * directory batch needs only a writing role. The role and the project are
+ * read inside the unit of work, and a super-admin's write to someone else's
+ * restricted project is admitted as a recovery whose audit record (`detail`)
+ * commits or rolls back with it.
  *
  * @throws when the project already references something outside the
  * organization: corrupt trusted state that activation should have refused,
