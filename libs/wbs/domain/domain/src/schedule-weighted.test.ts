@@ -166,6 +166,73 @@ describe('weighted Fast relationships', () => {
     ).toThrow('violates FF materialized boundary');
   });
 
+  it('replays a fractional FF pin when materialized finishes meet', () => {
+    const rows = [row('A', 10), row('B', 20)];
+    const slices = [
+      { ...work('A', 1 / 3), stepId: 'first' },
+      { ...work('A', 1 / 3), stepId: 'last' },
+      work('B', 1),
+    ];
+    const floors = new Map([['A', 2]]);
+    const typed = [link('A', 'B', 'FF')];
+    const pins = new Map([
+      [sliceKey('A', 'first'), 2],
+      [sliceKey('A', 'last'), 2 + 1 / 3],
+      [sliceKey('B', null), 1.6666666666666665],
+    ]);
+    const replay = schedule(
+      rows,
+      [],
+      slices,
+      floors,
+      new Map(),
+      'whole-item',
+      new Map(),
+      typed,
+      pins,
+    );
+    expect(replay.slices.get(sliceKey('A', 'last'))?.earliestFinish).toBe(2.6666666666666665);
+    expect(part(replay, 'B').earliestFinish).toBe(2.6666666666666665);
+  });
+
+  it.each([NaN, Infinity, -Infinity])('rejects a non-finite weighted pin %p', (pin) => {
+    expect(() =>
+      schedule(
+        [row('A', 10), row('B', 20)],
+        [],
+        [work('A', 1), work('B', 1)],
+        new Map(),
+        new Map(),
+        'whole-item',
+        new Map(),
+        [link('A', 'B', 'SS')],
+        new Map([
+          [sliceKey('A', null), 0],
+          [sliceKey('B', null), pin],
+        ]),
+      ),
+    ).toThrow('violates a weighted floor or has a non-finite start');
+  });
+
+  it('rejects a weighted pin below an explicit floor', () => {
+    expect(() =>
+      schedule(
+        [row('A', 10), row('B', 20)],
+        [],
+        [work('A', 1), work('B', 1)],
+        new Map([['B', 2]]),
+        new Map(),
+        'whole-item',
+        new Map(),
+        [link('A', 'B', 'SS')],
+        new Map([
+          [sliceKey('A', null), 0],
+          [sliceKey('B', null), 1],
+        ]),
+      ),
+    ).toThrow('violates a weighted floor or has a non-finite start');
+  });
+
   it('keeps an unknown FF successor at zero duration and after the predecessor finish', () => {
     const plan = schedule(
       [row('A', 10), row('B', 20)],
