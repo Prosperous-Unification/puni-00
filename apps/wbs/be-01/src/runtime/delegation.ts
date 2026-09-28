@@ -18,6 +18,11 @@ export type MappedUserOf = (pair: {
   readonly subject: string;
 }) => Promise<{ readonly id: string; readonly username: string } | null>;
 
+/** Current local account behind a native WBS session context. */
+export type LocalUserOf = (
+  userId: string,
+) => Promise<{ readonly id: string; readonly username: string } | null>;
+
 /**
  * What a bearer credential turned out to be: not a delegation at all (the
  * session path decides), a verified delegation, or a delegation refused.
@@ -69,10 +74,12 @@ export const REFUSE_DELEGATIONS: DelegationVerifier = (token) =>
  * name issuer {@link DELEGATION_ISSUER} and the audience the route's policy
  * expects (never one the caller chooses); live at most
  * {@link MOST_DELEGATION_SECONDS} and not be expired; carry a local user, an
- * organization, a client, a grant or refresh family, a `jti` and known
- * scopes; be issued no later than now; bind an upstream
- * `(issuer, subject)` that maps to that same local user; and consume its
- * `(issuer,jti)` once in shared SQLite before route authorization. Scopes only narrow.
+ * organization, a `jti` and known scopes; be issued no later than now. MCP
+ * and gateway tokens also carry a client, grant and upstream pair mapped to
+ * the local user, and consume `(issuer,jti)` once in shared SQLite. Direct
+ * contexts instead name `identity_kind: first_party`, omit upstream claims,
+ * resolve the current local account and remain reusable until their capped
+ * expiry. Current membership is checked by OrganizationAccess on each use.
  *
  * @throws anything other than a JOSE refusal or a malformed claim, such as an
  * unusable key or a failing identity lookup: unknown, not a refusal.
@@ -82,6 +89,7 @@ export function delegationVerifier(
   mappedUserOf: MappedUserOf,
   consume: ConsumeDelegation,
   now: () => number = Date.now,
+  localUserOf?: LocalUserOf,
 ): DelegationVerifier {
   return async (token, audience) => {
     if (!declaresDelegation(token)) return { kind: 'not_delegation' };
@@ -94,6 +102,9 @@ export function delegationVerifier(
         // Proof: dropping this made `refuses a gateway or unknown audience`
         // in `delegation.controller.db.test.ts` answer 200; watched 2026-09-28.
         audience,
+        // Proof (2026-09-28): using epoch zero here made `issues a direct
+        // context with a native identity and fixed audience` accept an
+        // expired direct context.
         currentDate: new Date(now()),
         requiredClaims: ['sub', 'iat', 'exp', 'jti'],
       }));
@@ -107,20 +118,33 @@ export function delegationVerifier(
     }
     const claims = parseClaims(payload, now);
     if (claims === null) return { kind: 'refused' };
+    if (claims.kind === 'upstream' && audience === 'wbs-be-01/direct') return { kind: 'refused' };
     // jose accepts audience arrays for general JWTs; WBS issues exactly one
     // scalar audience and refuses any broader shape here.
     // Proof (2026-09-28): removing this check made `refuses a signed array
     // audience that includes the MCP route` answer 200 instead of 401.
+    // Proof (2026-09-28): bypassing both JOSE audience admission and this
+    // scalar check made `issues a direct context with a native identity and
+    // fixed audience` verify a direct token as MCP.
     if (payload['aud'] !== audience) return { kind: 'refused' };
-    const mapped = await mappedUserOf(claims.upstream);
+    const mapped =
+      claims.kind === 'first_party'
+        ? await localUserOf?.(claims.userId)
+        : await mappedUserOf(claims.upstream);
     // Proof: accepting any mapped upstream identity made `refuses a delegation
     // whose upstream identity maps to someone else` in
     // `delegation.controller.db.test.ts` fail; watched 2026-09-28.
+    // Proof (2026-09-28): bypassing this match made `issues a direct context
+    // with a native identity and fixed audience` verify a token when local
+    // lookup returned bob for ada.
     if (mapped?.id !== claims.userId) return { kind: 'refused' };
     // Proof (2026-09-28): removing this await made `consumes an MCP delegation
     // once even when the project is missing` answer 404 twice. The store's
     // conflict mutation separately failed the two-connection race test.
-    if (!(await consume(DELEGATION_ISSUER, claims.jti, claims.expiresAt, Math.floor(now() / 1000))))
+    if (
+      claims.kind !== 'first_party' &&
+      !(await consume(DELEGATION_ISSUER, claims.jti, claims.expiresAt, Math.floor(now() / 1000)))
+    )
       return { kind: 'refused' };
     return {
       kind: 'verified',
@@ -128,39 +152,56 @@ export function delegationVerifier(
         id: mapped.id,
         username: mapped.username,
         scopes: claims.scopes,
-        delegation: {
-          organizationId: claims.organizationId,
-          audience,
-          client: claims.client,
-          grant: claims.grant,
-        },
+        delegation:
+          claims.kind === 'first_party'
+            ? { organizationId: claims.organizationId, audience: 'wbs-be-01/direct' }
+            : {
+                organizationId: claims.organizationId,
+                audience,
+                client: claims.client,
+                grant: claims.grant,
+              },
       },
     };
   };
 }
 
-interface DelegationClaims {
+interface SharedClaims {
   readonly userId: string;
   readonly organizationId: string;
-  readonly client: string;
-  readonly grant: string;
   readonly jti: string;
   readonly expiresAt: number;
   readonly scopes: readonly WbsScope[];
-  readonly upstream: { readonly issuer: string; readonly subject: string };
 }
+
+type DelegationClaims =
+  | (SharedClaims & { readonly kind: 'first_party' })
+  | (SharedClaims & {
+      readonly kind: 'upstream';
+      readonly client: string;
+      readonly grant: string;
+      readonly upstream: { readonly issuer: string; readonly subject: string };
+    });
 
 /** The claims a verified delegation must carry, or null when one is missing or malformed. */
 function parseClaims(payload: Record<string, unknown>, now: () => number): DelegationClaims | null {
-  const { sub, org, client, grant, jti, scope, upstream_iss, upstream_sub, iat, exp } = payload;
+  const {
+    sub,
+    org,
+    client,
+    grant,
+    jti,
+    scope,
+    upstream_iss,
+    upstream_sub,
+    identity_kind,
+    iat,
+    exp,
+  } = payload;
   if (
     !isFilled(sub) ||
     !isFilled(org) ||
-    !isFilled(client) ||
-    !isFilled(grant) ||
     !isFilled(jti) ||
-    !isFilled(upstream_iss) ||
-    !isFilled(upstream_sub) ||
     typeof scope !== 'string' ||
     typeof iat !== 'number' ||
     typeof exp !== 'number'
@@ -179,14 +220,35 @@ function parseClaims(payload: Record<string, unknown>, now: () => number): Deleg
   const scopes = scope.split(' ');
   if (!scopes.every((named): named is WbsScope => (SCOPES as readonly string[]).includes(named)))
     return null;
-  return {
+  const shared = {
     userId: sub,
     organizationId: org,
-    client,
-    grant,
     jti,
     expiresAt: exp,
     scopes,
+  };
+  if (identity_kind === 'first_party') {
+    if (
+      payload['aud'] !== 'wbs-be-01/direct' ||
+      client !== undefined ||
+      grant !== undefined ||
+      upstream_iss !== undefined ||
+      upstream_sub !== undefined
+    )
+      return null;
+    return { ...shared, kind: 'first_party' };
+  }
+  // Proof (2026-09-28): bypassing this guard made `refuses an unknown signed
+  // identity variant` verify a token claiming an unrecognized identity kind.
+  if (identity_kind !== undefined) return null;
+  if (!isFilled(client) || !isFilled(grant) || !isFilled(upstream_iss) || !isFilled(upstream_sub))
+    return null;
+  if (payload['aud'] === 'wbs-be-01/direct') return null;
+  return {
+    ...shared,
+    kind: 'upstream',
+    client,
+    grant,
     upstream: { issuer: upstream_iss, subject: upstream_sub },
   };
 }

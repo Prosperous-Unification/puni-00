@@ -233,6 +233,8 @@ type BareRefusalCode =
   /** Authenticated, but the session is bound to no organization (after activation). */
   | 'no_active_organization'
   | 'onboarding_inactive'
+  | 'context_inactive'
+  | 'invalid_binding'
   | 'email_verification_required'
   | 'already_member'
   | 'domain_matched'

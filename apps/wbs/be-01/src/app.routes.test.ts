@@ -123,6 +123,7 @@ const OIDC_SHAPES = new Set<(typeof httpShapes)[number]>([
   logoutOidcSession,
 ]);
 const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
+  postApiAuthContext: { organizationId: ROUTE_ID },
   postApiAuthRegister: { username: 'route-probe', password: 'valid-password' },
   postApiAuthLogin: { username: 'route-probe', password: 'valid-password' },
   postApiOnboardingOrganizations: { name: 'Reachable organization' },
@@ -186,6 +187,7 @@ const PUBLIC_OPERATIONS = [
   'getHealth',
   'getMetrics',
   'postApiAuthLogin',
+  'postApiAuthContext',
   'postApiAuthLogout',
   'postApiAuthRefresh',
   'postApiAuthRegister',
@@ -253,6 +255,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'patchApiProjectsByIdCalendar-markersByMarkerId',
   'patchApiProjectsByIdStepsByStepId',
   'patchApiSaved-plansById',
+  'postApiAuthContext',
   'postApiAuthLogout',
   'postApiAuthRefresh',
   'postApiDirectoryCommands',

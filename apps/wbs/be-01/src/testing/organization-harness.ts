@@ -31,8 +31,10 @@ import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { bearerContextIssuer, nativeCredentialSource } from '../runtime/bearer-context';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { delegationVerifier } from '../runtime/delegation';
+import { delegationIssuer } from '../runtime/delegation-issuer';
 import { AuthService } from '../service/auth.service';
 import { CalendarMarkerService } from '../service/calendar-marker.service';
 import { DirectoryService } from '../service/directory.service';
@@ -95,13 +97,24 @@ export class OrganizationHarness {
    * delegation tokens with (task 2.5); upstream identities resolve through the
    * real `external_identity` mapping.
    */
-  static open(delegationKey?: CryptoKey): OrganizationHarness {
+  static open(delegationKey?: CryptoKey, directSigningKey?: CryptoKey): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
     const db = openDrizzle(path);
     const gate = new WriteCoordinator();
     const bound = new Map<string, string>();
+    const sessionKey =
+      directSigningKey === undefined ? TEST_JWT_KEY : crypto.randomUUID() + crypto.randomUUID();
+    const organizations = new SqliteOrganizationAccess(db, (userId) =>
+      Promise.resolve(bound.get(userId) ?? null),
+    );
+    const auth = new AuthService({
+      clock: testClock,
+      users: new UserRepository(db, OPEN),
+      tokens: joseTokenCodec(sessionKey),
+      passwords: bunPasswordHasher,
+    });
     const projects = new ProjectRepository(db, OPEN);
     const directoryStore = new DirectoryRepository(db, OPEN);
     const writing = {
@@ -156,9 +169,7 @@ export class OrganizationHarness {
       appOrigin: 'http://localhost',
       savedPlans: testSavedPlanService(),
       ...writing,
-      organizations: new SqliteOrganizationAccess(db, (userId) =>
-        Promise.resolve(bound.get(userId) ?? null),
-      ),
+      organizations,
       memberships: new OrganizationRepository(db, OPEN),
       onboarding: new OnboardingRepository(db, OPEN),
       ...(delegationKey === undefined
@@ -173,15 +184,31 @@ export class OrganizationHarness {
               },
               (issuer, jti, expiresAt, now) =>
                 new SqliteDelegationUse(db, gate).consume(issuer, jti, expiresAt, now),
+              Date.now,
+              (userId) => new UserRepository(db, OPEN).findById(userId),
+            ),
+          }),
+      ...(directSigningKey === undefined
+        ? {}
+        : {
+            bearerContext: bearerContextIssuer(
+              nativeCredentialSource(auth, sessionKey),
+              organizations,
+              delegationIssuer(
+                directSigningKey,
+                nativeCredentialSource(auth, sessionKey),
+                async (userId, organizationId) => {
+                  const admitted = await organizations.resolve({
+                    id: userId,
+                    delegation: { organizationId, audience: 'wbs-be-01/direct' },
+                  });
+                  return admitted.ok && admitted.access.kind === 'scoped';
+                },
+              ),
             ),
           }),
       history: testHistoryService(),
-      auth: new AuthService({
-        clock: testClock,
-        users: new UserRepository(db, OPEN),
-        tokens: joseTokenCodec(TEST_JWT_KEY),
-        passwords: bunPasswordHasher,
-      }),
+      auth,
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),

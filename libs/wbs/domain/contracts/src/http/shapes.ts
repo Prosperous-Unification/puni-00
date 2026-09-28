@@ -4,7 +4,12 @@ import {
   refreshOidcSession,
   startOidcLogin,
 } from './auth-oidc-shapes';
-import { loginPassword, readPasswordSession, registerPassword } from './auth-password-shapes';
+import {
+  issueBearerContext,
+  loginPassword,
+  readPasswordSession,
+  registerPassword,
+} from './auth-password-shapes';
 import {
   createCalendarMarker,
   listCalendarMarkers,
@@ -65,6 +70,7 @@ export const httpShapes = [
   registerPassword,
   loginPassword,
   readPasswordSession,
+  issueBearerContext,
   startOidcLogin,
   completeOidcLogin,
   refreshOidcSession,
