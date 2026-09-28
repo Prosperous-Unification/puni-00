@@ -2272,8 +2272,8 @@ const renameFault = defineFault({
       steps: replaceMethod(
         source.stores.steps,
         'rename',
-        (rename) => (stepId, name, stamp) =>
-          rename(stepId, control.reach('steps.rename') ? 'faulted rename' : name, stamp),
+        (rename) => (projectId, stepId, name, stamp) =>
+          rename(projectId, stepId, control.reach('steps.rename') ? 'faulted rename' : name, stamp),
       ),
     });
   },

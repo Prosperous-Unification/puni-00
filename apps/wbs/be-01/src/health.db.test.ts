@@ -15,6 +15,7 @@ import { testClock } from './testing/clock-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
 import { testHistoryService } from './testing/history-fixture';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
+import { legacyOrganizationAccess } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { testProjectService } from './testing/project-fixture';
 import { testReplay } from './testing/replay-fixture';
@@ -28,6 +29,7 @@ const TEST_SECRET = 'x'.repeat(32);
 describe('GET /health', () => {
   it('returns 200 with status:"ok" when ready', async () => {
     const app = buildApp({
+      organizations: legacyOrganizationAccess,
       clock: testClock,
       loginThrottle: testLoginThrottle(),
       appOrigin: 'http://localhost',
@@ -55,6 +57,7 @@ describe('GET /health', () => {
 
   it('returns 503 while migrations still running', async () => {
     const app = buildApp({
+      organizations: legacyOrganizationAccess,
       clock: testClock,
       loginThrottle: testLoginThrottle(),
       appOrigin: 'http://localhost',
@@ -93,6 +96,7 @@ describe('/health tells the truth about the database', () => {
     try {
       const { db, close } = openConnection(join(dir, 'empty.db'));
       const app = buildApp({
+        organizations: legacyOrganizationAccess,
         clock: testClock,
         loginThrottle: testLoginThrottle(),
         appOrigin: 'http://localhost',
@@ -134,6 +138,7 @@ describe('/health tells the truth about the database', () => {
       runMigrations(path, new URL('../drizzle', import.meta.url).pathname);
       const { db, close } = openConnection(path);
       const app = buildApp({
+        organizations: legacyOrganizationAccess,
         clock: testClock,
         loginThrottle: testLoginThrottle(),
         appOrigin: 'http://localhost',
@@ -165,6 +170,7 @@ describe('/health tells the truth about the database', () => {
 
   it('is unhealthy when the probe itself throws', async () => {
     const app = buildApp({
+      organizations: legacyOrganizationAccess,
       clock: testClock,
       loginThrottle: testLoginThrottle(),
       appOrigin: 'http://localhost',

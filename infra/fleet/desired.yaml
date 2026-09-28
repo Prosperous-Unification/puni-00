@@ -18,9 +18,9 @@ nodes:
     cluster: platform
     capabilities: [control-plane, product, ingress]
     lifecycle: present
-    provider: { kind: ssh, machineId: 'operator-input:h4claw /etc/machine-id', address: 10.1.0.4 }
+    provider: { kind: ssh, machineId: f592d9aa3f3547d0b08a4b8bdec81012, address: 10.1.0.4 }
   - id: h3mon
     cluster: platform
     capabilities: [observability]
     lifecycle: present
-    provider: { kind: ssh, machineId: 'operator-input:h3mon /etc/machine-id', address: 10.1.0.2 }
+    provider: { kind: ssh, machineId: bed07fdd1c9d47c08540df462db009f4, address: 10.1.0.2 }

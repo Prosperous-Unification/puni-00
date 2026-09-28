@@ -1,8 +1,20 @@
-import { canEditProject, DEFAULT_ESTIMATE_RULE, isIsoDate, PertWeights } from '@wbs/domain';
+import {
+  canEditProject,
+  canWriteInOrganization,
+  DEFAULT_ESTIMATE_RULE,
+  isIsoDate,
+  PertWeights,
+} from '@wbs/domain';
 import { NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCodes } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
 import type { Clock } from '../../ports/clock';
+import {
+  findProjectWithin,
+  LEGACY_ACCESS as LEGACY,
+  mayEditProjectWithin,
+  type ResourceAccess,
+} from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type {
   NewProject,
@@ -49,6 +61,14 @@ export type UpdateOutcome =
          */
         | 'dependency_cycle';
     };
+
+/** A scoped viewer may not create; legacy access and every writing role may. */
+export type CreateOutcome =
+  { ok: true; value: ProjectWithSteps } | { ok: false; reason: 'forbidden' };
+
+/** Whether the caller may write `project`, found through the caller's access. */
+export type EditAuthorization =
+  { ok: true; project: Project } | { ok: false; reason: 'not_found' | 'forbidden' };
 
 export interface ProjectServiceOptions {
   projects: ProjectStore;
@@ -124,7 +144,36 @@ export class ProjectService {
     return this.opts.projects.findById(projectId);
   }
 
-  async create(name: string, ownerId: string): Promise<ProjectWithSteps> {
+  /**
+   * Creates a project in the caller's organization, or deployment-wide under
+   * legacy access. The scoped path writes the ownership row in the project's
+   * own transaction: after activation no bridge trigger maps it.
+   *
+   * Proof: removing the viewer refusal failed `refuses a viewer every project
+   * write and lets the viewer read and open` in
+   * `project-organization.controller.db.test.ts`; watched 2026-09-27.
+   */
+  async createWithin(
+    name: string,
+    ownerId: string,
+    access: ResourceAccess,
+  ): Promise<CreateOutcome> {
+    if (access.kind === 'scoped' && !canWriteInOrganization(access.scope.role)) {
+      return { ok: false, reason: 'forbidden' };
+    }
+    return { ok: true, value: await this.createProject(name, ownerId, access) };
+  }
+
+  /** Unscoped legacy creation for callers outside the project routes. */
+  create(name: string, ownerId: string): Promise<ProjectWithSteps> {
+    return this.createProject(name, ownerId, LEGACY);
+  }
+
+  private async createProject(
+    name: string,
+    ownerId: string,
+    access: ResourceAccess,
+  ): Promise<ProjectWithSteps> {
     // Built before the row, because the row's own `createdAt` is this act's
     // instant: the project and the starting steps arriving in one transaction
     // are one beginning, and they are dated from one reading of the clock.
@@ -175,7 +224,15 @@ export class ProjectService {
     // The store's answer rather than the seed: `create` fills the three
     // settings from the column defaults, so the seed is a `NewProject` and only
     // what came back is a whole project (tasks.md 3b.2).
-    const written = await this.opts.projects.create(project, steps, stamp);
+    const written =
+      access.kind === 'scoped'
+        ? await this.opts.projects.createInOrganization(
+            project,
+            steps,
+            stamp,
+            access.scope.organizationId,
+          )
+        : await this.opts.projects.create(project, steps, stamp);
     return { project: written, steps };
   }
 
@@ -188,7 +245,14 @@ export class ProjectService {
    * list the database can already sort.
    */
   list(actorId: string): Promise<ProjectWithAccess[]> {
-    return this.opts.projects.listFor(actorId);
+    return this.listWithin(actorId, LEGACY);
+  }
+
+  /** {@link list} through the caller's access: scoped access lists one organization. */
+  listWithin(actorId: string, access: ResourceAccess): Promise<ProjectWithAccess[]> {
+    return access.kind === 'scoped'
+      ? this.opts.projects.listForInOrganization(actorId, access.scope.organizationId)
+      : this.opts.projects.listFor(actorId);
   }
 
   /**
@@ -200,7 +264,19 @@ export class ProjectService {
    * fix. It is the caller's own navigation history and changes nothing anyone
    * else can see.
    */
-  async open(id: string, actorId: string): Promise<boolean> {
+  open(id: string, actorId: string): Promise<boolean> {
+    return this.openWithin(id, actorId, LEGACY);
+  }
+
+  /** {@link open} through the caller's access; a foreign project is not there. */
+  async openWithin(id: string, actorId: string, access: ResourceAccess): Promise<boolean> {
+    if (access.kind === 'scoped') {
+      return this.opts.projects.recordOpenInOrganization(
+        id,
+        this.clock.stampFor(actorId),
+        access.scope.organizationId,
+      );
+    }
     const project = await this.opts.projects.findById(id);
     // A project that is not there is not opened. Recording it anyway would
     // leave a row pointing at nothing, and the foreign key would refuse it in
@@ -213,6 +289,43 @@ export class ProjectService {
     return true;
   }
 
+  /**
+   * {@link read} through the caller's access: under scoped access a foreign
+   * project is null exactly like an absent one, so the route answers one 404.
+   */
+  async readWithin(id: string, access: ResourceAccess): Promise<ProjectWithSteps | null> {
+    const project = await this.find(id, access);
+    if (project === null) return null;
+    return { project, steps: await this.opts.projects.stepsOf(id) };
+  }
+
+  /**
+   * Finds `id` through the caller's access, then asks whether the caller may
+   * write it: the organization role and restricted-creator rule under scoped
+   * access, the creator rule alone under legacy access.
+   *
+   * Proof: returning the legacy `canEditProject` answer for scoped access (now
+   * inside `mayEditProjectWithin`) failed
+   * `refuses a viewer every project write and lets the viewer read and open` in
+   * `project-organization.controller.db.test.ts`; watched 2026-09-27.
+   */
+  async authorizeEdit(
+    id: string,
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<EditAuthorization> {
+    const project = await this.find(id, access);
+    if (project === null) return { ok: false, reason: 'not_found' };
+    return mayEditProjectWithin(project, actorId, access)
+      ? { ok: true, project }
+      : { ok: false, reason: 'forbidden' };
+  }
+
+  /**
+   * Unscoped: reads any project in the deployment. Kept for the boundaries
+   * later slices scope (saved plans 3.6, solution links, export's tree 3.5);
+   * project routes read through {@link readWithin}.
+   */
   async read(id: string): Promise<ProjectWithSteps | null> {
     const project = await this.opts.projects.findById(id);
     if (project === null) return null;
@@ -225,7 +338,17 @@ export class ProjectService {
     return { project, steps: await this.opts.projects.stepsOf(project.id) };
   }
 
-  async update(id: string, actorId: string, patch: ProjectPatch): Promise<UpdateOutcome> {
+  update(id: string, actorId: string, patch: ProjectPatch): Promise<UpdateOutcome> {
+    return this.updateWithin(id, actorId, patch, LEGACY);
+  }
+
+  /** {@link update} through the caller's access, authorized by {@link authorizeEdit}. */
+  async updateWithin(
+    id: string,
+    actorId: string,
+    patch: ProjectPatch,
+    access: ResourceAccess,
+  ): Promise<UpdateOutcome> {
     // `2026-02-31` matches the route's pattern and is not a day. Refused here
     // rather than stored: the column is text, and a date the scheduler cannot
     // parse would throw on every later read of this project.
@@ -251,9 +374,20 @@ export class ProjectService {
     if (patch.pertWeights !== undefined && PertWeights(patch.pertWeights) instanceof type.errors) {
       return { ok: false, reason: 'bad_pert_weights' };
     }
-    const project = await this.opts.projects.findById(id);
-    if (project === null) return { ok: false, reason: 'not_found' };
-    if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
+    const authorization = await this.authorizeEdit(id, actorId, access);
+    if (!authorization.ok) return authorization;
+    const { project } = authorization;
+    // Solution slugs are still unique across the deployment, so after
+    // activation a link collision would reveal another organization's project.
+    // Linking is refused until task 3.5 scopes solution references; clearing a
+    // link stays allowed.
+    // Proof: removing this refusal made `refuses a solution link that could
+    // reveal another organization's project` in
+    // `project-organization.controller.db.test.ts` answer 500 instead of 403
+    // for the foreign project's slug; watched 2026-09-27.
+    if (access.kind === 'scoped' && patch.solutionRef != null) {
+      return { ok: false, reason: 'forbidden' };
+    }
     // After the authorization check, so a reader of a restricted project still
     // learns `forbidden` rather than a fact about how this box is wired.
     if (turnsTheOptimizerOn(project, patch) && !this.optimizerAvailable()) {
@@ -269,7 +403,16 @@ export class ProjectService {
       const cycle = await this.opts.dependencyGraph.findCycle(id, { reach: patch.depReach });
       if (cycle !== null) return { ok: false, reason: 'dependency_cycle' };
     }
-    const updated = await this.opts.projects.update(id, patch, this.clock.stampFor(actorId));
+    const stamp = this.clock.stampFor(actorId);
+    const updated =
+      access.kind === 'scoped'
+        ? await this.opts.projects.updateInOrganization(
+            id,
+            patch,
+            stamp,
+            access.scope.organizationId,
+          )
+        : await this.opts.projects.update(id, patch, stamp);
     // Gone between the read and the write. Reporting success would tell the
     // caller their rename landed on a project that no longer exists.
     if (updated === null) return { ok: false, reason: 'not_found' };
@@ -287,6 +430,10 @@ export class ProjectService {
       });
     }
     return { ok: true, value: updated };
+  }
+
+  private find(id: string, access: ResourceAccess): Promise<Project | null> {
+    return findProjectWithin(this.opts.projects, id, access);
   }
 }
 

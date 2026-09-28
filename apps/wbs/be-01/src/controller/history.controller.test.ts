@@ -9,6 +9,7 @@ import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryPlanEvents, testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
+import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects, projectRow, testProjectService } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -65,6 +66,7 @@ describe('one plan’s history, over HTTP', () => {
       event('frozen', { kind: 'freeze', workItemId: null, stepId: null, createdAt: 4_000 }),
     ]);
     app = buildApp({
+      organizations: legacyOrganizationAccess,
       loginThrottle: testLoginThrottle(),
       clock: testClock,
       appOrigin: 'http://localhost',

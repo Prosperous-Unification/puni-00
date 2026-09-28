@@ -263,7 +263,7 @@ function storeWith(overrides: Partial<StepStore>): StepStore {
     listByProject: (projectOf) => stepStore.listByProject(projectOf),
     findById: (stepOf) => stepStore.findById(stepOf),
     add: (toAdd, stamp) => stepStore.add(toAdd, stamp),
-    rename: (stepOf, name, stamp) => stepStore.rename(stepOf, name, stamp),
+    rename: (projectOf, stepOf, name, stamp) => stepStore.rename(projectOf, stepOf, name, stamp),
     usageOf: (projectOf, stepOf) => stepStore.usageOf(projectOf, stepOf),
     remove: (projectOf, stepOf, cascade, stamp) =>
       stepStore.remove(projectOf, stepOf, cascade, stamp),

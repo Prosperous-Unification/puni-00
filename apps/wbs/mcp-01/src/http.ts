@@ -54,6 +54,7 @@ export function oauthMetadataResponse(url: URL, config: McpConfig): Response | u
       token_endpoint_auth_methods_supported: ['none'],
       code_challenge_methods_supported: ['S256'],
       scopes_supported: MCP_SCOPES,
+      authorization_response_iss_parameter_supported: true,
     });
   }
 

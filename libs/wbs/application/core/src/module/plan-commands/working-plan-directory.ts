@@ -31,6 +31,8 @@ export function createWorkingPlanDirectory(
   const ok = (written: { ok: boolean }): boolean => written.ok;
 
   return {
+    listInOrganization: (catalog, organizationId) =>
+      source().listInOrganization(catalog, organizationId),
     listTags: () => source().listTags(),
     addTag: afterWrite((...parameters) => source().addTag(...parameters), always),
     renameTag: afterWrite((...parameters) => source().renameTag(...parameters), ok),
