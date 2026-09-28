@@ -24,6 +24,8 @@ import { importProject } from './import-shapes';
 import { health, metrics } from './infrastructure-shapes';
 import { forwardInternal, gatewayProjectAccess, resumeInternal } from './internal-http-shapes';
 import {
+  confirmEmailChallenge,
+  createEmailChallenge,
   createOnboardingOrganization,
   readOnboarding,
   submitOnboardingJoinRequest,
@@ -78,6 +80,8 @@ export const httpShapes = [
   readOnboarding,
   createOnboardingOrganization,
   submitOnboardingJoinRequest,
+  createEmailChallenge,
+  confirmEmailChallenge,
   listTeams,
   listPeople,
   listTags,

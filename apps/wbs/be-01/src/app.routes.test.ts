@@ -19,6 +19,10 @@ import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
 import { testCapacityService } from './testing/capacity-fixture';
 import { testClock } from './testing/clock-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
+import {
+  refusingEmailVerification,
+  refusingTestEmailDelivery,
+} from './testing/email-verification-fixture';
 import { testHistoryService } from './testing/history-fixture';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
 import {
@@ -37,6 +41,8 @@ function options(): AppOptions {
   return {
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    emailVerification: refusingEmailVerification,
+    emailDelivery: refusingTestEmailDelivery,
     onboarding: {
       discover: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
       createOrganization: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
@@ -127,6 +133,8 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postApiAuthLogin: { username: 'route-probe', password: 'valid-password' },
   postApiOnboardingOrganizations: { name: 'Reachable organization' },
   postApiOnboardingJoinRequests: { organizationId: ROUTE_ID },
+  postApiOnboardingEmailChallenges: { email: 'test@example.org' },
+  postApiOnboardingEmailChallengesConfirm: { email: 'test@example.org', token: 'invalid' },
   postApiSmokeEcho: { text: 'reachable' },
   postApiProjectsByIdSteps: { name: 'Reachable step' },
   patchApiProjectsByIdStepsByStepId: { name: 'Renamed step' },
@@ -221,6 +229,8 @@ const WRITE_SCOPE_OPERATIONS = [
   'patchApiProjectsByIdStepsByStepId',
   'patchApiSaved-plansById',
   'postApiDirectoryCommands',
+  'postApiOnboardingEmailChallenges',
+  'postApiOnboardingEmailChallengesConfirm',
   'postApiOnboardingJoinRequests',
   'postApiOnboardingOrganizations',
   'postApiProjects',
@@ -239,6 +249,8 @@ const GATEWAY_OPERATIONS = ['postInternalGatewayProjectAccess'] as const;
 const ALWAYS_ORIGIN_OPERATIONS = [
   'postApiAuthLogin',
   'postApiAuthRegister',
+  'postApiOnboardingEmailChallenges',
+  'postApiOnboardingEmailChallengesConfirm',
   'postApiOnboardingJoinRequests',
   'postApiOnboardingOrganizations',
 ] as const;

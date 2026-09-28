@@ -25,6 +25,10 @@ import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
+import {
+  refusingEmailVerification,
+  refusingTestEmailDelivery,
+} from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { refusingOnboarding } from '../testing/onboarding-fixture';
@@ -175,6 +179,8 @@ describe('the calendar-marker routes', () => {
     app = buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
+      emailVerification: refusingEmailVerification,
+      emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
       clock: testClock,

@@ -2,6 +2,8 @@ import type {
   Broadcaster,
   Clock,
   EditAdmission,
+  EmailDelivery,
+  EmailVerification,
   HistoryService,
   ImportService,
   MembershipAdministration,
@@ -10,6 +12,7 @@ import type {
   ReplayOrchestrator,
   SavedPlanService,
 } from '@wbs/core';
+import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
 import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
@@ -87,6 +90,10 @@ export interface AppOptions {
   memberships: MembershipAdministration;
   /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
   onboarding: Onboarding;
+  /** Required durable challenge boundary; absence is a boot configuration error. */
+  emailVerification: EmailVerification;
+  /** Injected mail sink; production's current adapter refuses delivery visibly. */
+  emailDelivery: EmailDelivery;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
   /** The manual Retry admission seam; absent only in optimizer-less deployments and tests. */
@@ -266,6 +273,7 @@ export function mountedEndpoints(
     ...smokeRoutes(),
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
     ...onboardingRoutes(opts.onboarding, opts.clock),
+    ...emailVerificationRoutes(opts.emailVerification, opts.emailDelivery, opts.clock, nodeDigest),
     ...stepRoutes(
       {
         addWithin: (...args) => opts.steps.addWithin(...args),

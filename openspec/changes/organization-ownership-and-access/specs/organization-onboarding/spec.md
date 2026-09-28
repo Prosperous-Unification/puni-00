@@ -70,6 +70,15 @@ An existing first-party username/password account without verified email SHALL r
 - **WHEN** U confirms a fresh single-use challenge sent to its new address
 - **THEN** U keeps the same local ID and may continue onboarding with that verified address
 
+#### Scenario: Password challenge delivery and consumption
+
+- **GIVEN** activation is complete and U is signed in with a password-only account
+- **WHEN** U requests a normalized address challenge through an injected mail sink and confirms its 30-minute token
+- **THEN** WBS stores only the token digest, marks the challenge delivered before confirmation, consumes it once in an immediate transaction, and updates U's existing email and verification flag without changing U's ID
+- **AND** pending or failed delivery, expiry, revocation, wrong account, replay and address conflict refuse without verifying U; an inactive marker refuses both routes
+- **AND** until an internationalized-address policy matches the existing SQLite email uniqueness rule, the challenge routes refuse non-ASCII addresses with typed `400 invalid_body`
+- **AND** the production sink currently refuses delivery with typed `503 delivery_failed` until a reviewed delivery adapter is provided
+
 #### Scenario: Auth0 link collision
 
 - **GIVEN** a password-only account U and an Auth0 issuer/subject already mapped to V

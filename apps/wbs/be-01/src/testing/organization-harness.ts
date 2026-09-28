@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import {
+  EmailVerificationRepository,
   ExternalIdentityRepository,
   OnboardingRepository,
   openSqliteSource,
@@ -61,6 +62,12 @@ export interface Answer {
   body: unknown;
 }
 
+interface TestMail {
+  tokens: Map<string, string>;
+  fail: boolean;
+  beforeDelivery?: () => void;
+}
+
 /**
  * be-01 over real SQLite with the production {@link SqliteOrganizationAccess},
  * for the organization boundary suites (tasks 3.x).
@@ -81,6 +88,7 @@ export class OrganizationHarness {
     /** A raw connection the app does not hold, as a second process would. */
     readonly sqlite: ReturnType<typeof openDatabase>,
     private readonly bound: Map<string, string>,
+    private readonly mail?: TestMail,
     private readonly retryHash?: (projectId: string) => Promise<string>,
     private readonly retryDecision?: (
       projectId: string,
@@ -150,6 +158,7 @@ export class OrganizationHarness {
         broadcast: recordingBroadcaster(),
       }),
     };
+    const mail: TestMail = { tokens: new Map<string, string>(), fail: false };
     const app = buildApp({
       loginThrottle: testLoginThrottle(),
       clock: testClock,
@@ -161,6 +170,15 @@ export class OrganizationHarness {
       ),
       memberships: new OrganizationRepository(db, OPEN),
       onboarding: new OnboardingRepository(db, OPEN),
+      emailVerification: new EmailVerificationRepository(db, OPEN),
+      emailDelivery: {
+        deliver: (address, token) => {
+          if (mail.fail) return Promise.reject(new Error('injected mail sink failure'));
+          mail.beforeDelivery?.();
+          mail.tokens.set(address, token);
+          return Promise.resolve();
+        },
+      },
       ...(delegationKey === undefined
         ? {}
         : {
@@ -188,7 +206,7 @@ export class OrganizationHarness {
       writes: testWrites(undefined, writing),
       migrationsApplied: true,
     });
-    return new OrganizationHarness(dir, app, openDatabase(path), bound);
+    return new OrganizationHarness(dir, app, openDatabase(path), bound, mail);
   }
 
   /**
@@ -239,6 +257,10 @@ export class OrganizationHarness {
       },
       memberships: new OrganizationRepository(source.db, services.gate),
       onboarding: new OnboardingRepository(source.db, services.gate),
+      emailVerification: new EmailVerificationRepository(source.db, services.gate),
+      emailDelivery: {
+        deliver: () => Promise.reject(new Error('composed harness mail sink refuses delivery')),
+      },
       steps: services.steps,
       calendarMarkers: services.calendarMarkers,
       workItems: services.workItems,
@@ -263,6 +285,7 @@ export class OrganizationHarness {
       app,
       openDatabase(path),
       bound,
+      undefined,
       async (projectId) => {
         const input = await services.workItems.scheduleInput(projectId);
         if (input === null) throw new Error(`project ${projectId} has no optimization input`);
@@ -283,6 +306,27 @@ export class OrganizationHarness {
         ).kind;
       },
     );
+  }
+
+  /** Token captured by the test-only injected sink; no message is sent. */
+  deliveredEmailToken(address: string): string {
+    const token = this.mail?.tokens.get(address);
+    if (token === undefined) throw new Error(`no challenge delivered to ${address}`);
+    return token;
+  }
+
+  /** Makes the injected test sink reject delivery. */
+  failEmailDelivery(): void {
+    if (this.mail === undefined) throw new Error('no test mail sink');
+    this.mail.fail = true;
+  }
+
+  /** Breaks the durable pending row after issue, before the sink reports success. */
+  removeChallengeBeforeDelivery(): void {
+    if (this.mail === undefined) throw new Error('no test mail sink');
+    this.mail.beforeDelivery = () => {
+      this.sqlite.run('DELETE FROM email_challenge');
+    };
   }
 
   /** Hashes the same current schedule input the mounted Retry route rebuilds. */

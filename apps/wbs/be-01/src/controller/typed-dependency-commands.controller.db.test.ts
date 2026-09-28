@@ -37,6 +37,10 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
+import {
+  refusingEmailVerification,
+  refusingTestEmailDelivery,
+} from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { refusingOnboarding } from '../testing/onboarding-fixture';
@@ -137,6 +141,8 @@ beforeEach(() => {
     savedPlans: testSavedPlanService(),
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    emailVerification: refusingEmailVerification,
+    emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     history: testHistoryService(),
     auth: new AuthService({

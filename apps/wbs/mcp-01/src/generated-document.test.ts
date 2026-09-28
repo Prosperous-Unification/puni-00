@@ -75,6 +75,8 @@ test('pins every generated MCP operation name independently of the registry', ()
     'patchApiProjectsByIdStepsByStepId',
     'patchApiSaved-plansById',
     'postApiDirectoryCommands',
+    'postApiOnboardingEmailChallenges',
+    'postApiOnboardingEmailChallengesConfirm',
     'postApiOnboardingJoinRequests',
     'postApiOnboardingOrganizations',
     'postApiProjects',

@@ -12,6 +12,7 @@ export * from './delegation-use';
 export * from './dependency';
 export * from './directory';
 export * from './domain-claim';
+export * from './email-verification';
 export * from './estimate';
 export * from './event-log';
 export * from './external-identity';
