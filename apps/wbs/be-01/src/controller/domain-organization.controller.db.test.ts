@@ -11,6 +11,8 @@ import { OrganizationHarness } from '../testing/organization-harness';
 
 let harness: OrganizationHarness;
 let policyDirectory: string | undefined;
+let dnsRecords: readonly string[] | Error | 'hang' = new Error('DNS unavailable');
+let beforeDnsReply: (() => void) | undefined;
 const assetSource = new URL('../../../../../libs/wbs/domain/domain/src/', import.meta.url);
 
 function copyPolicy(): string {
@@ -29,7 +31,16 @@ function pinAsset(directory: string, content: string): void {
 }
 
 beforeEach(async () => {
-  harness = OrganizationHarness.open(undefined, copyPolicy());
+  dnsRecords = new Error('DNS unavailable');
+  beforeDnsReply = undefined;
+  harness = OrganizationHarness.open(undefined, copyPolicy(), {
+    lookupTxt: () => {
+      beforeDnsReply?.();
+      if (dnsRecords === 'hang') return Promise.withResolvers<readonly string[]>().promise;
+      if (dnsRecords instanceof Error) return Promise.reject(dnsRecords);
+      return Promise.resolve(dnsRecords);
+    },
+  });
   await harness.register('owner');
   await harness.register('member');
   harness.organization('org-a');
@@ -47,6 +58,215 @@ afterEach(() => {
 const path = '/api/organization/domains/challenges';
 
 describe('mounted organization domain challenges', () => {
+  it('verifies only an exact current TXT value and retains its digest', async () => {
+    harness.activate();
+    const issued = await harness.call('owner', 'POST', path, { domain: 'example.org' });
+    const claim = issued.body as { id: string; dnsValue: string };
+    dnsRecords = [`${claim.dnsValue}extra`];
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${claim.id}/verify`),
+    ).toEqual({ status: 409, body: { error: 'proof_mismatch' } });
+    dnsRecords = [claim.dnsValue];
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${claim.id}/verify`),
+    ).toEqual({ status: 200, body: { id: claim.id, status: 'verified' } });
+    expect(
+      harness.sqlite
+        .query(
+          'SELECT status, proof_digest, challenge_digest FROM organization_domain_claim WHERE id = ?',
+        )
+        .get(claim.id),
+    ).toEqual({
+      status: 'verified',
+      proof_digest: createHash('sha256').update(claim.dnsValue).digest('hex'),
+      challenge_digest: null,
+    });
+  });
+
+  it('refuses a reissued challenge whose old proof arrived during DNS lookup', async () => {
+    harness.activate();
+    const issued = await harness.call('owner', 'POST', path, { domain: 'example.org' });
+    const claim = issued.body as { id: string; dnsValue: string };
+    dnsRecords = [claim.dnsValue];
+    beforeDnsReply = () => {
+      beforeDnsReply = undefined;
+      harness.sqlite.run('UPDATE organization_domain_claim SET challenge_digest = ? WHERE id = ?', [
+        'changed',
+        claim.id,
+      ]);
+    };
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${claim.id}/verify`),
+    ).toEqual({ status: 409, body: { error: 'stale' } });
+  });
+
+  it('refuses a claim whose domain changes during DNS lookup', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    beforeDnsReply = () => {
+      beforeDnsReply = undefined;
+      harness.sqlite.run('UPDATE organization_domain_claim SET domain = ? WHERE id = ?', [
+        'changed.example.org',
+        issued.id,
+      ]);
+    };
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
+    ).toEqual({ status: 409, body: { error: 'stale' } });
+  });
+
+  it('rechecks challenge expiry and maintained policy after DNS lookup', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    harness.sqlite.run(
+      'UPDATE organization_domain_claim SET challenge_expires_at = ? WHERE id = ?',
+      [Date.now() + 1_000, issued.id],
+    );
+    beforeDnsReply = () => {
+      beforeDnsReply = undefined;
+      Bun.sleepSync(1_200);
+    };
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
+    ).toEqual({ status: 409, body: { error: 'stale' } });
+    harness.sqlite.run(
+      'UPDATE organization_domain_claim SET challenge_expires_at = ? WHERE id = ?',
+      [Date.now() + 60_000, issued.id],
+    );
+    const directory = policyDirectory;
+    if (directory === undefined) throw new Error('policy fixture missing');
+    beforeDnsReply = () => {
+      beforeDnsReply = undefined;
+      const asset = join(directory, 'public-email-policy.v1.json');
+      const content = readFileSync(asset, 'utf8').replace('"co.jp",', '"example.org", "co.jp",');
+      writeFileSync(asset, content);
+      pinAsset(directory, content);
+    };
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
+    ).toEqual({ status: 409, body: { error: 'stale' } });
+  });
+
+  it('refuses an old token, an expired challenge and a foreign claim id', async () => {
+    harness.organization('org-b');
+    harness.member('org-b', 'owner', 'super_admin');
+    harness.activate();
+    const first = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    await harness.call('owner', 'POST', path, { domain: 'example.org' });
+    dnsRecords = [first.dnsValue];
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${first.id}/verify`),
+    ).toEqual({ status: 409, body: { error: 'proof_mismatch' } });
+    harness.sqlite.run(
+      'UPDATE organization_domain_claim SET challenge_expires_at = 1 WHERE id = ?',
+      [first.id],
+    );
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${first.id}/verify`),
+    ).toEqual({ status: 409, body: { error: 'stale' } });
+    harness.bind('owner', 'org-b');
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${first.id}/verify`),
+    ).toEqual({ status: 404, body: { error: 'not_found' } });
+    expect(await harness.call('owner', 'POST', '/api/organization/domains/missing/verify')).toEqual(
+      { status: 404, body: { error: 'not_found' } },
+    );
+  });
+
+  it('lets only one pending organization become the verified owner', async () => {
+    harness.organization('org-b');
+    harness.member('org-b', 'owner', 'super_admin');
+    harness.activate();
+    const first = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    harness.bind('owner', 'org-b');
+    const second = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [first.dnsValue, second.dnsValue];
+    expect(
+      (await harness.call('owner', 'POST', `/api/organization/domains/${second.id}/verify`)).status,
+    ).toBe(200);
+    harness.bind('owner', 'org-a');
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${first.id}/verify`),
+    ).toEqual({ status: 409, body: { error: 'domain_taken' } });
+  });
+
+  it('refuses malformed and timed-out resolver answers', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+    };
+    // The test deliberately violates the resolver's trusted return contract.
+    dnsRecords = [42] as unknown as readonly string[];
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
+    ).toEqual({ status: 503, body: { error: 'dns_unavailable' } });
+    dnsRecords = 'hang';
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
+    ).toEqual({ status: 503, body: { error: 'dns_unavailable' } });
+    expect(
+      harness.sqlite
+        .query('SELECT status FROM organization_domain_claim WHERE id = ?')
+        .get(issued.id),
+    ).toEqual({ status: 'pending' });
+  });
+
+  it('rechecks current super-admin authority after the lookup', async () => {
+    harness.activate();
+    const issued = (await harness.call('owner', 'POST', path, { domain: 'example.org' })).body as {
+      id: string;
+      dnsValue: string;
+    };
+    dnsRecords = [issued.dnsValue];
+    beforeDnsReply = () => {
+      beforeDnsReply = undefined;
+      harness.sqlite.run(
+        "UPDATE organization_membership SET role = 'member' WHERE organization_id = 'org-a' AND user_id = ?",
+        [harness.userId('owner')],
+      );
+    };
+    expect(
+      await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
+    ).toEqual({ status: 403, body: { error: 'forbidden' } });
+  });
+
+  it('refuses verification when authoritative DNS is unavailable without promoting the claim', async () => {
+    harness.activate();
+    const issued = await harness.call('owner', 'POST', path, { domain: 'example.org' });
+    expect(issued.status).toBe(201);
+    expect(
+      await harness.call(
+        'owner',
+        'POST',
+        `/api/organization/domains/${(issued.body as { id: string }).id}/verify`,
+      ),
+    ).toEqual({
+      status: 503,
+      body: { error: 'dns_unavailable' },
+    });
+    expect(
+      harness.sqlite
+        .query("SELECT status FROM organization_domain_claim WHERE domain = 'example.org'")
+        .get(),
+    ).toEqual({ status: 'pending' });
+  });
   it('is inert until activation and requires current super-admin authority', async () => {
     expect((await harness.callWith('none', 'POST', path, { domain: 'example.org' })).status).toBe(
       401,

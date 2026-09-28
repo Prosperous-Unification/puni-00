@@ -30,6 +30,14 @@ The active organization's domain list SHALL be visible only to a current super-a
 - **WHEN** both present valid TXT records and verify concurrently
 - **THEN** exactly one organization becomes verified owner and the other receives a conflict
 
+#### Scenario: Initial verification endpoint refusals
+
+- **GIVEN** a signed-in super-admin with an active organization and a pending domain claim
+- **WHEN** they POST `/api/organization/domains/:id/verify`
+- **THEN** an exact current TXT record promotes the digest to retained proof in one immediate transaction
+- **AND** a missing or foreign claim answers identical `404 not_found`; a stale or changed challenge, mismatched proof or another verified owner answers typed 409; unavailable, timed-out or malformed authoritative DNS answers `503 dns_unavailable` without promoting
+- **AND** current super-admin authority, activation, challenge expiry and maintained policy are rechecked before the write
+
 #### Scenario: Old token after rotation
 
 - **GIVEN** a domain challenge was rotated

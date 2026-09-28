@@ -239,6 +239,10 @@ type BareRefusalCode =
   | 'invalid_domain'
   | 'unclaimable'
   | 'already_claimed'
+  | 'stale'
+  | 'proof_mismatch'
+  | 'domain_taken'
+  | 'dns_unavailable'
   | 'join_request_pending'
   /** Authenticated, but the bound organization no longer lists the user. */
   | 'not_a_member'

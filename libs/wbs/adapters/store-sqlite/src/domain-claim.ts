@@ -1,4 +1,10 @@
-import type { DomainChallenges, DomainClaimSummary, WriteStamp } from '@wbs/core';
+import type {
+  DomainChallenges,
+  DomainClaimSummary,
+  DomainResolver,
+  PendingDomainClaim,
+  WriteStamp,
+} from '@wbs/core';
 import { isClaimableDomain } from '@wbs/domain';
 import { and, eq, gt, inArray } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
@@ -30,7 +36,141 @@ export class DomainClaimRepository implements DomainChallenges {
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
     private readonly policyDirectory?: string,
+    readonly resolver: DomainResolver = {
+      lookupTxt: () => Promise.reject(new Error('authoritative DNS resolver unavailable')),
+    },
   ) {}
+
+  /** Reads only a current organization's pending claim after current role and marker checks. */
+  async readPendingClaim(
+    organizationId: string,
+    actorId: string,
+    claimId: string,
+  ): Promise<PendingDomainClaim | 'forbidden' | 'not_found' | 'stale' | 'inactive'> {
+    await Promise.resolve();
+    return this.db.transaction((tx) => {
+      // Proof: 2026-09-28, bypassing this marker read made store
+      // `keeps both verification phases inert before activation` expose a pending claim.
+      if (readOrganizationActivation(tx) !== 'activated') return 'inactive';
+      const member = tx
+        .select({ role: organizationMembership.role })
+        .from(organizationMembership)
+        .where(
+          and(
+            eq(organizationMembership.organizationId, organizationId),
+            eq(organizationMembership.userId, actorId),
+          ),
+        )
+        .get();
+      if (member?.role !== 'super_admin') return 'forbidden';
+      const claim = tx
+        .select()
+        .from(organizationDomainClaim)
+        .where(
+          and(
+            eq(organizationDomainClaim.id, claimId),
+            eq(organizationDomainClaim.organizationId, organizationId),
+          ),
+        )
+        .get();
+      if (claim === undefined) return 'not_found';
+      if (
+        claim.status !== 'pending' ||
+        claim.challengeDigest === null ||
+        claim.challengeExpiresAt === null
+      )
+        return 'stale';
+      if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
+        return 'stale';
+      return {
+        id: claim.id,
+        domain: claim.domain,
+        challengeDigest: claim.challengeDigest,
+        challengeExpiresAt: claim.challengeExpiresAt,
+      };
+    });
+  }
+
+  /** Promotes a matching snapshot under an immediate write lock and current authority. */
+  async verifyClaim(
+    organizationId: string,
+    actorId: string,
+    claim: PendingDomainClaim,
+    observedDigest: string,
+    stamp: WriteStamp,
+  ): Promise<'verified' | 'forbidden' | 'not_found' | 'stale' | 'taken' | 'inactive'> {
+    return this.gate.enter(async () => {
+      await Promise.resolve();
+      try {
+        return this.db.transaction(
+          (tx) => {
+            // Proof: 2026-09-28, bypassing the commit marker read made store
+            // `keeps both verification phases inert before activation` promote a pending claim.
+            if (readOrganizationActivation(tx) !== 'activated') return 'inactive' as const;
+            const member = tx
+              .select({ role: organizationMembership.role })
+              .from(organizationMembership)
+              .where(
+                and(
+                  eq(organizationMembership.organizationId, organizationId),
+                  eq(organizationMembership.userId, actorId),
+                ),
+              )
+              .get();
+            // Proof: 2026-09-28, bypassing this recheck let the mounted late-demotion test promote a claim.
+            if (member?.role !== 'super_admin') return 'forbidden' as const;
+            const current = tx
+              .select()
+              .from(organizationDomainClaim)
+              .where(
+                and(
+                  eq(organizationDomainClaim.id, claim.id),
+                  eq(organizationDomainClaim.organizationId, organizationId),
+                ),
+              )
+              .get();
+            if (current === undefined) return 'not_found' as const;
+            // Proof: 2026-09-28, before this comparison mounted `refuses a claim
+            // whose domain changes during DNS lookup` promoted the renamed row (200 instead of 409).
+            // Proof: 2026-09-28, omitting the digest snapshot comparison let the mounted reissue-during-lookup test promote the old challenge.
+            if (
+              current.status !== 'pending' ||
+              current.domain !== claim.domain ||
+              current.challengeDigest !== claim.challengeDigest ||
+              current.challengeExpiresAt !== claim.challengeExpiresAt ||
+              // Proof: 2026-09-28, bypassing this expiry recheck made mounted
+              // `rechecks challenge expiry and maintained policy after DNS lookup` promote after a 1.2-second lookup crossed expiry (200 instead of 409).
+              current.challengeExpiresAt <= stamp.at ||
+              observedDigest !== claim.challengeDigest
+            )
+              return 'stale' as const;
+            // Proof: 2026-09-28, bypassing this policy recheck made mounted
+            // `rechecks challenge expiry and maintained policy after DNS lookup` promote a newly denied domain (200 instead of 409).
+            if (!isClaimableDomain(current.domain, loadPublicEmailPolicy(this.policyDirectory)))
+              return 'stale' as const;
+            // Proof: 2026-09-28, the mounted two-owner test failed when unique ownership was bypassed; the database index decides the race.
+            tx.update(organizationDomainClaim)
+              .set({
+                status: 'verified',
+                proofDigest: current.challengeDigest,
+                challengeDigest: null,
+                challengeExpiresAt: null,
+                lastSuccessAt: stamp.at,
+                lastCheckedAt: stamp.at,
+                ...auditOnUpdate(stamp),
+              })
+              .where(eq(organizationDomainClaim.id, claim.id))
+              .run();
+            return 'verified' as const;
+          },
+          { behavior: 'immediate' },
+        );
+      } catch (error) {
+        if (isUniqueViolation(error, UNIQUE_INDEXES.verifiedDomainOwner)) return 'taken';
+        throw error;
+      }
+    });
+  }
 
   /** Lists exact claims for the organization established by current access. */
   async listClaims(

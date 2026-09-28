@@ -330,6 +330,36 @@ describe('OrganizationRepository.administer', () => {
 });
 
 describe('DomainClaimRepository', () => {
+  it('keeps both verification phases inert before activation', async () => {
+    const organizations = new OrganizationRepository(connection.db, OPEN);
+    await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
+    const claims = new DomainClaimRepository(connection.db, OPEN);
+    await claims.openClaim(
+      {
+        id: 'c-a',
+        organizationId: 'org-a',
+        domain: 'example.org',
+        challengeDigest: 'digest-c-a',
+        challengeExpiresAt: 1000,
+      },
+      stamp('u-a'),
+    );
+    expect(await claims.readPendingClaim('org-a', 'u-a', 'c-a')).toBe('inactive');
+    expect(
+      await claims.verifyClaim(
+        'org-a',
+        'u-a',
+        {
+          id: 'c-a',
+          domain: 'example.org',
+          challengeDigest: 'digest-c-a',
+          challengeExpiresAt: 1000,
+        },
+        'digest-c-a',
+        stamp('u-a', 20),
+      ),
+    ).toBe('inactive');
+  });
   async function twoOrganizationsClaiming(domain: string): Promise<DomainClaimRepository> {
     const organizations = new OrganizationRepository(connection.db, OPEN);
     await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));

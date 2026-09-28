@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { CREATOR_ADMISSION, type DomainResolver } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import {
   DomainClaimRepository,
@@ -96,7 +96,11 @@ export class OrganizationHarness {
    * delegation tokens with (task 2.5); upstream identities resolve through the
    * real `external_identity` mapping.
    */
-  static open(delegationKey?: CryptoKey, policyDirectory?: string): OrganizationHarness {
+  static open(
+    delegationKey?: CryptoKey,
+    policyDirectory?: string,
+    resolver?: DomainResolver,
+  ): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
@@ -161,7 +165,7 @@ export class OrganizationHarness {
         Promise.resolve(bound.get(userId) ?? null),
       ),
       memberships: new OrganizationRepository(db, OPEN),
-      domains: new DomainClaimRepository(db, gate, policyDirectory),
+      domains: new DomainClaimRepository(db, gate, policyDirectory, resolver),
       onboarding: new OnboardingRepository(db, OPEN),
       ...(delegationKey === undefined
         ? {}

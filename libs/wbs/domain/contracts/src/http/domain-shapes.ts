@@ -83,3 +83,36 @@ export const createDomainChallenge = defineEndpointShape({
   ],
   document: { summary: 'Issue an exact-domain TXT challenge.' },
 });
+
+/** Verifies one pending claim against authoritative TXT evidence. */
+export const verifyDomainClaim = defineEndpointShape({
+  method: 'POST',
+  path: '/api/organization/domains/:id/verify',
+  operationId: 'postApiOrganizationDomainsByIdVerify',
+  policies: writePolicy,
+  params: requestSchema(type({ id: 'string' })),
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(type({ id: 'string', status: "'verified'" })),
+    },
+  ],
+  refusals: [
+    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
+    organizationRefusal,
+    {
+      status: 403,
+      schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
+    },
+    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+    {
+      status: 409,
+      schema: responseSchema(type({ error: "'stale' | 'proof_mismatch' | 'domain_taken'" })),
+    },
+    { status: 503, schema: responseSchema(type({ error: "'dns_unavailable'" })) },
+  ],
+  document: { summary: 'Verify a pending domain claim with authoritative DNS.' },
+});

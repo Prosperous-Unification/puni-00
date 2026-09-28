@@ -24,8 +24,16 @@ export const refusingMemberships: MembershipAdministration = {
 
 /** Domain routes in unrelated suites throw if a test unexpectedly reaches them. */
 export const refusingDomains: DomainChallenges = {
+  resolver: {
+    lookupTxt: () =>
+      Promise.reject(new Error('domain resolver was reached in a pre-activation suite')),
+  },
   listClaims: () =>
     Promise.reject(new Error('domain claims were reached in a pre-activation suite')),
   reissueClaim: () =>
     Promise.reject(new Error('domain challenges were reached in a pre-activation suite')),
+  readPendingClaim: () =>
+    Promise.reject(new Error('domain verification was reached in a pre-activation suite')),
+  verifyClaim: () =>
+    Promise.reject(new Error('domain promotion was reached in a pre-activation suite')),
 };

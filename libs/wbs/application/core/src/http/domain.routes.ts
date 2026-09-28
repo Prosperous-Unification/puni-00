@@ -1,4 +1,4 @@
-import { createDomainChallenge, listOrganizationDomains } from '@wbs/contracts';
+import { createDomainChallenge, listOrganizationDomains, verifyDomainClaim } from '@wbs/contracts';
 import { isCanonicalDomain } from '@wbs/domain';
 
 import type { Clock } from '../ports/clock';
@@ -30,6 +30,93 @@ export function domainRoutes(
   clock: Pick<Clock, 'now'>,
 ) {
   return [
+    bind(
+      verifyDomainClaim,
+      async ({ principal, params }): Promise<HttpReply<typeof verifyDomainClaim>> => {
+        if (principal.delegation !== undefined)
+          return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
+        const organizationId = resolved.access.scope.organizationId;
+        const pending = await challenges.readPendingClaim(organizationId, principal.id, params.id);
+        if (pending === 'inactive') return organizationRefusal('no_active_organization');
+        if (pending === 'forbidden')
+          return { ok: false, status: 403, body: { error: 'forbidden' } };
+        if (pending === 'not_found')
+          return { ok: false, status: 404, body: { error: 'not_found' } };
+        if (pending === 'stale') return { ok: false, status: 409, body: { error: 'stale' } };
+        const now = clock.now();
+        if (pending.challengeExpiresAt <= now)
+          return { ok: false, status: 409, body: { error: 'stale' } };
+        // Proof: 2026-09-28, raising this bound to 50 seconds made mounted
+        // `refuses malformed and timed-out resolver answers` exceed its 8-second test deadline.
+        const signal = AbortSignal.timeout(5_000);
+        let records: readonly string[];
+        try {
+          // The resolver port must query authoritative DNS and reject malformed replies.
+          records = await Promise.race([
+            challenges.resolver.lookupTxt(`_wbs-verification.${pending.domain}`, signal),
+            new Promise<never>((_resolve, reject) => {
+              signal.addEventListener(
+                'abort',
+                () => {
+                  reject(new Error('DNS timeout'));
+                },
+                { once: true },
+              );
+            }),
+          ]);
+          // Proof: 2026-09-28, bypassing this response validation made mounted
+          // `refuses malformed and timed-out resolver answers` return 500 instead of 503 for a non-string TXT record.
+          if (!Array.isArray(records) || !records.every((record) => typeof record === 'string'))
+            throw new Error('malformed DNS TXT response');
+        } catch {
+          return { ok: false, status: 503, body: { error: 'dns_unavailable' } };
+        }
+        // Exact full TXT record matching prevents prefixes, fragments and old tokens.
+        const prefix = `wbs-domain-verification=${organizationId}:${pending.domain}:`;
+        const matching = records.filter(
+          (record) =>
+            record.startsWith(prefix) &&
+            /^wbs-domain-verification=[^:]+:[^:]+:[a-f0-9]{64}$/.test(record),
+        );
+        const digests = await Promise.all(
+          matching.map(async (record) =>
+            Array.from(
+              new Uint8Array(
+                await crypto.subtle.digest('SHA-256', new TextEncoder().encode(record)),
+              ),
+              (byte) => byte.toString(16).padStart(2, '0'),
+            ).join(''),
+          ),
+        );
+        // Proof: 2026-09-28, bypassing the exact digest match made mounted `verifies only an exact current TXT value` promote a prefix-plus-extra TXT value (200 instead of 409).
+        if (!digests.includes(pending.challengeDigest))
+          return { ok: false, status: 409, body: { error: 'proof_mismatch' } };
+        const verified = await challenges.verifyClaim(
+          organizationId,
+          principal.id,
+          pending,
+          pending.challengeDigest,
+          { at: clock.now(), by: principal.id },
+        );
+        switch (verified) {
+          case 'verified':
+            return { ok: true, status: 200, body: { id: pending.id, status: 'verified' } };
+          case 'inactive':
+            return organizationRefusal('no_active_organization');
+          case 'forbidden':
+            return { ok: false, status: 403, body: { error: 'forbidden' } };
+          case 'not_found':
+            return { ok: false, status: 404, body: { error: 'not_found' } };
+          case 'taken':
+            return { ok: false, status: 409, body: { error: 'domain_taken' } };
+          case 'stale':
+            return { ok: false, status: 409, body: { error: 'stale' } };
+        }
+      },
+    ),
     bind(
       listOrganizationDomains,
       async ({ principal }): Promise<HttpReply<typeof listOrganizationDomains>> => {

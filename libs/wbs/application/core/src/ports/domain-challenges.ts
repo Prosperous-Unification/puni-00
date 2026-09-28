@@ -8,8 +8,22 @@ export interface DomainClaimSummary {
   readonly challengeExpiresAt: number | null;
 }
 
+/** A pending, authorized claim captured before an external DNS lookup. */
+export interface PendingDomainClaim {
+  readonly id: string;
+  readonly domain: string;
+  readonly challengeDigest: string;
+  readonly challengeExpiresAt: number;
+}
+
+/** Authoritative TXT records, one DNS TXT record per string; failure throws. */
+export interface DomainResolver {
+  lookupTxt(name: string, signal: AbortSignal): Promise<readonly string[]>;
+}
+
 /** Initial challenge persistence, with authority rechecked in the committing transaction. */
 export interface DomainChallenges {
+  readonly resolver: DomainResolver;
   listClaims(
     organizationId: string,
     actorId: string,
@@ -25,4 +39,16 @@ export interface DomainChallenges {
     | { kind: 'issued'; id: string }
     | { kind: 'forbidden' | 'unclaimable' | 'already_claimed' | 'inactive' }
   >;
+  readPendingClaim(
+    organizationId: string,
+    actorId: string,
+    claimId: string,
+  ): Promise<PendingDomainClaim | 'forbidden' | 'not_found' | 'stale' | 'inactive'>;
+  verifyClaim(
+    organizationId: string,
+    actorId: string,
+    claim: PendingDomainClaim,
+    observedDigest: string,
+    stamp: WriteStamp,
+  ): Promise<'verified' | 'forbidden' | 'not_found' | 'stale' | 'taken' | 'inactive'>;
 }
