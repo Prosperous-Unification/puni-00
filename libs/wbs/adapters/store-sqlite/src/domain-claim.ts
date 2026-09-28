@@ -229,6 +229,14 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
               )
               .get();
             if (current === undefined) return 'not_found' as const;
+            // Proof: 2026-09-28, removing this check made mounted `surfaces pending
+            // proof fields corrupted during DNS lookup as a server error` answer
+            // 409 stale for a pending row whose digest and expiry became NULL.
+            if (
+              current.status === 'pending' &&
+              (current.challengeDigest === null || current.challengeExpiresAt === null)
+            )
+              throw new Error(`pending domain claim ${current.id} lacks challenge proof`);
             // Proof: 2026-09-28, before this comparison mounted `refuses a claim
             // whose domain changes during DNS lookup` promoted the renamed row (200 instead of 409).
             // Proof: 2026-09-28, omitting the digest snapshot comparison let the mounted reissue-during-lookup test promote the old challenge.
