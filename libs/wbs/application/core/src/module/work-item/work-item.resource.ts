@@ -19,8 +19,8 @@ import {
   formatTypedDependencyKey,
   type IsoDate,
   isoDateOfInstant,
-  isRelationshipType,
   isWithin,
+  isWritableRelationshipType,
   lastWorkdayOf,
   type MeasureMetric,
   nextWorkday,
@@ -4249,7 +4249,10 @@ export class WorkItemService {
     existing: readonly StoredTypedDependency[],
     proposed: StoredTypedDependency,
   ): Promise<WorkItemRefusal | null> {
-    if (!isRelationshipType(proposed.type)) return 'unsupported_relationship_type';
+    // Proof: widening this and both command entry checks to the read predicate
+    // made `refuses an SS write at the application boundary` accept SS with
+    // `{ ok: true, value: "item-7" }`; watched 2026-09-28.
+    if (!isWritableRelationshipType(proposed.type)) return 'unsupported_relationship_type';
     const leaves = new Map(
       rows.map((row) => [row.id, !rows.some((child) => child.parentId === row.id)]),
     );
@@ -4307,7 +4310,7 @@ export class WorkItemService {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
-    if (!isRelationshipType(input.type))
+    if (!isWritableRelationshipType(input.type))
       return { ok: false, reason: 'unsupported_relationship_type' };
     const rows = await this.opts.workItems.listByProject(projectId);
     const existing = await this.opts.typedDependencies.listByProject(projectId);
@@ -4347,7 +4350,7 @@ export class WorkItemService {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!canEditProject(project, actorId)) return { ok: false, reason: 'forbidden' };
-    if (!isRelationshipType(input.type))
+    if (!isWritableRelationshipType(input.type))
       return { ok: false, reason: 'unsupported_relationship_type' };
     const rows = await this.opts.workItems.listByProject(projectId);
     const existing = await this.opts.typedDependencies.listByProject(projectId);

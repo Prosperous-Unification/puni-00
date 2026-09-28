@@ -1,14 +1,23 @@
 /**
  * The relationship types a typed dependency may carry.
  *
- * Stage A (`openspec/changes/add-step-finish-start-dependencies`) accepts
- * finish-to-start only; the follow-on `add-start-and-finish-dependency-types`
- * adds `SS` and `FF`. A stored type outside this list is a row this release did
- * not write, and a read that meets one must refuse it through
+ * Readers understand all three lower-bound relationships. Writes remain FS
+ * until the commands change opens that gate. A stored type outside this list
+ * is a row this release did not write, and a read that meets one must refuse it through
  * {@link isRelationshipType} rather than schedule it as FS.
  */
-export const RELATIONSHIP_TYPES = ['FS'] as const;
+export const RELATIONSHIP_TYPES = ['FS', 'SS', 'FF'] as const;
 export type RelationshipType = (typeof RELATIONSHIP_TYPES)[number];
+
+/** Relationship types the current command and import write paths may persist. */
+export const WRITABLE_RELATIONSHIP_TYPES = ['FS'] as const;
+
+/** Whether a new relationship may be written by this release. */
+export function isWritableRelationshipType(value: unknown): value is 'FS' {
+  return (
+    typeof value === 'string' && (WRITABLE_RELATIONSHIP_TYPES as readonly string[]).includes(value)
+  );
+}
 
 /** Whether `value` is a relationship type this release schedules. */
 export function isRelationshipType(value: unknown): value is RelationshipType {

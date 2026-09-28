@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import type { UnitOfWork } from '@wbs/core';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
-import type { DependencyEndpoint } from '@wbs/domain';
+import type { DependencyEndpoint, RelationshipType } from '@wbs/domain';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -257,10 +257,11 @@ async function seedTyped(
   at: Plan,
   predecessor: DependencyEndpoint,
   successor: DependencyEndpoint,
+  type: RelationshipType = 'FS',
 ): Promise<string> {
   const id = crypto.randomUUID();
   await typed.add(
-    { id, projectId: at.projectId, predecessor, successor, type: 'FS' },
+    { id, projectId: at.projectId, predecessor, successor, type },
     { at: 1, by: at.userId },
   );
   return id;
@@ -448,6 +449,21 @@ describe('graph-changing writes against typed dependencies', () => {
     expect(await res.json()).toEqual({ error: 'dependency_cycle' });
     expect((await projects.findById(at.projectId))?.depReach).toBe('anchor-slice');
   });
+
+  for (const type of ['SS', 'FF'] as const) {
+    it(`refuses a depReach change that closes a cycle through stored ${type} and a legacy link`, async () => {
+      const at = await plan();
+      await anchoredAtBDev(at);
+      await seedTyped(at, node(at.a, at.qaId), node(at.b, at.qaId), type);
+      const response = await send(`/api/projects/${at.projectId}`, at.token, {
+        method: 'PATCH',
+        body: JSON.stringify({ depReach: 'whole-item' }),
+      });
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({ error: 'dependency_cycle' });
+      expect((await projects.findById(at.projectId))?.depReach).toBe('anchor-slice');
+    });
+  }
 
   it('refuses a move that brings a successor under its own whole predecessor', async () => {
     const at = await plan();

@@ -45,6 +45,23 @@ const wire = (edges: readonly { predecessorKey: string; successorKey: string }[]
   );
 
 describe('buildSolverEdges', () => {
+  it('refuses weighted authored edges until the solver wire carries their types', () => {
+    for (const type of ['SS', 'FF'] as const) {
+      expect(() =>
+        buildSolverEdges(['A', 'B'], slicesOf, [], 'whole-item', {
+          dependencies: [
+            {
+              id: 'weighted',
+              predecessor: { scope: 'whole', workItemId: 'A' },
+              successor: { scope: 'whole', workItemId: 'B' },
+              type,
+            },
+          ],
+          leavesUnder: (id) => [id],
+        }),
+      ).toThrow(`solver wire does not support ${type} relationship weighted`);
+    }
+  });
   it('keys the chain and the join the domain derived, and nothing else', () => {
     const edges: readonly LeafEdge[] = [{ predecessorId: 'A', successorId: 'B' }];
     expect(

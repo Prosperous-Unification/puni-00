@@ -73,8 +73,18 @@ export function buildSolverEdges(
     return sliceKey(slice.workItemId, slice.stepId);
   };
 
-  return resolveStepNodeGraph(leafIds, slicesOf, leafEdges, reach, authored).edges.map((edge) => ({
-    predecessorKey: keyOf(edge.predecessor.leafId, edge.predecessor.at),
-    successorKey: keyOf(edge.successor.leafId, edge.successor.at),
-  }));
+  return resolveStepNodeGraph(leafIds, slicesOf, leafEdges, reach, authored).edges.map((edge) => {
+    // Proof: removing this refusal made `refuses weighted authored edges until
+    // the solver wire carries their types` fail: SS was emitted as an FS edge;
+    // watched 2026-09-28.
+    if (edge.type !== 'FS') {
+      throw new Error(
+        `solver wire does not support ${edge.type} relationship ${edge.relationshipId}`,
+      );
+    }
+    return {
+      predecessorKey: keyOf(edge.predecessor.leafId, edge.predecessor.at),
+      successorKey: keyOf(edge.successor.leafId, edge.successor.at),
+    };
+  });
 }

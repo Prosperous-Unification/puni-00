@@ -6,9 +6,9 @@
 
 ## 2. Validate SS/FF graph semantics
 
-- [ ] 2.1 Red: parent Cartesian, whole-scope boundary selection, negative FF weight and combined-graph cycle cases, including a project `depReach` update with typed SS/FF and legacy links.
-- [ ] 2.2 Extend shared expansion to SS/FF with the Stage A acyclic slice-graph rule.
-- [ ] 2.3 Negative proof: omit a parent pair, clamp an FF weight or bypass the `depReach` update guard; watch graph or mounted update tests fail, restore, add adjacent `Proof:`.
+- [x] 2.1 Red: parent Cartesian, whole-scope boundary selection, negative FF weight and combined-graph cycle cases, including a project `depReach` update with typed SS/FF and legacy links.
+- [x] 2.2 Extend shared expansion to SS/FF with the Stage A acyclic slice-graph rule.
+- [x] 2.3 Negative proof: omit a parent pair, clamp an FF weight or bypass the `depReach` update guard; watch graph or mounted update tests fail, restore, add adjacent `Proof:`.
 
 ## 3. Extend typed commands
 
@@ -60,21 +60,21 @@
 
 ## 7. Generalize Fast placement
 
-- [ ] 7.1 Red: longer FF successor legitimately starts before its predecessor under resource constraints.
-- [ ] 7.2 Replace chronological person queues with availability placement that respects weighted predecessor bounds.
-- [ ] 7.3 Negative proof: restore chronological-only placement; watch golden fail, restore, add adjacent `Proof:`.
+- [x] 7.1 Red: longer FF successor legitimately starts before its predecessor under resource constraints.
+- [x] 7.2 Replace chronological person queues with availability placement that respects weighted predecessor bounds.
+- [x] 7.3 Negative proof: restore chronological-only placement; watch golden fail, restore, add adjacent `Proof:`.
 
 ## 8. Rebuild resource-order replay
 
-- [ ] 8.1 Red: replay of actual intervals with an earlier-starting FF successor.
-- [ ] 8.2 Reconstruct resource-order evidence from placed intervals.
-- [ ] 8.3 Negative proof: replay topological order instead; watch replay test fail, restore, add adjacent `Proof:`.
+- [x] 8.1 Red: replay of actual intervals with an earlier-starting FF successor.
+- [x] 8.2 Reconstruct resource-order evidence from placed intervals.
+- [x] 8.3 Negative proof: replay topological order instead; watch replay test fail, restore, add adjacent `Proof:`.
 
 ## 9. Compute latest dates and float
 
-- [ ] 9.1 Red: latest-date, float and critical-path goldens with negative FF weights.
-- [ ] 9.2 Propagate weighted constraints through backward analysis without clamping.
-- [ ] 9.3 Negative proof: clamp negative FF weight; watch float golden fail, restore, add adjacent `Proof:`.
+- [x] 9.1 Red: latest-date, float and critical-path goldens with negative FF weights.
+- [x] 9.2 Propagate weighted constraints through backward analysis without clamping.
+- [x] 9.3 Negative proof: clamp negative FF weight; watch float golden fail, restore, add adjacent `Proof:`.
 
 ## 10. Preserve outcome truth and cache identity
 

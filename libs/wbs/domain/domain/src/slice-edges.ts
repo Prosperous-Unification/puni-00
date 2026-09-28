@@ -29,7 +29,7 @@
 
 import type { DependencyReach } from './dependency-reach';
 import type { StepNodeRef } from './step-node';
-import type { DependencyEndpoint, TypedDependency } from './typed-dependency';
+import type { DependencyEndpoint, RelationshipType, TypedDependency } from './typed-dependency';
 
 /**
  * The half of a `Slice` the reach reads: whether anybody estimated it.
@@ -89,7 +89,7 @@ export type StepNodeGraphEdge =
   | {
       readonly predecessor: SliceEdgeEnd;
       readonly successor: SliceEdgeEnd;
-      readonly type: 'FS';
+      readonly type: RelationshipType;
       readonly provenance: 'authored';
       /** The typed dependency this pair was resolved from. */
       readonly relationshipId: string;
@@ -331,6 +331,9 @@ function resolveEndpoint(
   // closes` fail on `- Expected - 6 / + Received + 1` (null, the cycle through
   // the second leaf unseen) and the parent-expansion case on `- Expected - 1`;
   // watched 2026-09-27.
+  // Proof (2026-09-28): the same first-leaf-only fault made `expands SS and FF
+  // parent endpoints to every leaf pair` emit one pair instead of four and
+  // three existing FS parent/cycle tests fail (30 pass / 4 fail).
   if (endpoint.scope === 'whole') {
     return leaves.map((leafId) => {
       // Asked on both sides, for the legacy join's reason: a successor leaf
@@ -340,7 +343,14 @@ function resolveEndpoint(
       // for both ends of an authored edge` fail on `Received function did not
       // throw`; watched 2026-09-27.
       const own = slicesOf(leafId);
-      return { leafId, at: side === 'predecessor' ? own.length - 1 : 0 };
+      // Whole SS joins sources; FF joins sinks; FS joins a sink to a source.
+      // Proof: forcing the FS successor boundary for FF made `selects the whole
+      // leaf boundary named by each relationship type` fail at A2→B0 versus
+      // A2→B1; watched 2026-09-28.
+      const last =
+        (side === 'predecessor' && dependency.type !== 'SS') ||
+        (side === 'successor' && dependency.type === 'FF');
+      return { leafId, at: last ? own.length - 1 : 0 };
     });
   }
   // Proof: each of these two refusals deleted in turn made `refuses a node
