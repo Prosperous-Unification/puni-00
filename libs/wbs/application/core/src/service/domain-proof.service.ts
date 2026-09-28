@@ -8,7 +8,8 @@ const LOOKUP_TIMEOUT_MS = 5_000;
 async function matchesProof(
   checks: DomainProofChecks,
   proof: RetainedDomainProof,
-): Promise<boolean> {
+  at: number,
+): Promise<'current' | 'previous' | null> {
   const signal = AbortSignal.timeout(LOOKUP_TIMEOUT_MS);
   let records: readonly string[];
   try {
@@ -27,14 +28,15 @@ async function matchesProof(
     // Proof: 2026-09-28, treating a resolver error as success made mounted
     // `shows retained proof check timestamps and a warning after a failed day-seven check` lose its warning.
     if (!Array.isArray(records) || !records.every((record) => typeof record === 'string'))
-      return false;
+      return null;
   } catch {
     // Proof: 2026-09-28, treating a resolver timeout as success made mounted
     // `shows retained proof check timestamps and a warning after a failed day-seven check`
     // advance lastSuccessAt and hide the warning.
-    return false;
+    return null;
   }
   const prefix = `wbs-domain-verification=${proof.organizationId}:${proof.domain}:`;
+  let foundPrevious = false;
   for (const record of records) {
     if (
       !record.startsWith(prefix) ||
@@ -48,9 +50,20 @@ async function matchesProof(
     // Proof: 2026-09-28, accepting any well-formed TXT digest made mounted
     // `shows retained proof check timestamps and a warning after a failed day-seven check`
     // clear its warning on a different token.
-    if (digest === proof.proofDigest) return true;
+    if (digest === proof.proofDigest) return 'current';
+    // Proof: 2026-09-28, removing the deadline made mounted `rotates an owned
+    // proof and accepts the old proof only during overlap` retain verification on day 7.
+    // Proof: 2026-09-28, returning on the first old record made mounted
+    // `ends old-proof overlap when the replacement succeeds` retain the old digest
+    // when DNS also contained the new record.
+    if (
+      digest === proof.previousProofDigest &&
+      proof.previousProofValidUntil !== null &&
+      at < proof.previousProofValidUntil
+    )
+      foundPrevious = true;
   }
-  return false;
+  return foundPrevious ? 'previous' : null;
 }
 
 /** Checks due retained proofs once; a caller must schedule it explicitly. */
@@ -61,7 +74,7 @@ export async function checkDomainProofs(
   let checked = 0;
   let stale = 0;
   for (const proof of await checks.readDueProofs(at)) {
-    const matched = await matchesProof(checks, proof);
+    const matched = await matchesProof(checks, proof, at);
     const finished = await checks.finishProofCheck(proof, matched, at);
     if (finished === 'checked') checked += 1;
     else stale += 1;

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type {
   DomainChallenges,
   DomainClaimSummary,
@@ -78,6 +80,8 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
           organizationId: claim.organizationId,
           domain: claim.domain,
           proofDigest: claim.proofDigest,
+          previousProofDigest: claim.previousProofDigest,
+          previousProofValidUntil: claim.previousProofValidUntil,
           lastCheckedAt: claim.lastCheckedAt,
         };
       });
@@ -87,7 +91,7 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
   /** Records a check only while the same verified ownership snapshot survives. */
   async finishProofCheck(
     proof: RetainedDomainProof,
-    matched: boolean,
+    matched: 'current' | 'previous' | null,
     at: number,
   ): Promise<'checked' | 'stale'> {
     return this.gate.enter(async () => {
@@ -107,6 +111,8 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
             current.organizationId !== proof.organizationId ||
             current.domain !== proof.domain ||
             current.proofDigest !== proof.proofDigest ||
+            current.previousProofDigest !== proof.previousProofDigest ||
+            current.previousProofValidUntil !== proof.previousProofValidUntil ||
             current.lastCheckedAt !== proof.lastCheckedAt
           )
             return 'stale' as const;
@@ -115,10 +121,23 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
           // during DNS lookup` resolve rather than throw.
           if (!isClaimableDomain(current.domain, loadPublicEmailPolicy(this.policyDirectory)))
             throw new Error(`verified domain ${current.id} is no longer claimable`);
+          if (current.lastSuccessAt === null)
+            throw new Error(`owned domain ${current.id} lacks last successful proof`);
           tx.update(organizationDomainClaim)
             .set({
               lastCheckedAt: at,
-              ...(matched ? { lastSuccessAt: at } : {}),
+              ...(matched
+                ? { lastSuccessAt: at }
+                : // Proof: 2026-09-28, leaving status verified made mounted `suspends
+                  // without releasing domain ownership or memberships` fail on day 14.
+                  at - current.lastSuccessAt >= 14 * 86_400_000
+                  ? { status: 'suspended' as const }
+                  : {}),
+              // Proof: 2026-09-28, bypassing this clear made mounted `ends
+              // old-proof overlap when the replacement succeeds` retain the old digest.
+              ...(matched === 'current' && current.previousProofDigest !== null
+                ? { previousProofDigest: null, previousProofValidUntil: null }
+                : {}),
               ...auditOnUpdate({ at }),
             })
             .where(eq(organizationDomainClaim.id, proof.id))
@@ -126,6 +145,95 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
           return 'checked' as const;
         },
         { behavior: 'immediate' },
+      );
+    });
+  }
+
+  /** Replaces an owned proof with a 24-hour overlap under current authority. */
+  async rotateClaim(
+    organizationId: string,
+    actorId: string,
+    claimId: string,
+    token: string,
+    stamp: WriteStamp,
+  ): Promise<
+    | { kind: 'issued'; domain: string; dnsValue: string }
+    | { kind: 'forbidden' | 'not_found' | 'stale' | 'inactive' }
+  > {
+    return this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction(
+        (tx) => {
+          // Proof: 2026-09-28, bypassing this marker made `refuses rotation before
+          // activation and after super-admin demotion` issue a store proof before activation.
+          if (readOrganizationActivation(tx) !== 'activated') return { kind: 'inactive' } as const;
+          const member = tx
+            .select({ role: organizationMembership.role })
+            .from(organizationMembership)
+            .where(
+              and(
+                eq(organizationMembership.organizationId, organizationId),
+                eq(organizationMembership.userId, actorId),
+              ),
+            )
+            .get();
+          // Proof: 2026-09-28, bypassing this check made mounted rotation after
+          // demotion issue a new proof rather than 403.
+          if (member?.role !== 'super_admin') return { kind: 'forbidden' } as const;
+          const claim = tx
+            .select()
+            .from(organizationDomainClaim)
+            .where(
+              and(
+                eq(organizationDomainClaim.id, claimId),
+                eq(organizationDomainClaim.organizationId, organizationId),
+              ),
+            )
+            .get();
+          if (claim === undefined) return { kind: 'not_found' } as const;
+          if (claim.status !== 'verified' || claim.proofDigest === null)
+            return { kind: 'stale' } as const;
+          if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
+            return { kind: 'stale' } as const;
+          const dnsValue = `wbs-domain-verification=${organizationId}:${claim.domain}:${token}`;
+          const challengeDigest = createHash('sha256').update(dnsValue).digest('hex');
+          tx.update(organizationDomainClaim)
+            .set({
+              proofDigest: challengeDigest,
+              previousProofDigest: claim.proofDigest,
+              previousProofValidUntil: stamp.at + 86_400_000,
+              challengeDigest: null,
+              challengeExpiresAt: null,
+              ...auditOnUpdate(stamp),
+            })
+            .where(eq(organizationDomainClaim.id, claimId))
+            .run();
+          return { kind: 'issued', domain: claim.domain, dnsValue } as const;
+        },
+        { behavior: 'immediate' },
+      );
+    });
+  }
+
+  /** Claim-side status lookup; task 4.5 must recheck in its invitation transaction. */
+  async isVerifiedDomain(organizationId: string, domain: string): Promise<boolean> {
+    await Promise.resolve();
+    return this.db.transaction((tx) => {
+      if (readOrganizationActivation(tx) !== 'activated') return false;
+      return (
+        tx
+          .select({ id: organizationDomainClaim.id })
+          .from(organizationDomainClaim)
+          // Proof: 2026-09-28, admitting suspended rows made mounted
+          // `suspends without releasing domain ownership or memberships` return true.
+          .where(
+            and(
+              eq(organizationDomainClaim.organizationId, organizationId),
+              eq(organizationDomainClaim.domain, domain),
+              eq(organizationDomainClaim.status, 'verified'),
+            ),
+          )
+          .get() !== undefined
       );
     });
   }
@@ -163,14 +271,28 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
         )
         .get();
       if (claim === undefined) return 'not_found';
+      const isRotation = claim.status === 'verified' && claim.previousProofDigest !== null;
       if (
-        claim.status !== 'pending' ||
-        claim.challengeDigest === null ||
-        claim.challengeExpiresAt === null
+        !isRotation &&
+        (claim.status !== 'pending' ||
+          claim.challengeDigest === null ||
+          claim.challengeExpiresAt === null)
       )
         return 'stale';
       if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
         return 'stale';
+      if (isRotation) {
+        if (claim.proofDigest === null || claim.previousProofValidUntil === null)
+          throw new Error(`rotating domain ${claim.id} lacks retained proof`);
+        return {
+          id: claim.id,
+          domain: claim.domain,
+          challengeDigest: claim.proofDigest,
+          challengeExpiresAt: claim.previousProofValidUntil,
+        };
+      }
+      if (claim.challengeDigest === null || claim.challengeExpiresAt === null)
+        throw new Error(`pending domain ${claim.id} lacks challenge`);
       return {
         id: claim.id,
         domain: claim.domain,
@@ -219,6 +341,33 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
               )
               .get();
             if (current === undefined) return 'not_found' as const;
+            if (current.status === 'verified' && current.previousProofDigest !== null) {
+              // Proof: 2026-09-28, omitting this branch made mounted `confirms a
+              // rotated proof through verify before the overlap ends` answer stale.
+              // Proof: 2026-09-28, bypassing the overlap snapshot and deadline
+              // made mounted `rechecks rotation snapshot after DNS lookup` return 200 after expiry.
+              if (
+                current.domain !== claim.domain ||
+                current.proofDigest !== claim.challengeDigest ||
+                current.previousProofValidUntil !== claim.challengeExpiresAt ||
+                current.previousProofValidUntil <= stamp.at ||
+                observedDigest !== claim.challengeDigest
+              )
+                return 'stale' as const;
+              if (!isClaimableDomain(current.domain, loadPublicEmailPolicy(this.policyDirectory)))
+                return 'stale' as const;
+              tx.update(organizationDomainClaim)
+                .set({
+                  previousProofDigest: null,
+                  previousProofValidUntil: null,
+                  lastSuccessAt: stamp.at,
+                  lastCheckedAt: stamp.at,
+                  ...auditOnUpdate(stamp),
+                })
+                .where(eq(organizationDomainClaim.id, claim.id))
+                .run();
+              return 'verified' as const;
+            }
             // Proof: 2026-09-28, before this comparison mounted `refuses a claim
             // whose domain changes during DNS lookup` promoted the renamed row (200 instead of 409).
             // Proof: 2026-09-28, omitting the digest snapshot comparison let the mounted reissue-during-lookup test promote the old challenge.

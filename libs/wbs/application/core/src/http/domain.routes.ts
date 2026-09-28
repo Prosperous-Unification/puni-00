@@ -1,4 +1,9 @@
-import { createDomainChallenge, listOrganizationDomains, verifyDomainClaim } from '@wbs/contracts';
+import {
+  createDomainChallenge,
+  listOrganizationDomains,
+  rotateDomainProof,
+  verifyDomainClaim,
+} from '@wbs/contracts';
 import { isCanonicalDomain } from '@wbs/domain';
 
 import type { Clock } from '../ports/clock';
@@ -30,6 +35,51 @@ export function domainRoutes(
   clock: Pick<Clock, 'now'>,
 ) {
   return [
+    bind(
+      rotateDomainProof,
+      async ({ principal, params }): Promise<HttpReply<typeof rotateDomainProof>> => {
+        // Proof: 2026-09-28, bypassing this guard made mounted `refuses a
+        // delegated caller even with current super-admin membership` return 404 instead of 403.
+        if (principal.delegation !== undefined)
+          return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
+        const token = Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) =>
+          byte.toString(16).padStart(2, '0'),
+        ).join('');
+        const now = clock.now();
+        const rotated = await challenges.rotateClaim(
+          resolved.access.scope.organizationId,
+          principal.id,
+          params.id,
+          token,
+          { at: now, by: principal.id },
+        );
+        switch (rotated.kind) {
+          case 'inactive':
+            return organizationRefusal('no_active_organization');
+          case 'forbidden':
+            return { ok: false, status: 403, body: { error: 'forbidden' } };
+          case 'not_found':
+            return { ok: false, status: 404, body: { error: 'not_found' } };
+          case 'stale':
+            return { ok: false, status: 409, body: { error: 'stale' } };
+          case 'issued':
+            return {
+              ok: true,
+              status: 201,
+              body: {
+                id: params.id,
+                domain: rotated.domain,
+                dnsName: `_wbs-verification.${rotated.domain}`,
+                dnsValue: rotated.dnsValue,
+                expiresAt: now + 86_400_000,
+              },
+            };
+        }
+      },
+    ),
     bind(
       verifyDomainClaim,
       async ({ principal, params }): Promise<HttpReply<typeof verifyDomainClaim>> => {

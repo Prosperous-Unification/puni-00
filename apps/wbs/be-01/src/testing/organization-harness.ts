@@ -98,6 +98,19 @@ export class OrganizationHarness {
     return runDomainProofWorker(this.domains, at);
   }
 
+  /** Exercises the claim-side status check consumed by join approval in task 4.5. */
+  isVerifiedDomain(organizationId: string, domain: string): Promise<boolean> {
+    return this.domains.isVerifiedDomain(organizationId, domain);
+  }
+
+  /** Calls the production rotation transaction directly to prove its marker guard. */
+  rotateDomainClaim(organizationId: string, actorId: string, claimId: string) {
+    return this.domains.rotateClaim(organizationId, actorId, claimId, '0'.repeat(64), {
+      at: Date.now(),
+      by: actorId,
+    });
+  }
+
   /**
    * `delegationKey`, when given, is the RS256 public key the app verifies
    * delegation tokens with (task 2.5); upstream identities resolve through the

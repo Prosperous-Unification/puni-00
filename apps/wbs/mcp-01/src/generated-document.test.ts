@@ -78,6 +78,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'postApiDirectoryCommands',
     'postApiOnboardingJoinRequests',
     'postApiOnboardingOrganizations',
+    'postApiOrganizationDomainsByIdRotate',
     'postApiOrganizationDomainsByIdVerify',
     'postApiOrganizationDomainsChallenges',
     'postApiProjects',

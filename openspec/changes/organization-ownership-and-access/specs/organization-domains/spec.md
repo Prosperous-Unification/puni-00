@@ -68,6 +68,20 @@ On successful initial verification, WBS SHALL promote the verified challenge dig
 - **WHEN** scheduled re-verification runs
 - **THEN** the domain is suspended, signup no longer routes to it, A retains the unique ownership claim, and existing members retain their memberships
 
+#### Scenario: Proof rotation overlap
+
+- **GIVEN** a current super-admin of an activated organization owns a verified domain
+- **WHEN** they POST `/api/organization/domains/:id/rotate`
+- **THEN** WBS issues a fresh organization-and-domain-bound TXT value and keeps the old proof eligible for less than 24 hours
+- **AND** the old proof cannot advance the success time after that deadline; a successful new proof clears the old digest
+- **AND** inactive, foreign, lost-authority and non-verified claims receive typed 403, 404 or 409 refusals without changing the proof
+
+#### Scenario: Suspended domain cannot qualify for approval
+
+- **GIVEN** a domain claim is suspended after 14 days without successful proof
+- **WHEN** the join-approval path checks claim status
+- **THEN** only an exact currently verified claim qualifies; suspension retains ownership and existing memberships
+
 #### Scenario: Suspended owner recovers
 
 - **GIVEN** A owns a suspended domain after no successful proof for 14 days

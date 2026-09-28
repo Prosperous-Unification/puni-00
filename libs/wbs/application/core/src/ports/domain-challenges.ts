@@ -30,6 +30,8 @@ export interface RetainedDomainProof {
   readonly organizationId: string;
   readonly domain: string;
   readonly proofDigest: string;
+  readonly previousProofDigest: string | null;
+  readonly previousProofValidUntil: number | null;
   readonly lastCheckedAt: number;
 }
 
@@ -39,7 +41,7 @@ export interface DomainProofChecks {
   readDueProofs(at: number): Promise<readonly RetainedDomainProof[]>;
   finishProofCheck(
     proof: RetainedDomainProof,
-    matched: boolean,
+    matched: 'current' | 'previous' | null,
     at: number,
   ): Promise<'checked' | 'stale'>;
 }
@@ -74,4 +76,16 @@ export interface DomainChallenges {
     observedDigest: string,
     stamp: WriteStamp,
   ): Promise<'verified' | 'forbidden' | 'not_found' | 'stale' | 'taken' | 'inactive'>;
+  rotateClaim(
+    organizationId: string,
+    actorId: string,
+    claimId: string,
+    token: string,
+    stamp: WriteStamp,
+  ): Promise<
+    | { kind: 'issued'; domain: string; dnsValue: string }
+    | { kind: 'forbidden' | 'not_found' | 'stale' | 'inactive' }
+  >;
+  /** Reads current claim status; approval must still recheck in its own write transaction. */
+  isVerifiedDomain(organizationId: string, domain: string): Promise<boolean>;
 }

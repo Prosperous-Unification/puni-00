@@ -119,3 +119,40 @@ export const verifyDomainClaim = defineEndpointShape({
   ],
   document: { summary: 'Verify a pending domain claim with authoritative DNS.' },
 });
+
+/** Issues a fresh TXT proof while retaining the previous one for at most 24 hours. */
+export const rotateDomainProof = defineEndpointShape({
+  method: 'POST',
+  path: '/api/organization/domains/:id/rotate',
+  operationId: 'postApiOrganizationDomainsByIdRotate',
+  policies: writePolicy,
+  params: requestSchema(type({ id: 'string' })),
+  responses: [
+    {
+      kind: 'json',
+      status: 201,
+      schema: responseSchema(
+        type({
+          id: 'string',
+          domain: 'string',
+          dnsName: 'string',
+          dnsValue: 'string',
+          expiresAt: 'number',
+        }),
+      ),
+    },
+  ],
+  refusals: [
+    { status: 400, schema: responseSchema(type({ error: "'invalid_params' | 'invalid_query'" })) },
+    { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
+    organizationRefusal,
+    {
+      status: 403,
+      schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
+    },
+    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+    { status: 409, schema: responseSchema(type({ error: "'stale'" })) },
+  ],
+  document: { summary: 'Rotate an owned domain TXT proof.' },
+});
