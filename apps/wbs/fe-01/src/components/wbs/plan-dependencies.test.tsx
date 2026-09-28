@@ -162,10 +162,28 @@ async function typedOnlyRows() {
     { scope: 'whole', workItemId: successor.id },
   );
   render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
-  await screen.findByRole('button', { name: /Edit dependency: whole work item 010 Strip/ });
+  await screen.findByRole('button', { name: 'Stop 020 waiting for 010' });
+  return api;
 }
 
 describe('dependencies in the table', () => {
+  itDom('names and removes a whole typed wait through the legacy chip control', async () => {
+    // Proof: with the typed chip's Edit name still in place, this test failed
+    // to find `Stop 020 waiting for 010`; watched 2026-09-28.
+    const api = await typedOnlyRows();
+    const dependency = (await api.tree('p1')).typedDependencies?.[0];
+    if (dependency === undefined) throw new Error('Missing typed dependency fixture');
+    const removed = recordCalls(api, 'removeTypedDependency');
+    const chip = screen.getByRole('button', { name: 'Stop 020 waiting for 010' });
+    expect(chip).toHaveAttribute('data-reference-chip', api.rows[0]?.id);
+    expect(chip.textContent).toBe('010 ✕');
+    fireEvent.click(chip);
+    await waitFor(() => {
+      expect(removed).toHaveLength(1);
+      expect(removed[0]).toEqual(['p1', dependency.id]);
+      expect(screen.queryByRole('button', { name: 'Stop 020 waiting for 010' })).toBeNull();
+    });
+  });
   itDom(
     'opens a typed-only dependency card from the cell and keeps it across the cell leave',
     async () => {
@@ -208,11 +226,12 @@ describe('dependencies in the table', () => {
       { scope: 'whole', workItemId: api.rows[1]?.id },
     ]);
     const chip = await screen.findByRole('button', {
-      name: /Edit dependency: whole work item 010 Strip finishes before whole work item 020 Sand starts/,
+      name: 'Stop 020 waiting for 010',
     });
-    expect(chip.textContent).toBe('010 FS');
+    expect(chip.textContent).toBe('010 ✕');
+    expect(chip).toHaveAttribute('title', 'FS dependency. Enter to edit.');
     expect(screen.getByRole('button', { name: 'Customize 010 - Strip' })).toBeDefined();
-    fireEvent.click(chip);
+    fireEvent.keyDown(chip, { key: 'Enter' });
     expect(screen.getByRole('dialog', { name: 'Customize dependency' })).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
     await waitFor(() => {
@@ -226,9 +245,9 @@ describe('dependencies in the table', () => {
     fireEvent.focus(screen.getByLabelText('Add a dependency to 020'));
     fireEvent.click(screen.getByRole('option', { name: '010 - Strip' }));
     const chip = await screen.findByRole('button', {
-      name: /Edit dependency: whole work item 010 Strip finishes before whole work item 020 Sand starts/,
+      name: 'Stop 020 waiting for 010',
     });
-    fireEvent.click(chip);
+    fireEvent.keyDown(chip, { key: 'Enter' });
     fireEvent.change(screen.getByLabelText('Predecessor'), { target: { value: DEV.id } });
     fireEvent.click(
       within(screen.getByRole('dialog', { name: 'Customize dependency' })).getByRole('button', {
@@ -267,9 +286,9 @@ describe('dependencies in the table', () => {
       fireEvent.focus(input);
       fireEvent.keyDown(input, { key: 'Home' });
       const chip = await screen.findByRole('button', {
-        name: /Edit dependency: whole work item 010 Strip/,
+        name: 'Stop 020 waiting for 010',
       });
-      expect(chip.getAttribute('aria-label')).toContain('Enter to edit. Delete to remove.');
+      expect(chip).toHaveAttribute('title', 'FS dependency. Enter to edit.');
       expect(document.activeElement).toBe(chip);
       fireEvent.keyDown(chip, { key: 'Enter' });
       expect(
@@ -286,9 +305,7 @@ describe('dependencies in the table', () => {
       await waitFor(() => {
         expect(screen.getByText('Dependency removed.')).toBeDefined();
       });
-      expect(
-        screen.queryByRole('button', { name: /Edit dependency: whole work item 010 Strip/ }),
-      ).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Stop 020 waiting for 010' })).toBeNull();
       fireEvent.keyDown(input, { key: 'Tab' });
       expect(document.activeElement).not.toBe(chip);
     },
@@ -320,9 +337,9 @@ describe('dependencies in the table', () => {
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     const input = await screen.findByLabelText('Add a dependency to 020');
     fireEvent.focus(input);
-    fireEvent.click(
-      await screen.findByRole('button', { name: /Edit dependency: whole work item 010 Strip/ }),
-    );
+    fireEvent.keyDown(await screen.findByRole('button', { name: 'Stop 020 waiting for 010' }), {
+      key: 'Enter',
+    });
     expect(screen.getByLabelText('Predecessor')).toHaveProperty('value', 'whole');
     fireEvent.click(screen.getByRole('button', { name: /Edit dependency: Dev step of 030 Paint/ }));
     expect(screen.getByLabelText('Predecessor')).toHaveProperty('value', DEV.id);
@@ -345,9 +362,9 @@ describe('dependencies in the table', () => {
     if (original === undefined) throw new Error('Missing fixture dependency');
     const added = recordCalls(api, 'addTypedDependency');
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
-    fireEvent.click(
-      await screen.findByRole('button', { name: /Edit dependency: whole work item 010 Strip/ }),
-    );
+    fireEvent.keyDown(await screen.findByRole('button', { name: 'Stop 020 waiting for 010' }), {
+      key: 'Enter',
+    });
     await api.removeTypedDependency('p1', original.id);
     const name = screen.getByLabelText('Name of 020');
     fireEvent.change(name, { target: { value: 'Sand again' } });
@@ -390,9 +407,9 @@ describe('dependencies in the table', () => {
           : plan;
       };
       render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
-      fireEvent.click(
-        await screen.findByRole('button', { name: /Edit dependency: whole work item 010 Strip/ }),
-      );
+      fireEvent.keyDown(await screen.findByRole('button', { name: 'Stop 020 waiting for 010' }), {
+        key: 'Enter',
+      });
       predecessorDeleted = true;
       const name = screen.getByLabelText('Name of 020');
       fireEvent.change(name, { target: { value: 'Sand again' } });
@@ -692,9 +709,9 @@ describe('dependencies in the table', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('button', {
-          name: /Edit dependency: whole work item 010 Strip finishes before whole work item 020 Sand starts/,
+          name: 'Stop 020 waiting for 010',
         }).textContent,
-      ).toBe('010 FS');
+      ).toBe('010 ✕');
       expect(
         screen.getByRole('button', {
           name: /Edit dependency: Dev step of 010 Strip finishes before Dev step of 020 Sand starts/,
@@ -1575,7 +1592,7 @@ describe('picking dependencies from a list', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('button', {
-          name: /Edit dependency: whole work item 010 Strip finishes before whole work item 020 Sand starts/,
+          name: 'Stop 020 waiting for 010',
         }),
       ).toBeDefined();
     });
@@ -1593,7 +1610,7 @@ describe('picking dependencies from a list', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('button', {
-          name: /Edit dependency: whole work item 030 Paint finishes before whole work item 020 Sand starts/,
+          name: 'Stop 020 waiting for 030',
         }),
       ).toBeDefined();
     });
@@ -1609,7 +1626,7 @@ describe('picking dependencies from a list', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('button', {
-          name: /Edit dependency: whole work item 030 Paint finishes before whole work item 020 Sand starts/,
+          name: 'Stop 020 waiting for 030',
         }),
       ).toBeDefined();
     });
@@ -1723,7 +1740,7 @@ describe('picking dependencies from a list', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('button', {
-          name: /Edit dependency: whole work item 040 Paint finishes before whole work item 030 Sand starts/,
+          name: 'Stop 030 waiting for 040',
         }),
       ).toBeDefined();
     });
@@ -2597,7 +2614,7 @@ describe('adding several dependencies at once', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('button', {
-          name: /Edit dependency: whole work item 010 Strip finishes before whole work item 030 Paint starts/,
+          name: 'Stop 030 waiting for 010',
         }),
       ).toBeDefined();
     });

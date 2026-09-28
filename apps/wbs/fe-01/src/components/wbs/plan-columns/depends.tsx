@@ -15,7 +15,7 @@ import {
   REFERENCE_SET_CHIP_CLASS,
   REFERENCE_SET_STRIP_STYLE,
 } from '../reference-set-field';
-import { dependencyWords, TypedDependencyEditor } from '../typed-dependency-editor';
+import { dependencyWords, endpointText, TypedDependencyEditor } from '../typed-dependency-editor';
 import { column } from './column';
 
 /** Builds the depends column family against the stable live cell contract.
@@ -499,6 +499,14 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               </button>
             ))}
             {typedDependencies.map((dependency) => {
+              const wholeWait =
+                dependency.predecessor.scope === 'whole' && dependency.successor.scope === 'whole';
+              const predecessorNumber = endpointText(
+                dependency.predecessor,
+                dependencyRows,
+                dependencySteps,
+                row.original.readings.dependencyStepNodes ?? undefined,
+              );
               const words = dependencyWords(
                 dependency,
                 dependencyRows,
@@ -510,9 +518,15 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   key={dependency.id}
                   type="button"
                   className={`${REFERENCE_SET_CHIP_CLASS} border-0`}
-                  aria-label={`Edit dependency: ${words.label}. Enter to edit. Delete to remove. Escape to return to dependency search.`}
+                  aria-label={
+                    wholeWait
+                      ? `Stop ${row.original.number} waiting for ${predecessorNumber}`
+                      : `Edit dependency: ${words.label}. Enter to edit. Delete to remove. Escape to return to dependency search.`
+                  }
+                  title={wholeWait ? `FS dependency. Enter to edit.` : undefined}
                   aria-keyshortcuts="Enter Delete"
                   data-typed-dependency-chip=""
+                  data-reference-chip={wholeWait ? dependency.predecessor.workItemId : undefined}
                   tabIndex={picker === null ? -1 : undefined}
                   onMouseEnter={() => {
                     live.current.depLights.updateHover(() => ({
@@ -559,7 +573,10 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     }
                     if (event.key === 'Enter') {
                       event.preventDefault();
-                      event.currentTarget.click();
+                      setEditing({
+                        predecessorId: dependency.predecessor.workItemId,
+                        dependencyId: dependency.id,
+                      });
                       return;
                     }
                     if (event.key !== 'Delete') return;
@@ -583,13 +600,21 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                       });
                   }}
                   onClick={() => {
+                    if (wholeWait) {
+                      void live.current.run((write) =>
+                        write.perform(['tree'], () =>
+                          live.current.commands.removeTypedDependency(dependency.id),
+                        ),
+                      );
+                      return;
+                    }
                     setEditing({
                       predecessorId: dependency.predecessor.workItemId,
                       dependencyId: dependency.id,
                     });
                   }}
                 >
-                  {words.chip}
+                  {wholeWait ? `${predecessorNumber} ✕` : words.chip}
                 </button>
               );
             })}

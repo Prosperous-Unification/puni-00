@@ -625,7 +625,7 @@ describe('Tab moves between the fields, from every cell', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('button', {
-          name: /Edit dependency: whole work item 010 Strip finishes before whole work item 030 Paint starts/,
+          name: 'Stop 030 waiting for 010',
         }),
       ).toBeDefined();
     });
