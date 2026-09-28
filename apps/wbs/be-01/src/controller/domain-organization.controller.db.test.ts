@@ -1520,13 +1520,15 @@ describe('mounted domain verification through DNS-over-HTTPS', () => {
   it('verifies only when both public resolvers agree on the exact TXT proof', async () => {
     const published: Record<string, string[]> = { '1.1.1.1': [], '8.8.8.8': [] };
     const dohFetch = ((input: RequestInfo | URL) => {
-      const host = new URL(input instanceof Request ? input.url : input).host;
-      const records = published[host] ?? [];
+      const url = new URL(input instanceof Request ? input.url : input);
+      const name = `${url.searchParams.get('name') ?? ''}.`;
+      const records = published[url.host] ?? [];
       return Promise.resolve(
         Response.json({
           Status: 0,
           TC: false,
-          Answer: records.map((text) => ({ type: 16, data: `"${text}"` })),
+          Question: [{ name, type: 16 }],
+          Answer: records.map((text) => ({ name, type: 16, data: `"${text}"` })),
         }),
       );
     }) as typeof fetch;

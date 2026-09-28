@@ -1297,3 +1297,18 @@ TDD RED: `doh-resolver.test.ts` first failed with `Cannot find module './doh-res
 | Schedule                           | Removing the in-flight guard → `drops a tick while a run is in flight and stop waits for that run` observed two reads. Removing the wait in `stop` → that test and `runs one proof check per tick and reports its counts` failed.                                                          |
 
 All faults were restored. With `env -u CLAUDECODE`: be-01 `bun test` passed 1557/0; store-sqlite passed 1140/0; tool-devsync `service-kinds.test.ts` passed 17/0. `NX_DAEMON=false bunx nx run-many -t typecheck lint:fast -p wbs-be-01 wbs-store-sqlite wbs-core` succeeded. `bunx @fission-ai/openspec@1.12.0 validate --all --json` reported 139/139. Not verified: a lookup against the real public resolvers (no network use in tests), and any activated production run.
+
+### Fable review fixes (2026-09-29)
+
+Fable's review of slice 37 returned READY AFTER FIXES. These fixes apply its findings: I2 and the cheap hardening. Each check below was watched failing with its fault injected, then restored:
+
+| Check                    | Injected fault → observed failing test                                                                                                                                                              |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Immediate first run (I2) | Deleting the tick in `start()` → `checks once at start, without waiting a whole interval` observed no read (1 pass, 4 fail across the schedule file).                                               |
+| Bounded stop             | Deleting `stopping.abort()` → `stops between proofs instead of finishing every due proof` finished both proofs. Deleting the `signal?.aborted` break in `checkDomainProofs` → the same test failed. |
+| No redirects             | Dropping `redirect: 'error'` → `asks both public resolvers for TXT records and returns their agreed proof records` failed.                                                                          |
+| Question name            | Deleting the question check → `refuses an answer to a question it did not ask` failed.                                                                                                              |
+| Answer name              | Accepting TXT at any name → `joins multi-string TXT data, decodes escapes and follows only the asked CNAME chain` included the unrelated record.                                                    |
+| Proof records only       | Comparing every TXT record → the agreed-answer test failed on differing foreign SPF and site records.                                                                                               |
+
+The worker's `now` is now `services.clock.now` rather than `Date.now`; this is a mechanical change with no separate proof. From `apps/wbs/be-01`, the focused runtime, boot, domain and config tests passed 137/0.

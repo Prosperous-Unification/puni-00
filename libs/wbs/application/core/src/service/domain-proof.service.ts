@@ -70,15 +70,23 @@ async function matchesProof(
   return foundPrevious ? 'previous' : null;
 }
 
-/** Checks due retained proofs once; `now` is read again inside the commit. */
+/**
+ * Checks due retained proofs once; `now` is read again inside the commit.
+ * An aborted `signal` ends the run before the next proof, so a stopping
+ * process waits for at most one bounded lookup and its commit.
+ */
 export async function checkDomainProofs(
   checks: DomainProofChecks,
   at: number,
   now: () => number = Date.now,
+  signal?: AbortSignal,
 ): Promise<{ checked: number; stale: number }> {
   let checked = 0;
   let stale = 0;
   for (const proof of await checks.readDueProofs(at)) {
+    // Proof: 2026-09-29, deleting this break made be-01 `stops between proofs
+    // instead of finishing every due proof` finish both proofs.
+    if (signal?.aborted === true) break;
     const matched = await matchesProof(checks, proof, at);
     const finished = await checks.finishProofCheck(proof, matched, at, now);
     if (finished === 'checked') checked += 1;
