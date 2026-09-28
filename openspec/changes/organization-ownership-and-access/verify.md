@@ -514,6 +514,8 @@ Astra review 1 raised 3 Important findings, all fixed with new negatives, each f
 | Rollback needs a well-formed marker | only an activated row checked         | `refuses with a missing or malformed marker, keeping the table and the ledger`: rolled back |
 | Marker time must be empty           | `activated_at IS NULL` dropped        | same case: rolled back                                                                      |
 
+Astra review 2 raised 1 Important finding, fixed: an empty solution slug or url in an imported document reached `project_solution`'s length checks as a 500. The plan-document schema now requires both to be non-empty, as a PATCH already did. Removing that made `refuses an empty solution slug or url as input, importing nothing` (`import-export-organization.controller.db.test.ts`) answer 500 instead of 400.
+
 The race holder is a second `bun` process holding `BEGIN IMMEDIATE` while it inserts the competing link. The row-count predicate of the down check is shadowed by the marker's single-row trigger.
 
 ## Pending gate output

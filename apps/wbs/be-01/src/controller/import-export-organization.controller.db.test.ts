@@ -171,6 +171,22 @@ describe('the import', () => {
     });
   });
 
+  it('refuses an empty solution slug or url as input, importing nothing', async () => {
+    const before = await h.call('ada', 'GET', '/api/projects');
+    for (const solutionRef of [
+      { slug: '', url: 'https://x.example/empty' },
+      { slug: 'empty', url: '' },
+    ]) {
+      const document = planDocumentFixture();
+      const refused = await h.call('ada', 'POST', '/api/projects/import', {
+        ...document,
+        settings: { ...document.settings, solutionRef },
+      });
+      expect(refused.status).toBe(400);
+    }
+    expect(await h.call('ada', 'GET', '/api/projects')).toEqual(before);
+  });
+
   it("tells only the organization's projects that its directory changed", async () => {
     const mine = await create('ada', 'A plan');
     const theirs = await create('grace', 'B plan');
