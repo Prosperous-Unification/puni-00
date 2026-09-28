@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -121,6 +122,7 @@ beforeEach(async () => {
     broadcast: recordingBroadcaster(),
   });
   workItems = new WorkItemService({
+    admission: CREATOR_ADMISSION,
     scheduler: fastScheduler,
     clock: testClock,
     workItems: workItemStore,

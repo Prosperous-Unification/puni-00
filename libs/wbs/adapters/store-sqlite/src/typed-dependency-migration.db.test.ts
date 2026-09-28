@@ -7,12 +7,17 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase } from './db';
 import { runMigrations } from './migrate';
-import { rollbackTo } from './migrate-down';
+import { readMigrationFolders, rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const TYPED = '20260927213000_add_typed_dependency';
 /** The migration below this one, where every rollback here stops. */
 const BASELINE = '20260927200000_freeze_organization_ownership';
+/** Every migration after the baseline, newest first: what a rollback to it reverses. */
+const REVERSED_TO_BASELINE = readMigrationFolders(FOLDER)
+  .map(({ name }) => name)
+  .filter((name) => name > BASELINE)
+  .reverse();
 let dir: string;
 let path: string;
 
@@ -202,7 +207,7 @@ describe(TYPED, () => {
   });
 
   it('rolls an empty table back and reapplies', () => {
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([TYPED]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual(REVERSED_TO_BASELINE);
     expect(
       withDatabase((sqlite) =>
         sqlite
@@ -254,7 +259,9 @@ describe(TYPED, () => {
             'SELECT id, hash, created_at, name FROM __drizzle_migrations ORDER BY id',
           )
           .all(),
-      ).toEqual(applied);
+        // Newer migrations with nothing recorded reverse before the typed rows
+        // refuse; the typed record and everything older stay.
+      ).toEqual(applied.filter(({ name }) => name === null || name <= TYPED));
     });
   });
 

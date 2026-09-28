@@ -12,6 +12,7 @@ import { inMemoryProjects } from '@wbs/store-memory/project-fixture';
 import { inMemorySubtrees } from '@wbs/store-memory/subtree-fixture';
 import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 
+import { CREATOR_ADMISSION } from '../ports/edit-admission';
 import type { WorkItemServiceOptions } from '../service/work-item.service';
 import { AvailableWorkItemService } from './available-work-item-service';
 import { type RecordingBroadcaster, recordingBroadcaster } from './broadcast-fixture';
@@ -137,6 +138,7 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
     // verbatim mirror the root-migration map pins and cannot take a new entry,
     // so the record is `openspec/changes/status-at-a-glance/verify.md`.
     service: new AvailableWorkItemService({
+      admission: overrides.admission ?? CREATOR_ADMISSION,
       clock: overrides.clock ?? testClock,
       ...stores,
       broadcast,

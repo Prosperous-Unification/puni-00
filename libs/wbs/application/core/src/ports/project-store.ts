@@ -34,6 +34,21 @@ export const PROJECT_CROSS_REFERENCE_KINDS = [
 
 export type ProjectCrossReferenceKind = (typeof PROJECT_CROSS_REFERENCE_KINDS)[number];
 
+/**
+ * What an audited recovery records about the edit: a project PATCH's fields,
+ * sorted; a command batch's command kinds, in order; a journal direction; or
+ * the operation in a dependent write family. The detail always names one
+ * successful operation on one project.
+ */
+export type RecoveryAuditDetail =
+  | { readonly fields: readonly string[] }
+  | { readonly commands: readonly string[] }
+  | { readonly journal: 'undo' | 'redo' }
+  | { readonly step: 'add' | 'rename' | 'remove' }
+  | { readonly marker: 'create' | 'rename' | 'recolor' | 'remove' }
+  | { readonly savedPlan: 'save' | 'rename' | 'delete' }
+  | { readonly optimizer: 'retry' };
+
 /** One reference that leaves the project or its organization; see {@link ProjectStore.findCrossReferences}. */
 export interface ProjectCrossReference {
   /** Which relation it is. */
@@ -51,7 +66,11 @@ export interface ProjectStore {
   create(project: NewProject, steps: readonly Step[], stamp: WriteStamp): Promise<Project>;
   /**
    * {@link create} plus the project's organization mapping, in one transaction.
-   * Only an activated deployment's scoped creation calls it.
+   * Only an activated deployment's scoped creation calls it. A `solutionRef`
+   * is written as the organization's own link.
+   *
+   * @throws when another of the organization's projects holds the slug; the
+   * caller checks {@link findBySolutionSlugInOrganization} under its write lock.
    */
   createInOrganization(
     project: NewProject,
@@ -83,7 +102,8 @@ export interface ProjectStore {
   /**
    * {@link findBySolutionSlug} confined to one organization, filtered before
    * any row is decoded: a foreign project is null exactly like an absent slug,
-   * even when its row could not be read.
+   * even when its row could not be read. Matches the organization's own links
+   * and the legacy links its projects kept from before activation.
    */
   findBySolutionSlugInOrganization(slug: string, organizationId: string): Promise<Project | null>;
   /** Every project, newest first. Readable by any account, so it is not filtered by owner. */
@@ -127,13 +147,44 @@ export interface ProjectStore {
   ): Promise<boolean>;
   /** Returns null when the project is gone. */
   update(id: string, patch: ProjectPatch, stamp: WriteStamp): Promise<Project | null>;
-  /** {@link update} with the ownership predicate in the write; null when not the organization's. */
-  updateInOrganization(
+  /**
+   * {@link update} by `editor.actorId` in `organizationId`, authorized in the
+   * write's own transaction against the project and the actor's membership as
+   * they stand then (see `classifyProjectEdit`): an ordinary edit is written;
+   * a super-admin's recovery of someone else's restricted project is written
+   * with one `organization_audit` record ({@link RecoveryAuditDetail}) in the
+   * same transaction; anything else is `forbidden` and writes nothing. Null,
+   * before any permission check, when the organization does not own the
+   * project. A patch that changes nothing writes and records nothing.
+   *
+   * A `solutionRef` is the organization's own (see `project_solution`): a slug
+   * another of the organization's projects holds, by either representation, is
+   * `solution_taken` and writes nothing; other organizations' slugs are never
+   * consulted. A legacy pair the project held is cleared by any link write.
+   */
+  editInOrganization(
     id: string,
     patch: ProjectPatch,
     stamp: WriteStamp,
     organizationId: string,
-  ): Promise<Project | null>;
+    editor: { readonly actorId: string; readonly auditId: string },
+  ): Promise<Project | null | 'forbidden' | 'solution_taken'>;
+  /**
+   * Authorizes `actorId`'s write to `projectId` in `organizationId` from the
+   * membership and project as they stand inside the caller's open unit of
+   * work, whose transaction must enclose the write: null, before any
+   * permission is judged, when the organization does not own the project;
+   * `forbidden` for a refused writer; `ordinary`; or `recovery`, a
+   * super-admin's write to someone else's restricted project, after appending
+   * one `organization_audit` record with `detail` to that transaction. A
+   * rollback of the unit of work takes the record back with the write.
+   */
+  admitEditInOrganization(
+    projectId: string,
+    organizationId: string,
+    actorId: string,
+    detail: RecoveryAuditDetail,
+  ): Promise<'ordinary' | 'recovery' | 'forbidden' | null>;
   stepsOf(projectId: string): Promise<Step[]>;
   /**
    * Sets one step's allowance, moves that step's allowance revision by one and

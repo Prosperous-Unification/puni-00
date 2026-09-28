@@ -5,7 +5,7 @@ import type { WorkItemService, WorkItemServiceOptions } from './work-item.resour
  *
  * Exactly {@link WorkItemServiceOptions}: the thirteen
  * stores of the one scope being installed over, the broadcaster, the
- * scheduler and the clock. `servicesOver` supplies the stores of each admitted
+ * edit admission, the scheduler and the clock. `servicesOver` supplies the stores of each admitted
  * scope, so one installation never outlives the scope it was built over.
  *
  * **No K6 debt; K4 support and K2 debt disclosed.** Work item is a resource:

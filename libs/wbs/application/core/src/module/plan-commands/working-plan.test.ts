@@ -2,6 +2,7 @@ import { openMemorySource } from '@wbs/store-memory';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import { testClock } from '../../testing/clock-fixture';
@@ -83,7 +84,12 @@ describe('the admitted working batch baseline', () => {
     const admitted: PlanTransactionalStores[] = [];
     const direct = silentBroadcaster();
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock: testClock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock: testClock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, direct);
     const runner = new PlanCommandRunner({
       uow: source.uow,
@@ -233,7 +239,12 @@ describe('the admitted working batch baseline', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
-      servicesOver(stores, { clock: testClock, broadcast, scheduler: fastScheduler });
+      servicesOver(stores, {
+        admission: CREATOR_ADMISSION,
+        clock: testClock,
+        broadcast,
+        scheduler: fastScheduler,
+      });
     const publicGraph = compose(source.stores, direct);
     try {
       await source.stores.users.create(
@@ -276,6 +287,7 @@ describe('the admitted working batch baseline', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
       scheduler: fastScheduler,
@@ -357,6 +369,7 @@ describe('targeted working-plan refreshes', () => {
   it('reloads every loaded collection and keeps unloaded collections lazy after a global write', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
       scheduler: fastScheduler,
@@ -464,6 +477,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
       scheduler: fastScheduler,
@@ -504,6 +518,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
       scheduler: fastScheduler,
@@ -551,6 +566,7 @@ describe('targeted working-plan refreshes', () => {
   it('keeps a newly added edge in authoritative order and returned edges detached', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
       scheduler: fastScheduler,
@@ -619,6 +635,7 @@ describe('targeted working-plan refreshes', () => {
   it('refreshes every restore-related collection and preserves borrowed before-images', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
       scheduler: fastScheduler,
@@ -763,6 +780,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
       scheduler: fastScheduler,
@@ -846,6 +864,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
       scheduler: fastScheduler,
@@ -945,6 +964,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
       scheduler: fastScheduler,
@@ -1021,6 +1041,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
       scheduler: fastScheduler,
@@ -1103,6 +1124,7 @@ describe('working plan value failures', () => {
   it('does not advance a retained value after a modeled set refusal', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
       scheduler: fastScheduler,
@@ -1163,6 +1185,7 @@ describe('working plan value failures', () => {
   it('does not advance a retained value before a throwing mutation succeeds', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
       scheduler: fastScheduler,
@@ -1223,6 +1246,7 @@ describe('working plan value failures', () => {
   it('does not advance retained edges before throwing dependency mutations succeed', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
       scheduler: fastScheduler,

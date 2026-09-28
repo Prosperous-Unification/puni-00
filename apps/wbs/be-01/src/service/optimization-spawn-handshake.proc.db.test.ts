@@ -152,7 +152,7 @@ describe('the two-coordinator spawn handshake', () => {
     const errors: unknown[] = [];
     const coordinator = (db: typeof blue, owner: string): OptimizationCoordinator =>
       new OptimizationCoordinator({
-        repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN)),
+        repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
         hashInput: scheduleInputHash,
         contractVersion: CONTRACT,
         solverVersion: '0.1.0',

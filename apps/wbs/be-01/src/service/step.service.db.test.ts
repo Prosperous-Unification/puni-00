@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import type { Broadcaster } from '@wbs/core';
 import { EventLogService } from '@wbs/core';
+import { CREATOR_ADMISSION } from '@wbs/core';
 import { systemTimers } from '@wbs/runtime-portable';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -521,6 +522,7 @@ describe('a step removed between the check and the write', () => {
       },
     });
     return new WorkItemService({
+      admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems: new WorkItemRepository(db, OPEN),
@@ -566,6 +568,7 @@ describe('a step removed between the check and the write', () => {
     // reads the person inside its own transaction — but the thing being
     // asserted is unchanged: `writeNamingStep` must not claim the step.
     const workItems = new WorkItemService({
+      admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
       workItems: new WorkItemRepository(db, OPEN),

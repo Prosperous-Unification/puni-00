@@ -76,13 +76,13 @@ test('direct save and touch bindings pass the admitted actor and announce commit
   expect(
     await f.endpoints[4].handle({ ...direct, params: { id: 's' }, body: { name: '  ' } }),
   ).toEqual({ ok: true, status: 200, body: { savedPlanId: 's', name: '  ' } });
-  expect(f.rename).toHaveBeenCalledWith('s', 'actor', '  ');
+  expect(f.rename).toHaveBeenCalledWith('s', 'actor', '  ', undefined);
   expect(await f.endpoints[5].handle({ ...direct, params: { id: 's' }, body: undefined })).toEqual({
     ok: true,
     status: 204,
     body: EMPTY,
   });
-  expect(f.remove).toHaveBeenCalledWith('s', 'actor');
+  expect(f.remove).toHaveBeenCalledWith('s', 'actor', undefined);
   expect(f.announcements.published).toEqual(
     Array.from({ length: 3 }, () => ({ projectId: 'p', event: { type: 'saved_plans_changed' } })),
   );

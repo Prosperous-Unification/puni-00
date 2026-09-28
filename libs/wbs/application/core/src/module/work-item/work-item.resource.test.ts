@@ -13,6 +13,7 @@ import type {
   WorkItemStore,
   WriteStamp,
 } from '../../index';
+import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { AvailableWorkItemService as WorkItemService } from '../../testing/available-work-item-service';
 import { type RecordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
@@ -53,7 +54,13 @@ beforeEach(async () => {
   // Kept whole: three cases below build a second service from these options with
   // one store swapped for a broken one, which is how they drive a failure the
   // real stores cannot produce.
-  serviceOptions = { clock: testClock, ...harness.stores, broadcast, scheduler: harness.scheduler };
+  serviceOptions = {
+    admission: CREATOR_ADMISSION,
+    clock: testClock,
+    ...harness.stores,
+    broadcast,
+    scheduler: harness.scheduler,
+  };
   service = harness.service;
   const project: Project = projectRow({
     id: crypto.randomUUID(),

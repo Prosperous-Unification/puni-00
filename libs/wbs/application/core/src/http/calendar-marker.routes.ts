@@ -14,13 +14,16 @@ import {
 
 import type { CalendarMarker } from '../ports/calendar-marker-store';
 import type { OrganizationAccess } from '../ports/organization-access';
+import type { ResourceAccess } from '../ports/organization-access';
 import type {
+  CalendarMarkerOutcome,
   CalendarMarkerRefusal,
   CalendarMarkerRefused,
   CalendarMarkerService,
 } from '../service/calendar-marker.service';
 import { bind, EMPTY, type RequestFailure } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
+import { type RecoveryWriteBoundary, runRecoveryWrite } from './recovery-write';
 import { isFieldBag } from './route';
 
 /**
@@ -269,10 +272,31 @@ function classify(failure: RequestFailure, creating: boolean) {
 export function calendarMarkerRoutes(
   markers: CalendarMarkerService,
   organizations: OrganizationAccess,
+  recovery?: RecoveryWriteBoundary,
 ) {
+  /** Records a scoped marker recovery and publishes only after commit. */
+  const write = (
+    access: ResourceAccess,
+    projectId: string,
+    actorId: string,
+    detail: { readonly marker: 'create' | 'rename' | 'recolor' | 'remove' },
+    perform: (service: CalendarMarkerService) => Promise<CalendarMarkerOutcome>,
+  ): Promise<CalendarMarkerOutcome> => {
+    if (access.kind === 'legacy') return perform(markers);
+    if (recovery === undefined) throw new Error('scoped marker write has no recovery boundary');
+    return runRecoveryWrite(
+      recovery,
+      access,
+      projectId,
+      actorId,
+      detail,
+      (services) => perform(services.calendarMarkers),
+      (reason) => ({ ok: false, reason, about: 'project' }),
+    );
+  };
   return [
     bind(listCalendarMarkers, async ({ params, principal }) => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       const outcome = await markers.listWithin(params.id, resolved.access);
       return outcome.ok
@@ -284,18 +308,25 @@ export function calendarMarkerRoutes(
       async ({ params, body, principal }) => {
         const created = createProblem(body);
         if (isCreateProblem(created)) return refuse(created);
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
-        const outcome = await markers.createWithin(
+        const outcome = await write(
+          resolved.access,
           params.id,
           principal.id,
-          {
-            date: created.date,
-            name: created.name,
-            ...(created.markerId === undefined ? {} : { id: created.markerId }),
-            ...(created.color === undefined ? {} : { color: created.color }),
-          },
-          resolved.access,
+          { marker: 'create' },
+          (service) =>
+            service.createWithin(
+              params.id,
+              principal.id,
+              {
+                date: created.date,
+                name: created.name,
+                ...(created.markerId === undefined ? {} : { id: created.markerId }),
+                ...(created.color === undefined ? {} : { color: created.color }),
+              },
+              resolved.access,
+            ),
         );
         return outcome.ok
           ? { ok: true, status: 201, body: { marker: answered(outcome.value) } }
@@ -308,23 +339,37 @@ export function calendarMarkerRoutes(
       async ({ params, body, principal }) => {
         const change = patchProblem(body);
         if (isProblem(change)) return refuse(change);
-        const resolved = await organizations.resolve(principal.id);
+        const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         const outcome =
           change.kind === 'name'
-            ? await markers.renameWithin(
-                params.id,
-                params.markerId,
-                principal.id,
-                change.name,
+            ? await write(
                 resolved.access,
+                params.id,
+                principal.id,
+                { marker: 'rename' },
+                (service) =>
+                  service.renameWithin(
+                    params.id,
+                    params.markerId,
+                    principal.id,
+                    change.name,
+                    resolved.access,
+                  ),
               )
-            : await markers.recolorWithin(
-                params.id,
-                params.markerId,
-                principal.id,
-                change.color,
+            : await write(
                 resolved.access,
+                params.id,
+                principal.id,
+                { marker: 'recolor' },
+                (service) =>
+                  service.recolorWithin(
+                    params.id,
+                    params.markerId,
+                    principal.id,
+                    change.color,
+                    resolved.access,
+                  ),
               );
         return outcome.ok
           ? { ok: true, status: 200, body: { marker: answered(outcome.value) } }
@@ -333,13 +378,15 @@ export function calendarMarkerRoutes(
       { classifyRequestFailure: (failure) => classify(failure, false) },
     ),
     bind(removeCalendarMarker, async ({ params, principal }) => {
-      const resolved = await organizations.resolve(principal.id);
+      const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
-      const outcome = await markers.removeWithin(
-        params.id,
-        params.markerId,
-        principal.id,
+      const outcome = await write(
         resolved.access,
+        params.id,
+        principal.id,
+        { marker: 'remove' },
+        (service) =>
+          service.removeWithin(params.id, params.markerId, principal.id, resolved.access),
       );
       return outcome.ok ? { ok: true, status: 204, body: EMPTY } : stateRefused(outcome, true);
     }),

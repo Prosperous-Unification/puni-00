@@ -232,6 +232,11 @@ type BareRefusalCode =
   | 'insufficient_scope'
   /** Authenticated, but the session is bound to no organization (after activation). */
   | 'no_active_organization'
+  | 'onboarding_inactive'
+  | 'email_verification_required'
+  | 'already_member'
+  | 'domain_matched'
+  | 'join_request_pending'
   /** Authenticated, but the bound organization no longer lists the user. */
   | 'not_a_member'
   | 'invalid_origin'
@@ -243,6 +248,8 @@ type BareRefusalCode =
   | 'bad_start_date'
   | 'bad_pert_weights'
   | 'optimizer_unavailable'
+  /** Another of the organization's projects holds the requested solution slug. */
+  | 'solution_taken'
   | 'engine_unavailable'
   | 'snapshot_busy'
   | 'invalid_client'
@@ -270,6 +277,9 @@ type BareRefusalCode =
   | 'parent_work_item'
   | 'unknown_code'
   | 'alias_mismatch'
+  // A membership change that would leave the organization without a
+  // super-admin (task 3.7).
+  | 'last_super_admin'
   // A project reach change or a step removal that would close a step-node
   // dependency cycle. Outside a batch, so it carries no command position.
   | 'dependency_cycle';

@@ -28,6 +28,34 @@ const STORE_BINDINGS = [
   'workItems',
 ] as const satisfies readonly (keyof TransactionalStores)[];
 
+it('refuses scoped saved-plan writes without a transactional membership source', async () => {
+  const source = openMemorySource();
+  const scoped = { organizationId: 'org-a', actorId: 'writer', operation: 'rename' as const };
+  expect(() => source.history.savedPlans.renameTo('missing', 'No', scoped)).toThrow(
+    'cannot classify scoped writes',
+  );
+  expect(() =>
+    source.history.savedPlans.deleteOf('missing', { ...scoped, operation: 'delete' }),
+  ).toThrow('cannot classify scoped writes');
+  expect(() =>
+    source.history.savedPlans.write(
+      {
+        id: 'missing',
+        projectId: 'p1',
+        name: 'No',
+        createdBy: 'writer',
+        createdById: 'writer',
+        createdAt: 1,
+        input: { schemaVersion: 1, bytes: '{}', sha256: 'x' },
+        schedule: { present: false, absentReason: 'unavailable' },
+      },
+      () => Promise.resolve(null),
+      { ...scoped, operation: 'save' },
+    ),
+  ).toThrow('cannot classify scoped writes');
+  await source.close();
+});
+
 async function seededSource() {
   const source = openMemorySource();
   await source.stores.users.create(

@@ -2,6 +2,7 @@ import { DiBag } from 'di-bag';
 
 import type { CapacityStore } from '../../ports/capacity-store';
 import type { Clock } from '../../ports/clock';
+import type { EditAdmission } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
 import { CapacityService, type CapacityServiceOptions } from './capacity.resource';
@@ -28,11 +29,13 @@ export const capacityModule = DiBag.createBuilder()
         projectStore,
         capacityStore,
         broadcast,
+        editAdmission,
         clock,
       }: {
         projectStore: ProjectStore;
         capacityStore: CapacityStore;
         broadcast: Broadcaster;
+        editAdmission: EditAdmission;
         clock: Clock;
       }): CapacityServiceOptions => ({
         projects: projectStore,
@@ -42,6 +45,7 @@ export const capacityModule = DiBag.createBuilder()
         // broadcaster left `announces a capacity write through the broadcaster installCapacity wires`
         // failing (4 pass, 1 fail): it received `[]`.
         broadcast,
+        admission: editAdmission,
         clock,
       }),
       { factoryReturnKind: 'sync-value' },

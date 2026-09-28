@@ -5,22 +5,26 @@ import type {
   ProjectPatch,
   ProjectStore,
   ProjectWithAccess,
+  RecoveryAuditDetail,
   Step,
   StepAllowanceWritten,
   WriteStamp,
 } from '@wbs/core';
 import {
   type AllowancePercent,
+  classifyProjectEdit,
   type DependencyReach,
   type EstimateMethod,
   type EstimateRounding,
   isDependencyReach,
   isEstimateMethod,
   isEstimateRounding,
+  ORGANIZATION_ROLES,
+  type OrganizationRole,
   PertWeights,
 } from '@wbs/domain';
 import { type } from '@wbs/validation';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, or, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import {
@@ -34,9 +38,12 @@ import { isScheduleEngine, isSolverObjective, unknownStoredValue } from './optim
 import { bumpedProject, bumpProject } from './revision';
 import {
   optimizationGeneration,
+  organizationAudit,
+  organizationMembership,
   project,
   projectAccess,
   projectOrganization,
+  projectSolution,
   type ScheduleEngine,
   type SolverObjectiveName,
   solverQueue,
@@ -145,6 +152,49 @@ function withoutInternalColumns<T extends object>(
   >;
 }
 
+/** The stored columns {@link toProject} turns into a `Project`'s fields. */
+interface ProjectColumns {
+  estimateMethod: string;
+  depReach: string;
+  estimateRounding: string;
+  pertWeightOptimistic: number;
+  pertWeightRealistic: number;
+  pertWeightPessimistic: number;
+  solutionSlug: string | null;
+  solutionUrl: string | null;
+  scheduleEngine: string;
+  scheduleObjective: string;
+  optimizationDeletePendingAt?: number | null;
+}
+
+/** A project read beside its `project_solution` link, if it has one. */
+const WITH_SOLUTION = { project, solution: projectSolution };
+
+/** A row read through {@link WITH_SOLUTION}, decoded. */
+function fromJoined(row: {
+  project: typeof project.$inferSelect;
+  solution: typeof projectSolution.$inferSelect | null;
+}) {
+  return toProject(
+    row.project,
+    row.solution === null ? null : { slug: row.solution.slug, url: row.solution.url },
+  );
+}
+
+/** A `project_solution` row as a LEFT JOIN answers it: absent, or whole. */
+type ScopedSolutionRow = { slug: string; url: string } | null;
+
+/**
+ * A LEFT JOIN's two nullable `project_solution` columns as one link.
+ *
+ * @throws when only one of them is null, which the table's `NOT NULL`s forbid.
+ */
+function scopedSolution(slug: string | null, url: string | null): ScopedSolutionRow {
+  if (slug === null && url === null) return null;
+  if (slug === null || url === null) throw new Error('project_solution has a partial link');
+  return { slug, url };
+}
+
 /**
  * The two settings columns that are stored as text and refused on the way out
  * (tasks.md 3b.2, 3b.8).
@@ -154,23 +204,20 @@ function withoutInternalColumns<T extends object>(
  * `true` and `false`. Its `CHECK (optimization_enabled IN (0,1))` is what keeps
  * a `2` out of the column in the first place, and `refuses a value outside each
  * column vocabulary` in `project-settings.db.test.ts` proves that half.
+ *
+ * `scoped` is the project's `project_solution` link, read beside the row; it
+ * becomes `solutionRef` in place of the legacy pair.
+ *
+ * Proof: answering the legacy pair when both were present made `refuses a
+ * project holding both a legacy and a scoped reference` in
+ * `project-solution.db.test.ts` read the project instead of throwing;
+ * watched 2026-09-28.
+ *
+ * @throws when the project holds both a legacy pair and a scoped link.
  */
-function toProject<
-  T extends {
-    estimateMethod: string;
-    depReach: string;
-    estimateRounding: string;
-    pertWeightOptimistic: number;
-    pertWeightRealistic: number;
-    pertWeightPessimistic: number;
-    solutionSlug: string | null;
-    solutionUrl: string | null;
-    scheduleEngine: string;
-    scheduleObjective: string;
-    optimizationDeletePendingAt?: number | null;
-  },
->(
+function toProject<T extends ProjectColumns>(
   row: T,
+  scoped: ScopedSolutionRow,
   // Nested rather than one union of keys, because that is what the body
   // produces and TypeScript does not prove `Omit<Omit<T, A>, B>` equals
   // `Omit<T, A | B>` for a generic `T`.
@@ -237,6 +284,9 @@ function toProject<
   if ((solutionSlug === null) !== (solutionUrl === null)) {
     throw new Error('project has a partial solution reference');
   }
+  if (scoped !== null && solutionSlug !== null) {
+    throw new Error('project has both a legacy and a scoped solution reference');
+  }
   if (!isScheduleEngine(scheduleEngine)) {
     throw unknownStoredValue('project', 'schedule_engine', scheduleEngine);
   }
@@ -253,9 +303,10 @@ function toProject<
     estimateRounding,
     pertWeights: weights,
     solutionRef:
-      solutionSlug === null || solutionUrl === null
+      scoped ??
+      (solutionSlug === null || solutionUrl === null
         ? null
-        : { slug: solutionSlug, url: solutionUrl },
+        : { slug: solutionSlug, url: solutionUrl }),
     scheduleEngine,
     scheduleObjective,
   };
@@ -359,13 +410,20 @@ export class ProjectRepository implements ProjectStore {
           .values({
             ...fields,
             ...weightColumns(pertWeights),
-            solutionSlug: solutionRef?.slug ?? null,
-            solutionUrl: solutionRef?.url ?? null,
+            // A scoped project's link lives in `project_solution`, unique
+            // within its organization. Only a legacy one uses these columns.
+            solutionSlug: organizationId === null ? (solutionRef?.slug ?? null) : null,
+            solutionUrl: organizationId === null ? (solutionRef?.url ?? null) : null,
             ...auditOnCreateBesidesCreatedAt(stamp),
           })
           .run();
-        if (organizationId !== null)
+        if (organizationId !== null) {
           tx.insert(projectOrganization).values({ resourceId: written.id, organizationId }).run();
+          if (solutionRef !== null)
+            tx.insert(projectSolution)
+              .values({ projectId: written.id, organizationId, ...solutionRef })
+              .run();
+        }
         if (startingSteps.length > 0)
           tx.insert(step)
             .values(startingSteps.map((starting) => ({ ...starting, ...auditOnCreate(stamp) })))
@@ -376,9 +434,14 @@ export class ProjectRepository implements ProjectStore {
   }
 
   async findById(id: string): Promise<Project | null> {
-    const rows = await this.db.select().from(project).where(eq(project.id, id)).limit(1);
+    const rows = await this.db
+      .select(WITH_SOLUTION)
+      .from(project)
+      .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
+      .where(eq(project.id, id))
+      .limit(1);
     const found = rows.at(0);
-    return found === undefined ? null : toProject(found);
+    return found === undefined ? null : fromJoined(found);
   }
 
   /**
@@ -392,7 +455,7 @@ export class ProjectRepository implements ProjectStore {
    */
   async findInOrganization(id: string, organizationId: string): Promise<Project | null> {
     const rows = await this.db
-      .select({ project })
+      .select(WITH_SOLUTION)
       .from(project)
       .innerJoin(
         projectOrganization,
@@ -401,10 +464,11 @@ export class ProjectRepository implements ProjectStore {
           eq(projectOrganization.organizationId, organizationId),
         ),
       )
+      .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
       .where(eq(project.id, id))
       .limit(1);
     const found = rows.at(0);
-    return found === undefined ? null : toProject(found.project);
+    return found === undefined ? null : fromJoined(found);
   }
 
   /**
@@ -545,12 +609,13 @@ export class ProjectRepository implements ProjectStore {
 
   async findBySolutionSlug(slug: string): Promise<Project | null> {
     const rows = await this.db
-      .select()
+      .select(WITH_SOLUTION)
       .from(project)
+      .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
       .where(eq(project.solutionSlug, slug))
       .limit(1);
     const found = rows.at(0);
-    return found === undefined ? null : toProject(found);
+    return found === undefined ? null : fromJoined(found);
   }
 
   /**
@@ -564,7 +629,7 @@ export class ProjectRepository implements ProjectStore {
     organizationId: string,
   ): Promise<Project | null> {
     const rows = await this.db
-      .select({ project })
+      .select(WITH_SOLUTION)
       .from(project)
       .innerJoin(
         projectOrganization,
@@ -573,15 +638,30 @@ export class ProjectRepository implements ProjectStore {
           eq(projectOrganization.organizationId, organizationId),
         ),
       )
-      .where(eq(project.solutionSlug, slug))
-      .limit(1);
+      .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
+      .where(or(eq(projectSolution.slug, slug), eq(project.solutionSlug, slug)))
+      .limit(2);
+    // Proof: matching the legacy column alone made `links a slug only another
+    // organization holds` in `project-solution.db.test.ts` find nothing for
+    // a scoped link; watched 2026-09-28.
+    // Proof: letting two matches through made `refuses a lookup two of the
+    // organization's projects answer` return one of them; watched 2026-09-28.
+    // Every link write refuses a slug the organization already uses, so a
+    // second match is a broken invariant rather than a choice to make.
+    if (rows.length > 1) {
+      throw new Error(`two projects of organization ${organizationId} hold one solution slug`);
+    }
     const found = rows.at(0);
-    return found === undefined ? null : toProject(found.project);
+    return found === undefined ? null : fromJoined(found);
   }
 
   async list(): Promise<Project[]> {
-    const rows = await this.db.select().from(project).orderBy(desc(project.createdAt));
-    return rows.map(toProject);
+    const rows = await this.db
+      .select(WITH_SOLUTION)
+      .from(project)
+      .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
+      .orderBy(desc(project.createdAt));
+    return rows.map(fromJoined);
   }
 
   /**
@@ -648,6 +728,8 @@ export class ProjectRepository implements ProjectStore {
         startDate: project.startDate,
         solutionSlug: project.solutionSlug,
         solutionUrl: project.solutionUrl,
+        scopedSlug: projectSolution.slug,
+        scopedUrl: projectSolution.url,
         // Listed as well as read one at a time: the picker's rows are
         // `ProjectWithAccess`, which extends `Project`, so a settings column
         // missing here is a listing that cannot type-check rather than one that
@@ -666,6 +748,7 @@ export class ProjectRepository implements ProjectStore {
         and(eq(projectAccess.projectId, project.id), eq(projectAccess.userId, userId)),
       )
       .leftJoin(users, eq(users.id, project.ownerId))
+      .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
       .where(
         organizationId === null
           ? undefined
@@ -678,7 +761,9 @@ export class ProjectRepository implements ProjectStore {
             ),
       )
       .orderBy(desc(projectAccess.lastOpenedAt), desc(project.createdAt));
-    return rows.map((row) => toProject(withOwnerName(row)));
+    return rows.map(({ scopedSlug, scopedUrl, ...row }) =>
+      toProject(withOwnerName(row), scopedSolution(scopedSlug, scopedUrl)),
+    );
   }
 
   /**
@@ -759,13 +844,83 @@ export class ProjectRepository implements ProjectStore {
    * the organization owns the project` in `project.db.test.ts` answer the
    * renamed foreign project instead of null; watched 2026-09-27.
    */
-  async updateInOrganization(
+  /**
+   * Proof, each watched 2026-09-27: skipping the audit insert made `recovers
+   * a restricted project as an audited super-admin edit` in
+   * `project-organization.controller.db.test.ts` find no record; classifying
+   * from the caller's earlier read instead of in the transaction made
+   * `audits a recovery the project became after the request read it` in
+   * `organization-audit.db.test.ts` write without a record; skipping the
+   * refusal made `refuses an actor who is no longer a writing member` write
+   * the project; and continuing past a failed audit insert made `rolls the
+   * edit back when its audit record cannot be written` keep the rename.
+   */
+  async editInOrganization(
     id: string,
     patch: ProjectPatch,
     stamp: WriteStamp,
     organizationId: string,
-  ): Promise<Project | null> {
-    return await this.write(id, patch, stamp, organizationId);
+    editor: { readonly actorId: string; readonly auditId: string },
+  ): Promise<Project | null | 'forbidden' | 'solution_taken'> {
+    try {
+      return await this.write(id, patch, stamp, organizationId, editor);
+    } catch (refused) {
+      // The modeled refusals, raised inside the transaction so it rolls back.
+      if (refused instanceof EditRefused) return 'forbidden';
+      if (refused instanceof SolutionTaken) return 'solution_taken';
+      throw refused;
+    }
+  }
+
+  /**
+   * Runs as a savepoint inside the caller's unit of work, whose `BEGIN
+   * IMMEDIATE` holds the write lock from before this read until the batch
+   * commits or rolls back, the audit record with it. The record is dated by
+   * this adapter, not a service clock: the unit of work hands its act no
+   * clock.
+   *
+   * Proof, watched 2026-09-28: skipping the audit insert made `records one
+   * recovery by a super-admin of a restricted project, keeping its creator`
+   * and `fails when its audit record cannot be written` in
+   * `organization-audit.db.test.ts` fail, and `recovers a restricted project
+   * through a batch, undo and redo, one record each` in
+   * `command-organization.controller.db.test.ts` find no record.
+   */
+  async admitEditInOrganization(
+    projectId: string,
+    organizationId: string,
+    actorId: string,
+    detail: RecoveryAuditDetail,
+  ): Promise<'ordinary' | 'recovery' | 'forbidden' | null> {
+    const addressed = and(
+      eq(project.id, projectId),
+      inArray(
+        project.id,
+        this.db
+          .select({ id: projectOrganization.resourceId })
+          .from(projectOrganization)
+          .where(eq(projectOrganization.organizationId, organizationId)),
+      ),
+    );
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction((tx) => {
+        const classified = classifyWithin(tx, addressed, organizationId, actorId);
+        if (classified === null) return null;
+        if (classified === 'refused') return 'forbidden';
+        if (classified === 'recovery') {
+          recordRecovery(tx, {
+            id: crypto.randomUUID(),
+            organizationId,
+            actorId,
+            projectId,
+            detail,
+            at: Date.now(),
+          });
+        }
+        return classified;
+      });
+    });
   }
 
   private async write(
@@ -773,6 +928,7 @@ export class ProjectRepository implements ProjectStore {
     patch: ProjectPatch,
     stamp: WriteStamp,
     organizationId: string | null,
+    editor: { readonly auditId: string; readonly actorId: string } | null = null,
   ): Promise<Project | null> {
     const addressed =
       organizationId === null
@@ -810,57 +966,146 @@ export class ProjectRepository implements ProjectStore {
         // partial one. `ProjectPatch` carries them as one object for that
         // reason, and this is where it becomes three columns.
         ...(pertWeights === undefined ? {} : weightColumns(pertWeights)),
+        // A scoped link moves to `project_solution` below, and a legacy pair
+        // the project held is cleared, so it never holds both.
+        // Proof: leaving the pair made `moves a legacy pair into the
+        // organization link, relinks and unlinks` in
+        // `project-solution.db.test.ts` throw on the read back; watched
+        // 2026-09-28.
         ...(solutionRef === undefined
           ? {}
           : {
-              solutionSlug: solutionRef?.slug ?? null,
-              solutionUrl: solutionRef?.url ?? null,
+              solutionSlug: organizationId === null ? (solutionRef?.slug ?? null) : null,
+              solutionUrl: organizationId === null ? (solutionRef?.url ?? null) : null,
             }),
         revision: bumpedProject,
       };
-      return this.db.transaction((tx) => {
-        // Claim the ON→OFF edge with a write, not a read followed by a write.
-        // Two backend processes can PATCH one SQLite file during a blue/green
-        // swap; the conditional UPDATE serializes them so exactly one advances
-        // every release's cancellation epoch.
-        let updated =
-          patch.optimizationEnabled === false
-            ? tx
-                .update(project)
-                .set({ ...updates, ...auditOnUpdate(stamp) })
-                .where(and(addressed, eq(project.optimizationEnabled, true)))
-                .returning()
-                .all()
-                .at(0)
-            : undefined;
-        const turnedOff = updated !== undefined;
-        updated ??= tx
-          .update(project)
-          .set({ ...updates, ...auditOnUpdate(stamp) })
-          .where(addressed)
-          .returning()
-          .all()
-          .at(0);
-        if (updated === undefined) return null;
+      return this.db.transaction(
+        (tx) => {
+          let edit: 'ordinary' | 'recovery' = 'ordinary';
+          if (editor !== null && organizationId !== null) {
+            const classified = classifyWithin(tx, addressed, organizationId, editor.actorId);
+            // Not the organization's (any more): null, as for an absent project,
+            // before any permission is judged.
+            if (classified === null) return null;
+            if (classified === 'refused') throw new EditRefused();
+            edit = classified;
+          }
+          // After authorization, so only a writer learns that a slug is in use,
+          // and only among its own organization's projects. The write lock is
+          // held since `BEGIN IMMEDIATE`, so no other process can take the slug
+          // between this read and the insert below.
+          // Proof, watched 2026-09-28 in `project-solution.db.test.ts`: skipping
+          // this check made `refuses a slug another project of the organization
+          // holds` throw SQLite's uniqueness error instead of answering
+          // `solution_taken`, and dropping the legacy arm made `refuses a slug a
+          // project of the organization kept from before activation` link it.
+          if (organizationId !== null && solutionRef != null) {
+            const holder = tx
+              .select({ id: project.id })
+              .from(project)
+              .innerJoin(
+                projectOrganization,
+                and(
+                  eq(projectOrganization.resourceId, project.id),
+                  eq(projectOrganization.organizationId, organizationId),
+                ),
+              )
+              .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
+              .where(
+                and(
+                  ne(project.id, id),
+                  or(
+                    eq(projectSolution.slug, solutionRef.slug),
+                    eq(project.solutionSlug, solutionRef.slug),
+                  ),
+                ),
+              )
+              .get();
+            if (holder !== undefined) throw new SolutionTaken();
+          }
+          // Claim the ON→OFF edge with a write, not a read followed by a write.
+          // Two backend processes can PATCH one SQLite file during a blue/green
+          // swap; the conditional UPDATE serializes them so exactly one advances
+          // every release's cancellation epoch.
+          let updated =
+            patch.optimizationEnabled === false
+              ? tx
+                  .update(project)
+                  .set({ ...updates, ...auditOnUpdate(stamp) })
+                  .where(and(addressed, eq(project.optimizationEnabled, true)))
+                  .returning()
+                  .all()
+                  .at(0)
+              : undefined;
+          const turnedOff = updated !== undefined;
+          updated ??= tx
+            .update(project)
+            .set({ ...updates, ...auditOnUpdate(stamp) })
+            .where(addressed)
+            .returning()
+            .all()
+            .at(0);
+          if (updated === undefined) return null;
+          if (organizationId !== null && solutionRef !== undefined) {
+            tx.delete(projectSolution).where(eq(projectSolution.projectId, id)).run();
+            if (solutionRef !== null)
+              tx.insert(projectSolution)
+                .values({ projectId: id, organizationId, ...solutionRef })
+                .run();
+          }
+          if (edit === 'recovery' && editor !== null && organizationId !== null) {
+            const detail: RecoveryAuditDetail = {
+              fields: Object.entries(patch)
+                .filter(([, value]) => value !== undefined)
+                .map(([field]) => field)
+                .sort(),
+            };
+            recordRecovery(tx, {
+              id: editor.auditId,
+              organizationId,
+              actorId: editor.actorId,
+              projectId: id,
+              detail,
+              at: stamp.at,
+            });
+          }
 
-        if (turnedOff) {
-          tx.update(optimizationGeneration)
-            .set({
-              cancelEpoch: sql`${optimizationGeneration.cancelEpoch} + 1`,
-              updatedAt: stamp.at,
-            })
-            .where(eq(optimizationGeneration.projectId, id))
-            .run();
-          tx.update(solverSlot)
-            .set({ cancelRequestedAt: stamp.at })
-            .where(eq(solverSlot.projectId, id))
-            .run();
-          tx.delete(solverQueue).where(eq(solverQueue.projectId, id)).run();
-        }
-        // Proof: without this cleanup, `turns optimization off as an idempotent
-        // project-scoped cancellation` leaves both epochs, slots and queues live.
-        return toProject(updated);
-      });
+          if (turnedOff) {
+            tx.update(optimizationGeneration)
+              .set({
+                cancelEpoch: sql`${optimizationGeneration.cancelEpoch} + 1`,
+                updatedAt: stamp.at,
+              })
+              .where(eq(optimizationGeneration.projectId, id))
+              .run();
+            tx.update(solverSlot)
+              .set({ cancelRequestedAt: stamp.at })
+              .where(eq(solverSlot.projectId, id))
+              .run();
+            tx.delete(solverQueue).where(eq(solverQueue.projectId, id)).run();
+          }
+          // Proof: without this cleanup, `turns optimization off as an idempotent
+          // project-scoped cancellation` leaves both epochs, slots and queues live.
+          // Read again rather than decoded from `RETURNING`, which cannot carry
+          // the `project_solution` link written above.
+          const reread = tx
+            .select(WITH_SOLUTION)
+            .from(project)
+            .leftJoin(projectSolution, eq(projectSolution.projectId, project.id))
+            .where(eq(project.id, id))
+            .get();
+          if (reread === undefined)
+            throw new Error(`project ${id} vanished inside its transaction`);
+          return fromJoined(reread);
+        },
+        // A scoped write reads the organization's slugs before it writes one.
+        // Proof: a deferred transaction made `answers solution_taken to a link
+        // racing another process, writing nothing` in
+        // `project-solution.db.test.ts` fail on SQLite's busy snapshot;
+        // watched 2026-09-28.
+        organizationId === null ? undefined : { behavior: 'immediate' },
+      );
     });
   }
 
@@ -944,4 +1189,124 @@ export class ProjectRepository implements ProjectStore {
         .orderBy(step.position, step.id)
     );
   }
+}
+
+type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
+
+/** Classifies a dependent write from an already open SQLite write transaction. */
+export function classifyProjectWriteIn(
+  tx: Transaction,
+  projectId: string,
+  organizationId: string,
+  actorId: string,
+): 'ordinary' | 'recovery' | 'refused' | null {
+  // Proof: dropping the organization predicate made the store-path foreign
+  // Retry answer forbidden instead of not_found; watched 2026-09-28.
+  return classifyWithin(
+    tx,
+    and(
+      eq(project.id, projectId),
+      inArray(
+        project.id,
+        tx
+          .select({ id: projectOrganization.resourceId })
+          .from(projectOrganization)
+          .where(eq(projectOrganization.organizationId, organizationId)),
+      ),
+    ),
+    organizationId,
+    actorId,
+  );
+}
+
+/**
+ * `actorId`'s write to the project `addressed` selects, classified from the
+ * membership and project as `tx` reads them (see `classifyProjectEdit`):
+ * null when the organization does not own the project.
+ */
+function classifyWithin(
+  tx: Transaction,
+  addressed: SQL | undefined,
+  organizationId: string,
+  actorId: string,
+): 'ordinary' | 'recovery' | 'refused' | null {
+  const current = tx
+    .select({ restricted: project.restricted, ownerId: project.ownerId })
+    .from(project)
+    .where(addressed)
+    .get();
+  if (current === undefined) return null;
+  const membership = tx
+    .select({ role: organizationMembership.role })
+    .from(organizationMembership)
+    .where(
+      and(
+        eq(organizationMembership.organizationId, organizationId),
+        eq(organizationMembership.userId, actorId),
+      ),
+    )
+    .get();
+  if (membership === undefined) return 'refused';
+  return classifyProjectEdit(current, {
+    organizationId,
+    userId: actorId,
+    role: storedRole(membership.role, organizationId),
+  });
+}
+
+/** Appends one recovery record to `tx`, so it commits or rolls back with the write. */
+export function recordRecovery(
+  tx: Transaction,
+  record: {
+    id: string;
+    organizationId: string;
+    actorId: string;
+    projectId: string;
+    detail: RecoveryAuditDetail;
+    at: number;
+  },
+): void {
+  tx.insert(organizationAudit)
+    .values({
+      id: record.id,
+      organizationId: record.organizationId,
+      actorId: record.actorId,
+      action: 'restricted_project_recovery',
+      subjectKind: 'project',
+      subjectId: record.projectId,
+      detail: JSON.stringify(record.detail),
+      createdAt: record.at,
+    })
+    .run();
+}
+
+/** An organization edit its in-transaction classification refused; rolls the write back. */
+class EditRefused extends Error {
+  constructor() {
+    super('the edit is not permitted to this member now');
+    this.name = 'EditRefused';
+  }
+}
+
+/** A scoped link naming a slug another project of the organization holds; rolls the write back. */
+class SolutionTaken extends Error {
+  constructor() {
+    super('another project of this organization holds that solution slug');
+    this.name = 'SolutionTaken';
+  }
+}
+
+/**
+ * A stored membership role, checked rather than trusted: an unknown role
+ * reaching the classification must never be read as a privileged one.
+ *
+ * @throws for a role outside {@link ORGANIZATION_ROLES}.
+ */
+function storedRole(role: string, organizationId: string): OrganizationRole {
+  const known: readonly string[] = ORGANIZATION_ROLES;
+  if (!known.includes(role)) {
+    throw new Error(`membership in organization "${organizationId}" has a malformed role`);
+  }
+  // Narrowed by the membership test above, which is the boundary this is.
+  return role as OrganizationRole;
 }

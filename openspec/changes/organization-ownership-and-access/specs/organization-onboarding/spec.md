@@ -2,7 +2,25 @@
 
 ### Requirement: Verified identity chooses an onboarding path
 
-After sign-in, a user without membership SHALL establish a verified email before creating an organization, accepting an invitation or requesting to join. If its exact domain belongs to a verified organization, WBS SHALL show that organization and offer a join request or invitation acceptance; organization creation through that address MUST be refused. Otherwise the user SHALL be able to create an organization and become its first super-admin atomically. Creation SHALL NOT claim the email domain. Existing members SHALL be able to select an active membership. A verified email on a public domain SHALL remain eligible to create an organization.
+After sign-in, a user without membership SHALL establish a verified email before creating an organization, accepting an invitation or requesting to join. If its exact domain belongs to a verified organization, WBS SHALL show that organization and offer a join request or invitation acceptance; organization creation through that address MUST be refused. Otherwise the user SHALL be able to create an organization and become its first super-admin atomically. Creation SHALL NOT claim the email domain. Existing members SHALL be able to select an active membership even without a verified email. A verified email on a public domain SHALL remain eligible to create an organization. Onboarding discovery and writes SHALL require a session principal; a delegation SHALL receive a typed 403 without revealing memberships or changing onboarding state. Onboarding writes SHALL require the session's write scope.
+
+#### Scenario: Delegated onboarding
+
+- **GIVEN** a verified delegation bound to one organization
+- **WHEN** it requests onboarding discovery, organization creation or a join request
+- **THEN** each request receives 403 without revealing memberships or writing an organization, membership or request
+
+#### Scenario: Read-only session onboarding write
+
+- **GIVEN** a session with read scope and no write scope
+- **WHEN** it requests organization creation or join submission
+- **THEN** the request receives `insufficient_scope` without changing onboarding state
+
+#### Scenario: Existing member without verified email
+
+- **GIVEN** a signed-in user with a current membership and no verified email
+- **WHEN** the user discovers onboarding after activation
+- **THEN** discovery offers membership selection
 
 #### Scenario: Matching company domain
 
@@ -21,6 +39,26 @@ After sign-in, a user without membership SHALL establish a verified email before
 - **GIVEN** a verified user whose domain has no verified owner
 - **WHEN** they create an organization
 - **THEN** the organization and their super-admin membership commit together
+
+#### Scenario: Activation and durable OIDC evidence
+
+- **GIVEN** onboarding is inactive, or a signed-in user has no stored verified email
+- **WHEN** they discover or mutate onboarding
+- **THEN** the inactive deployment refuses with `onboarding_inactive` and writes nothing; after activation discovery shows `verification_required`, and writes refuse with `email_verification_required`
+- **AND** only a validated OIDC callback carrying literal `email_verified: true` sets durable verification; an absent or false claim clears it without changing the issuer/subject mapping
+
+#### Scenario: Exact matching and public email
+
+- **GIVEN** an exact verified claim for `example.org`
+- **WHEN** a verified `@example.org` user discovers onboarding or attempts creation
+- **THEN** discovery names that organization and creation refuses with `domain_matched`
+- **AND** `@sub.example.org`, suspended claims and public-email domains do not match it; an unmatched verified address may create without claiming its domain
+
+#### Scenario: Concurrent first-owner creation
+
+- **GIVEN** a verified user without memberships or a matching claim
+- **WHEN** two connections create an organization for the same user concurrently, or membership insertion fails
+- **THEN** at most one organization and its first super-admin membership commit; a failed membership insert rolls the organization back
 
 ### Requirement: Password-only accounts can establish verified email without changing identity
 
@@ -69,6 +107,13 @@ A verified-email user SHALL be able to submit at most one pending request to a m
 - **GIVEN** one pending join request
 - **WHEN** two admins approve it concurrently
 - **THEN** exactly one invitation is issued, no membership is created, and the second approval is refused as already resolved
+
+#### Scenario: Pending submission and identical missing targets
+
+- **GIVEN** a verified user whose exact domain has a currently verified owner
+- **WHEN** they submit a request, then submit again
+- **THEN** the first response is 201 with a pending request and no membership; the second refuses with `join_request_pending`
+- **AND** an absent organization, another domain and a no-longer-verified claim all answer the same `404 not_found`
 
 ### Requirement: Organization administration has explicit rendered states
 
