@@ -15,14 +15,14 @@ Written on `batch-9/integration-25` (`ffbe37be`) while main was `262d006c`; reta
 Red before implementation: the five new or extended test files ran 0 pass, 5 fail, 5 errors
 (`Cannot find module './blocked-by-proxy'`, `'./without-held-subtrees'`, `Export named
 'foldStatuses' not found`). Green after: 36 example cases and 2 properties (2,000 runs each)
-pass; the whole `libs/wbs/domain/domain` suite reported 817 pass, 0 fail.
+pass; the whole `libs/wbs/domain/domain` suite reported 819 pass, 0 fail.
 
 ## Commands
 
 | Slice | Command                                                                     | Result                                                                                                                                                                                                                                                                                 |
 | ----- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0     | `bunx @fission-ai/openspec@1.12.0 validate --all --json`                    | exit 0; 140 passed, 0 failed; this change valid, no issues                                                                                                                                                                                                                             |
-| 1     | `bun test` in `libs/wbs/domain/domain`, `CLAUDECODE` unset                  | 817 pass, 0 fail                                                                                                                                                                                                                                                                       |
+| 1     | `bun test` in `libs/wbs/domain/domain`, `CLAUDECODE` unset                  | 819 pass, 0 fail                                                                                                                                                                                                                                                                       |
 | 1     | `bunx nx affected -t typecheck test lint`, base `batch-9/integration-25`    | exit 1: 19 projects; failed `wbs-domain:lint` (4 `restrict-template-expressions` in a property test), `tool-devsync:test` (ADR numbers must be contiguous: 0033 renumbered 0032), `wbs-store-sqlite:test` (wall-clock `working-plan-performance` median, 141 s under the parallel run) |
 | 1     | `bunx nx run-many -t lint test -p wbs-domain tool-devsync` after both fixes | exit 0; `Successfully ran targets lint, test for 2 projects`                                                                                                                                                                                                                           |
 

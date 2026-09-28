@@ -55,6 +55,10 @@ function successorLeavesOf(
  * work is the case this reading exists for, even though the held leaf itself
  * takes no part in the schedule.
  *
+ * **Known over-approximation until 010.4.13.3:** holds are leaf-grain, so a
+ * node-scoped dependency from `A.dev` (done) to `B.dev` still reads B as
+ * `blocked_by_proxy` when A is held on another step.
+ *
  * Throws when a leaf of `index` has no status, when a status is given for
  * anything but a leaf, and for a dependency naming a work item the tree does
  * not hold.
@@ -88,6 +92,8 @@ export function blockedByProxyOf(
   for (const stoppedId of queue) {
     for (const successorId of successors.get(stoppedId) ?? []) {
       const status = statuses.get(successorId);
+      // Unreachable narrowing: successors are leaves of the same `index`, and
+      // every leaf of it was given a status above.
       if (status === undefined) throw new Error(`no status for leaf ${successorId}`);
       if (!UNSTARTED.has(status)) continue;
       statuses.set(successorId, 'blocked_by_proxy');
