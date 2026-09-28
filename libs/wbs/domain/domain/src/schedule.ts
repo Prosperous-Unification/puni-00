@@ -1868,6 +1868,34 @@ function findPersonWindow(
   return { start, blocking };
 }
 
+/** Revisit person and pool windows until both accept the same interval. */
+function findResourceWindow(
+  intervals: readonly { node: number; start: number; finish: number }[],
+  profile: ReturnType<typeof capacityProfile>,
+  poolIds: readonly string[],
+  width: number,
+  floor: number,
+  duration: number,
+): { start: number; person: ReturnType<typeof findPersonWindow>; pool: JointWindow } {
+  let start = floor;
+  let person = findPersonWindow(intervals, start, duration);
+  let pool = profile.jointWindowFor(poolIds, width, duration, start);
+  let personEvidence = person;
+  let poolEvidence = pool;
+  for (;;) {
+    if (person.start > start) personEvidence = person;
+    if (pool.start > start) poolEvidence = pool;
+    const next = Math.max(person.start, pool.start);
+    // Proof: returning after one pass made `explains a person delay after a
+    // pool delay` label C at day 5 `optimizer` with no person predecessor;
+    // watched 2026-09-28 (13 pass / 1 fail).
+    if (next === start) return { start, person: personEvidence, pool: poolEvidence };
+    start = next;
+    person = findPersonWindow(intervals, start, duration);
+    pool = profile.jointWindowFor(poolIds, width, duration, start);
+  }
+}
+
 /** Rebuild actual chronological resource edges, independent of Kahn placement order. */
 function rebuildResourceOrder(
   graph: SliceGraph,
@@ -1934,6 +1962,9 @@ function rebuildResourceOrder(
         taken += 1;
       }
       if (taken !== graph.nodes[at].slice.width) {
+        // Proof: deleting this refusal made `rejects a pinned pool overlap in
+        // resource-order replay` return A [5,7) and B [6,7) on a size-1
+        // pool; watched 2026-09-28 (12 pass / 1 fail).
         throw new ScheduleInvalidOptimizedStartError(
           graph.nodes[at].key,
           `overlaps pool ${poolId}`,
@@ -1991,21 +2022,33 @@ function placeWeightedSlices(
       if (pinned === undefined && withResources) {
         const personId = duration > 0 ? node.slice.personId : null;
         const intervals = personId === null ? [] : (people.get(personId) ?? []);
-        for (;;) {
-          const person = findPersonWindow(intervals, start, duration);
-          const pool = profile.jointWindowFor(
-            node.slice.poolIds,
-            node.slice.width,
-            duration,
-            start,
-          );
-          const next = Math.max(person.start, pool.start);
-          if (next === start) break;
-          start = next;
-        }
+        start = findResourceWindow(
+          intervals,
+          profile,
+          node.slice.poolIds,
+          node.slice.width,
+          start,
+          duration,
+        ).start;
       }
       const candidate = tileFinish(anchors[node.item], start, node.at, node.offsets);
       let required = start;
+      // Proof: deleting this materialized-window search made `reconciles a
+      // tiled fractional interval before reserving a pool` throw `C waited
+      // for capacity with nothing holding the pool` during replay; watched
+      // 2026-09-28 (13 pass / 1 fail).
+      if (pinned === undefined && withResources && candidate.finish > start) {
+        const intervals =
+          node.slice.personId === null ? [] : (people.get(node.slice.personId) ?? []);
+        required = findResourceWindow(
+          intervals,
+          profile,
+          node.slice.poolIds,
+          node.slice.width,
+          start,
+          candidate.finish - start,
+        ).start;
+      }
       for (const edge of incoming[taken]) {
         const before = placed[edge.before];
         const boundary = edge.type === 'SS' ? before.start : before.finish;
@@ -2100,15 +2143,20 @@ function placeWeightedSlices(
       planFloor = Math.max(0, planFloor);
       const personId = duration > 0 ? node.slice.personId : null;
       const intervals = personId === null ? [] : (replayPeople.get(personId) ?? []);
-      const person = findPersonWindow(intervals, planFloor, duration);
-      const pool = replayProfile.jointWindowFor(
+      const actualDuration = placed[taken].finish - start;
+      const { person, pool } = findResourceWindow(
+        intervals,
+        replayProfile,
         node.slice.poolIds,
         node.slice.width,
-        duration,
-        Math.max(planFloor, person.start),
+        planFloor,
+        actualDuration,
       );
-      const feasible = Math.max(planFloor, person.start, pool.start);
-      if (start < feasible && !withinDrift(start, feasible)) {
+      // Proof: deleting this exact pinned-person refusal made `rejects a
+      // pinned person overlap even when an earlier gap is free` return A
+      // [5,7) and B [6,7), with A float -1; watched 2026-09-28
+      // (13 pass / 1 fail).
+      if (findPersonWindow(intervals, start, actualDuration).start !== start) {
         throw new ScheduleInvalidOptimizedStartError(node.key, 'overlaps a resource reservation');
       }
       const candidates: FloorCandidate[] = [{ at: planFloor, kind: planKind }];
@@ -2171,6 +2219,33 @@ function placeWeightedSlices(
   };
 }
 
+/** Relax a cyclic weighted graph to its latest starts, refusing positive cycles. */
+export function relaxWeightedStarts(
+  starts: number[],
+  edges: readonly { before: number; after: number; weight: number }[],
+): void {
+  // Upper-bound relaxation handles non-positive augmented cycles that Kahn
+  // cannot order. A positive-weight cycle changes on the final pass.
+  // Proof: limiting this to one pass made `relaxes latest dates beyond a
+  // reverse placement pass` fail: A/C latest starts became 20/19, expected
+  // 10/9; watched 2026-09-28.
+  for (let pass = 0; pass < starts.length; pass += 1) {
+    let changed = false;
+    for (const edge of edges) {
+      const bound = starts[edge.after] - edge.weight;
+      if (bound < starts[edge.before] && !withinDrift(bound, starts[edge.before])) {
+        starts[edge.before] = bound;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+    // Proof: deleting this refusal made `refuses a positive cycle in the
+    // production backward relaxation` return undefined for the two-node
+    // positive cycle; watched 2026-09-28 (13 pass / 1 fail).
+    if (pass === starts.length - 1) throw new Error('positive-weight resource constraint cycle');
+  }
+}
+
 /** Latest starts under weighted plan and selected resource constraints, including feasible cycles. */
 function weightedLateTimes(
   graph: SliceGraph,
@@ -2205,24 +2280,7 @@ function weightedLateTimes(
       }
     }
   } else {
-    // Upper-bound relaxation handles non-positive augmented cycles that Kahn
-    // cannot order. A positive-weight cycle changes on the final pass.
-    // Proof: limiting this to one pass made `relaxes latest dates beyond a
-    // reverse placement pass` fail: A/C latest starts became 20/19, expected
-    // 10/9; watched 2026-09-28.
-    for (let pass = 0; pass < graph.nodes.length; pass += 1) {
-      let changed = false;
-      for (const edge of edges) {
-        const bound = starts[edge.after] - edge.weight;
-        if (bound < starts[edge.before] && !withinDrift(bound, starts[edge.before])) {
-          starts[edge.before] = bound;
-          changed = true;
-        }
-      }
-      if (!changed) break;
-      if (pass === graph.nodes.length - 1)
-        throw new Error('positive-weight resource constraint cycle');
-    }
+    relaxWeightedStarts(starts, edges);
   }
   return graph.nodes.map((node, at) => {
     const latestStart = withinDrift(starts[at], placed[at].start) ? placed[at].start : starts[at];
