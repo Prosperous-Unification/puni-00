@@ -135,9 +135,10 @@ export function restoreTypedDependencies(db: Drizzle, saved: unknown): number {
   const { rows } = readSavedTypedDependencies(saved);
   return db.transaction((tx) => {
     for (const row of rows) {
-      // Proof: masking the stored SS type as FS before this read made `refuses
+      // Proof: masking the saved SF type as FS before this read made `refuses
       // the whole restore when a saved row has an unreadable relationship`
-      // fail on `Received function did not throw` (2 rows); watched 2026-09-27.
+      // fail at SQLite's insert constraint instead of refusing the unknown
+      // type at this read (0 pass / 1 fail); watched 2026-09-28.
       const link = readTypedDependency(row);
       // Proof: skipping this endpoint check made `refuses the whole restore
       // when a node endpoint became a parent` fail on `Received function did

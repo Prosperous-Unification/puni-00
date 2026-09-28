@@ -43,6 +43,9 @@ function readEndpoint(
 
 /** Validates stored discriminants when SQLite rows cross into the domain. */
 export function readTypedDependency(row: TypedDependencyRow): StoredTypedDependency {
+  // Proof: bypassing this check returned an injected SF row instead of
+  // refusing it in `refuses an unsupported stored relationship type on read`
+  // (0 pass / 1 fail); watched 2026-09-28.
   if (!isRelationshipType(row.type)) {
     throw new Error(`typed dependency ${row.id} has unknown relationship type ${row.type}`);
   }
@@ -256,6 +259,9 @@ export class TypedDependencyRepository implements TypedDependencyStore {
       );
       return this.db.transaction((tx) => {
         const losing = tx.select().from(typedDependency).where(touchesAny).all();
+        // Proof: masking injected SF as FS at this read let bulk removal
+        // succeed in `refuses unsupported rows during bulk removal before
+        // deleting them` (0 pass / 1 fail); watched 2026-09-28.
         const removed = losing.map(readTypedDependency);
         tx.delete(typedDependency).where(touchesAny).run();
         bumpWorkItems(

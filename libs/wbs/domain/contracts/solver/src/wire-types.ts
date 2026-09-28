@@ -1,5 +1,5 @@
 /**
- * The TypeScript binding of `solver-wire.v1.json` (2.1).
+ * The TypeScript binding of `solver-wire.v2.json`.
  *
  * The schema is the contract and the Python side reads the very same file, so
  * nothing here may be authored independently of it. Every vocabulary below is
@@ -9,7 +9,7 @@
  */
 
 /** `#/$defs/wireVersion` — a `const`, so the type is the literal. */
-export const SOLVER_WIRE_VERSION = 1;
+export const SOLVER_WIRE_VERSION = 2;
 export type SolverWireVersion = typeof SOLVER_WIRE_VERSION;
 
 /**
@@ -118,11 +118,15 @@ export const SOLVER_STAGE_COUNT = 3;
 export type SolverStageBudgetSplit = readonly [number, number, number];
 
 /** `#/$defs/edge` — two named endpoints, asymmetric, never a 2-array. */
-export const SOLVER_EDGE_KEYS = ['predecessorKey', 'successorKey'] as const;
-export interface SolverEdge {
+export const SOLVER_EDGE_KEYS = ['predecessorKey', 'successorKey', 'type'] as const;
+export const SOLVER_RELATIONSHIP_TYPES = ['FS', 'SS', 'FF'] as const;
+interface SolverEdgeEnds {
   readonly predecessorKey: string;
   readonly successorKey: string;
 }
+export type SolverEdge =
+  | (SolverEdgeEnds & { readonly type: 'FS' | 'SS'; readonly startWeightUnits?: never })
+  | (SolverEdgeEnds & { readonly type: 'FF'; readonly startWeightUnits: number });
 
 /** `#/$defs/slice`. Every member is required; two of them are nullable. */
 export const SOLVER_SLICE_KEYS = [

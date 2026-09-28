@@ -74,18 +74,27 @@ export function evaluateSolverOutcome(
   // ones that were malformed all along — and `unknown` now reports the
   // malformed request instead of `no-solution`, which is the more accurate of
   // the two.
-  const checked = revalidateSolverResult(request, response);
+  const checked = revalidateSolverResult(request, response, input.slices, input);
   if (!checked.ok) {
     return { kind: 'failed', reason: dispositionOfRevalidationFailure(checked.failure) };
   }
   if (response.status !== 'feasible') {
     if (response.status === 'unknown') return { kind: 'failed', reason: 'no-solution' };
+    // The certificate is CP-SAT's verdict at the solver quantum (Q = 48 units a
+    // workday, durations rounded up, FF start weights strengthened), not an
+    // unrestricted proof about fractional workdays. It names the deadlines no
+    // schedule met at that resolution, which is what the plan-infeasible state
+    // reports; a plan feasible only between two quanta is the documented
+    // limitation (design.md, "Fast placement, replay and float").
     const certificate = planInfeasibleResultOf(input);
     return certificate.items.length === 0
       ? { kind: 'failed', reason: 'invalid-output' }
       : { kind: 'plan-infeasible', certificate };
   }
 
+  // Proof: short-circuiting here when real Fast had a late slice made the
+  // feasible-order test fail (expected ok, received failed; 0 pass / 1 fail,
+  // 2026-09-28). The solver's valid order is still eligible for publication.
   try {
     const optimized = materialiseOptimized(
       input.rows,

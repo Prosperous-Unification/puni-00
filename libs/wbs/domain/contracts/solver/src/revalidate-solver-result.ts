@@ -1,5 +1,19 @@
-import { isOnTime, lastWorkdayOf, SOLVER_QUANTUM, WORK_ITEM_PROJECTION_START } from '@wbs/domain';
+import {
+  expandToLeaves,
+  groupSlicesByLeaf,
+  indexTree,
+  isOnTime,
+  lastWorkdayOf,
+  leavesUnderOf,
+  type Slice,
+  sliceKey,
+  SOLVER_QUANTUM,
+  WORK_ITEM_PROJECTION_START,
+} from '@wbs/domain';
+import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
+import { buildSolverEdges } from './build-solver-edges';
+import { ffStartWeightUnits } from './solver-units';
 import {
   SOLVER_OBJECTIVE_TERMS,
   type SolverObjectiveTerm,
@@ -276,7 +290,12 @@ const groupBy = <T>(items: readonly T[], keysOf: (item: T) => readonly string[])
 export const revalidateSolverResult = (
   request: SolverRequest,
   response: SolverResponse,
+  canonicalSlices?: readonly Slice[],
+  canonicalInput?: ScheduleInput,
 ): RevalidatedSolverResult => {
+  const canonical = new Map(
+    canonicalSlices?.map((slice) => [sliceKey(slice.workItemId, slice.stepId), slice]),
+  );
   const slices = new Map<string, SolverSlice>();
   const workItems = new Map<string, SolverSlice[]>();
   for (const slice of request.slices) {
@@ -361,6 +380,61 @@ export const revalidateSolverResult = (
         return refuse('malformed-request', `edge names unknown slice ${JSON.stringify(end)}`);
       }
     }
+    // Proof: disabling this and the misplaced-weight guard admitted both bad
+    // edge shapes; focused revalidation observed 47 pass / 2 fail.
+    if (!['FS', 'SS', 'FF'].includes(edge.type)) {
+      return refuse('malformed-request', `edge has unsupported type ${JSON.stringify(edge.type)}`);
+    }
+    if (edge.type === 'FF') {
+      const predecessor = canonical.get(edge.predecessorKey);
+      const successor = canonical.get(edge.successorKey);
+      if (predecessor === undefined || successor === undefined) {
+        return refuse('malformed-request', 'FF edge has no canonical real slices');
+      }
+      const expected = ffStartWeightUnits(predecessor, successor);
+      // Proof (without canonicalInput): disabling this comparison accepted
+      // forged zero on the 0.030/0.021 pair. With canonicalInput, both this
+      // and the edge signature's weight were disabled: the focused production
+      // negative failed (expected false, received true).
+      if (!Number.isSafeInteger(edge.startWeightUnits) || edge.startWeightUnits !== expected) {
+        return refuse(
+          'malformed-request',
+          `FF edge weight ${String(edge.startWeightUnits)} differs from canonical ${String(expected)}`,
+        );
+      }
+    } else if ('startWeightUnits' in edge) {
+      // Proof: bypassing this guard and the type guard admitted an SS edge
+      // carrying FF weight; focused revalidation observed 47 pass / 2 fail.
+      return refuse('malformed-request', `${edge.type} edge carries an FF weight`);
+    }
+  }
+  if (canonicalInput !== undefined) {
+    const index = indexTree(canonicalInput.rows);
+    const grouped = groupSlicesByLeaf(index.leafIds, canonicalInput.slices);
+    const slicesOf = (leafId: string): readonly Slice[] => {
+      const own = grouped.get(leafId);
+      if (own === undefined) throw new Error(`no canonical slices for ${leafId}`);
+      return own;
+    };
+    const expected = buildSolverEdges(
+      index.leafIds,
+      slicesOf,
+      expandToLeaves(index, canonicalInput.edges),
+      canonicalInput.reach,
+      {
+        dependencies: canonicalInput.typed,
+        leavesUnder: leavesUnderOf(index),
+      },
+    );
+    const signature = (edge: (typeof expected)[number]): string =>
+      `${edge.predecessorKey}\u0000${edge.successorKey}\u0000${edge.type}\u0000${edge.type === 'FF' ? String(edge.startWeightUnits) : ''}`;
+    const wire = request.edges.map(signature).sort();
+    const canonicalEdges = expected.map(signature).sort();
+    // Proof: bypassing this comparison accepted an omitted authored SS edge
+    // on an unknown response; the focused negative observed true instead of false.
+    if (JSON.stringify(wire) !== JSON.stringify(canonicalEdges)) {
+      return refuse('malformed-request', 'wire edges differ from canonical authored graph');
+    }
   }
 
   // A non-publishing response carries no schedule, so there is nothing to
@@ -418,7 +492,18 @@ export const revalidateSolverResult = (
     if (predecessor === undefined || successor === undefined) {
       return refuse('malformed-request', `edge names unknown slice`);
     }
-    if (predecessor.finish > successor.start) {
+    let violated: boolean;
+    if (edge.type === 'FS') violated = predecessor.finish > successor.start;
+    else if (edge.type === 'SS') violated = predecessor.start > successor.start;
+    else {
+      const weight = edge.startWeightUnits;
+      if (weight === undefined) return refuse('malformed-request', 'FF edge lacks start weight');
+      violated =
+        predecessor.finish > successor.finish || successor.start < predecessor.start + weight;
+    }
+    // Proof: replacing the SS comparison with false accepted a=1, b=0;
+    // revalidation observed 44 pass / 1 fail, expected refusal, received true.
+    if (violated) {
       return refuse(
         'edge-violated',
         `${JSON.stringify(edge.predecessorKey)} finishes at ${String(predecessor.finish)}, after ${JSON.stringify(edge.successorKey)} starts at ${String(successor.start)}`,

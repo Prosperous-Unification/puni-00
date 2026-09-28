@@ -264,7 +264,7 @@ export const scheduleBehaviourDigest = (run: ScheduleFn): string =>
  * `SCHEDULE_ALGORITHM_ID` is stale as of the same commit.
  */
 const PINNED = {
-  id: 'slice-leveling-v3',
+  id: 'slice-leveling-v4',
   digest: 'f0145c81759486b5',
 } as const;
 
@@ -288,6 +288,8 @@ const PINNED = {
  * `v2` was `18b55455829f4eb1`. `v3` moved it through the corpus's unestimated
  * case alone: WBS 010.4.4 gives an unknown slice zero schedule time instead of
  * `ASSUMED_SLICE_WORKDAYS`. Measured on the workstation 2026-09-27.
+ * `v4` preserves this FS-only digest because it dispatches those graphs to the
+ * v3 engine; weighted cases are asserted in `schedule-weighted.test.ts`.
  */
 
 /** One perturbed value of the same shape — the smallest change a real edit makes. */

@@ -1,8 +1,8 @@
-"""Request validation: the schema, then the six things this receiver says itself.
+"""Request validation: the schema, then the receiver's cross-field invariants.
 
 THE SCHEMA IS NOT A COPY OF THE RULES, IT IS THE RULES
 ------------------------------------------------------
-`solver-wire.v1.json` is the single normative definition of both messages
+`solver-wire.v2.json` is the single normative definition of both messages
 (design.md "Solver wire contract — one versioned schema, four consumers"). This
 module is the third of that file's four consumers. It validates against the copy
 installed **beside** the package, because a wheel deployed into the be-01 image
@@ -76,7 +76,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
-SCHEMA_FILENAME = "solver-wire.v1.json"
+SCHEMA_FILENAME = "solver-wire.v2.json"
 SCHEMA_PATH = Path(__file__).resolve().parent / SCHEMA_FILENAME
 
 
@@ -185,6 +185,24 @@ def check_cross_field(request: dict[str, Any]) -> None:
                 raise RequestRejected(
                     f"edges[{index}].{endpoint} {edge[endpoint]!r} is not a slice key"
                 )
+        # Independent receiver guard for the typed edge contract. JSON Schema
+        # also states this shape, but the model must never treat an omitted or
+        # malformed FF weight as an implicit zero.
+        # Proof (helper scope): removing this block made all six
+        # TypedEdgeBoundary helper negatives accept malformed edges. The
+        # production entrypoint also has JSON Schema protection. Disabling both
+        # made its malformed-edge test fail in all three subcases (RequestRejected
+        # not raised); both faults were restored before the green run.
+        edge_type = edge.get("type")
+        if edge_type not in ("FS", "SS", "FF"):
+            raise RequestRejected(f"edges[{index}] has unsupported dependency type {edge_type!r}")
+        has_weight = "startWeightUnits" in edge
+        if edge_type == "FF":
+            weight = edge.get("startWeightUnits")
+            if not has_weight or isinstance(weight, bool) or not isinstance(weight, int):
+                raise RequestRejected(f"edges[{index}].startWeightUnits must be an integer for FF")
+        elif has_weight:
+            raise RequestRejected(f"edges[{index}].startWeightUnits is only allowed for FF")
 
     # TASK-329 AC #1. `deadlineUnits` is `(D + 1) x quantum`, so a value that is
     # not a multiple names no day at all — the due day `deadlineUnits / quantum

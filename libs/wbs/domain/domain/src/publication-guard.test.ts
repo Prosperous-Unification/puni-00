@@ -4,6 +4,7 @@ import type { ScheduleInput } from './canonical-schedule-input';
 import { guardRealPublication } from './publication-guard';
 import { type Schedule, schedule, type Slice, sliceKey } from './schedule';
 import { SOLVER_QUANTUM } from './solver-quantum';
+import type { TypedDependency } from './typed-dependency';
 
 /**
  * Task 4.11b's steps (a) and (c) at the seam they are decided in.
@@ -54,6 +55,84 @@ const NO_MOVEMENT = () => 0;
 const UNWEIGHTED = () => 1;
 
 const key = (id: string) => sliceKey(id, null);
+
+it('rejects a materialized FF finish that integer equal starts would hide', () => {
+  const typed: TypedDependency[] = [
+    {
+      id: 'a-to-b',
+      predecessor: { scope: 'whole', workItemId: 'a' },
+      successor: { scope: 'whole', workItemId: 'b' },
+      type: 'FF',
+    },
+  ];
+  const input: ScheduleInput = {
+    ...inputOf([leafRow('a', 10), leafRow('b', 20)], [], [work('a', 0.03), work('b', 0.021)]),
+    typed,
+  };
+  const feasible = schedule(
+    input.rows,
+    input.edges,
+    input.slices,
+    input.notBefore,
+    input.poolSizes,
+    input.reach,
+    input.deadlines,
+    input.typed,
+  );
+  const early = feasible.slices.get(key('b'));
+  if (early === undefined) throw new Error('missing b');
+  const forged: Schedule = {
+    ...feasible,
+    slices: new Map(feasible.slices).set(key('b'), {
+      ...early,
+      earliestStart: 0,
+      earliestFinish: 0.021,
+    }),
+  };
+  expect(() => guardRealPublication(input, forged, 'makespan', UNWEIGHTED, NO_MOVEMENT)).toThrow(
+    'violates FF materialized boundary',
+  );
+});
+
+for (const type of ['FS', 'SS'] as const) {
+  it(`rejects a materialized ${type} start before its real boundary`, () => {
+    const input: ScheduleInput = {
+      ...inputOf([leafRow('a', 10), leafRow('b', 20)], [], [work('a', 1), work('b', 1)]),
+      notBefore: new Map([['a', 1]]),
+      typed: [
+        {
+          id: 'a-to-b',
+          predecessor: { scope: 'whole', workItemId: 'a' },
+          successor: { scope: 'whole', workItemId: 'b' },
+          type,
+        },
+      ],
+    };
+    const feasible = schedule(
+      input.rows,
+      input.edges,
+      input.slices,
+      input.notBefore,
+      input.poolSizes,
+      input.reach,
+      input.deadlines,
+      input.typed,
+    );
+    const early = feasible.slices.get(key('b'));
+    if (early === undefined) throw new Error('missing b');
+    const forged: Schedule = {
+      ...feasible,
+      slices: new Map(feasible.slices).set(key('b'), {
+        ...early,
+        earliestStart: 0,
+        earliestFinish: 1,
+      }),
+    };
+    expect(() => guardRealPublication(input, forged, 'makespan', UNWEIGHTED, NO_MOVEMENT)).toThrow(
+      `violates ${type} materialized boundary`,
+    );
+  });
+}
 
 describe('(i) the width-5 case: quantisation costs more than the search won', () => {
   // 2.11's own fixture. Three serial `days=1, width=5` slices: `durationOf` is

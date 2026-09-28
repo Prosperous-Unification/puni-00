@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -54,7 +54,7 @@ const INPUT: ScheduleInput = {
   deadlines: new Map(),
 };
 const FEASIBLE_RESPONSE = `${JSON.stringify({
-  wireVersion: 1,
+  wireVersion: 2,
   status: 'feasible',
   offsets: { 'w-1\u0000step-dev': 0 },
   objectiveValues: {
@@ -1706,4 +1706,51 @@ describe('OptimizationCoordinator Retry admission', () => {
     // Proof: timestamping the preflight failure from the lagging clock throws
     // before this row is stored and leaves p-2 queued with zero launcher calls.
   });
+});
+
+it('retires an old integer-infeasibility certificate under the current solver cache key', () => {
+  const { path, db } = database();
+  seedProject(path);
+  const oldContract = '14+0.1.3';
+  const currentRequest = JSON.parse(
+    readFileSync(
+      new URL(
+        '../../../../../libs/wbs/domain/contracts/solver/fixtures/request/valid-two-slices.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ) as { contractVersion: string };
+  const inputHash = scheduleInputHash(INPUT);
+  const generation = allocateGeneration(db, 'p-1', oldContract, inputHash, 2);
+  db.insert(optimizedScheduleCache)
+    .values({
+      projectId: 'p-1',
+      inputHash,
+      objective: 'pri',
+      contractVersion: oldContract,
+      budgetMs: BUDGET,
+      generation,
+      status: 'plan-infeasible',
+      resultJson: '{"dtoVersion":1,"items":[]}',
+      failureReason: null,
+      createdAt: 3,
+    })
+    .run();
+  expect(
+    readOptimizedPair(db, {
+      projectId: 'p-1',
+      inputHash,
+      contractVersion: oldContract,
+      budgetMs: BUDGET,
+    }).pri.kind,
+  ).toBe('plan-infeasible');
+  expect(
+    readOptimizedPair(db, {
+      projectId: 'p-1',
+      inputHash,
+      contractVersion: currentRequest.contractVersion,
+      budgetMs: BUDGET,
+    }).pri.kind,
+  ).toBe('miss');
 });

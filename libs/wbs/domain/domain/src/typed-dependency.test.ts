@@ -5,6 +5,7 @@ import {
   findTypedEndpointDefect,
   formatTypedDependencyKey,
   isRelationshipType,
+  isWritableRelationshipType,
 } from './typed-dependency';
 
 /** Parent `P` over leaf `L`, and a project with steps `dev` and `qa`. */
@@ -74,7 +75,13 @@ describe('formatTypedDependencyKey', () => {
 });
 
 describe('isRelationshipType', () => {
-  it('accepts FS and refuses the types this stage does not schedule', () => {
-    expect(['FS', 'SS', 'FF', 'fs'].map(isRelationshipType)).toEqual([true, false, false, false]);
+  it('recognizes all readable types while writes remain FS only', () => {
+    expect(['FS', 'SS', 'FF', 'fs'].map(isRelationshipType)).toEqual([true, true, true, false]);
+    expect(['FS', 'SS', 'FF', 'fs'].map(isWritableRelationshipType)).toEqual([
+      true,
+      false,
+      false,
+      false,
+    ]);
   });
 });
