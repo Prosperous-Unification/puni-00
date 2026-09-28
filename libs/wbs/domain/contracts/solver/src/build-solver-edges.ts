@@ -1,4 +1,5 @@
 import {
+  type AuthoredDependencies,
   type DependencyReach,
   type LeafEdge,
   resolveStepNodeGraph,
@@ -36,6 +37,13 @@ export function buildSolverEdges(
   slicesOf: (leafId: string) => readonly Slice[],
   leafEdges: readonly LeafEdge[],
   reach: DependencyReach,
+  /**
+   * The typed dependencies and the tree they resolve against. Required, with
+   * no empty default: a request built without them would hand the solver a
+   * plan missing constraints Fast honours, and the two would disagree about
+   * which schedules are legal.
+   */
+  authored: AuthoredDependencies,
 ): readonly SolverEdge[] {
   /**
    * One end, keyed.
@@ -65,7 +73,7 @@ export function buildSolverEdges(
     return sliceKey(slice.workItemId, slice.stepId);
   };
 
-  return resolveStepNodeGraph(leafIds, slicesOf, leafEdges, reach).edges.map((edge) => ({
+  return resolveStepNodeGraph(leafIds, slicesOf, leafEdges, reach, authored).edges.map((edge) => ({
     predecessorKey: keyOf(edge.predecessor.leafId, edge.predecessor.at),
     successorKey: keyOf(edge.successor.leafId, edge.successor.at),
   }));

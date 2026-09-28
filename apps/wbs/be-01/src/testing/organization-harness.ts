@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource, SqliteOrganizationAccess } from '@wbs/store-sqlite';
+import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 
 import { buildApp } from '../app';
 import { ActualRepository } from '../repository/actual';
@@ -34,6 +35,7 @@ import { TEST_JWT_KEY } from './auth-fixture';
 import { recordingBroadcaster } from './broadcast-fixture';
 import { inMemoryCapacity, testCapacityService } from './capacity-fixture';
 import { testClock } from './clock-fixture';
+import { sqliteDependencyGraph } from './dependency-graph-fixture';
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from './priority-band-fixture';
@@ -93,11 +95,13 @@ export class OrganizationHarness {
         clock: testClock,
       }),
       projects: new ProjectService({
+        dependencyGraph: sqliteDependencyGraph(db, projects),
         clock: testClock,
         projects,
         broadcast: recordingBroadcaster(),
       }),
       steps: new StepService({
+        dependencyGraph: sqliteDependencyGraph(db, projects),
         clock: testClock,
         projects,
         steps: new StepRepository(db, OPEN),
@@ -113,6 +117,7 @@ export class OrganizationHarness {
         measures: new StepMeasureRepository(db, OPEN),
         progress: new StepProgressRepository(db, OPEN),
         dependencies: new DependencyRepository(db, OPEN),
+        typedDependencies: new TypedDependencyRepository(db, OPEN),
         directory: directoryStore,
         capacity: inMemoryCapacity(),
         priorityBands: inMemoryPriorityBands(),

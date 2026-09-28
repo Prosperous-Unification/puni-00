@@ -2128,6 +2128,7 @@ describe('the slices the schedule placed, on the wire', () => {
       'startDate',
       'steps',
       'teamCapacities',
+      'typedDependencies',
       'waitingForCapacity',
       'waitingForPerson',
       'workItems',

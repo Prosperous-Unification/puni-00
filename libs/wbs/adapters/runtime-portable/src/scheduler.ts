@@ -40,6 +40,8 @@ function readSchedule(
     // Proof: dropping this seventh argument removed the literal
     // Map { "leaf" => 9 } from both recorded Fast calls in scheduler.test.ts.
     ask.input.deadlines,
+    // The eighth: typed dependencies, resolved beside the legacy edges.
+    ask.input.typed,
   );
   if (optimized === undefined) {
     return { kind: 'scheduled', fast: fastSchedule, optimization: null };

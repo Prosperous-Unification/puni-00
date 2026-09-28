@@ -7,6 +7,7 @@ import {
   type CaptureDirectoryChange,
   type CaseFixture,
   type CaseId,
+  changeSavedPlanCaptureTypedDependencies,
   completeSubtreeCopy,
   createFaultControl,
   defineFault,
@@ -187,6 +188,7 @@ function readersOf(source: MemorySource): SourceReaders {
     measures: source.stores.measures,
     progress: source.stores.progress,
     dependencies: source.stores.dependencies,
+    typedDependencies: source.stores.typedDependencies,
     directory: source.stores.directory,
     journal: source.stores.journal,
     planEvents: source.stores.planEvents,
@@ -485,7 +487,13 @@ async function openMemorySavedPlanCaptureCase(
             firstRead: { entered, release },
             changeDirectory: () => changeMemoryCaptureDirectory(source),
           }
-        : { kind: 'ordinary' },
+        : caseId === 'savedPlanCapture.readPlanInput:detached'
+          ? {
+              kind: 'capture-typed-change',
+              changeTypedDependencies: () =>
+                changeSavedPlanCaptureTypedDependencies(source.stores, DETERMINISTIC_SEED),
+            }
+          : { kind: 'ordinary' },
     close: async () => {
       release();
       await source.close();
@@ -831,6 +839,7 @@ const openers: ExistingStoreOpeners = {
   measures: (caseId) => openMemoryCase('measures', caseId),
   progress: (caseId) => openMemoryCase('progress', caseId),
   dependencies: (caseId) => openMemoryCase('dependencies', caseId),
+  typedDependencies: (caseId) => openMemoryCase('typedDependencies', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
   eventLog: (caseId) => openMemoryCase('eventLog', caseId),
   planEvents: (caseId) => openMemoryCase('planEvents', caseId),
@@ -961,6 +970,7 @@ const declaration: SourceDeclaration = {
     measures: { kind: 'offered', gaps: [measureUnknownStepGap], open: openers.measures },
     progress: { kind: 'offered', gaps: [progressUnknownStepGap], open: openers.progress },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
+    typedDependencies: { kind: 'offered', gaps: [], open: openers.typedDependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
     eventLog: { kind: 'offered', gaps: [], open: openers.eventLog },
     planEvents: { kind: 'offered', gaps: [], open: openers.planEvents },
@@ -1046,6 +1056,7 @@ function emptyMissingCapture(): PlanInputReads {
     progress: [],
     measures: [],
     dependencies: [],
+    typedDependencies: [],
     assignments: [],
     capacity: new Map(),
     priorityBands: [],
@@ -4224,7 +4235,14 @@ async function proveFault(
           journalAppender: source.journal,
           seed: DETERMINISTIC_SEED,
           readers: readersOf(source),
-          scenario: { kind: 'ordinary' },
+          scenario:
+            caseId === 'savedPlanCapture.readPlanInput:detached'
+              ? {
+                  kind: 'capture-typed-change',
+                  changeTypedDependencies: () =>
+                    changeSavedPlanCaptureTypedDependencies(source.stores, DETERMINISTIC_SEED),
+                }
+              : { kind: 'ordinary' },
           close: () => source.close(),
         });
       };
@@ -4241,6 +4259,7 @@ async function proveFault(
         measures: (caseId) => takeFixture('measures', caseId),
         progress: (caseId) => takeFixture('progress', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
+        typedDependencies: (caseId) => takeFixture('typedDependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
         planEvents: (caseId) => takeFixture('planEvents', caseId),
