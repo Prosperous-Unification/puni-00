@@ -38,9 +38,11 @@ import {
   NETWORK,
   PORT,
   psColorsFrom,
+  relationshipTypesCommand,
   revokeAliasCommands,
   ROOT,
   SHARED_ENV_PATH,
+  storedRelationshipTypesCommand,
   tierComposeContext,
   tierComposeFile,
   tierEnvFiles,
@@ -504,6 +506,7 @@ export async function startGreen(
 // backwards. See the boundary enforced in `execute`'s per-step try/catch.
 const ABORTABLE_STEPS: ReadonlySet<SwapStep> = new Set<SwapStep>([
   'start-green',
+  'relationship-types',
   'migrate',
   'health-gate',
   'grant-alias',
@@ -524,6 +527,45 @@ export interface SwapExecutionIo {
 }
 
 const PRODUCTION_SWAP_IO: SwapExecutionIo = { sh, readPhase, writePhase, writeAtomic };
+
+/** Parses the incoming release's declared relationship types at the Docker output boundary. */
+function parseSupportedTypes(output: string): string[] {
+  const parsed: unknown = JSON.parse(output);
+  if (!Array.isArray(parsed))
+    throw new Error('incoming release reported malformed supported relationship types');
+  return parsed.map((type: unknown) => {
+    if (typeof type !== 'string')
+      throw new Error('incoming release reported malformed supported relationship types');
+    return type;
+  });
+}
+
+interface StoredRelationshipType {
+  type: string;
+  count: number;
+}
+
+/** Parses distinct SQLite types and counts at the Docker output boundary. */
+function parseStoredTypes(output: string): StoredRelationshipType[] {
+  const parsed: unknown = JSON.parse(output);
+  if (!Array.isArray(parsed))
+    throw new Error('database reported malformed stored relationship types');
+  return parsed.map((row: unknown) => {
+    if (
+      row === null ||
+      typeof row !== 'object' ||
+      !('type' in row) ||
+      typeof row.type !== 'string' ||
+      !('count' in row) ||
+      typeof row.count !== 'number' ||
+      !Number.isSafeInteger(row.count) ||
+      row.count <= 0
+    ) {
+      throw new Error('database reported malformed stored relationship types');
+    }
+    return { type: row.type, count: row.count };
+  });
+}
 
 export async function execute(
   plan: SwapPlan,
@@ -688,6 +730,24 @@ export async function execute(
       switch (step) {
         case 'start-green': {
           await startGreen(tier, to, image, phasePath);
+          break;
+        }
+
+        case 'relationship-types': {
+          const supported = parseSupportedTypes(await io.sh(relationshipTypesCommand(greenName)));
+          const stored = parseStoredTypes(await io.sh(storedRelationshipTypesCommand(greenName)));
+          // Proof: replacing this comparison with `stored.filter(() => false)` made
+          // `refuses FS-only code with stored FF before migration and stops green`
+          // fail on `Expected value: StringContaining "FF (2)"; Unable to find property`.
+          const unsupported = stored.filter((row) => !supported.includes(row.type));
+          if (unsupported.length > 0) {
+            throw new Error(
+              `stored relationship types unsupported by ${greenName}: ${unsupported.map((row) => `${row.type} (${String(row.count)})`).join(', ')}. ` +
+                'Save and remove these rows losslessly with typed-dependency-rollback-cli.ts save|remove, ' +
+                'then rerun deploy; restore after redeploying a compatible release. ' +
+                'See docs/runbook-prod-deploy.md#typed-dependency-rollback',
+            );
+          }
           break;
         }
 

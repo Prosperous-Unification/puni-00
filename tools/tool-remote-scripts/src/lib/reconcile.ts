@@ -12,6 +12,7 @@ export interface Observed {
 
 export type SwapStep =
   | 'start-green'
+  | 'relationship-types'
   | 'migrate'
   | 'health-gate'
   | 'grant-alias'
@@ -52,7 +53,7 @@ export function planSwap(tier: Tier, observed: Observed): SwapPlan {
   const steps: SwapStep[] = ['start-green'];
   // Migrations run as a discrete step before green takes traffic, so a failure
   // aborts with the old colour untouched and un-migrated.
-  if (tier === 'be') steps.push('migrate');
+  if (tier === 'be') steps.push('relationship-types', 'migrate');
   steps.push('health-gate');
   // gw-01 reads BE_URL once at startup, so a be swap moves a stable network
   // alias (be-01.internal) rather than reconfiguring gw. Granting it to the

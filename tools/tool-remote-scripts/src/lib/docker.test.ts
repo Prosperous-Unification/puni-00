@@ -1,6 +1,9 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { renderTemplate, tierComposeTmpl } from '@tools/compose';
+import { scratchSync } from '@tools/test-scratch';
+import { Database } from 'bun:sqlite';
 import { describe, expect, it } from 'bun:test';
 
 import {
@@ -20,11 +23,13 @@ import {
   migrateStatusCommand,
   NETWORK,
   psColorsFrom,
+  relationshipTypesCommand,
   revokeAliasCommands,
   ROOT,
   SHARED_ENV_PATH,
   SOLVER_SUPERVISOR_CONTAINER_DIRECTORY,
   SOLVER_SUPERVISOR_HOST_DIRECTORY,
+  storedRelationshipTypesCommand,
   tierComposeContext,
   tierComposeFile,
   tierEnvFiles,
@@ -33,6 +38,64 @@ import {
 } from './docker';
 
 const DIGEST = 'sha256:' + 'a'.repeat(64);
+
+describe('relationship type commands', () => {
+  it('treats an absent reader CLI as exactly FS', async () => {
+    const directory = scratchSync('wbs-reader-types-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      const command = relationshipTypesCommand('be-01-green');
+      expect(command.slice(0, 4)).toEqual(['exec', 'be-01-green', 'sh', '-c']);
+      const probe = Bun.spawn(['sh', '-c', command[4]], { cwd: directory, stdout: 'pipe' });
+      expect(await probe.exited).toBe(0);
+      expect(JSON.parse(await new Response(probe.stdout).text())).toEqual(['FS']);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('does not treat a missing source directory as an older release', async () => {
+    const directory = scratchSync('wbs-reader-unavailable-');
+    try {
+      const command = relationshipTypesCommand('be-01-green');
+      const probe = Bun.spawn(['sh', '-c', command[4]], { cwd: directory });
+      expect(await probe.exited).toBe(74);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('reads stored types from SQLite and treats an absent table as empty', async () => {
+    const directory = scratchSync('wbs-stored-types-');
+    try {
+      const path = join(directory, 'wbs.db');
+      const db = new Database(path);
+      const command = storedRelationshipTypesCommand('be-01-green');
+      expect(command.slice(0, 4)).toEqual(['exec', 'be-01-green', 'bun', '-e']);
+      const readTypes = async () => {
+        const probe = Bun.spawn(['bun', '-e', command[4]], {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const output = await new Response(probe.stdout).text();
+        expect(await probe.exited).toBe(0);
+        const parsed: unknown = JSON.parse(output);
+        return parsed;
+      };
+      expect(await readTypes()).toEqual([]);
+      db.run('CREATE TABLE typed_dependency (type text NOT NULL)');
+      db.run("INSERT INTO typed_dependency (type) VALUES ('FF'), ('FF'), ('FS')");
+      expect(await readTypes()).toEqual([
+        { type: 'FF', count: 2 },
+        { type: 'FS', count: 1 },
+      ]);
+      db.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
 
 /**
  * The prod layout is not "whatever envLayout returns for prod" — it is the set

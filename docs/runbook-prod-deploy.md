@@ -82,6 +82,16 @@ run it until it prints `step codes backfilled: <n>`, then rerun the deploy to re
 
 ## Typed dependency rollback
 
+**Code rollback with SS/FF rows.** The `be` swap reads the incoming binary's
+supported types and the shared database before migration or routing. An older
+image without `relationship-types-cli.ts` is treated as FS-only. If it refuses
+SS/FF rows, stop all typed-dependency writers, then use the currently compatible
+container to `save` and `remove` the rows with the commands below. Copy the
+saved file off the host and keep it secure. Rerun the code deploy; no schema
+rollback is needed for this case. After deploying a compatible reader again,
+`restore` the saved rows with the command below. `remove` verifies that its
+saved set exactly matches the table before deleting anything.
+
 Rolling back past `20260927213000_add_typed_dependency` refuses while `typed_dependency` holds
 rows: the older release cannot read them, and `down.sql` will not drop them silently. The
 refusal reads `CHECK constraint failed: typed dependencies exist: …`. The procedure is lossless.

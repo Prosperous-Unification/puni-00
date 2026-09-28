@@ -69,6 +69,10 @@ describe('planSwap', () => {
 
   it('includes migrate and grant-alias for be, in that order, before routing', () => {
     const plan = planSwap('be', base);
+    expect(plan.steps.indexOf('relationship-types')).toBeGreaterThan(
+      plan.steps.indexOf('start-green'),
+    );
+    expect(plan.steps.indexOf('relationship-types')).toBeLessThan(plan.steps.indexOf('migrate'));
     expect(plan.steps).toContain('migrate');
     expect(plan.steps.indexOf('migrate')).toBeLessThan(plan.steps.indexOf('health-gate'));
     expect(plan.steps.indexOf('grant-alias')).toBeLessThan(plan.steps.indexOf('render-route'));
