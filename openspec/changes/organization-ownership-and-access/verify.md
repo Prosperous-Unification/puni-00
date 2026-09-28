@@ -543,6 +543,23 @@ Branch `batch-9/010-5-2-orgs-18`, stacked on slice 19. There is no migration, be
 
 The grant is refused for another actor or another project (`plan-command-admission.test.ts`). The mounted cases show three more things: a batch that fails at its second command, a refused batch and a failed undo each leave no record, and a creator's ordinary batch leaves none.
 
+## Slice 21 — identity resolution after activation (task 2.3)
+
+Branch `batch-9/010-5-2-orgs-19`, stacked on slice 20. There is no migration.
+
+| Check                                        | Injected fault                            | Observed failure (2026-09-28)                                                                                                                                                      |
+| -------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Activated logins resolve through the mapping | marker branch skipped (legacy email link) | `oidc-identity.controller.db.test.ts` `refuses an unmapped identity whose verified email an account holds, issuing no session`: 302 as `legacy`; five `user-oidc.db.test.ts` cases |
+| Email never selects an account               | email-holder refusal skipped              | the same mounted case: 302 with a new account; `user-oidc.db.test.ts` store case                                                                                                   |
+| Legacy pair mapped at activation             | unmapped-legacy throw skipped             | `throws on a legacy pair activation never mapped`: a second account                                                                                                                |
+| Mapping names a user                         | dangling-owner throw skipped              | `throws on a mapping to no user and on one its user disagrees with`                                                                                                                |
+| Mapping agrees with the user's pair          | disagreement throw skipped                | same case                                                                                                                                                                          |
+| Issuer and subject non-empty                 | empty check skipped                       | `throws on an empty issuer or subject`: an account created                                                                                                                         |
+| Backfill refuses half or empty pairs         | check skipped                             | `external-identity.db.test.ts` `refuses a half or empty legacy pair, mapping nothing`                                                                                              |
+| Backfill refuses a pair owned by another     | owner check skipped                       | `refuses a pair already mapped to another user, mapping nothing`                                                                                                                   |
+
+A broken marker throws before any resolution (`throws on a broken marker instead of resolving as before activation`). The marker is read on every call (`reads the marker on every call, so activation needs no restart`).
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

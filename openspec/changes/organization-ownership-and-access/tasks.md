@@ -11,7 +11,18 @@
 
 - [x] 2.1 Bridge new legacy-era writes for projects and directory roots, then idempotently backfill them. Red: mixed-version writes and preserved references. Fault: omit a bridge write; observe zero-unmapped reconciliation fail, restore and add `Proof:`. Done as SQLite triggers switched off by the activation marker (Astra, 2026-09-27), covering all eight root kinds including saved plans; `findCatalogNameDrift` adds name-equality reconciliation.
 - [x] 2.2 Bridge saved plans, allowances, dependencies, imports, journal/history, schedule snapshots and events; reconcile after old writers drain. Red: late writes in each family map to the legacy organization without losing effective rights. Fault: inject a late unbound dependency or history record; observe activation refusal, restore and add `Proof:`. Done as `findOwnershipConflicts`: dependents derive their owner from their root, so the triggers of 2.1 already cover late writes and 21 queries report dependents whose ends disagree, plus event streams that resolve to no mapped project. No allowance table exists. Command-journal payloads and captured schedule bodies are not parsed; 7.1 preflight owns them.
-- [ ] 2.3 Resolve Auth0 issuer/subject and first-party identity to stable local IDs. Red: collision, absent and malformed trusted identity mapping. Fault: replace mapping with an email match; observe mounted collision refusal fail, restore and add `Proof:`.
+- [x] 2.3 Resolve Auth0 issuer/subject and first-party identity to stable local IDs. Red: collision, absent and malformed trusted identity mapping. Fault: replace mapping with an email match; observe mounted collision refusal fail, restore and add `Proof:`.
+  - Slice 21 (Astra design call, 2026-09-28):
+    - `UserRepository.resolveOidcIdentity` reads the activation marker inside its own immediate transaction, on every call.
+    - Before activation, resolution is unchanged, including the legacy email-shaped username link.
+    - After activation a pair resolves through `external_identity` alone:
+      - a mapped pair answers its user;
+      - an unmapped pair whose verified email an account holds is a collision, and the callback answers 409;
+      - any other unmapped pair creates a user and its mapping together;
+      - an unmapped legacy pair, a dangling or disagreeing mapping, and an empty issuer or subject each throw.
+    - `backfillExternalIdentities` copies every legacy pair and keeps its local ID. Task 7.1 owes running it in the activation transaction.
+    - First-party password identity needs no mapping: a password login and a signed session already resolve to the same `users.id`.
+    - No migration: the table and its unique index exist since `20260927120000_add_organization_records`.
 - [ ] 2.4 Bind browser active organization to WBS session and current membership. Red: zero/one/multiple memberships, forged header, and revoked live session. Fault: bypass membership recheck; observe mounted protected-route test fail, restore and add `Proof:`.
   - Groundwork, slice 17 (Astra design call, 2026-09-28): a read-only selection preview over an explicit database copy. It is `previewOrganizationSelection` and `organization-selection-preview-cli.ts` on `openReadOnlyConnection`. For each local user it reports `onboarding_required` or `selection_required` with the candidates, and never chooses one. It fails on a missing file, a broken marker or a malformed role, and leaves the file byte for byte as it was. Production still wires `NO_BOUND_ORGANIZATION`.
   - Open, per the design call:
