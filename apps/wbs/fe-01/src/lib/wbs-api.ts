@@ -1959,6 +1959,9 @@ export const STEP_REFUSALS: RefusalWords = {
     taken: 'That name is already a step on this plan.',
     name_required: 'A step needs a name.',
     invalid_allowance: 'Invalid allowance. Enter 0–1000 with at most two decimal places.',
+    // Proof: without this sentence, `says why an allowance past the calendar was
+    // refused` (steps-panel.test.tsx) found no sentence; watched 2026-09-28.
+    calendar_range: 'That allowance would push the plan past the last date the calendar supports.',
     in_use: 'That step still holds estimates or assignments on this plan.',
     unknown_step: 'That step is no longer on this plan — somebody else removed it.',
     not_found: 'That step is no longer on this plan.',

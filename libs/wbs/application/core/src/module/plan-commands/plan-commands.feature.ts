@@ -29,6 +29,7 @@ import type { DirectoryService } from '../../service/directory.service';
 import type { DirectoryUsage } from '../../service/directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
 import type { PriorityBandService } from '../../service/priority-band.service';
+import type { StepService } from '../../service/step.service';
 import type { WorkItemRefusal } from '../../service/work-item.service';
 import type {
   Collected,
@@ -39,9 +40,13 @@ import type {
 import { applyCommand, bindCommands, CommandContext, CommandRefused } from './command-bindings';
 import { createWorkingPlan } from './working-plan.resource';
 
-/** The four services a command batch can invoke. */
+/**
+ * The services a command batch can invoke, and `steps` for the
+ * {@link BatchPrelude} a step edit renames through.
+ */
 export interface PlanCommandServices {
   workItems: WorkItemService;
+  steps: StepService;
   directory: DirectoryService;
   capacity: CapacityService;
   priorityBands: PriorityBandService;
@@ -142,6 +147,21 @@ export interface WholeBatchRefusal {
 /** What a batch run through the caller's access answers. */
 export type ScopedBatchOutcome = BatchOutcome | WholeBatchRefusal;
 
+/**
+ * A write that is not a command but must settle with a batch: a step rename
+ * sent in the same edit as its allowance. It runs first, in the batch's unit
+ * of work and through the batch's own graph, so what it announces leaves only
+ * if the batch commits. It answers null to let the batch run, or a refusal,
+ * which rolls it back and answers instead of the batch. It is not journalled.
+ */
+export type BatchPrelude<R> = (graph: PlanCommandServices) => Promise<R | null>;
+
+/** A batch whose {@link BatchPrelude} refused: nothing it or the batch wrote remains. */
+export interface PreludeRefusal<R> {
+  ok: false;
+  prelude: R;
+}
+
 export interface PlanCommandRunnerOptions {
   /**
    * The batch's own service graph, built **per batch** over the admitted scope
@@ -176,7 +196,12 @@ export interface PlanCommandRunnerOptions {
   announcements: Broadcaster;
 }
 
-/** Commands that can lengthen or reorder the placed plan's calendar horizon. */
+/**
+ * Commands that can lengthen or reorder the placed plan's calendar horizon.
+ * Proof: without `setStepAllowance` here, `is a typed 422 over HTTP and in a
+ * batch, and changes nothing` (step-allowance-edit.controller.db.test.ts)
+ * stored +1000% and answered 200; watched 2026-09-28.
+ */
 const CALENDAR_AFFECTING_KINDS: ReadonlySet<PlanCommandKind> = new Set([
   'patchWorkItem',
   'duplicateWorkItem',
@@ -242,6 +267,20 @@ export class PlanCommandRunner {
   }
 
   /**
+   * {@link runWithin}, with `prelude` written first in the same unit of work:
+   * the batch and the prelude's write settle together or not at all.
+   */
+  runAfterWithin<R>(
+    projectId: string,
+    actorId: string,
+    prelude: BatchPrelude<R>,
+    commands: readonly PlanCommand[],
+    access: ResourceAccess,
+  ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
+    return this.execute(projectId, actorId, commands, access, prelude);
+  }
+
+  /**
    * {@link runDirectory} through the caller's access. Under scoped access a
    * viewer is refused, and every directory command writes only the
    * organization's own entries under their organization-local names: see
@@ -293,18 +332,32 @@ export class PlanCommandRunner {
    * to open inside the unit of work's act and close before its decision, so
    * what it collects is exactly the writes that decision is about.
    */
-  private async execute(
+  private execute(
     projectId: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
-  ): Promise<ScopedBatchOutcome> {
+  ): Promise<ScopedBatchOutcome>;
+  private execute<R>(
+    projectId: string | null,
+    actorId: string,
+    commands: readonly PlanCommand[],
+    access: ResourceAccess,
+    prelude: BatchPrelude<R>,
+  ): Promise<ScopedBatchOutcome | PreludeRefusal<R>>;
+  private async execute<R>(
+    projectId: string | null,
+    actorId: string,
+    commands: readonly PlanCommand[],
+    access: ResourceAccess,
+    prelude?: BatchPrelude<R>,
+  ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
     // This batch's own collector and its own graph over it. Two batches never
     // share either, and no route's graph is built over this one.
     // Proof: reusing a constructor-owned collector made compose.test.ts receive
     // the same AnnouncementCollector for two batches at its identity assertion.
     const collector = new AnnouncementCollector(this.opts.announcements);
-    type Applied = ScopedBatchOutcome | Collected<AppliedCommand[]>;
+    type Applied = ScopedBatchOutcome | PreludeRefusal<R> | Collected<AppliedCommand[]>;
     const done = await this.opts.uow.run<Applied>(async (scope): Promise<Decision<Applied>> => {
       if (access.kind === 'scoped') {
         // Proof: skipping this admission made `answers 404 alike for a foreign
@@ -343,6 +396,13 @@ export class PlanCommandRunner {
               reason: 'too_many_commands',
             },
           };
+        }
+        // Proof: running the batch past a refused prelude set the allowance to
+        // 30 in `writes no allowance when the rename is refused`
+        // (step-allowance-edit.controller.db.test.ts); watched 2026-09-28.
+        const preludeRefusal = prelude === undefined ? null : await prelude(graph);
+        if (preludeRefusal !== null) {
+          return { commit: false, value: { ok: false, prelude: preludeRefusal } };
         }
         let applied: Applied;
         const collected = await graph.workItems.collect(() =>
