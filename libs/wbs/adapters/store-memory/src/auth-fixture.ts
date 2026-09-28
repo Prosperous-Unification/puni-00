@@ -23,6 +23,13 @@ export function inMemoryUsers(
    * assert who wrote and when without a database to read audit columns from.
    */
   return {
+    /** This fixture has no activation marker or durable identity mapping. */
+    isLinkActive() {
+      return Promise.resolve(false);
+    },
+    linkPasswordIdentity() {
+      return Promise.resolve<{ kind: 'inactive' }>({ kind: 'inactive' });
+    },
     create(user, _stamp) {
       for (const existing of byId.values()) {
         if (existing.username === user.username) return Promise.resolve(null);

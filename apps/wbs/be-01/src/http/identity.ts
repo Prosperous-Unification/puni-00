@@ -1,8 +1,11 @@
+import { decodeJwt, errors } from 'jose';
+
 import {
   credentialFromHeaders,
   tokenFromHeaders,
   userFromHeaders,
 } from '../middleware/authenticated';
+import { bearerContextCredential } from '../runtime/bearer-context';
 import { declaresDelegation, type DelegationVerifier } from '../runtime/delegation';
 import type { AuthenticatedUser, AuthService } from '../service/auth.service';
 import type { IdentityResolver } from './endpoint';
@@ -13,8 +16,8 @@ import type { IdentityResolver } from './endpoint';
  * Internal callers use only the configured x-internal-auth secret and never
  * receive a user principal. Unknown verifier/account failures reject unchanged.
  * A Bearer credential declaring itself a delegation is judged by `delegation`
- * alone, for the MCP audience; its refusal is a 401 and never falls back to
- * session authentication.
+ * alone, for the fixed MCP or direct audience declared by its signed claims;
+ * its refusal is a 401 and never falls back to session authentication.
  */
 export function identityResolver(
   auth: AuthService,
@@ -90,8 +93,13 @@ async function delegatedOrSession(
   if (presented !== null && declaresDelegation(presented)) {
     // A delegation is the request's only credential: beside a session cookie,
     // which would otherwise take precedence, the request is ambiguous.
-    if (credentialFromHeaders({ cookie: flat['cookie'] }).token !== null) return null;
-    const judged = await delegation(presented, 'wbs-be-01/via-mcp-01');
+    // Proof (2026-09-28): replacing this raw-cookie check with decoded
+    // credentialFromHeaders made `issues a native direct context only for its
+    // own current membership` answer 200 for a valid cookie followed by a
+    // malformed duplicate beside its signed Bearer. A malformed sole cookie
+    // also answered 200 before this fix.
+    if (bearerContextCredential(headers) === null) return null;
+    const judged = await delegation(presented, directAudienceOf(presented));
     // Proof: falling through to the session path on a refusal failed five
     // cases of `delegation.controller.db.test.ts`, a session-key-signed
     // delegation among them; watched 2026-09-28.
@@ -103,4 +111,16 @@ async function delegatedOrSession(
   // 2026-09-28.
   if (session !== null && declaresDelegation(session)) return null;
   return userFromHeaders(auth, flat);
+}
+
+/** Dispatches a declared direct context only to its fixed verifier audience. */
+function directAudienceOf(token: string): 'wbs-be-01/direct' | 'wbs-be-01/via-mcp-01' {
+  try {
+    return decodeJwt(token).aud === 'wbs-be-01/direct'
+      ? 'wbs-be-01/direct'
+      : 'wbs-be-01/via-mcp-01';
+  } catch (cause) {
+    if (cause instanceof errors.JOSEError) return 'wbs-be-01/via-mcp-01';
+    throw cause;
+  }
 }
