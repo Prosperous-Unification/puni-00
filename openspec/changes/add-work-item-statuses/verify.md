@@ -88,6 +88,23 @@ future contract, easily reversed, and raised for the Fable review. Minor 3 (type
 descendant-step endpoint, inherited floor and deadline, all-held plan): tests added. Minor 4
 (vocabulary guard proofs): recorded above.
 
+## Astra review of slices 2–3 (2026-09-29)
+
+One Critical and six Important findings.
+
+Fixed, each with a test watched failing when the fix is removed:
+
+- **Important 2.** A last-child delete's hand-up parent is now among the undo preconditions. Removing it failed `guards the parent a last-child delete hands statements up to`: the parent's id was absent from the preconditions.
+- **Important 5.** A parent's "already in progress" check reads the full status. Using the progress-only fold instead failed `starts a held branch whose progress fold reads in progress…`, and nothing was written.
+- **Important 6.** Moving a last child away hands the agreed statements up. Skipping that failed `gives the parent a moved last child leaves the statements it agreed on`, with `readiness: null`.
+- **Important 7.** Holding a branch takes the hold off its done leaves. Skipping done leaves failed `takes the hold off a done leaf when its branch is held`, with `hold: "on_hold"`.
+
+Open, and raised for the design review. See `design.md`, "Open after the slice 3 review":
+
+- **Critical 1.** An undo can put a readiness or hold back on a row that has since become a parent. The tree read then throws.
+- **Important 3.** An older image can write a child under a leaf that holds a readiness. The swap guard compares holds only.
+- **Important 4.** The post-stop recheck refuses only after routing has moved. This is the same limitation #179's relationship-type guard has.
+
 ## Not run
 
 - The h2puni host gate; the orchestrator runs it on the integration branch.

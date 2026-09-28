@@ -2883,7 +2883,46 @@ export class WorkItemService {
             },
           }
         : undefined;
+    // The parent the row leaves, when it was that parent's last child, becomes a
+    // leaf again and takes the statements every leaf it held agreed on, as a
+    // last-child delete does.
+    const leftParentId =
+      workItem.parentId !== null &&
+      workItem.parentId !== input.parentId &&
+      rows.filter((row) => row.parentId === workItem.parentId).length === 1
+        ? workItem.parentId
+        : null;
+    const movedLeaves = subtreeOf(rows, id)
+      .map((each) => rowOf(rows, each))
+      .filter((row) => !rows.some((child) => child.parentId === row.id));
+    const leftAgreed =
+      leftParentId === null
+        ? undefined
+        : {
+            readiness: agreedOn(movedLeaves.map((row) => row.readiness)),
+            hold: agreedOn(movedLeaves.map((row) => row.hold)),
+          };
+    const statementsHandedUp =
+      leftParentId !== null &&
+      leftAgreed !== undefined &&
+      (leftAgreed.readiness !== null || leftAgreed.hold !== null)
+        ? {
+            forward: { do: 'patch' as const, workItemId: leftParentId, patch: leftAgreed },
+            inverse: {
+              do: 'patch' as const,
+              workItemId: leftParentId,
+              patch: { readiness: null, hold: null },
+            },
+          }
+        : undefined;
     await this.opts.workItems.move(id, input.parentId, placed.position, placed.renumbered, stamp);
+    if (statementsHandedUp !== undefined) {
+      // Proof: this write skipped made `gives the parent a moved last child
+      // leaves the statements it agreed on` fail on `readiness: null` where
+      // `ready` was owed; watched 2026-09-29.
+      const handed = await this.apply(workItem.projectId, statementsHandedUp.forward, stamp);
+      if (!handed.ok) throw new Error(`cannot hand statements up: ${handed.detail}`);
+    }
     if (statementsCleared !== undefined) {
       // Proof: this write skipped made `clears the readiness and hold of a leaf
       // another row moves under…` fail on `parent … holds a readiness or a
@@ -2894,21 +2933,33 @@ export class WorkItemService {
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'move', `move ${quoteName(workItem.name)}`, {
       forward: withPatchStep(
-        { do: 'move', workItemId: id, parentId: input.parentId, afterId: input.afterId },
+        withPatchStep(
+          { do: 'move', workItemId: id, parentId: input.parentId, afterId: input.afterId },
+          statementsHandedUp?.forward,
+          'after',
+        ),
         statementsCleared?.forward,
         'after',
       ),
       inverse: withPatchStep(
-        {
-          do: 'move',
-          workItemId: id,
-          parentId: workItem.parentId,
-          afterId: wasAfter?.id ?? null,
-        },
+        withPatchStep(
+          {
+            do: 'move',
+            workItemId: id,
+            parentId: workItem.parentId,
+            afterId: wasAfter?.id ?? null,
+          },
+          statementsHandedUp?.inverse,
+          'before',
+        ),
         statementsCleared?.inverse,
         'before',
       ),
-      touched: statementsCleared === undefined ? [id] : [id, statementsCleared.forward.workItemId],
+      touched: [
+        id,
+        ...(statementsCleared === undefined ? [] : [statementsCleared.forward.workItemId]),
+        ...(statementsHandedUp === undefined ? [] : [statementsHandedUp.forward.workItemId]),
+      ],
       before: rows,
     });
     return { ok: true, value: null };
@@ -3471,7 +3522,16 @@ export class WorkItemService {
         // are best-effort by design, and refusing to put a whole branch back
         // because somebody renamed a neighbour would strand the work for a
         // reason that has nothing to do with it.
-        touched: handedUp.map((each) => each.workItemId),
+        // Proof: the hand-up parent left out made `guards the parent a last-child
+        // delete hands statements up to` fail — its id was absent from the
+        // entry's preconditions, so a later edit to it would not make the undo
+        // stale; watched 2026-09-29.
+        touched: [
+          ...new Set([
+            ...handedUp.map((each) => each.workItemId),
+            ...(handUpStep === undefined ? [] : [handUpStep.forward.workItemId]),
+          ]),
+        ],
         before: rows,
       });
       return { ok: true, value: null };
@@ -4476,11 +4536,26 @@ export class WorkItemService {
       // Received: {ok: true}`; watched 2026-09-29.
       if (readsDone(id)) return { ok: false, reason: 'cannot_hold_done' };
       for (const leafId of leaves) {
-        if (!readsDone(leafId)) patchRow(leafId, { hold: status });
+        // A done leaf keeps no hold: one held before it finished loses it here.
+        // Proof: done leaves skipped outright made `takes the hold off a done
+        // leaf when its branch is held` fail on `hold: "on_hold"`; watched
+        // 2026-09-29.
+        patchRow(leafId, { hold: readsDone(leafId) ? null : status });
       }
     } else if (!leaves.includes(id)) {
       // `in_progress` on a parent: one leaf starts, the rest are untouched.
-      if (wasDone.get(id) === 'in_progress') return { ok: true, value: null };
+      // The status the row reads, holds and the graph included: a held branch
+      // whose progress fold says in progress is not already started.
+      // Proof: the progress-only fold consulted here made `starts a held branch
+      // whose progress fold reads in progress…` fail — nothing was written;
+      // watched 2026-09-29.
+      const reading = workItemStatusesOf(rows, wasDone, {
+        edges: (await this.opts.dependencies.listByProject(workItem.projectId)).filter(
+          (edge) => rowsById.has(edge.predecessorId) && rowsById.has(edge.successorId),
+        ),
+        typed: await this.opts.typedDependencies.listByProject(workItem.projectId),
+      });
+      if (reading.get(id) === 'in_progress') return { ok: true, value: null };
       if (readsDone(id)) {
         const first = leaves.at(0);
         if (first === undefined) throw new Error(`parent ${id} reads done with no leaf`);

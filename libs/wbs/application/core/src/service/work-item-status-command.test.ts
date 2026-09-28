@@ -16,6 +16,7 @@ let progress: StepProgressStore;
 let service: WorkItemService;
 let projectId: string;
 let entries = 0;
+let lastPreconditions: unknown = null;
 
 async function newProject(withSteps: boolean): Promise<string> {
   const project: Project = projectRow({ id: crypto.randomUUID(), ownerId: OWNER });
@@ -54,6 +55,7 @@ beforeEach(async () => {
       ...store,
       async append(entry, event) {
         entries += 1;
+        lastPreconditions = entry.preconditions;
         await store.append(entry, event);
       },
     },
@@ -344,5 +346,54 @@ describe('structural edits carry readiness and hold with the leaf', () => {
     await set(strip, 'on_hold');
     expect((await service.remove(middle, OWNER, 'cascade')).ok).toBe(true);
     expect(await rowOf('Branch')).toMatchObject({ readiness: null, hold: null });
+  });
+});
+
+describe('review follow-ups', () => {
+  it('gives the parent a moved last child leaves the statements it agreed on', async () => {
+    const branch = await add('Branch');
+    const strip = await add('Strip', branch);
+    await set(strip, 'ready');
+    expect((await service.move(strip, OWNER, { parentId: null, afterId: null })).ok).toBe(true);
+    expect(await rowOf('Branch')).toMatchObject({ readiness: 'ready', hold: null });
+    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
+    expect(await rowOf('Branch')).toMatchObject({ readiness: null, status: 'ready' });
+  });
+
+  it('starts a held branch whose progress fold reads in progress but whose status does not', async () => {
+    const branch = await add('Branch');
+    const strip = await add('Strip', branch);
+    const sand = await add('Sand', branch);
+    await set(strip, 'in_progress');
+    await set(branch, 'on_hold');
+    expect(await rowOf('Branch')).toMatchObject({ status: 'on_hold' });
+
+    expect((await set(branch, 'in_progress')).ok).toBe(true);
+    const after = await rows();
+    // Sand leads Strip in tree order and is the only silent leaf.
+    expect(after.get('Sand')).toMatchObject({ hold: null, progress: { [DEV]: 'in_progress' } });
+    expect(sand).toBeDefined();
+  });
+
+  it('takes the hold off a done leaf when its branch is held', async () => {
+    const branch = await add('Branch');
+    const strip = await add('Strip', branch);
+    await add('Sand', branch);
+    await set(strip, 'on_hold');
+    await service.setProgress(strip, OWNER, DEV, 'done');
+    await service.setProgress(strip, OWNER, QA, 'done');
+    expect((await set(branch, 'blocked')).ok).toBe(true);
+    expect(await rowOf('Strip')).toMatchObject({ status: 'done', hold: null });
+  });
+
+  it('guards the parent a last-child delete hands statements up to', async () => {
+    const branch = await add('Branch');
+    const strip = await add('Strip', branch);
+    await set(strip, 'ready');
+    expect((await service.remove(strip, OWNER, 'cascade')).ok).toBe(true);
+    expect(await rowOf('Branch')).toMatchObject({ readiness: 'ready' });
+    // The parent the statements went to is one the undo checks, so somebody
+    // else's later edit to it makes the undo stale rather than overwritten.
+    expect(JSON.stringify(lastPreconditions)).toContain(branch);
   });
 });

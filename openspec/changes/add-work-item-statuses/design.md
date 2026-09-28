@@ -64,3 +64,18 @@ status is set by one act for every settable status": a parent starts one leaf an
 its hold, a done leaf reopens its last step, and a project with no steps refuses `409
 no_steps` for `in_progress` and, new in slice 3, for `done`. On a parent reading done, the
 parent's own fact end (filled by today's `setStatus done`) is cleared with its first leaf's.
+
+## Open after the slice 3 review
+
+All three findings trace to one rule: the tree read throws when a parent holds a readiness or hold. Two paths can still leave one there:
+
+- **Critical 1.** An undo can restore a statement on a row that has since gained a child.
+- **Important 3.** An older image can create or move a child under a ready leaf.
+
+The options, for the design authority:
+
+- **A. Keep the invariant strict.** The read refuses a parent with statements. Undo and redo validate the replayed tree and refuse `stale_undo`. The swap guard also compares stored readiness on parents.
+- **B. Make parent statements dormant.** The read ignores readiness and hold on a row with children. Writers still clear or hand them down, and they return when the row is a leaf again. An older writer and an undo can then no longer break a read. This loosens "never stored on a parent" into "never read on a parent".
+- **C. Render a query-failure state instead of throwing.** Parent statements stay invalid, but the plan cannot be opened until an operator repairs it.
+
+**Important 4** is separate. The post-stop recheck of every stored vocabulary refuses only after routing has moved to green; #179's relationship-type guard shares this limitation. Fencing writers across the final comparison would fix both.
