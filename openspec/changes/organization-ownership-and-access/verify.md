@@ -154,6 +154,183 @@ A deleted project's retained stream is reported rather than guessed. Its retenti
 
 Command: `env -u CLAUDECODE bun test src/organization-reconciliation.db.test.ts`: 23 pass.
 
+## Slice 7 — project boundary (task 3.1)
+
+Branch `batch-9/010-5-2-orgs-6`, stacked on slice 6. Design call: Astra, saved in the lane records as `010-5-2-orgs-task-3.1-design.md`.
+
+- Every project route (`list`, `read`, `opened`, `create`, `PATCH`, `export`, and the optimization `retry`) resolves `OrganizationAccess` before any lookup.
+- `SqliteOrganizationAccess` re-reads the activation marker on every request:
+  - an explicit `pre_activation` answers `legacy`, which is the old deployment-wide behaviour;
+  - a broken marker throws, and the request answers 500;
+  - after activation, the session's bound organization must still list the user. No binding answers typed 403 `no_active_organization`, and no current membership answers 403 `not_a_member`.
+- Scoped reads, and the ownership predicate inside each scoped write (`updateInOrganization`, `recordOpenInOrganization`), go through `project_organization`. A foreign project and an absent one both answer the same 404. Scoped creation writes the ownership row in the project's own transaction.
+- Viewers may read and open but not write. A restricted project stays creator-only.
+- Inert: production wires `NO_BOUND_ORGANIZATION` until task 2.4. After activation every project route would answer 403, so activation (7.1) must wait for 2.4.
+- Not in this slice:
+  - The super-admin recovery override: it must be audited, so 3.7 owns it. Until then it fails closed.
+  - `readBySolutionSlug`, and the saved-plan routes' project reads: 3.5 and 3.6.
+  - Export's tree and references beyond the project itself: 3.5.
+  - Solution links: slugs are still unique across the deployment, so a collision would reveal another organization's project. After activation, setting `solutionRef` is refused with 403 `forbidden` until 3.5 scopes solution references. Clearing a link stays allowed.
+- A stored membership role outside the four known roles throws, and the request answers 500.
+- No project delete endpoint exists.
+
+| Check                                  | Injected fault                                                 | Observed failure (2026-09-27)                                                                                                                    |
+| -------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Viewer write policy                    | `canWriteInOrganization` answers `true`                        | `refuses a viewer every project write and lets the viewer read and open`                                                                         |
+| Restricted creator rule                | `canEditProjectInOrganization` drops `canEditProject`          | `lets only the creator edit a restricted project, super-admin included`: the super-admin PATCH answered the renamed project                      |
+| Scoped create refusal                  | viewer check in `createWithin` disabled                        | the viewer case                                                                                                                                  |
+| Scoped edit policy                     | `authorizeEdit` uses legacy `canEditProject` for scoped access | the viewer case                                                                                                                                  |
+| Scoped find                            | `findInOrganization` predicate made tautological               | `answers 404 alike for a foreign and an absent project, and changes nothing`: the foreign read answered 200                                      |
+| Scoped list                            | `listForInOrganization` predicate removed                      | `lists only the active organization's projects`: `B plan` listed                                                                                 |
+| Scoped create mapping                  | `project_organization` insert skipped                          | `creates a project only its own organization can see`: the creator's read answered 404                                                           |
+| Marker read per request                | `resolve` answers `legacy` without the marker                  | `scopes the same running app once another connection activates isolation`                                                                        |
+| Current membership                     | membership lookup bypassed                                     | `refuses a removed member on the next request`: 200                                                                                              |
+| Export reads through access            | export reads with unscoped `projects.read`                     | the 404 case: the foreign Markdown answered 200                                                                                                  |
+| Production wiring                      | `boot.ts` wires legacy access                                  | `boot.db.test.ts` `refuses the project list after activation until a session binds an organization`: 200                                         |
+| No bound organization                  | `resolve` answers `legacy` for an unbound session              | `refuses a session bound to no organization before any lookup`: the list answered 200                                                            |
+| Stored role validated                  | `validateStoredRole` returns the value unchecked               | `fails as a server error on a malformed membership role`: 200 instead of 500                                                                     |
+| Solution link refused after activation | scoped `solutionRef` refusal disabled                          | `refuses a solution link that could reveal another organization's project`: 500 for the foreign slug, where 403 was expected                     |
+| Scoped update in the write             | `updateInOrganization` ownership predicate dropped             | `project.db.test.ts` `records an open and a write only while the organization owns the project`: the foreign rename was answered instead of null |
+| Scoped open in the write               | `recordOpenInOrganization` ownership check dropped             | same case: `true` for the foreign open                                                                                                           |
+
+Commands, all under `env -u CLAUDECODE`:
+
+- `bun test` in `apps/wbs/be-01`: 1157 pass, 0 fail (1158 tests across 98 files).
+- wbs-core: 629 pass.
+- store-sqlite: 929 pass. `audit.test.ts` exempts `projectOrganization`, which carries no audit columns.
+- store-memory: 113 pass.
+- domain: 692 pass.
+- contracts: 397 pass.
+- mcp-01: 212 pass.
+- fe-01 vitest, 6 refusal and project files: 129 pass.
+
+## Slice 8 — directory lists (task 3.2)
+
+Branch `batch-9/010-5-2-orgs-7`, stacked on slice 7. Design call: Astra, saved in the lane records as `010-5-2-orgs-task-3.2-design.md`.
+
+- The six directory list routes resolve `OrganizationAccess` before any read, using `DirectoryService.listWithin`.
+- Under scoped access, `DirectoryStore.listInOrganization` reads only the organization's side-table rows, under their organization-local display names, ordered by them. Two organizations can each show `urgent` over distinct opaque root names.
+- A person's `teamIds` and a team's `serviceIds` must be the organization's own. A crossing link is corrupt trusted state: the read throws and answers 500 rather than reveal a foreign id.
+- No directory read takes an id. Directory commands, including activated create and rename and foreign-id 404, are 3.4.
+- The mounted organization suites now share `apps/wbs/be-01/src/testing/organization-harness.ts`.
+
+| Check                               | Injected fault                                                                                          | Observed failure (`directory-organization.controller.db.test.ts`, 2026-09-27)           |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Six side-table ownership predicates | each `organization_id` predicate removed alone (people, teams, services, tags, types, external systems) | `lists only the organization's own entries under their local names`, once per predicate |
+| Side-table names                    | scoped `tags` read from the root table                                                                  | same case: both roots' token names listed                                               |
+| Scoped service path                 | `listWithin` answers the legacy list under scoped access                                                | same case: both organizations' people listed                                            |
+| Team-service owner                  | owner comparison skipped                                                                                | `refuses a team-service link that crosses organizations`: 200 instead of 500            |
+| Team-service owner present          | the service-owner left join made inner                                                                  | `refuses a team-service link whose service has no owner`: 200                           |
+| Membership owner                    | owner comparison skipped                                                                                | `refuses a membership that crosses organizations`: 200 instead of 500                   |
+| Membership owner present            | the team-owner left join made inner                                                                     | `refuses a membership whose team has no owner`: 200                                     |
+| Access resolved before the read     | resolution bypassed in each of the six routes alone                                                     | `refuses an unbound session and a removed member on every list`, once per route         |
+
+Not a safety check: removing an ORDER BY does not fail `orders each list by the local name, not the root name, id or insertion`. SQLite already answers from the `(organization_id, name)` unique index in name order. The ORDER BY stays so the order does not depend on the query plan.
+
+Commands, all under `env -u CLAUDECODE`:
+
+- be-01 `bun test src`: 1163 pass and 1 fail before the tier check learned about `OrganizationHarness.open`. After that, the three organization and boot files pass 48 of 48, and `test-tiers.test.ts` passes.
+- wbs-core `bun test src`: 629. store-sqlite: 929. store-memory: 113. contracts: 397. conformance: 35. mcp-01: 212.
+- fe-01 vitest, 6 files: 149.
+- tsc passes for core, be-01, store-sqlite, store-memory, contracts, conformance, fe-01 and mcp-01.
+
+## Slice 9 — steps, calendar markers and the ownership freeze (task 3.3, part 1)
+
+Branch `batch-9/010-5-2-orgs-8`, stacked on slice 8. Design call: Astra, saved in the lane records as `010-5-2-orgs-task-3.3-design.md`.
+
+**Ownership freeze.** Migration `20260927200000_freeze_organization_ownership` adds 30 triggers over the eight side tables. The database refuses:
+
+- an UPDATE of `resource_id` or `organization_id`;
+- a DELETE while the root lives (the root's own cascade passes);
+- an INSERT for an already-mapped root, which also stops `INSERT OR REPLACE`;
+- on the six catalog tables, an INSERT or name UPDATE onto a display name another root of the organization holds, which stops `INSERT OR REPLACE` and `UPDATE OR REPLACE` from deleting that root's mapping through the `(organization_id, name)` index.
+
+The migration is additive and its `down.sql` drops all 30 triggers. Reconciliation fixtures and the ownership migration's primary-key cases run below the freeze, because they build states the freeze refuses. What this proves is narrow: each tested statement shape is refused. It does not prove that no other statement can move ownership, for example a direct write with triggers dropped.
+
+**Routes.**
+
+- The three step routes and the four calendar-marker routes resolve `OrganizationAccess` first. `StepService` and `CalendarMarkerService` gain `…Within` methods, which use the shared `findProjectWithin` and `mayEditProjectWithin`.
+- A foreign project is a 404 identical to an absent one. A foreign step or marker under the caller's own project path is a 404.
+- `StepStore.rename` now takes the project and puts it in the UPDATE's own predicate, so a check made before the write cannot be outrun. `remove` already did.
+- A viewer may list markers but not write.
+
+**Accepted residual.** A client-minted marker id that collides with another organization's marker answers 409 `taken`. The foreign marker stays unchanged, which is tested. The answer reveals only that a v4 UUID the caller already holds exists. Scoping marker ids by project would need a non-additive key change. The mounted tests do not observe broadcasts.
+
+| Check                                                   | Injected fault                                                               | Observed failure (2026-09-27)                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Each of the 30 freeze triggers                          | that trigger's `WHEN` made `0` alone                                         | `organization-ownership-freeze.db.test.ts`: that table's `refuses moving the root to another organization` (update), `refuses unmapping a live root, and a second or replacing mapping` (insert, delete) or `refuses replacing another root's display name` (catalog insert, name) |
+| Catalog name clause                                     | the `OR EXISTS … name` clause removed from each catalog insert trigger alone | `refuses replacing another root's display name`                                                                                                                                                                                                                                    |
+| Step rename in its write                                | the UPDATE addressed by step id alone                                        | `step.db.test.ts` `renames nothing of another project, whatever it is called by`                                                                                                                                                                                                   |
+| Step gate scoped                                        | `gate` finds the project unscoped                                            | `step-marker-organization.controller.db.test.ts` `answers 404 alike for a foreign and an absent project on every step and marker route`                                                                                                                                            |
+| Step add scoped                                         | `addWithin` finds the project unscoped                                       | same case                                                                                                                                                                                                                                                                          |
+| Marker gate scoped                                      | marker `gate` finds the project unscoped                                     | same case                                                                                                                                                                                                                                                                          |
+| Marker list scoped                                      | `listWithin` finds the project unscoped                                      | same case                                                                                                                                                                                                                                                                          |
+| Role rule                                               | `mayEditProjectWithin` answers the legacy rule under scoped access           | `refuses a viewer every step and marker write and lets the viewer list markers`                                                                                                                                                                                                    |
+| Access resolved first                                   | resolution bypassed in each of the seven routes alone                        | `refuses an unbound session and a removed member before any lookup`, once per route                                                                                                                                                                                                |
+| Allowance edit scoped (after main's 010.4.5 allowances) | `findWithin` admission skipped before the `setStepAllowance` command         | `refuses an allowance edit of a foreign step or project, changing nothing`: B's allowance changed from 0 to 25                                                                                                                                                                     |
+
+## Slice 10 — the schedule read (task 3.3, part 2)
+
+Branch `batch-9/010-5-2-orgs-9`, stacked on slice 9.
+
+- `GET /api/projects/:id/work-items` and `GET /api/projects/:id/step-references` resolve organization access first. Both then go through `WorkItemService.treeWithin` and `readAddressesWithin`.
+- The project export and optimizer retry now use `treeWithin` and `scheduleInputWithin`.
+- Under scoped access, `ProjectStore.findCrossReferences` runs one UNION over every relation the read follows. Owners compare with `IS NOT`, so an unowned catalog entry counts as crossing. Any hit throws, and the request answers 500 rather than scheduling on it.
+- Legacy access is unchanged. Before activation a project with crossing rows still reads (tested), because inertness wins; activation reconciliation (2.2, 7.1) refuses such data first.
+- Under scoped access, assignees carry their organization-local names.
+- Still pending for 3.5: JSON export follows assignee→team→service links through global directory reads, so it needs a scoped closure check with JSON-export negatives before activation.
+
+| Check                               | Injected fault                                                                  | Observed failure (`schedule-organization.controller.db.test.ts`, 2026-09-27)                                                                                                                                                                        |
+| ----------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Each of the 16 cross-reference arms | that arm removed from the UNION alone                                           | its own `fails the schedule read closed over a crossing <kind>` case, for 15 of them. For `work_item_parent` the tree read already throws, so the arm is proven in `project.db.test.ts` `reports a work item whose parent lies in another project`. |
+| Check only under scoped access      | the cross-reference check also run under legacy access                          | `reads any project deployment-wide, crossing rows and all`                                                                                                                                                                                          |
+| Organization-local assignee names   | `treeWithin` returns the tree's legacy names                                    | `shows assignees under the organization's own names`: `root-pe-a`                                                                                                                                                                                   |
+| Cross-reference check               | `admits` skips it under scoped access                                           | `… crossing estimate_step`: 200 instead of 500                                                                                                                                                                                                      |
+| Scoped project find                 | `admits` finds the project unscoped                                             | `answers 404 alike for a foreign and an absent project`                                                                                                                                                                                             |
+| Access resolved first               | the work-items route, and separately the step-references route, skip resolution | `refuses an unbound session and a removed member before any lookup`                                                                                                                                                                                 |
+| Export tree scoped                  | export reads `tree` unscoped                                                    | `fails the export and the optimizer retry closed over a crossing row`: 200                                                                                                                                                                          |
+| Retry input scoped                  | retry reads `scheduleInput` unscoped                                            | same case: 409 instead of 500                                                                                                                                                                                                                       |
+
+## Slice 11 — command batches, undo and redo (task 3.4, part 1)
+
+Branch `batch-9/010-5-2-orgs-10`, stacked on slice 10. Design call: Astra, 2026-09-27.
+
+- `POST /api/projects/:id/commands`, `POST /api/directory/commands`, undo and redo resolve organization access first. They then run through `PlanCommandRunner.runWithin`, `runDirectoryWithin`, `undoWithin` and `redoWithin`.
+- Under scoped access, each act's unit of work does the following:
+  - Refuses a project the organization does not own with the same plain 404 as an absent one.
+  - Refuses a viewer, or a non-creator of a restricted project, with a plain 403.
+  - Fails closed with 500 when the project already crosses its organization.
+- A batch holds every command to the organization in three ways:
+  - **Directory commands** are refused as `forbidden` at their index until part 2.
+  - **References outside the final state** are checked before the command runs: a predecessor, parent, sibling or step must be the project's own. These are references that a later closure check would not see.
+  - **After each command,** `findCrossReferences` must stay empty. Otherwise the batch is refused at that index with the matching 404 code and rolled back.
+- Undo and redo check the whole replay before writing anything. `referencesOf` collects, through nested batches, every row, claimed project, step and directory entry. A replay naming anything outside the project or organization answers `not_found` and discards nothing. A closure check after the replay stays as a backstop.
+- `findCrossReferences` also reports references **into** the project: a per-step row of another project on its step, a child row in another project, and a dependency filed under another project. Admission fails closed on them, so a write here cannot change a foreign row.
+- A capacity's team must be the organization's, clears included. A foreign team answers the same `not_found` as an absent one.
+- Astra review 1: 2 Critical and 3 Important findings (replay write set, incoming dependency, capacity clear, nested replay, stale discard), all fixed above.
+- Astra review 2: no Critical findings and 2 Important ones, both fixed. First, a patch's directory ids are checked against the organization before it runs, so a foreign id answers exactly as an absent one. Second, the replay collector now includes restored `typeIds`.
+- `ProjectCrossReference.kind` is now the closed `PROJECT_CROSS_REFERENCE_KINDS`. `crossingRefusal` maps it exhaustively.
+- Legacy access is unchanged (tested). The mounted suite runs over be-01's production composition (`OrganizationHarness.openComposed`), so rollback is real SQLite.
+
+| Check                                                                               | Injected fault                                    | Observed failure (`command-organization.controller.db.test.ts`, 2026-09-27)                                                                                                                   |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Batch admission in the unit of work                                                 | refusal ignored                                   | `answers 404 alike for a foreign and an absent project`: 200 instead of 404                                                                                                                   |
+| Role rule                                                                           | `mayEditProjectWithin` check removed              | `refuses a viewer every batch, undo and redo`: 200 instead of 403                                                                                                                             |
+| Pre-existing crossing                                                               | initial check disabled                            | `fails closed on a project that already crosses its organization`: 404 instead of 500                                                                                                         |
+| Directory commands refused                                                          | refusal removed                                   | `refuses every directory command until organization-local writes land`: 200 with the created tag                                                                                              |
+| Foreign row references                                                              | row check disabled                                | `refuses a foreign predecessor, parent, sibling and step …`: 200 instead of 404 for `removeDependency`                                                                                        |
+| Foreign step references                                                             | step check disabled alone                         | same case: 200 instead of 404 `unknown_step` for `clearEstimate`                                                                                                                              |
+| Per-command closure                                                                 | crossing refusal removed                          | `refuses a foreign service, team, tag, type, person and predecessor, all or none`: 200 instead of 404 `unknown_service`                                                                       |
+| Undo admission                                                                      | walk admission ignored                            | `refuses undo and redo of a foreign project as of an absent one`: 409 `nothing_to_undo` instead of 404                                                                                        |
+| Undo closure                                                                        | walk closure ignored                              | `rolls back an undo that would restore a foreign label`: 200 instead of 404                                                                                                                   |
+| Replay references (`referencesOf`, nested)                                          | `namesOutside` disabled                           | `refuses an undo whose entry names another project's row`, the nested foreign label and the restored foreign row: 200 instead of 404. A foreign step: 409 `stale_undo`, discarding the entry. |
+| Undo closure backstop                                                               | walk closure and `namesOutside` disabled together | `rolls back an undo that would restore a foreign label`: 200 instead of 404                                                                                                                   |
+| Capacity team, clears included                                                      | team check removed                                | `refuses clearing a foreign team's capacity as it refuses an absent team's`: 200 instead of 404                                                                                               |
+| Directory ids named by a command, before it runs                                    | pre-check removed                                 | `refuses a foreign directory id exactly as an absent one, before anything is written`: `unknown_tag` for the foreign team beside an absent tag, versus `unknown_team` for an absent team      |
+| Restored type links in replays                                                      | `typeIds` not collected                           | `… a restored row carrying a foreign type, cleared again in the same replay`: 200 instead of 404                                                                                              |
+| Incoming references (`incoming_step_row`, `incoming_parent`, `incoming_dependency`) | each arm disabled alone                           | `fails closed on a project another project reaches into, changing neither`: 200 instead of 500                                                                                                |
+| Access resolved first                                                               | project batch route skips resolution              | `refuses an unbound session and a removed member before any batch`: 200 instead of 403                                                                                                        |
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

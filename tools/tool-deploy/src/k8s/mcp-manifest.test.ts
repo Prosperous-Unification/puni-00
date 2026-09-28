@@ -104,3 +104,88 @@ describe('MCP deployment persistence', () => {
     ).toEqual([{ namespace: 'wbs', name: 'wbs-mcp-secrets', source: 'operator' }]);
   });
 });
+
+interface IngressPath {
+  readonly path: string;
+  readonly pathType: 'Exact' | 'Prefix';
+  readonly backend: { readonly service: { readonly name: string } };
+}
+
+interface IngressDocument {
+  readonly kind: string;
+  readonly spec: {
+    readonly rules: readonly {
+      readonly host: string;
+      readonly http: { readonly paths: readonly IngressPath[] };
+    }[];
+  };
+}
+
+/**
+ * The Service one overlay's Ingresses send `requestPath` to on `host`, by the Kubernetes
+ * matching rule Traefik also follows here: an Exact path beats any Prefix, and the longest
+ * element-wise Prefix wins. Undefined when nothing matches.
+ */
+function routedService(overlay: string, host: string, requestPath: string): string | undefined {
+  const paths = parseAllDocuments(
+    readFileSync(resolve(root, `deploy/k8s/wbs/overlays/${overlay}/ingress.yaml`), 'utf8'),
+  )
+    .map((document) => document.toJS() as IngressDocument)
+    .filter((document) => document.kind === 'Ingress')
+    .flatMap((document) => document.spec.rules)
+    .filter((rule) => rule.host === host)
+    .flatMap((rule) => rule.http.paths);
+  const exact = paths.find((entry) => entry.pathType === 'Exact' && entry.path === requestPath);
+  if (exact !== undefined) return exact.backend.service.name;
+  const prefix = paths
+    .filter(
+      (entry) =>
+        entry.pathType === 'Prefix' &&
+        (entry.path === '/' ||
+          requestPath === entry.path ||
+          requestPath.startsWith(`${entry.path.replace(/\/$/, '')}/`)),
+    )
+    .sort((left, right) => right.path.length - left.path.length)
+    .at(0);
+  return prefix?.backend.service.name;
+}
+
+describe('public MCP OAuth discovery ingress', () => {
+  const discovery = [
+    '/.well-known/oauth-protected-resource',
+    '/.well-known/oauth-protected-resource/mcp',
+    '/.well-known/oauth-authorization-server/mcp/oauth',
+  ];
+  const publicHosts = [
+    ['prod', 'wbs.bulletpoints.club'],
+    ['staging', 'wbs-staging.bulletpoints.club'],
+  ] as const;
+
+  // Proof: on 2026-09-27, removing the Exact /.well-known/oauth-protected-resource/mcp rule
+  // from the prod overlay failed this test with `Expected: "wbs-mcp"`, `Received:
+  // "wbs-frontend"`: the SPA fallback answered discovery, as it did live on that date.
+  it.each(publicHosts)('routes each discovery URL on %s to mcp-01', (overlay, host) => {
+    for (const path of discovery) expect(routedService(overlay, host, path)).toBe('wbs-mcp');
+  });
+
+  it.each(publicHosts)('keeps MCP, API, socket and SPA routing on %s', (overlay, host) => {
+    expect(routedService(overlay, host, '/mcp')).toBe('wbs-mcp');
+    expect(routedService(overlay, host, '/mcp/oauth/token')).toBe('wbs-mcp');
+    expect(routedService(overlay, host, '/api/projects')).toBe('wbs-backend');
+    expect(routedService(overlay, host, '/ws')).toBe('wbs-gateway');
+    expect(routedService(overlay, host, '/projects/p-1')).toBe('wbs-frontend');
+  });
+
+  it.each(publicHosts)(
+    'does not widen discovery to other well-known paths on %s',
+    (overlay, host) => {
+      for (const path of [
+        '/.well-known/openid-configuration',
+        '/.well-known/oauth-protected-resource/other',
+        '/.well-known/oauth-authorization-server',
+        '/.well-known/oauth-authorization-server/mcp/oauth/extra',
+      ])
+        expect(routedService(overlay, host, path)).toBe('wbs-frontend');
+    },
+  );
+});

@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
+import { organizationRefusal } from './organization-refusal';
 import { planDocumentResponse } from './plan-document-shapes';
 import { project, projectWithSteps } from './project-response';
 import { engineUnavailableRefusal } from './scheduler-shapes';
@@ -42,6 +43,7 @@ const bodyRefusals = [
   { status: 422, schema: responseSchema(type({ error: "'invalid_body'" })) },
 ] as const;
 const notFound = { status: 404, schema: responseSchema(type({ error: "'not_found'" })) } as const;
+const forbidden = { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) } as const;
 
 /** Creates a project with its ordered starting steps; empty names remain legal. */
 export const createProject = defineEndpointShape({
@@ -53,7 +55,7 @@ export const createProject = defineEndpointShape({
   body: requestSchema(type({ name: 'string' })),
   bodyMedia,
   responses: [{ kind: 'json', status: 200, schema: projectWithSteps }],
-  refusals: bodyRefusals,
+  refusals: [...bodyRefusals, organizationRefusal, forbidden],
   document: { summary: 'Create a project with its starting steps.' },
 });
 
@@ -76,7 +78,7 @@ export const listProjects = defineEndpointShape({
       ),
     },
   ],
-  refusals: readRefusals,
+  refusals: [...readRefusals, organizationRefusal],
   document: { summary: 'List projects in this account’s own order.' },
 });
 
@@ -91,10 +93,28 @@ export const recordProjectOpen = defineEndpointShape({
   refusals: [
     ...writeRefusals,
     notFound,
+    organizationRefusal,
     { status: 400, schema: responseSchema(type({ error: "'invalid_body'" })) },
   ],
   document: { summary: 'Record this account opening a project.' },
 });
+
+/**
+ * A JSON export of a project holding a step an older writer left uncoded mid-swap:
+ * the plan document carries every step's code, and the export never invents one.
+ * `steps` names each uncoded step; `command` is the be-01 backfill that codes
+ * them, after which the export succeeds.
+ */
+export const uncodedStepsRefusal = {
+  status: 409,
+  schema: responseSchema(
+    type({
+      error: "'uncoded_steps'",
+      steps: type({ id: 'string', name: 'string' }).array(),
+      command: 'string',
+    }),
+  ),
+} as const;
 
 /** Exports the core tree without account-specific undo flags, as JSON or unquoted Markdown. */
 export const exportProject = defineEndpointShape({
@@ -114,9 +134,11 @@ export const exportProject = defineEndpointShape({
   refusals: [
     ...readRefusals,
     notFound,
+    organizationRefusal,
     engineUnavailableRefusal,
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
     { status: 400, schema: responseSchema(type({ error: "'unsupported_format'" })) },
+    uncodedStepsRefusal,
   ],
   document: { summary: 'Export the project WBS and schedule as JSON or Markdown.' },
 });
@@ -129,7 +151,7 @@ export const readProject = defineEndpointShape({
   policies: readPolicies,
   params,
   responses: [{ kind: 'json', status: 200, schema: projectWithSteps }],
-  refusals: [...readRefusals, notFound],
+  refusals: [...readRefusals, notFound, organizationRefusal],
   document: { summary: 'Read a project and its steps.' },
 });
 
@@ -172,7 +194,8 @@ export const patchProject = defineEndpointShape({
   refusals: [
     ...bodyRefusals,
     notFound,
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    organizationRefusal,
+    forbidden,
     {
       status: 422,
       schema: responseSchema(type({ error: "'bad_start_date' | 'bad_pert_weights'" })),
@@ -219,7 +242,8 @@ export const retryProjectOptimization = defineEndpointShape({
   refusals: [
     ...bodyRefusals,
     notFound,
-    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+    organizationRefusal,
+    forbidden,
     { status: 409, schema: retryRefusal },
   ],
   document: { summary: 'Retry one failed or corrupt optimized schedule.' },

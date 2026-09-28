@@ -6,6 +6,8 @@ import {
   isIsoDate,
   isMarkerName,
   isOrphanedNotBeforeReason,
+  isReservedStepCode,
+  isStepCode,
   isStepState,
   LONGEST_NOT_BEFORE_REASON,
   MEASURE_METRICS,
@@ -50,9 +52,9 @@ export interface PreparedStep {
   position: number;
   allowancePercent: AllowancePercent;
   /**
-   * The step code the imported step is written with. A version 1 document
-   * carries none, so each is suggested from the name exactly as for a newly
-   * created step, in step order.
+   * The step code the imported step is written with: the file's own from
+   * version 3. A version 1 or 2 document carries none, so each is suggested
+   * from the name exactly as for a newly created step, in step order.
    */
   code: string;
 }
@@ -615,6 +617,7 @@ export function prepareImport(
   const steps = indexById(document.steps, 'steps');
   if (isRefusal(steps)) return steps;
   const stepPositions = new Set<number>();
+  const stepCodes = new Set<string>();
   for (let at = 0; at < document.steps.length; at += 1) {
     const step = document.steps.at(at);
     if (step === undefined) throw new Error('steps changed length during preparation');
@@ -631,6 +634,21 @@ export function prepareImport(
         `steps[${String(at)}].allowancePercent`,
         String(step.allowancePercent),
       );
+    if (step.code === null) continue;
+    // Proof: with this guard bypassed, `refuses a version-3 step code that is
+    // malformed, reserved or a duplicate` prepared `QA` instead of refusing it
+    // (2026-09-27).
+    if (!isStepCode(step.code))
+      return refuses('invalid_body', `steps[${String(at)}].code`, step.code);
+    // Proof: with this guard bypassed, the same test prepared the reserved
+    // `s1-qa` instead of refusing it (2026-09-27).
+    if (isReservedStepCode(step.code))
+      return refuses('invalid_body', `steps[${String(at)}].code`, step.code);
+    // Proof: with this guard bypassed, the same test prepared a second step
+    // coded `impl` instead of refusing it (2026-09-27).
+    if (stepCodes.has(step.code))
+      return refuses('invalid_body', `steps[${String(at)}].code`, step.code);
+    stepCodes.add(step.code);
   }
   const rows = indexById(document.workItems, 'workItems');
   if (isRefusal(rows)) return rows;
@@ -745,11 +763,18 @@ export function prepareImport(
     (left, right) =>
       left.position - right.position || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
   );
+  // A file of an earlier version codes none of its steps and one of version 3
+  // codes all of them (`classifyPlanDocument`); suggesting around the file's
+  // own codes keeps the two apart without assuming which.
+  const uncoded = inStepOrder.filter(({ code }) => code === null);
   const suggested = suggestStepCodes(
-    inStepOrder.map(({ name }) => name),
-    new Set(),
+    uncoded.map(({ name }) => name),
+    stepCodes,
   );
-  const codeByFileId = new Map(inStepOrder.map(({ id }, at) => [id, suggested[at]] as const));
+  const codeByFileId = new Map<string, string | undefined>([
+    ...inStepOrder.flatMap(({ id, code }) => (code === null ? [] : [[id, code] as const])),
+    ...uncoded.map(({ id }, at) => [id, suggested[at]] as const),
+  ]);
   const preparedSteps = document.steps.map(({ id, name, position, allowancePercent }) => {
     const code = codeByFileId.get(id);
     if (code === undefined) throw new Error(`step ${id} was not coded during preparation`);
