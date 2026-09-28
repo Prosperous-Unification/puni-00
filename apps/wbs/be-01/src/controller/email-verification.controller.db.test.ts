@@ -154,6 +154,26 @@ describe('password email verification', () => {
     expect(harness.deliveredEmailToken('ada@xn--fa-hia.de')).toBeString();
   });
 
+  it('confirms only the byte-exact local part the challenge was issued for', async () => {
+    harness.activate();
+    await harness.call('ada', 'POST', '/api/onboarding/email-challenges', {
+      email: 'Ada@example.org',
+    });
+    const token = harness.deliveredEmailToken('Ada@example.org');
+    expect(
+      await harness.call('ada', 'POST', '/api/onboarding/email-challenges/confirm', {
+        email: 'ada@example.org',
+        token,
+      }),
+    ).toEqual({ status: 409, body: { error: 'challenge_invalid' } });
+    expect(
+      await harness.call('ada', 'POST', '/api/onboarding/email-challenges/confirm', {
+        email: 'Ada@EXAMPLE.org',
+        token,
+      }),
+    ).toEqual({ status: 200, body: { email: 'Ada@example.org', verified: true } });
+  });
+
   it('refuses a case variant of an address another account holds', async () => {
     harness.activate();
     await harness.register('bea');

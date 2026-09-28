@@ -224,6 +224,17 @@ describe('UserRepository.resolveOidcIdentity after activation', () => {
     ]);
   });
 
+  it.each(['étienne@example.org', 'ada@localhost', 'ada@example%2eorg'])(
+    'stores no address for %s, which the password path also refuses',
+    async (email) => {
+      activate();
+      await resolve({ email });
+      expect(rows("SELECT email, email_verified FROM users WHERE id = 'new'")).toEqual([
+        { email: null, email_verified: 0 },
+      ]);
+    },
+  );
+
   it.each([
     'person@victim.org/attacker.example',
     'person@victim.org:443',

@@ -149,6 +149,9 @@ export class EmailVerificationRepository implements EmailVerification {
             // binding, requested-address binding, expiry, revocation or
             // consumption separately failed the mounted mismatch, pending,
             // wrong-account, reissue and sequential replay cases.
+            // Proof: 2026-09-29, comparing the address case-insensitively made
+            // `confirms only the byte-exact local part the challenge was issued
+            // for` verify `ada@` against an `Ada@` challenge.
             if (
               challenge?.userId !== userId ||
               challenge.email !== email ||

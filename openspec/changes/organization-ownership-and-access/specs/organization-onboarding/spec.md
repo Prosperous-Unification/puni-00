@@ -89,6 +89,8 @@ After activation, `POST /api/auth/link/auth0` SHALL require an originating first
 - **AND** a local part that stays non-ASCII after NFC, which would need SMTPUTF8, answers typed `400 unsupported_email` at both challenge routes and invitation issuance
 - **AND** a domain that fails IDNA or DNS-label validation answers typed `400 invalid_body`, never a server error
 - **AND** ownership comparisons stay ASCII case-insensitive as the SQLite `lower(email)` uniqueness rule is: a case variant of another account's address answers `409 address_conflict`, and an invitation or join-request approval addressed to a case variant of the recipient's verified address still matches it
+- **AND** email-verification confirm compares the submitted canonical address byte-exact with the challenged one: a challenge issued for `Ada@x.example` refuses confirmation of `ada@x.example` with `409 challenge_invalid`, while `Ada@X.EXAMPLE` confirms because the domain canonicalizes to the same A-labels
+- **AND** an activated Auth0 callback address goes through the same canonicalizer and is then lowercased as activated OIDC rows always were; an address the password path refuses (SMTPUTF8 local part, URL-shaped, dotless or invalid IDNA domain) is stored as no address
 
 #### Scenario: Auth0 link collision
 

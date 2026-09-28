@@ -1363,3 +1363,15 @@ Full suites (`env -u CLAUDECODE bun test`):
 `NX_DAEMON=false bunx nx run-many -t typecheck lint:fast -p wbs-be-01 wbs-core wbs-store-sqlite wbs-contracts wbs-domain wbs-mcp-01 wbs-fe-01 --output-style=static` succeeded. It first needed stale local ESLint caches deleted, because they still held a type error from before the fix. The `openspec validate --all --json` result and the Prettier check on touched files are in the commit report.
 
 **Still open for 4.1:** real-address delivery and the rendered path (4.6).
+
+### Fable review fixes (2026-09-29)
+
+Fable's review returned READY AFTER FIXES. It endorsed the case-matching decision: ownership comparisons are ASCII case-insensitive, and the first writer's casing is stored.
+
+I1: two canonicalizers existed. `canonicalOidcEmail`, the activated Auth0 path, now wraps `canonicalEmailAddress` and lowercases the result, because activated OIDC rows have always been stored lowercase and matched with `lower(email) = ?`. An address the password path refuses is stored as no address. The pre-activation legacy lookup in `UserRepository` still uses `normalizeEmail`, so existing Auth0 rows keep resolving until activation. No activated OIDC row exists in production yet, so no stored row changes.
+
+| Check                                | Injected fault → observed failing test                                                                                                                                                                     |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OIDC uses the password canonicalizer | Returning the lowercased submitted address when refused → all three `stores no address for …` cases and all five `does not route a URL-shaped callback email …` cases stored an address (23 pass, 8 fail). |
+| OIDC lowercase compatibility         | Dropping the lowercase → `stores activated OIDC domains in canonical ASCII IDNA form` stored `Ada@xn--bcher-kva.example`, and two holder-collision tests failed (28 pass, 3 fail).                         |
+| Byte-exact confirm                   | Comparing the confirm address case-insensitively → mounted `confirms only the byte-exact local part the challenge was issued for` verified `ada@` against an `Ada@` challenge.                             |
