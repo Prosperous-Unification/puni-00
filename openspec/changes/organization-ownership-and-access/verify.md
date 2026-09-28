@@ -392,6 +392,27 @@ Branch `batch-9/010-5-2-orgs-12`, stacked on slice 12.
 | Slug filtered by organization before decoding | slug found deployment-wide, then ownership checked | `answers a foreign solution slug as an absent one, even when its row is unreadable`: 500 instead of 404                   |
 | `directory_changed` fan-out scoped            | every project told                                 | `tells only the organization's projects that its directory changed`: B's project told                                     |
 
+## Slice 14 — saved plans and history (task 3.6)
+
+Branch `batch-9/010-5-2-orgs-13`, stacked on slice 13.
+
+- Save, list, compare and history read the project through `readWithin`: a foreign project answers exactly as an absent one.
+- Read, rename and delete check the saved plan's project through `SavedPlanService.projectOf` and `readWithin`. Rename and delete also need a writing role under scoped access.
+- `savePlan` takes the caller's access and applies `mayEditProjectWithin`.
+- The SQLite save maps the new plan to its project's organization inside its own transaction. `NOT EXISTS` defers to the pre-activation bridge trigger.
+- After activation, the save refuses a project without an owner and a plan already mapped elsewhere, and rolls back. Astra review 1 raised this as an Important finding.
+
+| Check                              | Injected fault                  | Observed failure (`saved-plan-organization.controller.db.test.ts`, 2026-09-27)                           |
+| ---------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Save scoped                        | project read with legacy access | `answers 404 alike for a foreign and an absent project on every saved-plan and history route`: 201       |
+| List scoped                        | same, in the list route         | same case: 200                                                                                           |
+| Compare scoped                     | same, in the compare route      | same case: 200                                                                                           |
+| History scoped                     | same, in the history route      | same case: 200                                                                                           |
+| Plan's project checked             | `reachesPlan` answers true      | `answers a foreign saved plan exactly as an absent one`: 200                                             |
+| Writing role for rename and delete | role check skipped              | `refuses a viewer every saved-plan write and lets the viewer read`: 200 for the demoted creator's rename |
+| Access resolved first              | save route skips resolution     | `refuses an unbound session and a removed member before any lookup`: 201                                 |
+| Saved plan mapped                  | mapping insert selects nothing  | `maps a plan saved after activation to its project's organization`: no mapping                           |
+
 ## Pending gate output
 
 - Targeted unit, mounted API, socket, MCP, migration and browser tests: pending.

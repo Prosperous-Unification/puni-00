@@ -119,6 +119,11 @@ export class SavedPlanResource {
     );
   }
 
+  /** The project a saved plan belongs to, read off its immutable header; null for an absent plan. */
+  async projectOfPlan(savedPlanId: string): Promise<string | null> {
+    return (await this.opts.plans.principalsOf(savedPlanId))?.projectId ?? null;
+  }
+
   /** Authorize from principal headers, so corrupt plans remain renameable. */
   async renamePlan(
     savedPlanId: string,

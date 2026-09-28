@@ -1,8 +1,11 @@
 import { readHistory } from '@wbs/contracts';
 
+import type { OrganizationAccess } from '../ports/organization-access';
 import type { PlanEventFilter } from '../ports/plan-event-store';
 import type { HistoryService } from '../service/history.service';
-import { bind } from './endpoint';
+import type { ProjectService } from '../service/project.service';
+import { bind, type HttpReply } from './endpoint';
+import { organizationRefusal } from './organization-refusal';
 
 /**
  * What the query string narrows the history to.
@@ -40,13 +43,32 @@ function filterFrom(query: { workItemId?: string; kind?: string }): PlanEventFil
  * Proof: returning an empty success for not_found makes history.routes.test.ts's
  * literal request receive200/events instead of404/error.
  */
-export function historyRoutes(history: HistoryService) {
+/**
+ * A project's history through the caller's access: a foreign project answers
+ * the same 404 as an absent one, before any event is read.
+ * Proof: reading the history without the project check made `answers 404
+ * alike for a foreign and an absent project on every saved-plan and history
+ * route` in `saved-plan-organization.controller.db.test.ts` answer 200 with
+ * B's events; watched 2026-09-27.
+ */
+export function historyRoutes(
+  history: HistoryService,
+  projects: ProjectService,
+  organizations: OrganizationAccess,
+) {
   return [
-    bind(readHistory, async ({ params, query }) => {
-      const outcome = await history.read(params.id, filterFrom(query));
-      return outcome.ok
-        ? { ok: true, status: 200, body: { events: outcome.value } }
-        : { ok: false, status: 404, body: { error: outcome.reason } };
-    }),
+    bind(
+      readHistory,
+      async ({ params, query, principal }): Promise<HttpReply<typeof readHistory>> => {
+        const resolved = await organizations.resolve(principal.id);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        if ((await projects.readWithin(params.id, resolved.access)) === null)
+          return { ok: false, status: 404, body: { error: 'not_found' } };
+        const outcome = await history.read(params.id, filterFrom(query));
+        return outcome.ok
+          ? { ok: true, status: 200, body: { events: outcome.value } }
+          : { ok: false, status: 404, body: { error: outcome.reason } };
+      },
+    ),
   ] as const;
 }

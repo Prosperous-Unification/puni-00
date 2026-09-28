@@ -5,8 +5,15 @@ import { isWriteLockBusy } from './constraint';
 import type { Connection, Drizzle } from './db';
 import { drizzleOuterTransaction, drizzleReadTransaction, refuseToWaitForWriteLock } from './db';
 import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
+import { readOrganizationActivation } from './organization-activation';
 import { savedPlanWriteFaultOf } from './saved-plan-write-fault';
-import { project, savedPlan, savedPlanBody } from './schema';
+import {
+  project,
+  projectOrganization,
+  savedPlan,
+  savedPlanBody,
+  savedPlanOrganization,
+} from './schema';
 
 export { bodyByteLength } from '@wbs/core';
 
@@ -317,6 +324,51 @@ export class SavedPlanRepository implements SavedPlanStore {
           }
           const header = savedPlanHeader(plan, inputBytes, scheduleBytes);
           await db.insert(savedPlan).values(header);
+          // The plan belongs to its project's organization. Before activation
+          // the bridge trigger has already mapped it; after it, nothing else
+          // would, so the mapping is written here, in the save's own
+          // transaction. Builder statements rather than a raw one, so the
+          // transaction's only raw statements stay its BEGIN and its end.
+          // Proof: skipping this insert made `maps a plan saved after
+          // activation to its project's organization` in
+          // `saved-plan-organization.controller.db.test.ts` (and the store suite `saved-plan-organization.db.test.ts`) find no mapping;
+          // watched 2026-09-27.
+          const owner = (
+            await db
+              .select({ organizationId: projectOrganization.organizationId })
+              .from(projectOrganization)
+              .where(eq(projectOrganization.resourceId, plan.projectId))
+          ).at(0);
+          const mapped = await db
+            .select({
+              id: savedPlanOrganization.resourceId,
+              organizationId: savedPlanOrganization.organizationId,
+            })
+            .from(savedPlanOrganization)
+            .where(eq(savedPlanOrganization.resourceId, plan.id));
+          if (readOrganizationActivation(db) === 'activated') {
+            // After activation the invariant is complete ownership: a project
+            // without an owner, or a plan already mapped elsewhere, is corrupt
+            // trusted state, and the save rolls back rather than store it.
+            // Proof: skipping this refusal made `refuses a save after
+            // activation for a project without an owner` in
+            // `saved-plan-organization.db.test.ts` answer `written`; watched
+            // 2026-09-27.
+            if (owner === undefined) {
+              throw new Error(`project "${plan.projectId}" has no organization after activation`);
+            }
+            const held = mapped.at(0);
+            if (held !== undefined && held.organizationId !== owner.organizationId) {
+              throw new Error(
+                `saved plan "${plan.id}" is mapped outside its project's organization`,
+              );
+            }
+          }
+          if (owner !== undefined && mapped.length === 0) {
+            await db
+              .insert(savedPlanOrganization)
+              .values({ resourceId: plan.id, organizationId: owner.organizationId });
+          }
           if (writeFault?.kind !== 'omit-input' || writeFault.targetId !== plan.id)
             await db
               .insert(savedPlanBody)

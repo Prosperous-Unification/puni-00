@@ -852,7 +852,7 @@ function fixture() {
   const plans = testSavedPlanService();
   const projects = testProjectService();
   const announcements = recordingBroadcaster();
-  const projectRead = spyOn(projects, 'read').mockResolvedValue({
+  const projectRead = spyOn(projects, 'readWithin').mockResolvedValue({
     project: projectRow({ id: 'p' }),
     steps: [],
   });
@@ -869,7 +869,7 @@ function fixture() {
     restorations.push(() => {
       spy.mockRestore();
     });
-  const endpoints = savedPlanRoutes(plans, projects, announcements);
+  const endpoints = savedPlanRoutes(plans, projects, announcements, legacyOrganizationAccess);
   const auth = testAuthService();
   const authenticate = spyOn(auth, 'authenticate').mockImplementation((token) =>
     Promise.resolve(
