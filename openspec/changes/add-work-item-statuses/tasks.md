@@ -25,10 +25,19 @@
 
 ## 2. Swap guard (tools + be-01 CLI printing `holdKinds: []`)
 
-- [ ] 2.1 Red: stored-vocabularies step for missing CLI, old CLI, mismatched hold values, after
-      stop-blue as well as before migrate.
-- [ ] 2.2 Green: generalise the `relationship-types` step; `supported-vocabularies-cli.ts`.
-- [ ] 2.3 Negative: remove the mismatch check → "held rows, FS-only image" passes the swap.
+- [x] 2.1 Red: `swap.test.ts` hold cases (no hold kinds, one kind missing, supported, failed and
+      malformed reads, a hold written after the first check) and `docker.test.ts` hold kind
+      commands (present, absent, missing `src`, nonregular CLI, stored holds before and after the
+      column exists, missing database, unset `DB_PATH`).
+- [x] 2.2 Green: the swap steps are renamed `stored-vocabularies` and
+      `stored-vocabularies-after-stop` and check each stored vocabulary in turn; be-01 ships
+      `hold-kinds-cli.ts` printing `[]`. Two CLIs instead of one `supported-vocabularies-cli.ts`
+      keep #179's proven relationship type command untouched; an image without
+      `hold-kinds-cli.ts` reads as no holds.
+- [x] 2.3 Negatives: the hold vocabulary left out of the swap's list makes four swap cases fail;
+      the hold CLI's directory check replaced by an unconditional `[]` makes the missing `src`
+      case fail. The runbook section `#work-item-hold-rollback` the refusal names lands with the
+      rollback CLI in slice 3.
 
 ## 3. Storage and command
 

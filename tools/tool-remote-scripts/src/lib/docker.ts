@@ -576,6 +576,50 @@ try {
   ];
 }
 
+/**
+ * Reads the hold kinds the incoming release can read. A release older than
+ * holds ships no `hold-kinds-cli.ts`, and only that absence under a readable
+ * source directory reads as `[]`: no holds understood, so any stored hold
+ * refuses the swap. A missing or unreadable `src` exits 74 and a nonregular CLI
+ * path 73, exactly as {@link relationshipTypesCommand} does.
+ *
+ * Proof: the directory check replaced by an unconditional `[]` made `does not
+ * treat a missing source directory as an older release` (hold kind commands)
+ * fail on `Expected: 74, Received: 0`; watched 2026-09-28.
+ */
+export function holdKindsCommand(container: string): string[] {
+  return [
+    'exec',
+    container,
+    'sh',
+    '-c',
+    "if test -f src/hold-kinds-cli.ts; then bun run src/hold-kinds-cli.ts; elif test -e src/hold-kinds-cli.ts; then exit 73; elif test -d src && test -r src && test -x src; then printf '[]\\n'; else exit 74; fi",
+  ];
+}
+
+/**
+ * Reads each stored hold kind and its count through the shared DB_PATH without
+ * importing release code. Empty before `work_item` or its `hold` column exists,
+ * which is every database the hold migration has not reached.
+ */
+export function storedHoldsCommand(container: string): string[] {
+  return [
+    'exec',
+    container,
+    'bun',
+    '-e',
+    `import { Database } from 'bun:sqlite';
+const path = process.env.DB_PATH;
+if (!path) throw new Error('DB_PATH must be set');
+const db = new Database(path, { readonly: true });
+try {
+  const column = db.query("SELECT name FROM pragma_table_info('work_item') WHERE name = 'hold'").get();
+  const rows = column === null ? [] : db.query('SELECT hold AS kind, count(*) AS count FROM work_item WHERE hold IS NOT NULL GROUP BY hold ORDER BY hold').all();
+  console.log(JSON.stringify(rows));
+} finally { db.close(); }`,
+  ];
+}
+
 /** Applies pending migrations through the path shipped in the backend image. */
 export function migrateCommand(container: string): string[] {
   return ['exec', container, 'bun', 'run', 'src/migrate-cli.ts'];

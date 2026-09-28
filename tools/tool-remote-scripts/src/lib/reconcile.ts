@@ -12,7 +12,7 @@ export interface Observed {
 
 export type SwapStep =
   | 'start-green'
-  | 'relationship-types'
+  | 'stored-vocabularies'
   | 'migrate'
   | 'health-gate'
   | 'grant-alias'
@@ -21,7 +21,7 @@ export type SwapStep =
   | 'drain'
   | 'revoke-alias'
   | 'stop-blue'
-  | 'relationship-types-after-stop'
+  | 'stored-vocabularies-after-stop'
   | 'backfill-step-codes'
   | 'commit';
 
@@ -54,7 +54,7 @@ export function planSwap(tier: Tier, observed: Observed): SwapPlan {
   const steps: SwapStep[] = ['start-green'];
   // Migrations run as a discrete step before green takes traffic, so a failure
   // aborts with the old colour untouched and un-migrated.
-  if (tier === 'be') steps.push('relationship-types', 'migrate');
+  if (tier === 'be') steps.push('stored-vocabularies', 'migrate');
   steps.push('health-gate');
   // gw-01 reads BE_URL once at startup, so a be swap moves a stable network
   // alias (be-01.internal) rather than reconfiguring gw. Granting it to the
@@ -68,7 +68,7 @@ export function planSwap(tier: Tier, observed: Observed): SwapPlan {
   if (tier === 'gw') steps.push('drain');
   if (tier === 'be' && from !== null) steps.push('revoke-alias');
   if (from !== null) steps.push('stop-blue');
-  if (tier === 'be' && from !== null) steps.push('relationship-types-after-stop');
+  if (tier === 'be' && from !== null) steps.push('stored-vocabularies-after-stop');
   // After the old colour stops, so no writer that ignores `step.code` is left;
   // on a first deploy too, because the database may predate this release.
   if (tier === 'be') steps.push('backfill-step-codes');

@@ -16,6 +16,7 @@ import {
   envKeysOf,
   envLayout,
   grantAliasCommands,
+  holdKindsCommand,
   isDigest,
   manifestInspectArgs,
   migrateCommand,
@@ -29,6 +30,7 @@ import {
   SHARED_ENV_PATH,
   SOLVER_SUPERVISOR_CONTAINER_DIRECTORY,
   SOLVER_SUPERVISOR_HOST_DIRECTORY,
+  storedHoldsCommand,
   storedRelationshipTypesCommand,
   tierComposeContext,
   tierComposeFile,
@@ -162,6 +164,116 @@ describe('relationship type commands', () => {
       stderr: 'pipe',
     });
     expect(await probe.exited).not.toBe(0);
+  });
+});
+
+describe('hold kind commands', () => {
+  it('executes the present hold kinds CLI', async () => {
+    const directory = scratchSync('wbs-holds-present-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      writeFileSync(
+        join(directory, 'src/hold-kinds-cli.ts'),
+        'console.log(JSON.stringify(["on_hold", "blocked"]));\n',
+      );
+      const command = holdKindsCommand('be-01-green');
+      expect(command.slice(0, 4)).toEqual(['exec', 'be-01-green', 'sh', '-c']);
+      const probe = Bun.spawn(command.slice(2), { cwd: directory, stdout: 'pipe' });
+      expect(await probe.exited).toBe(0);
+      expect(JSON.parse(await new Response(probe.stdout).text())).toEqual(['on_hold', 'blocked']);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('treats an absent hold kinds CLI as reading no holds', async () => {
+    const directory = scratchSync('wbs-holds-absent-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      const probe = Bun.spawn(holdKindsCommand('be-01-green').slice(2), {
+        cwd: directory,
+        stdout: 'pipe',
+      });
+      expect(await probe.exited).toBe(0);
+      expect(JSON.parse(await new Response(probe.stdout).text())).toEqual([]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('does not treat a missing source directory as an older release', async () => {
+    const directory = scratchSync('wbs-holds-unavailable-');
+    try {
+      const probe = Bun.spawn(holdKindsCommand('be-01-green').slice(2), { cwd: directory });
+      expect(await probe.exited).toBe(74);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a nonregular hold kinds CLI path', async () => {
+    const directory = scratchSync('wbs-holds-nonregular-');
+    try {
+      mkdirSync(join(directory, 'src/hold-kinds-cli.ts'), { recursive: true });
+      const probe = Bun.spawn(holdKindsCommand('be-01-green').slice(2), { cwd: directory });
+      expect(await probe.exited).toBe(73);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('reads stored holds from SQLite, empty before the table or the column exists', async () => {
+    const directory = scratchSync('wbs-stored-holds-');
+    try {
+      const path = join(directory, 'wbs.db');
+      const db = new Database(path);
+      const command = storedHoldsCommand('be-01-green');
+      expect(command.slice(0, 4)).toEqual(['exec', 'be-01-green', 'bun', '-e']);
+      const readHolds = async () => {
+        const probe = Bun.spawn(command.slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const output = await new Response(probe.stdout).text();
+        expect(await probe.exited).toBe(0);
+        const parsed: unknown = JSON.parse(output);
+        return parsed;
+      };
+      expect(await readHolds()).toEqual([]);
+      db.run('CREATE TABLE work_item (id text PRIMARY KEY)');
+      expect(await readHolds()).toEqual([]);
+      db.run('ALTER TABLE work_item ADD hold text');
+      db.run(
+        "INSERT INTO work_item (id, hold) VALUES ('a', 'on_hold'), ('b', 'on_hold'), ('c', 'blocked'), ('d', NULL)",
+      );
+      expect(await readHolds()).toEqual([
+        { kind: 'blocked', count: 1 },
+        { kind: 'on_hold', count: 2 },
+      ]);
+      db.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a missing database file and an unset DB_PATH', async () => {
+    const directory = scratchSync('wbs-stored-holds-missing-');
+    try {
+      const missing = Bun.spawn(storedHoldsCommand('be-01-green').slice(2), {
+        env: { ...process.env, DB_PATH: join(directory, 'missing.db') },
+        stderr: 'pipe',
+      });
+      expect(await missing.exited).not.toBe(0);
+      const { DB_PATH: _dbPath, ...environment } = process.env;
+      const unset = Bun.spawn(storedHoldsCommand('be-01-green').slice(2), {
+        env: environment,
+        stderr: 'pipe',
+      });
+      expect(await unset.exited).not.toBe(0);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });
 

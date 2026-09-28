@@ -5,7 +5,12 @@ import { scratchSync } from '@tools/test-scratch';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { assembleCaddyfile } from './lib/caddy';
-import { relationshipTypesCommand, storedRelationshipTypesCommand } from './lib/docker';
+import {
+  holdKindsCommand,
+  relationshipTypesCommand,
+  storedHoldsCommand,
+  storedRelationshipTypesCommand,
+} from './lib/docker';
 import { drain } from './lib/drain';
 import { type EnvLayout, envLayout } from './lib/env';
 import { waitForHealthy } from './lib/health';
@@ -692,7 +697,12 @@ it('startGreen admits merged backend config and writes the supervisor directory 
 });
 
 describe('execute, relationship type rollback guard', () => {
-  async function runGuard(types: string, stored: string, failure?: 'reader' | 'store') {
+  async function runGuard(
+    types: string,
+    stored: string,
+    failure?: 'reader' | 'store' | 'hold-reader' | 'hold-store',
+    holds: { supported: string; stored: string } = { supported: '[]', stored: '[]' },
+  ) {
     const ran: string[][] = [];
     const phases: string[] = [];
     const io: SwapExecutionIo = {
@@ -710,6 +720,16 @@ describe('execute, relationship type rollback guard', () => {
             ? Promise.reject(new Error('database failed'))
             : Promise.resolve(stored);
         }
+        if (JSON.stringify(args) === JSON.stringify(holdKindsCommand('be-01-green'))) {
+          return failure === 'hold-reader'
+            ? Promise.reject(new Error('hold reader failed'))
+            : Promise.resolve(holds.supported);
+        }
+        if (JSON.stringify(args) === JSON.stringify(storedHoldsCommand('be-01-green'))) {
+          return failure === 'hold-store'
+            ? Promise.reject(new Error('hold database failed'))
+            : Promise.resolve(holds.stored);
+        }
         if (args[0] === 'stop') return Promise.resolve('');
         if (args.includes('src/migrate-status-cli.ts')) return Promise.resolve('none');
         if (args.includes('src/migrate-cli.ts')) return Promise.resolve('migrated');
@@ -725,7 +745,7 @@ describe('execute, relationship type rollback guard', () => {
     let caught: unknown;
     try {
       await execute(
-        { tier: 'be', from: 'blue', to: 'green', steps: ['relationship-types', 'migrate'] },
+        { tier: 'be', from: 'blue', to: 'green', steps: ['stored-vocabularies', 'migrate'] },
         'registry/be-01@sha256:abc',
         'deadbeef',
         io,
@@ -796,6 +816,59 @@ describe('execute, relationship type rollback guard', () => {
     expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
   });
 
+  it('refuses an image that reads no holds while holds are stored, and stops green', async () => {
+    const attempt = await runGuard('["FS"]', '[]', undefined, {
+      supported: '[]',
+      stored: '[{"kind":"on_hold","count":2}]',
+    });
+    expect(attempt.caught).toHaveProperty('message', expect.stringContaining('on_hold (2)'));
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringContaining('work-item-hold-rollback-cli.ts save'),
+    );
+    expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+    expect(attempt.phases).toEqual(['committed']);
+  });
+
+  it('refuses an image missing one of the stored hold kinds', async () => {
+    const attempt = await runGuard('["FS"]', '[]', undefined, {
+      supported: '["on_hold"]',
+      stored: '[{"kind":"on_hold","count":1},{"kind":"blocked","count":3}]',
+    });
+    expect(attempt.caught).toHaveProperty('message', expect.stringContaining('blocked (3)'));
+    expect(attempt.caught).toHaveProperty('message', expect.not.stringContaining('on_hold (1)'));
+  });
+
+  it('allows stored holds when the incoming image reads them', async () => {
+    const attempt = await runGuard('["FS"]', '[]', undefined, {
+      supported: '["on_hold","blocked"]',
+      stored: '[{"kind":"blocked","count":1}]',
+    });
+    expect(attempt.caught).toBeUndefined();
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(true);
+  });
+
+  it('aborts on a failed or malformed hold read', async () => {
+    for (const failure of ['hold-reader', 'hold-store'] as const) {
+      const attempt = await runGuard('["FS"]', '[]', failure);
+      expect(attempt.caught).toHaveProperty('message', expect.stringContaining('failed'));
+      expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+    }
+    for (const holds of [
+      { supported: '["on_hold",7]', stored: '[]' },
+      { supported: '[]', stored: '[{"kind":"on_hold","count":0}]' },
+      { supported: '[]', stored: '[{"type":"on_hold","count":1}]' },
+    ]) {
+      const attempt = await runGuard('["FS"]', '[]', undefined, holds);
+      expect(attempt.caught).toHaveProperty(
+        'message',
+        expect.stringMatching(/malformed (supported|stored) hold kinds/),
+      );
+      expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+    }
+  });
+
   it('rejects a stored relationship with a fractional count', async () => {
     const attempt = await runGuard('["FS"]', '[{"type":"FF","count":1.5}]');
     expect(attempt.caught).toHaveProperty(
@@ -807,6 +880,69 @@ describe('execute, relationship type rollback guard', () => {
 });
 
 describe('execute, after routing has moved', () => {
+  it('refuses a hold written after the first check once blue stops, without committing', async () => {
+    const ran: string[][] = [];
+    const written: string[] = [];
+    let holdReads = 0;
+    const io: SwapExecutionIo = {
+      sh: (args) => {
+        ran.push(args);
+        const is = (command: string[]) => JSON.stringify(args) === JSON.stringify(command);
+        if (is(relationshipTypesCommand('be-01-green'))) return Promise.resolve('["FS"]');
+        if (is(storedRelationshipTypesCommand('be-01-green'))) return Promise.resolve('[]');
+        if (is(holdKindsCommand('be-01-green'))) return Promise.resolve('[]');
+        if (is(storedHoldsCommand('be-01-green'))) {
+          holdReads++;
+          return Promise.resolve(holdReads === 1 ? '[]' : '[{"kind":"on_hold","count":1}]');
+        }
+        if (args.includes('src/migrate-status-cli.ts')) return Promise.resolve('none');
+        if (args.includes('src/migrate-cli.ts')) return Promise.resolve('migrated');
+        if (args[0] === 'stop') return Promise.resolve('');
+        throw new Error(`unexpected Docker command: ${args.join(' ')}`);
+      },
+      readPhase: () => Promise.resolve('committed'),
+      writePhase: (_path, phase) => {
+        written.push(`phase ${phase}`);
+        return Promise.resolve();
+      },
+      writeAtomic: (path) => {
+        written.push(`file ${path}`);
+        return Promise.resolve();
+      },
+    };
+
+    let caught: unknown;
+    try {
+      await execute(
+        {
+          tier: 'be',
+          from: 'blue',
+          to: 'green',
+          steps: [
+            'stored-vocabularies',
+            'migrate',
+            'stop-blue',
+            'stored-vocabularies-after-stop',
+            'backfill-step-codes',
+            'commit',
+          ],
+        },
+        'registry/be-01@sha256:abc',
+        'deadbeef',
+        io,
+      );
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toHaveProperty(
+      'message',
+      expect.stringMatching(/on_hold \(1\).*redeploy.*docs\/runbook-prod-deploy\.md/is),
+    );
+    expect(holdReads).toBe(2);
+    expect(ran.some((args) => args.includes('src/backfill-step-codes-cli.ts'))).toBe(false);
+    expect(written).toEqual(['phase old-stopped']);
+  });
+
   it('refuses FF inserted after the first check once blue stops, without committing', async () => {
     const ran: string[][] = [];
     const written: string[] = [];
@@ -816,6 +952,10 @@ describe('execute, after routing has moved', () => {
         ran.push(args);
         if (JSON.stringify(args) === JSON.stringify(relationshipTypesCommand('be-01-green')))
           return Promise.resolve('["FS"]');
+        if (JSON.stringify(args) === JSON.stringify(holdKindsCommand('be-01-green')))
+          return Promise.resolve('[]');
+        if (JSON.stringify(args) === JSON.stringify(storedHoldsCommand('be-01-green')))
+          return Promise.resolve('[]');
         if (
           JSON.stringify(args) === JSON.stringify(storedRelationshipTypesCommand('be-01-green'))
         ) {
@@ -848,10 +988,10 @@ describe('execute, after routing has moved', () => {
           from: 'blue',
           to: 'green',
           steps: [
-            'relationship-types',
+            'stored-vocabularies',
             'migrate',
             'stop-blue',
-            'relationship-types-after-stop',
+            'stored-vocabularies-after-stop',
             'backfill-step-codes',
             'commit',
           ],
