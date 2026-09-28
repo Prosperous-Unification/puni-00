@@ -768,6 +768,10 @@ export function prepareImport(
   const typedDependencies: TypedDependency[] = [];
   const relationshipKeys = new Set<string>();
   const leafByFileId = new Map(preparedRows.map(({ fileId, isLeaf }) => [fileId, isLeaf]));
+  const inStepOrder = [...document.steps].sort(
+    (left, right) =>
+      left.position - right.position || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
+  );
   for (const [at, relationship] of document.typedDependencies.entries()) {
     const prefix = `typedDependencies[${String(at)}]`;
     const endpointOf = (endpoint: typeof relationship.predecessor) =>
@@ -805,7 +809,9 @@ export function prepareImport(
   if (typedDependencies.length > 0) {
     const cycle = findDependencyGraphCycle({
       rows: document.workItems.map(rowShape),
-      steps: document.steps.map(({ id, allowancePercent }) => {
+      // Proof (2026-09-28): restoring file-array order made the shuffled-step
+      // position-order cycle test import a project instead of refusing it.
+      steps: inStepOrder.map(({ id, allowancePercent }) => {
         const checked = allowancePercentOf(allowancePercent);
         if (checked === null) throw new Error(`validated allowance disappeared for step ${id}`);
         return { id, allowancePercent: checked };
@@ -826,10 +832,6 @@ export function prepareImport(
     // a combined legacy/typed cycle and create a project (ok: true).
     if (cycle !== null) return refuses('invalid_typed_dependency', 'typedDependencies', cycle.kind);
   }
-  const inStepOrder = [...document.steps].sort(
-    (left, right) =>
-      left.position - right.position || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
-  );
   // A file of an earlier version codes none of its steps and one of version 3
   // codes all of them (`classifyPlanDocument`); suggesting around the file's
   // own codes keeps the two apart without assuming which.

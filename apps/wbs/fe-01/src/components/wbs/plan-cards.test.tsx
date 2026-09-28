@@ -3801,6 +3801,67 @@ describe('setting what a card waits for', () => {
       expect(removed).toHaveLength(1);
     });
   });
+  itDom('uses server step-node references for phone typed chips', async () => {
+    const api = dependencyApi();
+    const source = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const target = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: source.id,
+      name: 'Sand',
+    });
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'node', stepNodeId: `sn1.${source.id}.${DEV.id}` },
+      { scope: 'node', stepNodeId: `sn1.${target.id}.${DEV.id}` },
+    );
+    const readTree = api.tree.bind(api);
+    api.tree = async (projectId) => {
+      const plan = await readTree(projectId);
+      return {
+        ...plan,
+        stepNodes: plan.stepNodes?.map((node) => ({
+          ...node,
+          reference: `${node.workItemId === source.id ? '010' : '020'}.build`,
+        })),
+      };
+    };
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    await openTheSheetOn('020');
+    expect(screen.getByText(/010\.build FS → build/)).toBeDefined();
+  });
+  itDom('refuses to recreate a phone edit target removed before Save', async () => {
+    const api = dependencyApi();
+    const source = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const target = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: source.id,
+      name: 'Sand',
+    });
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'whole', workItemId: source.id },
+      { scope: 'whole', workItemId: target.id },
+    );
+    const original = (await api.tree('p1')).typedDependencies?.[0];
+    if (original === undefined) throw new Error('Missing fixture dependency');
+    const added = recordCalls(api, 'addTypedDependency');
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    await openTheSheetOn('020');
+    fireEvent.click(screen.getByRole('button', { name: /Edit .*010 Strip.*020 Sand/ }));
+    await api.removeTypedDependency('p1', original.id);
+    const name = screen.getByLabelText('Name of 020');
+    fireEvent.change(name, { target: { value: 'Sand again' } });
+    fireEvent.blur(name);
+    await waitFor(() => {
+      expect(screen.getByText('This dependency was removed.')).toBeDefined();
+    });
+    expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
+    expect(added).toEqual([]);
+  });
   itDom('opens phone Customize as a bottom sheet without writing', async () => {
     const api = dependencyApi();
     const predecessor = await api.createWorkItem('p1', {
@@ -3897,7 +3958,7 @@ describe('setting what a card waits for', () => {
     await openTheSheetOn('030');
     fireEvent.click(screen.getByRole('button', { name: /^010/ }));
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: /^010/ })).toBeNull();
+      expect(api.edges).toEqual([`add:${api.rows[2]?.id ?? ''}:${api.rows[0]?.id ?? ''}`]);
     });
     fireEvent.click(screen.getByRole('button', { name: /^020/ }));
 

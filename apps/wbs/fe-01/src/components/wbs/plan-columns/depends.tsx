@@ -592,7 +592,8 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               onBlur={(event) => {
                 if (
                   event.relatedTarget instanceof HTMLElement &&
-                  event.relatedTarget.closest('.typed-dependency-editor') !== null
+                  (event.relatedTarget.closest('.typed-dependency-editor') !== null ||
+                    event.relatedTarget.closest('[role="listbox"]') !== null)
                 )
                   return;
                 live.current.setDepPicker((current) =>
@@ -617,11 +618,17 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     : live.current
                         .depEntriesFor(row.original, typed)
                         .find((entry) => entry.refusal === undefined);
-                live.current.setDepPicker({
+                live.current.setDepPicker((current) => ({
                   rowId: row.original.id,
                   typed,
                   highlightId: first?.id ?? null,
-                });
+                  // Proof: dropping this retained step made `keeps QA preselected after
+                  // typing a predecessor search` receive Whole instead of QA for
+                  // both endpoints. Watched 2026-09-28.
+                  ...(current?.rowId === row.original.id && current.stepId !== undefined
+                    ? { stepId: current.stepId }
+                    : {}),
+                }));
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Tab') {
@@ -637,6 +644,25 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   // failed with the key left to the browser. Watched,
                   // 2026-08-07.
                   live.current.onTabKey(e, row.original.id, 'depends');
+                  return;
+                }
+                if (
+                  open &&
+                  !e.altKey &&
+                  !e.ctrlKey &&
+                  !e.metaKey &&
+                  !e.shiftKey &&
+                  (e.key === 'ArrowRight' || e.key === '›')
+                ) {
+                  e.preventDefault();
+                  if (activeOption !== undefined) {
+                    // Proof: without this branch, both highlighted-result keyboard
+                    // cases found no Customize dialog. Watched 2026-09-28.
+                    // Proof: without the modifier guards, `Alt+→ and Alt+←
+                    // restructure the row from the Depends on cell` left the
+                    // row at 020 instead of indenting it to 010.1. Watched 2026-09-28.
+                    setEditing({ predecessorId: activeOption.id });
+                  }
                   return;
                 }
                 if (escapesAnOpenList(e)) {
@@ -734,6 +760,15 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               onMouseDown={(e) => {
                 e.preventDefault();
               }}
+              onBlur={(event) => {
+                if (
+                  event.relatedTarget instanceof HTMLElement &&
+                  (event.currentTarget.contains(event.relatedTarget) ||
+                    event.relatedTarget.closest('.typed-dependency-editor') !== null)
+                )
+                  return;
+                live.current.setDepPicker(null);
+              }}
               style={{
                 // {@link PICKER_PANEL_STYLE} and not a copy of it. This
                 // list is the one the four reference cells do **not**
@@ -764,7 +799,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 // The ARIA combobox pattern is the boundary that makes this
                 // safe: options are not focusable, and the keyboard drives
                 // them from the input above through aria-activedescendant
-                // (ArrowUp/ArrowDown/Enter there).
+                // (ArrowUp/ArrowDown/Enter/ArrowRight there).
 
                 <li
                   key={entry.id}
@@ -845,6 +880,15 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     type="button"
                     className="typed-dependency-customize"
                     aria-label={`Customize ${entry.number} - ${entry.name}`}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Escape') return;
+                      event.preventDefault();
+                      document
+                        .querySelector<HTMLInputElement>(
+                          `[data-depends-input="${row.original.id}"]`,
+                        )
+                        ?.focus();
+                    }}
                     onClick={(event) => {
                       event.stopPropagation();
                       // Proof: injecting pickDependency here made `opens Customize without writing
@@ -867,6 +911,23 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
               const dependency = typedDependencies.find(
                 (candidate) => candidate.id === editing.dependencyId,
               );
+              // Proof: forcing this guard false made `refuses to recreate an edited
+              // relationship removed before Save` fail because the stale alert was absent;
+              // the editor exposed Add. Watched 2026-09-28.
+              if (editing.dependencyId !== undefined && dependency === undefined)
+                return (
+                  <div role="alert">
+                    This dependency was removed.{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditing(null);
+                      }}
+                    >
+                      Back to dependency picker
+                    </button>
+                  </div>
+                );
               const close = () => {
                 setEditing(null);
                 document

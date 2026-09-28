@@ -104,7 +104,9 @@ export function endpointChoices(
   return [
     {
       key: 'whole',
-      label: 'Whole work item',
+      label: isParent
+        ? `All descendant work items (${String(leavesUnder(rows, row.id))})`
+        : 'Whole work item',
       endpoint: { scope: 'whole', workItemId: row.id },
     },
     ...steps
@@ -170,15 +172,17 @@ export function TypedDependencyEditor({
   useEffect(() => {
     const element = dialog.current;
     if (element === null) throw new Error('Missing dependency editor dialog');
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
+    const returnToList = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' && event.key !== 'ArrowLeft') return;
       event.preventDefault();
       event.stopPropagation();
+      // Proof: without ArrowLeft here, the ›/ArrowLeft keyboard case kept
+      // the editor open instead of returning to the list. Watched 2026-09-28.
       onCancel();
     };
-    element.addEventListener('keydown', escape);
+    element.addEventListener('keydown', returnToList);
     return () => {
-      element.removeEventListener('keydown', escape);
+      element.removeEventListener('keydown', returnToList);
     };
   }, [onCancel]);
   const predecessors = endpointChoices(predecessor, rows, steps, availablePredecessorStepIds);

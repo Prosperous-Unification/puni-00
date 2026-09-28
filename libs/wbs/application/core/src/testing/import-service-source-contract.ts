@@ -1272,6 +1272,112 @@ export function importServiceSourceContract(
       }
     });
 
+    it('refuses a shuffled-step relationship cyclic in position order before writing', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 4;
+        const verify = file.workItems.find(({ id }) => id === 'row-verify');
+        if (verify === undefined) throw new Error('fixture verification leaf disappeared');
+        verify.dependsOn = [];
+        file.steps.reverse();
+        Reflect.set(file, 'typedDependencies', [
+          {
+            id: 'backward-step',
+            predecessor: { scope: 'node', workItem: 'row-build', step: 'step-verify' },
+            successor: { scope: 'node', workItem: 'row-build', step: 'step-build' },
+            type: 'FS',
+          },
+        ]);
+        const before = await source.stores.projects.list();
+        const classified = await classifyPlanDocument(file);
+        if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
+
+        expect(await importService(source).import(classified.value, ACTOR)).toMatchObject({
+          ok: false,
+          code: 'invalid_typed_dependency',
+          path: 'typedDependencies',
+        });
+        expect(await source.stores.projects.list()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('imports a shuffled-step relationship valid in position order', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 4;
+        const verify = file.workItems.find(({ id }) => id === 'row-verify');
+        if (verify === undefined) throw new Error('fixture verification leaf disappeared');
+        verify.dependsOn = [];
+        file.steps.reverse();
+        Reflect.set(file, 'typedDependencies', [
+          {
+            id: 'forward-step',
+            predecessor: { scope: 'node', workItem: 'row-build', step: 'step-build' },
+            successor: { scope: 'node', workItem: 'row-build', step: 'step-verify' },
+            type: 'FS',
+          },
+        ]);
+        const classified = await classifyPlanDocument(file);
+        if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
+
+        const imported = await importService(source).import(classified.value, ACTOR);
+        if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+        expect((await exportDocument(source, imported.projectId)).typedDependencies).toHaveLength(
+          1,
+        );
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('imports distinct relationships whose work-item and step IDs share a delimiter spelling', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 4;
+        const first = file.workItems.find(({ id }) => id === 'row-build');
+        const target = file.workItems.find(({ id }) => id === 'row-verify');
+        if (first === undefined || target === undefined)
+          throw new Error('fixture leaves disappeared');
+        first.id = 'a:b';
+        target.dependsOn = [];
+        file.workItems.push({ ...structuredClone(target), id: 'a', position: 30, name: 'Other' });
+        file.steps.push(
+          { id: 'c', name: 'C', position: 80, allowancePercent: 0, code: 'c' },
+          { id: 'b:c', name: 'BC', position: 90, allowancePercent: 0, code: 'bc' },
+        );
+        Reflect.set(file, 'typedDependencies', [
+          {
+            id: 'first',
+            predecessor: { scope: 'node', workItem: 'a:b', step: 'c' },
+            successor: { scope: 'whole', workItem: 'row-verify' },
+            type: 'FS',
+          },
+          {
+            id: 'second',
+            predecessor: { scope: 'node', workItem: 'a', step: 'b:c' },
+            successor: { scope: 'whole', workItem: 'row-verify' },
+            type: 'FS',
+          },
+        ]);
+        const classified = await classifyPlanDocument(file);
+        if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
+
+        const imported = await importService(source).import(classified.value, ACTOR);
+        if (!imported.ok)
+          throw new Error(`import refused at ${imported.path}: ${String(imported.detail)}`);
+        expect((await exportDocument(source, imported.projectId)).typedDependencies).toHaveLength(
+          2,
+        );
+      } finally {
+        await source.close();
+      }
+    });
+
     it.each([
       [
         'unknown scope',

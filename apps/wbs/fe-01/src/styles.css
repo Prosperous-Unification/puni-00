@@ -1671,7 +1671,10 @@
 }
 .typed-dependency-editor select {
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
+}
+.typed-dependency-editor > button {
+  min-height: 44px;
 }
 .typed-dependency-actions {
   display: flex;
@@ -1679,7 +1682,7 @@
   justify-content: flex-end;
 }
 .typed-dependency-actions button {
-  min-height: 40px;
+  min-height: 44px;
   padding-inline: 12px;
 }
 .typed-dependency-card-entry {
@@ -1689,7 +1692,7 @@
   align-items: center;
 }
 .typed-dependency-card-entry button {
-  min-height: 40px;
+  min-height: 44px;
   padding-inline: 10px;
 }
 @media (max-width: 640px) {

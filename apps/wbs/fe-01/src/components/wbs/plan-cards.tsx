@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/modal';
 import type {
   Days,
+  PlanRead,
   PriorityBandView,
   StepView,
   TypedDependencyEndpoint,
@@ -169,6 +170,7 @@ export interface PlanCardsProps {
   /** Explicit relationships are listed beside legacy waits in the phone sheet. */
   typedWaitsFor?: (row: TreeRow) => readonly TypedDependencyView[];
   dependencyRows?: readonly TreeRow[];
+  dependencyStepNodes?: NonNullable<PlanRead['stepNodes']>;
   saveTypedDependency?: (
     dependencyId: string,
     predecessor: TypedDependencyEndpoint,
@@ -1938,6 +1940,7 @@ function CardDependsField({
   waits,
   typedWaits,
   dependencyRows,
+  dependencyStepNodes,
   steps,
   saveTypedDependency,
   addTypedDependency,
@@ -1950,6 +1953,7 @@ function CardDependsField({
   waits: readonly DependencyEntry[];
   typedWaits: readonly TypedDependencyView[];
   dependencyRows: readonly TreeRow[];
+  dependencyStepNodes?: NonNullable<PlanRead['stepNodes']>;
   steps: readonly StepView[];
   saveTypedDependency?: (
     dependencyId: string,
@@ -2100,7 +2104,20 @@ function CardDependsField({
               className="flex max-h-56 shrink-0 flex-col gap-1 overflow-y-auto"
             >
               {typedWaits.map((dependency) => {
-                const words = dependencyWords(dependency, dependencyRows, steps);
+                // Proof: injecting an absent dependencyStepNodes prop made `uses server
+                // step-node references for phone typed chips` fail with this missing-node
+                // error instead of presenting an invented code. Watched 2026-09-28.
+                if (
+                  dependencyStepNodes === undefined &&
+                  (dependency.predecessor.scope === 'node' || dependency.successor.scope === 'node')
+                )
+                  throw new Error('Missing dependency step nodes for card');
+                const words = dependencyWords(
+                  dependency,
+                  dependencyRows,
+                  steps,
+                  dependencyStepNodes,
+                );
                 if (removeTypedDependency === undefined || saveTypedDependency === undefined)
                   throw new Error('Missing typed dependency card commands');
                 return (
@@ -2172,6 +2189,23 @@ function CardDependsField({
               const dependency = typedWaits.find(
                 (candidate) => candidate.id === editing.dependencyId,
               );
+              // Proof: forcing this guard false made `refuses to recreate a phone edit
+              // target removed before Save` fail because the stale alert was absent;
+              // the editor exposed Add. Watched 2026-09-28.
+              if (editing.dependencyId !== undefined && dependency === undefined)
+                return (
+                  <p role="alert">
+                    This dependency was removed.{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditing(null);
+                      }}
+                    >
+                      Back to dependency picker
+                    </button>
+                  </p>
+                );
               const predecessor = dependencyRows.find(
                 (candidate) => candidate.id === editing.predecessorId,
               );
@@ -2519,6 +2553,7 @@ export function PlanCards({
   waitsFor,
   typedWaitsFor,
   dependencyRows,
+  dependencyStepNodes,
   saveTypedDependency,
   addTypedDependency,
   removeTypedDependency,
@@ -2909,6 +2944,7 @@ export function PlanCards({
                 waits={waits}
                 typedWaits={typedWaitsFor?.(row) ?? []}
                 dependencyRows={dependencyRows ?? rows.map((card) => card.row)}
+                dependencyStepNodes={dependencyStepNodes}
                 steps={steps}
                 saveTypedDependency={saveTypedDependency}
                 addTypedDependency={addTypedDependency}

@@ -548,6 +548,16 @@ export function fakeProjectApi(): ProjectApi & {
           position,
           code: `fake-${String(position + 1)}`,
         })),
+        stepNodes: rows
+          .filter((row) => !rows.some((child) => child.parentId === row.id))
+          .flatMap((row) =>
+            stepList.map((step) => ({
+              id: `sn1.${row.id}.${step.id}`,
+              workItemId: row.id,
+              stepId: step.id,
+              reference: `${row.number}.${step.name.toLowerCase()}`,
+            })),
+          ),
         assignedPeople: people.map(({ id, name }) => ({ id, name })),
         // Present and empty, never absent: be-01 always sends it, so a fake that
         // left it out would let `teamsOnThePlan` be handed `undefined` here and

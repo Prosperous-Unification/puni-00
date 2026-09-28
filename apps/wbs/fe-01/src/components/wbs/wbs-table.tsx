@@ -1458,17 +1458,7 @@ export function WbsTable({
             : depEntriesFor(
                 {
                   id: row.id,
-                  dependsOn: [
-                    ...row.dependsOn,
-                    ...typedDependencies
-                      .filter(
-                        (dependency) =>
-                          dependency.successor.scope === 'whole' &&
-                          dependency.successor.workItemId === row.id &&
-                          dependency.predecessor.scope === 'whole',
-                      )
-                      .map((dependency) => dependency.predecessor.workItemId),
-                  ],
+                  dependsOn: row.dependsOn,
                 },
                 dependencyPicker.typed,
               ),
@@ -2512,6 +2502,7 @@ export function WbsTable({
                 typedDependencies.filter((dependency) => dependency.successor.workItemId === row.id)
               }
               dependencyRows={flat}
+              dependencyStepNodes={stepNodes}
               saveTypedDependency={(dependencyId, predecessor, successor) =>
                 run((write) =>
                   write.perform(['tree'], () =>

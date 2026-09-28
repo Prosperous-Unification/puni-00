@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { workItemView } from '@/testing/views';
 
-import { dependencyWords, TypedDependencyEditor } from './typed-dependency-editor';
+import { dependencyWords, endpointChoices, TypedDependencyEditor } from './typed-dependency-editor';
 import { toTree } from './wbs-rows';
 
 const steps = [
@@ -18,6 +18,16 @@ const predecessor = rows[0];
 const successor = rows[1];
 
 describe('typed dependency editor', () => {
+  it('explains whole-parent expansion with the descendant leaf count', () => {
+    const branch = toTree([
+      workItemView({ id: 'p', number: '030', name: 'Parent' }),
+      workItemView({ id: 'c1', parentId: 'p', number: '030.1' }),
+      workItemView({ id: 'c2', parentId: 'p', number: '030.2' }),
+    ]);
+    expect(
+      endpointChoices(branch[0], [...branch, ...(branch[0]?.subRows ?? [])], steps)[0]?.label,
+    ).toBe('All descendant work items (2)');
+  });
   it('proposes the same step id on both sides without writing before Add', async () => {
     const onSave = vi.fn().mockResolvedValue('landed');
     render(
