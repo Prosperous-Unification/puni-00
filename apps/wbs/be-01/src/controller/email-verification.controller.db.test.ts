@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { existsSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -100,6 +102,17 @@ describe('password email verification', () => {
         token: 'invalid',
       }),
     ).toEqual({ status: 400, body: { error: 'invalid_body' } });
+    for (const route of [
+      '/api/onboarding/email-challenges',
+      '/api/onboarding/email-challenges/confirm',
+    ]) {
+      expect(
+        await harness.call('ada', 'POST', route, {
+          email: 'K@example.org',
+          ...(route.endsWith('/confirm') ? { token: 'invalid' } : {}),
+        }),
+      ).toEqual({ status: 400, body: { error: 'invalid_body' } });
+    }
     expect(harness.sqlite.query('SELECT id FROM email_challenge').all()).toHaveLength(0);
   });
 
@@ -126,7 +139,7 @@ describe('password email verification', () => {
     ).toBe(500);
   });
 
-  it('refuses pending delivery, expiry, wrong account, and concurrent replay', async () => {
+  it('refuses pending delivery, expiry, wrong account, and sequential replay', async () => {
     harness.activate();
     await harness.register('bea');
     await harness.call('ada', 'POST', '/api/onboarding/email-challenges', {
@@ -171,6 +184,128 @@ describe('password email verification', () => {
       }),
     ]);
     expect(confirmations.map((answer) => answer.status).sort()).toEqual([200, 409]);
+  });
+
+  it('serializes competing address confirmations across processes', async () => {
+    harness.activate();
+    await harness.register('bea');
+    const address = 'shared@example.org';
+    await harness.call('ada', 'POST', '/api/onboarding/email-challenges', { email: address });
+    const adaToken = harness.deliveredEmailToken(address);
+    await harness.call('bea', 'POST', '/api/onboarding/email-challenges', { email: address });
+    const beaToken = harness.deliveredEmailToken(address);
+    const folder = dirname(harness.databasePath());
+    const release = join(folder, 'confirm-release');
+    const spawnConfirmation = (name: 'ada' | 'bea', token: string) => {
+      const ready = join(folder, `confirm-${name}-ready`);
+      const child = Bun.spawn({
+        cmd: [
+          process.execPath,
+          '-e',
+          `
+          import { createHash } from 'node:crypto';
+          import { existsSync, writeFileSync } from 'node:fs';
+          import { openDrizzle } from '@wbs/store-sqlite/db';
+          import { EmailVerificationRepository } from '@wbs/store-sqlite';
+          import { OPEN } from '@wbs/store-sqlite/gate';
+          const verification = new EmailVerificationRepository(openDrizzle(${JSON.stringify(harness.databasePath())}), OPEN);
+          writeFileSync(${JSON.stringify(ready)}, '');
+          const started = Date.now();
+          while (!existsSync(${JSON.stringify(release)})) {
+            if (Date.now() - started > 10000) throw new Error('confirmation was never released');
+            Bun.sleepSync(5);
+          }
+          const answer = await verification.confirm(
+            ${JSON.stringify(harness.userId(name))}, ${JSON.stringify(address)},
+            createHash('sha256').update(${JSON.stringify(token)}).digest('hex'), Date.now,
+          );
+          process.stdout.write(JSON.stringify(answer));
+        `,
+        ],
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      return { child, ready };
+    };
+    const workers = [spawnConfirmation('ada', adaToken), spawnConfirmation('bea', beaToken)];
+    const started = Date.now();
+    while (workers.some(({ ready }) => !existsSync(ready))) {
+      if (Date.now() - started > 10_000) throw new Error('confirmation worker did not start');
+      await Bun.sleep(5);
+    }
+    writeFileSync(release, 'go');
+    const answers = await Promise.all(
+      workers.map(async ({ child }) => {
+        const output = await new Response(child.stdout).text();
+        const errors = await new Response(child.stderr).text();
+        expect(await child.exited).toBe(0);
+        expect(errors).toBe('');
+        return JSON.parse(output) as { ok: boolean; refusal?: string };
+      }),
+    );
+    expect(answers.filter((answer) => answer.ok)).toHaveLength(1);
+    expect(answers.filter((answer) => !answer.ok)).toEqual([
+      { ok: false, refusal: 'address_conflict' },
+    ]);
+    const loser = answers[0]?.ok ? 'bea' : 'ada';
+    expect(
+      harness.sqlite
+        .query('SELECT email, email_verified FROM users WHERE id = ?')
+        .get(harness.userId(loser)),
+    ).toEqual({ email: null, email_verified: 0 });
+    expect(
+      harness.sqlite
+        .query('SELECT consumed_at FROM email_challenge WHERE user_id = ?')
+        .get(harness.userId(loser)),
+    ).toEqual({ consumed_at: null });
+  });
+
+  it('refuses a challenge that expires while confirmation waits for a separate writer', async () => {
+    harness.activate();
+    await harness.call('ada', 'POST', '/api/onboarding/email-challenges', {
+      email: 'ada@example.org',
+    });
+    const token = harness.deliveredEmailToken('ada@example.org');
+    const ready = join(dirname(harness.databasePath()), 'expiry-lock-ready');
+    const holder = Bun.spawn({
+      cmd: [
+        process.execPath,
+        '-e',
+        `
+        import { Database } from 'bun:sqlite';
+        import { writeFileSync } from 'node:fs';
+        const sqlite = new Database(${JSON.stringify(harness.databasePath())});
+        sqlite.run('PRAGMA busy_timeout = 5000');
+        sqlite.run('BEGIN IMMEDIATE');
+        sqlite.run('UPDATE email_challenge SET expires_at = ?', [Date.now() + 150]);
+        writeFileSync(${JSON.stringify(ready)}, '');
+        Bun.sleepSync(500);
+        sqlite.run('COMMIT');
+      `,
+      ],
+      stderr: 'pipe',
+    });
+    const started = Date.now();
+    while (!existsSync(ready)) {
+      if (Date.now() - started > 10_000)
+        throw new Error(`writer did not lock: ${await new Response(holder.stderr).text()}`);
+      await Bun.sleep(5);
+    }
+    expect(
+      await harness.call('ada', 'POST', '/api/onboarding/email-challenges/confirm', {
+        email: 'ada@example.org',
+        token,
+      }),
+    ).toEqual({ status: 409, body: { error: 'challenge_invalid' } });
+    expect(await holder.exited).toBe(0);
+    expect(harness.sqlite.query('SELECT consumed_at FROM email_challenge').get()).toEqual({
+      consumed_at: null,
+    });
+    expect(
+      harness.sqlite
+        .query('SELECT email_verified FROM users WHERE id = ?')
+        .get(harness.userId('ada')),
+    ).toEqual({ email_verified: 0 });
   });
 
   it('refuses failed delivery and address conflict without verifying either account', async () => {
