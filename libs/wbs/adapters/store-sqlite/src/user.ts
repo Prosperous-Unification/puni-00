@@ -250,31 +250,49 @@ function resolveMappedIdentity(
   // `user-oidc.db.test.ts` create an account; watched 2026-09-28.
   if (issuer.length === 0 || subject.length === 0)
     throw new Error('a verified identity has an empty issuer or subject');
-  const mapping = tx
-    .select({ userId: externalIdentity.userId })
+  const mappings = tx
+    .select({ userId: sql<unknown>`${externalIdentity.userId}` })
     .from(externalIdentity)
     .where(and(eq(externalIdentity.issuer, issuer), eq(externalIdentity.subject, subject)))
-    .get();
+    .all();
+  // The unique index allows one; a second, or a user id that is not text, is
+  // corrupt trusted state.
+  // Proof: answering the first of two mappings made `throws on a duplicate
+  // or malformed mapping` in `user-oidc.db.test.ts` resolve; watched
+  // 2026-09-28.
+  if (mappings.length > 1)
+    throw new Error(
+      `external identity ${issuer} ${subject} is mapped ${String(mappings.length)} times`,
+    );
+  const legacyOwners = tx
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.idpIssuer, issuer), eq(users.idpSub, subject)))
+    .all();
+  const mapping = mappings.at(0);
   if (mapping !== undefined) {
+    if (typeof mapping.userId !== 'string' || mapping.userId.length === 0)
+      throw new Error(`external identity ${issuer} ${subject} has a malformed user id`);
     const owner = tx.select(USER_COLUMNS).from(users).where(eq(users.id, mapping.userId)).get();
     // Proof: skipping this check, then the disagreement check below, each
     // made `throws on a mapping to no user and on one its user disagrees with`
     // in `user-oidc.db.test.ts` fail; watched 2026-09-28.
     if (owner === undefined)
       throw new Error(`external identity ${issuer} ${subject} maps to no user`);
-    if (owner.idpIssuer !== null && (owner.idpIssuer !== issuer || owner.idpSub !== subject))
+    const ownPair = owner.idpIssuer === null && owner.idpSub === null;
+    if (!ownPair && (owner.idpIssuer !== issuer || owner.idpSub !== subject))
       throw new Error(`external identity ${issuer} ${subject} disagrees with its user's own pair`);
+    // Proof: skipping this made `throws when the pair maps to one user and
+    // is another's legacy pair` in `user-oidc.db.test.ts` resolve; watched
+    // 2026-09-28.
+    if (legacyOwners.some(({ id }) => id !== owner.id))
+      throw new Error(`external identity ${issuer} ${subject} is another user's legacy pair`);
     return owner;
   }
-  const legacy = tx
-    .select({ id: users.id })
-    .from(users)
-    .where(and(eq(users.idpIssuer, issuer), eq(users.idpSub, subject)))
-    .get();
   // Proof: skipping this made `throws on a legacy pair activation never
   // mapped` in `user-oidc.db.test.ts` create a second account; watched
   // 2026-09-28.
-  if (legacy !== undefined)
+  if (legacyOwners.length > 0)
     throw new Error(`legacy identity ${issuer} ${subject} was never mapped at activation`);
   const trustedEmail =
     identity.emailVerified && identity.email !== null ? normalizeEmail(identity.email) : null;

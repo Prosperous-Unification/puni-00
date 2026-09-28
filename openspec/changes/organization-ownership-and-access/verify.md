@@ -558,6 +558,22 @@ Branch `batch-9/010-5-2-orgs-19`, stacked on slice 20. There is no migration.
 | Backfill refuses half or empty pairs         | check skipped                             | `external-identity.db.test.ts` `refuses a half or empty legacy pair, mapping nothing`                                                                                              |
 | Backfill refuses a pair owned by another     | owner check skipped                       | `refuses a pair already mapped to another user, mapping nothing`                                                                                                                   |
 
+Astra review 1 raised 3 Important findings, all fixed. Each fault below was watched failing on 2026-09-28:
+
+| Check                                  | Injected fault                      | Observed failure                                                     |
+| -------------------------------------- | ----------------------------------- | -------------------------------------------------------------------- |
+| One mapping per pair                   | duplicate check skipped             | `throws on a duplicate or malformed mapping`                         |
+| Mapping user id is text                | type check skipped                  | same case                                                            |
+| Pair is not another user's legacy pair | legacy-owner check skipped          | `throws when the pair maps to one user and is another's legacy pair` |
+| A user's own pair is whole or absent   | only the issuer compared with null  | `throws on a user whose own pair is half present`                    |
+| Backfill reads text pairs only         | values stringified before the check | `refuses a half, empty or non-text legacy pair, mapping nothing`     |
+
+Three more cases have no dedicated guard, because SQLite already refuses them:
+
+- a missing mapping table throws;
+- a failed mapping insert keeps no account (`keeps no account when its mapping cannot be written`);
+- two concurrent first logins of one pair create one account and one mapping.
+
 A broken marker throws before any resolution (`throws on a broken marker instead of resolving as before activation`). The marker is read on every call (`reads the marker on every call, so activation needs no restart`).
 
 ## Slice 22 — delegation verifier (task 2.5, first slice)

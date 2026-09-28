@@ -258,6 +258,76 @@ describe('UserRepository.resolveOidcIdentity after activation', () => {
     expect(await failureOf(resolve({ subject: 'subject-2' }))).toContain('disagrees');
   });
 
+  it("throws when the pair maps to one user and is another's legacy pair", async () => {
+    await users.create(
+      { id: 'a', username: 'a-oidc', passwordHash: null, createdAt: 1 },
+      selfMade('a', 1),
+    );
+    await federated('b');
+    map('a');
+    activate();
+
+    expect(await failureOf(resolve())).toContain("another user's legacy pair");
+  });
+
+  it('throws on a user whose own pair is half present', async () => {
+    await users.create(
+      { id: 'a', username: 'a-oidc', passwordHash: null, createdAt: 1 },
+      selfMade('a', 1),
+    );
+    raw("UPDATE users SET idp_sub = 'subject-1' WHERE id = 'a'");
+    map('a');
+    activate();
+
+    expect(await failureOf(resolve())).toContain('disagrees');
+  });
+
+  it('throws on a duplicate or malformed mapping', async () => {
+    await federated('existing');
+    raw('DROP INDEX external_identity_issuer_subject');
+    map('existing');
+    raw(
+      'INSERT INTO external_identity (id, user_id, issuer, subject, created_at) VALUES (?, ?, ?, ?, 1)',
+      ['map-second', 'existing', identity.issuer, identity.subject],
+    );
+    activate();
+
+    expect(await failureOf(resolve())).toContain('mapped 2 times');
+    raw("DELETE FROM external_identity WHERE id = 'map-second'");
+    raw("PRAGMA foreign_keys = OFF; UPDATE external_identity SET user_id = CAST(x'00' AS BLOB)");
+    expect(await failureOf(resolve())).toContain('malformed user id');
+  });
+
+  it('throws when the mapping table is absent or unreadable', async () => {
+    activate();
+    raw('ALTER TABLE external_identity RENAME TO external_identity_gone');
+
+    expect(await failureOf(resolve())).toContain('external_identity');
+  });
+
+  it('keeps no account when its mapping cannot be written', async () => {
+    activate();
+    raw(
+      "CREATE TRIGGER mapping_refused BEFORE INSERT ON external_identity BEGIN SELECT RAISE(ABORT, 'mapping refused'); END",
+    );
+
+    expect(await failureOf(resolve())).toContain('external_identity');
+    expect(rows("SELECT id FROM users WHERE id = 'new'")).toEqual([]);
+  });
+
+  it('creates one account for two concurrent first logins of one pair', async () => {
+    activate();
+    const second = new UserRepository(openDrizzle(join(dir, 'test.db')), OPEN);
+
+    const [first, other] = await Promise.all([
+      resolve(),
+      second.resolveOidcIdentity(identity, { id: 'other' }, selfMade('other', 9)),
+    ]);
+
+    expect(first?.id).toBe(other?.id ?? 'unresolved');
+    expect(rows('SELECT user_id FROM external_identity')).toHaveLength(1);
+  });
+
   it('throws on an empty issuer or subject', async () => {
     activate();
 

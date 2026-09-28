@@ -1,5 +1,5 @@
 import type { WriteStamp } from '@wbs/core';
-import { and, eq, isNotNull, or } from 'drizzle-orm';
+import { and, eq, isNotNull, or, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate } from './audit';
@@ -101,21 +101,28 @@ type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0
  */
 export function backfillExternalIdentities(tx: Transaction, at: number): number {
   const legacy = tx
-    .select({ id: users.id, issuer: users.idpIssuer, subject: users.idpSub })
+    .select({
+      id: users.id,
+      issuer: sql<unknown>`${users.idpIssuer}`,
+      subject: sql<unknown>`${users.idpSub}`,
+    })
     .from(users)
     .where(or(isNotNull(users.idpIssuer), isNotNull(users.idpSub)))
     .all();
   let added = 0;
   for (const { id, issuer, subject } of legacy) {
-    // Proof: skipping this check made `refuses a half or empty legacy pair`
-    // in `external-identity.db.test.ts` fail; watched 2026-09-28.
-    if (issuer === null || subject === null || issuer.length === 0 || subject.length === 0)
+    // Proof: skipping this check made `refuses a half, empty or non-text
+    // legacy pair` in `external-identity.db.test.ts` fail; watched 2026-09-28.
+    if (!isFilledText(issuer) || !isFilledText(subject))
       throw new Error(`user ${id} has a partial or empty legacy identity pair`);
-    const mapped = tx
+    const mappings = tx
       .select({ userId: externalIdentity.userId })
       .from(externalIdentity)
       .where(and(eq(externalIdentity.issuer, issuer), eq(externalIdentity.subject, subject)))
-      .get();
+      .all();
+    if (mappings.length > 1)
+      throw new Error(`identity ${issuer} ${subject} is mapped ${String(mappings.length)} times`);
+    const mapped = mappings.at(0);
     if (mapped !== undefined) {
       // Proof: skipping this check made `refuses a pair already mapped to
       // another user, mapping nothing` in `external-identity.db.test.ts`
@@ -134,4 +141,9 @@ export function backfillExternalIdentities(tx: Transaction, at: number): number 
     added += 1;
   }
   return added;
+}
+
+/** Stored identity text: a non-empty string, not a blob, number or null. */
+function isFilledText(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
 }
