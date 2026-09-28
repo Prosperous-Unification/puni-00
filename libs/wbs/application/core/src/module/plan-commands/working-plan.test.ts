@@ -10,6 +10,16 @@ import { workItemRow } from '../../testing/work-item-fixture';
 import { PlanCommandRunner } from './plan-commands.feature';
 import { createWorkingPlan } from './working-plan.resource';
 
+/** Whether a call refused, synchronously or by rejecting; `.rejects` cannot be awaited under Bun's types. */
+async function refusesCall(call: () => unknown): Promise<boolean> {
+  try {
+    await call();
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 const OWNER = 'working-plan-owner';
 const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 } as const;
 
@@ -21,6 +31,53 @@ function silentBroadcaster(): Broadcaster {
 }
 
 describe('the admitted working batch baseline', () => {
+  it('passes typed links through the batch and refuses cross-project and closed access', async () => {
+    const source = openMemorySource();
+    const plan = createWorkingPlan({ stores: source.stores }, 'project-a');
+    const row = {
+      id: 'typed-a',
+      projectId: 'project-a',
+      predecessor: { scope: 'whole' as const, workItemId: 'a' },
+      successor: { scope: 'whole' as const, workItemId: 'b' },
+      type: 'FS' as const,
+    };
+    const stamp = { at: 1, by: OWNER };
+    try {
+      await plan.stores.typedDependencies.add(row, stamp);
+      expect(await plan.stores.typedDependencies.listByProject('project-a')).toEqual([row]);
+      const later = {
+        ...row,
+        id: 'typed-later',
+        successor: { scope: 'whole' as const, workItemId: 'c' },
+      };
+      await source.stores.typedDependencies.add(later, stamp);
+      expect(await plan.stores.typedDependencies.listByProject('project-a')).toEqual([row, later]);
+      expect(() => plan.stores.typedDependencies.listByProject('project-b')).toThrow();
+      expect(() =>
+        plan.stores.typedDependencies.add({ ...row, id: 'other', projectId: 'project-b' }, stamp),
+      ).toThrow();
+      await source.stores.typedDependencies.add(
+        {
+          ...row,
+          id: 'foreign',
+          projectId: 'project-b',
+          predecessor: { scope: 'whole', workItemId: 'foreign' },
+        },
+        stamp,
+      );
+      expect(await refusesCall(() => plan.stores.typedDependencies.remove('foreign', stamp))).toBe(
+        true,
+      );
+      expect(
+        await refusesCall(() => plan.stores.typedDependencies.removeAllFor(['foreign'], stamp)),
+      ).toBe(true);
+      plan.close();
+      expect(() => plan.stores.typedDependencies.listByProject('project-a')).toThrow();
+    } finally {
+      await source.close();
+    }
+  });
+
   it('preserves the four mutation sequences through a working collection', async () => {
     const source = openMemorySource();
     const admitted: PlanTransactionalStores[] = [];

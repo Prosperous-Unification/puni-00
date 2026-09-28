@@ -1,7 +1,9 @@
 import type { PlanDocumentImport } from '@wbs/contracts';
+import { canWriteInOrganization } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type { Clock } from '../../ports/clock';
+import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scheduler } from '../../ports/scheduler';
 import type { SubtreeCopy } from '../../ports/subtree-store';
@@ -51,8 +53,20 @@ export interface ImportSourceRefusal {
   detail: string;
 }
 
+/** A viewer's import after activation: reading an organization is not importing into it. */
+export interface ImportForbidden {
+  ok: false;
+  code: 'forbidden';
+  /** The whole document: nothing in it was read. */
+  path: '';
+  detail: null;
+}
+
 export type ImportOutcome =
-  ImportAdmission | ImportSourceRefusal | Extract<ImportPreparation, { ok: false }>;
+  | ImportAdmission
+  | ImportSourceRefusal
+  | ImportForbidden
+  | Extract<ImportPreparation, { ok: false }>;
 
 type AdmittedImportOutcome = ImportAdmission | ImportSourceRefusal;
 
@@ -142,7 +156,31 @@ async function resolveNamed(
 export class ImportService {
   constructor(private readonly opts: ImportServiceOptions) {}
 
-  async import(document: PlanDocumentImport, actorId: string): Promise<ImportOutcome> {
+  /**
+   * Imports a plan document as a new project through the caller's access.
+   * Under scoped access the project is the organization's, every directory
+   * name resolves among the organization's own entries under their local
+   * names and anything missing is created there, a solution reference is left
+   * off (slugs are still unique across the deployment, so keeping one would
+   * reveal another organization's), and only the organization's projects are
+   * told the directory changed.
+   *
+   * Proof: reading the tags through legacy access made `imports into the
+   * organization, resolving names among its own entries` in
+   * `import-export-organization.controller.db.test.ts` create a second
+   * `Release` tag instead of resolving A's own; watched 2026-09-27.
+   */
+  async import(
+    document: PlanDocumentImport,
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<ImportOutcome> {
+    // Proof: skipping this refusal made `refuses a viewer's import` in
+    // `import-export-organization.controller.db.test.ts` answer 201;
+    // watched 2026-09-27.
+    if (access.kind === 'scoped' && !canWriteInOrganization(access.scope.role)) {
+      return { ok: false, code: 'forbidden', path: '', detail: null };
+    }
     const preparation = prepareImport(document, this.opts.scheduler);
     if (!preparation.ok) return preparation;
     const collector = new AnnouncementCollector(this.opts.announcements);
@@ -150,12 +188,12 @@ export class ImportService {
       const graph = this.opts.batchServices(scope, collector);
       const directory = graph.directory;
       const [services, teams, people, tags, types, systems] = await Promise.all([
-        directory.listServices(),
-        directory.listTeams(),
-        directory.listPeople(),
-        directory.listTags(),
-        directory.listWorkItemTypes(),
-        directory.listExternalSystems(),
+        directory.listWithin('services', access),
+        directory.listWithin('teams', access),
+        directory.listWithin('people', access),
+        directory.listWithin('tags', access),
+        directory.listWithin('workItemTypes', access),
+        directory.listWithin('externalSystems', access),
       ]);
       const prepared = preparation.value;
       const created = {
@@ -176,7 +214,7 @@ export class ImportService {
       const servicesByFileId = await resolveNamed(
         prepared.serviceByFileId,
         existingIds(services),
-        async (name) => await directory.addService(actorId, name),
+        async (name) => await directory.addWithin('services', actorId, name, access),
       );
       const heldTeams = existingIds(teams);
       const teamsByFileId = new Map<string, string>();
@@ -186,14 +224,19 @@ export class ImportService {
           teamsByFileId.set(team.fileId, held);
           continue;
         }
-        const created = await directory.addTeam(actorId, team.name);
+        const created = await directory.addWithin('teams', actorId, team.name, access);
         if (created === null) throw new Error(`prepared team name became invalid: ${team.name}`);
         const serviceIds = team.serviceFileIds.map((fileId) => {
           const id = servicesByFileId.get(fileId);
           if (id === undefined) throw new Error(`prepared service mapping disappeared: ${fileId}`);
           return id;
         });
-        const patched = await directory.patchTeam(created.id, actorId, { serviceIds });
+        const patched = await directory.patchTeamWithin(
+          created.id,
+          actorId,
+          { serviceIds },
+          access,
+        );
         if (!patched.ok) throw new Error(`created team metadata was refused: ${patched.reason}`);
         teamsByFileId.set(team.fileId, created.id);
       }
@@ -212,34 +255,46 @@ export class ImportService {
           if (id === undefined) throw new Error(`prepared team mapping disappeared: ${fileId}`);
           return id;
         });
-        const created = await directory.addPerson(actorId, person.name, teamIds, person.kind);
+        const created = await directory.addPersonWithin(
+          actorId,
+          person.name,
+          teamIds,
+          access,
+          person.kind,
+        );
         if (!created.ok) throw new Error(`created person metadata was refused: ${created.reason}`);
         peopleByFileId.set(person.fileId, created.value.id);
       }
       const tagsByFileId = await resolveNamed(
         prepared.tagByFileId,
         existingIds(tags),
-        async (name) => await directory.addTag(actorId, name),
+        async (name) => await directory.addWithin('tags', actorId, name, access),
       );
       const typesByFileId = await resolveNamed(
         prepared.typeByFileId,
         existingIds(types),
-        async (name) => await directory.addWorkItemType(actorId, name),
+        async (name) => await directory.addWithin('workItemTypes', actorId, name, access),
       );
       const systemsByFileId = await resolveNamed(
         prepared.externalSystemByFileId,
         existingIds(systems),
-        async (name) => await directory.addExternalSystem(actorId, name),
+        async (name) => await directory.addWithin('externalSystems', actorId, name, access),
       );
       const requested = prepared.settings.solutionRef;
       const solutionRef =
         requested === null
           ? 'none'
-          : // Proof: skipping this admitted lookup made concurrent memory imports both
-            // answer `kept` and leaked SQLite's `project.solution_slug` uniqueness error.
-            (await scope.stores.projects.findBySolutionSlug(requested.slug)) === null
-            ? 'kept'
-            : 'left-off';
+          : // Proof: keeping a slug under scoped access made `leaves a solution
+            // reference off, revealing nothing` in
+            // `import-export-organization.controller.db.test.ts` answer `kept`;
+            // watched 2026-09-27.
+            access.kind === 'scoped'
+            ? 'left-off'
+            : // Proof: skipping this admitted lookup made concurrent memory imports both
+              // answer `kept` and leaked SQLite's `project.solution_slug` uniqueness error.
+              (await scope.stores.projects.findBySolutionSlug(requested.slug)) === null
+              ? 'kept'
+              : 'left-off';
       const stamp = this.opts.clock.stampFor(actorId);
       const projectId = this.opts.clock.newId();
       const settings = prepared.settings;
@@ -260,27 +315,37 @@ export class ImportService {
       );
       // Proof: routing this through ProjectService.create made the source contract
       // read `[Dev@10, QA@20]` instead of `[Discover@10, Build@30, Verify@70]`.
-      await scope.stores.projects.create(
-        {
-          id: projectId,
-          name: settings.name,
-          ownerId: actorId,
-          restricted: settings.restricted,
-          estimateMethod: settings.estimateMethod,
-          depReach: settings.depReach,
-          pertWeights: settings.pertWeights,
-          estimateRounding: settings.estimateRounding,
-          startDate: settings.startDate,
-          solutionRef: requested !== null && solutionRef === 'kept' ? requested : null,
-          revision: 0,
-          createdAt: stamp.at,
-          optimizationEnabled: settings.optimizationEnabled,
-          scheduleEngine: settings.scheduleEngine,
-          scheduleObjective: settings.scheduleObjective,
-        },
-        steps,
-        stamp,
-      );
+      const project = {
+        id: projectId,
+        name: settings.name,
+        ownerId: actorId,
+        restricted: settings.restricted,
+        estimateMethod: settings.estimateMethod,
+        depReach: settings.depReach,
+        pertWeights: settings.pertWeights,
+        estimateRounding: settings.estimateRounding,
+        startDate: settings.startDate,
+        solutionRef: requested !== null && solutionRef === 'kept' ? requested : null,
+        revision: 0,
+        createdAt: stamp.at,
+        optimizationEnabled: settings.optimizationEnabled,
+        scheduleEngine: settings.scheduleEngine,
+        scheduleObjective: settings.scheduleObjective,
+      };
+      // Proof: creating the project unmapped under scoped access made `imports
+      // into the organization, resolving names among its own entries` in
+      // `import-export-organization.controller.db.test.ts` find no imported
+      // project in A's list; watched 2026-09-27.
+      if (access.kind === 'scoped') {
+        await scope.stores.projects.createInOrganization(
+          project,
+          steps,
+          stamp,
+          access.scope.organizationId,
+        );
+      } else {
+        await scope.stores.projects.create(project, steps, stamp);
+      }
       const bands = await scope.stores.priorityBands.replace(
         projectId,
         prepared.priorityBands,
@@ -438,8 +503,21 @@ export class ImportService {
       if (directoryChanged) {
         // Proof: omitting this fan-out left an existing project's subscriber
         // with no refresh, so its post-import directory read never saw `Billing`.
-        for (const project of await scope.stores.projects.list()) {
-          await collector.publish(project.id, { type: 'directory_changed' });
+        // Only the organization's own projects under scoped access: another
+        // organization's plans draw nothing this import created.
+        // Proof: telling every project made `tells only the organization's
+        // projects that its directory changed` in
+        // `import-export-organization.controller.db.test.ts` find B's project
+        // told; watched 2026-09-27.
+        const told =
+          access.kind === 'scoped'
+            ? await scope.stores.projects.listForInOrganization(
+                actorId,
+                access.scope.organizationId,
+              )
+            : await scope.stores.projects.list();
+        for (const each of told) {
+          await collector.publish(each.id, { type: 'directory_changed' });
         }
       }
       await collector.publish(projectId, {

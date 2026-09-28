@@ -103,6 +103,7 @@ const ORGANIZATION_TABLES = [
 const STEP_CODE = '20260927150000_add_step_code';
 /** The step allowance column `add-project-step-estimate-allowances` adds, stamped after {@link STEP_CODE}. */
 const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
+const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
@@ -233,6 +234,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
@@ -251,7 +253,10 @@ describe('20260905090000_add_calendar_marker', () => {
     // Nothing else moved: the forward migration is additive, so its reversal
     // owes the rest of the schema byte-for-byte.
     expect(afterRollback).toEqual(
-      withTable.filter((n) => n !== 'calendar_marker' && !ORGANIZATION_TABLES.includes(n)),
+      withTable.filter(
+        (n) =>
+          n !== 'calendar_marker' && n !== 'typed_dependency' && !ORGANIZATION_TABLES.includes(n),
+      ),
     );
   });
 

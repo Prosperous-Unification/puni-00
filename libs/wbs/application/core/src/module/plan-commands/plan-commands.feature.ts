@@ -1,4 +1,4 @@
-import { commandDefinitions, type PlanCommandKind } from '@wbs/contracts';
+import type { PlanCommandKind } from '@wbs/contracts';
 import { canWriteInOrganization, type OrganizationScope } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
@@ -30,7 +30,12 @@ import type { DirectoryUsage } from '../../service/directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
 import type { PriorityBandService } from '../../service/priority-band.service';
 import type { WorkItemRefusal } from '../../service/work-item.service';
-import type { Collected, UndoOutcome, WorkItemService } from '../../service/work-item.service';
+import type {
+  Collected,
+  UndoOutcome,
+  WorkItemOutcome,
+  WorkItemService,
+} from '../../service/work-item.service';
 import { applyCommand, bindCommands, CommandContext, CommandRefused } from './command-bindings';
 import { createWorkingPlan } from './working-plan.resource';
 
@@ -69,7 +74,11 @@ interface CommandEntities {
 }
 type EntityKind = keyof CommandEntities;
 type PlainKind = Exclude<PlanCommandKind, EntityKind>;
-type MintedKind = 'createWorkItem' | 'duplicateWorkItem' | Extract<EntityKind, `create${string}`>;
+type MintedKind =
+  | 'createWorkItem'
+  | 'duplicateWorkItem'
+  | 'addTypedDependency'
+  | Extract<EntityKind, `create${string}`>;
 // Proof: making minted id optional produced two TS2578 diagnostics in the created-result fixtures.
 export type MintedBase = AppliedBase & { id: string };
 /** Internal kind identifies the producer's exact entity contract; controllers erase it from the unchanged wire. */
@@ -84,7 +93,10 @@ export type AppliedCommand =
     }[EntityKind];
 
 type PlainReason =
-  | Exclude<WorkItemRefusal, 'deadline_before_project_start'>
+  | Exclude<
+      WorkItemRefusal,
+      'deadline_before_project_start' | 'descendant_step_on_leaf' | 'node_on_parent'
+    >
   | DirectoryRefusal
   | 'calendar_range'
   | 'too_many_commands'
@@ -98,11 +110,13 @@ export type Refusal =
       reason: 'deadline_before_project_start';
       detail: { workItemId: string; projectDayZero: string };
     }
+  | { reason: 'descendant_step_on_leaf' | 'node_on_parent'; detail: { dependencyIds: string[] } }
   | { reason: 'taken'; detail: { name: string } }
   | { reason: 'in_use'; detail: { usage: DirectoryUsage } };
 /** A runtime refusal always carries its command index and recognized kind. */
 export type BatchRefusal = { ok: false; at: number; kind: PlanCommandKind } & Refusal;
 export type ServiceRefusal =
+  | Extract<WorkItemOutcome<never>, { ok: false }>
   | { ok: false; reason: PlainReason }
   | {
       ok: false;
@@ -174,6 +188,24 @@ const CALENDAR_AFFECTING_KINDS: ReadonlySet<PlanCommandKind> = new Set([
 ]);
 
 /**
+ * Commands that can change the combined step-node dependency graph: its
+ * edges, its tree, or which node a dynamic legacy anchor lands on. Each is
+ * followed by a graph check that refuses at its own index.
+ *
+ * `removeDependency`, directory and field commands are absent because
+ * removing an edge or renaming a row cannot close a cycle.
+ */
+const GRAPH_AFFECTING_KINDS: ReadonlySet<PlanCommandKind> = new Set([
+  'createWorkItem',
+  'moveWorkItem',
+  'duplicateWorkItem',
+  'deleteWorkItem',
+  'setEstimate',
+  'clearEstimate',
+  'addDependency',
+]);
+
+/**
  * Applies a {@link Command batch}: every step through the service it belongs
  * to, as one {@link Unit of work} — one {@link Turn} at the source's write
  * coordinator, and every write settled together — then
@@ -210,10 +242,10 @@ export class PlanCommandRunner {
   }
 
   /**
-   * {@link runDirectory} through the caller's access. Under scoped access every
-   * directory command is refused as `forbidden` at its index until
-   * organization-local directory writes land (task 3.4, part 2): a global
-   * create or rename would write a name another organization shares.
+   * {@link runDirectory} through the caller's access. Under scoped access a
+   * viewer is refused, and every directory command writes only the
+   * organization's own entries under their organization-local names: see
+   * `DirectoryService.addWithin` and its siblings.
    */
   runDirectoryWithin(
     actorId: string,
@@ -490,8 +522,8 @@ export class PlanCommandRunner {
 
   /**
    * Applies every command in order. Under scoped access each command is also
-   * held to the organization: a directory command is refused (part 2 of task
-   * 3.4 owns organization-local directory writes), every work item, step,
+   * held to the organization: a directory command writes through the
+   * caller's access (see {@link CommandContext.access}), every work item, step,
    * parent, sibling and predecessor it names must be this project's, and after
    * it runs the project may reference nothing outside the organization — the
    * closure the schedule read checks — or the batch is refused at its index.
@@ -508,7 +540,7 @@ export class PlanCommandRunner {
     const bindings = bindCommands(graph);
     const applied: AppliedCommand[] = [];
     for (const [index, command] of commands.entries()) {
-      const context = new CommandContext(actorId, projectId, index, command.kind, refs);
+      const context = new CommandContext(actorId, projectId, index, command.kind, refs, access);
       // Proof: removing this check made the mounted cross-project estimate test fail:
       // Expected: 404 / Received: 200 (2026-09-27).
       if (projectId !== null && ('workItemId' in command || 'workItemRef' in command)) {
@@ -540,18 +572,24 @@ export class PlanCommandRunner {
         if (refusal !== null) context.refuse({ reason: refusal });
       }
       if (access.kind === 'scoped') {
-        // Proof: skipping this refusal made `refuses every directory command
-        // until organization-local writes land` in
-        // `command-organization.controller.db.test.ts` answer 200 with the
-        // created `urgent` tag instead of 403; watched 2026-09-27.
-        if (commandDefinitions[command.kind].scope === 'directory') {
-          context.refuse({ reason: 'forbidden' });
-        }
         if (projectId !== null) {
           await refuseForeignReferences(graph, projectId, command, context, access.scope);
         }
       }
       applied.push(await applyCommand(bindings, command, context));
+      // Asked of the state this command left, inside the batch's transaction:
+      // the refusal names this command and rolls every write back.
+      // Proof: this check skipped made the mounted `refuses a legacy link that
+      // closes a step-node cycle`, `refuses an estimate clearing that moves a
+      // legacy anchor into a cycle` and `refuses a move that brings a
+      // successor under its own whole predecessor` fail on `Expected: 409,
+      // Received: 200`; watched 2026-09-27.
+      if (projectId !== null && GRAPH_AFFECTING_KINDS.has(command.kind)) {
+        const cycle = await graph.workItems.findDependencyCycle(projectId);
+        if (cycle !== null) {
+          context.refuse({ reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' });
+        }
+      }
       if (access.kind === 'scoped' && projectId !== null) {
         // Proof: skipping this check made `refuses a foreign service, team,
         // tag, type, person and predecessor, all or none` in

@@ -1,4 +1,5 @@
 import type { PersonKind } from '@wbs/domain';
+import type { OrganizationScope } from '@wbs/domain';
 import { PERSON_KINDS } from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
@@ -8,6 +9,7 @@ import type {
   DirectoryRemoved,
   DirectoryStore,
   DirectoryUsageRows,
+  NamedCatalog,
   Person,
   PersonPatch,
   PersonWithTeams,
@@ -29,6 +31,9 @@ import {
   directoryUsageOfTeam,
   directoryUsageOfWorkItemType,
 } from '../../service/directory-usage';
+
+/** How many fresh ids an opaque root name is tried under before a create gives up. */
+const OPAQUE_NAME_ATTEMPTS = 3;
 
 export interface DirectoryServiceOptions {
   directory: DirectoryStore;
@@ -319,6 +324,14 @@ export class DirectoryService {
       externalSystems: () => this.listExternalSystems(),
     };
     return legacy[catalog]();
+  }
+
+  /** One organization's catalog, as {@link DirectoryStore.listInOrganization} reads it. */
+  listInOrganization<C extends DirectoryCatalog>(
+    catalog: C,
+    organizationId: string,
+  ): Promise<DirectoryCatalogRows[C]> {
+    return this.opts.directory.listInOrganization(catalog, organizationId);
   }
 
   /** Every team **with the services it owns** — the map ships whole, design D4. */
@@ -730,6 +743,511 @@ export class DirectoryService {
     }
     await this.announce(removed.removal.projectIds);
     return { ok: true };
+  }
+
+  /**
+   * Adds a tag, type, service or team through the caller's access. Under
+   * scoped access the entry is the organization's: idempotent by its
+   * organization-local name, otherwise a root with an opaque name (its own
+   * id) mapped to the organization under the display name. Another
+   * organization's entry of the same name is never found, and never blocks.
+   *
+   * Proof: answering the legacy add under scoped access made `creates the
+   * same names in two organizations, each finding only its own` in
+   * `directory-command-organization.controller.db.test.ts` answer 404
+   * `unknown_team`: the legacy add left the batch's new team unmapped;
+   * watched 2026-09-27.
+   */
+  async addWithin(
+    catalog: 'tags' | 'workItemTypes' | 'services' | 'teams' | 'externalSystems',
+    actorId: string,
+    name: string,
+    access: ResourceAccess,
+  ): Promise<{ id: string; name: string } | null> {
+    if (access.kind === 'legacy') {
+      const legacy = {
+        tags: () => this.addTag(actorId, name),
+        workItemTypes: () => this.addWorkItemType(actorId, name),
+        services: () => this.addService(actorId, name),
+        teams: () => this.addTeam(actorId, name),
+        externalSystems: () => this.addExternalSystem(actorId, name),
+      };
+      return legacy[catalog]();
+    }
+    const clean = cleanName(name);
+    if (clean === null) return null;
+    const organizationId = access.scope.organizationId;
+    const existing = (await this.opts.directory.listInOrganization(catalog, organizationId)).find(
+      (entry) => entry.name === clean,
+    );
+    if (existing !== undefined) return { id: existing.id, name: existing.name };
+    const stamp = this.clock.stampFor(actorId);
+    const roots = {
+      tags: (row: { id: string; name: string }) => this.opts.directory.addTag(row, stamp),
+      workItemTypes: (row: { id: string; name: string }) =>
+        this.opts.directory.addWorkItemType(row, stamp),
+      services: (row: { id: string; name: string }) => this.opts.directory.addService(row, stamp),
+      teams: (row: { id: string; name: string }) => this.opts.directory.addTeam(row, stamp),
+      externalSystems: (row: { id: string; name: string }) =>
+        this.opts.directory.addExternalSystem(row, stamp),
+    };
+    const id = await this.addOpaqueRoot((row) => roots[catalog](row));
+    await this.opts.directory.mapInOrganization(catalog, id, organizationId, clean);
+    return { id, name: clean };
+  }
+
+  /**
+   * Inserts a root under an opaque name, its own id, and answers that id.
+   * The roots' global name index is idempotent by name, so an id another root
+   * already carries as its name comes back as that root; a fresh id is tried,
+   * a bounded number of times.
+   *
+   * @throws when every attempt collides, which random ids make a broken clock.
+   */
+  private async addOpaqueRoot(
+    add: (row: { id: string; name: string }) => Promise<{ id: string }>,
+  ): Promise<string> {
+    for (let attempt = 0; attempt < OPAQUE_NAME_ATTEMPTS; attempt += 1) {
+      const id = this.clock.newId();
+      // Proof: accepting the answered row whatever its id made `retries an
+      // opaque root name another root holds, then gives up` in
+      // `directory.resource.test.ts` answer `id-1`, the colliding id, instead
+      // of `id-2`; watched 2026-09-27.
+      if ((await add({ id, name: id })).id === id) return id;
+    }
+    throw new Error(`no free opaque directory name after ${String(OPAQUE_NAME_ATTEMPTS)} ids`);
+  }
+
+  /**
+   * Renames a tag, type or service through the caller's access. Under scoped
+   * access only the organization-local display name moves, only for an entry
+   * the organization owns: a foreign entry is `not_found` exactly as an
+   * absent one.
+   */
+  async renameWithin(
+    catalog: 'tags' | 'workItemTypes' | 'services',
+    id: string,
+    actorId: string,
+    name: string,
+    access: ResourceAccess,
+  ): Promise<DirectoryOutcome<{ id: string; name: string }>> {
+    if (access.kind === 'legacy') {
+      const legacy = {
+        tags: () => this.renameTag(id, actorId, name),
+        workItemTypes: () => this.renameWorkItemType(id, actorId, name),
+        services: () => this.renameService(id, actorId, name),
+      };
+      return legacy[catalog]();
+    }
+    const clean = cleanName(name);
+    if (clean === null) return { ok: false, reason: 'name_required' };
+    const renamed = await this.renameLocal(catalog, id, clean, actorId, access.scope);
+    if (!renamed.ok) return renamed;
+    return { ok: true, value: { id, name: clean } };
+  }
+
+  private async renameLocal(
+    catalog: NamedCatalog,
+    id: string,
+    clean: string,
+    actorId: string,
+    scope: OrganizationScope,
+  ): Promise<
+    { ok: true } | { ok: false; reason: 'not_found' } | { ok: false; reason: 'taken'; name: string }
+  > {
+    if ((await this.ownEntry(catalog, id, scope)) === undefined) {
+      return { ok: false, reason: 'not_found' };
+    }
+    await this.refuseForeignReach(catalog, id, scope);
+    const written = await this.opts.directory.renameInOrganization(
+      catalog,
+      id,
+      scope.organizationId,
+      clean,
+      this.clock.stampFor(actorId),
+    );
+    if (!written.ok) {
+      return written.reason === 'taken'
+        ? { ok: false, reason: 'taken', name: clean }
+        : { ok: false, reason: 'not_found' };
+    }
+    await this.announce(written.projectIds);
+    return { ok: true };
+  }
+
+  /**
+   * Refuses to touch an entry anything outside the organization reaches: a
+   * foreign project's row, assignment or capacity, or a foreign person's,
+   * team's or service's link. Every scoped write of an existing entry checks
+   * it first, since renaming, relinking or removing the entry would otherwise
+   * change what the other organization sees.
+   *
+   * Proof: skipping this check made `fails closed on an entry another
+   * organization reaches, whatever the write` in
+   * `directory-command-organization.controller.db.test.ts` answer 200 to a
+   * cascade removing A's team, dropping B's person's membership; watched
+   * 2026-09-27.
+   *
+   * @throws when any such reference exists: corrupt trusted state.
+   */
+  private async refuseForeignReach(
+    catalog: NamedCatalog,
+    id: string,
+    scope: OrganizationScope,
+  ): Promise<void> {
+    const reached = await this.opts.directory.foreignReferencesTo(
+      catalog,
+      id,
+      scope.organizationId,
+    );
+    if (reached.length > 0) {
+      throw new Error(
+        `${catalog} entry "${id}" of organization "${scope.organizationId}" is reached from outside it: ${reached.join(', ')}`,
+      );
+    }
+  }
+
+  /** The organization's own entry of `catalog` with `id`, or undefined alike for a foreign and an absent one. */
+  private async ownEntry<C extends NamedCatalog>(
+    catalog: C,
+    id: string,
+    scope: OrganizationScope,
+  ): Promise<DirectoryCatalogRows[C][number] | undefined> {
+    const entries: readonly DirectoryCatalogRows[C][number][] =
+      await this.opts.directory.listInOrganization(catalog, scope.organizationId);
+    return entries.find((entry) => entry.id === id);
+  }
+
+  /** Whether the organization owns every one of `ids` in `catalog`. */
+  private async ownsAll(
+    catalog: NamedCatalog,
+    ids: readonly string[],
+    scope: OrganizationScope,
+  ): Promise<boolean> {
+    if (ids.length === 0) return true;
+    const owned = new Set(
+      (await this.opts.directory.listInOrganization(catalog, scope.organizationId)).map(
+        (entry) => entry.id,
+      ),
+    );
+    return ids.every((id) => owned.has(id));
+  }
+
+  /**
+   * {@link patchTeam} through the caller's access. Under scoped access the
+   * team and every service it is to own must be the organization's, the name
+   * moves only in the organization, and the answer carries the local name.
+   *
+   * Proof: skipping the service ownership check made `refuses a foreign
+   * service or team link exactly as an absent one` in
+   * `directory-command-organization.controller.db.test.ts` answer 500 instead
+   * of 404 `unknown_service`, after linking A's team to B's service; skipping
+   * the team ownership check made `answers a foreign entry exactly as an
+   * absent one, changing nothing` answer 500 instead of 404 for B's team;
+   * watched 2026-09-27.
+   */
+  async patchTeamWithin(
+    teamId: string,
+    actorId: string,
+    patch: TeamPatch,
+    access: ResourceAccess,
+  ): Promise<DirectoryOutcome<TeamWithServices>> {
+    if (access.kind === 'legacy') return this.patchTeam(teamId, actorId, patch);
+    if (patch.name === undefined && patch.serviceIds === undefined) {
+      return { ok: false, reason: 'nothing_to_change' };
+    }
+    const clean = patch.name === undefined ? undefined : cleanName(patch.name);
+    if (clean === null) return { ok: false, reason: 'name_required' };
+    const { scope } = access;
+    if ((await this.ownEntry('teams', teamId, scope)) === undefined) {
+      return { ok: false, reason: 'not_found' };
+    }
+    await this.refuseForeignReach('teams', teamId, scope);
+    if (
+      patch.serviceIds !== undefined &&
+      !(await this.ownsAll('services', patch.serviceIds, scope))
+    ) {
+      return { ok: false, reason: 'unknown_service' };
+    }
+    if (clean !== undefined) {
+      const renamed = await this.renameLocal('teams', teamId, clean, actorId, scope);
+      if (!renamed.ok) return renamed;
+    }
+    if (patch.serviceIds !== undefined) {
+      const written = await this.opts.directory.patchTeam(
+        teamId,
+        { serviceIds: patch.serviceIds },
+        this.clock.stampFor(actorId),
+      );
+      if (!written.ok)
+        throw new Error(`team "${teamId}" refused owned services: ${written.reason}`);
+    }
+    const team = await this.ownEntry('teams', teamId, scope);
+    if (team === undefined) throw new Error(`team "${teamId}" vanished mid-patch`);
+    return { ok: true, value: team };
+  }
+
+  /**
+   * {@link addPerson} through the caller's access. Under scoped access every
+   * team must be the organization's; an existing person of that local name
+   * joins them, as the legacy add does, and a new one gets an opaque root.
+   */
+  async addPersonWithin(
+    actorId: string,
+    name: string,
+    teamIds: readonly string[],
+    access: ResourceAccess,
+    kind?: PersonKind,
+  ): Promise<DirectoryOutcome<Person>> {
+    if (access.kind === 'legacy') return this.addPerson(actorId, name, teamIds, kind);
+    const clean = cleanName(name);
+    if (clean === null) return { ok: false, reason: 'name_required' };
+    const { scope } = access;
+    // Proof: skipping this check made `refuses a foreign service or team link
+    // exactly as an absent one` in
+    // `directory-command-organization.controller.db.test.ts` answer 200,
+    // creating a person in B's team; watched 2026-09-27.
+    if (!(await this.ownsAll('teams', teamIds, scope))) {
+      return { ok: false, reason: 'unknown_team' };
+    }
+    const stamp = this.clock.stampFor(actorId);
+    const existing = (
+      await this.opts.directory.listInOrganization('people', scope.organizationId)
+    ).find((person) => person.name === clean);
+    if (existing !== undefined) {
+      await this.refuseForeignReach('people', existing.id, scope);
+      const joined = [...new Set([...existing.teamIds, ...teamIds])];
+      if (joined.length > existing.teamIds.length) {
+        const written = await this.opts.directory.patchPerson(
+          existing.id,
+          { teamIds: joined },
+          stamp,
+        );
+        if (!written.ok)
+          throw new Error(`person "${existing.id}" refused teams: ${written.reason}`);
+      }
+      return { ok: true, value: { id: existing.id, name: existing.name, kind: existing.kind } };
+    }
+    let addedKind: Person['kind'] | undefined;
+    // The root alone first: on a collision the legacy add answers the existing
+    // person, and memberships added in the same call would land on it.
+    // Proof: adding the teams in this call made `retries a colliding opaque
+    // person name without touching the person it collided with` in
+    // `directory.resource.test.ts` join the colliding person to the team;
+    // watched 2026-09-27.
+    const id = await this.addOpaqueRoot(async (row) => {
+      const added = await this.opts.directory.addPerson(
+        kind === undefined ? row : { ...row, kind },
+        [],
+        stamp,
+      );
+      if (!added.ok) throw new Error(`person refused teams already checked: ${added.reason}`);
+      addedKind = added.person.kind;
+      return added.person;
+    });
+    if (addedKind === undefined) throw new Error(`person "${id}" was added without a kind`);
+    await this.opts.directory.mapInOrganization('people', id, scope.organizationId, clean);
+    if (teamIds.length > 0) {
+      const joined = await this.opts.directory.patchPerson(id, { teamIds }, stamp);
+      if (!joined.ok) {
+        throw new Error(`person "${id}" refused teams already checked: ${joined.reason}`);
+      }
+    }
+    return { ok: true, value: { id, name: clean, kind: addedKind } };
+  }
+
+  /**
+   * {@link patchPerson} through the caller's access. Under scoped access the
+   * person and every team must be the organization's, the name moves only in
+   * the organization, and the answer carries the local name.
+   */
+  async patchPersonWithin(
+    personId: string,
+    actorId: string,
+    patch: PersonPatchInput,
+    access: ResourceAccess,
+  ): Promise<DirectoryOutcome<PersonWithTeams>> {
+    if (access.kind === 'legacy') return this.patchPerson(personId, actorId, patch);
+    if (patch.name === undefined && patch.teamIds === undefined && patch.kind === undefined) {
+      return { ok: false, reason: 'nothing_to_change' };
+    }
+    if (patch.kind !== undefined && !holdsKind(patch.kind)) {
+      return { ok: false, reason: 'invalid_kind' };
+    }
+    const clean = patch.name === undefined ? undefined : cleanName(patch.name);
+    if (clean === null) return { ok: false, reason: 'name_required' };
+    const { scope } = access;
+    // Proof: skipping this check made `answers a foreign entry exactly as an
+    // absent one, changing nothing` in
+    // `directory-command-organization.controller.db.test.ts` answer 500
+    // instead of 404 for B's person; watched 2026-09-27.
+    if ((await this.ownEntry('people', personId, scope)) === undefined) {
+      return { ok: false, reason: 'not_found' };
+    }
+    await this.refuseForeignReach('people', personId, scope);
+    // Proof: skipping this check made `refuses a foreign service or team link
+    // exactly as an absent one` in
+    // `directory-command-organization.controller.db.test.ts` answer 500
+    // instead of 404 `unknown_team`, after putting A's person in B's team;
+    // watched 2026-09-27.
+    if (patch.teamIds !== undefined && !(await this.ownsAll('teams', patch.teamIds, scope))) {
+      return { ok: false, reason: 'unknown_team' };
+    }
+    if (clean !== undefined) {
+      const renamed = await this.renameLocal('people', personId, clean, actorId, scope);
+      if (!renamed.ok) return renamed;
+    }
+    if (patch.teamIds !== undefined || patch.kind !== undefined) {
+      const written = await this.opts.directory.patchPerson(
+        personId,
+        {
+          ...(patch.teamIds === undefined ? {} : { teamIds: patch.teamIds }),
+          ...(patch.kind === undefined ? {} : { kind: patch.kind }),
+        },
+        this.clock.stampFor(actorId),
+      );
+      if (!written.ok)
+        throw new Error(`person "${personId}" refused a checked patch: ${written.reason}`);
+    }
+    const person = await this.ownEntry('people', personId, scope);
+    if (person === undefined) throw new Error(`person "${personId}" vanished mid-patch`);
+    return { ok: true, value: person };
+  }
+
+  /**
+   * Removes an entry through the caller's access. Under scoped access a
+   * foreign entry is `not_found` exactly as an absent one, the usage a refusal
+   * shows carries organization-local names, and a project outside the
+   * organization naming the entry fails closed before anything is removed or
+   * shown.
+   *
+   * @throws when a foreign project names the entry: corrupt trusted state.
+   */
+  async removeWithin(
+    catalog: NamedCatalog,
+    id: string,
+    actorId: string,
+    cascade: boolean,
+    access: ResourceAccess,
+  ): Promise<RemoveDirectoryOutcome> {
+    const removals = {
+      people: {
+        usageOf: (entry: string) => this.opts.directory.usageOfPerson(entry),
+        remove: (entry: string, stamp: WriteStamp) =>
+          this.opts.directory.removePerson(entry, cascade, stamp),
+        usageIn: directoryUsageOfPerson,
+        legacy: () => this.removePerson(id, actorId, cascade),
+      },
+      teams: {
+        usageOf: (entry: string) => this.opts.directory.usageOfTeam(entry),
+        remove: (entry: string, stamp: WriteStamp) =>
+          this.opts.directory.removeTeam(entry, cascade, stamp),
+        usageIn: directoryUsageOfTeam,
+        legacy: () => this.removeTeam(id, actorId, cascade),
+      },
+      tags: {
+        ...this.tags,
+        remove: (entry: string, stamp: WriteStamp) => this.tags.remove(entry, cascade, stamp),
+        legacy: () => this.removeTag(id, actorId, cascade),
+      },
+      workItemTypes: {
+        ...this.workItemTypes,
+        remove: (entry: string, stamp: WriteStamp) =>
+          this.workItemTypes.remove(entry, cascade, stamp),
+        legacy: () => this.removeWorkItemType(id, actorId, cascade),
+      },
+      services: {
+        ...this.services,
+        remove: (entry: string, stamp: WriteStamp) => this.services.remove(entry, cascade, stamp),
+        legacy: () => this.removeService(id, actorId, cascade),
+      },
+    };
+    const removal = removals[catalog];
+    if (access.kind === 'legacy') return removal.legacy();
+    const { scope } = access;
+    // Proof: skipping this check made `answers a foreign entry exactly as an
+    // absent one, changing nothing` in
+    // `directory-command-organization.controller.db.test.ts` answer 200,
+    // deleting B's tag; watched 2026-09-27.
+    if ((await this.ownEntry(catalog, id, scope)) === undefined) {
+      return { ok: false, reason: 'not_found' };
+    }
+    await this.refuseForeignReach(catalog, id, scope);
+    const shown = async (rows: DirectoryUsageRows): Promise<DirectoryUsage> =>
+      removal.usageIn(await this.localUsage(rows, scope), id);
+    if (!cascade) {
+      const seen = await shown(await removal.usageOf(id));
+      if (seen.projects.length > 0 || seen.members.length > 0) {
+        return { ok: false, reason: 'in_use', usage: seen };
+      }
+    }
+    const removed = await removal.remove(id, this.clock.stampFor(actorId));
+    if (!removed.ok) {
+      if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
+      return { ok: false, reason: 'in_use', usage: await shown(removed.usage) };
+    }
+    // Proof: skipping this check made `fails closed on a directory entry a
+    // foreign project names` in
+    // `directory-command-organization.controller.db.test.ts` answer 200 to the
+    // cascade, untagging B's row; watched 2026-09-27.
+    await this.refuseForeignProjects(removed.removal.projectIds, scope);
+    await this.announce(removed.removal.projectIds);
+    return { ok: true };
+  }
+
+  /**
+   * Usage rows as the organization sees them: every project its own, every
+   * person under the organization-local name.
+   *
+   * @throws when a project or person in them is not the organization's.
+   */
+  private async localUsage(
+    rows: DirectoryUsageRows,
+    scope: OrganizationScope,
+  ): Promise<DirectoryUsageRows> {
+    await this.refuseForeignProjects(
+      rows.projects.map((each) => each.id),
+      scope,
+    );
+    const names = new Map(
+      (await this.opts.directory.listInOrganization('people', scope.organizationId)).map(
+        (person) => [person.id, person.name] as const,
+      ),
+    );
+    const local = <P extends { id: string; name: string }>(person: P): P => {
+      const name = names.get(person.id);
+      if (name === undefined) {
+        throw new Error(
+          `person "${person.id}" in a usage is not organization "${scope.organizationId}"'s`,
+        );
+      }
+      return { ...person, name };
+    };
+    // Proof: returning the rows unmapped made `shows removal usage under
+    // organization-local names only` in
+    // `directory-command-organization.controller.db.test.ts` show
+    // `root-pe-a` as the assumed assignee; watched 2026-09-27.
+    return { ...rows, people: rows.people.map(local), members: rows.members.map(local) };
+  }
+
+  /**
+   * Proof: skipping this check in {@link localUsage} made `fails closed on a
+   * directory entry a foreign project names` in
+   * `directory-command-organization.controller.db.test.ts` answer 409 with
+   * B's project in the usage instead of 500; watched 2026-09-27.
+   *
+   * @throws when any of `projectIds` is not the organization's.
+   */
+  private async refuseForeignProjects(
+    projectIds: readonly string[],
+    scope: OrganizationScope,
+  ): Promise<void> {
+    const outside = await this.opts.directory.projectsOutside(projectIds, scope.organizationId);
+    if (outside.length > 0) {
+      throw new Error(
+        `a directory entry of organization "${scope.organizationId}" is named by a foreign project`,
+      );
+    }
   }
 
   /**

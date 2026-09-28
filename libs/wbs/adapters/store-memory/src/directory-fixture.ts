@@ -119,6 +119,21 @@ export function inMemoryDirectory(
    */
 
   const store: DirectoryStore = {
+    // Organization-local writes exist only over SQLite, where the ownership
+    // side tables and their freeze live; the in-memory directory models the
+    // mapping for reads alone.
+    mapInOrganization() {
+      return Promise.reject(new Error('the in-memory directory has no organization-local writes'));
+    },
+    renameInOrganization() {
+      return Promise.reject(new Error('the in-memory directory has no organization-local writes'));
+    },
+    foreignReferencesTo() {
+      return Promise.reject(new Error('the in-memory directory has no project ownership'));
+    },
+    projectsOutside() {
+      return Promise.reject(new Error('the in-memory directory has no project ownership'));
+    },
     async listInOrganization(catalog, organizationId) {
       const inOrganization = (id: string) => organizationOf.get(id) === organizationId;
       const refuseForeign = (ids: readonly string[]) => {
