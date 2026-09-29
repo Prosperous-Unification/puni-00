@@ -6,7 +6,8 @@ import type { ElsewhereSource, Scheduler } from '../ports/scheduler';
  * No bookings elsewhere for any project: the source for a service test whose
  * projects belong to no shared organization.
  */
-export const isolatedElsewhere: ElsewhereSource = () => Promise.resolve(new Map());
+export const isolatedElsewhere: ElsewhereSource = () =>
+  Promise.resolve({ elsewhere: new Map(), holders: [] });
 
 /** Fast-only scheduler for source-neutral core service tests. */
 export const fastScheduler: Scheduler = {

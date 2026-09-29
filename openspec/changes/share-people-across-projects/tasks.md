@@ -79,8 +79,16 @@
 
 ## 7. fe
 
-- [ ] 7.1 The `elsewhere` sentence, `waitingElsewhere`, refetch, and the settings switch.
-- [ ] 7.2 Negative: floor kind unmapped → Error Boundary, not a blank card.
+- [x] 7.1 The `elsewhere` sentence, `waitingElsewhere`, refetch, and the settings switch. Done: the
+      plan read carries `waitingElsewhere` and one label per holding work item (`elsewhereHolders`);
+      the chart's floor sentence reads "Waits for Ana to finish 010.3 Rewire in Platform";
+      `elsewhere_changed` refetches the tree only. Deferred: the settings switch ships with its
+      route in slice 8 (a switch with no route is a dead control); fe-01 shows no header count for
+      any floor today, so `waitingElsewhere` stays on the wire beside `waitingForPerson` and
+      `waitingForCapacity`, which fe-01 omits alike; the sentence is hover text, so it is not a
+      link.
+- [x] 7.2 Negative: floor kind unmapped → Error Boundary, not a blank card. Done as a holder the
+      read does not label: `GanttDataError`, not a sentence blaming nobody.
 
 ## 8. Mode route
 

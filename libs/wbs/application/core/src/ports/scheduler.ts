@@ -118,16 +118,39 @@ export type FastScheduler = (
 ) => Schedule;
 
 /**
+ * What a sentence about a booking elsewhere names: the holding project and
+ * work item as that project's own plan names them (CONTEXT "Elsewhere").
+ */
+export interface ElsewhereHolderLabel {
+  readonly projectId: string;
+  readonly projectName: string;
+  readonly workItemId: string;
+  /** The work item's derived number in its own project, as its plan prints it. */
+  readonly number: string;
+  readonly name: string;
+}
+
+/**
+ * The bookings elsewhere a project is scheduled around, and one label per
+ * holding work item among them, so a reader can be told whom each waits for
+ * without reading another project.
+ */
+export interface ElsewhereReading {
+  readonly elsewhere: Elsewhere;
+  readonly holders: readonly ElsewhereHolderLabel[];
+}
+
+/**
  * The bookings elsewhere a project starting on `project.startDate` and
- * scheduled from `own` works around, or the refusal of an influencer whose
- * engine is not installed here. `WorkItemService.elsewhereOf` in production;
+ * scheduled from `own` works around, with their holders' labels, or the
+ * refusal of an influencer whose engine is not installed here. `WorkItemService.elsewhereOf` in production;
  * a caller that must state a project's input outside the plan read (a saved
  * plan's capture) takes it here, so the two cannot disagree about a project.
  */
 export type ElsewhereSource = (
   project: { readonly id: string; readonly startDate: IsoDate | null },
   own: ScheduleInput,
-) => Promise<Elsewhere | EngineUnavailable>;
+) => Promise<ElsewhereReading | EngineUnavailable>;
 
 /** Installed scheduling capabilities and their non-waiting read. */
 export interface Scheduler {

@@ -80,6 +80,8 @@ import type { StepProgressStore, StoredProgress } from '../../ports/progress-sto
 import type { Broadcaster } from '../../ports/project-event';
 import type { Project, ProjectStore } from '../../ports/project-store';
 import type {
+  ElsewhereHolderLabel,
+  ElsewhereReading,
   ElsewhereSource,
   EngineUnavailable,
   OptimizationVariantState,
@@ -470,6 +472,46 @@ function selectedSchedule(
     throw new Error('optimized plan reader reported ready without a schedule');
   }
   return { schedule: ready, displayed: project.scheduleObjective, awaitingSolve: false };
+}
+
+/** Each influencer's name and its rows' numbers and names, by project id. */
+type HolderLabels = Map<
+  string,
+  {
+    projectName: string;
+    rows: ReadonlyMap<string, { number: string | undefined; name: string }>;
+  }
+>;
+
+/**
+ * One label per work item holding a booking in `elsewhere`, in the order the
+ * bookings are listed.
+ *
+ * @throws when a booking names a project or row the chain read no label for,
+ * or a row its numbering missed: both come from the one read, so a miss is a
+ * broken chain, never a booking to leave unnamed.
+ */
+function holdersOf(elsewhere: Elsewhere, labels: HolderLabels): ElsewhereHolderLabel[] {
+  const holders = new Map<string, ElsewhereHolderLabel>();
+  for (const bookings of elsewhere.values()) {
+    for (const { projectId, workItemId } of bookings) {
+      const key = `${projectId}\u0000${workItemId}`;
+      if (holders.has(key)) continue;
+      const project = labels.get(projectId);
+      const row = project?.rows.get(workItemId);
+      if (project === undefined || row?.number === undefined) {
+        throw new Error(`booking elsewhere held by ${projectId}/${workItemId} has no label`);
+      }
+      holders.set(key, {
+        projectId,
+        projectName: project.projectName,
+        workItemId,
+        number: row.number,
+        name: row.name,
+      });
+    }
+  }
+  return [...holders.values()];
 }
 
 /**
@@ -1788,7 +1830,7 @@ export class WorkItemService {
         `project ${projectId} is scheduled around ${chained.projectId ?? projectId}, whose engine is not installed here`,
       );
     }
-    return withElsewhere(own, chained);
+    return withElsewhere(own, chained.elsewhere);
   }
 
   /**
@@ -1807,12 +1849,15 @@ export class WorkItemService {
    * either way, and reading one project must not queue a solve for another.
    * Their reads are not one transaction; a commit to an influencer mid-chain
    * is followed by an `elsewhere_changed` that re-reads this project.
+   *
+   * The holders are labelled from the influencers' own rows as the chain read
+   * them, one label per holding work item.
    */
   async elsewhereOf(
     project: Pick<Project, 'id' | 'startDate'>,
     own: ScheduleInput,
-  ): Promise<Elsewhere | EngineUnavailable> {
-    if (project.startDate === null) return NO_BOOKINGS_ELSEWHERE;
+  ): Promise<ElsewhereReading | EngineUnavailable> {
+    if (project.startDate === null) return { elsewhere: NO_BOOKINGS_ELSEWHERE, holders: [] };
     // Proof: this delegation dropped (a batch reading the projects above
     // through its working plan) made `applies a command to a project below
     // once shared` (`shared-people.controller.db.test.ts`) answer 500:
@@ -1820,8 +1865,9 @@ export class WorkItemService {
     if (this.opts.elsewhereAbove !== undefined) return this.opts.elsewhereAbove(project, own);
     const names = peopleIn(own);
     const chained = await this.chainAbove(project.id, names);
-    if (!(chained instanceof Map)) return chained;
-    return elsewhereFor(names, chained, project.startDate);
+    if ('kind' in chained) return chained;
+    const elsewhere = elsewhereFor(names, chained.running, project.startDate);
+    return { elsewhere, holders: holdersOf(elsewhere, chained.labels) };
   }
 
   /**
@@ -1836,24 +1882,26 @@ export class WorkItemService {
     if (project.startDate === null) return new Map();
     const own = await this.ownScheduleInput(project);
     const chained = await this.chainAbove(project.id, peopleIn(own));
-    if (!(chained instanceof Map)) return chained;
-    return this.bookingsDisplayedBy(project, own, chained);
+    if ('kind' in chained) return chained;
+    return this.bookingsDisplayedBy(project, own, chained.running);
   }
 
   /**
    * The running bookings of every influencer of `projectId`, each scheduled
-   * in rank order around the ones before it: a map, or the refusal naming the
-   * first influencer whose engine is not installed here. Empty, reading
-   * nothing, when the organization is isolated or `names` is empty.
+   * in rank order around the ones before it, with each influencer's labels,
+   * or the refusal naming the first influencer whose engine is not installed
+   * here. Empty, reading nothing, when the organization is isolated or `names`
+   * is empty.
    */
   private async chainAbove(
     projectId: string,
     names: ReadonlySet<string>,
-  ): Promise<RunningBookings | EngineUnavailable> {
+  ): Promise<{ running: RunningBookings; labels: HolderLabels } | EngineUnavailable> {
     const running: RunningBookings = new Map();
-    if (names.size === 0) return running;
+    const labels: HolderLabels = new Map();
+    if (names.size === 0) return { running, labels };
     const sharing = await this.opts.projects.sharingOf(projectId);
-    if (sharing.mode === 'isolated') return running;
+    if (sharing.mode === 'isolated') return { running, labels };
     const peopleOf = new Map<string, ReadonlySet<string>>([[projectId, names]]);
     for (const id of sharing.order) {
       if (id === projectId) continue;
@@ -1866,7 +1914,12 @@ export class WorkItemService {
       if (influencer === null) continue;
       // Undated: it books nothing.
       if (influencer.startDate === null) continue;
-      const own = await this.ownScheduleInput(influencer);
+      const { input: own, rows } = await this.ownScheduleParts(influencer);
+      const numbers = deriveNumbers(rows);
+      labels.set(id, {
+        projectName: influencer.name,
+        rows: new Map(rows.map((row) => [row.id, { number: numbers.get(row.id), name: row.name }])),
+      });
       const held = this.bookingsDisplayedBy(influencer, own, running);
       // Proof: this refusal read as booking nothing made `refuses to read
       // below an influencer whose engine is missing`
@@ -1875,7 +1928,7 @@ export class WorkItemService {
       if (!(held instanceof Map)) return { ...held, projectId: id };
       addBookings(running, held);
     }
-    return running;
+    return { running, labels };
   }
 
   /**
@@ -1914,6 +1967,13 @@ export class WorkItemService {
 
   /** The canonical input `project` is scheduled from, before any booking elsewhere. */
   private async ownScheduleInput(project: Project): Promise<ScheduleInput> {
+    return (await this.ownScheduleParts(project)).input;
+  }
+
+  /** {@link ownScheduleInput} and the rows it was built from, every one of them. */
+  private async ownScheduleParts(
+    project: Project,
+  ): Promise<{ input: ScheduleInput; rows: readonly LabelledWorkItem[] }> {
     const projectId = project.id;
     const rows = await this.opts.workItems.listByProject(projectId);
     const estimates = await this.opts.estimates.listByProject(projectId);
@@ -1922,7 +1982,7 @@ export class WorkItemService {
     const assignments = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
     const steps = await this.opts.projects.stepsOf(projectId);
     const poolSizes = await this.opts.capacity.slotsFor(projectId);
-    return canonicalScheduleParts(
+    const parts = canonicalScheduleParts(
       project,
       rows,
       estimates,
@@ -1931,7 +1991,8 @@ export class WorkItemService {
       assignments,
       steps,
       poolSizes,
-    ).input;
+    );
+    return { input: parts.input, rows };
   }
 
   /**
@@ -1974,6 +2035,18 @@ export class WorkItemService {
          * two for any slice.
          */
         waitingForCapacity: number;
+        /**
+         * How many work items hold a slice a booking in another project is the
+         * reason for. Present exactly when the read was scheduled around
+         * bookings elsewhere (ADR 0034), with {@link elsewhereHolders}.
+         */
+        waitingElsewhere?: number;
+        /**
+         * One label per work item in another project that holds a booking this
+         * plan was scheduled around, so a slice's `elsewhereHolder` can be
+         * named without reading that project.
+         */
+        elsewhereHolders?: ElsewhereHolderLabel[];
         /**
          * Every slice the schedule placed, in the order the engine placed them.
          *
@@ -2205,7 +2278,7 @@ export class WorkItemService {
     // (ADR 0034). An influencer's refusal is this read's refusal, naming it.
     const chained = await this.elsewhereOf(project, canonical.input);
     if ('kind' in chained) return chained;
-    const scheduledInput = withElsewhere(canonical.input, chained);
+    const scheduledInput = withElsewhere(canonical.input, chained.elsewhere);
     // What each row is **charged**, per step: a leaf's own estimate uplifted by
     // its step's allowance and rounded, a parent's the sum of its descendants'
     // charged figures. Not `totals` put through the method — see `rollUpFinals`.
@@ -2231,6 +2304,12 @@ export class WorkItemService {
      * the plan. Zero with no schedule, for {@link waitingForPerson}'s reason.
      */
     let waitingForCapacity = 0;
+    /**
+     * How many work items are waiting for a booking in another project;
+     * reported only when this read was scheduled around one. Zero with no
+     * schedule, for {@link waitingForPerson}'s reason.
+     */
+    let waitingElsewhere = 0;
     /**
      * The engine's own output, kept: a plan that could not be scheduled leaves
      * this empty and the rows keep their {@link UNSCHEDULED} spans.
@@ -2319,6 +2398,12 @@ export class WorkItemService {
       timing = planned.workItems;
       waitingForPerson = planned.waitingForPerson;
       waitingForCapacity = planned.waitingForCapacity;
+      if (chained.elsewhere.size > 0) {
+        if (planned.waitingElsewhere === undefined) {
+          throw new Error('a schedule placed around bookings elsewhere reported no count of them');
+        }
+        waitingElsewhere = planned.waitingElsewhere;
+      }
       // Spread rather than rebuilt field by field, and never put through any
       // arithmetic: the engine's numbers are the answer, and this is the layer
       // that would otherwise quietly round them.
@@ -2446,6 +2531,14 @@ export class WorkItemService {
       scheduleError,
       waitingForPerson,
       waitingForCapacity,
+      // Present exactly when the read was scheduled around bookings elsewhere,
+      // as the engine's own count is: a plan nothing outranks keeps its shape.
+      // Proof: the holders left out made `names whom a slice waits for in the
+      // project above` (`shared-people.controller.db.test.ts`) find no label;
+      // watched 2026-09-29.
+      ...(chained.elsewhere.size === 0
+        ? {}
+        : { waitingElsewhere, elsewhereHolders: [...chained.holders] }),
       slices: scheduledSlices,
       // The very array `slicesOf` was handed the ids of, so a slice's `stepId`
       // is a step this list has and its place in the list is the order the

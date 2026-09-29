@@ -110,6 +110,7 @@ export const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   narrowedByFilter: false,
   steps: [{ id: 'dev', name: 'Dev' }],
   personNames: new Map(),
+  elsewhereHolders: new Map(),
   teamNames: new Map([['team-platform', 'Platform']]),
   priorityBands: DEFAULT_PRIORITY_BANDS,
   // The default a project takes unless it asks otherwise.

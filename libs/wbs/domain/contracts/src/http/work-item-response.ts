@@ -149,6 +149,18 @@ export const workItemTree = type({
   scheduleError: "'calendar_range' | 'cycle' | null",
   waitingForPerson: 'number',
   waitingForCapacity: 'number',
+  // Both present exactly when the read was scheduled around bookings in other
+  // projects (`share-people-across-projects`): the engine's count, and one
+  // label per holding work item, so a slice's `elsewhereHolder` is named
+  // without a read of the holding project.
+  'waitingElsewhere?': 'number',
+  'elsewhereHolders?': type({
+    projectId: 'string',
+    projectName: 'string',
+    workItemId: 'string',
+    number: 'string',
+    name: 'string',
+  }).array(),
   slices: slice.array(),
   steps: stepShape.array(),
   assignedPeople: named.array(),

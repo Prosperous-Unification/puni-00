@@ -25,6 +25,9 @@ describe('plan refresh obligations', () => {
   it('refreshes the tree and steps after a peer edits a step allowance', () => {
     expect(resourcesFor('step_updated')).toEqual(['tree', 'steps']);
   });
+  it('refetches only the tree when bookings above move', () => {
+    expect(resourcesFor('elsewhere_changed')).toEqual(['tree']);
+  });
   it('refetches only the tree for a peer plan-unavailable event and retains the installed plan', async () => {
     const { api, owner } = await setup();
     const installed = owner.getSnapshot().tree.installed;

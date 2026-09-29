@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { PriorityBandView, TeamView, TypedDependencyView } from '@/lib/wbs-api';
 
 import {
+  elsewhereHolderKey,
   GanttDataError,
   type GanttPlan,
   type ServiceTeamLabel,
@@ -219,6 +220,12 @@ export function usePlanChartInput({
       // moment is the skew `layOutGantt` throws on.
       steps: chartRead.steps,
       personNames: new Map(chartRead.people.map((person) => [person.id, person.name])),
+      elsewhereHolders: new Map(
+        chartRead.elsewhereHolders.map((holder) => [
+          elsewhereHolderKey(holder.projectId, holder.workItemId),
+          holder,
+        ]),
+      ),
       teamNames: new Map(teams.map((team) => [team.id, team.name])),
       // The ladder the chart names its priorities with. Off the same state the
       // table's cells read, so a bar's cap and its row's digits are one colour.

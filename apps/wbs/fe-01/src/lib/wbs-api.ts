@@ -254,6 +254,24 @@ export interface SliceView {
    * have to special-case into silence.
    */
   lateBy: number | null;
+  /**
+   * The booking in another project this slice waited for: present exactly
+   * when `boundBy` is `'elsewhere'`, and named by one of the read's
+   * {@link ElsewhereHolderView}s.
+   */
+  elsewhereHolder?: { projectId: string; workItemId: string };
+}
+
+/**
+ * A work item in another project that holds a booking this plan was scheduled
+ * around, named as its own plan names it (`share-people-across-projects`).
+ */
+export interface ElsewhereHolderView {
+  projectId: string;
+  projectName: string;
+  workItemId: string;
+  number: string;
+  name: string;
 }
 
 export interface WorkItemView {
@@ -1350,7 +1368,7 @@ export async function planDocumentRequestFromJson(json: string): Promise<PlanDoc
 }
 export interface PlanRead extends Omit<
   PlanReadWire,
-  'workItems' | 'slices' | 'steps' | 'waitingForPerson' | 'waitingForCapacity'
+  'workItems' | 'slices' | 'steps' | 'waitingForPerson' | 'waitingForCapacity' | 'waitingElsewhere'
 > {
   workItems: WorkItemView[];
   typedDependencies?: TypedDependencyView[];

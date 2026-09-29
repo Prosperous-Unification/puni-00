@@ -570,7 +570,7 @@ export class SavedPlanService {
     if ('kind' in elsewhere) {
       return { reads, schedule: { present: false, absentReason: 'unavailable' } };
     }
-    const input = withElsewhere(own, elsewhere);
+    const input = withElsewhere(own, elsewhere.elsewhere);
     try {
       const scheduled = this.opts.scheduler.read({
         projectId,

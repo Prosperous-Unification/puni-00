@@ -28,6 +28,12 @@ export function resourcesFor(changed?: string | null): readonly RefreshResource[
     return ['tree', 'steps'];
   }
   if (changed === 'calendar_markers_changed') return ['markers'];
+  // Bookings in a project above moved (`share-people-across-projects`): this
+  // plan's dates may have, and nothing it names or lists did.
+  // Proof: this line removed made `refetches only the tree when bookings
+  // above move` (`plan-refresh.test.ts`) ask for every resource; watched
+  // 2026-09-29.
+  if (changed === 'elsewhere_changed') return ['tree'];
   return ALL_RESOURCES;
 }
 

@@ -8,6 +8,7 @@ import {
   type BindingFloor,
   calendarScale,
   droppedLinkWords,
+  elsewhereHolderKey,
   type FloorCalendar,
   GanttDataError,
   type GanttGeometry,
@@ -145,6 +146,7 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
     { id: 'qa', name: 'QA' },
   ],
   personNames: new Map([['kat', 'Kat']]),
+  elsewhereHolders: new Map(),
   teamNames: new Map([['team-platform', 'Platform']]),
   priorityBands: DEFAULT_PRIORITY_BANDS,
   // The default a project takes unless it asks otherwise. The `anchor-slice`
@@ -963,13 +965,49 @@ describe('a binding floor this build does not know', () => {
     expect(() => layOutGantt(heldByTheUnknown())).toThrow('phaseOfTheMoon');
   });
 
-  it('sends a bar held elsewhere to the error boundary until it has words', () => {
-    const heldElsewhere = planOf({
-      rows: [rowAt('strip', 0, 3)],
-      slices: [sliceAt('strip-dev', 'strip', 0, 3, { boundBy: 'elsewhere' })],
+  /** Kat's bar held by her booking on 010.3 in Platform, ranked above this plan. */
+  const heldElsewhere = (holders: GanttPlan['elsewhereHolders']) =>
+    planOf({
+      rows: [rowAt('strip', 2, 5)],
+      slices: [
+        sliceAt('strip-dev', 'strip', 2, 5, {
+          personId: 'kat',
+          boundBy: 'elsewhere',
+          elsewhereHolder: { projectId: 'platform', workItemId: 'w-9' },
+        }),
+      ],
+      elsewhereHolders: holders,
     });
-    expect(() => layOutGantt(heldElsewhere)).toThrow(GanttDataError);
-    expect(() => layOutGantt(heldElsewhere)).toThrow('held elsewhere');
+
+  it('says whom a bar held elsewhere waits for, and in which project', () => {
+    const chart = layOutGantt(
+      heldElsewhere(
+        new Map([
+          [
+            elsewhereHolderKey('platform', 'w-9'),
+            { projectName: 'Platform', number: '010.3', name: 'Rewire' },
+          ],
+        ]),
+      ),
+    );
+    expect(chart.bars[0].floorWords).toBe('Waits for Kat to finish 010.3 Rewire in Platform');
+    const unnamed = layOutGantt(
+      heldElsewhere(
+        new Map([
+          [
+            elsewhereHolderKey('platform', 'w-9'),
+            { projectName: 'Platform', number: '010.3', name: '' },
+          ],
+        ]),
+      ),
+    );
+    expect(unnamed.bars[0].floorWords).toBe('Waits for Kat to finish 010.3 in Platform');
+  });
+
+  it('throws when a bar held elsewhere names no holder the read labels', () => {
+    // The error boundary, not a bar whose sentence blames nobody.
+    expect(() => layOutGantt(heldElsewhere(new Map()))).toThrow(GanttDataError);
+    expect(() => layOutGantt(heldElsewhere(new Map()))).toThrow('names no holder');
   });
 });
 

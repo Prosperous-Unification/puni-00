@@ -289,3 +289,27 @@ lease expires.
 
 The same test checks that Billing's load reads `2026-10-05` after the reassign, not the warm memo's
 `2026-10-07`.
+
+## Slice 7 — fe
+
+On `batch-9/010-4-16-capacity-fe`, stacked on slice 6 (`af6b34ca`). The plan read carries
+`waitingElsewhere` and `elsewhereHolders` exactly when it was scheduled around bookings; the chain
+labels each influencer from the rows it read (so a batch's read, which takes the projects above from
+the public graph, gets them the same way), and `ElsewhereSource` answers `{ elsewhere, holders }`.
+fe-01's chart names the holder: "Waits for Kat to finish 010.3 Rewire in Platform", the number alone
+where the work item is unnamed; a holder the read does not label is a `GanttDataError`, the error
+boundary. `elsewhere_changed` refetches the tree only.
+
+| Check (file)                                  | Fault injected                                      | Test that observed the failure                                     | Result                   |
+| --------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------ | ------------------------ |
+| holders on the read (`work-item.resource.ts`) | `elsewhereHolders` left out of the payload          | `names whom a slice waits for in the project above`                | 11 pass, 1 fail          |
+| unlabelled holder (`gantt-geometry.ts`)       | the throw replaced by `'Waits for another project'` | `throws when a bar held elsewhere names no holder the read labels` | 163 pass, 1 fail         |
+| refetch (`plan-refresh.ts`)                   | the `elsewhere_changed` arm removed                 | `refetches only the tree when bookings above move`                 | every resource asked for |
+
+Commands, one at a time: fe-01 vitest (UTC) over the ten files touching the chart, the read and the
+refresh (771 pass) and the zoned Gantt panel (1 pass); core (793), contracts (445), mcp-01 (323),
+be-01 (1617 pass, 1 skipped), with `CLAUDECODE` unset; typecheck of wbs-core, wbs-be-01 and
+wbs-fe-01.
+
+Deferred, as tasks.md 7.1 says: the settings switch (with its route, slice 8), a header count (no
+floor has one in fe-01), and a link on the sentence (it is hover text).

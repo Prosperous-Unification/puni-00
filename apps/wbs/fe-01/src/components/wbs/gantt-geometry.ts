@@ -480,6 +480,8 @@ export interface GanttSlice {
    * because "and 2 others" is a fact a single id cannot state.
    */
   resourcePredecessorId: string | null;
+  /** Present exactly when `boundBy` is `'elsewhere'`: the booking it waited for. */
+  elsewhereHolder?: { projectId: string; workItemId: string };
   /** The team pool that set a capacity floor, or null for every other floor. */
   capacityTeamId: string | null;
   /**
@@ -552,6 +554,18 @@ export interface GanttStep {
  * steps in. `personNames` is a lookup because nothing about the drawing
  * depends on the order people are in.
  */
+/** Where {@link GanttPlan.elsewhereHolders} files a holder: its project and work item. */
+export function elsewhereHolderKey(projectId: string, workItemId: string): string {
+  return `${projectId}\u0000${workItemId}`;
+}
+
+/** A work item in another project that holds a booking, as its own plan names it. */
+export interface ElsewhereHolderLabel {
+  projectName: string;
+  number: string;
+  name: string;
+}
+
 export interface GanttPlan {
   rows: readonly GanttRow[];
   slices: readonly GanttSlice[];
@@ -601,6 +615,11 @@ export interface GanttPlan {
   narrowedByFilter: boolean;
   steps: readonly GanttStep[];
   personNames: ReadonlyMap<string, string>;
+  /**
+   * Every holder a slice's {@link GanttSlice.elsewhereHolder} can name, by
+   * {@link elsewhereHolderKey}; empty for a plan nothing outranks.
+   */
+  elsewhereHolders: ReadonlyMap<string, ElsewhereHolderLabel>;
   /** Team names by id, used to name the pool that actually bound a slice. */
   teamNames: ReadonlyMap<string, string>;
   /**
@@ -1810,6 +1829,18 @@ function spokenNameOf(row: GanttRow): string {
 }
 
 /**
+ * The sentence a bar held by a booking in another project shows: _"Waits for
+ * Ana to finish 010.3 in Platform"_ — the number the holding plan prints for
+ * the work item, its name after it where it has one, and the holding project.
+ * The number always, because it is what finds the row in that project; the
+ * name because a number alone is a code.
+ */
+function elsewhereFloorWords(person: string, holder: ElsewhereHolderLabel): string {
+  const work = holder.name === '' ? holder.number : `${holder.number} ${holder.name}`;
+  return `Waits for ${person} to finish ${work} in ${holder.projectName}`;
+}
+
+/**
  * The sentence a not-before-floored bar shows: the floor, and — where somebody
  * wrote one — why it is there.
  *
@@ -2256,6 +2287,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
           undefined,
           null,
           null,
+          plan.elsewhereHolders,
         ),
         team: row.team,
         // Straight off the row and into words. Deliberately **not** passed to
@@ -2590,6 +2622,7 @@ function floorWordsOf(
   dependencyAnchor: PlacedSlice | undefined,
   clearsOn: string | null,
   startsOn: string | null,
+  elsewhereHolders: ReadonlyMap<string, ElsewhereHolderLabel>,
 ): string {
   switch (slice.boundBy) {
     // `optimizer` sits beside the two that need nothing from the caller, and
@@ -2687,15 +2720,32 @@ function floorWordsOf(
       }
       return personFloorWords(personName, predecessor, rowNames, stepsById);
     }
-    // be-01 can place around bookings elsewhere (`share-people-across-projects`
-    // slice 4) but sends none until an organization shares its people (slice
-    // 8). The sentence that names the holder is slice 7's; until then a bar
-    // held elsewhere is data this chart has no words for, and it reaches the
-    // error boundary the unknown-floor arm below would have sent it to.
-    case 'elsewhere':
-      throw new GanttDataError(
-        `slice ${slice.id} is held elsewhere, which this chart has no words for yet`,
-      );
+    // The person is booked in a project ranked above this one
+    // (`share-people-across-projects`, ADR 0034): the sentence names them, the
+    // holding work item by the number its own plan prints, and that project.
+    case 'elsewhere': {
+      const holder = slice.elsewhereHolder;
+      // be-01 names a holder exactly when it writes this floor, and names each
+      // holder in the same read; a slice or a label missing is the wire having
+      // lost half of what it sent, and a sentence without it would blame
+      // nobody.
+      // Proof: this lookup replaced by `'Waits for another project'` made
+      // `throws when a bar held elsewhere names no holder the read labels`
+      // (`gantt-geometry.test.ts`) not throw; watched 2026-09-29.
+      const label =
+        holder === undefined
+          ? undefined
+          : elsewhereHolders.get(elsewhereHolderKey(holder.projectId, holder.workItemId));
+      if (label === undefined) {
+        throw new GanttDataError(
+          `slice ${slice.id} is held elsewhere but names no holder the read labels`,
+        );
+      }
+      if (personName === null) {
+        throw new GanttDataError(`slice ${slice.id} is held elsewhere but names no person`);
+      }
+      return elsewhereFloorWords(personName, label);
+    }
     default: {
       // `never` here is the type saying the seven above are all of them; the
       // throw is for the runtime, where a payload can carry a seventh.
@@ -2849,6 +2899,7 @@ export function startFloorByRow(
           dependencyAnchor,
           dependencyAnchor === undefined ? null : clearsOnOf(dependencyAnchor.slice),
           startsOnOf(anchor.slice),
+          plan.elsewhereHolders,
         ),
       );
     } catch (error) {

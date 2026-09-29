@@ -153,6 +153,34 @@ describe('a shared organization', () => {
     expect(await startOf(search, 'pe-b')).toEqual([6]);
   });
 
+  it('names whom a slice waits for in the project above', async () => {
+    await plan(platform, [{ step: 0, days: 2, personId: 'pe-a' }]);
+    await plan(billing, [{ step: 0, days: 2, personId: 'pe-a' }]);
+    const isolated = await h.call('ada', 'GET', `/api/projects/${billing}/work-items`);
+    expect(isolated.body).not.toHaveProperty('elsewhereHolders');
+    expect(isolated.body).not.toHaveProperty('waitingElsewhere');
+    share();
+
+    const above = await h.call('ada', 'GET', `/api/projects/${platform}/work-items`);
+    const row = (
+      above.body as { workItems: { id: string; number: string; name: string }[] }
+    ).workItems.at(0);
+    if (row === undefined) throw new Error('Platform holds no row');
+    const answer = await h.call('ada', 'GET', `/api/projects/${billing}/work-items`);
+    expect(answer.body).toMatchObject({
+      waitingElsewhere: 1,
+      elsewhereHolders: [
+        {
+          projectId: platform,
+          projectName: 'Platform',
+          workItemId: row.id,
+          number: row.number,
+          name: row.name,
+        },
+      ],
+    });
+  });
+
   it('applies a command to a project below once shared', async () => {
     share();
     await plan(platform, [{ step: 0, days: 2, personId: 'pe-a' }]);

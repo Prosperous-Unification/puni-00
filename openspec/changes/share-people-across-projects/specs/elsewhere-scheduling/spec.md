@@ -46,6 +46,20 @@ refusal.
 - **WHEN** its result overlaps Ana's elsewhere interval
 - **THEN** Bun refuses to publish it
 
+### Requirement: A read names whom its slices wait for
+
+A plan read scheduled around bookings elsewhere SHALL carry `waitingElsewhere` and one label per
+holding work item (`elsewhereHolders`: the project's id and name, and the work item's id, number
+and name as its own plan derives them), and SHALL carry neither otherwise. fe-01 SHALL name the
+holder in the floor sentence, and SHALL refuse a slice bound `elsewhere` whose holder the read
+does not label (its error boundary, never a sentence naming nobody).
+
+#### Scenario: a slice held in Platform
+
+- **GIVEN** Ana's slice waits for her booking on Platform's 010.3 Rewire
+- **WHEN** the plan is read and drawn
+- **THEN** its sentence reads "Waits for Ana to finish 010.3 Rewire in Platform"
+
 ### Requirement: The hash moves only when elsewhere does
 
 `canonicalScheduleInput` SHALL include `elsewhere` (persons sorted, intervals sorted, each with
