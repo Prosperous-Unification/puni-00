@@ -73,88 +73,6 @@ outline, its translucent fill and its `?` unchanged.
 - **WHEN** its bar is drawn
 - **THEN** it SHALL carry the assumed marking it carried before this change
 
-### Requirement: A work item's status is unknown, in progress or done, and is never stored
-
-Every work item SHALL report a `status` of `unknown`, `in_progress` or `done`, folded on read
-from its steps' progress — `done` when every step with work on it says so, `unknown` when no
-step has said anything, `in_progress` for every disagreement — and, for a parent, from its
-children's statuses. The value SHALL never be stored on the row. `unknown` replaces the former
-`not_started` on the wire, in `@wbs/domain` and in every reader; no row ever held the old
-value, so no migration accompanies the rename.
-
-#### Scenario: a leaf nobody has spoken about is unknown
-
-- **GIVEN** a leaf with an estimate on `Dev` and no progress statement on any step
-- **WHEN** the plan is read
-- **THEN** the leaf reports `status: 'unknown'` and its `progress` object is empty
-
-#### Scenario: one silent step keeps a leaf in progress
-
-- **GIVEN** a leaf whose `Dev` says `done` and whose `QA` holds an estimate and no statement
-- **WHEN** the plan is read
-- **THEN** the leaf reports `status: 'in_progress'`
-
-#### Scenario: a parent reads its children's fold
-
-- **GIVEN** a parent with two leaves, both reporting `done`
-- **WHEN** the plan is read
-- **THEN** the parent reports `status: 'done'`, and `in_progress` the moment one leaf reports
-  anything else
-
-### Requirement: A work item's status is set to done or unknown as one act
-
-A project SHALL accept one plan command, `setStatus`, carrying a work item, a `status` of
-`done` or `unknown`, and an optional `on` date. For a leaf, `done` SHALL write `done` on every
-step of the project for that leaf; for a parent, on every step of every leaf beneath it. For a
-leaf, `unknown` SHALL take away every progress statement the leaf holds; for a parent, every
-statement every leaf beneath it holds. Steps already reading the asked-for state SHALL NOT be
-rewritten. The command SHALL be journalled as one entry whose inverse restores every prior
-statement and every prior fact end verbatim, SHALL bump the revision of exactly the work items
-it wrote, and SHALL announce one tree change. When nothing would change, nothing SHALL be
-written, journalled or announced. `in_progress` SHALL NOT be accepted: it is a step's
-statement and has its own command.
-
-#### Scenario: marking a two-step leaf done writes both steps
-
-- **GIVEN** a project holding `Dev` and `QA`, and a leaf estimated on `Dev` only
-- **WHEN** `setStatus` marks the leaf `done`
-- **THEN** the leaf's `progress` reads `{ Dev: 'done', QA: 'done' }` and its `status` is `done`
-
-#### Scenario: marking a parent done speaks for every leaf beneath
-
-- **GIVEN** a parent with three leaves, one of them already `done` on every step
-- **WHEN** `setStatus` marks the parent `done`
-- **THEN** the two other leaves gain `done` on every step, the already-done leaf is not
-  rewritten, the parent reports `done`, and one journal entry holds the act
-
-#### Scenario: one undo puts every statement back
-
-- **GIVEN** a parent whose leaves held `{ Dev: 'in_progress' }`, `{}` and `{ Dev: 'done', QA:
-'done' }` before it was marked `done`
-- **WHEN** the actor undoes once
-- **THEN** each leaf holds exactly the statements it held before, and each fact end this act
-  filled is `null` again
-
-#### Scenario: a second press writes nothing
-
-- **GIVEN** a leaf already `done` on every step with a fact end
-- **WHEN** `setStatus` marks it `done` again
-- **THEN** no journal entry is added, no revision moves and no tree change is announced
-
-#### Scenario: unknown takes the statements away and leaves the facts
-
-- **GIVEN** a done leaf with a fact start and a fact end
-- **WHEN** `setStatus` sets it `unknown`
-- **THEN** its `progress` is empty, its `status` is `unknown`, and both fact dates are what they
-  were
-
-#### Scenario: the value is guarded where the shape is not
-
-- **GIVEN** a `setStatus` command whose `status` is `in_progress`, `finished` or `7`
-- **WHEN** it reaches the commands route
-- **THEN** it is refused `400 invalid_status` before any service runs; an `on` that is not an
-  `IsoDate` is refused `400 on_must_be_a_date`
-
 ### Requirement: A work item carries a fact start and a fact end, date-only, on any row
 
 Every work item SHALL carry `factStart` and `factEnd`: nullable, date-only `IsoDate`, with no
@@ -195,15 +113,14 @@ as columns. Every work item existing before this change SHALL report both as `nu
 ### Requirement: Marking done fills an empty fact end with the day of the act
 
 Marking a work item `done` SHALL fill the fact end of every work item the act writes — the
-leaves and, for a parent, the parent itself — whose `factEnd` is `null` with `on`, and the
-fact start of each whose `factStart` is `null` with `factStart` when the command carries one;
-`on` absent, be-01 SHALL take the calendar day of the act's own write stamp in UTC. A stored
-day SHALL NOT be overwritten by the fill. A `factStart` that is not an `IsoDate` SHALL be
-refused `400 factStart_must_be_a_date` before any service runs. Setting `unknown` SHALL set
-both `factEnd` and `factStart` to `null` on every work item in scope whose status read `done`
-before the act, and SHALL leave the facts of every other row untouched. The fills and the
-clears SHALL be part of the same journal entry as the statements, so one undo takes them away
-or puts them back together.
+leaves and, for a parent, the parent itself — whose `factEnd` is `null` with `on`; `on`
+absent, be-01 SHALL take the calendar day of the act's own write stamp in UTC. A stored fact
+end SHALL NOT be overwritten by the fill. fe-01 SHALL always send `on` as the day the
+completion prompt confirmed. Setting `unknown` SHALL set `factEnd` and `factStart` to `null` on every work
+item in scope — the leaves and, for a parent, the parent itself — whose status read `done`
+before the act (`status-from-the-menu` widened this from the fact end alone), and SHALL leave
+the facts of every other row untouched. The fill and the clear SHALL
+be part of the same journal entry as the statements, so one undo takes them away together.
 
 #### Scenario: a typed fact end survives the mark
 
@@ -216,6 +133,35 @@ or puts them back together.
 - **GIVEN** a clock whose act stamps `2026-09-12T23:30:00Z`
 - **WHEN** a leaf with no fact end is marked `done` with no `on`
 - **THEN** its fact end reads `2026-09-12`
+
+#### Scenario: leaving done takes the fact end away, and undo puts it back
+
+- **GIVEN** a done leaf whose fact end reads `2026-09-12` and whose fact start reads
+  `2026-09-08`
+- **WHEN** `setStatus` sets it `unknown`, then the actor undoes once
+- **THEN** after the act its `progress` is empty and both facts are `null`; after the undo every
+  statement and both days are back, from one journal entry
+
+#### Scenario: a parent's unknown clears only what read done
+
+- **GIVEN** an in-progress parent with a typed fact end `2026-09-12` over two leaves, one done
+  with fact end `2026-09-11`, one in progress whose fact end was typed as `2026-09-09`
+- **WHEN** `setStatus` sets the parent `unknown`
+- **THEN** the done leaf's fact end is `null`, and the parent's `2026-09-12` and the other
+  leaf's `2026-09-09` stand
+
+#### Scenario: a done parent's unknown clears the parent and every leaf, and one undo restores them
+
+- **GIVEN** a parent marked `done` on `2026-09-12`, so it and both leaves hold that fact end
+- **WHEN** `setStatus` sets the parent `unknown`, then the actor undoes once
+- **THEN** all three fact ends are `null` after the act and `2026-09-12` again after the undo,
+  and the act added one journal entry
+
+#### Scenario: unknown on a row that was not done leaves the facts
+
+- **GIVEN** an in-progress leaf with a typed fact end
+- **WHEN** `setStatus` sets it `unknown`
+- **THEN** its `progress` is empty and its fact end is what it was
 
 #### Scenario: the reader's day wins over the server's
 
@@ -246,30 +192,34 @@ or puts them back together.
 ### Requirement: The table shows Status, Fact start and Fact end, and strikes a done row
 
 The table SHALL offer three columns — `Status`, `Fact start`, `Fact end` — hidden by default
-and offered in the Columns control in table order after `Deadline`. The Status cell SHALL show
-the row's status in words and offer `Unknown` and `Done` to choose, on a parent as on a leaf;
-`In progress` SHALL be shown but not offered. The two fact cells SHALL be date cells with the
-deadline cell's rest and edit states. A row whose status is `done` SHALL carry `data-row-done`
-and its name SHALL read struck through, on every stripe and under every row light.
+and offered in the Columns control in table order: `Status` after `Links`, the two facts after
+`Deadline`. The Status cell SHALL show
+the row's status as a glyph with the word in its fact card and offer the statuses of "The row
+menu and Status cell offer every status the row does not read", on a parent as on a leaf;
+`Blocked by proxy` SHALL be shown but never offered. The
+two fact cells SHALL be date cells with the deadline cell's rest and edit states. A row whose
+status is `done` SHALL carry `data-row-done` and its name and number SHALL read struck
+through, on every stripe and under every row light.
 
 #### Scenario: the Columns control offers the three in order
 
 - **GIVEN** the Columns control open on a two-step plan
 - **WHEN** its entries are read
-- **THEN** `Status`, `Fact start`, `Fact end` follow `Deadline` in that order, and none of the
-  three is on screen until chosen
+- **THEN** `Status` follows `Links`, `Fact start` and `Fact end` follow `Deadline` in that order,
+  and none of the three is on screen until chosen
 
 #### Scenario: choosing Done marks the row and fills the fact end
 
 - **GIVEN** a leaf reading `Unknown` with the three columns shown
-- **WHEN** `Done` is chosen in its Status cell
+- **WHEN** `Done` is chosen in its Status cell and the completion prompt confirmed unchanged
 - **THEN** the row reads `Done`, its name is struck through, and its Fact end cell reads today
 
 #### Scenario: a partly done row reads In progress and can still be finished
 
 - **GIVEN** a leaf whose `Dev` says `done` and whose `QA` says nothing
 - **WHEN** its Status cell is read and then opened
-- **THEN** it reads `In progress`, and the list offers `Unknown` and `Done` only
+- **THEN** it shows `◐` with a fact beginning `Status: In progress.`, and the list offers
+  `On hold`, `Blocked`, `Done` and `Unknown`, in that order
 
 ### Requirement: A done work item draws one done bar over its fact span
 
@@ -442,20 +392,6 @@ The Depends on picker SHALL add Whole→Whole FS by clicking a search result aft
 - **THEN** external connectors are grouped by visible ancestors, type and scope with a count
 - **AND** internal relationships show an internal-dependencies count rather than a self-arrow
 
-### Requirement: The row menu offers the one status change that applies
-
-The ⋯ menu of a row — on the table and on a card — SHALL offer `Set status to Done` when the row's
-status is not `done`, which SHALL open the completion prompt for that row and send nothing
-until it is confirmed; and SHALL offer `Set status to Unknown` when the row is `done`, which
-SHALL send `setStatus … unknown` at once. The ⋯ SHALL sit centred in its cell.
-
-#### Scenario: from the menu to the prompt and back
-
-- **GIVEN** a leaf reading unknown with the Status column hidden
-- **WHEN** `Set status to Done` is chosen from its ⋯ and the prompt confirmed
-- **THEN** one `setStatus … done` is sent and the row reads done; its ⋯ then offers `Set status
-to unknown`, which sends `setStatus … unknown`
-
 ### Requirement: The completion prompt asks for both days, starting from the forecast
 
 The completion prompt SHALL show `Started on` and `Finished on`. `Started on` SHALL open on the
@@ -480,3 +416,411 @@ reader changed SHALL follow as a `patch`.
 - **GIVEN** a leaf forecast `2026-09-01` → `2026-09-10`, no facts held, today `2026-09-13`
 - **WHEN** the prompt opens
 - **THEN** `Finished on` reads `2026-09-10` with `Same as the forecast end.`
+
+### Requirement: Every row says its status at its left edge
+
+Every row of the table SHALL carry `data-row-status` holding its status, and SHALL draw a
+status strip at its left edge, before the drag handle, whether or not the Status column is
+shown: no strip for `unknown`, and for every other status the strip in that status's colour.
+The strip SHALL be painted with `box-shadow` on the drag cell and SHALL move no
+pixel of the layout. A row whose status is `done` SHALL additionally be tinted with the done
+colour across every cell, pinned cells included, under the band, the hover, the dependency
+light and the drop light rather than in place of them. Each status's colour SHALL be a
+palette token defined for both themes. The drag cell SHALL also say the status in words to
+assistive tech (`Status: <word>`), as the drag handle's description, so a reader who cannot
+see the strip hears it with the Status column hidden.
+
+#### Scenario: a done row wears the strip and the tint with its column hidden
+
+- **GIVEN** a plan with the Status column hidden and one leaf whose every step says `done`
+- **WHEN** the table is rendered
+- **THEN** that row carries `data-row-status="done"`, its drag cell paints the strip, every
+  cell of it paints the done tint, and the row above it carries `data-row-status="unknown"`
+  with no strip and no tint
+
+#### Scenario: an in-progress row wears the strip and no tint
+
+- **GIVEN** a leaf whose `Dev` says `done` and whose `QA` says nothing
+- **WHEN** the table is rendered
+- **THEN** the row carries `data-row-status="in_progress"`, its drag cell paints the
+  in-progress strip, and no cell of it paints the done tint
+
+#### Scenario: the tint lets the lights through
+
+- **GIVEN** a done row that some hovered Depends on cell waits for
+- **WHEN** the row is painted
+- **THEN** its cells carry the dependency light's `--cell-bg` and the done tint together, and
+  the pinned cells paint the same pair as the unpinned ones
+
+#### Scenario: a held row's strip is said in words
+
+- **GIVEN** a leaf `010` on hold, with the Status column hidden
+- **WHEN** its drag handle is read by assistive tech
+- **THEN** the row carries `data-row-status="on_hold"`, its strip is the on-hold colour, and
+  the handle `Reorder 010` is described as `Status: On hold`
+
+### Requirement: Choosing Done opens the completion prompt before anything is written
+
+Choosing `Done` in the Status cell of a row whose status is not `done` SHALL open the
+completion prompt and SHALL send nothing until it is confirmed. The prompt SHALL name the
+row, SHALL hold one date field prefilled with the row's fact end when it holds one and with
+the reader's local calendar day otherwise, SHALL offer `Cancel` and `Mark done`, and SHALL
+put focus in the date field; on close, confirmed or dismissed, focus SHALL return to the
+Status cell that asked. Confirming SHALL send `setStatus` with the field's day as `on`;
+when the row already held a fact end and the field's day differs, a `patch` of `factEnd` to
+the field's day SHALL follow. Cancel, Escape and a click outside SHALL close the prompt with
+nothing sent and the status unchanged. A field holding no day or a day that is not an
+`IsoDate` SHALL disable `Mark done`. Choosing `Unknown` SHALL open no prompt.
+
+#### Scenario: today is offered and sent
+
+- **GIVEN** a leaf reading `Unknown` with no fact end, on a browser whose local day is
+  `2026-09-13`
+- **WHEN** `Done` is chosen and the prompt confirmed unchanged
+- **THEN** exactly one command was sent, `setStatus` with `on: '2026-09-13'`, and the row reads
+  `Done`
+
+#### Scenario: another day is typed
+
+- **GIVEN** the same leaf
+- **WHEN** `Done` is chosen, the field changed to `2026-09-10`, and the prompt confirmed
+- **THEN** `setStatus` carries `on: '2026-09-10'` and the Fact end cell reads that day
+
+#### Scenario: a held fact end is offered, and a change to it follows as a patch
+
+- **GIVEN** a leaf reading `In progress` whose fact end is `2026-09-10`
+- **WHEN** `Done` is chosen, the field changed to `2026-09-11`, and the prompt confirmed
+- **THEN** `setStatus` with `on: '2026-09-11'` is sent, then `patchWorkItem` with `factEnd:
+'2026-09-11'`, in that order
+
+#### Scenario: cancelling writes nothing
+
+- **GIVEN** a leaf reading `Unknown`
+- **WHEN** `Done` is chosen and the prompt dismissed by Cancel, by Escape, or by a click outside
+- **THEN** no command is sent, the row still reads `Unknown`, and focus is back in the Status
+  cell
+
+#### Scenario: a parent's prompt speaks for its leaves
+
+- **GIVEN** a parent reading `In progress`
+- **WHEN** `Done` is chosen and the prompt confirmed with `2026-09-12`
+- **THEN** one `setStatus` for the parent carries `on: '2026-09-12'`, and every leaf beneath
+  it with no fact end reads that day
+
+### Requirement: The Status column is one glyph, pinned after the number
+
+The Status column SHALL sit after `#` and before Links, SHALL be a member of the pinned
+block between them, and SHALL be 28px wide. Its heading SHALL be the `○` glyph with the
+accessible name `Status`. Its cell SHALL show a glyph of its own for each status — `○`
+unknown, `◌` draft, `◎` ready, `◐` in progress, `⊖` blocked by proxy, `‖` on hold, `⊘`
+blocked, `✓` done — coloured as the strip is, its accessible name naming the row (`Status of
+010`), its accessible description saying the status in words (`Status: <word>`), and its fact
+card saying the status in words, with no browser `title`; the picker SHALL offer the statuses
+in words. The status itself SHALL be readable off `data-status-value`. The column SHALL stay
+hidden by default and SHALL be offered in the Columns control as `Status`, where it renders —
+after `Links` (`status-polish` moved it there from after `Deadline`).
+
+#### Scenario: the pinned block holds Status in its place
+
+- **GIVEN** the Status column shown
+- **WHEN** the frame is laid out
+- **THEN** the pinned columns are `drag`, `number`, `status`, `refs`, `name` in that order, and
+  the `refs` and `name` offsets are 28px further right than with Status hidden
+
+#### Scenario: the cell reads as a glyph and says the word
+
+- **GIVEN** a done leaf `010` with the Status column shown
+- **WHEN** its Status cell is read
+- **THEN** the cell shows `✓`, its fact begins `Status: Done.`, its accessible description is
+  `Status: Done`, it has no `title`, `data-status-value` is `done`, and opening it lists
+  `In progress` and `Unknown`
+
+#### Scenario: blocked by proxy never reads as blocked
+
+- **GIVEN** one leaf reading `blocked` and one reading `blocked_by_proxy`
+- **WHEN** their Status cells are read
+- **THEN** the first shows `⊘` and the second `⊖`, each in its own colour
+
+### Requirement: The Status cell's fact names the status, and its card leaves when the list opens
+
+The Status cell's fact SHALL begin with `Status: <word>.` — `Status: Unknown.`, `Status: In
+progress.`, `Status: Done.` — before the sentence about the row. When a hinted mark that is a
+combobox expands its list, by click or by keyboard, the hint layer SHALL close that mark's open
+card; a click that leaves the mark collapsed SHALL leave the card where it was.
+
+#### Scenario: the card says the word the glyph does not
+
+- **GIVEN** a leaf reading unknown with the Status column shown
+- **WHEN** its Status cell's fact is read
+- **THEN** it begins `Status: Unknown. `, and `Status: Done. ` once the row is done
+
+#### Scenario: opening the list takes the card down
+
+- **GIVEN** the pointer resting on a Status cell with its fact card open
+- **WHEN** the cell is clicked and its list opens
+- **THEN** the card is gone while the list is on screen, and a click on a control that opens
+  nothing had left the card up
+
+### Requirement: A leaf's status folds its progress, hold, readiness and predecessors
+
+Every leaf SHALL report one `status` of `unknown`, `draft`, `ready`, `in_progress`,
+`blocked_by_proxy`, `on_hold`, `blocked` or `done`, folded on every read, first match winning:
+its progress fold `done` → `done`; its hold → `on_hold` or `blocked`; its progress fold
+`in_progress` → `in_progress`; a predecessor reading `on_hold`, `blocked` or
+`blocked_by_proxy` → `blocked_by_proxy`; its readiness → `draft` or `ready`; else `unknown`.
+Progress SHALL stay per step node; readiness and hold SHALL be stored once per leaf and never
+on a parent; `status` and `blocked_by_proxy` SHALL never be stored. A step node's own status
+SHALL remain its progress.
+
+#### Scenario: a hold outranks a running step
+
+- **GIVEN** a leaf whose `Dev` says `in_progress`, holding `hold: 'on_hold'`
+- **WHEN** the plan is read
+- **THEN** the leaf reports `on_hold`, and `in_progress` again once the hold is cleared
+
+#### Scenario: done outranks a hold
+
+- **GIVEN** a leaf done on every step and holding `hold: 'blocked'`
+- **WHEN** the plan is read
+- **THEN** the leaf reports `done`
+
+#### Scenario: readiness yields to anything the steps or the graph say
+
+- **GIVEN** a leaf with `readiness: 'ready'`, no progress, and no held or blocked predecessor
+- **WHEN** the plan is read
+- **THEN** it reports `ready`; with a blocked predecessor it reports `blocked_by_proxy`; with
+  `Dev` in progress it reports `in_progress`
+
+#### Scenario: nothing said is unknown
+
+- **GIVEN** a leaf with no progress, readiness or hold, and no predecessor reading `on_hold`,
+  `blocked` or `blocked_by_proxy`
+- **WHEN** the plan is read
+- **THEN** it reports `unknown`
+
+### Requirement: Blocked by proxy is derived from the full dependency graph
+
+A leaf SHALL read `blocked_by_proxy` exactly when it reads neither `done`, a hold nor
+`in_progress`, and a chain of dependencies reaches it from a leaf holding `on_hold` or
+`blocked` through unstarted or held leaves.
+Predecessors SHALL come from every legacy and typed dependency, of every relationship type,
+expanded to leaves, whether or not the predecessor takes part in the schedule. A leaf reading
+`done` or `in_progress` SHALL stop the chain. No leaf SHALL read `blocked_by_proxy` without such
+a chain, so a cycle of unstarted leaves with no hold behind it reads as their own statuses. A
+leaf-level cycle permitted by an acyclic step-node graph SHALL NOT prevent the derivation.
+
+#### Scenario: a successor two edges behind a held leaf is blocked by proxy
+
+- **GIVEN** leaves `A → B → C`, A `on_hold`, B and C with nothing said
+- **WHEN** the plan is read
+- **THEN** B and C both report `blocked_by_proxy`
+
+#### Scenario: running work stops the proxy
+
+- **GIVEN** leaves `A → B → C`, A `blocked`, B's `Dev` `in_progress`, C with nothing said
+- **WHEN** the plan is read
+- **THEN** B reports `in_progress` and C reports `unknown`
+
+#### Scenario: a parent's dependency blocks every leaf beneath the successor
+
+- **GIVEN** a dependency from leaf A to a parent P with two leaves, A `blocked`
+- **WHEN** the plan is read
+- **THEN** both leaves under P report `blocked_by_proxy`
+
+#### Scenario: a cycle of work items reads a hold only from outside it
+
+- **GIVEN** leaves A and B with typed dependencies `A.dev → B.dev` and `B.qa → A.qa`, both with
+  nothing said
+- **WHEN** the plan is read
+- **THEN** A and B report `unknown`; with a `blocked` leaf C and `C → A`, both report
+  `blocked_by_proxy`
+
+### Requirement: A parent folds its children's statuses the same way at every depth
+
+A parent's status SHALL be, in order: `done` when every child reads `done`; `on_hold` when
+every child reads `on_hold`; `blocked` when every child reads `blocked`; `in_progress` when
+any child reads `done` or `in_progress`; `blocked_by_proxy` when every child reads `on_hold`,
+`blocked` or `blocked_by_proxy`; otherwise, over the children reading none of those three,
+`unknown` when any reads `unknown`, `draft` when any reads `draft`, else `ready`. The fold of
+no children SHALL be `unknown`. Folding a parent's children and folding every leaf beneath
+it SHALL give the same status for every partition of the leaves.
+
+#### Scenario: a branch with one held and one ready leaf is ready
+
+- **GIVEN** a parent with one leaf `on_hold` and one `ready`
+- **WHEN** the plan is read
+- **THEN** the parent reports `ready`
+
+#### Scenario: a branch whose leaves are all stopped is blocked by proxy
+
+- **GIVEN** a parent with one leaf `on_hold` and one `blocked`
+- **WHEN** the plan is read
+- **THEN** the parent reports `blocked_by_proxy`
+
+#### Scenario: a subset fold agrees with the tree fold
+
+- **GIVEN** any tree and any leaf statuses
+- **WHEN** a parent is folded from its children and, separately, from all its leaves
+- **THEN** both folds report the same status
+
+### Requirement: An on-hold leaf takes no part in the schedule
+
+Before Fast, the solver request builder or a saved plan's schedule reads the plan, every held
+leaf and every ancestor whose leaves are all held SHALL be removed from the schedule input
+together with their slices, every legacy and typed dependency touching them, and their
+not-before and deadline entries. A held row SHALL report `schedule: null` and `dates: null`; a
+parent's bracket SHALL span its unheld leaves and be `null` when it has none. The scheduler
+contract version and the solver wire version SHALL NOT change; the canonical schedule input
+SHALL change only for plans holding something.
+
+#### Scenario: a successor no longer waits for held work
+
+- **GIVEN** leaves `A → B`, A estimated 5 days and `on_hold`
+- **WHEN** the plan is scheduled
+- **THEN** B starts on day zero, A reports `schedule: null`, and B reports `blocked_by_proxy`
+
+#### Scenario: a held assignee frees its person
+
+- **GIVEN** leaves A and B on the same person, A first in queue and `on_hold`
+- **WHEN** the plan is scheduled
+- **THEN** B starts on day zero
+
+#### Scenario: a parent of held leaves leaves the plan with them
+
+- **GIVEN** a parent whose every leaf is `on_hold`, with a deadline and an incoming dependency
+- **WHEN** the plan is scheduled
+- **THEN** the parent has no slice, no bracket and no dependency in the schedule input, and the
+  schedule is computed without error
+
+### Requirement: Blocked work, readiness and blocked by proxy change no schedule
+
+A leaf reading `blocked`, `draft`, `ready` or `blocked_by_proxy` SHALL take part in the
+schedule exactly as it would with nothing said: its nodes, dependencies, duration, person
+queue, pool slots, floors and deadlines are unchanged, and its bar is where the forecast puts
+it.
+
+#### Scenario: the golden corpora stay byte-identical
+
+- **GIVEN** every Fast and solver golden corpus case with any leaves marked `blocked`, `draft`
+  or `ready`
+- **WHEN** the schedules and canonical inputs are computed
+- **THEN** both are byte-identical to the unmarked case
+
+### Requirement: A work item's status is set by one act for every settable status
+
+`setStatus` SHALL act on a leaf, or on every leaf beneath a parent, as one journal entry whose
+inverse restores every prior progress statement, readiness, hold and fact date verbatim.
+`done` SHALL write today's done statements and clear the hold. `in_progress` on a leaf not
+reading `done` SHALL write `in_progress` on its first step in step order holding no statement,
+fill an empty fact start with `on` or the day of the act, and clear that leaf's hold. On a
+parent it SHALL start one leaf only: the first in tree order holding no progress statement,
+preferring unheld leaves, and only when every such leaf is held the first held one; it SHALL
+clear the hold of that leaf alone, and a parent already reading `in_progress` SHALL write
+nothing. `in_progress` on a leaf reading `done` SHALL reopen it: its last step in step order
+goes from `done` to `in_progress` and its fact end is cleared while its fact start stays; on a
+parent reading `done` the same SHALL happen on its first leaf in tree order, and the parent's
+own fact end SHALL be cleared too. In a project with no steps `in_progress` and `done` SHALL be
+refused `409 no_steps`, and the menu SHALL NOT offer `in_progress` there. `ready` and `draft` SHALL set readiness and clear the hold, and SHALL
+be refused `409 readiness_after_progress` when a leaf holds any progress statement. `on_hold`
+and `blocked` SHALL set the hold and leave progress, readiness and facts untouched, and SHALL
+be refused `409 cannot_hold_done` on a row reading `done`; beneath a parent, a leaf reading
+`done` SHALL keep no hold. `unknown` SHALL clear progress,
+readiness and hold. Any status other than a hold SHALL clear the hold of every leaf it acts on.
+When nothing would
+change, nothing SHALL be written, journalled or announced.
+
+#### Scenario: resuming returns the row to what it was
+
+- **GIVEN** a `ready` leaf put `on_hold`
+- **WHEN** `setStatus` sets it `ready`
+- **THEN** the hold is cleared and the leaf reports `ready`
+
+#### Scenario: in progress on a parent starts one leaf
+
+- **GIVEN** a parent with three unstarted leaves
+- **WHEN** `setStatus` sets it `in_progress` on `2026-10-01`
+- **THEN** only the first leaf in tree order gains `in_progress` on its first step and fact start
+  `2026-10-01`, and the parent reports `in_progress`
+
+#### Scenario: in progress on a parent prefers an unheld leaf and clears only its hold
+
+- **GIVEN** a parent whose leaves in tree order are L1 `on_hold`, L2 with nothing said and L3
+  `blocked`
+- **WHEN** `setStatus` sets the parent `in_progress`
+- **THEN** only L2 gains `in_progress` on its first step; L1 stays `on_hold` and L3 stays
+  `blocked`; had L2 been held too, L1 would start and lose its hold; a parent already reading
+  `in_progress` writes nothing and journals nothing
+
+#### Scenario: in progress reopens a done leaf
+
+- **GIVEN** a leaf done on `Dev` and `QA` with fact start `2026-09-01` and fact end `2026-09-20`
+- **WHEN** `setStatus` sets it `in_progress`
+- **THEN** `QA` reads `in_progress`, `Dev` stays `done`, the fact end is `null`, the fact start is
+  `2026-09-01`, and one undo restores `QA: done` and the fact end `2026-09-20`
+
+#### Scenario: a project with no steps cannot be started or finished
+
+- **GIVEN** a project holding no steps and one leaf
+- **WHEN** `setStatus` sets the leaf `in_progress` or `done`
+- **THEN** it is refused `409 no_steps`, nothing is written, and the row menu offers neither
+
+#### Scenario: one undo restores a held branch
+
+- **GIVEN** a parent whose leaves held `ready`, `blocked` and nothing before it was put `on_hold`
+- **WHEN** the actor undoes once
+- **THEN** each leaf holds exactly the readiness and hold it held before
+
+### Requirement: Structural edits carry readiness and hold with the leaf
+
+Duplicating a leaf SHALL copy its readiness and never its hold. When a leaf gains its first
+child, its readiness and hold SHALL move to that child with its progress. When another row
+moves under a leaf, that leaf's readiness and hold SHALL be cleared in the same journal entry,
+since the moved row is other work. When a parent loses
+its last child, the parent SHALL take a readiness or hold only when every former leaf agreed
+on it, else none. A readiness or hold SHALL never be written on a row that has children, by any
+command, undo or redo; the write itself SHALL refuse it.
+
+#### Scenario: an undo never puts a statement on a parent
+
+- **GIVEN** a leaf set `on_hold` then `unknown` by one actor, and a first child added under it by
+  another
+- **WHEN** the first actor undoes
+- **THEN** the undo is refused, no readiness or hold is written on the parent, and the plan still
+  reads
+
+#### Scenario: a duplicate is not on hold
+
+- **GIVEN** a `ready` leaf that is `on_hold`
+- **WHEN** it is duplicated
+- **THEN** the copy has readiness `ready` and no hold
+
+### Requirement: The row menu and Status cell offer every status the row does not read
+
+The row menu, on the table and on a card, SHALL open with a status section listing `Set status
+to <word>` for each settable status the row does not read and whose write would change
+something, in the order Draft, Ready, In progress, On hold, Blocked, Done, Unknown. Done SHALL
+keep the completion prompt; In progress SHALL open it asking for `Started on` only. The Status
+cell picker SHALL offer the same list. Each status SHALL have its own glyph, word and strip
+colour; `blocked_by_proxy` SHALL be drawn muted and never offered. An unrecognised status word
+from the API SHALL render the plan's query-failure state, not a blank glyph.
+
+#### Scenario: a held row does not offer its own hold
+
+- **GIVEN** a leaf reading `on_hold`
+- **WHEN** its row menu opens
+- **THEN** it offers every settable status but `On hold`, and `Draft` or `Ready` only if no step
+  has spoken
+
+### Requirement: The Gantt says each status on its bar
+
+An on-hold row SHALL draw no bar and a muted `On hold` word in its row, and no dependency arrow
+from it. A blocked row SHALL draw its bar with a blocked outline and `data-blocked`, and its
+outgoing arrows in the blocked colour. A blocked-by-proxy row SHALL draw a hatched bar with
+`data-blocked-by-proxy`, whose card names the held or blocked predecessor. A done bar SHALL be
+unchanged.
+
+#### Scenario: a held leaf draws no bar
+
+- **GIVEN** a leaf `on_hold` with an estimate
+- **WHEN** the Gantt renders
+- **THEN** the row shows `On hold` and no bar, and its successor's bar is hatched

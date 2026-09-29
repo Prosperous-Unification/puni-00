@@ -136,7 +136,7 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
     // "2026-09-13"`, PR #428's gate). A check that could not fail — the
     // twenty-eighth of R5's kind; the catalogue in `docs/findings` is a
     // verbatim mirror the root-migration map pins and cannot take a new entry,
-    // so the record is `openspec/changes/status-at-a-glance/verify.md`.
+    // so the record is `openspec/changes/archive/2026-09-29-status-at-a-glance/verify.md`.
     service: new AvailableWorkItemService({
       admission: overrides.admission ?? CREATOR_ADMISSION,
       clock: overrides.clock ?? testClock,

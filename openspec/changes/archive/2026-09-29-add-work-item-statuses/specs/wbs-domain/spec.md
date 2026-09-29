@@ -264,6 +264,116 @@ unchanged.
 - **WHEN** the Gantt renders
 - **THEN** the row shows `On hold` and no bar, and its successor's bar is hatched
 
+## MODIFIED Requirements
+
+### Requirement: The table shows Status, Fact start and Fact end, and strikes a done row
+
+The table SHALL offer three columns — `Status`, `Fact start`, `Fact end` — hidden by default
+and offered in the Columns control in table order: `Status` after `Links`, the two facts after
+`Deadline`. The Status cell SHALL show
+the row's status as a glyph with the word in its fact card and offer the statuses of "The row
+menu and Status cell offer every status the row does not read", on a parent as on a leaf;
+`Blocked by proxy` SHALL be shown but never offered. The
+two fact cells SHALL be date cells with the deadline cell's rest and edit states. A row whose
+status is `done` SHALL carry `data-row-done` and its name and number SHALL read struck
+through, on every stripe and under every row light.
+
+#### Scenario: the Columns control offers the three in order
+
+- **GIVEN** the Columns control open on a two-step plan
+- **WHEN** its entries are read
+- **THEN** `Status` follows `Links`, `Fact start` and `Fact end` follow `Deadline` in that order,
+  and none of the three is on screen until chosen
+
+#### Scenario: choosing Done marks the row and fills the fact end
+
+- **GIVEN** a leaf reading `Unknown` with the three columns shown
+- **WHEN** `Done` is chosen in its Status cell and the completion prompt confirmed unchanged
+- **THEN** the row reads `Done`, its name is struck through, and its Fact end cell reads today
+
+#### Scenario: a partly done row reads In progress and can still be finished
+
+- **GIVEN** a leaf whose `Dev` says `done` and whose `QA` says nothing
+- **WHEN** its Status cell is read and then opened
+- **THEN** it shows `◐` with a fact beginning `Status: In progress.`, and the list offers
+  `On hold`, `Blocked`, `Done` and `Unknown`, in that order
+
+### Requirement: Every row says its status at its left edge
+
+Every row of the table SHALL carry `data-row-status` holding its status, and SHALL draw a
+status strip at its left edge, before the drag handle, whether or not the Status column is
+shown: no strip for `unknown`, and for every other status the strip in that status's colour.
+The strip SHALL be painted with `box-shadow` on the drag cell and SHALL move no
+pixel of the layout. A row whose status is `done` SHALL additionally be tinted with the done
+colour across every cell, pinned cells included, under the band, the hover, the dependency
+light and the drop light rather than in place of them. Each status's colour SHALL be a
+palette token defined for both themes. The drag cell SHALL also say the status in words to
+assistive tech (`Status: <word>`), as the drag handle's description, so a reader who cannot
+see the strip hears it with the Status column hidden.
+
+#### Scenario: a done row wears the strip and the tint with its column hidden
+
+- **GIVEN** a plan with the Status column hidden and one leaf whose every step says `done`
+- **WHEN** the table is rendered
+- **THEN** that row carries `data-row-status="done"`, its drag cell paints the strip, every
+  cell of it paints the done tint, and the row above it carries `data-row-status="unknown"`
+  with no strip and no tint
+
+#### Scenario: an in-progress row wears the strip and no tint
+
+- **GIVEN** a leaf whose `Dev` says `done` and whose `QA` says nothing
+- **WHEN** the table is rendered
+- **THEN** the row carries `data-row-status="in_progress"`, its drag cell paints the
+  in-progress strip, and no cell of it paints the done tint
+
+#### Scenario: the tint lets the lights through
+
+- **GIVEN** a done row that some hovered Depends on cell waits for
+- **WHEN** the row is painted
+- **THEN** its cells carry the dependency light's `--cell-bg` and the done tint together, and
+  the pinned cells paint the same pair as the unpinned ones
+
+#### Scenario: a held row's strip is said in words
+
+- **GIVEN** a leaf `010` on hold, with the Status column hidden
+- **WHEN** its drag handle is read by assistive tech
+- **THEN** the row carries `data-row-status="on_hold"`, its strip is the on-hold colour, and
+  the handle `Reorder 010` is described as `Status: On hold`
+
+### Requirement: The Status column is one glyph, pinned after the number
+
+The Status column SHALL sit after `#` and before Links, SHALL be a member of the pinned
+block between them, and SHALL be 28px wide. Its heading SHALL be the `○` glyph with the
+accessible name `Status`. Its cell SHALL show a glyph of its own for each status — `○`
+unknown, `◌` draft, `◎` ready, `◐` in progress, `⊖` blocked by proxy, `‖` on hold, `⊘`
+blocked, `✓` done — coloured as the strip is, its accessible name naming the row (`Status of
+010`), its accessible description saying the status in words (`Status: <word>`), and its fact
+card saying the status in words, with no browser `title`; the picker SHALL offer the statuses
+in words. The status itself SHALL be readable off `data-status-value`. The column SHALL stay
+hidden by default and SHALL be offered in the Columns control as `Status`, where it renders —
+after `Links` (`status-polish` moved it there from after `Deadline`).
+
+#### Scenario: the pinned block holds Status in its place
+
+- **GIVEN** the Status column shown
+- **WHEN** the frame is laid out
+- **THEN** the pinned columns are `drag`, `number`, `status`, `refs`, `name` in that order, and
+  the `refs` and `name` offsets are 28px further right than with Status hidden
+
+#### Scenario: the cell reads as a glyph and says the word
+
+- **GIVEN** a done leaf `010` with the Status column shown
+- **WHEN** its Status cell is read
+- **THEN** the cell shows `✓`, its fact begins `Status: Done.`, its accessible description is
+  `Status: Done`, it has no `title`, `data-status-value` is `done`, and opening it lists
+  `In progress` and `Unknown`
+
+#### Scenario: blocked by proxy never reads as blocked
+
+- **GIVEN** one leaf reading `blocked` and one reading `blocked_by_proxy`
+- **WHEN** their Status cells are read
+- **THEN** the first shows `⊘` and the second `⊖`, each in its own colour
+
 ## REMOVED Requirements
 
 ### Requirement: A work item's status is unknown, in progress or done, and is never stored

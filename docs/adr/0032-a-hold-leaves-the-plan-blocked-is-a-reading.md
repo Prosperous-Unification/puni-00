@@ -1,7 +1,7 @@
 # A hold leaves the plan; blocked is a reading
 
 **Status:** accepted, 2026-09-28 (WBS 010.4.14). Change:
-`openspec/changes/add-work-item-statuses`.
+`openspec/changes/archive/2026-09-29-add-work-item-statuses`.
 
 A planner can put a leaf **on hold** or mark it **blocked**. We store both as one nullable
 `work_item.hold` column beside a nullable `work_item.readiness`, never as a stored row status
