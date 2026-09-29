@@ -24,13 +24,14 @@ pinned lists; whichever lands second adds the other's name beside its own.
 
 ## Commands
 
-| Slice | Command                                                                  | Result                                                                                                   |
-| ----- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| 0     | `bunx @fission-ai/openspec@1.12.0 validate --all --json`                 | exit 0; 141 passed, 0 failed; `add-spaces` valid, no issues                                              |
-| 1     | `bun test` in `libs/wbs/adapters/store-sqlite`, `CLAUDECODE` unset       | 1157 pass, 6 fail before the last pin fixes; the five migration failures fixed and rerun 85 pass, 0 fail |
-| 1     | the one other failure, `saved-plan-busy.db.test.ts`, rerun alone         | pass (5.3 s wall-clock window under the parallel suite)                                                  |
-| 1     | `bunx nx run-many -t typecheck lint:fast` over the five touched projects | `Successfully ran targets typecheck, lint:fast for 5 projects`                                           |
-| 1     | `bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts`       | 15 pass, 0 fail after indexing the fixture                                                               |
+| Slice | Command                                                                          | Result                                                                                                                                                                                                                                                              |
+| ----- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | `bunx @fission-ai/openspec@1.12.0 validate --all --json`                         | exit 0; 141 passed, 0 failed; `add-spaces` valid, no issues                                                                                                                                                                                                         |
+| 1     | `bun test` in `libs/wbs/adapters/store-sqlite`, `CLAUDECODE` unset               | 1157 pass, 6 fail before the last pin fixes; the five migration failures fixed and rerun 85 pass, 0 fail                                                                                                                                                            |
+| 1     | the one other failure, `saved-plan-busy.db.test.ts`, rerun alone                 | pass (5.3 s wall-clock window under the parallel suite)                                                                                                                                                                                                             |
+| 1     | `bunx nx run-many -t typecheck lint:fast` over the five touched projects         | `Successfully ran targets typecheck, lint:fast for 5 projects`                                                                                                                                                                                                      |
+| 1     | `bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts`               | 15 pass, 0 fail after indexing the fixture                                                                                                                                                                                                                          |
+| 1     | `bunx nx affected -t typecheck test lint --base=origin/main`, `CLAUDECODE` unset | first run exit 1: `tool-devsync:test` (unindexed fixture, since fixed) and `wbs-store-sqlite:test` (`keeps cached medians within ten percent`, wall-clock, 132 s under load); rerun at `78ae8dd3`: `Successfully ran targets typecheck, test, lint for 19 projects` |
 
 ## Failure proofs
 
