@@ -24,10 +24,13 @@ remove its rank.
 ### Requirement: Admins move a project in the rank
 
 `POST /api/organization/projects/:id/rank {afterProjectId}` SHALL place the project directly
-after `afterProjectId`, or first when that is null. Only an admin or super-admin SHALL be
-allowed; a member or viewer SHALL be answered `403 forbidden`. A foreign or absent project SHALL
-answer `404 not_found`. A rank move SHALL NOT be journalled and SHALL have no undo. Under legacy
-access, the route SHALL answer `409 organization_required`.
+after `afterProjectId`, or first when that is absent or null, and answer `200` with the new order.
+Every project of the organization SHALL be ranked afterwards, in that order. Only an admin or
+super-admin SHALL be allowed; a member or viewer SHALL be answered `403 forbidden`. A foreign or
+absent project, on either side of the move, SHALL answer `404 not_found`. A rank move SHALL NOT
+be journalled and SHALL have no undo. Under legacy access, the route SHALL answer `409
+organization_required`. Rolling back the migration SHALL refuse while any rank exists, naming
+`project-rank-rollback-cli.ts save|remove|restore`.
 
 #### Scenario: a member ranks
 
@@ -36,8 +39,11 @@ access, the route SHALL answer `409 organization_required`.
 
 ### Requirement: The rank is readable
 
-The load reads, and the organization's project list, SHALL report each project's rank as its
-1-based place in the total order.
+`GET /api/organization/project-rank` SHALL answer any current member with every project of the
+organization in rank order, each with its name, its 1-based `rank` and whether it is `ranked`;
+under legacy access it SHALL answer `409 organization_required`. The per-person load read SHALL
+list its projects in rank order and report each one's `rank`; under legacy access it SHALL use
+creation order then id.
 
 #### Scenario: an unranked project
 

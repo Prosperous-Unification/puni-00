@@ -54,6 +54,7 @@ function loadOver(trees: Partial<Record<string, () => TreeRead>>): {
         return Promise.resolve(tree());
       },
     },
+    ranks: { orderIn: () => Promise.reject(new Error('legacy access reads no rank')) },
     directory: {
       listWithin: () => Promise.resolve([{ id: 'ana', name: 'Ana', kind: 'person', teamIds: [] }]),
     },

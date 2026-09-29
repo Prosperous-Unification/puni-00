@@ -20,6 +20,7 @@ import {
 } from './organization-access-fixture';
 import { testPriorityBandService } from './priority-band-fixture';
 import { testProjectService } from './project-fixture';
+import { refusingProjectRanks } from './project-rank-fixture';
 import { testReplay } from './replay-fixture';
 import { testSavedPlanService } from './saved-plan-fixture';
 import { refusingSpaces } from './space-fixture';
@@ -61,6 +62,7 @@ export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof 
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
+    projectRanks: refusingProjectRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     appOrigin: 'http://localhost',
