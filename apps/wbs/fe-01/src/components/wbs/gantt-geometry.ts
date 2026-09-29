@@ -1511,6 +1511,11 @@ const trimmed = (corners: ArrowPoint[]): ArrowPoint[] =>
  * band (adjacent rows), the candidate runs to the gutter and retraces itself.
  * Folding keeps only the segments the route actually covers, so a folded route
  * never crosses a bar its unfolded candidate did not.
+ *
+ * The final run keeps its direction unless the endpoint lies strictly between
+ * its two predecessors on one line. A typed candidate cannot do that: its last
+ * vertical leg runs from a band beside the source row to the middle of another
+ * row, never back past its own start.
  */
 const folded = (corners: ArrowPoint[]): ArrowPoint[] => {
   const kept: ArrowPoint[] = [];
