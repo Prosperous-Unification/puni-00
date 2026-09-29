@@ -71,6 +71,7 @@ import {
   renameSavedPlan,
   savePlan,
 } from './saved-plan-shapes';
+import { changeSharedPeople, readSharedPeople } from './shared-people-shapes';
 import { smokeEcho } from './smoke-shapes';
 import { readSolution } from './solution-shapes';
 import {
@@ -141,6 +142,8 @@ export const httpShapes = [
   readPersonLoad,
   readProjectRank,
   moveProjectRank,
+  readSharedPeople,
+  changeSharedPeople,
   readHistory,
   readSolution,
   createProject,

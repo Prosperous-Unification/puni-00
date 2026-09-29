@@ -107,7 +107,10 @@ describe('rolling back past shared people', () => {
     expect(removeSavedSharedPeople(openDrizzle(path), JSON.parse(JSON.stringify(saved)), 6)).toBe(
       2,
     );
-    expect(rollbackTo(path, FOLDER, BEFORE_SHARED)).toEqual(['20260929200000_add_shared_people']);
+    expect(rollbackTo(path, FOLDER, BEFORE_SHARED)).toEqual([
+      '20260929210000_add_shared_people_audit',
+      '20260929200000_add_shared_people',
+    ]);
     runMigrations(path, FOLDER);
     expect(restoreSharedPeople(openDrizzle(path), JSON.parse(JSON.stringify(saved)), 7)).toBe(2);
     expect(modes()).toEqual([

@@ -15,6 +15,7 @@ import type {
   ProjectRankStore,
   ReplayOrchestrator,
   SavedPlanService,
+  SharedPeopleStore,
   SpaceStore,
 } from '@wbs/core';
 import { clockOf } from '@wbs/core';
@@ -26,10 +27,12 @@ import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
 import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
+import { sharedPeopleRoutes } from '@wbs/core/http/shared-people.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
 import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
 import { PersonLoad } from '@wbs/core/service/person-load.feature';
 import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
+import { SharedPeopleResource } from '@wbs/core/service/shared-people.resource';
 import { SpaceResource } from '@wbs/core/service/space.resource';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
@@ -169,10 +172,12 @@ export interface AppOptions {
    */
   spaces: SpaceStore;
   /**
-   * The organizations' project rank (`share-people-across-projects`, slice
-   * 3). Required, like `spaces`: the load reads order by it.
+   * The organizations' project rank and capacity mode
+   * (`share-people-across-projects`, slices 3 and 8). Required, like
+   * `spaces`: the load reads order by it. In production it announces every
+   * rank move and mode switch (`announcingSharingChanges`).
    */
-  projectRanks: ProjectRankStore;
+  projectRanks: ProjectRankStore & SharedPeopleStore;
   /**
    * Shared secret gw-01 presents on /internal/*. Required — a default here
    * would silently diverge from the value gw-01 loads from the environment,
@@ -348,6 +353,10 @@ export function mountedEndpoints(
         directory: opts.directory,
         ranks: opts.projectRanks,
       }),
+      opts.organizations,
+    ),
+    ...sharedPeopleRoutes(
+      new SharedPeopleResource({ sharedPeople: opts.projectRanks, clock: spaceClock }),
       opts.organizations,
     ),
     ...projectRankRoutes(

@@ -1,10 +1,12 @@
-import type { ProjectRankStore } from '@wbs/core';
+import type { ProjectRankStore, SharedPeopleStore } from '@wbs/core';
 
 const unused = (): Promise<never> =>
   Promise.reject(new Error('this composition holds no project rank; use the organization harness'));
 
-/** Inert project rank store for app compositions whose subject is not the rank. */
-export const refusingProjectRanks: ProjectRankStore = {
+/** Inert rank and mode store for app compositions whose subject is neither. */
+export const refusingProjectRanks: ProjectRankStore & SharedPeopleStore = {
   orderIn: unused,
   moveAfter: unused,
+  sharedPeopleIn: unused,
+  setSharedPeople: unused,
 };

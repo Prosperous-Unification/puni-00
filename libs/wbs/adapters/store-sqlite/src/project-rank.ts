@@ -1,11 +1,23 @@
-import type { ProjectRankStore, RankedProject, RankMoved, WriteStamp } from '@wbs/core';
+import type {
+  ProjectRankStore,
+  RankedProject,
+  RankMoved,
+  SharedPeopleStore,
+  WriteStamp,
+} from '@wbs/core';
 import { POSITION_STEP } from '@wbs/domain';
 import { and, asc, eq } from 'drizzle-orm';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
-import { project, projectOrganization, projectRank } from './schema';
+import {
+  organization,
+  project,
+  projectOrganization,
+  projectRank,
+  sharedPeopleAudit,
+} from './schema';
 
 type Reader = Pick<Drizzle, 'select'>;
 
@@ -64,7 +76,7 @@ const ranksOf = (held: readonly Held[]): RankedProject[] =>
  * never needs to respace. The composite reference is the second line: a rank
  * across organizations cannot be stored even if a read here were wrong.
  */
-export class ProjectRankRepository implements ProjectRankStore {
+export class ProjectRankRepository implements ProjectRankStore, SharedPeopleStore {
   constructor(
     private readonly db: Drizzle,
     private readonly gate: Gate,
@@ -128,4 +140,65 @@ export class ProjectRankRepository implements ProjectRankStore {
       ),
     );
   }
+
+  /**
+   * @throws when the organization does not exist: every caller resolved it
+   * from the session a moment ago, so a miss is a broken caller.
+   */
+  sharedPeopleIn(organizationId: string): Promise<boolean> {
+    // In the executor, so a missing organization rejects rather than throws.
+    return new Promise((resolve) => {
+      resolve(modeIn(this.db, organizationId));
+    });
+  }
+
+  /**
+   * The switch and its audit row in one immediate transaction, decided from a
+   * read inside it: two super-admins switching at once record one switch.
+   *
+   * Proof: the audit insert removed made `records who switched the mode, and
+   * nothing for a switch to the mode it had` (`shared-people.db.test.ts`)
+   * find no record; watched 2026-09-29.
+   */
+  setSharedPeople(
+    organizationId: string,
+    shared: boolean,
+    stamp: WriteStamp,
+    auditId: string,
+  ): Promise<{ changed: boolean }> {
+    return this.gate.enter(() =>
+      Promise.resolve(
+        this.db.transaction(
+          (tx) => {
+            if (modeIn(tx, organizationId) === shared) return { changed: false };
+            tx.update(organization)
+              .set({ sharedPeople: shared, ...auditOnUpdate(stamp) })
+              .where(eq(organization.id, organizationId))
+              .run();
+            tx.insert(sharedPeopleAudit)
+              .values({
+                id: auditId,
+                organizationId,
+                actorId: stamp.by,
+                sharedPeople: shared,
+                createdAt: stamp.at,
+              })
+              .run();
+            return { changed: true };
+          },
+          { behavior: 'immediate' },
+        ),
+      ),
+    );
+  }
+}
+
+function modeIn(db: Reader, organizationId: string): boolean {
+  const found = db
+    .select({ sharedPeople: organization.sharedPeople })
+    .from(organization)
+    .where(eq(organization.id, organizationId))
+    .get();
+  if (found === undefined) throw new Error(`organization ${organizationId} does not exist`);
+  return found.sharedPeople;
 }

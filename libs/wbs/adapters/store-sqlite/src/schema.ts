@@ -3066,6 +3066,25 @@ export const organizationAudit = sqliteTable(
 );
 
 /**
+ * One switch of an organization between isolated and shared people, written
+ * with the switch; see `20260929210000_add_shared_people_audit`. The CHECK on
+ * `shared_people` is in the migration's column definition.
+ */
+export const sharedPeopleAudit = sqliteTable(
+  'shared_people_audit',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    actorId: text('actor_id').notNull(),
+    sharedPeople: integer('shared_people', { mode: 'boolean' }).notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [index('shared_people_audit_organization_created').on(t.organizationId, t.createdAt)],
+);
+
+/**
  * An organization's named, ordered lens over its projects; see
  * `20260929100000_add_spaces` and ADR 0033. `(id, organization_id)` is unique
  * so membership can reference the pair.

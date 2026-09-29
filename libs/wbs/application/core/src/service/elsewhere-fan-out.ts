@@ -1,7 +1,7 @@
 import { influencersOf, type RunningBookings } from '../module/work-item/elsewhere-chain';
 import type { DirectoryStore } from '../ports/directory-store';
 import type { Broadcaster, ProjectEvent } from '../ports/project-event';
-import type { ProjectRankStore } from '../ports/project-rank-store';
+import type { ProjectRankStore, SharedPeopleStore } from '../ports/project-rank-store';
 import type { ProjectStore } from '../ports/project-store';
 import type { EngineUnavailable } from '../ports/scheduler';
 import { changesScheduleInput } from './optimizer-trigger-broadcaster';
@@ -127,6 +127,21 @@ export class ElsewhereFanOut implements Broadcaster {
     }
   }
 
+  /**
+   * After the organization switched between isolated and shared people:
+   * every one of `projectIds`, its projects, may now be scheduled around
+   * other bookings or none, so each is told, naming no cause.
+   */
+  async modeSwitched(projectIds: readonly string[]): Promise<void> {
+    for (const each of projectIds) {
+      await this.opts.inner.publish(each, {
+        type: 'elsewhere_changed',
+        projectId: each,
+        causeProjectId: null,
+      });
+    }
+  }
+
   private async peopleOf(order: readonly string[]): Promise<Map<string, ReadonlySet<string>>> {
     const people = new Map<string, ReadonlySet<string>>();
     for (const id of order) {
@@ -138,24 +153,39 @@ export class ElsewhereFanOut implements Broadcaster {
 }
 
 /**
- * `ranks`, announcing each move it makes through {@link ElsewhereFanOut.rankMoved}.
- * The production composition ranks through this; a move that refuses
- * announces nothing.
+ * `ranks`, announcing each move it makes through {@link ElsewhereFanOut.rankMoved}
+ * and each switch of the organization's mode through
+ * {@link ElsewhereFanOut.modeSwitched}. The production composition ranks and
+ * switches through this; a move that refuses, or a switch to the mode an
+ * organization already has, announces nothing.
  *
  * Proof: the announcement dropped made `tells the projects of a shared
  * organization that the rank moved` (`shared-people.controller.db.test.ts`)
  * receive no `elsewhere_changed`; watched 2026-09-29.
  */
-export function announcingRankMoves(
-  ranks: ProjectRankStore,
-  fanOut: Pick<ElsewhereFanOut, 'rankMoved'>,
-): ProjectRankStore {
+export function announcingSharingChanges(
+  ranks: ProjectRankStore & SharedPeopleStore,
+  fanOut: Pick<ElsewhereFanOut, 'rankMoved' | 'modeSwitched'>,
+): ProjectRankStore & SharedPeopleStore {
   return {
     orderIn: (organizationId) => ranks.orderIn(organizationId),
     async moveAfter(organizationId, projectId, afterProjectId, stamp) {
       const moved = await ranks.moveAfter(organizationId, projectId, afterProjectId, stamp);
       if (moved.ok) await fanOut.rankMoved(projectId);
       return moved;
+    },
+    sharedPeopleIn: (organizationId) => ranks.sharedPeopleIn(organizationId),
+    // Proof: the announcement dropped made `tells every project when the
+    // organization switches, and nothing for no switch`
+    // (`shared-people-mode.controller.db.test.ts`) record no
+    // `elsewhere_changed`; watched 2026-09-29.
+    async setSharedPeople(organizationId, shared, stamp, auditId) {
+      const set = await ranks.setSharedPeople(organizationId, shared, stamp, auditId);
+      if (set.changed) {
+        const order = await ranks.orderIn(organizationId);
+        await fanOut.modeSwitched(order.map((each) => each.projectId));
+      }
+      return set;
     },
   };
 }

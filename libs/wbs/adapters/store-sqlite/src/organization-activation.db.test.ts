@@ -211,6 +211,7 @@ describe('organization activation marker schema', () => {
 
   it('rolls back before activation and reapplies with a fresh seed', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+      '20260929210000_add_shared_people_audit',
       '20260929200000_add_shared_people',
       '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
@@ -229,7 +230,7 @@ describe('organization activation marker schema', () => {
     ]);
     expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_OWNERSHIP);
     runMigrations(path, FOLDER);
-    expect(readAppliedMigrations().at(-1)).toBe('20260929200000_add_shared_people');
+    expect(readAppliedMigrations().at(-1)).toBe('20260929210000_add_shared_people_audit');
     expect(withDb(readOrganizationActivation)).toBe('pre_activation');
   });
 

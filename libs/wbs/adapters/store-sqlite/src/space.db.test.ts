@@ -123,6 +123,7 @@ describe('spaces', () => {
   describe('the rollback', () => {
     it('rolls back while no space exists', () => {
       expect(rollbackTo(path, FOLDER, BEFORE_SPACES)).toEqual([
+        '20260929210000_add_shared_people_audit',
         '20260929200000_add_shared_people',
         '20260929180000_add_project_rank',
         SPACES,

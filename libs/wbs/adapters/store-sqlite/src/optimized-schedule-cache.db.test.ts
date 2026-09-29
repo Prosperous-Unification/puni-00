@@ -163,6 +163,7 @@ const ALSO_ROLLED_BACK = [
   'space',
   'space_project',
   'project_rank',
+  'shared_people_audit',
   'service_organization',
   'service_team_organization',
   'tag_organization',
@@ -346,6 +347,7 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        '20260929210000_add_shared_people_audit',
         '20260929200000_add_shared_people',
         '20260929180000_add_project_rank',
         '20260929100000_add_spaces',

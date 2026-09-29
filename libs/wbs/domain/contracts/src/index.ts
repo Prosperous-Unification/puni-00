@@ -28,6 +28,7 @@ export * from './http/refusal';
 export * from './http/saved-plan-shapes';
 export * from './http/schema-shape';
 export * from './http/shapes';
+export * from './http/shared-people-shapes';
 export * from './http/smoke-shapes';
 export * from './http/solution-shapes';
 export * from './http/space-shapes';

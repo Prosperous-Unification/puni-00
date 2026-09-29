@@ -195,13 +195,15 @@ export type ProjectEvent =
    * `projectId`, moved, so `projectId`'s dates may have (spec
    * `shared-people-mode`, "Booking changes fan out down the rank"). Published
    * to every project the cause influences, never for a change that leaves its
-   * bookings where they were.
+   * bookings where they were. `causeProjectId` is null when the organization
+   * itself switched between isolated and shared people, which moves every
+   * project's bookings at once.
    *
    * It moves no row of `projectId`, and advances its sequence all the same:
    * that is what re-reads its plan, re-solves it, and misses a memo keyed on
    * the sequence.
    */
-  | { type: 'elsewhere_changed'; projectId: string; causeProjectId: string };
+  | { type: 'elsewhere_changed'; projectId: string; causeProjectId: string | null };
 
 /**
  * The subscription name carrying a project's edits.

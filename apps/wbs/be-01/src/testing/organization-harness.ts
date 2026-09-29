@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { announcingRankMoves, CREATOR_ADMISSION, type DomainResolver } from '@wbs/core';
+import { announcingSharingChanges, CREATOR_ADMISSION, type DomainResolver } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import {
   DomainClaimRepository,
@@ -346,7 +346,7 @@ export class OrganizationHarness {
       invitations: new InvitationRepository(source.db, services.gate),
       joinRequests: new JoinRequestRepository(source.db, services.gate),
       spaces: new SpaceRepository(source.db, services.gate),
-      projectRanks: announcingRankMoves(
+      projectRanks: announcingSharingChanges(
         new ProjectRankRepository(source.db, services.gate),
         services.elsewhereFanOut,
       ),

@@ -29,6 +29,7 @@ function stubPage(routes: Parameters<typeof stubServer>[0]) {
     'GET /api/organization/join-requests': [() => answer(200, { requests: [] })],
     'GET /api/organization/domains': [() => answer(200, { domains: [] })],
     'GET /api/organization/members': [() => answer(200, { members: [] })],
+    'GET /api/organization': [() => answer(200, { sharedPeople: false })],
     ...routes,
   });
 }
@@ -204,6 +205,7 @@ describe('organization invitations', () => {
       'GET /api/organization/join-requests': [() => answer(403, { error: 'not_a_member' })],
       'GET /api/organization/domains': [() => answer(200, { domains: [] })],
       'GET /api/organization/members': [() => answer(200, { members: [] })],
+      'GET /api/organization': [() => answer(200, { sharedPeople: false })],
     });
     renderPage();
     expect(await screen.findByRole('alert')).toHaveProperty(

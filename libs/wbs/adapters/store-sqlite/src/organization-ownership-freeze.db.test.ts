@@ -132,6 +132,7 @@ describe.each(SIDES)('%s', (side, root, id, catalog) => {
 it('rolls back to the bridge and reapplies', () => {
   db.close();
   expect(rollbackTo(path, FOLDER, ORGANIZATION_BRIDGE)).toEqual([
+    '20260929210000_add_shared_people_audit',
     '20260929200000_add_shared_people',
     '20260929180000_add_project_rank',
     '20260929100000_add_spaces',

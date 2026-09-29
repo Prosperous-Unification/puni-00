@@ -330,3 +330,36 @@ policy while the chart refuses it.
 | unlabelled holder (`elsewhere-chain.ts` `holdersOf`) | the throw replaced by `continue`    | `refuses a booking whose holder the chain read no label for`                    | `[]` returned     |
 | count (`work-item.resource.ts`)                      | the throw replaced by a zero        | `refuses a schedule that reports no count of the bookings it was placed around` | the read resolved |
 | read to chart (`use-plan-read.ts` `chartReadOf`)     | `[]` in place of the read's holders | `carries each label from the read to the bar that waits for it`                 | `GanttDataError`  |
+
+## Slice 8 — mode route
+
+On `batch-9/010-4-16-capacity-mode`, stacked on slice 7 (`90893938`). Migration
+`20260929210000_add_shared_people_audit` records every switch; its `down.sql` refuses while any is
+recorded, as `organization_audit`'s does. `GET /api/organization` answers the mode to any member;
+`PATCH /api/organization {sharedPeople}` switches it for a super-admin only, never through a
+delegation, audited in the switch's transaction, and `announcingSharingChanges` then publishes
+`elsewhere_changed` with a null cause to every project of the organization. fe-01's organization
+page shows the mode and the switch, with a confirmation.
+
+**Cost budget (8.0a).** Measured alone on the workstation (load average about 3), three runs of
+`shared-people-cost.controller.db.test.ts`: setup 1.75–1.81 s; a cold read of the lowest of 30
+projects 41–44 ms, a repeat 27–30 ms (and 49/37 ms after the budgets were set). The design memo's
+budget was 2 s cold and 150 ms warm; the chain has no memo, and a read is well inside both. The test
+asserts the work, not the clock. Its setup hook states 20 s (3 × 1.8 s, next step); no loaded run
+was made.
+
+**No deletion path (8.0b).** `project-deletion.guard.test.ts` scans production sources.
+
+| Check (file)                              | Fault injected                                | Test that observed the failure                                                  | Result                         |
+| ----------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------ |
+| deletion guard                            | a be-01 file calling `beginOptimizationDrain` | `has no production caller, so none owes the organization a notice yet`          | the file named                 |
+| role (`shared-people.resource.ts`)        | admins admitted                               | `refuses an admin the switch, keeping the organization isolated`                | 200 for `ada`                  |
+| delegation (`shared-people.routes.ts`)    | the guard removed                             | `refuses a delegated switch of the capacity mode, even a super-admin’s`         | 200                            |
+| switch announced (`elsewhere-fan-out.ts`) | `modeSwitched` not called                     | `tells every project when the organization switches, and nothing for no switch` | no `elsewhere_changed`         |
+| audit row (`project-rank.ts`)             | the insert removed                            | `records who switched the mode…`; `refuses to roll back over a recorded switch` | no record; rollback allowed    |
+| audit CHECK (migration)                   | the `shared_people` CHECK dropped             | `refuses a record of a third mode`                                              | the row stored                 |
+| audit rollback (`down.sql`)               | `CHECK (1)`                                   | `refuses to roll back over a recorded switch`                                   | the table dropped              |
+| settings switch (`sharing-panel.tsx`)     | the held mode sent instead of its opposite    | `shares people after a confirmation and re-reads the mode`                      | `{ sharedPeople: false }` sent |
+
+The deviation from the coordinator's wording: the brief said admin-only; the spec (and task 8.2)
+says super-admin only, with an admin answered 403, and that is what shipped.

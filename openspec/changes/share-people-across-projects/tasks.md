@@ -92,9 +92,14 @@
 
 ## 8. Mode route
 
-- [ ] 8.0 Preconditions from Fable's review of slice 6: measure the chain's cost budget (30
-      projects sharing ten people, cold ≤ 2 s, warm ≤ 150 ms) before the route ships; and give the
-      first project-deletion path (none exists today) an `elsewhere_changed` to the organization's
-      other projects.
-- [ ] 8.1 `PATCH /api/organization {sharedPeople}`, super-admin only, after 6 and 7 are on main.
-- [ ] 8.2 Negative: policy removed → an admin gets 200, not 403.
+- [x] 8.0 Preconditions from Fable's review of slice 6. (a) The cost budget, measured alone:
+      30 projects sharing ten people, a cold read of the lowest 36–49 ms and a repeat 27–37 ms,
+      far inside 2 s; `shared-people-cost.controller.db.test.ts` asserts the work (29 influencers
+      scheduled, every slice on day 29, 290 holders) and prints the clock. (b) No production path
+      deletes a project: `project-deletion.guard.test.ts` fails on the first caller of
+      `beginOptimizationDrain` or `.delete(project)` outside the drain module, which must tell
+      the organization's other projects before it may leave the guard.
+- [x] 8.1 `PATCH /api/organization {sharedPeople}`, super-admin only, after 6 and 7 are on main.
+      Also `GET /api/organization` for any member, a `shared_people_audit` row per switch, and
+      the settings switch in fe-01 (`SharingPanel`).
+- [x] 8.2 Negative: policy removed → an admin gets 200, not 403.

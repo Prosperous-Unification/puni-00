@@ -12,6 +12,28 @@ export interface RankedProject {
 export type RankMoved = { ok: true; order: RankedProject[] } | { ok: false; reason: 'not_found' };
 
 /**
+ * Whether an organization shares its people (CONTEXT "Shared people"): the
+ * mode and its audited switch. Stored beside the rank because both decide
+ * whose bookings a project is scheduled around.
+ */
+export interface SharedPeopleStore {
+  /** The organization's mode; `isolated` (false) unless switched. */
+  sharedPeopleIn(organizationId: string): Promise<boolean>;
+  /**
+   * Sets the mode by `stamp.by` at `stamp.at` and, when that changes it,
+   * records the switch under `auditId` in the same transaction. Answers
+   * whether it changed; setting the mode an organization already has writes
+   * nothing.
+   */
+  setSharedPeople(
+    organizationId: string,
+    shared: boolean,
+    stamp: WriteStamp,
+    auditId: string,
+  ): Promise<{ changed: boolean }>;
+}
+
+/**
  * The organization's total order over its projects
  * (`openspec/changes/share-people-across-projects`, spec `project-rank`).
  */

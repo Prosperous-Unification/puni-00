@@ -339,3 +339,10 @@ organization no longer exists:
 ```sh
 docker exec be-01-<colour> bun run src/shared-people-rollback-cli.ts restore /data/shared-people-<date>.json
 ```
+
+Every switch through `PATCH /api/organization` is recorded in `shared_people_audit`, and rolling
+back past `20260929210000_add_shared_people_audit` refuses while any switch is recorded, reading
+`CHECK constraint failed: shared people switches are recorded: …`. Audit evidence is never
+discarded by a rollback, as with `organization_audit`: once an organization has switched, the
+schema stays and only a code rollback (guarded by the capacity modes vocabulary above) is
+available. Switching an organization back to isolated through the route is the ordinary reversal.

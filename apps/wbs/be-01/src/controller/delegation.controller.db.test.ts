@@ -280,6 +280,19 @@ describe('after activation', () => {
     expect(memberships()).toEqual(before);
   });
 
+  it('refuses a delegated switch of the capacity mode, even a super-admin’s', async () => {
+    h.sqlite.run(
+      "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
+      [h.userId('ada')],
+    );
+    expect(
+      await h.callWith(await delegation(), 'PATCH', '/api/organization', { sharedPeople: true }),
+    ).toEqual({ status: 403, body: { error: 'insufficient_scope' } });
+    expect(
+      h.sqlite.query("SELECT shared_people FROM organization WHERE id = 'org-a'").get(),
+    ).toEqual({ shared_people: 0 });
+  });
+
   it('lists only the delegated organization’s projects', async () => {
     const answer = await h.callWith(await delegation(), 'GET', '/api/projects');
 

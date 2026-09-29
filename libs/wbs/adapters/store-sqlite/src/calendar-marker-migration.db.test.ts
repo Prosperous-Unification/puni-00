@@ -90,6 +90,7 @@ const ORGANIZATION_TABLES = [
   'space',
   'space_project',
   'project_rank',
+  'shared_people_audit',
   'service_organization',
   'service_team_organization',
   'tag_organization',
@@ -240,6 +241,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20260929210000_add_shared_people_audit',
       '20260929200000_add_shared_people',
       '20260929180000_add_project_rank',
       '20260929100000_add_spaces',

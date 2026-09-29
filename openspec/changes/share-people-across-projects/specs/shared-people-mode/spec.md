@@ -37,9 +37,15 @@ downward closure. A change that does not move the hash, such as a rename, SHALL 
 
 ### Requirement: Super-admins switch the mode
 
-`PATCH /api/organization {sharedPeople}` SHALL be allowed only to a super-admin. An admin SHALL
-be answered `403 forbidden`, and legacy access SHALL be answered `409 organization_required`.
-The route SHALL ship only after the engines, the chain and fe-01 understand `shared`.
+`PATCH /api/organization {sharedPeople}` SHALL be allowed only to a super-admin, and never
+through a delegation (`403 insufficient_scope`). An admin SHALL be answered `403 forbidden`, and
+legacy access SHALL be answered `409 organization_required`. Any current member SHALL read the
+mode with `GET /api/organization`. Every switch SHALL be recorded (who, when, to which mode) in the
+same transaction, and SHALL publish `elsewhere_changed` with no cause to every project of the
+organization; setting the mode the organization already has SHALL record and publish nothing.
+Switching back to `isolated` SHALL restore each project's isolated dates. A rollback SHALL never
+discard a recorded switch. The route SHALL ship only after the engines, the chain and fe-01
+understand `shared`.
 
 #### Scenario: an admin switches
 

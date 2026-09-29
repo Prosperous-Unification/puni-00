@@ -7,6 +7,7 @@ import { InvitationsPanel } from './invitations-panel';
 import { JoinRequestsPanel } from './join-requests-panel';
 import { MembersPanel } from './members-panel';
 import { type AccessLoss, lossCopy } from './organization-access';
+import { SharingPanel } from './sharing-panel';
 
 /**
  * Administration of the session's active organization, at `/organization`.
@@ -38,6 +39,7 @@ export function OrganizationPage({
         {loss === null ? (
           <>
             <MembersPanel onAccessLost={setLoss} />
+            <SharingPanel onAccessLost={setLoss} />
             <InvitationsPanel onAccessLost={setLoss} />
             <JoinRequestsPanel onAccessLost={setLoss} />
             <DomainsPanel onAccessLost={setLoss} />
