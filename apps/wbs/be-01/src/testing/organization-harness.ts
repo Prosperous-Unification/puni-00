@@ -6,6 +6,7 @@ import { CREATOR_ADMISSION, type DomainResolver } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { StepService } from '@wbs/core/module/step/step.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { createLogger } from '@wbs/observability';
 import {
@@ -47,7 +48,6 @@ import { delegationVerifier } from '../runtime/delegation';
 import { delegationIssuer } from '../runtime/delegation-issuer';
 import { runDomainProofWorker } from '../runtime/domain-proof-worker';
 import { fastScheduler } from '../service/optimizer-wiring';
-import { StepService } from '../service/step.service';
 import { WorkItemService } from '../service/work-item.service';
 import { buildServices } from '../services';
 import { TEST_JWT_KEY } from './auth-fixture';

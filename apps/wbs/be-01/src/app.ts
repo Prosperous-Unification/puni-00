@@ -33,6 +33,7 @@ import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
 import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import type { PriorityBandService } from '@wbs/core/module/priority-band/priority-band.resource';
 import type { ProjectService } from '@wbs/core/module/project/project.resource';
+import type { StepService } from '@wbs/core/module/step/step.resource';
 import type { AuthService } from '@wbs/core/service/auth.service';
 import { PersonLoad } from '@wbs/core/service/person-load.feature';
 import { RollUpCache, SpaceResource } from '@wbs/core/service/space.resource';
@@ -65,7 +66,6 @@ import { type IssueBearerContext, REFUSE_BEARER_CONTEXT } from './runtime/bearer
 import { nodeDigest } from './runtime/bun-runtime';
 import { type DelegationVerifier, REFUSE_DELEGATIONS } from './runtime/delegation';
 import type { OptimizationCoordinator } from './service/optimization-coordinator';
-import type { StepService } from './service/step.service';
 import type { Scope, UnitOfWork } from './service/unit-of-work';
 import type { WorkItemService } from './service/work-item.service';
 import type { WritingServices } from './services';

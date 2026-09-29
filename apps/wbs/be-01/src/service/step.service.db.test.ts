@@ -9,6 +9,7 @@ import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { GatewayBroadcaster } from '@wbs/core/module/realtime/gateway-broadcaster';
 import { ReplayBuffer } from '@wbs/core/module/realtime/replay-buffer';
 import { ReplayOrchestrator } from '@wbs/core/module/realtime/replay-orchestrator';
+import { StepService } from '@wbs/core/module/step/step.resource';
 import { systemTimers } from '@wbs/runtime-portable';
 import { PushClient } from '@wbs/runtime-portable';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
@@ -45,7 +46,6 @@ import { directoryWith, personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import { StepService } from './step.service';
 import { WorkItemService } from './work-item.service';
 
 /**

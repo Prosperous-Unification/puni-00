@@ -24,7 +24,6 @@ import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
 import type { Service, Tag, WorkItemType } from '../../ports/work-item-store';
 import type { DirectoryUsage } from '../../service/directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
-import type { StepService } from '../../service/step.service';
 import type { WorkItemRefusal } from '../../service/work-item.service';
 import type {
   Collected,
@@ -40,6 +39,7 @@ import type {
 } from '../directory/directory.resource';
 import type { DirectoryService } from '../directory/directory.resource';
 import type { PriorityBandService } from '../priority-band/priority-band.resource';
+import type { StepService } from '../step/step.resource';
 import { applyCommand, bindCommands, CommandContext, CommandRefused } from './command-bindings';
 import { createWorkingPlan } from './working-plan.resource';
 

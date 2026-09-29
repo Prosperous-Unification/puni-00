@@ -55,11 +55,6 @@
       "disposition": "re-export shim; delete when importers use the solver-supervisor module directly"
     },
     {
-      "path": "apps/wbs/be-01/src/service/step.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/step.service directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/unit-of-work.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core directly"
@@ -194,11 +189,6 @@
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
       "rationale": "smokeRoutes is its only production caller and uses echo as a pure text transformation with no store, clock or external port"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/step.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the step module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/work-item.service.ts",
