@@ -138,10 +138,11 @@ const EXEMPT = new Set([
  * rollback removed (`docs/runbook-prod-deploy.md#typed-dependency-rollback`):
  * each row was stamped by `auditOnCreate` when it was first written, and
  * stamping it again on restore would replace who drew the relationship and when
- * with whoever ran the restore — a lossy restore. Only inserts are excused; the
- * `it` below keeps the list to files that exist.
+ * with whoever ran the restore — a lossy restore. `space-rollback.ts` does the
+ * same for spaces and their members (`#space-rollback`). Only inserts are
+ * excused; the `it` below keeps the list to files that exist.
  */
-const RESTORES = new Set(['typed-dependency-rollback.ts']);
+const RESTORES = new Set(['space-rollback.ts', 'typed-dependency-rollback.ts']);
 
 /** The files that hold writes — every repository, and not this test or the helper. */
 function repositorySources(): { name: string; text: string }[] {

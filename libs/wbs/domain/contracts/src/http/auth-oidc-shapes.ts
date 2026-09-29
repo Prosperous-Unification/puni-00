@@ -63,7 +63,9 @@ export const startAuth0Link = defineEndpointShape({
   operationId: 'postApiAuthLinkAuth0',
   policies: [{ kind: 'origin', when: 'always-unsafe-with-session-cookie' }],
   body: requestSchema(type({ password: 'string' })),
-  responses: [{ kind: 'empty', status: 302 }],
+  // A JSON location rather than a 302: fe-01's fetch transport cannot follow
+  // or read a cross-origin redirect, so the page navigates itself.
+  responses: [{ kind: 'json', status: 200, schema: responseSchema(type({ location: 'string' })) }],
   refusals: [
     malformed,
     { status: 400, schema: responseSchema(type({ error: "'invalid_client'" })) },
@@ -72,10 +74,15 @@ export const startAuth0Link = defineEndpointShape({
     { status: 429, schema: responseSchema(type({ error: "'invalid_credentials'" })) },
     { status: 403, schema: responseSchema(type({ error: "'onboarding_inactive'" })) },
   ],
-  document: { summary: 'Prove the password session and start an explicit Auth0 link.' },
+  document: { summary: 'Prove the password session and answer the Auth0 link location.' },
 });
 
-/** Consumes the bound Auth0 proof without entering normal login resolution. */
+/**
+ * Consumes the bound Auth0 proof without entering normal login resolution.
+ * Every outcome the handler reaches is a 302 to the fixed relative
+ * `/?auth_link=<linked|refused|inactive|collision|unavailable|failed>`; only
+ * a polluted query or a non-GET method is refused before it.
+ */
 export const completeAuth0Link = defineEndpointShape({
   method: 'GET',
   path: '/api/auth/link/auth0/callback',
@@ -88,12 +95,6 @@ export const completeAuth0Link = defineEndpointShape({
     malformed,
     { status: 400, schema: responseSchema(type({ error: "'duplicate_parameter'" })) },
     { status: 405, schema: responseSchema(type({ error: "'method_not_allowed'" })) },
-    { kind: 'empty', status: 400 },
-    { kind: 'empty', status: 401 },
-    { kind: 'empty', status: 403 },
-    { kind: 'empty', status: 409 },
-    { kind: 'empty', status: 500 },
-    { kind: 'empty', status: 503 },
   ],
   document: { summary: 'Complete an explicit Auth0 link for the originating password session.' },
 });

@@ -131,7 +131,10 @@
    * finished and amber for under way are the two readings nobody has to
    * learn; draft and ready are the cool pair before work starts, on hold a
    * quiet violet, blocked the destructive red, and blocked by proxy that red
-   * muted, since it is read off the graph rather than said about the row.
+   * muted — muted in chroma and not lightness, since it is read off the graph
+   * rather than said about the row. At L 0.55 it holds 5.07:1 against the page
+   * white, past 3:1 for a strip and 4.5:1 for the Status glyph (Fable review of
+   * #234; at 0.72 it was 2.57:1).
    */
   --status-done: oklch(0.6 0.16 148);
   --status-in-progress: oklch(0.72 0.15 72);
@@ -139,7 +142,7 @@
   --status-ready: oklch(0.6 0.11 215);
   --status-on-hold: oklch(0.58 0.1 300);
   --status-blocked: oklch(0.577 0.245 27.325);
-  --status-blocked-by-proxy: oklch(0.72 0.09 27);
+  --status-blocked-by-proxy: oklch(0.55 0.09 27);
 }
 
 .dark {

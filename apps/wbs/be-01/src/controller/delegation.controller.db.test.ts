@@ -184,6 +184,7 @@ describe('after activation', () => {
       body: { error: 'insufficient_scope' },
     });
     for (const [method, path, body] of [
+      ['GET', '/api/organization/members', undefined],
       ['GET', '/api/organization/join-requests', undefined],
       ['POST', '/api/organization/join-requests/missing/approve', { role: 'viewer' }],
       ['POST', '/api/organization/join-requests/missing/deny', undefined],
@@ -248,6 +249,35 @@ describe('after activation', () => {
     expect(h.sqlite.query("SELECT id FROM organization WHERE name = 'Unexpected'").all()).toEqual(
       [],
     );
+  });
+
+  it('refuses delegated member administration even for a super-admin', async () => {
+    h.sqlite.run(
+      "UPDATE organization_membership SET role = 'super_admin' WHERE organization_id = 'org-a' AND user_id = ?",
+      [h.userId('ada')],
+    );
+    h.member('org-a', 'grace', 'member');
+    const memberships = () =>
+      h.sqlite
+        .query(
+          "SELECT user_id, role FROM organization_membership WHERE organization_id = 'org-a' ORDER BY user_id",
+        )
+        .all();
+    const before = memberships();
+    const target = `/api/organization/members/${h.userId('grace')}`;
+    expect(await h.callWith(await delegation(), 'PATCH', target, { role: 'viewer' })).toEqual({
+      status: 403,
+      body: { error: 'insufficient_scope' },
+    });
+    expect(await h.callWith(await delegation(), 'DELETE', target)).toEqual({
+      status: 403,
+      body: { error: 'insufficient_scope' },
+    });
+    expect(await h.callWith(await delegation(), 'GET', '/api/organization/members')).toEqual({
+      status: 403,
+      body: { error: 'insufficient_scope' },
+    });
+    expect(memberships()).toEqual(before);
   });
 
   it('lists only the delegated organization’s projects', async () => {

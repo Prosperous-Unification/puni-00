@@ -19,6 +19,28 @@ export type MembershipAdministered =
       readonly refusal: 'forbidden' | 'not_found' | 'last_super_admin';
     };
 
+/** One member of an organization as an administrator sees it. */
+export interface MemberSummary {
+  readonly userId: string;
+  readonly username: string;
+  /** Null for an account that has never recorded an address. */
+  readonly email: string | null;
+  readonly role: OrganizationRole;
+  readonly createdAt: number;
+}
+
+/** What one member listing answered. */
+export type MembersListed =
+  | { readonly ok: true; readonly members: readonly MemberSummary[] }
+  | {
+      readonly ok: false;
+      /**
+       * - `onboarding_inactive`: organization administration is not activated.
+       * - `forbidden`: the actor is not currently an admin or super-admin there.
+       */
+      readonly refusal: 'onboarding_inactive' | 'forbidden';
+    };
+
 /**
  * Changes or removes organization memberships under the role matrix.
  *
@@ -40,4 +62,11 @@ export interface MembershipAdministration {
     requested: OrganizationRole | null,
     stamp: WriteStamp,
   ): Promise<MembershipAdministered>;
+
+  /**
+   * Lists `organizationId`'s members when `actorId` is currently an admin or
+   * super-admin there, reading activation and the actor's role in the same
+   * transaction as the rows.
+   */
+  listMembers(organizationId: string, actorId: string): Promise<MembersListed>;
 }

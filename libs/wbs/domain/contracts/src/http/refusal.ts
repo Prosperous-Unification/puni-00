@@ -305,7 +305,14 @@ type BareRefusalCode =
   | 'last_super_admin'
   // A project reach change or a step removal that would close a step-node
   // dependency cycle. Outside a batch, so it carries no command position.
-  | 'dependency_cycle';
+  | 'dependency_cycle'
+  // Spaces (`add-spaces`): legacy access with no legacy organization to own a
+  // space; a space name the organization already holds; a project already in
+  // the space; a write addressed to the virtual All projects.
+  | 'organization_required'
+  | 'name_taken'
+  | 'already_in_space'
+  | 'virtual_space';
 
 type SharedCommandCode =
   'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use' | 'calendar_range';

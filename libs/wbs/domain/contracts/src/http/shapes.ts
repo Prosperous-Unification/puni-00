@@ -51,7 +51,7 @@ import {
   readOnboarding,
   submitOnboardingJoinRequest,
 } from './onboarding-shapes';
-import { changeMemberRole, removeMember } from './organization-shapes';
+import { changeMemberRole, listMembers, removeMember } from './organization-shapes';
 import {
   createProject,
   exportProject,
@@ -71,6 +71,16 @@ import {
 } from './saved-plan-shapes';
 import { smokeEcho } from './smoke-shapes';
 import { readSolution } from './solution-shapes';
+import {
+  addSpaceProject,
+  createSpace,
+  listSpaces,
+  moveSpaceProject,
+  readSpace,
+  removeSpace,
+  removeSpaceProject,
+  renameSpace,
+} from './space-shapes';
 import { addStep, removeStep, renameStep } from './step-shapes';
 import {
   applyDirectoryCommands,
@@ -100,6 +110,7 @@ export const httpShapes = [
   renameStep,
   removeStep,
   changeMemberRole,
+  listMembers,
   removeMember,
   listOrganizationDomains,
   releaseDomainClaim,
@@ -150,6 +161,14 @@ export const httpShapes = [
   readSavedPlan,
   renameSavedPlan,
   deleteSavedPlan,
+  listSpaces,
+  createSpace,
+  readSpace,
+  renameSpace,
+  removeSpace,
+  addSpaceProject,
+  removeSpaceProject,
+  moveSpaceProject,
   forwardInternal,
   resumeInternal,
   gatewayProjectAccess,
