@@ -10,12 +10,12 @@ import {
 import type { SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
+import type { CalendarMarkerService } from '../module/calendar-marker/calendar-marker.resource';
 import { installPlanDocument } from '../module/plan-document/check';
 import type { Clock } from '../ports/clock';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Project } from '../ports/project-store';
 import type { OptimizationVariantState } from '../ports/scheduler';
-import type { CalendarMarkerService } from '../service/calendar-marker.service';
 import type { DirectoryService } from '../service/directory.service';
 import type { ProjectService } from '../service/project.service';
 import type { WorkItemService } from '../service/work-item.service';

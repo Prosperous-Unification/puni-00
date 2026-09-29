@@ -8,12 +8,12 @@ import {
   testWorkItemService,
 } from '@wbs/store-memory/testing/service-fixtures';
 
+import type { CalendarMarkerService } from '../module/calendar-marker/calendar-marker.resource';
 import type { PlanCommandServices } from '../module/plan-commands/plan-commands.feature';
 import type { ImportService } from '../module/plan-import/plan-import.feature';
 import type { Broadcaster } from '../ports/project-event';
 import type { TransactionalStores } from '../ports/stores';
 import type { Scope, UnitOfWork } from '../ports/unit-of-work';
-import type { CalendarMarkerService } from '../service/calendar-marker.service';
 import type { ProjectService } from '../service/project.service';
 import type { StepService } from '../service/step.service';
 import type { InMemoryPlan } from './harness';

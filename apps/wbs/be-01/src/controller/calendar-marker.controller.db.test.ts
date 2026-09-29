@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { clockOf } from '@wbs/core';
+import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { automaticColor, MARKER_NAME_MAX } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
@@ -17,7 +18,6 @@ import { ProjectRepository } from '../repository/project';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { CalendarMarkerService } from '../service/calendar-marker.service';
 import { ProjectService } from '../service/project.service';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';

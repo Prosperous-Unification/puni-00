@@ -1,6 +1,6 @@
 # Calendar marker
 
-<!-- module-index {"schemaVersion":1,"moduleId":"module.application.calendar-marker","memberships":[{"kind":"path","path":"calendar-marker.resource.test.ts"},{"kind":"path","path":"calendar-marker.resource.ts"},{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every reader this packet verified by reading compose.ts, index.ts and the compatibility shim."},{"section":"invariants","reason":"The single-clock-reading `createdAt` and announce-after-write rules are documented on CalendarMarkerService; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/calendar-marker.service.ts"}],"knowledgeLimit":"Only the composition root, the core barrel and the compatibility shim are declared; the calendar-marker and project routes, the writes fixture, the sideways-type boundary test and the be-01 shim and controller tests reach this module through the shim or the barrel and are not tracked here."}} -->
+<!-- module-index {"schemaVersion":1,"moduleId":"module.application.calendar-marker","memberships":[{"kind":"path","path":"calendar-marker.resource.test.ts"},{"kind":"path","path":"calendar-marker.resource.ts"},{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every reader this packet verified by reading compose.ts, index.ts and the compatibility shim."},{"section":"invariants","reason":"The single-clock-reading `createdAt` and announce-after-write rules are documented on CalendarMarkerService; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/be-01/src/app.ts"},{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/http/calendar-marker.routes.ts"},{"kind":"path","path":"libs/wbs/application/core/src/http/project.routes.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"}],"knowledgeLimit":"The composition root, the core barrel, the calendar-marker and project routes and be-01's app are declared; the writes fixture, the organization harness, the sideways-type boundary test and the be-01 controller tests are not tracked here."}} -->
 
 A sealed resource module installed per admitted scope: `servicesOver` in
 `libs/wbs/application/core/src/compose.ts` installs it once for the public graph and once for every
@@ -21,8 +21,10 @@ The applicable check is the `wbs-core:test` target declared in
 ## Consumers
 
 `libs/wbs/application/core/src/compose.ts` installs the module per supplied scope;
-`libs/wbs/application/core/src/service/calendar-marker.service.ts` keeps the former path for
-delivery, `@wbs/core`'s barrel and be-01's deep-import shim.
+`libs/wbs/application/core/src/index.ts` re-exports `calendar-marker.resource.ts` from the
+`@wbs/core` barrel; `libs/wbs/application/core/src/http/calendar-marker.routes.ts`,
+`libs/wbs/application/core/src/http/project.routes.ts` and `apps/wbs/be-01/src/app.ts` import it
+directly.
 
 ## Wiki registration
 
