@@ -33,13 +33,18 @@ export interface LoadWeek {
  * that ends where the next begins is a hand-off, and reporting it would hatch
  * every plan that schedules a person back to back.
  *
+ * A span that holds no time (`end <= start`) books nothing and joins no
+ * overlap. Proof: the filter removed made `lets a span that holds no time join
+ * no overlap` (`person-load.test.ts`) report one; watched 2026-09-29.
+ *
  * Proof: starts ordered before ends at one instant made `reports nothing for
- * touching bookings` (`person-load.test.ts`) report `[2, 2]` and the mounted
- * `does not report touching bookings as an overlap`
+ * touching bookings` (`person-load.test.ts`) report a zero-length overlap at 2,
+ * and the mounted `does not report touching bookings as an overlap`
  * (`person-load.controller.db.test.ts`) list one overlap; watched 2026-09-29.
  */
 export function overlapsOf<T extends WorkdaySpan>(bookings: readonly T[]): Overlap<T>[] {
   const edges = bookings
+    .filter((booking) => booking.end > booking.start)
     .flatMap((booking) => [
       { at: booking.start, opens: true, booking },
       { at: booking.end, opens: false, booking },

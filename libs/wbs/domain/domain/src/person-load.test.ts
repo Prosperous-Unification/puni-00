@@ -64,6 +64,10 @@ describe('overlapsOf', () => {
     expect(labels(found)).toEqual([['P', 'Q', 'R']]);
   });
 
+  it('lets a span that holds no time join no overlap', () => {
+    expect(overlapsOf([span('P', 0, 4), span('Q', 2, 2)])).toEqual([]);
+  });
+
   it('ignores input order', () => {
     const forward = overlapsOf([span('P', 0, 3), span('Q', 2, 5)]);
     const backward = overlapsOf([span('Q', 2, 5), span('P', 0, 3)]);

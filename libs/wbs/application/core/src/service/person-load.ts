@@ -147,7 +147,15 @@ export class PersonLoad {
     this.memoSize = opts.memoSize ?? 512;
   }
 
-  /** One person's load over `window`, or null for a person outside the caller's directory. */
+  /**
+   * One person's load over `window`, or null for a person outside the caller's
+   * directory — a foreign person is absent, not forbidden.
+   *
+   * Proof: looking the person up in the legacy (deployment-wide) directory made
+   * `answers a foreign person as an absent one` in
+   * `person-load.controller.db.test.ts` answer 200 instead of 404; watched
+   * 2026-09-29.
+   */
   async readPerson(
     personId: string,
     window: LoadWindow,
@@ -225,10 +233,10 @@ export class PersonLoad {
    * A project listed and then deleted before its tree is read is gone, not
    * unreadable, and is left out like any project the list no longer holds.
    *
-   * Proof: listing through an unscoped reader (every organization's projects)
-   * made `omits a foreign project that assigns the same person id` in
-   * `person-load.controller.db.test.ts` list organization B's project; watched
-   * 2026-09-29.
+   * Proof: listing and reading the projects under legacy access instead of
+   * the caller's made `omits a foreign project that assigns the same person
+   * id` in `person-load.controller.db.test.ts` name organization B's project,
+   * and four more cases there count it; watched 2026-09-29.
    */
   private async readProjects(
     actorId: string,
