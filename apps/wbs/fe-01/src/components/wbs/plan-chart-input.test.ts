@@ -6,6 +6,7 @@ import {
   chartTypedDependencies,
   factEndStopOf,
   heldLeafIdsOf,
+  isHeld,
   notBeforeOffsetOf,
 } from './plan-chart-input';
 
@@ -83,5 +84,28 @@ describe('heldLeafIdsOf (add-work-item-statuses)', () => {
       { id: 'paint', subRows: [], status: 'unknown', hold: null },
     ]);
     expect([...held]).toEqual(['strip']);
+  });
+});
+
+describe('isHeld (add-work-item-statuses)', () => {
+  const leaf = (status: 'done' | 'on_hold' | 'unknown', hold: 'on_hold' | null) => ({
+    status,
+    hold,
+    subRows: [],
+  });
+
+  it('puts On hold in a held leaf’s row even once it reads done', () => {
+    expect(isHeld(leaf('done', 'on_hold'))).toBe(true);
+    expect(isHeld(leaf('unknown', null))).toBe(false);
+  });
+
+  it('holds a parent only when every leaf beneath it is held', () => {
+    const parent = (subRows: ReturnType<typeof leaf>[]) => ({
+      status: 'on_hold' as const,
+      hold: null,
+      subRows,
+    });
+    expect(isHeld(parent([leaf('on_hold', 'on_hold'), leaf('done', 'on_hold')]))).toBe(true);
+    expect(isHeld(parent([leaf('on_hold', 'on_hold'), leaf('unknown', null)]))).toBe(false);
   });
 });

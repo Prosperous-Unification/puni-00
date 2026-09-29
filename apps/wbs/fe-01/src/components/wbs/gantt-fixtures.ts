@@ -55,6 +55,8 @@ export const rowAt = (
   tags: { own: [], inherited: [] },
   trioByStep: new Map(),
   waitsFor: [],
+  stoppedBy: [],
+  held: false,
   ...extras,
 });
 
