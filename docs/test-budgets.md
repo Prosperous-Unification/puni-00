@@ -93,6 +93,9 @@ On the loaded run these timed out at their own budget. They were raised by the r
   3.2 s, so that bound is now 20 s.
 - `tools/tool-workflows`: its file-level `setDefaultTimeout(30_000)` was replaced by the
   target's 60 s. One case timed out at 30.2 s on the loaded run.
+- `apps/wbs/be-01`, invitation `consumes once across independent SQLite processes` and
+  email-verification `serializes competing address confirmations across processes`: 10 to 20 s
+  (WBS 080.12). Two cold children that import the store overran 10 s at load 115 to 164.
 
 ## Vitest (fe-01), WBS 080.16
 
