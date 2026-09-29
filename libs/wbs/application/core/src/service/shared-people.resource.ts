@@ -36,6 +36,10 @@ export class SharedPeopleResource {
   }
 
   /**
+   * The role is the one the session resolved before the write, as a rank
+   * move's is: a role revoked in between still switches once. The store's
+   * transaction re-reads the mode, and the announcement follows the commit.
+   *
    * Proof: the role check widened to admins made `refuses an admin the
    * switch, keeping the organization isolated`
    * (`shared-people-mode.controller.db.test.ts`) answer 200; watched

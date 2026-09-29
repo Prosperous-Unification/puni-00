@@ -342,9 +342,15 @@ delegation, audited in the switch's transaction, and `announcingSharingChanges` 
 page shows the mode and the switch, with a confirmation.
 
 **Cost budget (8.0a).** Measured alone on the workstation (load average about 3), three runs of
-`shared-people-cost.controller.db.test.ts`: setup 1.75–1.81 s; a cold read of the lowest of 30
-projects 41–44 ms, a repeat 27–30 ms (and 49/37 ms after the budgets were set). The design memo's
-budget was 2 s cold and 150 ms warm; the chain has no memo, and a read is well inside both. The test
+`shared-people-cost.controller.db.test.ts`: setup 1.75–1.81 s; a first read of the lowest of 30
+projects 41–44 ms, a repeat 27–30 ms (and 49/37 ms after the budgets were set).
+
+What that measures, and what it does not: each project holds ten one-day rows, one per person, so
+the read schedules 30 small plans; "first read" is the first after setup in a process that has
+already scheduled every project while planning them, with SQLite's pages cached, so it is
+process-warm, not a cold start. The design memo's own model, about 50 ms of Fast per 300 rows,
+predicts about 1.5 s for the lowest of 30 projects at 300 rows each, close to the 2 s budget; that
+size was not measured. The chain has no memo, so every read of a shared project pays it. The test
 asserts the work, not the clock. Its setup hook states 20 s (3 × 1.8 s, next step); no loaded run
 was made.
 
@@ -363,3 +369,37 @@ was made.
 
 The deviation from the coordinator's wording: the brief said admin-only; the spec (and task 8.2)
 says super-admin only, with an admin answered 403, and that is what shipped.
+
+### Slice 8 review (Fable, on `1d8ab64d`)
+
+Not ready as it stood; three Important findings, all fixed.
+
+- **The fan-out record across an isolated interlude.** Shared, Platform at 3 days, isolated, 2 days
+  (nothing fanned out, the record still 3 days), shared, 3 days: the signature equalled the stale
+  record and Billing was never told. `modeSwitched` now forgets the organization's records before
+  telling its projects.
+- **The rollback CLI.** `remove` now refuses once any switch is recorded: the migrate-down it
+  prepares must reverse the audit migration, whose `down.sql` refuses then, and a reset would move
+  every date for nothing. It writes no audit row, since one would close that rollback. `restore`
+  records each switch under the actor `shared-people-rollback-cli` and refuses before the audit
+  table exists. Neither publishes (it runs outside be-01); the runbook says to restart be-01 after
+  either. The runbook's shared-people section now splits the two states: once any switch is
+  recorded the schema rollback is closed, and the path is switching back through the route, then a
+  code-only rollback under the capacity-modes swap guard.
+- **The deletion guard.** It now matches any mention of `beginOptimizationDrain` (imports,
+  aliases, callbacks), a delete of the `project` table under any namespace, and
+  `DELETE FROM project`, after stripping comments; its JSDoc lists what a scan cannot see.
+
+Minor: the cost-budget wording above now states the measured conditions and the memo's model. The
+switch's role check reads the role the session resolved before the write, and the announcement
+follows the commit: the same time-of-check window as a rank move (ADR 0027's announce-after-commit).
+The switch's cost: every project re-reads and queues a re-solve, and each result that lands fans
+out below it again, so an organization of N projects may settle through up to O(N²)
+`elsewhere_changed`, paced by the solver queue.
+
+| Check (file)                                             | Fault injected                                                                    | Test that observed the failure                                         | Result                       |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------- |
+| forgetting on a switch (`elsewhere-fan-out.ts`)          | the records kept                                                                  | `tells the project below after an isolated interlude`                  | 1 event from Platform, not 2 |
+| reset closed once recorded (`shared-people-rollback.ts`) | the refusal never taken                                                           | `refuses to reset once a switch is recorded, changing nothing`         | the organization reset       |
+| restore recorded (same)                                  | the audit insert not run                                                          | `saves, resets, rolls back, migrates and restores every mode`          | no record of the restore     |
+| deletion guard patterns                                  | probes: an aliased import, `tx.delete(schema.project)`, raw `DELETE FROM project` | `has no production caller, so none owes the organization a notice yet` | all three files named        |

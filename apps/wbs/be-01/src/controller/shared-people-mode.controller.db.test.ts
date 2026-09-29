@@ -141,6 +141,54 @@ describe('the capacity mode', () => {
   });
 });
 
+describe('an isolated interlude', () => {
+  /** Sets Platform's estimate for Ana's work, as a planner would. */
+  async function platformDays(days: number): Promise<void> {
+    const answer = await h.call('ada', 'GET', `/api/projects/${platform}/work-items`);
+    const slice = (
+      answer.body as { slices: { workItemId: string; stepId: string; personId: string | null }[] }
+    ).slices.find((each) => each.personId === 'pe-a');
+    if (slice === undefined) throw new Error('Platform holds no work for Ana');
+    const applied = await h.call('ada', 'POST', `/api/projects/${platform}/commands`, {
+      commands: [
+        {
+          kind: 'setEstimate',
+          workItemId: slice.workItemId,
+          stepId: slice.stepId,
+          days: { optimistic: days, realistic: days, pessimistic: days },
+        },
+      ],
+    });
+    if (applied.status !== 200) throw new Error(`estimate refused: ${JSON.stringify(applied)}`);
+  }
+
+  /** How many `elsewhere_changed` Billing has recorded from Platform. */
+  function fromPlatform(): number {
+    return h.sqlite
+      .query<{ message: string }, [string]>('SELECT message FROM event_log WHERE subscription = ?')
+      .all(`project:${billing}`)
+      .map((row) => JSON.parse(row.message) as { type: string; causeProjectId?: string | null })
+      .filter((event) => event.type === 'elsewhere_changed' && event.causeProjectId === platform)
+      .length;
+  }
+
+  it('tells the project below after an isolated interlude', async () => {
+    await h.call('sam', 'PATCH', MODE, { sharedPeople: true });
+    await platformDays(3);
+    await h.call('sam', 'PATCH', MODE, { sharedPeople: false });
+    // Isolated: nothing is fanned out, so a record kept from before would
+    // still say three days.
+    await platformDays(2);
+    await h.call('sam', 'PATCH', MODE, { sharedPeople: true });
+    const told = fromPlatform();
+
+    await platformDays(3);
+
+    expect(fromPlatform()).toBe(told + 1);
+    expect(await billingStart()).toBe(3);
+  });
+});
+
 describe('before activation', () => {
   it('answers organization_required, since no organization has a mode', async () => {
     h.close();

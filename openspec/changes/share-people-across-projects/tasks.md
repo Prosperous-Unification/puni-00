@@ -93,11 +93,14 @@
 ## 8. Mode route
 
 - [x] 8.0 Preconditions from Fable's review of slice 6. (a) The cost budget, measured alone:
-      30 projects sharing ten people, a cold read of the lowest 36–49 ms and a repeat 27–37 ms,
-      far inside 2 s; `shared-people-cost.controller.db.test.ts` asserts the work (29 influencers
-      scheduled, every slice on day 29, 290 holders) and prints the clock. (b) No production path
-      deletes a project: `project-deletion.guard.test.ts` fails on the first caller of
-      `beginOptimizationDrain` or `.delete(project)` outside the drain module, which must tell
+      30 projects of ten one-day rows sharing ten people, a first read of the lowest 36–49 ms and
+      a repeat 27–37 ms in a warm process; see verify.md for the conditions, and for the memo's
+      model, which predicts about 1.5 s at 300 rows a project.
+      `shared-people-cost.controller.db.test.ts` asserts the work (29 influencers scheduled, every
+      slice on day 29, 290 holders) and prints the clock. (b) No production path deletes a project:
+      `project-deletion.guard.test.ts` fails on the first production mention of
+      `beginOptimizationDrain`, delete of the `project` table, or `DELETE FROM project` outside the
+      drain module, which must tell
       the organization's other projects before it may leave the guard.
 - [x] 8.1 `PATCH /api/organization {sharedPeople}`, super-admin only, after 6 and 7 are on main.
       Also `GET /api/organization` for any member, a `shared_people_audit` row per switch, and

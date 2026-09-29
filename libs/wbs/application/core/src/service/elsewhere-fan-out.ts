@@ -131,8 +131,25 @@ export class ElsewhereFanOut implements Broadcaster {
    * After the organization switched between isolated and shared people:
    * every one of `projectIds`, its projects, may now be scheduled around
    * other bookings or none, so each is told, naming no cause.
+   *
+   * Their records are forgotten first: a record taken before an isolated
+   * interlude says nothing about what the projects below saw while nothing
+   * was fanned out, and a change back to it after the switch would compare
+   * equal and tell nobody. With no record, the next change tells every
+   * project below.
+   *
+   * The cost is bounded but not small: every project re-reads and queues a
+   * re-solve, and each optimized result that lands fans out below it again,
+   * so an organization of N projects may settle through up to O(N²)
+   * `elsewhere_changed`, paced by the solver queue.
+   *
+   * Proof: the forgetting removed made `tells the project below after an
+   * isolated interlude` (`shared-people-mode.controller.db.test.ts`) record
+   * no `elsewhere_changed` from Platform for Billing's last change; watched
+   * 2026-09-29.
    */
   async modeSwitched(projectIds: readonly string[]): Promise<void> {
+    for (const each of projectIds) this.published.delete(each);
     for (const each of projectIds) {
       await this.opts.inner.publish(each, {
         type: 'elsewhere_changed',

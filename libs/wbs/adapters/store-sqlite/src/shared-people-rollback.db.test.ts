@@ -13,6 +13,7 @@ import { ProjectRankRepository } from './project-rank';
 import {
   removeSavedSharedPeople,
   restoreSharedPeople,
+  ROLLBACK_ACTOR,
   saveSharedPeople,
 } from './shared-people-rollback';
 import { MIGRATIONS_FOLDER as FOLDER, openSpaceDatabase } from './testing/space-database';
@@ -36,6 +37,19 @@ function sql(statement: string): void {
   const db = openDatabase(path);
   try {
     db.run(statement);
+  } finally {
+    db.close();
+  }
+}
+
+function switches(): unknown[] {
+  const db = openDatabase(path);
+  try {
+    return db
+      .query(
+        'SELECT organization_id, actor_id, shared_people, created_at FROM shared_people_audit ORDER BY organization_id',
+      )
+      .all();
   } finally {
     db.close();
   }
@@ -116,6 +130,37 @@ describe('rolling back past shared people', () => {
     expect(modes()).toEqual([
       { id: 'org-a', shared_people: 1 },
       { id: 'org-b', shared_people: 1 },
+    ]);
+    expect(switches()).toEqual([
+      { organization_id: 'org-a', actor_id: ROLLBACK_ACTOR, shared_people: 1, created_at: 7 },
+      { organization_id: 'org-b', actor_id: ROLLBACK_ACTOR, shared_people: 1, created_at: 7 },
+    ]);
+  });
+
+  it('refuses to reset once a switch is recorded, changing nothing', () => {
+    sql(
+      "INSERT INTO shared_people_audit (id, organization_id, actor_id, shared_people, created_at) VALUES ('au-1', 'org-a', 'sam', 1, 5)",
+    );
+    const saved = saveSharedPeople(openDrizzle(path));
+    expect(() => removeSavedSharedPeople(openDrizzle(path), saved, 6)).toThrow(
+      /switches are recorded.*PATCH \/api\/organization/,
+    );
+    expect(modes()).toEqual([
+      { id: 'org-a', shared_people: 1 },
+      { id: 'org-b', shared_people: 1 },
+    ]);
+  });
+
+  it('refuses to restore where no switch can be recorded', () => {
+    const saved = saveSharedPeople(openDrizzle(path));
+    removeSavedSharedPeople(openDrizzle(path), saved, 6);
+    rollbackTo(path, FOLDER, '20260929200000_add_shared_people');
+    expect(() => restoreSharedPeople(openDrizzle(path), saved, 7)).toThrow(
+      /run the forward migrations/,
+    );
+    expect(modes()).toEqual([
+      { id: 'org-a', shared_people: 0 },
+      { id: 'org-b', shared_people: 0 },
     ]);
   });
 
