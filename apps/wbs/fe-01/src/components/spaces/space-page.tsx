@@ -8,13 +8,14 @@ import {
   readSpaceRollUps,
   removeSpaceProject,
 } from '@wbs/contracts';
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
 import { STATUS_GLYPH, STATUS_LABEL } from '@/components/wbs/status-cell';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 import { InProgressList } from './in-progress-list';
+import { singleFlight } from './single-flight';
 import { spaceRefusal } from './space-access';
 import { spaceGanttLanesOf } from './space-gantt';
 import { useSpacesPolling } from './use-spaces-polling';
@@ -43,6 +44,8 @@ type View =
   | { kind: 'failure'; message: string }
   | { kind: 'refused'; message: string }
   | { kind: 'ready'; read: SpaceRead };
+/** Where the keyboard goes once a write's re-read has drawn. */
+type FocusTarget = { kind: 'control'; label: string } | { kind: 'heading' };
 /** One row's roll-up as the table shows it while chunks arrive. */
 type RollUpState = { kind: 'loading' } | { kind: 'failed' } | RollUp;
 
@@ -70,8 +73,8 @@ export function SpacePage({
   const [candidates, setCandidates] = useState<readonly ProjectEntry[]>([]);
   /** Why the add picker could not be filled, or null when it could. */
   const [candidatesProblem, setCandidatesProblem] = useState<string | null>(null);
-  /** The control to give the keyboard back to once a write's re-read has drawn. */
-  const focusAfterWrite = useRef<string | null>(null);
+  /** Where to give the keyboard back once a write's re-read has drawn; null when no write is pending. */
+  const focusAfterWrite = useRef<FocusTarget | null>(null);
   const heading = useRef<HTMLHeadingElement | null>(null);
   const [chosen, setChosen] = useState('');
   const [message, setMessage] = useState('');
@@ -85,7 +88,8 @@ export function SpacePage({
       // focus or a write redraws no row as loading. Only a new row starts so.
       // Proof, observed 2026-09-29: with every row reset to loading here,
       // `keeps the old figures until the new chunk answers` in
-      // `space-page.test.tsx` failed: its wait for the row's figures timed out.
+      // `space-page.test.tsx` failed on `expected 'p1Loading…' to contain
+      // 'In progress'` while the refresh's chunk was still unanswered.
       setRollUps((current) =>
         Object.fromEntries(ids.map((id) => [id, current[id] ?? ({ kind: 'loading' } as const)])),
       );
@@ -153,18 +157,20 @@ export function SpacePage({
     }
   }, [spaceId, loadRollUps]);
 
-  const refreshSafely = useCallback(
+  /** The mount, the polls and every write's re-read share one read in flight. */
+  const reads = useMemo(() => singleFlight(refresh), [refresh]);
+  const joinSafely = useCallback(
     () =>
-      refresh().catch((cause: unknown) => {
+      reads.join().catch((cause: unknown) => {
         setFault(new Error('Unexpected space read failure', { cause }));
       }),
-    [refresh],
+    [reads],
   );
 
   useEffect(() => {
-    void refreshSafely();
-  }, [refreshSafely]);
-  useSpacesPolling(refreshSafely);
+    void joinSafely();
+  }, [joinSafely]);
+  useSpacesPolling(joinSafely);
 
   /**
    * Gives the keyboard back after a write's re-read: to the control named, if
@@ -172,12 +178,15 @@ export function SpacePage({
    * button would otherwise drop focus to the body.
    */
   useEffect(() => {
-    if (sending || focusAfterWrite.current === null) return;
-    const label = focusAfterWrite.current;
+    const target = focusAfterWrite.current;
+    if (sending || target === null) return;
     focusAfterWrite.current = null;
-    const control = [...document.querySelectorAll<HTMLButtonElement>('button[aria-label]')].find(
-      (button) => button.getAttribute('aria-label') === label && !button.disabled,
-    );
+    const control =
+      target.kind === 'control'
+        ? [...document.querySelectorAll<HTMLButtonElement>('button[aria-label]')].find(
+            (button) => button.getAttribute('aria-label') === target.label && !button.disabled,
+          )
+        : undefined;
     (control ?? heading.current)?.focus();
   }, [sending, view]);
 
@@ -215,7 +224,7 @@ export function SpacePage({
         default:
           unreachable(reply);
       }
-      await refresh();
+      await reads.fresh();
     } catch (cause) {
       setFault(new Error('Unexpected space write failure', { cause }));
     } finally {
@@ -269,7 +278,10 @@ export function SpacePage({
                               index === 0
                                 ? null
                                 : () => {
-                                    focusAfterWrite.current = `Move ${row.project.name} up`;
+                                    focusAfterWrite.current = {
+                                      kind: 'control',
+                                      label: `Move ${row.project.name} up`,
+                                    };
                                     const anchor = view.read.rows[index - 2]?.project.id ?? null;
                                     void write(
                                       () =>
@@ -284,7 +296,10 @@ export function SpacePage({
                               index === view.read.rows.length - 1
                                 ? null
                                 : () => {
-                                    focusAfterWrite.current = `Move ${row.project.name} down`;
+                                    focusAfterWrite.current = {
+                                      kind: 'control',
+                                      label: `Move ${row.project.name} down`,
+                                    };
                                     const anchor = view.read.rows[index + 1]?.project.id ?? null;
                                     void write(
                                       () =>
@@ -297,7 +312,7 @@ export function SpacePage({
                                   },
                             onRemove: () => {
                               // The row is gone after the re-read: the heading.
-                              focusAfterWrite.current = '';
+                              focusAfterWrite.current = { kind: 'heading' };
                               void write(
                                 () =>
                                   client.deleteApiSpacesByIdProjectsByProjectId({
