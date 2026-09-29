@@ -35,4 +35,5 @@
 
 ## 3. Verify
 
-- [ ] 3.1 `verify.md`: every command, its result and every proof. Host gate owed on h2puni.
+- [x] 3.1 `verify.md`: every command, its result and every proof.
+- [ ] 3.2 `bin/h2puni-gate.sh <head>` on h2puni, its output recorded in `verify.md` (owed).
