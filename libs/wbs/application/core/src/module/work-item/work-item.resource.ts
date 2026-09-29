@@ -1552,6 +1552,15 @@ export class WorkItemService {
     return this.scheduleInput(projectId);
   }
 
+  /**
+   * Where the project's event stream has reached, as {@link tree} reads it
+   * before its rows: every announced change that can move a date or a name
+   * advances it. What a per-project read memo is keyed on.
+   */
+  latestSeq(projectId: string): Promise<number> {
+    return this.opts.broadcast.latestSeq(projectId);
+  }
+
   /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */
   async treeWithin(projectId: string, access: ResourceAccess): ReturnType<WorkItemService['tree']> {
     if (!(await this.admits(projectId, access))) return null;

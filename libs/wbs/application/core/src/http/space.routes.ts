@@ -4,13 +4,18 @@ import {
   listSpaces,
   moveSpaceProject,
   readSpace,
+  readSpaceRollUps,
   removeSpace,
   removeSpaceProject,
   renameSpace,
 } from '@wbs/contracts';
 
 import type { OrganizationAccess } from '../ports/organization-access';
-import type { SpaceRefusal, SpaceResource } from '../service/space.resource';
+import {
+  ROLL_UPS_PER_REQUEST,
+  type SpaceRefusal,
+  type SpaceResource,
+} from '../service/space.resource';
 import { bind, EMPTY } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 
@@ -24,6 +29,19 @@ const REFUSED = {
   virtual_space: { ok: false, status: 409, body: { error: 'virtual_space' } },
   malformed_name: { ok: false, status: 422, body: { error: 'malformed', field: 'name' } },
 } as const;
+
+/**
+ * The distinct ids of a `projectIds` query, or null when it names none or more
+ * than {@link ROLL_UPS_PER_REQUEST}: a typed 400 before anything is computed.
+ *
+ * Proof, observed 2026-09-29: with the limit check removed, `refuses 51
+ * project ids with 400 and computes nothing` in
+ * `space-organization.controller.db.test.ts` received 404 instead of 400.
+ */
+function projectIdsOf(query: string): string[] | null {
+  const ids = [...new Set(query.split(',').filter((id) => id !== ''))];
+  return ids.length === 0 || ids.length > ROLL_UPS_PER_REQUEST ? null : ids;
+}
 
 /** Narrowed by the refusals the calling method can answer, so each route declares only those. */
 const refused = <R extends SpaceRefusal>(refusal: R): (typeof REFUSED)[R] => REFUSED[refusal];
@@ -56,6 +74,16 @@ export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAc
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       const outcome = await spaces.read(principal.id, resolved.access, params.id);
       return outcome.ok ? { ok: true, status: 200, body: outcome.value } : refused(outcome.refusal);
+    }),
+    bind(readSpaceRollUps, async ({ params, query, principal }) => {
+      const projectIds = projectIdsOf(query.projectIds);
+      if (projectIds === null) return { ok: false, status: 400, body: { error: 'invalid_query' } };
+      const resolved = await organizations.resolve(principal);
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      const outcome = await spaces.rollUps(principal.id, resolved.access, params.id, projectIds);
+      return outcome.ok
+        ? { ok: true, status: 200, body: { rollUps: outcome.value } }
+        : refused(outcome.refusal);
     }),
     bind(renameSpace, async ({ params, body, principal }) => {
       const resolved = await organizations.resolve(principal);

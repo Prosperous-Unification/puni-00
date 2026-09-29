@@ -467,9 +467,8 @@ export function fakeProjectApi(): ProjectApi & {
           projectId,
           position: rows.indexOf(r),
           serviceId: null,
-          // be-01 always sends both; the face reads the folded status only.
+          // be-01 always sends it; the face reads the folded status and the hold.
           readiness: null,
-          hold: null,
           tagIds: [...(r.tagIds ?? [])],
           serviceIds: [...(r.serviceIds ?? [])],
           typeIds: [...(r.typeIds ?? [])],
@@ -868,6 +867,7 @@ export function fakeProjectApi(): ProjectApi & {
         factStart: null,
         factEnd: null,
         status: 'unknown' as const,
+        hold: null,
         // A duplicate `teamIds` sat here until 2026-08-18, and a duplicate
         // `startNoEarlierThanReason` until 2026-09-02 — both harmless, and both
         // only possible because nothing typechecked this file. Moving it here,

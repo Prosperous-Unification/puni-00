@@ -49,7 +49,7 @@ import type { PriorityBand } from '@wbs/domain/priority-band';
 // build time. It is here rather than restated as `string` because a marker's
 // date being absolute — never a workday number — is the whole of task 7.4, and
 // a `string` on this seam would be the one place that claim is not written down.
-import type { SettableStatus, WorkItemStatus } from '@wbs/domain/progress';
+import type { Hold, SettableStatus, WorkItemStatus } from '@wbs/domain/progress';
 import type { IsoDate } from '@wbs/domain/workday';
 
 import { browserClient, unreachable } from './http';
@@ -335,6 +335,13 @@ export interface WorkItemView {
    * {@link ProjectApi.setStatus}.
    */
   status: WorkItemStatus;
+  /**
+   * Whether this leaf is parked or stopped by the world, or null; a parent
+   * reads null. Stored, unlike {@link status}: a leaf held `on_hold` stays
+   * out of be-01's schedule whatever it reads, done included, so it has no
+   * slices and the chart must not look for any (`add-work-item-statuses`).
+   */
+  hold: Hold | null;
   /**
    * The day work on this item actually began, or null where nobody has said.
    * Date-only like the two constraints above it; read by no engine, drawn as the

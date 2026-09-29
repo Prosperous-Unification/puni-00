@@ -83,3 +83,30 @@ while the host disk was full; the suite passes alone, 32 of 32). The rerun at `1
 | leak rule: move member (review) | `projectId` left out of the `moveProject` gate       | `refuses to move it, or to move another after it`                          | `{ ok: true, value: 5 }`                       |
 | leak rule: move anchor (review) | `afterProjectId` left out of the `moveProject` gate  | same                                                                       | `{ ok: true, value: 30 }`                      |
 | leak rule: remove (review)      | the `removeProject` gate removed                     | `refuses to remove it`                                                     | `{ ok: true, value: null }`                    |
+
+## Slice 3 — roll-ups
+
+Written on `batch-9/010-4-15-spaces-roll-ups`, stacked on the routes branch after main
+`4bb71e5f` (statuses) was merged through storage. `project-roll-up.test.ts` 5 pass;
+`space.resource.test.ts` 18 pass; `space-organization.controller.db.test.ts` 11 pass (the
+after-activation block now opens the composed harness, whose real units of work the command
+case needs; the viewer, foreign-space and limit negatives were re-observed there).
+
+**Budget** (`space-roll-up-performance.db.test.ts`, 30 imported projects of 300 rows): the space
+read (3–4 ms) is asserted under 120 ms and the warm chunk of 20 (11–15 ms) under 400 ms. The cold
+chunk first measured 4,961 ms; Fable's profile put 4,607 ms of it in `findCrossReferences`
+scanning `work_item` and `dependency`, fixed in #235 and merged here, after which it measures
+444–484 ms. Per Fable's review it is not bounded by wall clock, since CI runs be-01 under
+coverage beside another task on four vCPUs and no calibrated factor exists. The test asserts
+the cold path's work instead: 20 tree reads cold, none warm (cache hits ignored → 20 warm
+reads), and no gate table scan (`#235`'s parent arm restored → `SCAN w`, 4,115 ms). The time is
+printed.
+
+| Check                                     | Fault injected                                            | Test that observed it                                                                        | Observed                                   |
+| ----------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| cache keyed by sequence                   | the sequence left out of `RollUpCache.keyOf`              | `answers a command's new total on the next read, and serves an unchanged one from the cache` | `Expected: 5`, `Received: 3`               |
+| cache expires                             | the TTL check skipped                                     | `expires a roll-up after the TTL even at the same sequence`                                  | `Expected: 5`, `Received: 3`               |
+| status is the parent fold                 | `foldStatuses` swapped for an `agree` fold seeded unknown | `folds the roots, so a project whose roots are all on hold reads on_hold`                    | `Received: "in_progress"`                  |
+| leak rule: roll-ups                       | the readable check removed from `rollUps`                 | `answers no roll-up for a project the caller cannot open`                                    | `ok: true` with the hidden roll-up         |
+| at most 50 ids                            | the limit removed from `projectIdsOf`                     | `refuses 51 project ids with 400 and computes nothing`                                       | `status: 404`, not 400                     |
+| cache keyed by revision (capacity review) | the revision left out of `RollUpCache.keyOf`              | `answers new dates after a start date change that publishes no event` (mounted)              | `Received: "2026-10-05"`, not `2026-11-02` |

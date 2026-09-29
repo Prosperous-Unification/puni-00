@@ -52,6 +52,7 @@ import {
   submitOnboardingJoinRequest,
 } from './onboarding-shapes';
 import { changeMemberRole, listMembers, removeMember } from './organization-shapes';
+import { readOrganizationLoad, readPersonLoad } from './person-load-shapes';
 import {
   createProject,
   exportProject,
@@ -77,6 +78,7 @@ import {
   listSpaces,
   moveSpaceProject,
   readSpace,
+  readSpaceRollUps,
   removeSpace,
   removeSpaceProject,
   renameSpace,
@@ -135,6 +137,8 @@ export const httpShapes = [
   listServices,
   listWorkItemTypes,
   listExternalSystems,
+  readOrganizationLoad,
+  readPersonLoad,
   readHistory,
   readSolution,
   createProject,
@@ -164,6 +168,7 @@ export const httpShapes = [
   listSpaces,
   createSpace,
   readSpace,
+  readSpaceRollUps,
   renameSpace,
   removeSpace,
   addSpaceProject,

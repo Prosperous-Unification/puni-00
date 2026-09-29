@@ -26,6 +26,25 @@ interface ShownPlanRow {
   leaf: boolean;
 }
 
+/**
+ * Every leaf whose stored hold is `on_hold` ({@link GanttPlan.heldLeafIds}).
+ *
+ * Keyed on the hold and never on the status: be-01 takes a leaf out of the
+ * schedule by its stored hold, and a leaf held and then marked done keeps its
+ * hold, reads `done`, and has no slice either.
+ *
+ * Proof: keyed on `status === 'on_hold'`, `names every leaf whose stored hold
+ * is on hold, a held leaf later marked done included` failed on `[]` where
+ * `[ 'strip' ]` was owed; watched 2026-09-29.
+ */
+export function heldLeafIdsOf(
+  rows: readonly (Pick<TreeRow, 'id' | 'hold' | 'status'> & { subRows: readonly unknown[] })[],
+): ReadonlySet<string> {
+  return new Set(
+    rows.filter((row) => row.subRows.length === 0 && row.hold === 'on_hold').map((row) => row.id),
+  );
+}
+
 /** Keep an unknown wire relationship type from being drawn as FS. */
 export function chartTypedDependencies(
   dependencies: readonly TypedDependencyView[],
@@ -199,6 +218,9 @@ export function usePlanChartInput({
       // the predecessor's leaves' slices, and a collapsed branch's leaves are
       // exactly the rows the shown set has dropped (design.md D6).
       tree: flat.map((row) => ({ id: row.id, parentId: row.parentId })),
+      // Off `flat` for `tree`'s reason: a held leaf under a collapsed branch is
+      // still no end of an arrow.
+      heldLeafIds: heldLeafIdsOf(flat),
       // Why the rows above are the length they are, which the list itself cannot
       // say: `isFiltering`'s one answer, the same one the count beside the Find
       // box and the empty-answer sentence read, so the chart's account of what it

@@ -45,7 +45,14 @@ export function resolveTypedGanttArrows(plan: GanttPlan): {
     // `missing chart slices for missing` instead. Watched 2026-09-28.
     if (!parents.has(workItemId)) throw new GanttDataError(`unknown chart work item ${workItemId}`);
     const descendants = children.get(workItemId);
-    return descendants === undefined ? [workItemId] : descendants.flatMap(leavesUnder);
+    const leaves = descendants === undefined ? [workItemId] : descendants.flatMap(leavesUnder);
+    // A held leaf is out of the schedule and has no slice: it is no end of an
+    // authored arrow, and its absence is not a broken payload
+    // (`add-work-item-statuses`).
+    // Proof: this filter removed, and `draws no authored arrow to or from a
+    // held leaf…` threw `GanttDataError: missing chart slices for strip`;
+    // watched 2026-09-29, which is what main did to every such chart.
+    return leaves.filter((leaf) => !plan.heldLeafIds.has(leaf));
   };
   const endsOf = (
     endpoint: TypedChartEndpoint,

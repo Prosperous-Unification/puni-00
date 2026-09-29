@@ -62,7 +62,16 @@ recorded here as known hints. Every membership write already gates the member an
 
 ## D4 — Resource, roll-ups, in progress now, fe
 
+**Cold roll-ups after a deploy.** Only optimized variants are cached; Fast has no schedule cache,
+so the first read of each project after a deploy computes its tree. Measured over 300-row
+projects, a cold chunk of 20 takes about 480 ms and 30 projects about 660 ms. That is accepted:
+chunks stay at 20, and the per-process roll-up cache serves every later read. The measurement
+first came in at 4,961 ms, which traced to the access gate's `findCrossReferences` scanning
+whole tables, fixed separately (#235).
+
 As the specs state. Roll-ups: `rollUpProject(tree)` over `WorkItemResource.tree()`; a
-per-process LRU of 2,000 entries keyed `(projectId, seq, SCHEDULER_CONTRACT_VERSION,
+per-process LRU of 2,000 entries keyed `(projectId, seq, project revision, SCHEDULER_CONTRACT_VERSION,
 ROLLUP_DTO_VERSION)` with a 60 s TTL; chunks of at most 20 from fe, 50 at the route. Rejected
-there: a shared cache table, roll-ups inside the space read, keying on `project.revision`.
+there: a shared cache table, roll-ups inside the space read, and keying on `project.revision`
+alone (work items are not its satellites). The key carries both: the sequence moves on every
+plan write, the revision on project settings writes that publish no event.

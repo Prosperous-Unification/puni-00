@@ -361,6 +361,38 @@ function dateOfWorkdayIndex(index: number): Date {
   return new Date(days * DAY_MS);
 }
 
+/**
+ * A date's place on one axis of workdays shared by every project: Mondays sit
+ * on multiples of five, and a weekend reads as the Monday after it, exactly as
+ * {@link addWorkdays} moves a start date off one.
+ *
+ * What lets the bookings of two projects with different start dates be
+ * compared: each project's offsets are relative to its own day zero, and this
+ * is that day zero's ordinal. The same arithmetic as {@link workdayIndexOf},
+ * with a floored week so dates before 1970 are exact too; a person's load
+ * cannot be allowed to disagree with itself across the epoch.
+ */
+export function workdayOrdinalOf(date: IsoDate): number {
+  const days = Math.floor(toUtc(nextWorkday(date)).getTime() / DAY_MS) + 3;
+  const weeks = Math.floor(days / 7);
+  return weeks * 5 + (days - weeks * 7);
+}
+
+/**
+ * {@link workdayOrdinalOf} inverted.
+ *
+ * @throws for a fractional ordinal: which day a fraction falls on is the
+ * caller's decision ({@link firstWorkdayOf}, {@link lastWorkdayOf}), never a
+ * rounding made here.
+ */
+export function dateOfWorkdayOrdinal(ordinal: number): IsoDate {
+  if (!Number.isSafeInteger(ordinal)) {
+    throw new Error(`a date needs a whole workday ordinal, got ${String(ordinal)}`);
+  }
+  const weeks = Math.floor(ordinal / 5);
+  return asIso(new Date((weeks * 7 + (ordinal - weeks * 5) - 3) * DAY_MS));
+}
+
 export function addWorkdays(from: IsoDate, workdays: number): IsoDate {
   if (!Number.isFinite(workdays) || workdays < 0) {
     throw new Error(`workdays must be zero or more, got ${String(workdays)}`);
