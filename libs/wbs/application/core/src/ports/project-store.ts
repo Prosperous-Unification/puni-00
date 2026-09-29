@@ -57,6 +57,20 @@ export interface ProjectCrossReference {
   readonly id: string;
 }
 
+/**
+ * How a project's people are scheduled (CONTEXT "Shared people", ADR 0034):
+ * alone, or around the bookings of the projects its organization ranks above
+ * it, in which case `order` is every project of that organization, highest
+ * first.
+ */
+export type ProjectSharing =
+  | { readonly mode: 'isolated' }
+  | {
+      readonly mode: 'shared';
+      readonly organizationId: string;
+      readonly order: readonly string[];
+    };
+
 export interface ProjectStore {
   /**
    * Writes the project and its starting steps together. A project that existed
@@ -124,6 +138,16 @@ export interface ProjectStore {
   listFor(userId: string): Promise<ProjectWithAccess[]>;
   /** {@link listFor} confined to one organization's projects. */
   listForInOrganization(userId: string, organizationId: string): Promise<ProjectWithAccess[]>;
+  /**
+   * The capacity mode of the organization that owns `projectId`, read from
+   * the project and never from the caller's access, so a legacy and a scoped
+   * read of one project schedule it alike. Under `shared`, the organization's
+   * projects in rank order, `ProjectRankStore.orderIn`'s order.
+   *
+   * `isolated` for a project no organization owns, which is every project
+   * before activation (spec `shared-people-mode`), and for an absent one.
+   */
+  sharingOf(projectId: string): Promise<ProjectSharing>;
   /**
    * Records the acting account as having opened `projectId` at the stamp's
    * instant, replacing whatever moment was recorded before. Idempotent by the

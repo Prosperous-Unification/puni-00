@@ -43,6 +43,11 @@ function heldIn(db: Reader, organizationId: string): Held[] {
   return [...ranked, ...rows.filter((row) => row.position === null)];
 }
 
+/** The organization's project ids in rank order; see {@link ProjectRankRepository.orderIn}. */
+export function rankedProjectIdsIn(db: Reader, organizationId: string): string[] {
+  return heldIn(db, organizationId).map(({ projectId }) => projectId);
+}
+
 const ranksOf = (held: readonly Held[]): RankedProject[] =>
   held.map(({ projectId, position }, index) => ({
     projectId,

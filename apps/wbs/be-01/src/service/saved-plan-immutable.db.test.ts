@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { isolatedElsewhere } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CapacityRepository } from '../repository/capacity';
@@ -124,6 +125,7 @@ describe('a saved plan does not move when the live plan does', () => {
 
   const save = (id = 'sp-1') =>
     new SavedPlanService({
+      elsewhere: isolatedElsewhere,
       scheduler: fastScheduler,
       digest: nodeDigest,
       capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),

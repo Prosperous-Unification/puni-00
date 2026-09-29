@@ -12,6 +12,7 @@ import type {
   SolverObjectiveName,
   TypedDependency,
 } from '@wbs/domain';
+import type { IsoDate } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 export interface ScheduleAsk {
@@ -79,6 +80,14 @@ export interface EngineUnavailable {
   readonly kind: 'engine_unavailable';
   readonly error: 'engine_unavailable';
   readonly engine: 'optimized';
+  /**
+   * The influencer whose engine is not installed here, when it is not the
+   * project being read: under shared people a project is scheduled around the
+   * bookings of the projects above it, and it never falls back to Fast for one
+   * of them silently (spec `elsewhere-scheduling`). Absent when the refusal is
+   * the read project's own.
+   */
+  readonly projectId?: string;
 }
 
 export type ScheduleRead =
@@ -107,6 +116,18 @@ export type FastScheduler = (
   typed: readonly TypedDependency[],
   elsewhere: Elsewhere,
 ) => Schedule;
+
+/**
+ * The bookings elsewhere a project starting on `project.startDate` and
+ * scheduled from `own` works around, or the refusal of an influencer whose
+ * engine is not installed here. `WorkItemService.elsewhereOf` in production;
+ * a caller that must state a project's input outside the plan read (a saved
+ * plan's capture) takes it here, so the two cannot disagree about a project.
+ */
+export type ElsewhereSource = (
+  project: { readonly id: string; readonly startDate: IsoDate | null },
+  own: ScheduleInput,
+) => Promise<Elsewhere | EngineUnavailable>;
 
 /** Installed scheduling capabilities and their non-waiting read. */
 export interface Scheduler {

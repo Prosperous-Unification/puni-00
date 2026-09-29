@@ -8,7 +8,7 @@ import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Digest } from '../../ports/runtime';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
-import { fastScheduler } from '../../testing/scheduler-fixture';
+import { fastScheduler, isolatedElsewhere } from '../../testing/scheduler-fixture';
 import { installSavedPlans } from './check';
 import { SAVED_PLANS_LABEL } from './contract';
 import { savedPlansModule } from './module';
@@ -43,6 +43,7 @@ async function seeded() {
       capture: source.history.savedPlanCapture,
       plans: source.history.savedPlans,
       scheduler: fastScheduler,
+      elsewhere: isolatedElsewhere,
       newId: () => clock.newId(),
       now: () => Math.floor(clock.now() / 1_000),
     },
@@ -60,6 +61,7 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     scheduler: DiBag.createProvider(() => fastScheduler, { factoryReturnKind: 'sync-value' }),
+    elsewhere: DiBag.createProvider(() => isolatedElsewhere, { factoryReturnKind: 'sync-value' }),
     newId: DiBag.createProvider(() => () => 'id', { factoryReturnKind: 'sync-value' }),
     now: DiBag.createProvider(() => () => STAMP_AT / 1_000, { factoryReturnKind: 'sync-value' }),
   };
@@ -206,6 +208,7 @@ describe('a saved plan and step allowances', () => {
       capture: source.history.savedPlanCapture,
       plans: source.history.savedPlans,
       scheduler: fastScheduler,
+      elsewhere: isolatedElsewhere,
       newId: () => clock.newId(),
       now: () => Math.floor(clock.now() / 1_000),
     });

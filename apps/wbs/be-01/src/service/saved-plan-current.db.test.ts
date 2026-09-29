@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Scheduler } from '@wbs/core';
+import { isolatedElsewhere } from '@wbs/core/testing/scheduler-fixture';
 import {
   diffPlans,
   planDiffIsEmpty,
@@ -148,6 +149,7 @@ describe('projecting the live plan as a comparison side', () => {
 
   const service = (id = 'sp-1', scheduler: Scheduler = fastScheduler): SavedPlanService =>
     new SavedPlanService({
+      elsewhere: isolatedElsewhere,
       scheduler,
       digest: nodeDigest,
       capture: new SavedPlanCaptureRepository({ openConnection: counting }),

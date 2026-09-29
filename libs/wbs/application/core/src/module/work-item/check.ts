@@ -56,6 +56,9 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
       journalStore: DiBag.createProvider(() => requirements.journal, {
         factoryReturnKind: 'sync-value',
       }),
+      elsewhereAbove: DiBag.createProvider(() => requirements.elsewhereAbove, {
+        factoryReturnKind: 'sync-value',
+      }),
       broadcast: DiBag.createProvider(() => requirements.broadcast, {
         factoryReturnKind: 'sync-value',
       }),

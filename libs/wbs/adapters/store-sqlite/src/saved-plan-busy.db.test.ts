@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import type { WriteStamp } from '@wbs/core';
 import { SavedPlanService } from '@wbs/core';
-import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
+import { fastScheduler, isolatedElsewhere } from '@wbs/core/testing/scheduler-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -117,6 +117,7 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
 
   const service = (): SavedPlanService =>
     new SavedPlanService({
+      elsewhere: isolatedElsewhere,
       scheduler: fastScheduler,
       digest: nodeDigest,
       capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),

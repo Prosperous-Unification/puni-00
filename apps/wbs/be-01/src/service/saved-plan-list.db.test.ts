@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { isolatedElsewhere } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Connection } from '../repository/db';
@@ -111,6 +112,7 @@ describe("listing a project's saved plans", () => {
   /** The service, minting the id and the instant this save is stamped with. */
   const service = (id: string, at: number) =>
     new SavedPlanService({
+      elsewhere: isolatedElsewhere,
       scheduler: fastScheduler,
       digest: nodeDigest,
       capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),

@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { isolatedElsewhere } from '@wbs/core/testing/scheduler-fixture';
 import { canonicalisePlanInput, serialiseCanonicalPlanInput } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -223,6 +224,7 @@ describe('SavedPlanService.save is atomic', () => {
       const before = await livePlanBytes();
       const faulting = faultingAt(path, boundary);
       const service = new SavedPlanService({
+        elsewhere: isolatedElsewhere,
         scheduler: fastScheduler,
         digest: nodeDigest,
         capture: capture(),

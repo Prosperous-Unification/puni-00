@@ -132,6 +132,7 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
+    '20260929200000_add_shared_people',
     '20260929180000_add_project_rank',
     '20260929100000_add_spaces',
     '20260928200000_add_work_item_status_facts',
@@ -249,6 +250,7 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        '20260929200000_add_shared_people',
         '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
@@ -331,6 +333,7 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
+        '20260929200000_add_shared_people',
         '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',

@@ -153,10 +153,37 @@ describe('planInputRowsOf', () => {
       ],
       capacity: new Map(),
     };
-    const planned = schedulePlanInput(captured);
+    const planned = schedulePlanInput(captured, new Map());
     expect(planned.slices.get(sliceKey('B', 's1'))?.earliestStart).toBe(0);
     expect(planned.slices.get(sliceKey('B', 's2'))?.earliestStart).toBe(3);
   });
+  it('schedules a captured plan around its bookings elsewhere', () => {
+    const first = reads.workItems.at(0);
+    if (first === undefined) throw new Error('fixture has no work item');
+    const captured: PlanInputReads = {
+      ...reads,
+      project: { ...reads.project, startDate: null },
+      steps: reads.steps.map((step) => ({ ...step, allowancePercent: 0 })),
+      workItems: [{ ...first, id: 'A', priority: null, teamIds: [], serviceIds: [] }],
+      estimates: [{ workItemId: 'A', stepId: 's1', optimistic: 2, realistic: 2, pessimistic: 2 }],
+      actuals: [],
+      progress: [],
+      measures: [],
+      dependencies: [],
+      assignments: [{ workItemId: 'A', stepId: 's1', personId: 'ana' }],
+      typedDependencies: [],
+      capacity: new Map(),
+    };
+    const planned = schedulePlanInput(
+      captured,
+      new Map([['ana', [{ start: 0, end: 3, projectId: 'above', workItemId: 'x' }]]]),
+    );
+    expect(planned.slices.get(sliceKey('A', 's1'))).toMatchObject({
+      earliestStart: 3,
+      boundBy: 'elsewhere',
+    });
+  });
+
   it('schedules a saved plan without its on-hold work, and captures readiness and hold', () => {
     const first = reads.workItems.at(0);
     if (first === undefined) throw new Error('fixture has no work item');
@@ -196,7 +223,7 @@ describe('planInputRowsOf', () => {
       typedDependencies: [],
       capacity: new Map(),
     };
-    const planned = schedulePlanInput(captured);
+    const planned = schedulePlanInput(captured, new Map());
     // Proof: the saved plan's own reduction bypassed made this fail on B
     // starting at day 3 behind held work; watched 2026-09-29.
     expect(planned.slices.get(sliceKey('B', 's1'))?.earliestStart).toBe(0);

@@ -63,9 +63,13 @@ its holder) only when it is non-empty. A plan that nothing outranks SHALL keep i
 Under `shared`, reading P SHALL first compute P's influencers. These are the transitive closure,
 within the organization, of projects that outrank P and share a person with P or with another
 influencer. The read SHALL schedule the influencers in rank order with a running booking map,
-and schedule P last, in one read transaction. An influencer that reports `engine_unavailable`
-SHALL make P's read report `engine_unavailable`, naming the influencer; it SHALL never fall back
-to Fast silently. An undated project SHALL neither book nor see bookings.
+and schedule P last. Each influencer SHALL be read as its own plan read displays it, without
+queueing a solve for it. The reads are not one transaction: a commit to an influencer during
+the chain is followed by `elsewhere_changed`, which re-reads P. An influencer that reports
+`engine_unavailable` SHALL make P's read report `engine_unavailable`, naming the influencer; it
+SHALL never fall back to Fast silently. An undated project SHALL neither book nor see bookings.
+A command batch, a saved plan's capture and a restarted solve SHALL schedule P around the same
+bookings as P's read.
 
 #### Scenario: transitivity
 

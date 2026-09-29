@@ -20,6 +20,7 @@ import type { DirectoryService } from '../service/directory.service';
 import type { ProjectService } from '../service/project.service';
 import type { WorkItemService } from '../service/work-item.service';
 import { bind, EMPTY, type HttpReply, type RequestFailure } from './endpoint';
+import { engineUnavailableBody } from './engine-unavailable-body';
 import { organizationRefusal } from './organization-refusal';
 
 export interface OptimizationRetry {
@@ -180,12 +181,7 @@ export function projectRoutes(
         if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         // Proof: removing this branch made both mounted unavailable export cases
         // receive 500 instead of 409, before either could inspect media or body.
-        if ('kind' in tree)
-          return {
-            ok: false,
-            status: 409,
-            body: { error: tree.error, engine: tree.engine },
-          };
+        if ('kind' in tree) return { ok: false, status: 409, body: engineUnavailableBody(tree) };
         if (query.format === 'markdown')
           return {
             ok: true,

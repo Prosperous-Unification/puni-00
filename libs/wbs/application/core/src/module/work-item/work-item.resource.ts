@@ -1,3 +1,4 @@
+import type { Elsewhere } from '@wbs/domain';
 import {
   addWorkdays,
   allowanceOf,
@@ -79,6 +80,7 @@ import type { StepProgressStore, StoredProgress } from '../../ports/progress-sto
 import type { Broadcaster } from '../../ports/project-event';
 import type { Project, ProjectStore } from '../../ports/project-store';
 import type {
+  ElsewhereSource,
   EngineUnavailable,
   OptimizationVariantState,
   OptimizedScheduleRead,
@@ -127,6 +129,16 @@ import {
   workedStepsOf,
 } from '../../service/roll-up';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
+import {
+  addBookings,
+  bookingsOf,
+  elsewhereFor,
+  influencersOf,
+  NO_BOOKINGS_ELSEWHERE,
+  peopleIn,
+  type RunningBookings,
+  withElsewhere,
+} from './elsewhere-chain';
 
 /**
  * A row's folded status. Every row of the tree is folded, so a miss is a row
@@ -458,6 +470,20 @@ function selectedSchedule(
     throw new Error('optimized plan reader reported ready without a schedule');
   }
   return { schedule: ready, displayed: project.scheduleObjective, awaitingSolve: false };
+}
+
+/**
+ * Throws {@link CalendarRangeError} when `planned` runs past the calendar
+ * ECMAScript can represent from `startDate`: scheduling uses dimensionless
+ * offsets that may stay valid beyond it, and every date read must name that
+ * state rather than fail on an invalid `Date`.
+ */
+function assertOnCalendar(startDate: IsoDate, planned: Schedule): void {
+  let projectFinish = 0;
+  for (const placed of planned.workItems.values()) {
+    if (placed.earliestFinish > projectFinish) projectFinish = placed.earliestFinish;
+  }
+  addWorkdays(startDate, lastWorkdayOf(0, projectFinish));
 }
 
 function canonicalScheduleParts(
@@ -979,6 +1005,15 @@ export interface WorkItemServiceOptions {
   scheduler: Scheduler;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock: Clock;
+  /**
+   * Where the bookings of the projects above come from, when this service
+   * cannot read them itself: a command batch's service reads its own project
+   * through the batch's working plan, which refuses every other project, so
+   * the batch hands it the public graph's {@link WorkItemService.elsewhereOf}.
+   * Those reads touch only projects the batch does not write, on the batch's
+   * own connection. Absent, the service reads them through its own stores.
+   */
+  elsewhereAbove?: ElsewhereSource;
 }
 
 /** A successful project-tree read, excluding absence and engine refusal. */
@@ -1735,10 +1770,151 @@ export class WorkItemService {
     };
   }
 
-  /** Rebuild the canonical input a durable solver queue entry names. */
+  /**
+   * Rebuild the canonical input a durable solver queue entry names, bookings
+   * elsewhere included, so a restarted solve hashes what the plan read hashed.
+   *
+   * @throws when an influencer's engine is not installed here: the input
+   * cannot be stated without its bookings, and stating it without them would
+   * be a different plan under the same project.
+   */
   async scheduleInput(projectId: string): Promise<ScheduleInput | null> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return null;
+    const own = await this.ownScheduleInput(project);
+    const chained = await this.elsewhereOf(project, own);
+    if ('kind' in chained) {
+      throw new Error(
+        `project ${projectId} is scheduled around ${chained.projectId ?? projectId}, whose engine is not installed here`,
+      );
+    }
+    return withElsewhere(own, chained);
+  }
+
+  /**
+   * The bookings elsewhere a project starting on `project.startDate` and
+   * scheduled from `own` works around (spec `elsewhere-scheduling`, "The chain
+   * reads influencers in rank order"; ADR 0034), or the refusal of an
+   * influencer whose engine is not installed here.
+   *
+   * Empty, and nothing read, for an undated project, which neither books nor
+   * sees bookings, and for a project whose organization is isolated or that no
+   * organization owns. Otherwise each influencer is scheduled in rank order
+   * around the bookings of the ones before it, and its displayed schedule's
+   * bookings join the running map this project is scheduled around last.
+   *
+   * Influencers are read in `capture` mode: a displayed schedule is the same
+   * either way, and reading one project must not queue a solve for another.
+   * Their reads are not one transaction; a commit to an influencer mid-chain
+   * is followed by an `elsewhere_changed` that re-reads this project.
+   */
+  async elsewhereOf(
+    project: Pick<Project, 'id' | 'startDate'>,
+    own: ScheduleInput,
+  ): Promise<Elsewhere | EngineUnavailable> {
+    if (project.startDate === null) return NO_BOOKINGS_ELSEWHERE;
+    // Proof: this delegation dropped (a batch reading the projects above
+    // through its working plan) made `applies a command to a project below
+    // once shared` (`shared-people.controller.db.test.ts`) answer 500:
+    // `Working plan for … cannot read project …`; watched 2026-09-29.
+    if (this.opts.elsewhereAbove !== undefined) return this.opts.elsewhereAbove(project, own);
+    const names = peopleIn(own);
+    const chained = await this.chainAbove(project.id, names);
+    if (!(chained instanceof Map)) return chained;
+    return elsewhereFor(names, chained, project.startDate);
+  }
+
+  /**
+   * A project's bookings from the schedule it displays, on the absolute
+   * workday axis — what an `elsewhere_changed` fan-out compares — or null for
+   * an absent project. Empty for an undated or unschedulable one, which books
+   * nothing.
+   */
+  async displayedBookings(projectId: string): Promise<RunningBookings | EngineUnavailable | null> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return null;
+    if (project.startDate === null) return new Map();
+    const own = await this.ownScheduleInput(project);
+    const chained = await this.chainAbove(project.id, peopleIn(own));
+    if (!(chained instanceof Map)) return chained;
+    return this.bookingsDisplayedBy(project, own, chained);
+  }
+
+  /**
+   * The running bookings of every influencer of `projectId`, each scheduled
+   * in rank order around the ones before it: a map, or the refusal naming the
+   * first influencer whose engine is not installed here. Empty, reading
+   * nothing, when the organization is isolated or `names` is empty.
+   */
+  private async chainAbove(
+    projectId: string,
+    names: ReadonlySet<string>,
+  ): Promise<RunningBookings | EngineUnavailable> {
+    const running: RunningBookings = new Map();
+    if (names.size === 0) return running;
+    const sharing = await this.opts.projects.sharingOf(projectId);
+    if (sharing.mode === 'isolated') return running;
+    const peopleOf = new Map<string, ReadonlySet<string>>([[projectId, names]]);
+    for (const id of sharing.order) {
+      if (id === projectId) continue;
+      const { assignments } = await this.opts.directory.assignmentsInProject(id);
+      peopleOf.set(id, new Set(assignments.map((each) => each.personId)));
+    }
+    for (const id of influencersOf(projectId, sharing.order, peopleOf)) {
+      const influencer = await this.opts.projects.findById(id);
+      // Deleted between the order and this read: it books nothing now.
+      if (influencer === null) continue;
+      // Undated: it books nothing.
+      if (influencer.startDate === null) continue;
+      const own = await this.ownScheduleInput(influencer);
+      const held = this.bookingsDisplayedBy(influencer, own, running);
+      // Proof: this refusal read as booking nothing made `refuses to read
+      // below an influencer whose engine is missing`
+      // (`shared-people.controller.db.test.ts`) answer the lower project's Fast dates
+      // with no mark; watched 2026-09-29.
+      if (!(held instanceof Map)) return { ...held, projectId: id };
+      addBookings(running, held);
+    }
+    return running;
+  }
+
+  /**
+   * The bookings of `project`'s displayed schedule when it is scheduled from
+   * `own` around `running`: the ready optimized variant it selects, else Fast
+   * (marked, while a solve is pending or failed). A cycle or a plan past the
+   * calendar books nothing, as the load view reads it.
+   */
+  private bookingsDisplayedBy(
+    project: Project,
+    own: ScheduleInput,
+    running: RunningBookings,
+  ): RunningBookings | EngineUnavailable {
+    if (project.startDate === null) return new Map();
+    const input = withElsewhere(own, elsewhereFor(peopleIn(own), running, project.startDate));
+    try {
+      const read = this.opts.scheduler.read({
+        projectId: project.id,
+        input,
+        engine: project.scheduleEngine,
+        objective: project.scheduleObjective,
+        enabled: project.optimizationEnabled,
+        mode: 'capture',
+      });
+      if (read.kind === 'engine_unavailable') return read;
+      const { schedule: displayed } = selectedSchedule(project, read.fast, read.optimization);
+      assertOnCalendar(project.startDate, displayed);
+      return bookingsOf(project.id, project.startDate, displayed);
+    } catch (err) {
+      if (err instanceof ScheduleCycleError || err instanceof CalendarRangeError) {
+        return new Map();
+      }
+      throw err;
+    }
+  }
+
+  /** The canonical input `project` is scheduled from, before any booking elsewhere. */
+  private async ownScheduleInput(project: Project): Promise<ScheduleInput> {
+    const projectId = project.id;
     const rows = await this.opts.workItems.listByProject(projectId);
     const estimates = await this.opts.estimates.listByProject(projectId);
     const edges = await this.opts.dependencies.listByProject(projectId);
@@ -2025,6 +2201,11 @@ export class WorkItemService {
     );
     const { assigneesOf, hasChildren, rule } = canonical;
     const scheduledIds = new Set(canonical.input.rows.map((row) => row.id));
+    // Under shared people, the bookings of the projects above this one
+    // (ADR 0034). An influencer's refusal is this read's refusal, naming it.
+    const chained = await this.elsewhereOf(project, canonical.input);
+    if ('kind' in chained) return chained;
+    const scheduledInput = withElsewhere(canonical.input, chained);
     // What each row is **charged**, per step: a leaf's own estimate uplifted by
     // its step's allowance and rounded, a parent's the sum of its descendants'
     // charged figures. Not `totals` put through the method — see `rollUpFinals`.
@@ -2073,7 +2254,7 @@ export class WorkItemService {
       // Received: 3` for the second project's successor; watched 2026-08-29.
       const scheduleRead = this.opts.scheduler.read({
         projectId: project.id,
-        input: canonical.input,
+        input: scheduledInput,
         // Proof: forcing `fast` here made the unavailable service fixture
         // return a full Fast tree with one dated slice instead of this refusal.
         engine: project.scheduleEngine,
@@ -2134,13 +2315,7 @@ export class WorkItemService {
       // Proof: remove this preflight and the mounted controller case
       // `models a plan beyond the calendar range without partial dates` fails
       // on the unhandled invalid-Date projection.
-      if (project.startDate !== null) {
-        let projectFinish = 0;
-        for (const placed of planned.workItems.values()) {
-          if (placed.earliestFinish > projectFinish) projectFinish = placed.earliestFinish;
-        }
-        addWorkdays(project.startDate, lastWorkdayOf(0, projectFinish));
-      }
+      if (project.startDate !== null) assertOnCalendar(project.startDate, planned);
       timing = planned.workItems;
       waitingForPerson = planned.waitingForPerson;
       waitingForCapacity = planned.waitingForCapacity;

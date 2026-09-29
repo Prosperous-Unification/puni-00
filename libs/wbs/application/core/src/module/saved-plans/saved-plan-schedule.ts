@@ -1,6 +1,7 @@
 import {
   deadlineOffsetsOf,
   effectiveTeamsOf,
+  type Elsewhere,
   type EstimateRule,
   type IsoDate,
   type Schedule,
@@ -13,6 +14,7 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { PlanInputReads } from '../../ports/saved-plan-capture-values';
 import { NO_DEADLINES, slicesOf } from '../../service/work-item.service';
+import { withElsewhere } from '../work-item/elsewhere-chain';
 import type { SavedPlanResource } from './saved-plan.resource';
 
 /**
@@ -34,8 +36,18 @@ import type { SavedPlanResource } from './saved-plan.resource';
  * throws out of here. Turning that into a typed absent schedule is 5.4's row
  * (`pending`, and the other reasons), and swallowing it now would leave that
  * row nothing to test.
+ *
+ * `elsewhere` is the one argument the snapshot cannot hold: the bookings of
+ * the projects ranked above this one, which the plan read computes from their
+ * schedules (ADR 0034). The saved-plan service asks the plan read's own
+ * source for them and passes them here, so a saved plan of a shared
+ * organization has the dates the plan had; the stored input bytes do not
+ * carry them.
  */
-export function scheduleInputOfCaptured(reads: PlanInputReads): ScheduleInput {
+export function scheduleInputOfCaptured(
+  reads: PlanInputReads,
+  elsewhere: Elsewhere,
+): ScheduleInput {
   // A snapshot holds no facts — `saved-plan-input.ts` says why — and the
   // schedule reads none, so the captured rows are widened to the row shape
   // `slicesOf` takes with both absent. Nothing below this line can read a fact
@@ -110,25 +122,35 @@ export function scheduleInputOfCaptured(reads: PlanInputReads): ScheduleInput {
   const heldLeafIds = new Set(
     rows.filter((row) => row.hold === 'on_hold' && !hasChildren.has(row.id)).map((row) => row.id),
   );
-  return withoutHeldSubtrees(
-    {
-      rows,
-      edges: reads.dependencies,
-      slices,
-      notBefore,
-      poolSizes: reads.capacity,
-      reach: reads.project.depReach,
-      deadlines,
-      // Proof: dropping the captured list made `schedules a captured node relationship into a later successor step` observe B.s2 at day 1 instead of 3 (2026-09-27).
-      typed: reads.typedDependencies,
-    },
-    heldLeafIds,
+  return withElsewhere(
+    withoutHeldSubtrees(
+      {
+        rows,
+        edges: reads.dependencies,
+        slices,
+        notBefore,
+        poolSizes: reads.capacity,
+        reach: reads.project.depReach,
+        deadlines,
+        // Proof: dropping the captured list made `schedules a captured node relationship into a later successor step` observe B.s2 at day 1 instead of 3 (2026-09-27).
+        typed: reads.typedDependencies,
+      },
+      heldLeafIds,
+    ),
+    elsewhere,
   );
 }
 
-/** Schedules the canonical input derived from detached capture reads. */
-export function schedulePlanInput(reads: PlanInputReads): Schedule {
-  const input = scheduleInputOfCaptured(reads);
+/**
+ * Schedules the canonical input derived from detached capture reads, around
+ * `elsewhere`; see {@link scheduleInputOfCaptured}.
+ *
+ * Proof: `input.elsewhere` left out of the call made `schedules a captured
+ * plan around its bookings elsewhere` (`saved-plan-input.test.ts`) start
+ * Ana's slice at day 0; watched 2026-09-29.
+ */
+export function schedulePlanInput(reads: PlanInputReads, elsewhere: Elsewhere): Schedule {
+  const input = scheduleInputOfCaptured(reads, elsewhere);
   return schedule(
     input.rows,
     input.edges,
@@ -138,7 +160,18 @@ export function schedulePlanInput(reads: PlanInputReads): Schedule {
     input.reach,
     input.deadlines,
     input.typed,
+    undefined,
+    input.elsewhere,
   );
+}
+
+/**
+ * {@link schedulePlanInput} with no bookings elsewhere: the store-level
+ * capture path, which reads no organization. The saved-plan service threads
+ * the bookings itself.
+ */
+function scheduleIsolated(reads: PlanInputReads): Schedule {
+  return schedulePlanInput(reads, new Map());
 }
 
 /** One project's captured plan input and the dates computed from it. */
@@ -166,7 +199,7 @@ export interface CapturedPlan {
 export async function captureAndSchedulePlan(
   capture: Pick<SavedPlanResource, 'capturePlan'>,
   projectId: string,
-  schedulePlan: (reads: PlanInputReads) => Schedule = schedulePlanInput,
+  schedulePlan: (reads: PlanInputReads) => Schedule = scheduleIsolated,
 ): Promise<CapturedPlan | null> {
   const reads = await capture.capturePlan(projectId);
   if (reads === null) return null;

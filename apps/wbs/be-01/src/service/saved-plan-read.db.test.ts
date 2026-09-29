@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { isolatedElsewhere } from '@wbs/core/testing/scheduler-fixture';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -143,6 +144,7 @@ describe('reading a saved plan back', () => {
   /** The service under test, with a scheduler that records every call. */
   const service = (id = 'sp-1') =>
     new SavedPlanService({
+      elsewhere: isolatedElsewhere,
       scheduler: {
         supports: (engine) => fastScheduler.supports(engine),
         read: (ask) => {

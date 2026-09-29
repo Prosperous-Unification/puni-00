@@ -13,8 +13,9 @@ this change SHALL move a date. Pre-activation (legacy) access SHALL read `isolat
 
 ### Requirement: Rollback refuses to lose a shared organization
 
-`down.sql` SHALL refuse while any organization is shared or any rank row exists, naming
-`shared-people-rollback-cli.ts save|remove|restore`. `STORED_VOCABULARIES` SHALL gain
+`down.sql` SHALL refuse while any organization is shared, naming
+`shared-people-rollback-cli.ts save|remove|restore`; rank rows are refused by the rank
+migration's own `down.sql`. `STORED_VOCABULARIES` SHALL gain
 `capacityModes`, and the swap SHALL refuse an image lacking it while an organization is shared.
 
 #### Scenario: a pre-feature image

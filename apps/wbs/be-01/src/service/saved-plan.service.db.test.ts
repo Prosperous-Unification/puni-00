@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { OptimizationVariantState, Scheduler } from '@wbs/core';
+import { isolatedElsewhere } from '@wbs/core/testing/scheduler-fixture';
 import { SCHEDULE_ALGORITHM_ID } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -110,6 +111,7 @@ describe('SavedPlanService.save', () => {
 
   const service = (scheduler: Scheduler = fastScheduler): SavedPlanService =>
     new SavedPlanService({
+      elsewhere: isolatedElsewhere,
       scheduler,
       digest: nodeDigest,
       capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),
@@ -418,6 +420,7 @@ describe('SavedPlanService.save', () => {
 
   it('refuses on the body limit before opening the write transaction', async () => {
     const refusing = new SavedPlanService({
+      elsewhere: isolatedElsewhere,
       scheduler: fastScheduler,
       digest: nodeDigest,
       capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),
@@ -445,6 +448,7 @@ describe('SavedPlanService.save', () => {
     // The same save, the same bytes, one number moved. Without it, the refusal
     // above would also pass against a service that hard-codes a small bound.
     const admitting = new SavedPlanService({
+      elsewhere: isolatedElsewhere,
       scheduler: fastScheduler,
       digest: nodeDigest,
       capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),
@@ -477,6 +481,7 @@ describe('SavedPlanService.save', () => {
     let issued = 0;
     const capped = (mostPlansPerProject: number): SavedPlanService =>
       new SavedPlanService({
+        elsewhere: isolatedElsewhere,
         scheduler: fastScheduler,
         digest: nodeDigest,
         capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),

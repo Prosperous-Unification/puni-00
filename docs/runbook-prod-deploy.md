@@ -305,3 +305,37 @@ when a saved project is no longer owned by its organization or an author is no l
 ```sh
 docker exec be-01-<colour> bun run src/project-rank-rollback-cli.ts restore /data/project-ranks-<date>.json
 ```
+
+## Shared people rollback
+
+A colour older than `20260929200000_add_shared_people` cannot read `organization.shared_people`
+and would schedule a shared organization's projects as if isolated. The swap therefore reads the
+incoming image's capacity modes (`src/capacity-modes-cli.ts`, absent in an older image) and refuses
+while any organization is `shared` and the image does not name `shared`, reading
+`stored capacity modes unsupported by <container>: shared (<n>)`. Rolling back past the migration
+refuses while any organization is shared, reading
+`CHECK constraint failed: organizations share people: …`. Ranks are guarded by their own
+migration; see [Project rank rollback](#project-rank-rollback).
+
+Run the procedure inside the incoming container after its writers have stopped, with the same
+`DB_PATH`. Save, then copy the file off the host:
+
+```sh
+docker exec be-01-<colour> bun run src/shared-people-rollback-cli.ts save /data/shared-people-<date>.json
+```
+
+Reset only after the save is secure. It refuses unless the file names exactly the organizations
+that are shared, and switches them to `isolated`, which moves their dates back to where each
+project had them alone:
+
+```sh
+docker exec be-01-<colour> bun run src/shared-people-rollback-cli.ts remove /data/shared-people-<date>.json
+docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
+```
+
+After a later forward migration, restore. Restore refuses the whole set, naming it, when a saved
+organization no longer exists:
+
+```sh
+docker exec be-01-<colour> bun run src/shared-people-rollback-cli.ts restore /data/shared-people-<date>.json
+```

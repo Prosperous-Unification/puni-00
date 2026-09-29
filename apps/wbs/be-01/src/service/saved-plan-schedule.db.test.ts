@@ -131,7 +131,7 @@ describe('scheduling a captured plan', () => {
     const sampled: number[] = [];
     const result = await captureAndSchedulePlan(capture(), 'p1', (reads: PlanInputReads) => {
       sampled.push(live);
-      return schedulePlanInput(reads);
+      return schedulePlanInput(reads, new Map());
     });
 
     expect(result).not.toBeNull();
@@ -169,7 +169,7 @@ describe('scheduling a captured plan', () => {
     // schedule is a function of the capture and of nothing else, so a second
     // pass over the same reads is byte-for-byte the same answer.
     expect(live).toBe(0);
-    const again = schedulePlanInput(reads);
+    const again = schedulePlanInput(reads, new Map());
     expect(again.workItems).toEqual(planned.workItems);
     expect(again.slices).toEqual(planned.slices);
     expect(again.waitingForPerson).toBe(planned.waitingForPerson);
@@ -180,7 +180,7 @@ describe('scheduling a captured plan', () => {
     let scheduled = 0;
     const result = await captureAndSchedulePlan(capture(), 'missing', (reads) => {
       scheduled += 1;
-      return schedulePlanInput(reads);
+      return schedulePlanInput(reads, new Map());
     });
     expect(result).toBeNull();
     expect(scheduled).toBe(0);

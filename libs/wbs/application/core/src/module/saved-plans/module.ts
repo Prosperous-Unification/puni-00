@@ -3,7 +3,7 @@ import { DiBag } from 'di-bag';
 import type { Digest } from '../../ports/runtime';
 import type { SavedPlanCaptureStore } from '../../ports/saved-plan-capture-store';
 import type { SavedPlanStore } from '../../ports/saved-plan-store';
-import type { Scheduler } from '../../ports/scheduler';
+import type { ElsewhereSource, Scheduler } from '../../ports/scheduler';
 import type { SavedPlanQuota } from '../../service/saved-plan-quota';
 import { SAVED_PLANS_LABEL } from './contract';
 import { SavedPlanResource } from './saved-plan.resource';
@@ -31,6 +31,7 @@ export const savedPlansModule = DiBag.createBuilder()
         capture,
         plans,
         scheduler,
+        elsewhere,
         newId,
         now,
         quota,
@@ -39,6 +40,7 @@ export const savedPlansModule = DiBag.createBuilder()
         capture: SavedPlanCaptureStore;
         plans: SavedPlanStore;
         scheduler: Scheduler;
+        elsewhere: ElsewhereSource;
         newId: () => string;
         now: () => number;
         quota: SavedPlanQuota | undefined;
@@ -46,6 +48,7 @@ export const savedPlansModule = DiBag.createBuilder()
         digest,
         resource: new SavedPlanResource({ capture, plans, digest }),
         scheduler,
+        elsewhere,
         newId,
         now,
         // Proof (2026-09-23): deleting this spread left `passes a supplied quota through to the

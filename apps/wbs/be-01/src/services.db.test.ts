@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { subscriptionFor } from '@wbs/core';
+import { isolatedElsewhere } from '@wbs/core/testing/scheduler-fixture';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -162,6 +163,7 @@ describe('buildServices', () => {
     });
     const before = state();
     const savedPlans = new SavedPlanService({
+      elsewhere: isolatedElsewhere,
       scheduler: services.scheduler,
       digest: nodeDigest,
       capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),

@@ -378,6 +378,7 @@ function heldSolutionUnitOfWork(
             stored.findCrossReferences(projectId, organizationId),
           listForInOrganization: (userId, organizationId) =>
             stored.listForInOrganization(userId, organizationId),
+          sharingOf: (projectId) => stored.sharingOf(projectId),
           findBySolutionSlug: (slug) => stored.findBySolutionSlug(slug),
           findBySolutionSlugInOrganization: (slug, organizationId) =>
             stored.findBySolutionSlugInOrganization(slug, organizationId),

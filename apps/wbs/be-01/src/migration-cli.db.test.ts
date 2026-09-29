@@ -79,6 +79,10 @@ describe('migration deploy entrypoints', () => {
         'project-rank-rollback-cli.ts',
         ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/project-rank-rollback'"],
       ],
+      [
+        'shared-people-rollback-cli.ts',
+        ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/shared-people-rollback'"],
+      ],
     ]);
     for (const [file, imports] of expectedImports) {
       const source = readFileSync(join(APP_ROOT, 'src', file), 'utf8');
@@ -288,6 +292,48 @@ describe('migration deploy entrypoints', () => {
     expect(invalid.exitCode).not.toBe(0);
     expect(invalid.stderr).toContain('usage:');
     const missingArgument = await runCli('project-rank-rollback-cli.ts', dbPath, 'restore');
+    expect(missingArgument.exitCode).not.toBe(0);
+    expect(missingArgument.stderr).toContain('usage:');
+  }, 60_000);
+
+  it('saves, resets and restores shared organizations through the rollback CLI', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-shared-people-cli-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    const savedPath = join(root, 'shared.json');
+    runMigrations(dbPath, MIGRATIONS);
+    const sqlite = openDatabase(dbPath);
+    try {
+      sqlite.run(
+        "INSERT INTO organization (id,name,created_at,shared_people) VALUES ('o','O',1,1)",
+      );
+    } finally {
+      sqlite.close();
+    }
+    expect(await runCli('shared-people-rollback-cli.ts', dbPath, 'save', savedPath)).toEqual({
+      exitCode: 0,
+      stdout: 'shared organizations saved: 1\n',
+      stderr: '',
+    });
+    expect(JSON.parse(readFileSync(savedPath, 'utf8'))).toEqual({
+      format: 'shared-people-save',
+      version: 1,
+      organizations: ['o'],
+    });
+    expect(await runCli('shared-people-rollback-cli.ts', dbPath, 'remove', savedPath)).toEqual({
+      exitCode: 0,
+      stdout: 'shared organizations reset: 1\n',
+      stderr: '',
+    });
+    expect(await runCli('shared-people-rollback-cli.ts', dbPath, 'restore', savedPath)).toEqual({
+      exitCode: 0,
+      stdout: 'shared organizations restored: 1\n',
+      stderr: '',
+    });
+    const invalid = await runCli('shared-people-rollback-cli.ts', dbPath, 'erase', savedPath);
+    expect(invalid.exitCode).not.toBe(0);
+    expect(invalid.stderr).toContain('usage:');
+    const missingArgument = await runCli('shared-people-rollback-cli.ts', dbPath, 'restore');
     expect(missingArgument.exitCode).not.toBe(0);
     expect(missingArgument.stderr).toContain('usage:');
   }, 60_000);

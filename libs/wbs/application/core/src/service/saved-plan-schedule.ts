@@ -17,7 +17,8 @@ export {
 export function captureAndSchedulePlan(
   capture: SavedPlanCaptureStore,
   projectId: string,
-  schedulePlan: (reads: PlanInputReads) => Schedule = schedulePlanInput,
+  schedulePlan: (reads: PlanInputReads) => Schedule = (reads) =>
+    schedulePlanInput(reads, new Map()),
 ): Promise<CapturedPlan | null> {
   return captureThroughResource(
     { capturePlan: (id) => capture.readPlanInput(id) },

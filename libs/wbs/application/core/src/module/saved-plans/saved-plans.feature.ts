@@ -20,12 +20,13 @@ import type {
   SavedPlanWrite,
   ScopedSavedPlanWrite,
 } from '../../ports/saved-plan-values';
-import type { Scheduler } from '../../ports/scheduler';
+import type { ElsewhereSource, Scheduler } from '../../ports/scheduler';
 import { defaultSavedPlanName } from '../../service/saved-plan-default-name';
 import { planInputRowsOf } from '../../service/saved-plan-input';
 import type { SavedPlanQuota, SavedPlanQuotaRefusal } from '../../service/saved-plan-quota';
 import { bodyBytesRefusal, DEFAULT_SAVED_PLAN_QUOTA } from '../../service/saved-plan-quota';
 import { buildScheduleBody, serialiseScheduleBody } from '../../service/saved-plan-schedule-body';
+import { NO_BOOKINGS_ELSEWHERE, withElsewhere } from '../work-item/elsewhere-chain';
 import type { SavedPlanResource } from './saved-plan.resource';
 import { bodyByteLength } from './saved-plan-integrity';
 import { scheduleInputOfCaptured } from './saved-plan-schedule';
@@ -151,6 +152,12 @@ export interface SavedPlanServiceOptions {
   readonly quota?: SavedPlanQuota;
   /** The installed scheduling capability used after captured reads detach. */
   readonly scheduler: Scheduler;
+  /**
+   * The bookings elsewhere the plan read schedules a project around, asked for
+   * the captured input after the snapshot is released, so a saved plan of a
+   * shared organization carries the dates its plan had (ADR 0034).
+   */
+  readonly elsewhere: ElsewhereSource;
 }
 
 /**
@@ -548,7 +555,22 @@ export class SavedPlanService {
   private async captureAndAttempt(projectId: string): Promise<ScheduleAttempt | null> {
     const reads = await this.opts.resource.capturePlan(projectId);
     if (reads === null) return null;
-    const input = scheduleInputOfCaptured(reads);
+    const own = scheduleInputOfCaptured(reads, NO_BOOKINGS_ELSEWHERE);
+    // An influencer whose engine is not installed here leaves this plan's
+    // dates unknowable, which is `unavailable`, never a Fast answer without
+    // the bookings above it.
+    // Proof: the source's answer ignored (`own` scheduled as it stands) made
+    // `saves a shared organization's plan around the bookings above it`
+    // (`shared-people.controller.db.test.ts`) store Ana's slice at day 0; watched
+    // 2026-09-29.
+    const elsewhere = await this.opts.elsewhere(
+      { id: projectId, startDate: reads.project.startDate },
+      own,
+    );
+    if ('kind' in elsewhere) {
+      return { reads, schedule: { present: false, absentReason: 'unavailable' } };
+    }
+    const input = withElsewhere(own, elsewhere);
     try {
       const scheduled = this.opts.scheduler.read({
         projectId,

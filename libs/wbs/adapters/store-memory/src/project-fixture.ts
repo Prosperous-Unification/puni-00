@@ -95,6 +95,9 @@ export function inMemoryProjects(
     },
     // No dependent rows live in this store, so nothing it holds can cross.
     findCrossReferences: () => Promise.resolve([]),
+    // Organizations and their capacity mode live only over SQLite; no
+    // organization this store maps can be switched to `shared`.
+    sharingOf: () => Promise.resolve({ mode: 'isolated' }),
     // Organization-authorized edits exist only over SQLite, where the
     // membership they recheck and the audit table live; scoped access never
     // arises over this store.

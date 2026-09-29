@@ -29,6 +29,7 @@ import type { UndoOutcome, WorkItemService } from '../service/work-item.service'
 import { runCommandBatch } from '../use-cases/run-command-batch';
 import { BadCapacity } from './capacity-body';
 import { bind, type HttpReply, type RequestFailure } from './endpoint';
+import { engineUnavailableBody } from './engine-unavailable-body';
 import { organizationRefusal } from './organization-refusal';
 import { BadLadder } from './priority-ladder-body';
 import { isFieldBag } from './route';
@@ -408,12 +409,7 @@ export function workItemRoutes(
       if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
       // Proof: removing this branch made the mounted unavailable work-item read
       // receive 500 instead of the required 409.
-      if ('kind' in tree)
-        return {
-          ok: false,
-          status: 409,
-          body: { error: tree.error, engine: tree.engine },
-        };
+      if ('kind' in tree) return { ok: false, status: 409, body: engineUnavailableBody(tree) };
       return {
         ok: true,
         status: 200,

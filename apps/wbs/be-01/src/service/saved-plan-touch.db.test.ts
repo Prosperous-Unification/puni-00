@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { isolatedElsewhere } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openConnection, openDatabase } from '../repository/db';
@@ -107,6 +108,7 @@ describe('renaming and deleting a saved plan', () => {
 
   const service = (id = 'never-minted', at = Number.NaN) =>
     new SavedPlanService({
+      elsewhere: isolatedElsewhere,
       scheduler: fastScheduler,
       digest: nodeDigest,
       capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),

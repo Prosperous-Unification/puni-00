@@ -240,6 +240,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20260929200000_add_shared_people',
       '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',

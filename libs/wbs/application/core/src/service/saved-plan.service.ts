@@ -20,6 +20,7 @@ export class SavedPlanService extends SavedPlansFeature {
     super({
       digest: options.digest,
       scheduler: options.scheduler,
+      elsewhere: options.elsewhere,
       newId: options.newId,
       now: options.now,
       ...(options.quota === undefined ? {} : { quota: options.quota }),

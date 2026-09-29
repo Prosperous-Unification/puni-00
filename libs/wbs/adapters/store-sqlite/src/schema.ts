@@ -2706,6 +2706,13 @@ export const organization = sqliteTable(
     legacy: integer('legacy', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
+    /**
+     * The organization's capacity mode: `true` is `shared`, where a project
+     * works around the bookings of the projects above it (ADR 0034). The
+     * CHECK is written in `20260929200000_add_shared_people`'s column
+     * definition, which an `ALTER TABLE ADD` cannot name.
+     */
+    sharedPeople: integer('shared_people', { mode: 'boolean' }).notNull().default(false),
   },
   (t) => [
     uniqueIndex('organization_one_legacy')

@@ -132,6 +132,7 @@ describe(STEP_CODE, () => {
     const before = readStepColumns().map((column) => column.name);
 
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+      '20260929200000_add_shared_people',
       '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',

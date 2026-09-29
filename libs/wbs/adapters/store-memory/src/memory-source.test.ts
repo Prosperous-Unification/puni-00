@@ -1,6 +1,6 @@
 import type { NewJournalEntry, PlanEvent, TransactionalStores } from '@wbs/core';
 import { SavedPlanService } from '@wbs/core';
-import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
+import { fastScheduler, isolatedElsewhere } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { describe, expect, it } from 'bun:test';
 
@@ -345,6 +345,7 @@ describe('the staged memory source', () => {
     it(`saves committed capture and independent history while a batch ${commit ? 'commits' : 'refuses'}`, async () => {
       const source = await seededSource();
       const service = new SavedPlanService({
+        elsewhere: isolatedElsewhere,
         capture: source.history.savedPlanCapture,
         plans: source.history.savedPlans,
         digest: {
@@ -411,6 +412,7 @@ describe('the staged memory source', () => {
     const source = await seededSource();
     let issued = 0;
     const service = new SavedPlanService({
+      elsewhere: isolatedElsewhere,
       capture: source.history.savedPlanCapture,
       plans: source.history.savedPlans,
       digest: { sha256: (bytes) => Promise.resolve(`digest:${String(bytes.length)}`) },

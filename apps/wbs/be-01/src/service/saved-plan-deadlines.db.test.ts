@@ -298,7 +298,7 @@ describe('a captured plan and its deadlines', () => {
       ...reads,
       workItems: reads.workItems.map((each) => ({ ...each, deadline: null })),
     };
-    const without = schedulePlanInput(undated);
+    const without = schedulePlanInput(undated, new Map());
 
     expect(sliceOf(without, 'wi-1').earliestStart).toBeLessThan(
       sliceOf(without, 'wi-2').earliestStart,
@@ -341,7 +341,7 @@ describe('a captured plan and its deadlines', () => {
       deadlines: [['wi-2', 0]],
     };
 
-    expect(sevenFieldsOf(scheduleInputOfCaptured(reads!))).toEqual(expected);
+    expect(sevenFieldsOf(scheduleInputOfCaptured(reads!, new Map()))).toEqual(expected);
     expect(sevenFieldsOf(live!)).toEqual(expected);
   });
 

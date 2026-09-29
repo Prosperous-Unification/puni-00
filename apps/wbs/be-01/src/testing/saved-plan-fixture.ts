@@ -1,3 +1,5 @@
+import { isolatedElsewhere } from '@wbs/core/testing/scheduler-fixture';
+
 import { openConnection } from '../repository/db';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
@@ -29,6 +31,7 @@ export function testSavedPlanService(): SavedPlanService {
     );
   };
   return new SavedPlanService({
+    elsewhere: isolatedElsewhere,
     digest: nodeDigest,
     capture: new SavedPlanCaptureRepository({ openConnection: refuse }),
     plans: new SavedPlanRepository({ openConnection: refuse }),
@@ -52,6 +55,7 @@ export function savedPlanServiceOn(
 ): SavedPlanService {
   let minted = 0;
   return new SavedPlanService({
+    elsewhere: isolatedElsewhere,
     digest: nodeDigest,
     capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),
     plans: new SavedPlanRepository({ openConnection: () => openConnection(path) }),

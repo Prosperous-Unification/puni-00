@@ -83,6 +83,7 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     scheduler: DiBag.createProvider(() => fastScheduler, { factoryReturnKind: 'sync-value' }),
+    elsewhereAbove: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
   };
 };
 

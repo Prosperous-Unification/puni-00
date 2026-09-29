@@ -3,6 +3,7 @@ import type {
   Project,
   ProjectCrossReference,
   ProjectPatch,
+  ProjectSharing,
   ProjectStore,
   ProjectWithAccess,
   RecoveryAuditDetail,
@@ -35,9 +36,11 @@ import {
 } from './audit';
 import type { Gate } from './gate';
 import { isScheduleEngine, isSolverObjective, unknownStoredValue } from './optimizer-rows';
+import { rankedProjectIdsIn } from './project-rank';
 import { bumpedProject, bumpProject } from './revision';
 import {
   optimizationGeneration,
+  organization,
   organizationAudit,
   organizationMembership,
   project,
@@ -469,6 +472,25 @@ export class ProjectRepository implements ProjectStore {
       .limit(1);
     const found = rows.at(0);
     return found === undefined ? null : fromJoined(found);
+  }
+
+  async sharingOf(projectId: string): Promise<ProjectSharing> {
+    const owner = await this.db
+      .select({ organizationId: organization.id, sharedPeople: organization.sharedPeople })
+      .from(projectOrganization)
+      .innerJoin(organization, eq(organization.id, projectOrganization.organizationId))
+      .where(eq(projectOrganization.resourceId, projectId))
+      .limit(1);
+    const found = owner.at(0);
+    // Proof: answering `shared` for every owned project made `keeps an
+    // isolated organization's dates` (`shared-people.controller.db.test.ts`)
+    // start the lower project's slice at 2 instead of 0; watched 2026-09-29.
+    if (!found?.sharedPeople) return { mode: 'isolated' };
+    return {
+      mode: 'shared',
+      organizationId: found.organizationId,
+      order: rankedProjectIdsIn(this.db, found.organizationId),
+    };
   }
 
   /**

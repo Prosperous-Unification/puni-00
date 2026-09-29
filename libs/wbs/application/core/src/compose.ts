@@ -32,7 +32,7 @@ import type { OidcVerifier } from './ports/oidc-verifier';
 import type { Broadcaster } from './ports/project-event';
 import type { PushTransport } from './ports/push-transport';
 import type { Digest, PasswordHasher, TokenCodec } from './ports/runtime';
-import type { Scheduler } from './ports/scheduler';
+import type { ElsewhereSource, Scheduler } from './ports/scheduler';
 import type { Source } from './ports/source';
 import type { PlanTransactionalStores, TransactionalStores } from './ports/stores';
 import type { Intervals, Timers } from './ports/timers';
@@ -80,6 +80,8 @@ export interface ServicesOverOptions {
   readonly admission: EditAdmission;
   /** Scoped dependent writes use this only after their own unit of work grants it. */
   readonly recoveryAdmission?: EditAdmission;
+  /** See `WorkItemServiceOptions.elsewhereAbove`: set for a batch, whose stores see one project. */
+  readonly elsewhereAbove?: ElsewhereSource;
 }
 
 /**
@@ -154,6 +156,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       broadcast,
       admission,
       scheduler,
+      ...(shared.elsewhereAbove === undefined ? {} : { elsewhereAbove: shared.elsewhereAbove }),
     }).workItems,
   };
 }
@@ -264,12 +267,14 @@ export function composeServices(
       scheduler: runtime.scheduler,
       admission,
       recoveryAdmission: admission,
+      elsewhereAbove: (project, own) => publicServices.workItems.elsewhereOf(project, own),
     });
   const { savedPlans } = installSavedPlans({
     digest: runtime.digest,
     capture: source.history.savedPlanCapture,
     plans: source.history.savedPlans,
     scheduler: runtime.scheduler,
+    elsewhere: (project, own) => publicServices.workItems.elsewhereOf(project, own),
     newId: () => runtime.clock.newId(),
     now: () => Math.floor(runtime.clock.now() / 1_000),
   });

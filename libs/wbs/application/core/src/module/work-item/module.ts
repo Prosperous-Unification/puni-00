@@ -13,7 +13,7 @@ import type { PriorityBandStore } from '../../ports/priority-band-store';
 import type { StepProgressStore } from '../../ports/progress-store';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
-import type { Scheduler } from '../../ports/scheduler';
+import type { ElsewhereSource, Scheduler } from '../../ports/scheduler';
 import type { SubtreeStore } from '../../ports/subtree-store';
 import type { TypedDependencyStore } from '../../ports/typed-dependency-store';
 import type { WorkItemStore } from '../../ports/work-item-store';
@@ -57,6 +57,7 @@ export const workItemModule = DiBag.createBuilder()
         editAdmission,
         scheduler,
         clock,
+        elsewhereAbove,
       }: {
         workItemStore: WorkItemStore;
         projectStore: ProjectStore;
@@ -75,6 +76,7 @@ export const workItemModule = DiBag.createBuilder()
         editAdmission: EditAdmission;
         scheduler: Scheduler;
         clock: Clock;
+        elsewhereAbove: ElsewhereSource | undefined;
       }): WorkItemServiceOptions => ({
         workItems: workItemStore,
         projects: projectStore,
@@ -97,6 +99,7 @@ export const workItemModule = DiBag.createBuilder()
         admission: editAdmission,
         scheduler,
         clock,
+        ...(elsewhereAbove === undefined ? {} : { elsewhereAbove }),
       }),
       { factoryReturnKind: 'sync-value' },
     ),
