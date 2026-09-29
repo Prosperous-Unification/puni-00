@@ -16,8 +16,8 @@ import {
 } from '@wbs/domain';
 
 import type { DirectoryService } from '../module/directory/directory.resource';
+import type { ProjectService } from '../module/project/project.resource';
 import type { ResourceAccess } from '../ports/organization-access';
-import type { ProjectService } from './project.service';
 import type { WorkItemService } from './work-item.service';
 
 /** The longest window a load read answers, in calendar days between `from` and `to`. */

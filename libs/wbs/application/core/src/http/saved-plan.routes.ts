@@ -8,6 +8,7 @@ import {
 } from '@wbs/contracts';
 import { canWriteInOrganization } from '@wbs/domain';
 
+import type { ProjectService } from '../module/project/project.resource';
 import { SavedPlanWriteError, savePlan } from '../module/saved-plans/save-plan';
 import { UnknownSavedPlanBodyVersionError } from '../module/saved-plans/saved-plan-integrity';
 import type {
@@ -16,7 +17,6 @@ import type {
   ResourceAccess,
 } from '../ports/organization-access';
 import type { Broadcaster } from '../ports/project-event';
-import type { ProjectService } from '../service/project.service';
 import type {
   SavedPlanService,
   SavedPlanSideRef,

@@ -239,18 +239,23 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
+          { "kind": "path", "path": "apps/wbs/be-01/src/app.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/http/history.routes.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/http/internal.routes.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/http/project.routes.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/http/saved-plan.routes.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/http/solution.routes.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
           {
             "kind": "path",
-            "path": "libs/wbs/application/core/src/compose.ts"
+            "path": "libs/wbs/application/core/src/module/plan-commands/admitted-write.ts"
           },
           {
             "kind": "path",
-            "path": "libs/wbs/application/core/src/index.ts"
+            "path": "libs/wbs/application/core/src/module/saved-plans/save-plan.ts"
           },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/service/project.service.ts"
-          }
+          { "kind": "path", "path": "libs/wbs/application/core/src/service/person-load.feature.ts" }
         ]
       }
     },

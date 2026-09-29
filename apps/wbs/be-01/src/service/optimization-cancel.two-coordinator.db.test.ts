@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { clockOf } from '@wbs/core';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, describe, expect, it } from 'bun:test';
 
@@ -24,7 +25,6 @@ import {
   type ReservedSolverChild,
   type ReservedSpawnRequest,
 } from './optimization-coordinator';
-import { ProjectService } from './project.service';
 import {
   runSolverChildLifecycle,
   type SolverChildLifecycleOptions,

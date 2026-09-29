@@ -11,10 +11,10 @@ import {
 import type { CalendarMarkerService } from '../module/calendar-marker/calendar-marker.resource';
 import type { PlanCommandServices } from '../module/plan-commands/plan-commands.feature';
 import type { ImportService } from '../module/plan-import/plan-import.feature';
+import type { ProjectService } from '../module/project/project.resource';
 import type { Broadcaster } from '../ports/project-event';
 import type { TransactionalStores } from '../ports/stores';
 import type { Scope, UnitOfWork } from '../ports/unit-of-work';
-import type { ProjectService } from '../service/project.service';
 import type { StepService } from '../service/step.service';
 import type { InMemoryPlan } from './harness';
 

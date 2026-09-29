@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { Broadcaster } from '@wbs/core';
 import { EventLogService } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { GatewayBroadcaster } from '@wbs/core/module/realtime/gateway-broadcaster';
 import { ReplayBuffer } from '@wbs/core/module/realtime/replay-buffer';
 import { ReplayOrchestrator } from '@wbs/core/module/realtime/replay-orchestrator';
@@ -44,7 +45,6 @@ import { directoryWith, personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import { ProjectService } from './project.service';
 import { StepService } from './step.service';
 import { WorkItemService } from './work-item.service';
 

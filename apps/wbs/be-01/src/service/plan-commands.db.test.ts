@@ -15,6 +15,7 @@ import {
   type PlanCommandRunnerOptions,
 } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import { PriorityBandService } from '@wbs/core/module/priority-band/priority-band.resource';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { PlanCommand } from '@wbs/core/service/plan-command';
 import {
   DEFAULT_PRIORITY_BANDS,
@@ -53,7 +54,6 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import { ProjectService } from './project.service';
 import { StepService } from './step.service';
 import { WorkItemService, type WorkItemServiceOptions } from './work-item.service';
 
