@@ -56,6 +56,7 @@ export const rowAt = (
   trioByStep: new Map(),
   waitsFor: [],
   stoppedBy: [],
+  held: false,
   ...extras,
 });
 

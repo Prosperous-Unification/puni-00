@@ -28,6 +28,43 @@ interface ShownPlanRow {
   leaf: boolean;
 }
 
+/**
+ * Every leaf whose stored hold is `on_hold` ({@link GanttPlan.heldLeafIds}).
+ *
+ * Keyed on the hold and never on the status: be-01 takes a leaf out of the
+ * schedule by its stored hold, and a leaf held and then marked done keeps its
+ * hold, reads `done`, and has no slice either.
+ *
+ * Proof: keyed on `status === 'on_hold'`, `names every leaf whose stored hold
+ * is on hold, a held leaf later marked done included` failed on `[]` where
+ * `[ 'strip' ]` was owed; watched 2026-09-29.
+ */
+export function heldLeafIdsOf(
+  rows: readonly (Pick<TreeRow, 'id' | 'hold' | 'status'> & { subRows: readonly unknown[] })[],
+): ReadonlySet<string> {
+  return new Set(
+    rows.filter((row) => row.subRows.length === 0 && row.hold === 'on_hold').map((row) => row.id),
+  );
+}
+
+/** What {@link isHeld} reads of a row: its stored hold, its status, and its children. */
+interface HeldReading {
+  hold: TreeRow['hold'];
+  status: TreeRow['status'];
+  subRows: readonly HeldReading[];
+}
+
+/**
+ * Whether a row is out of the schedule by its stored hold: a leaf held
+ * `on_hold`, or a parent every leaf beneath which is ({@link GanttRow.held}).
+ *
+ * Proof: keyed on `status === 'on_hold'`, `puts On hold in a held leaf's row
+ * even once it reads done` failed on `false`; watched 2026-09-29.
+ */
+export function isHeld(row: HeldReading): boolean {
+  return row.subRows.length === 0 ? row.hold === 'on_hold' : row.subRows.every(isHeld);
+}
+
 /** Keep an unknown wire relationship type from being drawn as FS. */
 export function chartTypedDependencies(
   dependencies: readonly TypedDependencyView[],
@@ -228,6 +265,9 @@ export function usePlanChartInput({
         // The predecessors that stop this row, each with its status said, for a
         // blocked-by-proxy bar's card (`add-work-item-statuses`). A predecessor
         // the tree does not hold is not on the list: nothing says what it reads.
+        // Held by the stored hold, a parent when every leaf beneath it is:
+        // the fact be-01 takes a row out of the schedule by.
+        held: isHeld(row.source),
         stoppedBy: predecessorsOf(row.source).flatMap((predecessorId) => {
           const predecessor = statusOf.get(predecessorId);
           if (
@@ -249,11 +289,7 @@ export function usePlanChartInput({
       tree: flat.map((row) => ({ id: row.id, parentId: row.parentId })),
       // Off `flat` for `tree`'s reason: a held leaf under a collapsed branch is
       // still no end of an arrow.
-      heldLeafIds: new Set(
-        flat
-          .filter((row) => row.subRows.length === 0 && row.status === 'on_hold')
-          .map((row) => row.id),
-      ),
+      heldLeafIds: heldLeafIdsOf(flat),
       // Why the rows above are the length they are, which the list itself cannot
       // say: `isFiltering`'s one answer, the same one the count beside the Find
       // box and the empty-answer sentence read, so the chart's account of what it

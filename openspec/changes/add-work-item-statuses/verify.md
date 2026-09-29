@@ -204,6 +204,19 @@ The last two were live faults since slice 4: a held leaf has no slice, and the c
 as a broken payload. `e2e/status.spec.ts` (Chromium, `E2E_PORT_SHIFT=2000`): 4 passed, with the
 held/hatched and blocked screenshots attached.
 
+### Hotfix — the Gantt and held leaves (Fable review of #238)
+
+On main, the chart threw `GanttDataError` and showed "The chart cannot be drawn" whenever an
+authored dependency touched a held leaf or a stored edge left a branch holding one. be-01 sends
+no slice for a leaf whose stored hold is `on_hold`, whatever it reads. The fix is keyed on the
+stored hold (`heldLeafIdsOf`), so a held leaf later marked done is covered.
+
+| Check                                             | Fault injected                                          | Test that observed it                                                                   | Observed                                                                        |
+| ------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| a branch's arrow skips its held leaves            | held-leaf filter removed from `leavesUnderOf` (main)    | `leaves an arrow from a branch holding a held leaf…`                                    | `GanttDataError: dependency branch → paint: strip has no slice in this payload` |
+| an authored endpoint on a held leaf draws nothing | held-leaf filter removed from the typed resolver (main) | `draws no authored arrow to or from a held leaf…`                                       | `GanttDataError: missing chart slices for strip`                                |
+| held means the stored hold                        | keyed on `status === 'on_hold'`                         | `names every leaf whose stored hold is on hold, a held leaf later marked done included` | `expected [] to deeply equal [ 'strip' ]`                                       |
+
 ## Not run
 
 - The h2puni host gate; the orchestrator runs it on the integration branch.

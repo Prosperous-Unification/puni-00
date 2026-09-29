@@ -363,6 +363,13 @@ export interface GanttRow {
    */
   stoppedBy: readonly string[];
   /**
+   * The row is out of the schedule by its stored hold: a leaf whose hold is
+   * `on_hold`, or a parent every leaf of which is — be-01's own rule, which
+   * the status does not follow (a held leaf later marked done reads `done`
+   * and is still held). What puts `On hold` in the row (`add-work-item-statuses`).
+   */
+  held: boolean;
+  /**
    * The workday the row's fact start stands on, or null where it has none or
    * the plan has no calendar to place it on — `notBeforeOffset`'s conversion,
    * for a day that is a record rather than a floor.
@@ -590,8 +597,9 @@ export interface GanttPlan {
    */
   tree: readonly GanttTreeRow[];
   /**
-   * Every leaf on hold, shown or not. be-01 takes a held leaf out of the
-   * schedule, so it has no slice in the payload; a branch's arrow leaves from
+   * Every leaf whose stored hold is `on_hold`, shown or not
+   * ({@link heldLeafIdsOf}). be-01 takes such a leaf out of the schedule
+   * whatever it reads, done included, so it has no slice in the payload; a branch's arrow leaves from
    * the leaves still scheduled, and a typed endpoint on a held leaf draws
    * nothing rather than reading as a broken payload (`add-work-item-statuses`).
    */
@@ -2157,8 +2165,9 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
     rowIndex,
     // Proof: this read replaced by `false`, and `draws no bar for a held leaf
     // and says On hold in its row instead` failed on `[ 'strip', false ]`;
-    // watched 2026-09-29.
-    held: row.status === 'on_hold',
+    // keyed on `status === 'on_hold'`, `leaves an arrow from a branch holding a
+    // held leaf…` failed on the held-then-done leaf; watched 2026-09-29.
+    held: row.held,
   }));
 
   const slicesByWorkItem = new Map<string, GanttSlice[]>();

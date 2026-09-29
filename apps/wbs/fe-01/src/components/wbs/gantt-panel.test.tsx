@@ -9837,7 +9837,7 @@ describe('each status on the chart (add-work-item-statuses)', () => {
   const statusPlan = (): GanttPlan =>
     planOf({
       rows: [
-        rowAt('strip', 0, 0, { status: 'on_hold', schedule: null }),
+        rowAt('strip', 0, 0, { status: 'on_hold', held: true, schedule: null }),
         rowAt('sand', 0, 3, {
           status: 'blocked_by_proxy',
           stoppedBy: ['strip - strip (On hold)'],

@@ -79,6 +79,7 @@ const rowAt = (
   trioByStep: new Map(),
   waitsFor: [],
   stoppedBy: [],
+  held: false,
   ...extras,
 });
 
@@ -4037,7 +4038,7 @@ describe('each status on the chart (add-work-item-statuses)', () => {
   const heldStrip = (): GanttPlan =>
     planOf({
       rows: [
-        rowAt('strip', 0, 0, { status: 'on_hold', schedule: null }),
+        rowAt('strip', 0, 0, { status: 'on_hold', held: true, schedule: null }),
         rowAt('sand', 0, 3, {
           status: 'blocked_by_proxy',
           stoppedBy: ['strip - Strip (On hold)'],
@@ -4110,7 +4111,7 @@ describe('each status on the chart (add-work-item-statuses)', () => {
       planOf({
         rows: [
           rowAt('branch', 0, 4, { leaf: false }),
-          rowAt('strip', 0, 0, { depth: 1, status: 'on_hold', schedule: null }),
+          rowAt('strip', 0, 0, { depth: 1, status: 'on_hold', held: true, schedule: null }),
           rowAt('sand', 0, 4, { depth: 1 }),
           rowAt('paint', 4, 6),
         ],
@@ -4127,7 +4128,10 @@ describe('each status on the chart (add-work-item-statuses)', () => {
   it('draws no typed arrow from a held leaf, and does not take its missing slices for bad data', () => {
     const chart = layOutGantt(
       planOf({
-        rows: [rowAt('strip', 0, 0, { status: 'on_hold', schedule: null }), rowAt('sand', 0, 3)],
+        rows: [
+          rowAt('strip', 0, 0, { status: 'on_hold', held: true, schedule: null }),
+          rowAt('sand', 0, 3),
+        ],
         slices: [sliceAt('sand-dev', 'sand', 0, 3)],
         typedDependencies: [
           {
@@ -4135,6 +4139,63 @@ describe('each status on the chart (add-work-item-statuses)', () => {
             type: 'SS',
             predecessor: { scope: 'whole', workItemId: 'strip' },
             successor: { scope: 'whole', workItemId: 'sand' },
+          },
+        ],
+        heldLeafIds: new Set(['strip']),
+      }),
+    );
+    expect(chart.typedArrows).toEqual([]);
+  });
+});
+
+describe('a held leaf is no end of an arrow (add-work-item-statuses)', () => {
+  // be-01 takes every leaf whose stored hold is `on_hold` out of the schedule,
+  // whatever it reads — done included — so it has no slice in the payload.
+  // `strip` is such a leaf: held, then marked done.
+  const heldThenDone = (depth = 0): GanttRow =>
+    rowAt('strip', 0, 0, { depth, status: 'done', held: true, schedule: null });
+
+  it('leaves an arrow from a branch holding a held leaf from the leaf still scheduled', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('branch', 0, 4, { leaf: false }),
+          heldThenDone(1),
+          rowAt('sand', 0, 4, { depth: 1 }),
+          rowAt('paint', 4, 6),
+        ],
+        slices: [sliceAt('sand-dev', 'sand', 0, 4), sliceAt('paint-dev', 'paint', 4, 6)],
+        dependencies: [{ predecessorId: 'branch', successorId: 'paint' }],
+        heldLeafIds: new Set(['strip']),
+      }),
+    );
+    expect(chart.arrows.map((arrow) => [arrow.predecessorId, arrow.fromFinish])).toEqual([
+      ['branch', 4],
+    ]);
+    // Held by the stored hold, so its row says On hold although it reads done.
+    // Proof: the label keyed on `status === 'on_hold'`, and this failed on
+    // `expected [ [ 'branch', false ], …(3) ] to deep equally contain [ 'strip',
+    // true ]`; watched 2026-09-29.
+    expect(chart.labels.map((label) => [label.id, label.held])).toContainEqual(['strip', true]);
+  });
+
+  it('draws no authored arrow to or from a held leaf, and does not read its missing slices as bad data', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [heldThenDone(), rowAt('sand', 0, 3), rowAt('paint', 3, 5)],
+        slices: [sliceAt('sand-dev', 'sand', 0, 3), sliceAt('paint-dev', 'paint', 3, 5)],
+        typedDependencies: [
+          {
+            id: 'from-held',
+            type: 'FS',
+            predecessor: { scope: 'whole', workItemId: 'strip' },
+            successor: { scope: 'whole', workItemId: 'sand' },
+          },
+          {
+            id: 'to-held',
+            type: 'SS',
+            predecessor: { scope: 'whole', workItemId: 'paint' },
+            successor: { scope: 'whole', workItemId: 'strip' },
           },
         ],
         heldLeafIds: new Set(['strip']),
