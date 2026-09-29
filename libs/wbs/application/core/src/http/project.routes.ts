@@ -17,7 +17,9 @@ import type { Project } from '../ports/project-store';
 import type { OptimizationVariantState } from '../ports/scheduler';
 import type { CalendarMarkerService } from '../service/calendar-marker.service';
 import type { DirectoryService } from '../service/directory.service';
+import { isPaged, type PageQueryInput, pageQueryOf } from '../service/list-query';
 import type { ProjectService } from '../service/project.service';
+import { pageProjects, projectKeyOf } from '../service/project-page';
 import type { WorkItemService } from '../service/work-item.service';
 import { bind, EMPTY, type HttpReply, type RequestFailure } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
@@ -112,6 +114,23 @@ function classifyExportFailure(failure: RequestFailure) {
 }
 
 /**
+ * The paged contract's query, `undefined` when any parameter is outside the
+ * grammar or the cursor is not a project cursor (a typed 400 before any read).
+ *
+ * Proof, observed 2026-09-29: answering a foreign-shaped cursor as a walk from
+ * the top made `refuses every value outside the grammar with 400` in
+ * `project-list-paging.controller.db.test.ts` receive 200 for `{ v: 1, after }`.
+ */
+function projectPageQueryOf(query: PageQueryInput, url: URL) {
+  const parsed = pageQueryOf(query, url);
+  if (parsed === null) return undefined;
+  const { cursor, ...rest } = parsed;
+  if (cursor === null) return { ...rest, after: null };
+  const after = projectKeyOf(cursor);
+  return after === null ? undefined : { ...rest, after };
+}
+
+/**
  * Project operations share wire declarations; ProjectService retains ownership
  * of access checks, semantic date/weight refusals and optimizer announcements.
  * Opening is caller navigation, so it bypasses canEdit while retaining write scope.
@@ -142,15 +161,33 @@ export function projectRoutes(
       },
       { classifyRequestFailure: classifyBodyFailure },
     ),
-    bind(listProjects, async ({ principal }): Promise<HttpReply<typeof listProjects>> => {
-      const resolved = await organizations.resolve(principal);
-      if (!resolved.ok) return organizationRefusal(resolved.refusal);
-      return {
-        ok: true,
-        status: 200,
-        body: { projects: await projects.listWithin(principal.id, resolved.access) },
-      };
-    }),
+    bind(
+      listProjects,
+      async ({ principal, query, request }): Promise<HttpReply<typeof listProjects>> => {
+        const paged = isPaged(query) ? projectPageQueryOf(query, request.url) : null;
+        // Proof, observed 2026-09-29: answering 200 here made `refuses every
+        // value outside the grammar with 400` in
+        // `project-list-paging.controller.db.test.ts` receive 200 for `limit=0`.
+        if (paged === undefined)
+          return { ok: false, status: 400, body: { error: 'invalid_query' } };
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved.refusal);
+        // Confined to the organization before anything is ordered, cut or
+        // given a cursor: a page never counts a project the caller cannot read.
+        // Proof, observed 2026-09-29: listing with legacy access instead made
+        // `pages only the caller’s organization, newest update first` in
+        // `project-list-paging.controller.db.test.ts` answer org-b's projects.
+        const readable = await projects.listWithin(principal.id, resolved.access);
+        return {
+          ok: true,
+          status: 200,
+          body:
+            paged === null
+              ? { projects: readable, nextCursor: null }
+              : pageProjects(readable, paged),
+        };
+      },
+    ),
     // Proof: returning null instead of EMPTY made the mounted reader-open test receive 500 instead of 204.
     bind(
       recordProjectOpen,

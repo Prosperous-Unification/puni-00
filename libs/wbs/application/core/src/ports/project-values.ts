@@ -99,6 +99,15 @@ export type NewProject = Omit<
 export interface ProjectWithAccess extends Project {
   lastOpenedAt: number | null;
   ownerName: string;
+  /**
+   * The project's update instant, deliberately broader than its own column:
+   * the newest of the project row's `updated_at`, its work items' `updated_at`
+   * and its plan events' `created_at`, so it answers "when did this plan last
+   * change" (spec `list-reads`, design D3). `null` when every one of them
+   * predates the audit columns. Calendar markers carry no instant and do not
+   * move it.
+   */
+  updatedAt: number | null;
 }
 
 export interface ProjectPatch {

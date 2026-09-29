@@ -59,12 +59,27 @@ export const createProject = defineEndpointShape({
   document: { summary: 'Create a project with its starting steps.' },
 });
 
-/** Lists complete project settings in the caller's recency order, with owner display names. */
+/**
+ * Lists complete project settings with owner display names (spec `list-reads`).
+ * With no query string: every readable project in the caller's recency order
+ * and `nextCursor: null`, as before paging existed. With any of `q`,
+ * `updatedSince`, `limit` or `cursor`: one page, newest update first, then id.
+ * `updatedAt` and `nextCursor` are optional on the wire only so a newer client
+ * can read an older be-01 mid-swap; every be-01 that knows them sends both.
+ */
 export const listProjects = defineEndpointShape({
   method: 'GET',
   path: '/api/projects',
   operationId: 'getApiProjects',
   policies: readPolicies,
+  query: requestSchema(
+    type({
+      'q?': 'string',
+      'updatedSince?': 'string',
+      'limit?': 'string',
+      'cursor?': 'string',
+    }),
+  ),
   responses: [
     {
       kind: 'json',
@@ -73,13 +88,24 @@ export const listProjects = defineEndpointShape({
       // 200 instead of 500; strict reply fields instead rejected its additive fields with 500.
       schema: responseSchema(
         type({
-          projects: project.and({ ownerName: 'string', lastOpenedAt: 'number | null' }).array(),
+          projects: project
+            .and({
+              ownerName: 'string',
+              lastOpenedAt: 'number | null',
+              'updatedAt?': 'number | null',
+            })
+            .array(),
+          'nextCursor?': 'string | null',
         }),
       ),
     },
   ],
   refusals: [...readRefusals, organizationRefusal],
-  document: { summary: 'List projects in this account’s own order.' },
+  document: {
+    summary: 'List projects; pass limit or q for a page, newest update first.',
+    description:
+      'Without parameters: every project in the caller’s own order. With any of q (name contains, case-insensitive), updatedSince (epoch ms, inclusive), limit (1-200, default 25) or cursor (a nextCursor from this list): one page ordered by last update, newest first. Follow nextCursor until it is null.',
+  },
 });
 
 /** Records the caller's navigation without project write-access restrictions; write scope remains required. */

@@ -31,6 +31,7 @@ const readable = (id: string): ProjectWithAccess => ({
   ...projectRow({ id, name: id, ownerId: 'ada' }),
   ownerName: 'ada',
   lastOpenedAt: null,
+  updatedAt: null,
 });
 
 /**

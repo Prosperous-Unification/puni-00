@@ -5,16 +5,16 @@
 
 ## 1. Shared grammar and projects (branch `batch-9/170-list-paging-projects`)
 
-- [ ] 1.1 Red: unit tests for the grammar (`limit`, `cursor` encode and every malformed
+- [x] 1.1 Red: unit tests for the grammar (`limit`, `cursor` encode and every malformed
       decode, `q`, `updatedSince`, repeated keys) and for the project page (order, tie by
       id, `null` last, keyset resumption, filters).
-- [ ] 1.2 Red: store test for the update instant (own stamp, a work item's stamp, a plan
+- [x] 1.2 Red: store test for the update instant (own stamp, a work item's stamp, a plan
       event, all `NULL`); mounted db tests: parameterless list unchanged but for
       `updatedAt` and `nextCursor: null`, a walk with a foreign organization's newer
       projects, `updatedSince` inclusive, every 400.
-- [ ] 1.3 Green: contracts (`listProjects` query and additive reply fields, summary),
+- [x] 1.3 Green: contracts (`listProjects` query and additive reply fields, summary),
       grammar module, project page, store column, memory fixture `null`.
-- [ ] 1.4 Negatives, each watched failing and recorded as a `Proof:` comment: cap removed;
+- [x] 1.4 Negatives, each watched failing and recorded as a `Proof:` comment: cap removed;
       cursor shape check loosened; access scope skipped before paging; tie-break removed;
       `null`-last removed; `>=` made `>`; the work-item and plan-event terms removed from
       the instant.
