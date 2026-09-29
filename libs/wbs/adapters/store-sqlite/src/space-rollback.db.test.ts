@@ -80,7 +80,6 @@ describe('space rollback save, remove and restore', () => {
     removeSavedSpaces(openDrizzle(path), saved);
     const db = openDatabase(path);
     try {
-      db.run('PRAGMA foreign_keys = ON');
       db.run("DELETE FROM project WHERE id = 'a2'");
     } finally {
       db.close();
@@ -93,6 +92,55 @@ describe('space rollback save, remove and restore', () => {
       /project a2, which organization org-a no longer owns/,
     );
     expect(snapshot()).toEqual({ spaces: [], members: [] });
+  });
+
+  it('refuses the whole restore, naming it, over a name now taken', async () => {
+    const saved = saveSpaces(openDrizzle(path));
+    removeSavedSpaces(openDrizzle(path), saved);
+    await store().create({ id: 's-9', organizationId: 'org-a', name: 'Q3' }, wrote);
+    expect(() => restoreSpaces(openDrizzle(path), saved)).toThrow(
+      /saved space s-1 is named Q3, which organization org-a already holds/,
+    );
+    expect(snapshot().spaces).toHaveLength(1);
+  });
+
+  it('refuses the whole restore, naming it, when an author is no longer a user', () => {
+    const saved = saveSpaces(openDrizzle(path));
+    removeSavedSpaces(openDrizzle(path), saved);
+    const ghostly = (author: 'space' | 'member') => ({
+      ...saved,
+      spaces: saved.spaces.map((each) =>
+        each.id !== 's-2'
+          ? each
+          : author === 'space'
+            ? { ...each, createdBy: 'ghost' }
+            : {
+                ...each,
+                members: each.members.map((member) => ({ ...member, createdBy: 'ghost' })),
+              },
+      ),
+    });
+    expect(() => restoreSpaces(openDrizzle(path), ghostly('space'))).toThrow(
+      /saved space s-2 was created by ghost, who is no longer a user/,
+    );
+    expect(() => restoreSpaces(openDrizzle(path), ghostly('member'))).toThrow(
+      /saved space s-2 holds project b1 added by ghost, who is no longer a user/,
+    );
+    expect(snapshot()).toEqual({ spaces: [], members: [] });
+  });
+
+  it('refuses to remove a save whose one field differs, deleting nothing', () => {
+    const saved = saveSpaces(openDrizzle(path));
+    const edited = {
+      ...saved,
+      spaces: saved.spaces.map((each) =>
+        each.id !== 's-1'
+          ? each
+          : { ...each, members: each.members.map((member) => ({ ...member, updatedAt: 99 })) },
+      ),
+    };
+    expect(() => removeSavedSpaces(openDrizzle(path), edited)).toThrow(/does not match/);
+    expect(snapshot().spaces).toHaveLength(2);
   });
 
   it('refuses a malformed save before touching the database', () => {

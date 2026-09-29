@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
 
 import type { Drizzle } from './db';
-import { organization, projectOrganization, space, spaceProject } from './schema';
+import { organization, projectOrganization, space, spaceProject, users } from './schema';
 
 type Reader = Pick<Drizzle, 'select'>;
 
@@ -27,7 +27,7 @@ export interface SavedSpace {
 }
 
 /**
- * The file `spaces-rollback-cli.ts save` writes before a rollback past
+ * The file `space-rollback-cli.ts save` writes before a rollback past
  * `20260929100000_add_spaces`, whose `down.sql` refuses while any space exists
  * (docs/runbook-prod-deploy.md#space-rollback).
  */
@@ -107,6 +107,15 @@ function readSavedSpaces(saved: unknown): SavedSpaces {
   return { format: 'space-save', version: 1, spaces: saved['spaces'].map(readSpace) };
 }
 
+/**
+ * Proof, observed 2026-09-29: answering true here made `refuses the whole
+ * restore, naming it, when an author is no longer a user` receive drizzle's
+ * `Failed query: insert into "space"` instead of the named refusal.
+ */
+function isUser(db: Reader, userId: string): boolean {
+  return db.select({ id: users.id }).from(users).where(eq(users.id, userId)).get() !== undefined;
+}
+
 function currentSpaces(db: Reader): SavedSpace[] {
   return db
     .select({
@@ -138,6 +147,29 @@ function currentSpaces(db: Reader): SavedSpace[] {
     }));
 }
 
+const isSameMember = (left: SavedSpaceMember, right: SavedSpaceMember): boolean =>
+  left.projectId === right.projectId &&
+  left.position === right.position &&
+  left.createdAt === right.createdAt &&
+  left.updatedAt === right.updatedAt &&
+  left.createdBy === right.createdBy;
+
+/**
+ * Every column and every member, in display order; field by field, not by
+ * serialization. Callers compare lengths first, so every index they pass is
+ * present.
+ */
+const isSameSpace = (left: SavedSpace, right: SavedSpace): boolean =>
+  left.id === right.id &&
+  left.organizationId === right.organizationId &&
+  left.name === right.name &&
+  left.revision === right.revision &&
+  left.createdAt === right.createdAt &&
+  left.updatedAt === right.updatedAt &&
+  left.createdBy === right.createdBy &&
+  left.members.length === right.members.length &&
+  left.members.every((member, index) => isSameMember(member, right.members[index]));
+
 /** Captures every space and member, spaces in id order, members in display order. */
 export function saveSpaces(db: Drizzle): SavedSpaces {
   return { format: 'space-save', version: 1, spaces: currentSpaces(db) };
@@ -159,8 +191,13 @@ export function removeSavedSpaces(db: Drizzle, saved: unknown): number {
       );
       // Proof, observed 2026-09-29: reduced to comparing the number of
       // spaces, `refuses to remove a save that no longer matches, deleting
-      // nothing` failed because the remove deleted both spaces.
-      if (JSON.stringify(current) !== JSON.stringify(expected)) {
+      // nothing` failed because the remove deleted both spaces; with
+      // `isSameMember` answering true, `refuses to remove a save whose one
+      // field differs` failed the same way.
+      if (
+        current.length !== expected.length ||
+        current.some((row, index) => !isSameSpace(row, expected[index]))
+      ) {
         throw new Error('space save does not match the stored spaces; save again first');
       }
       const ids = current.map(({ id }) => id);
@@ -193,6 +230,24 @@ export function restoreSpaces(db: Drizzle, saved: unknown): number {
             `saved space ${saved.id} names organization ${saved.organizationId}, which is gone`,
           );
         }
+        // Proof, observed 2026-09-29: with this read skipped, `refuses the
+        // whole restore, naming it, over a name now taken` received drizzle's
+        // `Failed query: insert into "space"` instead of the named refusal.
+        const clash = tx
+          .select({ id: space.id })
+          .from(space)
+          .where(and(eq(space.organizationId, saved.organizationId), eq(space.name, saved.name)))
+          .get();
+        if (clash !== undefined) {
+          throw new Error(
+            `saved space ${saved.id} is named ${saved.name}, which organization ${saved.organizationId} already holds`,
+          );
+        }
+        if (!isUser(tx, saved.createdBy)) {
+          throw new Error(
+            `saved space ${saved.id} was created by ${saved.createdBy}, who is no longer a user`,
+          );
+        }
         tx.insert(space)
           .values({
             id: saved.id,
@@ -218,6 +273,11 @@ export function restoreSpaces(db: Drizzle, saved: unknown): number {
           if (owned === undefined) {
             throw new Error(
               `saved space ${saved.id} holds project ${member.projectId}, which organization ${saved.organizationId} no longer owns`,
+            );
+          }
+          if (!isUser(tx, member.createdBy)) {
+            throw new Error(
+              `saved space ${saved.id} holds project ${member.projectId} added by ${member.createdBy}, who is no longer a user`,
             );
           }
           tx.insert(spaceProject)

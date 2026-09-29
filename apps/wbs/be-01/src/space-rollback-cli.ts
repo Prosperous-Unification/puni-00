@@ -14,7 +14,7 @@ if (
   file === '' ||
   args.length !== 2
 ) {
-  throw new Error('usage: spaces-rollback-cli.ts <save|remove|restore> <file>');
+  throw new Error('usage: space-rollback-cli.ts <save|remove|restore> <file>');
 }
 
 const connection = openConnection(dbPath);

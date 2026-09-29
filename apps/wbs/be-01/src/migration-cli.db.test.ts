@@ -68,7 +68,7 @@ describe('migration deploy entrypoints', () => {
         ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/typed-dependency-rollback'"],
       ],
       [
-        'spaces-rollback-cli.ts',
+        'space-rollback-cli.ts',
         ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/space-rollback'"],
       ],
     ]);
@@ -173,7 +173,6 @@ describe('migration deploy entrypoints', () => {
     runMigrations(dbPath, MIGRATIONS);
     const sqlite = openDatabase(dbPath);
     try {
-      sqlite.run('PRAGMA foreign_keys = ON');
       sqlite.run(
         "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
       );
@@ -191,7 +190,7 @@ describe('migration deploy entrypoints', () => {
     } finally {
       sqlite.close();
     }
-    expect(await runCli('spaces-rollback-cli.ts', dbPath, 'save', savedPath)).toEqual({
+    expect(await runCli('space-rollback-cli.ts', dbPath, 'save', savedPath)).toEqual({
       exitCode: 0,
       stdout: 'spaces saved: 1\n',
       stderr: '',
@@ -201,12 +200,12 @@ describe('migration deploy entrypoints', () => {
       version: 1,
       spaces: [{ id: 's', members: [{ projectId: 'p', position: 10 }] }],
     });
-    expect(await runCli('spaces-rollback-cli.ts', dbPath, 'remove', savedPath)).toEqual({
+    expect(await runCli('space-rollback-cli.ts', dbPath, 'remove', savedPath)).toEqual({
       exitCode: 0,
       stdout: 'spaces removed: 1\n',
       stderr: '',
     });
-    expect(await runCli('spaces-rollback-cli.ts', dbPath, 'restore', savedPath)).toEqual({
+    expect(await runCli('space-rollback-cli.ts', dbPath, 'restore', savedPath)).toEqual({
       exitCode: 0,
       stdout: 'spaces restored: 1\n',
       stderr: '',
@@ -219,14 +218,14 @@ describe('migration deploy entrypoints', () => {
     } finally {
       restored.close();
     }
-    const invalid = await runCli('spaces-rollback-cli.ts', dbPath, 'erase', savedPath);
+    const invalid = await runCli('space-rollback-cli.ts', dbPath, 'erase', savedPath);
     expect(invalid.exitCode).not.toBe(0);
     expect(invalid.stderr).toContain('usage:');
-    const missingArgument = await runCli('spaces-rollback-cli.ts', dbPath, 'restore');
+    const missingArgument = await runCli('space-rollback-cli.ts', dbPath, 'restore');
     expect(missingArgument.exitCode).not.toBe(0);
     expect(missingArgument.stderr).toContain('usage:');
     const absentFile = await runCli(
-      'spaces-rollback-cli.ts',
+      'space-rollback-cli.ts',
       dbPath,
       'remove',
       join(root, 'absent.json'),

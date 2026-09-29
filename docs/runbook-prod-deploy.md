@@ -147,20 +147,21 @@ container after its writers have stopped, with the same `DB_PATH`. Save, then co
 off the host:
 
 ```sh
-docker exec be-01-<colour> bun run src/spaces-rollback-cli.ts save /data/spaces-<date>.json
+docker exec be-01-<colour> bun run src/space-rollback-cli.ts save /data/spaces-<date>.json
 ```
 
 Remove only after the save is secure. Remove refuses unless the file equals every stored space
 and member, every column included:
 
 ```sh
-docker exec be-01-<colour> bun run src/spaces-rollback-cli.ts remove /data/spaces-<date>.json
+docker exec be-01-<colour> bun run src/space-rollback-cli.ts remove /data/spaces-<date>.json
 docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
 ```
 
-After a later forward migration, restore. Restore refuses the whole set, naming it, when a
-saved organization is gone or a saved project is no longer owned by its space's organization:
+After a later forward migration, restore. Restore refuses the whole set, naming the space, when
+a saved organization is gone, a saved project is no longer owned by its space's organization,
+the organization already holds a space of that name, or an author is no longer a user:
 
 ```sh
-docker exec be-01-<colour> bun run src/spaces-rollback-cli.ts restore /data/spaces-<date>.json
+docker exec be-01-<colour> bun run src/space-rollback-cli.ts restore /data/spaces-<date>.json
 ```

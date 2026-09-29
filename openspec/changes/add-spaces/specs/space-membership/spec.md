@@ -90,8 +90,9 @@ colour SHALL neither read nor write them. Its `down.sql` SHALL refuse while any 
 exists, naming `space-rollback-cli.ts save|remove|restore`, and only then drop both tables.
 `save` SHALL write every space and member to a versioned file; `remove` SHALL delete exactly the
 saved spaces in one transaction, refusing if the stored spaces or members differ from the file;
-`restore` SHALL write them back all or none, refusing when a saved project or organization is
-gone or a saved project has changed owner.
+`restore` SHALL write them back all or none, refusing with a message naming the space when a
+saved project or organization is gone, a saved project has changed owner, the organization
+already holds a space of the saved name, or a saved author is no longer a user.
 
 #### Scenario: rollback over a stored space
 

@@ -37,7 +37,6 @@ describe('spaces', () => {
   function raw<T>(use: (db: ReturnType<typeof openDatabase>) => T): T {
     const db = openDatabase(path);
     try {
-      db.run('PRAGMA foreign_keys = ON');
       return use(db);
     } finally {
       db.close();
@@ -150,7 +149,7 @@ describe('spaces', () => {
 
     it('names the rollback CLI in the refusal', () => {
       insertSpace('s-1', 'org-a');
-      expect(() => rollbackTo(path, FOLDER, BEFORE_SPACES)).toThrow(/spaces-rollback-cli/);
+      expect(() => rollbackTo(path, FOLDER, BEFORE_SPACES)).toThrow(/space-rollback-cli/);
     });
   });
 

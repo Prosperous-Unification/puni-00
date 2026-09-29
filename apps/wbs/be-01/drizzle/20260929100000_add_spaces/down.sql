@@ -2,7 +2,7 @@
 --
 -- Refuses while any space exists: dropping the tables would lose every space
 -- and its order with no copy, so they are saved and removed first with
--- `spaces-rollback-cli.ts save|remove`, and restored after a later forward run
+-- `space-rollback-cli.ts save|remove`, and restored after a later forward run
 -- with `restore` (docs/runbook-prod-deploy.md#space-rollback). The CHECK's name
 -- is the message the operator reads, so it carries the procedure. The
 -- rollback runner reverts this script and its ledger row in one transaction.
@@ -13,7 +13,7 @@
 -- dropped both tables.
 CREATE TEMP TABLE `space_rollback_guard` (
 	`spaces` integer NOT NULL,
-	CONSTRAINT "spaces exist: save and remove them with spaces-rollback-cli.ts save|remove first, then rerun migrate-down-cli.ts --to=<baseline>, and restore after the next forward run; see docs/runbook-prod-deploy.md#space-rollback" CHECK (`spaces` = 0)
+	CONSTRAINT "spaces exist: save and remove them with space-rollback-cli.ts save|remove first, then rerun migrate-down-cli.ts --to=<baseline>, and restore after the next forward run; see docs/runbook-prod-deploy.md#space-rollback" CHECK (`spaces` = 0)
 );
 --> statement-breakpoint
 INSERT INTO `space_rollback_guard` (`spaces`) SELECT COUNT(*) FROM `space`;
