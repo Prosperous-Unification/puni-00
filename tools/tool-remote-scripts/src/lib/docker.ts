@@ -296,6 +296,133 @@ export function assertTierEnvAllowed(tier: Tier, envText: string): void {
   }
 }
 
+/**
+ * Keys each tier's release refuses to boot without, in the tier's own env
+ * file. Mirrors the required keys of `apps/wbs/be-01/src/config.ts` and
+ * `apps/wbs/gw-01/src/config.ts`. `APP_ORIGIN` is absent because the rendered
+ * Compose `environment:` supplies it (`tierComposeContext`); solver and
+ * delegation keys are absent because the release defaults or disables them.
+ */
+const APP_ENV_REQUIRED_KEYS: Record<Tier, readonly string[]> = {
+  // Proof: dropping GW_URL here made `refuses a be env file without GW_URL`
+  // and `demands only keys the be release refuses to boot without` fail
+  // (164 pass, 2 fail, 2026-09-29).
+  be: ['PORT', 'LOG_LEVEL', 'GW_URL', 'DB_PATH', 'AUTH_MODE'],
+  gw: ['PORT', 'LOG_LEVEL', 'BE_URL', 'AUTH_MODE'],
+  fe: [],
+};
+
+/** Shared-file secrets each tier needs; gw's `JWT_SIGNING_KEY_PREVIOUS` is optional. */
+const SECRET_REQUIRED_KEYS: Record<Tier, readonly string[]> = {
+  be: ['INTERNAL_AUTH_SECRET', 'JWT_SIGNING_KEY_CURRENT'],
+  gw: ['INTERNAL_AUTH_SECRET', 'JWT_SIGNING_KEY_CURRENT'],
+  fe: [],
+};
+
+/**
+ * Provider keys `AUTH_MODE=oidc` needs in be (`oidcRouteOptionsFromEnv`) and
+ * gw (`oidcTokenVerifierFromEnv`); `AUTH_SCOPE` and `AUTH_GROUPS_CLAIM` default.
+ */
+const OIDC_REQUIRED_KEYS: readonly string[] = [
+  'AUTH_ISSUER_DISCOVERY_URL',
+  'AUTH_CLIENT_ID',
+  'AUTH_CLIENT_SECRET',
+  'AUTH_REDIRECT_URI',
+  'AUTH_AUDIENCE',
+];
+
+/** The operator-authored env text one tier's start-green reads, by source file. */
+export interface TierEnvSources {
+  readonly appEnvText: string;
+  /** The shared `.env`; null only for a tier with no secrets (fe). */
+  readonly sharedEnvText: string | null;
+  /** The OIDC carrier; null when the layout names none or the tier takes none. */
+  readonly oidcEnvText: string | null;
+}
+
+/** `KEY=VALUE` lines keyed by name, with `envKeysOf`'s skip rules; a later line wins, as in `env_file`. */
+function envValuesOf(envText: string): Map<string, string> {
+  const values = new Map<string, string>();
+  for (const rawLine of envText.split('\n')) {
+    const line = rawLine.trim();
+    if (line === '' || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    values.set(line.slice(0, eq), line.slice(eq + 1));
+  }
+  return values;
+}
+
+/**
+ * Throws, naming every missing key and the file that must carry it (never a
+ * value), when a tier's env files lack a key its release requires or name an
+ * auth mode it cannot boot in. `startGreen` runs this before any phase,
+ * Compose or Docker side effect, so an env file written for an older release
+ * refuses the swap instead of failing the health gate after migrating.
+ *
+ * An empty value counts as missing: `defineConfig`, `authModeOf` and
+ * `oidcRouteOptionsFromEnv` each reject `KEY=` as they reject an absent key.
+ * `AUTH_MODE=local` is refused because the be-01 and gw-01 images set
+ * `NODE_ENV=production`, no env file may override it (`APP_ENV_ALLOWED_KEYS`),
+ * and `authModeOf` refuses local mode in production.
+ *
+ * @throws When a required key is missing or empty, when the mode is not oidc,
+ * or when oidc is named and the layout has no carrier or it was not read.
+ */
+export function assertTierEnvComplete(
+  tier: Tier,
+  sources: TierEnvSources,
+  layout: EnvLayout = CURRENT_ENV,
+): void {
+  const appPath = `${layout.root}/${APP_NAME[tier]}.env`;
+  const app = envValuesOf(sources.appEnvText);
+  const missing: string[] = [];
+  const collectMissing = (keys: readonly string[], text: string, path: string): void => {
+    const values = envValuesOf(text);
+    for (const key of keys) {
+      const value = values.get(key);
+      if (value === undefined || value === '') missing.push(`${key} (${path})`);
+    }
+  };
+  collectMissing(APP_ENV_REQUIRED_KEYS[tier], sources.appEnvText, appPath);
+  if (SECRET_REQUIRED_KEYS[tier].length > 0) {
+    if (sources.sharedEnvText === null) {
+      throw new Error(`tier "${tier}" needs ${layout.sharedEnvPath}, which was not read`);
+    }
+    collectMissing(SECRET_REQUIRED_KEYS[tier], sources.sharedEnvText, layout.sharedEnvPath);
+  }
+  const mode = app.get('AUTH_MODE');
+  // Proof: narrowing this to fe made both `refuses AUTH_MODE=local` suites
+  // fail on the missing NODE_ENV=production reason (163 pass, 3 fail, 2026-09-29).
+  if (mode === 'local') {
+    throw new Error(
+      `${appPath} sets AUTH_MODE=local, which the ${APP_NAME[tier]} image refuses at startup: ` +
+        'the image sets NODE_ENV=production and no env file may override it. Use ' +
+        'AUTH_MODE=oidc with the OIDC carrier (docs/runbook-prod-deploy.md#first-product-deploy).',
+    );
+  }
+  if (mode === 'oidc') {
+    if (layout.oidcEnvPath === null) {
+      throw new Error(
+        `${appPath} sets AUTH_MODE=oidc but the ${layout.env} layout names no OIDC carrier, ` +
+          `so ${OIDC_REQUIRED_KEYS.join(', ')} cannot reach the container.`,
+      );
+    }
+    if (sources.oidcEnvText === null) {
+      throw new Error(`tier "${tier}" needs ${layout.oidcEnvPath}, which was not read`);
+    }
+    collectMissing(OIDC_REQUIRED_KEYS, sources.oidcEnvText, layout.oidcEnvPath);
+  } else if (mode !== undefined && mode !== '') {
+    throw new Error(`${appPath} sets AUTH_MODE=${mode}; the release accepts only oidc`);
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `tier "${tier}" is missing key(s) its release requires: ${missing.join(', ')}. ` +
+        'Add them before deploying; the release would otherwise fail its health gate after migrating.',
+    );
+  }
+}
+
 function envFilesBlock(tier: Tier, layout: EnvLayout = CURRENT_ENV): string {
   const lines = tierEnvFiles(tier, layout).map((f) => `      - ${f}`);
   return `    env_file:\n${lines.join('\n')}\n`;

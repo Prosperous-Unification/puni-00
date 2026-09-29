@@ -10,6 +10,7 @@ import {
   assertDigestPinnedRef,
   assertOidcEnvAllowed,
   assertTierEnvAllowed,
+  assertTierEnvComplete,
   composeUpArgs,
   containerName,
   deriveTierSecrets,
@@ -292,7 +293,7 @@ describe('envLayout', () => {
       network: 'wbs-net',
       containerPrefix: '',
       sharedEnvPath: '/home/puni1/wbs/.env',
-      oidcEnvPath: null,
+      oidcEnvPath: '/home/puni1/wbs/oidc.env',
       stateDir: '/home/puni1/wbs/state',
       siteCaddyPath: '/home/puni1/wbs/caddy/site.caddy',
       siteAddress: 'wbs.bulletpoints.club',
@@ -490,7 +491,7 @@ describe('tierComposeContext', () => {
       `registry.infra.bulletpoints.club/wbs-gw-01@${DIGEST}`,
     );
     expect(ctx['ENV_FILES']).toBe(
-      `    env_file:\n      - ${ROOT}/gw-01.env\n      - ${ROOT}/gw-01.secrets.env\n`,
+      `    env_file:\n      - ${ROOT}/gw-01.env\n      - ${ROOT}/oidc.env\n      - ${ROOT}/gw-01.secrets.env\n`,
     );
     expect(ctx['VOLUMES']).toBe('');
   });
@@ -502,7 +503,7 @@ describe('tierComposeContext', () => {
       `registry.infra.bulletpoints.club/wbs-be-01@${DIGEST}`,
     );
     expect(ctx['ENV_FILES']).toBe(
-      `    env_file:\n      - ${ROOT}/be-01.env\n      - ${ROOT}/be-01.secrets.env\n`,
+      `    env_file:\n      - ${ROOT}/be-01.env\n      - ${ROOT}/oidc.env\n      - ${ROOT}/be-01.secrets.env\n`,
     );
     expect(ctx['VOLUMES']).toBe(
       `    volumes:\n` +
@@ -524,9 +525,22 @@ describe('tierEnvFiles', () => {
     expect(tierEnvFiles('fe')).toEqual([`${ROOT}/fe-01.env`]);
   });
 
-  it('be-01 and gw-01 get their app-config file then their secrets file, in that order', () => {
-    expect(tierEnvFiles('be')).toEqual([`${ROOT}/be-01.env`, `${ROOT}/be-01.secrets.env`]);
-    expect(tierEnvFiles('gw')).toEqual([`${ROOT}/gw-01.env`, `${ROOT}/gw-01.secrets.env`]);
+  it('be-01 and gw-01 get their app-config file, the OIDC carrier, then their secrets file', () => {
+    expect(tierEnvFiles('be')).toEqual([
+      `${ROOT}/be-01.env`,
+      `${ROOT}/oidc.env`,
+      `${ROOT}/be-01.secrets.env`,
+    ]);
+    expect(tierEnvFiles('gw')).toEqual([
+      `${ROOT}/gw-01.env`,
+      `${ROOT}/oidc.env`,
+      `${ROOT}/gw-01.secrets.env`,
+    ]);
+  });
+
+  it('gives a layout without a carrier only the app-config and secrets files', () => {
+    const bare = { ...envLayout('prod'), oidcEnvPath: null };
+    expect(tierEnvFiles('be', bare)).toEqual([`${ROOT}/be-01.env`, `${ROOT}/be-01.secrets.env`]);
   });
 
   it('gives dev be and gw the OIDC config before their derived secrets, but never gives it to fe', () => {
@@ -754,6 +768,119 @@ describe('assertOidcEnvAllowed', () => {
     }
     expect(message).toContain('REGISTRY_PASS');
     expect(message).not.toContain('hunter2');
+  });
+});
+
+/**
+ * The preflight's key lists against the releases themselves: a set it admits
+ * must boot be-01 and gw-01 under the image's NODE_ENV=production, and every
+ * key it demands must be one the release refuses to boot without.
+ */
+describe('assertTierEnvComplete against the release configuration', () => {
+  const APP = {
+    be: { PORT: '3100', LOG_LEVEL: 'error', GW_URL: 'http://gw', DB_PATH: '/data/wbs.db' },
+    gw: { PORT: '3200', LOG_LEVEL: 'error', BE_URL: 'http://be-01.internal:3100' },
+  } as const;
+  const SHARED = {
+    INTERNAL_AUTH_SECRET: 's'.repeat(32),
+    JWT_SIGNING_KEY_CURRENT: 'k'.repeat(32),
+  };
+  const OIDC = {
+    AUTH_ISSUER_DISCOVERY_URL: 'https://issuer.example.test/',
+    AUTH_CLIENT_ID: 'client',
+    AUTH_CLIENT_SECRET: 'secret',
+    AUTH_REDIRECT_URI: 'https://wbs.example.test/api/auth/okta/callback',
+    AUTH_AUDIENCE: 'https://api.example.test',
+  };
+  const envText = (values: Record<string, string>): string =>
+    Object.entries(values)
+      .map(([key, value]) => `${key}=${value}\n`)
+      .join('');
+
+  /** Boots the tier's own config the way its image does; returns the exit code and stderr. */
+  function bootRelease(tier: 'be' | 'gw', env: Record<string, string>) {
+    const script =
+      tier === 'be'
+        ? `import { loadConfig } from './apps/wbs/be-01/src/config.ts';
+           import { oidcRouteOptionsFromEnv } from './apps/wbs/be-01/src/controller/oidc-options.ts';
+           const env = JSON.parse(process.env['RELEASE_ENV']);
+           const cfg = loadConfig(env);
+           if (cfg.AUTH_MODE === 'oidc') oidcRouteOptionsFromEnv(env);`
+        : `import { loadConfig } from './apps/wbs/gw-01/src/config.ts';
+           loadConfig(JSON.parse(process.env['RELEASE_ENV']));`;
+    const probe = Bun.spawnSync([process.execPath, '--no-env-file', '--eval', script], {
+      cwd: new URL('../../../../', import.meta.url).pathname,
+      env: { RELEASE_ENV: JSON.stringify(env) },
+    });
+    return { exitCode: probe.exitCode, stderr: new TextDecoder().decode(probe.stderr) };
+  }
+
+  function preflightMessage(tier: 'be' | 'gw', env: Record<string, string>): string {
+    const app = Object.fromEntries(
+      Object.entries(env).filter(([key]) => key in APP[tier] || key === 'AUTH_MODE'),
+    );
+    const shared = Object.fromEntries(Object.entries(env).filter(([key]) => key in SHARED));
+    const oidc = Object.fromEntries(Object.entries(env).filter(([key]) => key in OIDC));
+    try {
+      assertTierEnvComplete(tier, {
+        appEnvText: envText(app),
+        sharedEnvText: envText(shared),
+        oidcEnvText: envText(oidc),
+      });
+    } catch (e: unknown) {
+      return e instanceof Error ? e.message : String(e);
+    }
+    return '';
+  }
+
+  const complete = (tier: 'be' | 'gw'): Record<string, string> => ({
+    ...APP[tier],
+    AUTH_MODE: 'oidc',
+    ...SHARED,
+    ...OIDC,
+    NODE_ENV: 'production',
+    // The rendered Compose environment supplies this for be (tierComposeContext).
+    APP_ORIGIN: 'https://wbs.example.test',
+  });
+
+  for (const tier of ['be', 'gw'] as const) {
+    it(`admits an env set that boots ${tier} under NODE_ENV=production`, () => {
+      expect(preflightMessage(tier, complete(tier))).toBe('');
+      expect(bootRelease(tier, complete(tier)).exitCode).toBe(0);
+    });
+
+    it(`demands only keys the ${tier} release refuses to boot without`, () => {
+      const demanded = [
+        ...Object.keys(APP[tier]),
+        'AUTH_MODE',
+        ...Object.keys(SHARED),
+        ...Object.keys(OIDC),
+      ];
+      for (const key of demanded) {
+        const env = complete(tier);
+        const { [key]: _removed, ...rest } = env;
+        expect(preflightMessage(tier, rest)).toContain(key);
+        expect({ key, exitCode: bootRelease(tier, rest).exitCode }).not.toEqual({
+          key,
+          exitCode: 0,
+        });
+      }
+    });
+
+    it(`refuses AUTH_MODE=local, which the ${tier} release refuses under NODE_ENV=production`, () => {
+      const env = { ...complete(tier), AUTH_MODE: 'local' };
+      expect(preflightMessage(tier, env)).toContain('AUTH_MODE=local, which the');
+      expect(preflightMessage(tier, env)).toContain('NODE_ENV=production');
+      expect(bootRelease(tier, env).stderr).toContain('AUTH_MODE=local is forbidden in production');
+    });
+  }
+
+  it('reads NODE_ENV=production from both images, which is why local mode is refused', () => {
+    const root = new URL('../../../../', import.meta.url).pathname;
+    for (const app of ['be-01', 'gw-01']) {
+      const dockerfile = readFileSync(join(root, `apps/wbs/${app}/Dockerfile`), 'utf8');
+      expect(dockerfile).toMatch(/^ENV NODE_ENV=production$/m);
+    }
   });
 });
 

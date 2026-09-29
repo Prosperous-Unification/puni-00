@@ -24,6 +24,7 @@ import {
   assertDigestPinnedRef,
   assertOidcEnvAllowed,
   assertTierEnvAllowed,
+  assertTierEnvComplete,
   composeUpArgs,
   containerName,
   CURRENT_ENV,
@@ -477,21 +478,34 @@ export async function startGreen(
   deps: StartGreenDeps = START_GREEN_DEPS,
 ): Promise<void> {
   const appEnvPath = tierEnvFiles(tier)[0];
-  assertTierEnvAllowed(tier, await deps.readText(appEnvPath));
+  const appEnvText = await deps.readText(appEnvPath);
+  assertTierEnvAllowed(tier, appEnvText);
 
   // Proof: the three `startGreen env preflight` cases observe only the app
   // and OIDC reads when that file is absent, unreadable, or carries PORT.
   // Moving this below the phase/Compose calls makes their event assertions red.
+  let oidcEnvText: string | null = null;
   if (deps.oidcEnvPath !== null && (tier === 'be' || tier === 'gw')) {
-    assertOidcEnvAllowed(await deps.readText(deps.oidcEnvPath));
+    oidcEnvText = await deps.readText(deps.oidcEnvPath);
+    assertOidcEnvAllowed(oidcEnvText);
   }
+  const sharedEnvText = tierHasSecrets(tier) ? await deps.readText(SHARED_ENV_PATH) : null;
+  // Proof: skipping this call made all seven refusals in `startGreen
+  // required-key preflight` fail (67 pass, 7 fail, 2026-09-29): with GW_URL,
+  // JWT_SIGNING_KEY_CURRENT or AUTH_AUDIENCE absent, or AUTH_MODE=local, the
+  // swap wrote the phase and ran Compose instead of refusing.
+  assertTierEnvComplete(
+    tier,
+    { appEnvText, sharedEnvText, oidcEnvText },
+    { ...CURRENT_ENV, oidcEnvPath: deps.oidcEnvPath },
+  );
 
   await deps.writePhaseFile(phasePath, 'preparing');
   // Re-derive on every start, including an empty allowed set, so a stale
   // secrets file cannot outlive deletion from the shared source. Mode 0600
   // applies to the temp file at birth; there is no world-readable interval.
-  if (tierHasSecrets(tier)) {
-    const secrets = deriveTierSecrets(tier, await deps.readText(SHARED_ENV_PATH));
+  if (sharedEnvText !== null) {
+    const secrets = deriveTierSecrets(tier, sharedEnvText);
     await deps.writeAtomicFile(tierSecretsFile(tier), secrets, 0o600);
   }
   const context = tierComposeContext(tier, to, image);

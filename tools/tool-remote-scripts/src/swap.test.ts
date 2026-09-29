@@ -414,6 +414,136 @@ describe('startGreen env preflight', () => {
   });
 });
 
+const COMPLETE_OIDC_ENV =
+  'AUTH_ISSUER_DISCOVERY_URL=https://issuer.example/\nAUTH_CLIENT_ID=client\n' +
+  'AUTH_CLIENT_SECRET=client-secret-value\n' +
+  'AUTH_REDIRECT_URI=https://wbs.example/api/auth/okta/callback\nAUTH_AUDIENCE=https://api.example\n';
+
+describe('startGreen required-key preflight', () => {
+  const OIDC_ENV_PATH = '/fixture/oidc.env';
+  const IMAGES = {
+    be: 'registry.infra.bulletpoints.club/wbs-be-01@sha256:' + 'a'.repeat(64),
+    gw: 'registry.infra.bulletpoints.club/wbs-gw-01@sha256:' + 'a'.repeat(64),
+  } as const;
+  const APP_ENV = {
+    be: 'PORT=3100\nLOG_LEVEL=info\nGW_URL=http://gw-01:3200\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\n',
+    gw: 'PORT=3200\nLOG_LEVEL=info\nBE_URL=http://be-01.internal:3100\nAUTH_MODE=oidc\n',
+  } as const;
+  const SHARED_ENV =
+    'INTERNAL_AUTH_SECRET=shared-internal-secret-value\nJWT_SIGNING_KEY_CURRENT=signing-key-value\n';
+
+  async function runStartGreen(
+    tier: 'be' | 'gw',
+    files: { app?: string; shared?: string; oidc?: string; oidcEnvPath?: string | null },
+  ): Promise<{ events: string[]; message: string }> {
+    const events: string[] = [];
+    const deps: StartGreenDeps = {
+      oidcEnvPath: files.oidcEnvPath === undefined ? OIDC_ENV_PATH : files.oidcEnvPath,
+      readText: (path) => {
+        if (path.endsWith(`/${tier}-01.env`)) {
+          events.push('read:app');
+          return Promise.resolve(files.app ?? APP_ENV[tier]);
+        }
+        if (path === OIDC_ENV_PATH) {
+          events.push('read:oidc');
+          return Promise.resolve(files.oidc ?? COMPLETE_OIDC_ENV);
+        }
+        events.push('read:shared');
+        return Promise.resolve(files.shared ?? SHARED_ENV);
+      },
+      writePhaseFile: (_path, phase) => {
+        events.push(`phase:${phase}`);
+        return Promise.resolve();
+      },
+      writeAtomicFile: (path) => {
+        events.push(`write:${path.split('/').pop() ?? path}`);
+        return Promise.resolve();
+      },
+      runDocker: () => {
+        events.push('docker');
+        return Promise.resolve('');
+      },
+    };
+    let message = '';
+    try {
+      await startGreen(tier, 'green', IMAGES[tier], `/fixture/${tier}.phase`, deps);
+    } catch (error: unknown) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    return { events, message };
+  }
+
+  const READS_ONLY = ['read:app', 'read:oidc', 'read:shared'];
+
+  it('admits complete be and gw env files and reaches Docker', async () => {
+    for (const tier of ['be', 'gw'] as const) {
+      const { events, message } = await runStartGreen(tier, {});
+      expect(message).toBe('');
+      expect(events).toContain('phase:preparing');
+      expect(events.at(-1)).toBe('docker');
+    }
+  });
+
+  it('refuses a be env file without GW_URL before any side effect, naming key and file', async () => {
+    const { events, message } = await runStartGreen('be', {
+      app: APP_ENV.be.replace('GW_URL=http://gw-01:3200\n', ''),
+    });
+    expect(message).toContain('GW_URL (/home/puni1/wbs/be-01.env)');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses an empty required value as missing', async () => {
+    const { events, message } = await runStartGreen('gw', {
+      app: APP_ENV.gw.replace('BE_URL=http://be-01.internal:3100', 'BE_URL='),
+    });
+    expect(message).toContain('BE_URL (/home/puni1/wbs/gw-01.env)');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses a shared env without the signing key, naming every missing key and no value', async () => {
+    const { events, message } = await runStartGreen('gw', {
+      app: APP_ENV.gw.replace('LOG_LEVEL=info\n', ''),
+      shared: 'INTERNAL_AUTH_SECRET=shared-internal-secret-value\n',
+    });
+    expect(message).toContain('LOG_LEVEL (/home/puni1/wbs/gw-01.env)');
+    expect(message).toContain('JWT_SIGNING_KEY_CURRENT (/home/puni1/wbs/.env)');
+    expect(message).not.toContain('shared-internal-secret-value');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses an OIDC carrier without AUTH_AUDIENCE', async () => {
+    const { events, message } = await runStartGreen('be', {
+      oidc: COMPLETE_OIDC_ENV.replace('AUTH_AUDIENCE=https://api.example\n', ''),
+    });
+    expect(message).toContain(`AUTH_AUDIENCE (${OIDC_ENV_PATH})`);
+    expect(message).not.toContain('client-secret-value');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses AUTH_MODE=local, which the production image cannot boot', async () => {
+    const { events, message } = await runStartGreen('be', {
+      app: APP_ENV.be.replace('AUTH_MODE=oidc', 'AUTH_MODE=local'),
+    });
+    expect(message).toContain('AUTH_MODE=local');
+    expect(message).toContain('NODE_ENV=production');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses AUTH_MODE=oidc in a layout with no OIDC carrier', async () => {
+    const { events, message } = await runStartGreen('gw', { oidcEnvPath: null });
+    expect(message).toContain('names no OIDC carrier');
+    expect(events).toEqual(['read:app', 'read:shared']);
+  });
+
+  it('refuses an env file without AUTH_MODE', async () => {
+    const { events, message } = await runStartGreen('be', {
+      app: APP_ENV.be.replace('AUTH_MODE=oidc\n', ''),
+    });
+    expect(message).toContain('AUTH_MODE (/home/puni1/wbs/be-01.env)');
+    expect(events).toEqual(READS_ONLY);
+  });
+});
+
 describe('runSwaps', () => {
   function fakeRunDeps(overrides: Partial<SwapRunDeps> = {}): SwapRunDeps {
     return {
@@ -663,12 +793,14 @@ it('startGreen admits merged backend config and writes the supervisor directory 
     'registry.infra.bulletpoints.club/wbs-be-01@sha256:' + 'a'.repeat(64),
     '/fixture/be.phase',
     {
-      oidcEnvPath: null,
+      oidcEnvPath: '/fixture/oidc.env',
       readText: (path) =>
         Promise.resolve(
           path.endsWith('/be-01.env')
             ? 'PORT=3100\nLOG_LEVEL=error\nGW_URL=http://gw\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAPP_ORIGIN=https://operator.example\nSOLVER_BUDGET_MS=120000\nSOLVER_SEARCH_WORKERS=2\nSOLVER_MEMORY_LIMIT_MB=512\n'
-            : 'INTERNAL_AUTH_SECRET=s\nJWT_SIGNING_KEY_CURRENT=k\n',
+            : path === '/fixture/oidc.env'
+              ? COMPLETE_OIDC_ENV
+              : 'INTERNAL_AUTH_SECRET=s\nJWT_SIGNING_KEY_CURRENT=k\n',
         ),
       writePhaseFile: () => Promise.resolve(),
       writeAtomicFile: (path, content) => {
