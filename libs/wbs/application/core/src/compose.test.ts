@@ -13,6 +13,7 @@ import {
   type SharedComposition,
   type WritingServices,
 } from './compose';
+import { PlanCommandRunner } from './module/plan-commands/plan-commands.feature';
 import { replay } from './module/realtime/realtime.feature';
 import { clockOf } from './ports/clock';
 import { CREATOR_ADMISSION, type EditAdmission } from './ports/edit-admission';
@@ -20,7 +21,6 @@ import { LEGACY_ACCESS } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
 import type { Scope } from './ports/unit-of-work';
 import type { Decision } from './ports/unit-of-work';
-import { PlanCommandRunner } from './service/plan-commands';
 import { recordingBroadcaster } from './testing/broadcast-fixture';
 import { fastScheduler } from './testing/scheduler-fixture';
 import { savePlan } from './use-cases/save-plan';

@@ -5,6 +5,14 @@ import { join } from 'node:path';
 import type { Broadcaster } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import {
+  type AppliedCommand,
+  type BatchOutcome,
+  type BatchRefusal,
+  PlanCommandRunner,
+  type PlanCommandRunnerOptions,
+} from '@wbs/core/module/plan-commands/plan-commands.feature';
+import type { PlanCommand } from '@wbs/core/service/plan-command';
+import {
   DEFAULT_PRIORITY_BANDS,
   ORDINARY_BAND_RANK,
   type PriorityBand,
@@ -44,14 +52,6 @@ import { CalendarMarkerService } from './calendar-marker.service';
 import { CapacityService } from './capacity.service';
 import { DirectoryService } from './directory.service';
 import { fastScheduler } from './optimizer-wiring';
-import type { PlanCommand } from './plan-command';
-import {
-  type AppliedCommand,
-  type BatchOutcome,
-  type BatchRefusal,
-  PlanCommandRunner,
-  type PlanCommandRunnerOptions,
-} from './plan-commands';
 import { PriorityBandService } from './priority-band.service';
 import { ProjectService } from './project.service';
 import { StepService } from './step.service';

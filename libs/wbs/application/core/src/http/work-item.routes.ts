@@ -14,19 +14,19 @@ import {
 } from '@wbs/contracts';
 import { type, ValidationError } from '@wbs/validation';
 
-import { readStepAddresses, resolveAddressedStep } from '../module/work-item/step-addresses';
-import type { OrganizationAccess } from '../ports/organization-access';
-import type { Digest } from '../ports/runtime';
-import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
-import type { PlanCommand } from '../service/plan-command';
 import type {
   AppliedCommand,
   BatchRefusal,
   PlanCommandRunner,
   WholeBatchRefusal,
-} from '../service/plan-commands';
+} from '../module/plan-commands/plan-commands.feature';
+import { runCommandBatch } from '../module/plan-commands/run-command-batch';
+import { readStepAddresses, resolveAddressedStep } from '../module/work-item/step-addresses';
+import type { OrganizationAccess } from '../ports/organization-access';
+import type { Digest } from '../ports/runtime';
+import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
+import type { PlanCommand } from '../service/plan-command';
 import type { UndoOutcome, WorkItemService } from '../service/work-item.service';
-import { runCommandBatch } from '../use-cases/run-command-batch';
 import { BadCapacity } from './capacity-body';
 import { bind, type HttpReply, type RequestFailure } from './endpoint';
 import { organizationRefusal } from './organization-refusal';

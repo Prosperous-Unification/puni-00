@@ -7,13 +7,13 @@ import { describe, expect, test } from 'bun:test';
 
 import { retentionSweep } from '../module/bounded-replay-sweep/bounded-replay-sweep.feature';
 import { EventLogService } from '../module/event-log/event-log.resource';
+import { PlanCommandRunner } from '../module/plan-commands/plan-commands.feature';
+import { runCommandBatch, runCommandBatchAfter } from '../module/plan-commands/run-command-batch';
 import { PlanEventService } from '../module/plan-event/plan-event.resource';
 import { replay } from '../module/realtime/realtime.feature';
 import { LEGACY_ACCESS } from '../ports/organization-access';
-import { PlanCommandRunner } from '../service/plan-commands';
 import { inMemoryServices } from '../testing/harness';
 import { batchServices, testWrites } from '../testing/writes-fixture';
-import { runCommandBatch, runCommandBatchAfter } from './run-command-batch';
 import { savePlan } from './save-plan';
 
 const writer: AuthenticatedUser = { id: 'owner', username: 'Ada', scopes: ['read', 'write'] };

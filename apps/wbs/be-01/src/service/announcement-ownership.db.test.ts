@@ -4,7 +4,9 @@ import { join } from 'node:path';
 
 import type { Broadcaster, ProjectEvent } from '@wbs/core';
 import { clockOf } from '@wbs/core';
+import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import type { PlanCommand } from '@wbs/core/service/plan-command';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDrizzle } from '../repository/db';
@@ -14,8 +16,6 @@ import { sqliteUnitOfWork } from '../repository/sqlite-unit-of-work';
 import { buildStores, servicesOver } from '../services';
 import { testClock } from '../testing/clock-fixture';
 import { optimizerWiring } from './optimizer-wiring';
-import type { PlanCommand } from './plan-command';
-import { PlanCommandRunner } from './plan-commands';
 import { ProjectService } from './project.service';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;

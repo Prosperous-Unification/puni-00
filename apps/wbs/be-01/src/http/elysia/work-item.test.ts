@@ -1,8 +1,8 @@
+import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import { expect, spyOn, test } from 'bun:test';
 
 import { workItemRoutes } from '../../controller/work-item.routes';
 import { nodeDigest } from '../../runtime/bun-runtime';
-import { PlanCommandRunner } from '../../service/plan-commands';
 import { inMemoryServices } from '../../testing/harness';
 import { legacyOrganizationAccess } from '../../testing/organization-access-fixture';
 import { projectRow } from '../../testing/project-fixture';

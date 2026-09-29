@@ -176,30 +176,10 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/compose.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/index.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/service/command-bindings.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/service/plan-commands.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/service/working-plan.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/use-cases/run-command-batch.ts"
-          }
+          { "kind": "path", "path": "apps/wbs/be-01/src/app.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/http/work-item.routes.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" }
         ]
       }
     },

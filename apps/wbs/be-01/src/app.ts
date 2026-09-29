@@ -26,6 +26,7 @@ import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
 import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
+import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import { PersonLoad } from '@wbs/core/service/person-load.feature';
 import { RollUpCache, SpaceResource } from '@wbs/core/service/space.resource';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
@@ -62,7 +63,6 @@ import type { CapacityService } from './service/capacity.service';
 import type { DirectoryService } from './service/directory.service';
 import type { LoginThrottle } from './service/login-throttle';
 import type { OptimizationCoordinator } from './service/optimization-coordinator';
-import { PlanCommandRunner } from './service/plan-commands';
 import type { PriorityBandService } from './service/priority-band.service';
 import type { ProjectService } from './service/project.service';
 import type { StepService } from './service/step.service';
@@ -200,7 +200,8 @@ export interface AppOptions {
    * What a command batch runs inside: the source's unit of work and the batch's
    * own service graph — `sqliteUnitOfWork(db, coordinator, admitted)` in
    * production, the counting fixture on in-memory stores. See
-   * `libs/wbs/application/core/src/service/plan-commands.ts`, ADR 0007 and ADR 0015.
+   * `libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts`,
+   * ADR 0007 and ADR 0015.
    */
   writes: {
     /** The process's atomic archival plan importer over this same source admission boundary. */

@@ -361,7 +361,7 @@ describe('the steps routes are the only spelling', () => {
  * maps `step_added` / `step_renamed` / `step_removed` to `tree-and-steps`, so
  * these are the events the table refetches on. `PlanCommandKind`
  * (`libs/wbs/application/core/src/service/plan-command.ts`) declares no step command and
- * `libs/wbs/application/core/src/service/plan-commands.ts` never references `StepService`, so a step mutation is
+ * `libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts` never references `StepService`, so a step mutation is
  * reachable only through this controller — it is never *inside* a batch, and
  * being captured by one is always wrong.
  *
