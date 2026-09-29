@@ -45,8 +45,9 @@ function readSchedule(
     ask.input.deadlines,
     // The eighth: typed dependencies, resolved beside the legacy edges.
     ask.input.typed,
-    // Proof: `NOWHERE` here made `hands the bookings elsewhere to Fast`
-    // (`scheduler.test.ts`) see an empty map; watched 2026-09-29.
+    // The ninth: bookings elsewhere, absent for every plan nothing outranks.
+    // Proof: `NOWHERE` here made `hands the bookings elsewhere to Fast` in
+    // scheduler.test.ts see an empty map; watched 2026-09-29.
     ask.input.elsewhere ?? NOWHERE,
   );
   if (optimized === undefined) {
