@@ -150,6 +150,15 @@ The new parent's statements are cleared before the child is inserted or the row 
 Held rows keep their stored position when the plan is arranged; an arranged sibling may take
 the same position number, and ADR 0016's id tie-break orders the two.
 
+### Slice 5b — plan document v6
+
+| Check                                   | Fault injected                    | Test that observed it                                                                               | Observed                                                        |
+| --------------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| hold vocabulary                         | an unknown hold read as `on_hold` | `refuses a version-6 hold or readiness outside its vocabulary, on a parent, or a hold on done work` | `ok: true` where `invalid_body` at `workItems[1].hold` was owed |
+| no statement on a parent                | parent check disabled             | same case                                                                                           | `ok: true` where `workItems[0].hold` was owed                   |
+| no hold on done work                    | done check disabled               | same case                                                                                           | `ok: true` where `workItems[1].hold` was owed                   |
+| the import writes the file's statements | both written as null              | `round-trips a version-6 readiness and hold, and reads a version-5 file with neither`               | the imported row held neither                                   |
+
 ## Not run
 
 - The h2puni host gate; the orchestrator runs it on the integration branch.

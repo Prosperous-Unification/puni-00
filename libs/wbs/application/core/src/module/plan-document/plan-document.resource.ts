@@ -6,11 +6,19 @@ import {
   type PlanDocument,
   planDocumentHeaderRequest,
   type PlanDocumentImport,
+  type PlanDocumentRequest,
   planDocumentRequest,
   validateSchema,
   type WorkItemTree,
 } from '@wbs/contracts';
-import { formatStepNodeId, formatStepReference, NO_ALLOWANCE, orderSteps } from '@wbs/domain';
+import {
+  formatStepNodeId,
+  formatStepReference,
+  isHold,
+  isReadiness,
+  NO_ALLOWANCE,
+  orderSteps,
+} from '@wbs/domain';
 
 import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { Clock } from '../../ports/clock';
@@ -286,6 +294,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     version !== 2 &&
     version !== 3 &&
     version !== 4 &&
+    version !== 5 &&
     version !== PLAN_DOCUMENT_VERSION
   ) {
     return { ok: false, code: 'unsupported_version', path: 'document.version' };
@@ -295,7 +304,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     return { ok: false, code: 'invalid_body', path: pathOf(checked.issues[0]?.path) };
   }
   const typedDependencies: PlanDocumentImport['typedDependencies'] = [];
-  if (version === 4 || version === 5) {
+  if (version >= 4) {
     // Proof (2026-09-28): removing this check made a missing version-4 list
     // throw from .entries instead of returning invalid_typed_dependency.
     if (!Array.isArray(checked.value.typedDependencies))
@@ -358,7 +367,48 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       return { ok: false, code: 'invalid_body', path: `steps[${String(at)}].code` };
     steps.push({ ...step, allowancePercent: step.allowancePercent, code });
   }
-  return { ok: true, value: { ...checked.value, steps, typedDependencies } };
+  const workItems = statusFactsOf(version, checked.value.workItems, checked.value.steps);
+  if (!Array.isArray(workItems)) return workItems;
+  return { ok: true, value: { ...checked.value, steps, typedDependencies, workItems } };
+}
+
+/**
+ * Each row's readiness and hold as the file states them: from version 6 every
+ * row names both, each null or a member of its vocabulary, never on a parent
+ * and a hold never on a row every step of which says done; before version 6
+ * both read as nothing said (`add-work-item-statuses`).
+ *
+ * Proof: the vocabulary check removed made `refuses a version-6 hold or
+ * readiness outside its vocabulary…` accept `hold: 'paused'`; the parent check
+ * removed accepted a hold on the parent; the done check removed accepted a
+ * hold on done work; watched 2026-09-29.
+ */
+function statusFactsOf(
+  version: number,
+  rows: PlanDocumentRequest['workItems'],
+  steps: PlanDocumentRequest['steps'],
+): PlanDocumentImport['workItems'] | Extract<PlanDocumentClassification, { ok: false }> {
+  if (version < 6) return rows.map((row) => ({ ...row, readiness: null, hold: null }));
+  const parents = new Set(rows.map((row) => row.parentId));
+  const imported: PlanDocumentImport['workItems'] = [];
+  for (const [at, row] of rows.entries()) {
+    const path = (field: string) => `workItems[${String(at)}].${field}`;
+    const readiness =
+      row.readiness === null ? null : isReadiness(row.readiness) ? row.readiness : undefined;
+    if (readiness === undefined) {
+      return { ok: false, code: 'invalid_body', path: path('readiness') };
+    }
+    const hold = row.hold === null ? null : isHold(row.hold) ? row.hold : undefined;
+    if (hold === undefined) return { ok: false, code: 'invalid_body', path: path('hold') };
+    if (parents.has(row.id) && (readiness !== null || hold !== null)) {
+      return { ok: false, code: 'invalid_body', path: path(hold === null ? 'readiness' : 'hold') };
+    }
+    const done =
+      steps.length > 0 && steps.every((step) => Reflect.get(row.progress, step.id) === 'done');
+    if (done && hold !== null) return { ok: false, code: 'invalid_body', path: path('hold') };
+    imported.push({ ...row, readiness, hold });
+  }
+  return imported;
 }
 
 function pathOf(path: readonly (PropertyKey | { key: PropertyKey })[] | undefined): string {

@@ -96,10 +96,13 @@
       both fields, `scheduleInputOfCaptured` applies `withoutHeldSubtrees`.
 - [x] 5.3 Negatives (saved plans): the upgrade returning the body unchanged; the saved plan's
       reduction handed an empty held set.
-- [ ] 5.4 Plan document v6: waits for typed dependency stage B's v5 (#183) to reach main, so v6
-      is written on top of it rather than on v4. Then import reads v1–v5 with both fields null
-      and refuses a value outside each vocabulary, a statement on a parent, and a hold on a row
-      marked done; the spreadsheet export already carries the status word (`Status` column).
+- [x] 5.4 Plan document v6, on stage B's v5 (main `802432df`): `PLAN_DOCUMENT_VERSION` 6; the
+      export carries each row's `readiness` and `hold`; import reads versions 1–5 with both
+      null and refuses, from version 6, a value outside each vocabulary, a missing field, a
+      statement on a parent and a hold on a row every step of which says done
+      (`invalid_body` at the field). Negatives: each of the vocabulary, parent and done checks
+      disabled; the import writing both as null. The spreadsheet export already carries the
+      status word.
 
 ## 6. fe-01 table (ships in the same integration round as slice 3)
 
