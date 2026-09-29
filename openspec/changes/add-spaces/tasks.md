@@ -14,7 +14,7 @@
 - [ ] 1.3 Red: `space-rollback.db.test.ts` (save, remove, rollback, migrate, restore; refuse a
       stale save; refuse a restore over a gone project; malformed file) and the CLI.
 - [ ] 1.4 Green: migration, guarded `down.sql`, schema, `SpaceStore`, `SpaceRepository`,
-      `inMemorySpaces`, `space-rollback.ts`, `spaces-rollback-cli.ts`, runbook section.
+      `inMemorySpaces`, `space-rollback.ts`, `space-rollback-cli.ts`, runbook section.
 - [ ] 1.5 Negatives: composite reference dropped → the cross-organization insert succeeds;
       guard removed → down succeeds over rows; cascade removed → project delete fails;
       stale-save comparison weakened → remove deletes a newer space.

@@ -3,9 +3,13 @@
 ### Requirement: A space's owner is the caller's organization
 
 Under scoped access a space SHALL be created in, and read from, the scope's organization.
-Under legacy access it SHALL use the organization marked legacy; when none exists every named
-space route SHALL answer `409 organization_required`, while `all` still answers. A space of
-another organization SHALL answer `404 not_found`, indistinguishable from an absent one.
+Under legacy access it SHALL use the organization marked legacy. When none exists, `GET
+/api/spaces`, `POST /api/spaces` and every route naming a space id SHALL answer `409
+organization_required`, never an empty list, so fe-01 can render that state rather than an
+organization with no spaces; `GET /api/spaces/all` and its roll-ups and in-progress reads
+SHALL still answer, and writes to `all` SHALL answer `409 virtual_space` under any access. A
+space of another organization SHALL answer `404 not_found`, indistinguishable from an absent
+one.
 
 #### Scenario: a foreign space
 
@@ -16,8 +20,8 @@ another organization SHALL answer `404 not_found`, indistinguishable from an abs
 #### Scenario: legacy access without a legacy organization
 
 - **GIVEN** pre-activation access and no organization marked legacy
-- **WHEN** a user creates a space
-- **THEN** the answer is `409 organization_required`, and `GET /api/spaces/all` answers `200`
+- **WHEN** a user lists spaces or creates one
+- **THEN** both answer `409 organization_required`, and `GET /api/spaces/all` answers `200`
 
 ### Requirement: Viewers read, members write
 

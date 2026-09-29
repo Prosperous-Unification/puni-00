@@ -14,14 +14,21 @@ Why membership is a positioned pair that owns nothing lives in
 ## D1 — Storage
 
 `space(id PK, organization_id NOT NULL → organization, name CHECK length > 0, revision,
-created_at, audit columns)` with `UNIQUE (organization_id, name)` and `UNIQUE (id,
+created_at, updated_at, created_by)` with `UNIQUE (organization_id, name)` and `UNIQUE (id,
 organization_id)`. `space_project(space_id, project_id, organization_id NOT NULL, position,
-added_at, audit columns)`, primary key `(space_id, project_id)`, references `(space_id,
-organization_id) → space` and `(project_id, organization_id) →
-project_organization(resource_id, organization_id)`, both `ON DELETE CASCADE`, and an index on
-`(space_id, position)`. The composite references are `project_solution`'s device. No bridge
-trigger: a space is born organization-aware. `created_by` is the author through the audit
-column; the memo's `created_by_id` is that column, not a second one.
+created_at, updated_at, created_by)`, primary key `(space_id, project_id)`, references
+`(space_id, organization_id) → space` and `(project_id, organization_id) →
+project_organization(resource_id, organization_id)`, both `ON DELETE CASCADE`, and indexes on
+`(space_id, position)` and `(project_id, organization_id)` (the child side of the project
+cascade). The composite references are `project_solution`'s device. No bridge trigger: a space
+is born organization-aware.
+
+The audit columns are the repository's `auditOnCreate` and `auditOnUpdate` (enforced by
+`audit.test.ts`), and on new tables `created_at` and `created_by` are `NOT NULL`. So the
+memo's `created_by_id` is `created_by`, and its membership `added_at` is `created_at`: one
+column per fact. `revision` starts at 0 and rises by 1 on each successful rename, add, remove
+and move (spec `space-read`); `listIn` orders by `(name, id)` under SQLite's binary collation,
+which is code-point order.
 
 ## D2 — Port and adapters
 
@@ -37,7 +44,7 @@ the resource's (slice 2). Answers are typed outcomes (`not_found`, `name_taken`,
 ## D3 — Rollback
 
 `down.sql` uses `project_solution`'s temporary CHECK table: refuse while any `space` row
-exists, then drop. `spaces-rollback-cli.ts save|remove|restore <file>` over
+exists, then drop. `space-rollback-cli.ts save|remove|restore <file>` over
 `space-rollback.ts` in `@wbs/store-sqlite`, the `typed-dependency-rollback` shape: a versioned
 file validated at the CLI boundary, `remove` refusing a save that no longer matches, `restore`
 all or none. The runbook section is `docs/runbook-prod-deploy.md#space-rollback`. Code

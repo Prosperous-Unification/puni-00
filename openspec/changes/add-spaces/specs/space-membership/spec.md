@@ -87,7 +87,7 @@ SHALL answer the member's new position. Adding a project already in the space SH
 
 The migration SHALL only create `space` and `space_project` and their indexes; the outgoing
 colour SHALL neither read nor write them. Its `down.sql` SHALL refuse while any `space` row
-exists, naming `spaces-rollback-cli.ts save|remove|restore`, and only then drop both tables.
+exists, naming `space-rollback-cli.ts save|remove|restore`, and only then drop both tables.
 `save` SHALL write every space and member to a versioned file; `remove` SHALL delete exactly the
 saved spaces in one transaction, refusing if the stored spaces or members differ from the file;
 `restore` SHALL write them back all or none, refusing when a saved project or organization is
