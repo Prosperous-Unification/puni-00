@@ -11,6 +11,7 @@ import {
   assertOidcEnvAllowed,
   assertTierEnvAllowed,
   assertTierEnvComplete,
+  capacityModesCommand,
   composeUpArgs,
   containerName,
   deriveTierSecrets,
@@ -32,6 +33,7 @@ import {
   SHARED_ENV_PATH,
   SOLVER_SUPERVISOR_CONTAINER_DIRECTORY,
   SOLVER_SUPERVISOR_HOST_DIRECTORY,
+  storedCapacityModesCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
@@ -167,6 +169,62 @@ describe('relationship type commands', () => {
       stderr: 'pipe',
     });
     expect(await probe.exited).not.toBe(0);
+  });
+});
+
+describe('capacity mode commands', () => {
+  it('executes the present capacity modes CLI and reads an absent one as none', async () => {
+    const directory = scratchSync('wbs-capacity-modes-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      const absent = Bun.spawn(capacityModesCommand('be-01-green').slice(2), {
+        cwd: directory,
+        stdout: 'pipe',
+      });
+      expect(await absent.exited).toBe(0);
+      expect(JSON.parse(await new Response(absent.stdout).text())).toEqual([]);
+      writeFileSync(
+        join(directory, 'src/capacity-modes-cli.ts'),
+        'console.log(JSON.stringify(["isolated", "shared"]));\n',
+      );
+      const present = Bun.spawn(capacityModesCommand('be-01-green').slice(2), {
+        cwd: directory,
+        stdout: 'pipe',
+      });
+      expect(await present.exited).toBe(0);
+      expect(JSON.parse(await new Response(present.stdout).text())).toEqual(['isolated', 'shared']);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('reads shared organizations, none before the column or while every one is isolated', async () => {
+    const directory = scratchSync('wbs-stored-capacity-modes-');
+    try {
+      const path = join(directory, 'wbs.db');
+      const db = new Database(path);
+      const read = async () => {
+        const probe = Bun.spawn(storedCapacityModesCommand('be-01-green').slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const output = await new Response(probe.stdout).text();
+        expect(await probe.exited).toBe(0);
+        const parsed: unknown = JSON.parse(output);
+        return parsed;
+      };
+      db.run('CREATE TABLE organization (id text PRIMARY KEY)');
+      expect(await read()).toEqual([]);
+      db.run('ALTER TABLE organization ADD shared_people integer NOT NULL DEFAULT 0');
+      db.run("INSERT INTO organization (id) VALUES ('a'), ('b'), ('c')");
+      expect(await read()).toEqual([]);
+      db.run("UPDATE organization SET shared_people = 1 WHERE id IN ('a', 'c')");
+      expect(await read()).toEqual([{ kind: 'shared', count: 2 }]);
+      db.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });
 

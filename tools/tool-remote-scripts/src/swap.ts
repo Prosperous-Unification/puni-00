@@ -27,6 +27,7 @@ import {
   assertTierEnvComplete,
   backupDbCommand,
   backupSnapshotPath,
+  capacityModesCommand,
   composeUpArgs,
   containerName,
   CURRENT_ENV,
@@ -47,6 +48,7 @@ import {
   revokeAliasCommands,
   ROOT,
   SHARED_ENV_PATH,
+  storedCapacityModesCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
@@ -603,6 +605,21 @@ const READINESS_VOCABULARY: StoredVocabulary = {
   runbookAnchor: 'work-item-status-facts-rollback',
 };
 
+/**
+ * Organization capacity modes (`share-people-across-projects`). A release that
+ * cannot read `organization.shared_people` schedules a shared organization's
+ * projects as if each had its people alone, so a shared organization refuses
+ * the swap to an image that does not name `shared` (spec `shared-people-mode`).
+ */
+const CAPACITY_MODES_VOCABULARY: StoredVocabulary = {
+  name: 'capacity modes',
+  key: 'kind',
+  supportedCommand: capacityModesCommand,
+  storedCommand: storedCapacityModesCommand,
+  recoveryCli: 'shared-people-rollback-cli.ts',
+  runbookAnchor: 'shared-people-rollback',
+};
+
 // Proof: `HOLD_KINDS_VOCABULARY` left out of this list made four cases fail,
 // among them `refuses an image that reads no holds while holds are stored, and
 // stops green` and `refuses a hold written after the first check once blue
@@ -610,10 +627,14 @@ const READINESS_VOCABULARY: StoredVocabulary = {
 // Proof: `READINESS_VOCABULARY` left out of this list made `refuses an image
 // that reads no readiness while readiness is stored` fail — the swap went on to
 // migrate; watched 2026-09-29.
+// Proof: `CAPACITY_MODES_VOCABULARY` left out of this list made `refuses a
+// pre-feature image while an organization is shared, and stops green` fail —
+// the swap went on to migrate; watched 2026-09-29.
 const STORED_VOCABULARIES: readonly StoredVocabulary[] = [
   RELATIONSHIP_TYPES_VOCABULARY,
   HOLD_KINDS_VOCABULARY,
   READINESS_VOCABULARY,
+  CAPACITY_MODES_VOCABULARY,
 ];
 
 /** Parses the incoming release's supported values at the Docker output boundary. */

@@ -833,7 +833,15 @@ const KINDS_CLI: Readonly<Record<StatementColumn, string>> = {
  * fail on `Expected: 74, Received: 0`; watched 2026-09-28.
  */
 function statementKindsCommand(container: string, column: StatementColumn): string[] {
-  const cli = KINDS_CLI[column];
+  return kindsCliCommand(container, KINDS_CLI[column]);
+}
+
+/**
+ * Runs a vocabulary CLI of the incoming release, `[]` when a release older
+ * than the vocabulary ships none under a readable source directory; see
+ * {@link statementKindsCommand}.
+ */
+function kindsCliCommand(container: string, cli: string): string[] {
   return [
     'exec',
     container,
@@ -885,6 +893,42 @@ export function readinessKindsCommand(container: string): string[] {
 /** Every stored readiness and its count; see {@link storedStatementsCommand}. */
 export function storedReadinessesCommand(container: string): string[] {
   return storedStatementsCommand(container, 'readiness');
+}
+
+/**
+ * The capacity modes the incoming release reads (`src/capacity-modes-cli.ts`);
+ * `[]` for a release older than shared people. See {@link kindsCliCommand}.
+ */
+export function capacityModesCommand(container: string): string[] {
+  return kindsCliCommand(container, 'src/capacity-modes-cli.ts');
+}
+
+/**
+ * How many organizations are `shared`, as `[{ kind: 'shared', count }]`, through
+ * the shared DB_PATH without importing release code. Empty while none is, and
+ * before `organization.shared_people` exists: `isolated` is what a release
+ * older than the mode already does, so only `shared` needs reading.
+ *
+ * Proof: `HAVING count(*) > 0` removed made `reads shared organizations, none
+ * before the column or while every one is isolated` (`docker.test.ts`) read
+ * `[{ kind: 'shared', count: 0 }]`; watched 2026-09-29.
+ */
+export function storedCapacityModesCommand(container: string): string[] {
+  return [
+    'exec',
+    container,
+    'bun',
+    '-e',
+    `import { Database } from 'bun:sqlite';
+const path = process.env.DB_PATH;
+if (!path) throw new Error('DB_PATH must be set');
+const db = new Database(path, { readonly: true });
+try {
+  const column = db.query("SELECT name FROM pragma_table_info('organization') WHERE name = 'shared_people'").get();
+  const rows = column === null ? [] : db.query("SELECT 'shared' AS kind, count(*) AS count FROM organization WHERE shared_people = 1 HAVING count(*) > 0").all();
+  console.log(JSON.stringify(rows));
+} finally { db.close(); }`,
+  ];
 }
 
 /** Applies pending migrations through the path shipped in the backend image. */

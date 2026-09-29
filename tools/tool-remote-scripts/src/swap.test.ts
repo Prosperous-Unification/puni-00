@@ -6,9 +6,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { assembleCaddyfile } from './lib/caddy';
 import {
+  capacityModesCommand,
   holdKindsCommand,
   readinessKindsCommand,
   relationshipTypesCommand,
+  storedCapacityModesCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
@@ -886,6 +888,7 @@ describe('execute, stored vocabulary rollback guard', () => {
     failure?: 'reader' | 'store' | 'hold-reader' | 'hold-store',
     holds: { supported: string; stored: string } = { supported: '[]', stored: '[]' },
     readiness: { supported: string; stored: string } = { supported: '[]', stored: '[]' },
+    modes: { supported: string; stored: string } = { supported: '[]', stored: '[]' },
   ) {
     const ran: string[][] = [];
     const phases: string[] = [];
@@ -919,6 +922,12 @@ describe('execute, stored vocabulary rollback guard', () => {
         }
         if (JSON.stringify(args) === JSON.stringify(storedReadinessesCommand('be-01-green'))) {
           return Promise.resolve(readiness.stored);
+        }
+        if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green'))) {
+          return Promise.resolve(modes.supported);
+        }
+        if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green'))) {
+          return Promise.resolve(modes.stored);
         }
         if (args[0] === 'stop') return Promise.resolve('');
         if (args.includes('src/migrate-status-cli.ts')) return Promise.resolve('none');
@@ -1036,6 +1045,30 @@ describe('execute, stored vocabulary rollback guard', () => {
     );
     expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
     expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+  });
+
+  it('refuses a pre-feature image while an organization is shared, and stops green', async () => {
+    const attempt = await runGuard('["FS"]', '[]', undefined, undefined, undefined, {
+      supported: '[]',
+      stored: '[{"kind":"shared","count":2}]',
+    });
+    expect(attempt.caught).toHaveProperty('message', expect.stringContaining('shared (2)'));
+    expect(attempt.caught).toHaveProperty(
+      'message',
+      expect.stringContaining('shared-people-rollback-cli.ts save'),
+    );
+    expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(false);
+    expect(attempt.phases).toEqual(['committed']);
+  });
+
+  it('allows a shared organization when the incoming image reads the mode', async () => {
+    const attempt = await runGuard('["FS"]', '[]', undefined, undefined, undefined, {
+      supported: '["isolated","shared"]',
+      stored: '[{"kind":"shared","count":2}]',
+    });
+    expect(attempt.caught).toBeUndefined();
+    expect(attempt.ran.some((args) => args.includes('src/migrate-cli.ts'))).toBe(true);
   });
 
   it('allows stored readiness when the incoming image reads it', async () => {
@@ -1191,6 +1224,8 @@ describe('execute, after routing has moved', () => {
         if (is(holdKindsCommand('be-01-green'))) return Promise.resolve('[]');
         if (is(readinessKindsCommand('be-01-green'))) return Promise.resolve('[]');
         if (is(storedReadinessesCommand('be-01-green'))) return Promise.resolve('[]');
+        if (is(capacityModesCommand('be-01-green'))) return Promise.resolve('[]');
+        if (is(storedCapacityModesCommand('be-01-green'))) return Promise.resolve('[]');
         if (is(storedHoldsCommand('be-01-green'))) {
           holdReads++;
           return Promise.resolve(holdReads === 1 ? '[]' : '[{"kind":"on_hold","count":1}]');
@@ -1259,6 +1294,10 @@ describe('execute, after routing has moved', () => {
         if (JSON.stringify(args) === JSON.stringify(readinessKindsCommand('be-01-green')))
           return Promise.resolve('[]');
         if (JSON.stringify(args) === JSON.stringify(storedReadinessesCommand('be-01-green')))
+          return Promise.resolve('[]');
+        if (JSON.stringify(args) === JSON.stringify(capacityModesCommand('be-01-green')))
+          return Promise.resolve('[]');
+        if (JSON.stringify(args) === JSON.stringify(storedCapacityModesCommand('be-01-green')))
           return Promise.resolve('[]');
         if (
           JSON.stringify(args) === JSON.stringify(storedRelationshipTypesCommand('be-01-green'))

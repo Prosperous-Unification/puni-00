@@ -58,6 +58,16 @@ export interface ProjectCrossReference {
 }
 
 /**
+ * An organization's capacity modes, `isolated` first (CONTEXT "Shared
+ * people"). The stored vocabulary a release must read before it may serve a
+ * database holding a `shared` organization: `capacity-modes-cli.ts` prints it
+ * for the production swap guard.
+ */
+export const CAPACITY_MODES = ['isolated', 'shared'] as const;
+
+export type CapacityMode = (typeof CAPACITY_MODES)[number];
+
+/**
  * How a project's people are scheduled (CONTEXT "Shared people", ADR 0034):
  * alone, or around the bookings of the projects its organization ranks above
  * it, in which case `order` is every project of that organization, highest
