@@ -130,6 +130,7 @@ describe('the signed-in region, routed', () => {
     stubServer({
       'GET /api/organization/invitations': [() => answerJson(200, { invitations: [] })],
       'GET /api/organization/join-requests': [() => answerJson(200, { requests: [] })],
+      'GET /api/organization/domains': [() => answerJson(200, { domains: [] })],
     });
     regionAt('/organization');
 

@@ -1310,3 +1310,13 @@ All faults were restored before commit.
 | Domain change has its own copy | Answered `domain_changed` with the resolved copy | `renders the domain_changed approval refusal` failed: `expected <p role="status"></p> to have property "textContent" with value 'The requester's email or the organizat…'` |
 
 Both faults were restored before commit. `drops every panel when another panel loses access` covers a loss reported by the join-request panel clearing the invitation rows.
+
+## Slice 39d — domain settings (task 4.6)
+
+| Check                                  | Injected fault                                          | Observed failure                                                                                                                                                               |
+| -------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| DNS outage has its own copy            | Answered `dns_unavailable` with the proof-mismatch copy | `renders the dns_unavailable verify refusal` failed: `expected <p role="status"></p> to have property "textContent" with value 'DNS could not be reached. Try again la…'`      |
+| Release needs the in-page confirmation | Deleted on the first Release click                      | `releases only after confirmation` failed: `expected true to be false`                                                                                                         |
+| Suspension is its own rendered state   | Keyed the suspension notice on `pending`                | `renders suspension and a failed proof check as distinct states` failed: `expected 'old.test SuspendedLast successful che…' to match /Suspended: the TXT proof has not been…/` |
+
+All faults were restored before commit.

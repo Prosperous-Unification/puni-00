@@ -27,6 +27,7 @@ const offer = (id: string, email: string, fields: Record<string, unknown> = {}) 
 function stubPage(routes: Parameters<typeof stubServer>[0]) {
   return stubServer({
     'GET /api/organization/join-requests': [() => answer(200, { requests: [] })],
+    'GET /api/organization/domains': [() => answer(200, { domains: [] })],
     ...routes,
   });
 }
@@ -200,6 +201,7 @@ describe('organization invitations', () => {
         () => answer(200, { invitations: [offer('a', 'ada@acme.test')] }),
       ],
       'GET /api/organization/join-requests': [() => answer(403, { error: 'not_a_member' })],
+      'GET /api/organization/domains': [() => answer(200, { domains: [] })],
     });
     renderPage();
     expect(await screen.findByRole('alert')).toHaveProperty(
