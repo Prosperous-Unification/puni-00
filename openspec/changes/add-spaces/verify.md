@@ -66,6 +66,12 @@ harness wiring, and four new refusal words (`organization_required`, `name_taken
 `space.resource.test.ts` 8 pass; `space-organization.controller.db.test.ts` 8 pass;
 `app.routes.test.ts` 6 pass; mcp-01 `generated-document.test.ts` 6 pass with 62 pinned tools.
 
+`bunx nx affected -t typecheck test lint --base=origin/main` (CLAUDECODE unset): the first run
+failed `tool-devsync:test` (the new file in `service/` was unclassified; renamed
+`space.resource.ts`, whose suffix declares its kind) and `wbs-be-01:test` (`ENOSPC` in `/tmp`
+while the host disk was full; the suite passes alone, 32 of 32). The rerun at `12d6c682`:
+`Successfully ran targets typecheck, test, lint for 19 projects`.
+
 | Check                     | Fault injected                                       | Test that observed it                                                      | Observed                                       |
 | ------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------- |
 | viewer refused writes     | `writableOwner`'s role check skipped                 | `refuses a viewer every space write and lets the viewer read` (controller) | `status: 201` for the viewer's create, not 403 |
