@@ -19,6 +19,7 @@
       "options": {
         "commands": [
           "bun build apps/wbs/be-01/src/main.ts --target=bun --outdir=dist/apps/wbs/be-01",
+          "mkdir -p dist/apps/wbs/be-01/public-email-policy && cp libs/wbs/domain/domain/src/public-email-policy.v1.json libs/wbs/domain/domain/src/public-email-policy.manifest.json dist/apps/wbs/be-01/public-email-policy/",
           "bun apps/wbs/be-01/src/openapi/emit-openapi-cli.ts dist/apps/wbs/be-01/openapi.json"
         ],
         "parallel": false

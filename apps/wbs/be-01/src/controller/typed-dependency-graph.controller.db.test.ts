@@ -38,11 +38,18 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingJoinRequests,
+  refusingTestEmailDelivery,
+} from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
+  refusingDomains,
   refusingMemberships,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
@@ -141,6 +148,11 @@ beforeEach(() => {
     savedPlans: testSavedPlanService(),
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    domains: refusingDomains,
+    emailVerification: refusingEmailVerification,
+    invitations: refusingInvitations,
+    joinRequests: refusingJoinRequests,
+    emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     history: testHistoryService(),
     auth: new AuthService({

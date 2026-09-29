@@ -249,6 +249,7 @@ describe('20260927130000_add_organization_ownership', () => {
     // this migration applied, used by both releases, and reversed.
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
       '20260928200000_add_work_item_status_facts',
+      '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
       '20260928010000_add_project_solution',
@@ -278,6 +279,7 @@ describe('20260927130000_add_organization_ownership', () => {
     ]);
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
       '20260928200000_add_work_item_status_facts',
+      '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
       '20260928010000_add_project_solution',

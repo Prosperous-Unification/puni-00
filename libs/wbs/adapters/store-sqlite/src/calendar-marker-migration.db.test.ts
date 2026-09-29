@@ -238,6 +238,7 @@ describe('20260905090000_add_calendar_marker', () => {
 
     expect(reversed).toEqual([
       '20260928200000_add_work_item_status_facts',
+      '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
       '20260928010000_add_project_solution',
@@ -263,7 +264,10 @@ describe('20260905090000_add_calendar_marker', () => {
     expect(afterRollback).toEqual(
       withTable.filter(
         (n) =>
-          n !== 'calendar_marker' && n !== 'typed_dependency' && !ORGANIZATION_TABLES.includes(n),
+          n !== 'calendar_marker' &&
+          n !== 'email_challenge' &&
+          n !== 'typed_dependency' &&
+          !ORGANIZATION_TABLES.includes(n),
       ),
     );
   });

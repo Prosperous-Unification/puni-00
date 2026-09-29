@@ -39,7 +39,10 @@ test('context route stays inert before activation and production binding', async
 
 test('issues a native direct context only for its own current membership', async () => {
   const keys = await generateKeyPair('RS256');
-  const harness = OrganizationHarness.open(keys.publicKey, keys.privateKey);
+  const harness = OrganizationHarness.open({
+    delegationKey: keys.publicKey,
+    directSigningKey: keys.privateKey,
+  });
   try {
     await harness.register('ada');
     await harness.register('bob');
@@ -171,7 +174,10 @@ test('issues a native direct context only for its own current membership', async
 
 test('enabled context issuance reports inactive before activation', async () => {
   const keys = await generateKeyPair('RS256');
-  const harness = OrganizationHarness.open(keys.publicKey, keys.privateKey);
+  const harness = OrganizationHarness.open({
+    delegationKey: keys.publicKey,
+    directSigningKey: keys.privateKey,
+  });
   try {
     await harness.register('ada');
     harness.organization('org-a');

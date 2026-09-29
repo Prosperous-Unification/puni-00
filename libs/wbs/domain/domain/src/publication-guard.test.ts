@@ -90,7 +90,7 @@ it('rejects a materialized FF finish that integer equal starts would hide', () =
     }),
   };
   expect(() => guardRealPublication(input, forged, 'makespan', UNWEIGHTED, NO_MOVEMENT)).toThrow(
-    'violates FF materialized boundary',
+    'violates FF real boundary on publication',
   );
 });
 
@@ -129,7 +129,7 @@ for (const type of ['FS', 'SS'] as const) {
       }),
     };
     expect(() => guardRealPublication(input, forged, 'makespan', UNWEIGHTED, NO_MOVEMENT)).toThrow(
-      `violates ${type} materialized boundary`,
+      `violates ${type} real boundary on publication`,
     );
   });
 }
