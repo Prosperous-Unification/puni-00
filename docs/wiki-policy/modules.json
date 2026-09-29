@@ -301,17 +301,13 @@
         "kind": "declared",
         "memberships": [
           { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/http/saved-plan.routes.ts" },
           { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/service/saved-plan-integrity.ts"
-          },
           {
             "kind": "path",
             "path": "libs/wbs/application/core/src/service/saved-plan-schedule.ts"
           },
-          { "kind": "path", "path": "libs/wbs/application/core/src/service/saved-plan.service.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/use-cases/save-plan.ts" }
+          { "kind": "path", "path": "libs/wbs/application/core/src/service/saved-plan.service.ts" }
         ]
       }
     },

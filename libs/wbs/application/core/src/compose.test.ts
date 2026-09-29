@@ -15,6 +15,7 @@ import {
 } from './compose';
 import { PlanCommandRunner } from './module/plan-commands/plan-commands.feature';
 import { replay } from './module/realtime/realtime.feature';
+import { savePlan } from './module/saved-plans/save-plan';
 import { clockOf } from './ports/clock';
 import { CREATOR_ADMISSION, type EditAdmission } from './ports/edit-admission';
 import { LEGACY_ACCESS } from './ports/organization-access';
@@ -23,7 +24,6 @@ import type { Scope } from './ports/unit-of-work';
 import type { Decision } from './ports/unit-of-work';
 import { recordingBroadcaster } from './testing/broadcast-fixture';
 import { fastScheduler } from './testing/scheduler-fixture';
-import { savePlan } from './use-cases/save-plan';
 
 function signal(): { readonly promise: Promise<void>; readonly resolve: () => void } {
   let resolve = (): void => {

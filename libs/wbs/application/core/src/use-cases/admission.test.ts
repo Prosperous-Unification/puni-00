@@ -11,10 +11,10 @@ import { PlanCommandRunner } from '../module/plan-commands/plan-commands.feature
 import { runCommandBatch, runCommandBatchAfter } from '../module/plan-commands/run-command-batch';
 import { PlanEventService } from '../module/plan-event/plan-event.resource';
 import { replay } from '../module/realtime/realtime.feature';
+import { savePlan } from '../module/saved-plans/save-plan';
 import { LEGACY_ACCESS } from '../ports/organization-access';
 import { inMemoryServices } from '../testing/harness';
 import { batchServices, testWrites } from '../testing/writes-fixture';
-import { savePlan } from './save-plan';
 
 const writer: AuthenticatedUser = { id: 'owner', username: 'Ada', scopes: ['read', 'write'] };
 const reader: AuthenticatedUser = { ...writer, scopes: ['read'] };

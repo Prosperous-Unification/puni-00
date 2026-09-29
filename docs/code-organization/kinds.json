@@ -58,41 +58,6 @@
       "disposition": "re-export shim; delete when importers use @wbs/core/service/roll-up directly"
     },
     {
-      "path": "apps/wbs/be-01/src/service/saved-plan-default-name.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/saved-plan-input.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/saved-plan-integrity.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/saved-plan-quota.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/saved-plan-schedule-body.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/saved-plan-schedule.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/saved-plan.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/smoke.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core/service/smoke.service directly"
@@ -266,11 +231,6 @@
       "rationale": "SavedPlanService calls planInputRowsOf to transform detached PlanInputReads into canonical saved-plan values without asking a store, clock or runtime port"
     },
     {
-      "path": "libs/wbs/application/core/src/service/saved-plan-integrity.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the saved-plans module directly"
-    },
-    {
       "path": "libs/wbs/application/core/src/service/saved-plan-quota.ts",
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
@@ -309,11 +269,6 @@
       "path": "libs/wbs/application/core/src/service/work-item.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core or the work-item module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/use-cases/save-plan.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the saved-plans module directly"
     }
   ]
 }

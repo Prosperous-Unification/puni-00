@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { AnnouncementCollector } from '@wbs/core';
+import { UnknownSavedPlanBodyVersionError } from '@wbs/core/module/saved-plans/saved-plan-integrity';
+import { defaultSavedPlanName } from '@wbs/core/service/saved-plan-default-name';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn, test } from 'bun:test';
 
@@ -18,8 +20,6 @@ import { WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { type AuthenticatedUser, AuthService } from '../service/auth.service';
 import { ProjectService } from '../service/project.service';
-import { defaultSavedPlanName } from '../service/saved-plan-default-name';
-import { UnknownSavedPlanBodyVersionError } from '../service/saved-plan-integrity';
 import { testApp } from '../testing/app-fixture';
 import { TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';

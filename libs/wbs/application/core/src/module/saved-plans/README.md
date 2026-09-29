@@ -1,6 +1,6 @@
 # Saved plans
 
-<!-- module-index {"schemaVersion":1,"moduleId":"module.application.saved-plans","memberships":[{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"save-plan.ts"},{"kind":"path","path":"saved-plan-integrity.test.ts"},{"kind":"path","path":"saved-plan-integrity.ts"},{"kind":"path","path":"saved-plan-schedule.ts"},{"kind":"path","path":"saved-plan-values.ts"},{"kind":"path","path":"saved-plan.resource.ts"},{"kind":"path","path":"saved-plans.feature.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every reader this packet verified by reading compose.ts, index.ts and the four compatibility shims."},{"section":"invariants","reason":"The write-order, fail-fast and verify-on-read invariants are documented on SavedPlanService and the integrity functions; none spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/saved-plan-integrity.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/saved-plan-schedule.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/saved-plan.service.ts"},{"kind":"path","path":"libs/wbs/application/core/src/use-cases/save-plan.ts"}],"knowledgeLimit":"Only the composition root, the core barrel and the four compatibility shims are declared; the saved-plan routes, the portable composition, the admission and composition tests and the be-01 shims and database tests reach this module through those shims or the barrel and are not tracked here."}} -->
+<!-- module-index {"schemaVersion":1,"moduleId":"module.application.saved-plans","memberships":[{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"save-plan.ts"},{"kind":"path","path":"saved-plan-integrity.test.ts"},{"kind":"path","path":"saved-plan-integrity.ts"},{"kind":"path","path":"saved-plan-schedule.ts"},{"kind":"path","path":"saved-plan-values.ts"},{"kind":"path","path":"saved-plan.resource.ts"},{"kind":"path","path":"saved-plans.feature.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every reader this packet verified by reading compose.ts, index.ts and the four compatibility shims."},{"section":"invariants","reason":"The write-order, fail-fast and verify-on-read invariants are documented on SavedPlanService and the integrity functions; none spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/http/saved-plan.routes.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/saved-plan-schedule.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/saved-plan.service.ts"}],"knowledgeLimit":"The composition root, the core barrel, the saved-plan routes and the two compatibility adapters are declared; the portable composition, the admission and composition tests and the be-01 database tests that import this module directly are not tracked here."}} -->
 
 The sixth sealed DI Bag module in the core, following Plan history's, Bounded replay sweep's,
 Realtime's, Plan import's and Authentication's pattern: `module.ts` seals the graph, `check.ts` is
@@ -25,12 +25,11 @@ The applicable check is the `wbs-core:test` target declared in
 ## Consumers
 
 `libs/wbs/application/core/src/compose.ts` installs the module;
-`libs/wbs/application/core/src/index.ts`,
-`libs/wbs/application/core/src/service/saved-plan.service.ts`,
-`libs/wbs/application/core/src/service/saved-plan-integrity.ts`,
-`libs/wbs/application/core/src/service/saved-plan-schedule.ts` and
-`libs/wbs/application/core/src/use-cases/save-plan.ts` keep the former `@wbs/core` deep-import
-names.
+`libs/wbs/application/core/src/index.ts` re-exports its files from the `@wbs/core` barrel;
+`libs/wbs/application/core/src/http/saved-plan.routes.ts` imports `save-plan.ts` and
+`saved-plan-integrity.ts` directly; `libs/wbs/application/core/src/service/saved-plan.service.ts`
+and `libs/wbs/application/core/src/service/saved-plan-schedule.ts` remain compatibility adapters for
+direct store-based construction.
 
 ## Wiki registration
 
