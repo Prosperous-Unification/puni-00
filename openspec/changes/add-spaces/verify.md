@@ -83,3 +83,24 @@ while the host disk was full; the suite passes alone, 32 of 32). The rerun at `1
 | leak rule: move member (review) | `projectId` left out of the `moveProject` gate       | `refuses to move it, or to move another after it`                          | `{ ok: true, value: 5 }`                       |
 | leak rule: move anchor (review) | `afterProjectId` left out of the `moveProject` gate  | same                                                                       | `{ ok: true, value: 30 }`                      |
 | leak rule: remove (review)      | the `removeProject` gate removed                     | `refuses to remove it`                                                     | `{ ok: true, value: null }`                    |
+
+## Slice 3 — roll-ups
+
+Written on `batch-9/010-4-15-spaces-roll-ups`, stacked on the routes branch after main
+`4bb71e5f` (statuses) was merged through storage. `project-roll-up.test.ts` 5 pass;
+`space.resource.test.ts` 18 pass; `space-organization.controller.db.test.ts` 10 pass (the
+after-activation block now opens the composed harness, whose real units of work the command
+case needs; the viewer, foreign-space and limit negatives were re-observed there).
+
+**Budget** (`space-roll-up-performance.db.test.ts`, 30 imported projects of 300 rows, this
+host): space read 3.4–4.0 ms (target 30); warm chunk of 20 11.2–13.9 ms (target 100); cold chunk
+of 20 4,961–4,972 ms against a 1,500 ms target for 30. The cold target is not met and not
+asserted; task 3.4 holds the decision.
+
+| Check                     | Fault injected                                            | Test that observed it                                                                        | Observed                           |
+| ------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------- |
+| cache keyed by sequence   | the sequence left out of `RollUpCache.keyOf`              | `answers a command's new total on the next read, and serves an unchanged one from the cache` | `Expected: 5`, `Received: 3`       |
+| cache expires             | the TTL check skipped                                     | `expires a roll-up after the TTL even at the same sequence`                                  | `Expected: 5`, `Received: 3`       |
+| status is the parent fold | `foldStatuses` swapped for an `agree` fold seeded unknown | `folds the roots, so a project whose roots are all on hold reads on_hold`                    | `Received: "in_progress"`          |
+| leak rule: roll-ups       | the readable check removed from `rollUps`                 | `answers no roll-up for a project the caller cannot open`                                    | `ok: true` with the hidden roll-up |
+| at most 50 ids            | the limit removed from `projectIdsOf`                     | `refuses 51 project ids with 400 and computes nothing`                                       | `status: 404`, not 400             |

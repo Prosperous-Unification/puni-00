@@ -194,6 +194,7 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postInternalResume: { resume_points: { subscription: -1 }, trace_id: 'route-probe' },
 };
 const REQUEST_QUERIES: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>> = {
+  'getApiSpacesByIdRoll-ups': { projectIds: 'route-probe' },
   getApiAuthOktaCallback: { state: 'route-probe', error: 'access_denied' },
   getApiProjectsByIdExport: { format: 'json' },
   'getApiProjectsByIdSaved-plansCompare': { left: 'current', right: 'current' },
@@ -243,6 +244,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiServices',
   'getApiSpaces',
   'getApiSpacesById',
+  'getApiSpacesByIdRoll-ups',
   'getApiTags',
   'getApiTeams',
   'getApiWork-item-types',
@@ -365,6 +367,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiServices',
   'getApiSpaces',
   'getApiSpacesById',
+  'getApiSpacesByIdRoll-ups',
   'getApiTags',
   'getApiTeams',
   'getApiWork-item-types',

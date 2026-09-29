@@ -1,8 +1,17 @@
-import { canWriteInOrganization, POSITION_STEP } from '@wbs/domain';
+import {
+  canWriteInOrganization,
+  POSITION_STEP,
+  type ProjectRollUp,
+  ROLLUP_DTO_VERSION,
+  rollUpProject,
+  SCHEDULER_CONTRACT_VERSION,
+} from '@wbs/domain';
 
 import type { ProjectService } from '../module/project/project.resource';
+import type { WorkItemService } from '../module/work-item/work-item.resource';
 import type { Clock } from '../ports/clock';
 import type { ResourceAccess } from '../ports/organization-access';
+import type { Broadcaster } from '../ports/project-event';
 import type { ProjectWithAccess } from '../ports/project-store';
 import type { Space, SpaceStore } from '../ports/space-store';
 
@@ -55,6 +64,67 @@ export interface SpaceResourceOptions {
    */
   projects: Pick<ProjectService, 'listWithin' | 'readWithin'>;
   clock: Clock;
+  /** The project page's own read, which every roll-up is computed from. */
+  trees: Pick<WorkItemService, 'treeWithin'>;
+  /** The project's event sequence, read before the tree to key the cache. */
+  sequences: Pick<Broadcaster, 'latestSeq'>;
+  /** One process's roll-ups; a fresh cache per process, shared by its requests. */
+  rollUpCache: RollUpCache;
+}
+
+/** A project whose scheduler engine is unavailable: drawn as a mark, never a Fast fallback. */
+export interface UnavailableRollUp {
+  kind: 'unavailable';
+}
+
+/** The most roll-ups one request may ask for (spec `space-read`). */
+export const ROLL_UPS_PER_REQUEST = 50;
+
+/**
+ * A per-process LRU of project roll-ups (`add-spaces` design, memo §8).
+ *
+ * Keyed by project, event sequence, scheduler contract and roll-up version:
+ * every write to a project publishes to its sequence, so a hit is current in
+ * the writing process. Another process's write (blue/green overlap) or a
+ * missed publication converges within {@link RollUpCache.ttlMs}.
+ */
+export class RollUpCache {
+  private readonly held = new Map<string, { rollUp: ProjectRollUp; storedAt: number }>();
+
+  constructor(
+    private readonly clock: Pick<Clock, 'now'>,
+    private readonly capacity = 2_000,
+    readonly ttlMs = 60_000,
+  ) {}
+
+  /** The key for one project at one sequence. */
+  static keyOf(projectId: string, seq: number): string {
+    return `${projectId}:${String(seq)}:${String(SCHEDULER_CONTRACT_VERSION)}:${String(ROLLUP_DTO_VERSION)}`;
+  }
+
+  get(key: string): ProjectRollUp | undefined {
+    const entry = this.held.get(key);
+    if (entry === undefined) return undefined;
+    // Proof, observed 2026-09-29: with this expiry skipped, `expires a roll-up
+    // after the TTL even at the same sequence` in `space.resource.test.ts`
+    // received the stale total 3 instead of 5.
+    if (this.clock.now() - entry.storedAt >= this.ttlMs) {
+      this.held.delete(key);
+      return undefined;
+    }
+    this.held.delete(key);
+    this.held.set(key, entry);
+    return entry.rollUp;
+  }
+
+  set(key: string, rollUp: ProjectRollUp): void {
+    this.held.delete(key);
+    this.held.set(key, { rollUp, storedAt: this.clock.now() });
+    for (const oldest of this.held.keys()) {
+      if (this.held.size <= this.capacity) break;
+      this.held.delete(oldest);
+    }
+  }
 }
 
 type Owner = { ok: true; organizationId: string } | { ok: false; refusal: 'organization_required' };
@@ -83,16 +153,18 @@ export class SpaceResource {
     if (!owner.ok) return owner;
     const readable = await this.readableIds(actorId, access);
     const spaces = await this.opts.spaces.listIn(owner.organizationId);
-    const summaries: SpaceSummary[] = [];
-    for (const space of spaces) {
-      const members = await this.opts.spaces.membersOf(owner.organizationId, space.id);
-      // Deleted between the two reads: it is no longer a space to list.
-      if (members === null) continue;
-      summaries.push(
-        summaryOf(space, members.filter(({ projectId }) => readable.has(projectId)).length),
-      );
-    }
-    return { ok: true, value: summaries };
+    // One read for every space's members (task 3.0): a space added between the
+    // two reads counts no member, which the next read corrects.
+    const members = await this.opts.spaces.membersIn(owner.organizationId);
+    return {
+      ok: true,
+      value: spaces.map((space) =>
+        summaryOf(
+          space,
+          (members.get(space.id) ?? []).filter(({ projectId }) => readable.has(projectId)).length,
+        ),
+      ),
+    };
   }
 
   async create(
@@ -126,8 +198,8 @@ export class SpaceResource {
   ): Promise<
     SpaceAnswer<{ space: SpaceSummary; rows: SpaceRow[] }, 'organization_required' | 'not_found'>
   > {
-    const projects = await this.opts.projects.listWithin(actorId, access);
     if (spaceId === ALL_PROJECTS) {
+      const projects = await this.opts.projects.listWithin(actorId, access);
       return {
         ok: true,
         value: {
@@ -149,11 +221,14 @@ export class SpaceResource {
     }
     const owner = await this.ownerOf(access);
     if (!owner.ok) return owner;
+    // The space is found before the project list is read (task 3.0): an
+    // absent space costs one lookup, not the caller's whole project list.
     const space = await this.opts.spaces.findIn(owner.organizationId, spaceId);
     if (space === null) return { ok: false, refusal: 'not_found' };
-    const readable = new Map(projects.map((project) => [project.id, project]));
     const members = await this.opts.spaces.membersOf(owner.organizationId, spaceId);
     if (members === null) return { ok: false, refusal: 'not_found' };
+    const projects = await this.opts.projects.listWithin(actorId, access);
+    const readable = new Map(projects.map((project) => [project.id, project]));
     const rows: SpaceRow[] = [];
     for (const { projectId, position } of members) {
       const project = readable.get(projectId);
@@ -163,6 +238,84 @@ export class SpaceResource {
       if (project !== undefined) rows.push({ project, position });
     }
     return { ok: true, value: { space: summaryOf(space, rows.length), rows } };
+  }
+
+  /**
+   * Roll-ups for `projectIds`, each a member of the space the caller can open
+   * (`all`: any project the caller can open). Any other id answers
+   * `not_found` for the whole request, indistinguishable from a non-member.
+   * A cached roll-up is answered only at the project's current sequence.
+   */
+  async rollUps(
+    actorId: string,
+    access: ResourceAccess,
+    spaceId: string,
+    projectIds: readonly string[],
+  ): Promise<
+    SpaceAnswer<
+      Record<string, ProjectRollUp | UnavailableRollUp>,
+      'organization_required' | 'not_found'
+    >
+  > {
+    const readable = await this.readableIds(actorId, access);
+    let members: Set<string> = readable;
+    if (spaceId !== ALL_PROJECTS) {
+      const owner = await this.ownerOf(access);
+      if (!owner.ok) return owner;
+      const listed = await this.opts.spaces.membersOf(owner.organizationId, spaceId);
+      if (listed === null) return { ok: false, refusal: 'not_found' };
+      members = new Set(listed.map(({ projectId }) => projectId));
+    }
+    // Proof, observed 2026-09-29: with the readable check removed, `answers no
+    // roll-up for a project the caller cannot open` in `space.resource.test.ts`
+    // received the hidden project's roll-up instead of `not_found`.
+    if (projectIds.some((projectId) => !members.has(projectId) || !readable.has(projectId))) {
+      return { ok: false, refusal: 'not_found' };
+    }
+    const rollUps: Record<string, ProjectRollUp | UnavailableRollUp> = {};
+    for (const projectId of projectIds) {
+      const rolled = await this.rollUpOf(projectId, access);
+      if (rolled === null) return { ok: false, refusal: 'not_found' };
+      rollUps[projectId] = rolled;
+    }
+    return { ok: true, value: rollUps };
+  }
+
+  private async rollUpOf(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<ProjectRollUp | UnavailableRollUp | null> {
+    const seq = await this.opts.sequences.latestSeq(projectId);
+    // Proof, observed 2026-09-29: with the sequence left out of this key,
+    // `answers a command's new total on the next read, and serves an unchanged
+    // one from the cache` in `space.resource.test.ts` received the old total 3
+    // instead of 5.
+    const cached = this.opts.rollUpCache.get(RollUpCache.keyOf(projectId, seq));
+    if (cached !== undefined) return cached;
+    const tree = await this.opts.trees.treeWithin(projectId, access);
+    if (tree === null) return null;
+    // An unavailable engine is not cached: it can recover with no write.
+    if ('kind' in tree) return { kind: 'unavailable' };
+    const rollUp = rollUpProject({
+      workItems: tree.workItems.map((row) => ({
+        id: row.id,
+        parentId: row.parentId,
+        status: row.status,
+        finalTotal: row.finalTotal,
+        dates: row.dates,
+        estimated: Object.keys(row.estimates).length > 0,
+      })),
+      scheduleError: tree.scheduleError,
+      waitingForPerson: tree.waitingForPerson,
+      waitingForCapacity: tree.waitingForCapacity,
+      displayed: tree.optimization?.displayed ?? 'fast',
+      projectRevision: tree.projectRevision,
+      seq: tree.seq,
+    });
+    // Keyed by the sequence the tree itself read, which is the one its rows
+    // are current at.
+    this.opts.rollUpCache.set(RollUpCache.keyOf(projectId, tree.seq), rollUp);
+    return rollUp;
   }
 
   async rename(
