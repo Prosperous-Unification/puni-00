@@ -9,6 +9,7 @@ import {
 import { lazy, type ReactNode, Suspense, useMemo, useState } from 'react';
 
 import { PageNav } from '@/components/chrome/page-nav';
+import { OrganizationPage } from '@/components/organization/organization-page';
 import type { Roster } from '@/components/presence/presence-panel';
 import { ProjectPage } from '@/components/wbs/project-page';
 import type { SessionRuntime } from '@/runtime/session-runtime';
@@ -106,7 +107,21 @@ const directoryRoute = createRoute({
   },
 });
 
-const routeTree = rootRoute.addChildren([projectRoute, directoryRoute]);
+/**
+ * Organization administration, at `/organization`. Reached by address only:
+ * the page answers only after activation and a bound active organization, so
+ * {@link PageNav} gains its link with the organization switcher (task 2.4).
+ */
+const organizationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/organization',
+  component: function OrganizationRoute() {
+    const { account, nav } = organizationRoute.useRouteContext();
+    return <OrganizationPage nav={nav} account={account} />;
+  },
+});
+
+const routeTree = rootRoute.addChildren([projectRoute, directoryRoute, organizationRoute]);
 
 /**
  * The router for the signed-in region, built in code rather than generated.
