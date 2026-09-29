@@ -3681,18 +3681,17 @@ describe('setting a row’s status as one act', () => {
     });
   });
 
-  it('refuses a status outside unknown and done, in_progress and not_started included', async () => {
-    // The shape guards the keys and this guards the value (`AGENTS.md`): the
-    // ArkType arm names `'unknown' | 'done'`, but a mistyped value reaches the
-    // parser, and `parseStatus` is what answers it.
+  it('refuses a status nobody may set, blocked_by_proxy and not_started included', async () => {
+    // The shape guards the keys and this guards the value (`AGENTS.md`): a
+    // mistyped value reaches the parser, and `parseStatus` is what answers it.
     //
-    // Proof: `parseStatus` replaced by a cast, and `in_progress` answers 200 —
-    // a row-level statement the vocabulary reserves for a step, written on
-    // every step of the row; watched 2026-09-12.
+    // Proof: `parseStatus` replaced by a cast, and `blocked_by_proxy` was
+    // answered `invalid_body` without its `at` and `kind` — the command's own
+    // refusal lost to a later shape check; watched 2026-09-29.
     const { token, send, projectId } = await setup();
     const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
 
-    for (const status of ['in_progress', 'not_started', 'finished', 7, null]) {
+    for (const status of ['blocked_by_proxy', 'not_started', 'finished', 7, null]) {
       const res = await command(send, token, projectId, {
         kind: 'setStatus',
         workItemId: strip,

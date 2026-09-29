@@ -1,9 +1,7 @@
-import { SETTABLE_STATUSES } from '@wbs/domain/progress';
-
 import { ActionsMenu } from '../actions-menu';
 import { isoToday } from '../gantt-panel';
 import type { PlanLive } from '../plan-live';
-import { STATUS_LABEL } from '../status-cell';
+import { OFFERED_STATUSES, STATUS_LABEL } from '../status-cell';
 import { column } from './column';
 
 /** Builds the actions column family against the stable live cell contract. */
@@ -39,7 +37,7 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
           // and is not offered. The status word is drawn as the status card
           // draws it — bold, `Done` in green — so a status is said one way
           // everywhere.
-          ...SETTABLE_STATUSES.filter((status) => status !== row.original.status).map((status) => ({
+          ...OFFERED_STATUSES.filter((status) => status !== row.original.status).map((status) => ({
             id: `set-${status}`,
             label: `Set status to ${STATUS_LABEL[status]}`,
             lead: {

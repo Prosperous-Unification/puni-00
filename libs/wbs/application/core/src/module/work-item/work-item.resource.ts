@@ -17,6 +17,7 @@ import {
   firstWorkdayOf,
   formatStepNodeId,
   formatTypedDependencyKey,
+  type Hold,
   type IsoDate,
   isoDateOfInstant,
   isWithin,
@@ -30,13 +31,16 @@ import {
   placeAfter,
   POSITION_STEP,
   type PriorityBand,
+  type Readiness,
   type SettableStatus,
   type Sibling,
   type StepAllowances,
   type StepPolicy,
   type StepState,
   UNKNOWN,
+  withoutHeldSubtrees,
   workdaysBetween,
+  type WorkItemStatus,
 } from '@wbs/domain';
 import { MEASURE_METRICS, SOLVER_OBJECTIVES, type SolverObjectiveName } from '@wbs/domain';
 import { byTreeOrder, type StepNodeCycle, treeOrder, type TypedDependency } from '@wbs/domain';
@@ -122,6 +126,17 @@ import {
   rollUpWorkItemStatuses,
   workedStepsOf,
 } from '../../service/roll-up';
+import { workItemStatusesOf } from '../../service/work-item-statuses';
+
+/**
+ * A row's folded status. Every row of the tree is folded, so a miss is a row
+ * the fold was never handed — an invariant break, never "nobody has said".
+ */
+function statusOfRow(statuses: ReadonlyMap<string, WorkItemStatus>, id: string): WorkItemStatus {
+  const status = statuses.get(id);
+  if (status === undefined) throw new Error(`no status folded for ${id}`);
+  return status;
+}
 
 /**
  * What a work item shows before any schedule could be computed for it.
@@ -496,17 +511,29 @@ function canonicalScheduleParts(
               .map((row) => [row.id, row.deadline]),
           ),
         );
+  // On hold takes a leaf, and every ancestor all of whose leaves are held, out
+  // of the input before either engine reads it (ADR 0032). Blocked, readiness
+  // and blocked by proxy change nothing here.
+  // Proof: this reduction bypassed (an empty held set) made `lets a successor
+  // start at day zero, and reports the held row with no schedule` fail — the
+  // held row came back scheduled over days 0 to 5; watched 2026-09-29.
+  const heldLeafIds = new Set(
+    rows.filter((row) => row.hold === 'on_hold' && !hasChildren.has(row.id)).map((row) => row.id),
+  );
   return {
-    input: {
-      rows,
-      edges,
-      slices,
-      notBefore,
-      poolSizes,
-      reach: project.depReach,
-      deadlines,
-      typed,
-    },
+    input: withoutHeldSubtrees(
+      {
+        rows,
+        edges,
+        slices,
+        notBefore,
+        poolSizes,
+        reach: project.depReach,
+        deadlines,
+        typed,
+      },
+      heldLeafIds,
+    ),
     hasChildren,
     assigneesOf,
     rule,
@@ -770,7 +797,13 @@ export type WorkItemRefusal =
    * project is not rejected. See the column's JSDoc in `schema.ts`, which is
    * where that asymmetry is argued.
    */
-  | 'deadline_before_project_start';
+  | 'deadline_before_project_start'
+  /** `setStatus` `ready` or `draft` on a leaf whose steps have already spoken. */
+  | 'readiness_after_progress'
+  /** `setStatus` `on_hold` or `blocked` on a row reading done. */
+  | 'cannot_hold_done'
+  /** `setStatus` `in_progress` or `done` in a project with no steps to speak for. */
+  | 'no_steps';
 
 export type WorkItemOutcome<T> =
   | { ok: true; value: T }
@@ -1021,6 +1054,45 @@ const asSibling = (workItem: WorkItem): Sibling => ({
   position: workItem.position,
 });
 
+/**
+ * A command with one `patch` step joined to it, as one batch: after it on the
+ * way forward, before it on the way back. `undefined` leaves the command alone.
+ */
+function withPatchStep(
+  command: CompensatingCommand,
+  step: CompensatingCommand | undefined,
+  order: 'after' | 'before',
+): CompensatingCommand {
+  if (step === undefined) return command;
+  return { do: 'batch', steps: order === 'after' ? [command, step] : [step, command] };
+}
+
+/** The readiness or hold every leaf agreed on, or null where any disagreed. */
+function agreedOn<T>(values: readonly (T | null)[]): T | null {
+  const [first] = values;
+  return first !== undefined && values.every((value) => value === first) ? first : null;
+}
+
+/** The history sentence for one `setStatus`, the row named already quoted. */
+function statusSentence(status: SettableStatus, name: string): string {
+  switch (status) {
+    case 'done':
+      return `mark ${name} done`;
+    case 'unknown':
+      return `set ${name} back to unknown`;
+    case 'ready':
+      return `mark ${name} ready`;
+    case 'draft':
+      return `mark ${name} draft`;
+    case 'in_progress':
+      return `start ${name}`;
+    case 'on_hold':
+      return `put ${name} on hold`;
+    case 'blocked':
+      return `mark ${name} blocked`;
+  }
+}
+
 /** The pair a statement is keyed by, as one map key. */
 const progressKey = (workItemId: string, stepId: string): string => `${workItemId}\u0000${stepId}`;
 
@@ -1100,6 +1172,8 @@ function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
   // columns over.
   if (patch.factStart !== undefined) named.push('factStart');
   if (patch.factEnd !== undefined) named.push('factEnd');
+  if (patch.readiness !== undefined) named.push('readiness');
+  if (patch.hold !== undefined) named.push('hold');
   // Proof: this line and the matching one in {@link revertTo} each deleted in
   // turn, and both `puts a replaced priority back, and leaves a priority a rename
   // did not name` and `takes a first priority away again, rather than leaving a
@@ -1190,6 +1264,8 @@ function revertTo(before: LabelledWorkItem, patch: WorkItemPatch): WorkItemPatch
   // `patch` step too, so its inverse is `factEnd: null` through this same line.
   if (patch.factStart !== undefined) out.factStart = before.factStart;
   if (patch.factEnd !== undefined) out.factEnd = before.factEnd;
+  if (patch.readiness !== undefined) out.readiness = before.readiness;
+  if (patch.hold !== undefined) out.hold = before.hold;
   if (patch.priority !== undefined) out.priority = before.priority;
   if (patch.serviceTeamId !== undefined) out.serviceTeamId = before.serviceTeamId;
   if (patch.teamIds !== undefined) out.teamIds = before.teamIds;
@@ -1888,7 +1964,16 @@ export class WorkItemService {
     // The row's own reading, folded over its **children** rather than over its
     // rolled-up steps — see `rollUpWorkItemStatuses` for why the two differ and which
     // one is true.
-    const itemStatuses = rollUpWorkItemStatuses(rows, statedTotals);
+    // A legacy edge naming a work item from another project is stored state
+    // the schema does not prevent and the read already hides (`dependsOn`
+    // below); it cannot hold a leaf of this plan back, so the status fold is
+    // handed only edges between rows it holds. Typed dependencies are checked
+    // against the project when written, so a stray one there throws.
+    const rowIds = new Set(rows.map((row) => row.id));
+    const itemStatuses = workItemStatusesOf(rows, rollUpWorkItemStatuses(rows, statedTotals), {
+      edges: edges.filter((edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId)),
+      typed: authored,
+    });
     // The write path refuses an edge that would close a cycle, but two clients
     // drawing conflicting edges at the same instant are each checked against the
     // graph as they read it. If one ever lands, every read of this project must
@@ -1930,6 +2015,7 @@ export class WorkItemService {
       slotsOf,
     );
     const { assigneesOf, hasChildren, rule } = canonical;
+    const scheduledIds = new Set(canonical.input.rows.map((row) => row.id));
     // What each row is **charged**, per step: a leaf's own estimate uplifted by
     // its step's allowance and rounded, a parent's the sum of its descendants'
     // charged figures. Not `totals` put through the method — see `rollUpFinals`.
@@ -2124,12 +2210,10 @@ export class WorkItemService {
             (entry): entry is [string, StepState] => entry[1] !== UNKNOWN,
           ),
         ),
-        // The row's own reading, **derived from its steps and never stored**:
-        // `done` when every step with work on it says so, `unknown` when
-        // none of them has said anything, and `in_progress` for every
-        // disagreement in between — including the one that matters most, one
-        // step finished and another silent. `@wbs/domain`'s `agree`.
-        status: itemStatuses.get(row.id) ?? UNKNOWN,
+        // The row's own reading, **derived and never stored**: a leaf's from
+        // its steps' progress, its hold, its readiness and its predecessors, a
+        // parent's from its children — `workItemStatusesOf`.
+        status: statusOfRow(itemStatuses, row.id),
         // A parent's charged days are the **sum of its descendants' rounded
         // figures**, not its rolled-up triple put through the method once. The
         // two agreed while days were fractional and part company the moment a
@@ -2143,12 +2227,15 @@ export class WorkItemService {
         // otherwise be reported as a dependency on a number nobody can see.
         dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => idsOnThisPlan.has(id)),
         ...assignmentFieldsOf(assigneesOf.get(row.id) ?? {}),
-        schedule: timing.get(row.id) ?? UNSCHEDULED,
-        dates: datesOf(
-          project.startDate,
-          timing.get(row.id) ?? UNSCHEDULED,
-          scheduleError !== null,
-        ),
+        // A row the hold reduction took out has no schedule and no dates: it
+        // takes no part in the plan, and a placeholder span would draw it.
+        // Proof: the placeholder kept here made `lets a successor start at day
+        // zero…` fail on a zero-length schedule where `null` was owed; watched
+        // 2026-09-29.
+        schedule: scheduledIds.has(row.id) ? (timing.get(row.id) ?? UNSCHEDULED) : null,
+        dates: scheduledIds.has(row.id)
+          ? datesOf(project.startDate, timing.get(row.id) ?? UNSCHEDULED, scheduleError !== null)
+          : null,
       }))
       // **Tree order, not the number string** (ADR 0023). The two agreed for as
       // long as a frozen work item could not move — `deriveNumbers` built
@@ -2235,6 +2322,12 @@ export class WorkItemService {
     // nothing. One stamp for the row, for the four hand-downs below it and for
     // the journal entry: a create and the estimates it moves are one act.
     const stamp = this.clock.stampFor(actorId);
+    // A leaf gaining its first child hands its readiness and hold down with its
+    // progress: both describe the work, and the work is the child now.
+    const firstChildOf =
+      input.parentId !== null && !rows.some((row) => row.parentId === input.parentId)
+        ? rows.find((row) => row.id === input.parentId)
+        : undefined;
     const workItem: WorkItem = {
       id: this.clock.newId(),
       projectId,
@@ -2254,6 +2347,10 @@ export class WorkItemService {
       deadline: null,
       factStart: null,
       factEnd: null,
+      // Nothing said about a new row, unless it takes its parent's statements
+      // as that parent's first child.
+      readiness: firstChildOf?.readiness ?? null,
+      hold: firstChildOf?.hold ?? null,
       priority,
       serviceTeamId: null,
       // Unlabelled, in the third dimension as in the other two: a new row states
@@ -2274,6 +2371,32 @@ export class WorkItemService {
       // at 1 — see {@link NumberedWorkItem.revision}.
       revision: 0,
     };
+    const statementsHandedDown =
+      firstChildOf !== undefined && (firstChildOf.readiness !== null || firstChildOf.hold !== null)
+        ? {
+            forward: {
+              do: 'patch' as const,
+              workItemId: firstChildOf.id,
+              patch: { readiness: null, hold: null },
+            },
+            inverse: {
+              do: 'patch' as const,
+              workItemId: firstChildOf.id,
+              patch: { readiness: firstChildOf.readiness, hold: firstChildOf.hold },
+            },
+          }
+        : undefined;
+    // Cleared **before** the child is inserted, so no read between the two
+    // writes sees a parent holding a statement (Fable review, I1).
+    // Proof: this write skipped made `hands a leaf’s readiness and hold down
+    // to its first child…` fail on `parent … holds a readiness or a hold`;
+    // watched 2026-09-29. Moved after the insert, `no read sees a parent
+    // holding a statement while a first child is created` failed on the read
+    // taken between the two writes; watched 2026-09-29.
+    if (statementsHandedDown !== undefined) {
+      const handed = await this.apply(projectId, statementsHandedDown.forward, stamp);
+      if (!handed.ok) throw new Error(`cannot hand statements down: ${handed.detail}`);
+    }
     await this.opts.workItems.insert(workItem, placed.renumbered, stamp);
     // A work item that had an estimate and now has a child no longer holds one:
     // the estimate described the work, and the work is the child now. Moving it
@@ -2463,6 +2586,7 @@ export class WorkItemService {
         do: 'remove_typed_dependency' as const,
         dependency: original,
       })),
+      ...(statementsHandedDown === undefined ? [] : [statementsHandedDown.forward]),
       forward,
       ...assignedHandedDown.map(({ workItemId, stepId }) => ({
         do: 'assign' as const,
@@ -2481,6 +2605,7 @@ export class WorkItemService {
         dependency: remapped,
       })),
       inverse,
+      ...(statementsHandedDown === undefined ? [] : [statementsHandedDown.inverse]),
       ...assignedHandedDown.map(({ workItemId, stepId, personId }) => ({
         do: 'assign' as const,
         workItemId,
@@ -2755,17 +2880,123 @@ export class WorkItemService {
     const group = this.groupUnder(rows, input.parentId).filter((sibling) => sibling.id !== id);
     const placed = placeAfter(group, input.afterId);
     const stamp = this.clock.stampFor(actorId);
+    // A leaf another row moves under becomes a parent, and a parent holds no
+    // readiness or hold: its status is folded from its children. The moved row
+    // is other work, so the statements are cleared rather than handed to it.
+    const becomesParent =
+      input.parentId !== null &&
+      !rows.some((row) => row.parentId === input.parentId && row.id !== id)
+        ? rows.find((row) => row.id === input.parentId)
+        : undefined;
+    const statementsCleared =
+      becomesParent !== undefined &&
+      (becomesParent.readiness !== null || becomesParent.hold !== null)
+        ? {
+            forward: {
+              do: 'patch' as const,
+              workItemId: becomesParent.id,
+              patch: { readiness: null, hold: null },
+            },
+            inverse: {
+              do: 'patch' as const,
+              workItemId: becomesParent.id,
+              patch: { readiness: becomesParent.readiness, hold: becomesParent.hold },
+            },
+          }
+        : undefined;
+    // The parent the row leaves, when it was that parent's last child, becomes a
+    // leaf again and takes the statements every leaf it held agreed on, as a
+    // last-child delete does.
+    const leftParentId =
+      workItem.parentId !== null &&
+      workItem.parentId !== input.parentId &&
+      rows.filter((row) => row.parentId === workItem.parentId).length === 1
+        ? workItem.parentId
+        : null;
+    const movedLeaves = subtreeOf(rows, id)
+      .map((each) => rowOf(rows, each))
+      .filter((row) => !rows.some((child) => child.parentId === row.id));
+    const leftAgreed =
+      leftParentId === null
+        ? undefined
+        : {
+            readiness: agreedOn(movedLeaves.map((row) => row.readiness)),
+            hold: agreedOn(movedLeaves.map((row) => row.hold)),
+          };
+    const statementsHandedUp =
+      leftParentId !== null &&
+      leftAgreed !== undefined &&
+      (leftAgreed.readiness !== null || leftAgreed.hold !== null)
+        ? {
+            forward: { do: 'patch' as const, workItemId: leftParentId, patch: leftAgreed },
+            inverse: {
+              do: 'patch' as const,
+              workItemId: leftParentId,
+              patch: { readiness: null, hold: null },
+            },
+          }
+        : undefined;
+    // Cleared **before** the move, so no read between the two writes sees a
+    // parent holding a statement (Fable review, I1). Moved after the move,
+    // `no read sees a parent holding a statement while a row moves under a
+    // leaf` failed on the read taken between the two writes; watched 2026-09-29.
+    if (statementsCleared !== undefined) {
+      // Proof: this write skipped made `clears the readiness and hold of a leaf
+      // another row moves under…` fail on `parent … holds a readiness or a
+      // hold`; watched 2026-09-29.
+      const cleared = await this.apply(workItem.projectId, statementsCleared.forward, stamp);
+      if (!cleared.ok) throw new Error(`cannot clear the new parent: ${cleared.detail}`);
+    }
     await this.opts.workItems.move(id, input.parentId, placed.position, placed.renumbered, stamp);
+    if (statementsHandedUp !== undefined) {
+      // Proof: this write skipped made `gives the parent a moved last child
+      // leaves the statements it agreed on` fail on `readiness: null` where
+      // `ready` was owed; watched 2026-09-29.
+      const handed = await this.apply(workItem.projectId, statementsHandedUp.forward, stamp);
+      if (!handed.ok) throw new Error(`cannot hand statements up: ${handed.detail}`);
+    }
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'move', `move ${quoteName(workItem.name)}`, {
-      forward: { do: 'move', workItemId: id, parentId: input.parentId, afterId: input.afterId },
-      inverse: {
-        do: 'move',
-        workItemId: id,
-        parentId: workItem.parentId,
-        afterId: wasAfter?.id ?? null,
-      },
-      touched: [id],
+      forward: withPatchStep(
+        withPatchStep(
+          { do: 'move', workItemId: id, parentId: input.parentId, afterId: input.afterId },
+          statementsHandedUp?.forward,
+          'after',
+        ),
+        statementsCleared?.forward,
+        'before',
+      ),
+      // The parent it left cleared first, then back where it was, then the
+      // statements of the row it had moved under: each patch lands while its
+      // row is a leaf, so no read between the writes sees a parent holding a
+      // statement, and the write never refuses a statement on a parent.
+      // Proof: the new parent's restore ordered before the move-back made
+      // `clears the readiness and hold of a leaf another row moves under, and
+      // one undo restores them` fail on `Expected: true, Received: false` — the
+      // undo was refused; watched 2026-09-29. The left parent's clear ordered
+      // after the move-back made `no read sees a parent holding a statement
+      // while a move that emptied it is undone` fail on the read taken after
+      // the move-back (`parent … holds a readiness or a hold`); watched
+      // 2026-09-29 (Fable review, round 4).
+      inverse: withPatchStep(
+        withPatchStep(
+          {
+            do: 'move',
+            workItemId: id,
+            parentId: workItem.parentId,
+            afterId: wasAfter?.id ?? null,
+          },
+          statementsCleared?.inverse,
+          'after',
+        ),
+        statementsHandedUp?.inverse,
+        'before',
+      ),
+      touched: [
+        id,
+        ...(statementsCleared === undefined ? [] : [statementsCleared.forward.workItemId]),
+        ...(statementsHandedUp === undefined ? [] : [statementsHandedUp.forward.workItemId]),
+      ],
       before: rows,
     });
     return { ok: true, value: null };
@@ -2854,6 +3085,11 @@ export class WorkItemService {
         // no statements either (`step_progress` is not copied, below). ADR 0024.
         factStart: null,
         factEnd: null,
+        // A copy has a definition, not a history: it keeps the original's
+        // readiness and never its hold (`add-work-item-statuses`).
+        // Proof: this line removed made `copies a readiness and never a hold`
+        // fail on `hold: "on_hold"`; watched 2026-09-29.
+        hold: null,
         // Not the original's count. A copy is a new row that has never been
         // changed, and carrying the original's revision across would have a
         // reader's precondition on one row pass against the other.
@@ -3205,72 +3441,116 @@ export class WorkItemService {
       // relationships on undo, watched 2026-09-27.
       const removedTyped = await this.opts.typedDependencies.removeAllFor(doomed, stamp);
       await this.opts.workItems.remove(doomed, [], stamp);
+      // The parent becoming a leaf again takes a readiness or hold only where
+      // every former leaf agreed on it (`add-work-item-statuses`).
+      const formerLeaves = doomed
+        .map((each) => rowOf(rows, each))
+        .filter((row) => !rows.some((child) => child.parentId === row.id));
+      const statementsHandedUp =
+        parentId !== null && rows.filter((row) => row.parentId === parentId).length === 1
+          ? {
+              readiness: agreedOn(formerLeaves.map((row) => row.readiness)),
+              hold: agreedOn(formerLeaves.map((row) => row.hold)),
+            }
+          : undefined;
+      const handUpStep =
+        statementsHandedUp !== undefined &&
+        parentId !== null &&
+        (statementsHandedUp.readiness !== null || statementsHandedUp.hold !== null)
+          ? {
+              forward: {
+                do: 'patch' as const,
+                workItemId: parentId,
+                patch: statementsHandedUp,
+              },
+              inverse: {
+                do: 'patch' as const,
+                workItemId: parentId,
+                patch: { readiness: null, hold: null },
+              },
+            }
+          : undefined;
+      if (handUpStep !== undefined) {
+        // Proof: this write skipped made `gives a parent losing its last child
+        // the readiness and hold every former leaf agreed on` fail on
+        // `readiness: null` where `draft` was owed; watched 2026-09-29.
+        const handed = await this.apply(workItem.projectId, handUpStep.forward, stamp);
+        if (!handed.ok) throw new Error(`cannot hand statements up: ${handed.detail}`);
+      }
       await this.announceTree(workItem.projectId);
       await this.record(workItem.projectId, stamp, 'delete', label, {
-        forward: withRemovedTyped(
-          {
-            do: 'delete_subtree',
-            rootId: id,
-            expectedSubtree: doomed,
-            remove: doomed,
-            reparented: [],
-            setEstimates: handedUp,
-            setActuals: recordedHandedUp,
-            setProgress: statedHandedUp,
-            setMeasures: measuredHandedUp,
-          },
-          removedTyped,
-          false,
+        forward: withPatchStep(
+          withRemovedTyped(
+            {
+              do: 'delete_subtree',
+              rootId: id,
+              expectedSubtree: doomed,
+              remove: doomed,
+              reparented: [],
+              setEstimates: handedUp,
+              setActuals: recordedHandedUp,
+              setProgress: statedHandedUp,
+              setMeasures: measuredHandedUp,
+            },
+            removedTyped,
+            false,
+          ),
+          handUpStep?.forward,
+          'after',
         ),
-        inverse: withRemovedTyped(
-          {
-            do: 'restore_subtree',
-            rows: doomed.map((each) => rowOf(rows, each)),
-            rootPosition: workItem.position,
-            reparented: [],
-            estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
-            // Every day recorded anywhere in the branch, put back where it was
-            // recorded. Without this an undo of a delete answers `ok` and returns
-            // the branch with its estimates and none of its actuals — the plan
-            // looks whole and a week of somebody's record is gone.
-            actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
-            // Every statement made anywhere in the branch, put back where it was
-            // made. Without this an undo of a delete answers `ok` and returns the
-            // branch reading as work nobody has started — the plan looks whole and
-            // a fortnight of finished work is unfinished again.
-            progress: storedProgress.filter((each) => inside.has(each.workItemId)),
-            // Every token and hour recorded anywhere in the branch, put back where
-            // it was recorded. Without this an undo of a delete answers `ok` and
-            // returns the branch with its days and none of its tokens — the plan
-            // looks whole and the record of what the work cost to run is gone.
-            measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
-            assignments: doomedAssignments,
-            internalDependencies: cut.filter(
-              (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
-            ),
-            externalDependencies: cut.filter(
-              (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
-            ),
-            removedEstimates: handedUp.map((each) => ({
-              workItemId: each.workItemId,
-              stepId: each.stepId,
-            })),
-            removedActuals: recordedHandedUp.map((each) => ({
-              workItemId: each.workItemId,
-              stepId: each.stepId,
-            })),
-            removedProgress: statedHandedUp.map((each) => ({
-              workItemId: each.workItemId,
-              stepId: each.stepId,
-            })),
-            removedMeasures: measuredHandedUp.map((each) => ({
-              workItemId: each.workItemId,
-              stepId: each.stepId,
-              metric: each.metric,
-            })),
-          },
-          removedTyped,
-          true,
+        inverse: withPatchStep(
+          withRemovedTyped(
+            {
+              do: 'restore_subtree',
+              rows: doomed.map((each) => rowOf(rows, each)),
+              rootPosition: workItem.position,
+              reparented: [],
+              estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
+              // Every day recorded anywhere in the branch, put back where it was
+              // recorded. Without this an undo of a delete answers `ok` and returns
+              // the branch with its estimates and none of its actuals — the plan
+              // looks whole and a week of somebody's record is gone.
+              actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
+              // Every statement made anywhere in the branch, put back where it was
+              // made. Without this an undo of a delete answers `ok` and returns the
+              // branch reading as work nobody has started — the plan looks whole and
+              // a fortnight of finished work is unfinished again.
+              progress: storedProgress.filter((each) => inside.has(each.workItemId)),
+              // Every token and hour recorded anywhere in the branch, put back where
+              // it was recorded. Without this an undo of a delete answers `ok` and
+              // returns the branch with its days and none of its tokens — the plan
+              // looks whole and the record of what the work cost to run is gone.
+              measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
+              assignments: doomedAssignments,
+              internalDependencies: cut.filter(
+                (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
+              ),
+              externalDependencies: cut.filter(
+                (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
+              ),
+              removedEstimates: handedUp.map((each) => ({
+                workItemId: each.workItemId,
+                stepId: each.stepId,
+              })),
+              removedActuals: recordedHandedUp.map((each) => ({
+                workItemId: each.workItemId,
+                stepId: each.stepId,
+              })),
+              removedProgress: statedHandedUp.map((each) => ({
+                workItemId: each.workItemId,
+                stepId: each.stepId,
+              })),
+              removedMeasures: measuredHandedUp.map((each) => ({
+                workItemId: each.workItemId,
+                stepId: each.stepId,
+                metric: each.metric,
+              })),
+            },
+            removedTyped,
+            true,
+          ),
+          handUpStep?.inverse,
+          'before',
         ),
         // Two deliberate absences. The deleted rows are not here — nothing can
         // hold a revision of a row that is gone, and the restore's refusal to
@@ -3279,7 +3559,16 @@ export class WorkItemService {
         // are best-effort by design, and refusing to put a whole branch back
         // because somebody renamed a neighbour would strand the work for a
         // reason that has nothing to do with it.
-        touched: handedUp.map((each) => each.workItemId),
+        // Proof: the hand-up parent left out made `guards the parent a last-child
+        // delete hands statements up to` fail — its id was absent from the
+        // entry's preconditions, so a later edit to it would not make the undo
+        // stale; watched 2026-09-29.
+        touched: [
+          ...new Set([
+            ...handedUp.map((each) => each.workItemId),
+            ...(handUpStep === undefined ? [] : [handUpStep.forward.workItemId]),
+          ]),
+        ],
         before: rows,
       });
       return { ok: true, value: null };
@@ -3434,7 +3723,15 @@ export class WorkItemService {
     }
     if (selected.awaitingSolve) return { ok: false, reason: 'schedule_not_ready' };
 
-    const arrangement = arrangeSiblingsBySchedule(rows, selected.schedule.workItems);
+    // Over the rows the schedule was computed from: an on-hold row has no
+    // scheduled start, so it is left where it is (`add-work-item-statuses`).
+    // Proof: the full `rows` passed here made `arranges a plan holding an
+    // on-hold leaf, and leaves the held row where it was` fail on `no
+    // scheduled start for work item …`; watched 2026-09-29.
+    const arrangement = arrangeSiblingsBySchedule(
+      canonical.input.rows,
+      selected.schedule.workItems,
+    );
     // Nothing to arrange. Not an error and not a write: the project already
     // reads in the order it is drawn in.
     if (arrangement.placements.length === 0) return { ok: true, value: null };
@@ -4086,6 +4383,20 @@ export class WorkItemService {
    * A parent is **not** `rolled_up` here, unlike {@link setProgress}: speaking
    * for the leaves beneath it is the point.
    *
+   * **Readiness and holds** (`add-work-item-statuses`, ADR 0032). `done` also
+   * clears each leaf's hold; `unknown` clears readiness and hold. `ready` and
+   * `draft` set readiness and clear the hold, refused `readiness_after_progress`
+   * once any leaf in scope holds a statement. `on_hold` and `blocked` set the
+   * hold and nothing else, refused `cannot_hold_done` when the row reads done;
+   * beneath a parent, a leaf reading done is left alone. `in_progress` writes
+   * `in_progress` on a leaf's first silent step, fills its empty fact start and
+   * clears its hold; on a leaf reading done it reopens the last step and clears
+   * the fact end instead. On a parent it starts one leaf: the first in tree
+   * order with no statement, unheld preferred; a parent reading done reopens
+   * its first leaf and clears its own fact end; a parent already in progress
+   * writes nothing. A project with no steps refuses `in_progress` and `done`
+   * with `no_steps`.
+   *
    * Proof: the `steps.length === 0` return deleted and `writes nothing when
    * nothing would change` fails on `Expected: 0 · Received: 1` journal entries —
    * an empty batch journalled; the `factEnd !== null` skip deleted and `keeps a
@@ -4113,49 +4424,126 @@ export class WorkItemService {
     const stamp = this.clock.stampFor(actorId);
     const day = on ?? isoDateOfInstant(stamp.at);
     const hasChildren = new Set(rows.map((row) => row.parentId));
-    const leaves = subtreeOf(rows, id).filter((each) => !hasChildren.has(each));
+    const order = treeOrder(rows);
+    const leaves = subtreeOf(rows, id)
+      .filter((each) => !hasChildren.has(each))
+      .sort((left, right) => (order.get(left) ?? 0) - (order.get(right) ?? 0));
+    const projectSteps = await this.opts.projects.stepsOf(workItem.projectId);
+    // Proof: this refusal removed made `refuses in progress and done with
+    // no_steps` fail on `Expected: {ok: false, reason: "no_steps"}, Received:
+    // {ok: true}` — a done mark with no step to write; watched 2026-09-29.
+    if ((status === 'done' || status === 'in_progress') && projectSteps.length === 0) {
+      return { ok: false, reason: 'no_steps' };
+    }
     const stated = await this.opts.progress.listByProject(workItem.projectId);
+    const statedOf = new Map(
+      stated.map((each) => [progressKey(each.workItemId, each.stepId), each.state]),
+    );
+    const rowsById = new Map(rows.map((row) => [row.id, row]));
+    const rowOf = (rowId: string): WorkItem => {
+      const row = rowsById.get(rowId);
+      if (row === undefined) throw new Error(`${rowId} is not a row of this project`);
+      return row;
+    };
+    // What each row read before this act: the read's own progress fold, never
+    // a stored flag, so the cell and this method agree about "was done".
+    const wasDone = rollUpWorkItemStatuses(
+      rows,
+      rollUpProgress(
+        rows,
+        stated,
+        workedStepsOf(
+          await this.opts.estimates.listByProject(workItem.projectId),
+          await this.opts.actuals.listByProject(workItem.projectId),
+          stated,
+        ),
+      ),
+    );
+    const readsDone = (rowId: string) => wasDone.get(rowId) === 'done';
     const steps: { forward: CompensatingCommand; inverse: CompensatingCommand }[] = [];
-    if (status === 'done') {
-      const statedOf = new Map(
-        stated.map((each) => [progressKey(each.workItemId, each.stepId), each.state]),
-      );
-      for (const leafId of leaves) {
-        for (const step of await this.opts.projects.stepsOf(workItem.projectId)) {
-          const before = statedOf.get(progressKey(leafId, step.id)) ?? null;
-          if (before === 'done') continue;
-          steps.push({
-            forward: { do: 'set_progress', workItemId: leafId, stepId: step.id, state: 'done' },
-            inverse:
-              before === null
-                ? { do: 'clear_progress', workItemId: leafId, stepId: step.id }
-                : { do: 'set_progress', workItemId: leafId, stepId: step.id, state: before },
-          });
-        }
+    /** One `patch` step naming only the fields that change, with its verbatim inverse. */
+    const patchRow = (
+      rowId: string,
+      wanted: {
+        readiness?: Readiness | null;
+        hold?: Hold | null;
+        factEnd?: IsoDate | null;
+        factStart?: IsoDate | null;
+      },
+    ) => {
+      const row = rowOf(rowId);
+      const forward: WorkItemPatch = {};
+      const inverse: WorkItemPatch = {};
+      if (wanted.readiness !== undefined && wanted.readiness !== row.readiness) {
+        forward.readiness = wanted.readiness;
+        inverse.readiness = row.readiness;
       }
-      const rowsById = new Map(rows.map((row) => [row.id, row]));
+      if (wanted.hold !== undefined && wanted.hold !== row.hold) {
+        forward.hold = wanted.hold;
+        // Proof: this line removed made `holds every leaf beneath a parent,
+        // and one undo restores each prior hold` fail — the undo left every
+        // leaf on hold; watched 2026-09-29.
+        inverse.hold = row.hold;
+      }
+      if (wanted.factEnd !== undefined && wanted.factEnd !== row.factEnd) {
+        forward.factEnd = wanted.factEnd;
+        inverse.factEnd = row.factEnd;
+      }
+      if (wanted.factStart !== undefined && wanted.factStart !== row.factStart) {
+        forward.factStart = wanted.factStart;
+        inverse.factStart = row.factStart;
+      }
+      if (Object.keys(forward).length === 0) return;
+      steps.push({
+        forward: { do: 'patch', workItemId: rowId, patch: forward },
+        inverse: { do: 'patch', workItemId: rowId, patch: inverse },
+      });
+    };
+    const setStep = (leafId: string, stepId: string, state: StepState) => {
+      const before = statedOf.get(progressKey(leafId, stepId)) ?? null;
+      if (before === state) return;
+      steps.push({
+        forward: { do: 'set_progress', workItemId: leafId, stepId, state },
+        inverse:
+          before === null
+            ? { do: 'clear_progress', workItemId: leafId, stepId }
+            : { do: 'set_progress', workItemId: leafId, stepId, state: before },
+      });
+    };
+    const hasStatement = (leafId: string) =>
+      projectSteps.some((step) => statedOf.has(progressKey(leafId, step.id)));
+    /** Starts one leaf: reopen it when it reads done, else speak for its first silent step. */
+    const startLeaf = (leafId: string) => {
+      if (readsDone(leafId)) {
+        const last = projectSteps.at(-1);
+        if (last === undefined) throw new Error('no_steps was refused above');
+        setStep(leafId, last.id, 'in_progress');
+        patchRow(leafId, { factEnd: null, hold: null });
+        return;
+      }
+      const silent = projectSteps.find((step) => !statedOf.has(progressKey(leafId, step.id)));
+      if (silent !== undefined) setStep(leafId, silent.id, 'in_progress');
+      patchRow(leafId, {
+        hold: null,
+        ...(rowOf(leafId).factStart === null ? { factStart: factStart ?? day } : {}),
+      });
+    };
+
+    if (status === 'done') {
+      for (const leafId of leaves) {
+        for (const step of projectSteps) setStep(leafId, step.id, 'done');
+        patchRow(leafId, { hold: null });
+      }
       for (const spokenFor of new Set([...leaves, id])) {
-        const row = rowsById.get(spokenFor);
-        if (row === undefined) throw new Error(`${spokenFor} is not a row of this project`);
+        const row = rowOf(spokenFor);
         // The two fills, each only where the row holds nothing: a typed day is
         // the planner's record and is never overwritten by a mark.
-        const fill: { factEnd?: IsoDate; factStart?: IsoDate } = {};
-        if (row.factEnd === null) fill.factEnd = day;
-        if (factStart !== undefined && row.factStart === null) fill.factStart = factStart;
-        if (Object.keys(fill).length === 0) continue;
-        steps.push({
-          forward: { do: 'patch', workItemId: spokenFor, patch: fill },
-          inverse: {
-            do: 'patch',
-            workItemId: spokenFor,
-            patch: {
-              ...(fill.factEnd === undefined ? {} : { factEnd: null }),
-              ...(fill.factStart === undefined ? {} : { factStart: null }),
-            },
-          },
+        patchRow(spokenFor, {
+          ...(row.factEnd === null ? { factEnd: day } : {}),
+          ...(factStart !== undefined && row.factStart === null ? { factStart } : {}),
         });
       }
-    } else {
+    } else if (status === 'unknown') {
       const inScope = new Set(leaves);
       for (const each of stated) {
         if (!inScope.has(each.workItemId)) continue;
@@ -4169,49 +4557,64 @@ export class WorkItemService {
           },
         });
       }
-      // A row taken back from done has a fact end for a finish that did not
-      // happen, so the day goes with the statements — and only off a row that
-      // **read** done. Which rows those are is the same fold the read shows in
-      // the Status column (`rollUpWorkItemStatuses` over `rollUpProgress`),
-      // computed here from the statements as they stood before this act, so
-      // the cell and this arm can never disagree about what "was done". A
-      // typed fact end on a row that was in progress or unknown is the
-      // planner's own record and stands, as does every fact start.
-      const stored = await this.opts.estimates.listByProject(workItem.projectId);
-      const recorded = await this.opts.actuals.listByProject(workItem.projectId);
-      const wasDone = rollUpWorkItemStatuses(
-        rows,
-        rollUpProgress(rows, stated, workedStepsOf(stored, recorded, stated)),
-      );
-      const rowsById = new Map(rows.map((row) => [row.id, row]));
+      for (const leafId of leaves) patchRow(leafId, { readiness: null, hold: null });
       for (const spokenFor of new Set([...leaves, id])) {
-        const row = rowsById.get(spokenFor);
-        if (row === undefined) throw new Error(`${spokenFor} is not a row of this project`);
         // Proof: this guard dropped, and `unknown on a row that was not done
         // leaves its typed fact end` fails on `Expected: "2026-09-10" /
         // Received: null` — an in-progress row's typed day taken as if the
         // finish it records had been unmarked; watched 2026-09-13.
-        if (wasDone.get(spokenFor) !== 'done') continue;
+        if (!readsDone(spokenFor)) continue;
         // Both facts go with the statements (Dany, 2026-09-13: "when from done
         // -> unknown clear fact start and fact end"): a finish that is unmarked
         // did not happen, and the days it began and ended on go with it.
-        const clear: { factEnd?: null; factStart?: null } = {};
-        const before: { factEnd?: IsoDate; factStart?: IsoDate } = {};
-        if (row.factEnd !== null) {
-          clear.factEnd = null;
-          before.factEnd = row.factEnd;
-        }
-        if (row.factStart !== null) {
-          clear.factStart = null;
-          before.factStart = row.factStart;
-        }
-        if (Object.keys(clear).length === 0) continue;
-        steps.push({
-          forward: { do: 'patch', workItemId: spokenFor, patch: clear },
-          inverse: { do: 'patch', workItemId: spokenFor, patch: before },
-        });
+        patchRow(spokenFor, { factEnd: null, factStart: null });
       }
+    } else if (status === 'ready' || status === 'draft') {
+      // Proof: this refusal removed made `refuses readiness once a step has
+      // spoken, and writes nothing` fail on `Expected: {ok: false, reason:
+      // "readiness_after_progress"}, Received: {ok: true}`; watched 2026-09-29.
+      if (leaves.some(hasStatement)) return { ok: false, reason: 'readiness_after_progress' };
+      for (const leafId of leaves) patchRow(leafId, { readiness: status, hold: null });
+    } else if (status === 'on_hold' || status === 'blocked') {
+      // Proof: this refusal removed made `refuses a hold on a leaf reading
+      // done` fail on `Expected: {ok: false, reason: "cannot_hold_done"},
+      // Received: {ok: true}`; watched 2026-09-29.
+      if (readsDone(id)) return { ok: false, reason: 'cannot_hold_done' };
+      for (const leafId of leaves) {
+        // A done leaf keeps no hold: one held before it finished loses it here.
+        // Proof: done leaves skipped outright made `takes the hold off a done
+        // leaf when its branch is held` fail on `hold: "on_hold"`; watched
+        // 2026-09-29.
+        patchRow(leafId, { hold: readsDone(leafId) ? null : status });
+      }
+    } else if (!leaves.includes(id)) {
+      // `in_progress` on a parent: one leaf starts, the rest are untouched.
+      // The status the row reads, holds and the graph included: a held branch
+      // whose progress fold says in progress is not already started.
+      // Proof: the progress-only fold consulted here made `starts a held branch
+      // whose progress fold reads in progress…` fail — nothing was written;
+      // watched 2026-09-29.
+      const reading = workItemStatusesOf(rows, wasDone, {
+        edges: (await this.opts.dependencies.listByProject(workItem.projectId)).filter(
+          (edge) => rowsById.has(edge.predecessorId) && rowsById.has(edge.successorId),
+        ),
+        typed: await this.opts.typedDependencies.listByProject(workItem.projectId),
+      });
+      if (reading.get(id) === 'in_progress') return { ok: true, value: null };
+      if (readsDone(id)) {
+        const first = leaves.at(0);
+        if (first === undefined) throw new Error(`parent ${id} reads done with no leaf`);
+        startLeaf(first);
+        patchRow(id, { factEnd: null });
+      } else {
+        const silent = leaves.filter((leafId) => !hasStatement(leafId));
+        const chosen = silent.find((leafId) => rowOf(leafId).hold === null) ?? silent.at(0) ?? null;
+        if (chosen !== null) startLeaf(chosen);
+      }
+    } else {
+      startLeaf(id);
     }
+
     if (steps.length === 0) return { ok: true, value: null };
     for (const { forward } of steps) {
       const applied = await this.apply(workItem.projectId, forward, stamp);
@@ -4227,9 +4630,7 @@ export class WorkItemService {
       workItem.projectId,
       stamp,
       'status',
-      status === 'done'
-        ? `mark ${quoteName(workItem.name)} done`
-        : `set ${quoteName(workItem.name)} back to unknown`,
+      statusSentence(status, quoteName(workItem.name)),
       steps.length === 1
         ? { forward: only.forward, inverse: only.inverse, touched, before: rows }
         : {
@@ -4797,6 +5198,27 @@ export class WorkItemService {
   ): Promise<ApplyOutcome> {
     switch (command.do) {
       case 'patch': {
+        // A statement goes back only onto a row that is still a leaf: one that
+        // has gained a child since is a parent, and the plan read refuses a
+        // parent holding a readiness or hold (`add-work-item-statuses`, ADR
+        // 0032). The store refuses the same write again in its own statement.
+        // Proof: this check removed made `refuses an undo that would put a
+        // hold back on a row that has since gained a child` fail — the refusal
+        // came from the store's conditional write instead, `gained children as
+        // this was written`, so this is the check that answers first; watched
+        // 2026-09-29.
+        if (
+          (command.patch.readiness !== undefined && command.patch.readiness !== null) ||
+          (command.patch.hold !== undefined && command.patch.hold !== null)
+        ) {
+          const rows = await this.opts.workItems.listByProject(projectId);
+          if (rows.some((row) => row.parentId === command.workItemId)) {
+            return {
+              ok: false,
+              detail: 'that work item has children now, so it takes no readiness or hold.',
+            };
+          }
+        }
         // Straight to the store, never through the authored `patch`: restoration
         // puts back the exact prior type set, including a type conflict.
         //
@@ -4817,11 +5239,13 @@ export class WorkItemService {
           return {
             ok: false,
             detail:
-              written.reason === 'unknown_team'
-                ? 'that service team is no longer in the directory.'
-                : written.reason === 'unknown_service'
-                  ? 'that service is no longer in the directory.'
-                  : 'the work item is no longer there.',
+              written.reason === 'has_children'
+                ? 'that work item gained children as this was written, so it takes no readiness or hold.'
+                : written.reason === 'unknown_team'
+                  ? 'that service team is no longer in the directory.'
+                  : written.reason === 'unknown_service'
+                    ? 'that service is no longer in the directory.'
+                    : 'the work item is no longer there.',
           };
         }
         return { ok: true, detail: null };

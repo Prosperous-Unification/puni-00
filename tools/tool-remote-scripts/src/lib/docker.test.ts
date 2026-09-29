@@ -24,6 +24,7 @@ import {
   migrateStatusCommand,
   NETWORK,
   psColorsFrom,
+  readinessKindsCommand,
   relationshipTypesCommand,
   revokeAliasCommands,
   ROOT,
@@ -31,6 +32,7 @@ import {
   SOLVER_SUPERVISOR_CONTAINER_DIRECTORY,
   SOLVER_SUPERVISOR_HOST_DIRECTORY,
   storedHoldsCommand,
+  storedReadinessesCommand,
   storedRelationshipTypesCommand,
   tierComposeContext,
   tierComposeFile,
@@ -164,6 +166,60 @@ describe('relationship type commands', () => {
       stderr: 'pipe',
     });
     expect(await probe.exited).not.toBe(0);
+  });
+});
+
+describe('readiness kind commands', () => {
+  it('executes the present readiness CLI and reads an absent one as none', async () => {
+    const directory = scratchSync('wbs-readiness-kinds-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      const absent = Bun.spawn(readinessKindsCommand('be-01-green').slice(2), {
+        cwd: directory,
+        stdout: 'pipe',
+      });
+      expect(await absent.exited).toBe(0);
+      expect(JSON.parse(await new Response(absent.stdout).text())).toEqual([]);
+      writeFileSync(
+        join(directory, 'src/readiness-kinds-cli.ts'),
+        'console.log(JSON.stringify(["draft", "ready"]));\n',
+      );
+      const present = Bun.spawn(readinessKindsCommand('be-01-green').slice(2), {
+        cwd: directory,
+        stdout: 'pipe',
+      });
+      expect(await present.exited).toBe(0);
+      expect(JSON.parse(await new Response(present.stdout).text())).toEqual(['draft', 'ready']);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('reads stored readinesses, empty before the column exists', async () => {
+    const directory = scratchSync('wbs-stored-readiness-');
+    try {
+      const path = join(directory, 'wbs.db');
+      const db = new Database(path);
+      const read = async () => {
+        const probe = Bun.spawn(storedReadinessesCommand('be-01-green').slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const output = await new Response(probe.stdout).text();
+        expect(await probe.exited).toBe(0);
+        const parsed: unknown = JSON.parse(output);
+        return parsed;
+      };
+      db.run('CREATE TABLE work_item (id text PRIMARY KEY)');
+      expect(await read()).toEqual([]);
+      db.run('ALTER TABLE work_item ADD readiness text');
+      db.run("INSERT INTO work_item (id, readiness) VALUES ('a', 'ready'), ('b', NULL)");
+      expect(await read()).toEqual([{ kind: 'ready', count: 1 }]);
+      db.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });
 

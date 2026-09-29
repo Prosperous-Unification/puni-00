@@ -2,10 +2,12 @@ import type {
   DependencyReach,
   EstimateMethod,
   EstimateRounding,
+  Hold,
   IsoDate,
   MeasureMetric,
   PertWeights,
   PriorityBand,
+  Readiness,
   ScheduleEngine,
   SolverObjectiveName,
   TypedDependency,
@@ -48,6 +50,8 @@ export interface CapturedWorkItem {
   readonly startNoEarlierThan: IsoDate | null;
   readonly startNoEarlierThanReason: string | null;
   readonly deadline: IsoDate | null;
+  readonly readiness: Readiness | null;
+  readonly hold: Hold | null;
   readonly priority: number | null;
   readonly serviceTeamId: string | null;
   readonly serviceId: string | null;

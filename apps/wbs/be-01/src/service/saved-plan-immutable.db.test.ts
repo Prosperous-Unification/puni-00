@@ -63,6 +63,8 @@ describe('a saved plan does not move when the live plan does', () => {
     deadline: null,
     factStart: null,
     factEnd: null,
+    readiness: null,
+    hold: null,
     revision: 0,
   });
 

@@ -1,4 +1,4 @@
-import type { IsoDate } from '@wbs/domain';
+import type { Hold, IsoDate, Readiness } from '@wbs/domain';
 
 import type { WriteStamp } from './write-stamp';
 
@@ -46,6 +46,18 @@ export interface WorkItem {
    * planner's. Where a done row's bar stops. See `schema.ts` and ADR 0024.
    */
   factEnd: IsoDate | null;
+  /**
+   * What the planner has said about whether this leaf is ready to start, or
+   * null where nobody has said. Always null on a parent. One input to the
+   * row's folded status (`leafStatusOf`), never the status itself.
+   */
+  readiness: Readiness | null;
+  /**
+   * The planner's hold on this leaf, or null for none. Always null on a
+   * parent. `on_hold` takes the leaf out of the schedule input; `blocked`
+   * does not (ADR 0032).
+   */
+  hold: Hold | null;
   /**
    * How important this work is — an integer of 1 or more, smaller being more
    * important — or null for "nobody has said".
@@ -343,6 +355,10 @@ export interface WorkItemPatch {
   factStart?: IsoDate | null;
   /** The day the work actually finished, or `null` to take the record off — {@link factStart}'s rules. */
   factEnd?: IsoDate | null;
+  /** A readiness, or `null` to take it off. Written only by `setStatus` and structural edits. */
+  readiness?: Readiness | null;
+  /** A hold, or `null` to take it off. Written only by `setStatus` and structural edits. */
+  hold?: Hold | null;
   /**
    * An integer of 1 or more, or `null` to leave this work with no priority.
    *
@@ -525,7 +541,13 @@ export type WorkItemPatched =
         | 'unknown_service'
         | 'unknown_type'
         | 'unknown_system'
-        | 'not_before_reason_needs_a_date';
+        | 'not_before_reason_needs_a_date'
+        /**
+         * A readiness or hold written on a row that has children. Decided in
+         * the write itself, so a statement racing a first child cannot leave
+         * one on a parent, where the plan read refuses it.
+         */
+        | 'has_children';
     };
 
 /**

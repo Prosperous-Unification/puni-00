@@ -557,6 +557,10 @@ const batchRefusals = [
         type({ ...context, error: "'not_a_parent'" }),
         type({ ...context, error: "'duplicate_dependency'" }),
         type({ ...context, error: "'too_large'" }),
+        // `setStatus` refusals (`add-work-item-statuses`).
+        type({ ...context, error: "'readiness_after_progress'" }),
+        type({ ...context, error: "'cannot_hold_done'" }),
+        type({ ...context, error: "'no_steps'" }),
       ),
     ),
   },

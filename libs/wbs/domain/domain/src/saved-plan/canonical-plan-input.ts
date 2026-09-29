@@ -1,5 +1,6 @@
 import type { DependencyReach } from '../dependency-reach';
 import type { EstimateMethod, EstimateRounding } from '../estimate';
+import type { Hold, Readiness } from '../progress';
 import type { StepState } from '../progress';
 import type { TypedDependency } from '../typed-dependency';
 
@@ -41,7 +42,7 @@ import type { TypedDependency } from '../typed-dependency';
  */
 export interface CanonicalPlanInput {
   /** Bumped whenever this field list changes; the body carries it. */
-  readonly schemaVersion: 3;
+  readonly schemaVersion: 4;
   readonly project: CanonicalProject;
   /** Sorted by `id`. */
   readonly workItems: readonly CanonicalWorkItem[];
@@ -140,6 +141,10 @@ export interface CanonicalWorkItem {
   readonly serviceId: string | null;
   readonly startNoEarlierThan: string | null;
   readonly startNoEarlierThanReason: string | null;
+  /** The planner's readiness, `draft` or `ready`, or null where unsaid (schema 4). */
+  readonly readiness: Readiness | null;
+  /** The planner's hold, `on_hold` or `blocked`, or null for none (schema 4). */
+  readonly hold: Hold | null;
 }
 
 /**
@@ -342,7 +347,7 @@ export interface PlanInputRows {
 }
 
 /** The one version this module writes. Stored bodies carry it; readers check it. */
-export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 3 as const;
+export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 4 as const;
 
 const byString =
   <T>(...keys: readonly ((row: T) => string)[]) =>
@@ -436,6 +441,8 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
       serviceId: row.serviceId,
       startNoEarlierThan: row.startNoEarlierThan,
       startNoEarlierThanReason: row.startNoEarlierThanReason,
+      readiness: row.readiness,
+      hold: row.hold,
     })),
     steps: sorted(
       values.steps,

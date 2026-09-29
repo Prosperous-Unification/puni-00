@@ -48,7 +48,7 @@ interface ExportedWorkItem {
   number: string;
   name: string;
   dates: { startsOn: string; endsOn: string } | null;
-  schedule: { duration: number; critical: boolean };
+  schedule: { duration: number; critical: boolean } | null;
 }
 
 // Proof: bypassing escaping made the mounted Markdown export contain Build | ship
@@ -65,8 +65,9 @@ export function projectMarkdown(project: Project, workItems: readonly ExportedWo
       item.name,
       item.dates?.startsOn ?? '—',
       item.dates?.endsOn ?? '—',
-      String(item.schedule.duration),
-      item.schedule.critical ? 'yes' : 'no',
+      // An on-hold row takes no part in the schedule, so it has neither.
+      item.schedule === null ? '—' : String(item.schedule.duration),
+      item.schedule === null ? '—' : item.schedule.critical ? 'yes' : 'no',
     ]
       .map(markdownCell)
       .join(' | '),

@@ -93,6 +93,8 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
       serviceId: row.serviceId,
       startNoEarlierThan: row.startNoEarlierThan,
       startNoEarlierThanReason: row.startNoEarlierThanReason,
+      readiness: row.readiness,
+      hold: row.hold,
       // `factStart` and `factEnd` are deliberately not captured, for the ref
       // name's reason above: a fact moves no date, orders no queue and is read by
       // nothing in `libs/wbs/domain/domain`, so a snapshot that carried one would compare

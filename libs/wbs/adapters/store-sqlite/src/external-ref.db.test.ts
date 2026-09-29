@@ -55,6 +55,8 @@ const newItem = (
   deadline: null,
   factStart: null,
   factEnd: null,
+  readiness: null,
+  hold: null,
   revision: 0,
 });
 

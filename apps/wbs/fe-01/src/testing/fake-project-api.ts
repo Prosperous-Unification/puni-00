@@ -12,6 +12,7 @@ import type {
   Days,
   EstimateMethod,
   ProjectApi,
+  ScheduleView,
   StepView,
   TypedDependencyView,
   UndoResult,
@@ -218,7 +219,7 @@ export function fakeProjectApi(): ProjectApi & {
    * faithfully is the part the table renders differently: an unestimated row,
    * and a parent's span being its children's rather than their sum.
    */
-  function scheduleOf(row: WorkItemView): WorkItemView['schedule'] {
+  function scheduleOf(row: WorkItemView): ScheduleView {
     const children = rows.filter((r) => r.parentId === row.id);
     const own = Object.values(row.estimates).reduce(
       (total, days) => total + (days.optimistic + 4 * days.realistic + days.pessimistic) / 6,
@@ -466,6 +467,9 @@ export function fakeProjectApi(): ProjectApi & {
           projectId,
           position: rows.indexOf(r),
           serviceId: null,
+          // be-01 always sends both; the face reads the folded status only.
+          readiness: null,
+          hold: null,
           tagIds: [...(r.tagIds ?? [])],
           serviceIds: [...(r.serviceIds ?? [])],
           typeIds: [...(r.typeIds ?? [])],

@@ -10,6 +10,7 @@ import {
   isStepState,
   leafStatusOf,
   READINESSES,
+  SETTABLE_STATUSES,
   statusOf,
   UNKNOWN,
 } from './progress';
@@ -92,12 +93,19 @@ describe('isStepState', () => {
 });
 
 describe('isSettableStatus', () => {
-  it('admits the two statuses a row may be set to and nothing else', () => {
-    expect(isSettableStatus('unknown')).toBe(true);
-    expect(isSettableStatus('done')).toBe(true);
-    // A step's statement, never a row's: the row reads it off the fold and the
-    // cell shows it, but nobody sets it there — see `SETTABLE_STATUSES`.
-    expect(isSettableStatus('in_progress')).toBe(false);
+  it('admits the seven statuses a row may be set to, in menu order, and nothing else', () => {
+    expect(SETTABLE_STATUSES).toEqual([
+      'draft',
+      'ready',
+      'in_progress',
+      'on_hold',
+      'blocked',
+      'done',
+      'unknown',
+    ]);
+    for (const status of SETTABLE_STATUSES) expect(isSettableStatus(status)).toBe(true);
+    // Said by the dependency graph, never by anyone.
+    expect(isSettableStatus('blocked_by_proxy')).toBe(false);
     expect(isSettableStatus('not_started')).toBe(false);
     expect(isSettableStatus(null)).toBe(false);
   });

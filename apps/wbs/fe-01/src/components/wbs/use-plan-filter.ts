@@ -338,7 +338,7 @@ export function usePlanFilter({
             // be-01's own answer for the row, not a second reading of the
             // slices: a row is on the critical path when its work is, and the
             // Slack cell and the card both already print this field.
-            critical: row.schedule.critical,
+            critical: row.schedule?.critical === true,
           },
         };
       }),
