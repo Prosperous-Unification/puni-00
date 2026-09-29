@@ -1310,3 +1310,22 @@ All faults were restored before commit.
 | Domain change has its own copy | Answered `domain_changed` with the resolved copy | `renders the domain_changed approval refusal` failed: `expected <p role="status"></p> to have property "textContent" with value 'The requester's email or the organizat…'` |
 
 Both faults were restored before commit. `drops every panel when another panel loses access` covers a loss reported by the join-request panel clearing the invitation rows.
+
+## Slice 39d — domain settings (task 4.6)
+
+| Check                                  | Injected fault                                          | Observed failure                                                                                                                                                               |
+| -------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| DNS outage has its own copy            | Answered `dns_unavailable` with the proof-mismatch copy | `renders the dns_unavailable verify refusal` failed: `expected <p role="status"></p> to have property "textContent" with value 'DNS could not be reached. Try again la…'`      |
+| Release needs the in-page confirmation | Deleted on the first Release click                      | `releases only after confirmation` failed: `expected true to be false`                                                                                                         |
+| Suspension is its own rendered state   | Keyed the suspension notice on `pending`                | `renders suspension and a failed proof check as distinct states` failed: `expected 'old.test SuspendedLast successful che…' to match /Suspended: the TXT proof has not been…/` |
+
+All faults were restored before commit.
+
+### Slice 39d review fixes (Fable, 2026-09-29)
+
+| Check                                         | Injected fault                                | Observed failure                                                                                                                |
+| --------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| An expired pending challenge offers no Verify | Dropped the expiry guard on the Verify button | `replaces Verify on a pending claim whose challenge expired` failed: `expected <button type="button" …(1)></button> to be null` |
+| A shown TXT record leaves with its status     | Kept the shown record whatever the list said  | `clears the shown TXT record once its claim leaves pending` failed: the record region stayed on screen                          |
+
+The invitation code input now sets `autoComplete="off"`. Both faults were restored before commit.

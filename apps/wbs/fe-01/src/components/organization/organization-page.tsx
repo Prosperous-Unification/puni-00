@@ -2,6 +2,7 @@ import { type ReactNode, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
 
+import { DomainsPanel } from './domains-panel';
 import { InvitationsPanel } from './invitations-panel';
 import { JoinRequestsPanel } from './join-requests-panel';
 import { type AccessLoss, lossCopy } from './organization-access';
@@ -37,6 +38,7 @@ export function OrganizationPage({
           <>
             <InvitationsPanel onAccessLost={setLoss} />
             <JoinRequestsPanel onAccessLost={setLoss} />
+            <DomainsPanel onAccessLost={setLoss} />
           </>
         ) : (
           <p role="alert">{lossCopy(loss)}</p>
