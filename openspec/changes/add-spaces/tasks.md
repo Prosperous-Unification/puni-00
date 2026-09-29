@@ -100,5 +100,9 @@
 
 ## 6. fe in progress now and Gantt
 
-- [ ] 6.1 Implement.
-- [ ] 6.2 Negative: null-dates filter removed → a bar for an undated row.
+- [x] 6.1 On `/spaces/$spaceId`: a read-only timeline, one bar per project over its roll-up's
+      dates and a labelled blank for an undated project (or one whose figures have not arrived),
+      and "In progress now" (project, number, name, step, end, lateness, people; the cut and the
+      unavailable schedules said), refreshed with the page.
+- [x] 6.2 Negative: the null-dates filter in `spaceGanttLanesOf` removed → the undated project
+      is read as dated and the lanes throw a `TypeError` instead of drawing a blank.

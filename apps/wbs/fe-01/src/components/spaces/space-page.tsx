@@ -14,7 +14,9 @@ import { AppHeader } from '@/components/chrome/app-header';
 import { STATUS_GLYPH, STATUS_LABEL } from '@/components/wbs/status-cell';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
+import { InProgressList } from './in-progress-list';
 import { spaceRefusal } from './space-access';
+import { spaceGanttLanesOf } from './space-gantt';
 import { useSpacesPolling } from './spaces-page';
 
 const client = browserClient([
@@ -265,6 +267,15 @@ export function SpacePage({
             </table>
           </div>
         )}
+        {view.kind === 'ready' && view.read.rows.length > 0 && (
+          <SpaceGantt rows={view.read.rows} rollUps={rollUps} />
+        )}
+        {view.kind === 'ready' && (
+          <InProgressList
+            spaceId={spaceId}
+            projectNames={new Map(view.read.rows.map(({ project }) => [project.id, project.name]))}
+          />
+        )}
         {view.kind === 'ready' && view.read.writable && candidates.length > 0 && (
           <form
             className="mt-6 flex items-center gap-2"
@@ -399,4 +410,58 @@ function RollUpCells({ rollUp }: { rollUp: RollUpState }): React.JSX.Element {
     default:
       return unreachable(rollUp);
   }
+}
+
+/**
+ * The space's read-only Gantt: one bar per project over its roll-up's dates,
+ * and a labelled blank for a project with none (or whose figures have not
+ * arrived yet).
+ */
+function SpaceGantt({
+  rows,
+  rollUps,
+}: {
+  rows: readonly Row[];
+  rollUps: Readonly<Record<string, RollUpState>>;
+}): React.JSX.Element {
+  const lanes = spaceGanttLanesOf(
+    rows.map(({ project }) => {
+      // A row whose chunk has not landed has no entry yet: it reads as loading.
+      const rollUp = rollUps[project.id] ?? { kind: 'loading' };
+      return {
+        projectId: project.id,
+        name: project.name,
+        dates: rollUp.kind === 'rolled_up' ? rollUp.dates : null,
+      };
+    }),
+  );
+  return (
+    <section aria-labelledby="space-gantt-heading" className="mt-8">
+      <h2 id="space-gantt-heading" className="mb-2 text-xl font-semibold">
+        Timeline
+      </h2>
+      <ul aria-label="Project timeline" className="flex flex-col gap-1">
+        {lanes.map((lane) => (
+          <li key={lane.projectId} className="flex items-center gap-2">
+            <span className="w-40 shrink-0 truncate">{lane.name}</span>
+            <span className="bg-muted relative h-4 flex-1">
+              {lane.kind === 'bar' ? (
+                <span
+                  role="img"
+                  aria-label={lane.label}
+                  data-space-gantt-bar
+                  className="bg-primary absolute inset-y-0"
+                  style={{ left: `${String(lane.left)}%`, width: `${String(lane.width)}%` }}
+                />
+              ) : (
+                <span className="text-muted-foreground absolute inset-0 px-2 text-xs">
+                  {lane.label}
+                </span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }

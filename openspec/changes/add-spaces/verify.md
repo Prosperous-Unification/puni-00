@@ -141,3 +141,14 @@ success toast across the table remount` at 5.4 s and passed alone and on a full 
 | viewer sees no create           | create form drawn whatever `writable` says             | `offers a viewer no create, rename or delete`                  | the `New space` input present                  |
 | `writable` follows the role     | the read route answering `writable` without `mayWrite` | `refuses a viewer every space write and lets the viewer read`  | the viewer's read `writable: true`             |
 | unknown deep link opens nothing | the broken-link branch removed                         | `shows the empty state for a link to a project it cannot open` | `expected 'Rewire the shed' to be ''`          |
+
+## Slice 6 — fe in progress now and Gantt
+
+Written on `batch-9/010-4-15-spaces-fe-gantt`, stacked on the fe-rows branch. Vitest
+`space-gantt.test.ts` 3 pass, `in-progress-list.test.tsx` 3 pass, `space-page.test.tsx` 6 pass
+(timeline: one bar for the dated row, the blank `p2: no dates` for the unavailable one),
+`spaces-page.test.tsx` 4 pass; two clean runs of the folder.
+
+| Check                | Fault injected                                       | Test that observed it                                       | Observed                                                      |
+| -------------------- | ---------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------- |
+| undated draws no bar | the null-dates filter in `spaceGanttLanesOf` removed | `draws an undated project as a labelled blank, never a bar` | `TypeError: Cannot destructure property 'startsOn' of … null` |
