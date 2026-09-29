@@ -107,9 +107,11 @@
 
 ## 6. fe-01 table (ships in the same integration round as slice 3)
 
-- [ ] 6.1 Red: labels, strip, cell, menu, prompt, depends card; `e2e/status.spec.ts`.
-- [ ] 6.2 Green.
-- [ ] 6.3 Negatives: menu filter removed → a held row offers its own hold; unknown status word →
+- [x] 6.1 Red: labels, strip, cell, menu, prompt, depends card; `e2e/status.spec.ts`.
+- [x] 6.2 Green: `statusOffersOf` (table menu, card menu and Status cell alike), `chooseStatus`
+      (Done and In progress through the completion prompt, the rest at once), palette tokens
+      per status (`STATUS_TOKEN`), the three `setStatus` refusals worded.
+- [x] 6.3 Negatives: menu filter removed → a held row offers its own hold; unknown status word →
       query-failure state, not a blank glyph.
 
 ## 7. fe-01 Gantt

@@ -121,13 +121,15 @@ test.describe('the Status list, in a browser', () => {
 
     await page.getByRole('combobox', { name: 'Status of 010' }).click();
     const lines = page.getByRole('listbox', { name: 'Status for 010' }).getByRole('option');
-    await expect(lines).toHaveCount(2);
+    // A silent row is offered every settable status but Unknown, in the menu
+    // order (`add-work-item-statuses`).
+    await expect(lines).toHaveText(['Draft', 'Ready', 'In progress', 'On hold', 'Blocked', 'Done']);
     // Every line, and the first one is the check: it is the line that lies
     // over the next row, where the Links button would cover it — the last line
     // hangs below the table's final row with nothing under it, and sampled
     // alone it passed with the lift deleted (probed 2026-09-13:
     // `Unknown→BUTTON[Links for 020], Done→LI`).
-    for (const name of ['Unknown', 'Done']) {
+    for (const name of ['Draft', 'Done']) {
       const line = lines.filter({ hasText: name });
       const box = await line.boundingBox();
       if (box === null) throw new Error(`the ${name} line has no browser box`);
@@ -270,5 +272,59 @@ test.describe('marking a row done, in a browser', () => {
     const shot = testInfo.outputPath('done-row.png');
     await page.screenshot({ path: shot });
     await testInfo.attach('the done row and its bar', { path: shot, contentType: 'image/png' });
+  });
+});
+
+test.describe('holding and starting a row, in a browser (add-work-item-statuses)', () => {
+  test('holds a row from its menu, paints the hold on its strip, then starts it with Started on alone', async ({
+    page,
+  }) => {
+    await seedALongRow(page);
+    await showColumn(page, 'Status', 'status');
+    const row = page.locator('tbody tr[data-row-id]').first();
+    const dragCell = row.locator('td[data-column="drag"]');
+    const stripOf = () => dragCell.evaluate((node) => getComputedStyle(node).boxShadow);
+    const tokenColour = (token: string) =>
+      page.evaluate((name) => {
+        // The token resolved the way the strip resolves it: through a probe
+        // element's computed colour, so both sides are the browser's own form.
+        const probe = document.createElement('span');
+        probe.style.color = `var(${name})`;
+        document.body.append(probe);
+        const colour = getComputedStyle(probe).color;
+        probe.remove();
+        return colour;
+      }, token);
+
+    await page.getByRole('button', { name: 'Actions for 010' }).click();
+    await page.getByRole('menuitem', { name: 'Set status to On hold' }).click();
+    await expect(row).toHaveAttribute('data-row-status', 'on_hold');
+    await expect(page.getByRole('combobox', { name: 'Status of 010' })).toHaveValue('‖');
+    // Proof: the `on_hold` strip rule's selector struck in `styles.css`, and
+    // this failed on `Expected substring: "oklch(0.58 0.1 300)" · Received
+    // string: "oklch(0.929 0.013 255.508) -1px -1px 0px 0px inset"` — the row
+    // separator alone; watched in Chromium 2026-09-29.
+    expect(await stripOf()).toContain(await tokenColour('--status-on-hold'));
+
+    await page.getByRole('button', { name: 'Actions for 010' }).click();
+    const statuses = page.getByRole('menuitem').filter({ hasText: /^Set status to / });
+    await expect(statuses).toHaveText([
+      'Set status to Draft',
+      'Set status to Ready',
+      'Set status to In progress',
+      'Set status to Blocked',
+      'Set status to Done',
+      'Set status to Unknown',
+    ]);
+    await page.getByRole('menuitem', { name: 'Set status to In progress' }).click();
+
+    const prompt = page.getByRole('dialog', { name: 'Set 010 to In progress' });
+    await expect(prompt).toBeVisible();
+    await expect(prompt.getByLabel('Started on')).toBeVisible();
+    await expect(prompt.getByLabel('Finished on')).toHaveCount(0);
+    await prompt.getByRole('button', { name: 'Set to In progress' }).click();
+
+    await expect(row).toHaveAttribute('data-row-status', 'in_progress');
+    expect(await stripOf()).toContain(await tokenColour('--status-in-progress'));
   });
 });

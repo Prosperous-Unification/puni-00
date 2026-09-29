@@ -166,6 +166,24 @@ the same position number, and ADR 0016's id tie-break orders the two.
 
 The import no longer refuses a hold on done work: `setProgress` keeps a hold, so a leaf held and then marked done exported `hold: "on_hold"` and its own file was refused. With the refusal restored, `re-imports its own export of a leaf held and then marked done` failed on `Expected: true, Received: false` (the re-classification refused the export). `setProgress` is unchanged.
 
+### Slice 6 — fe-01 table and row menu
+
+Each fault was injected into production code, the named test run, and the file restored.
+
+| Check                                            | Fault injected                          | Test that observed it                                                               | Observed                                               |
+| ------------------------------------------------ | --------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| a row is not offered the status it reads         | `status !== row.status` filter removed  | `offers no hold on done work, and In progress to reopen it`                         | `done` offered on a done row                           |
+| a hold that changes nothing is not offered       | leaf hold comparison replaced by `true` | `offers a parent a hold while any unfinished leaf beneath does not already hold it` | `expected [ 'on_hold', … ] to not include 'on_hold'`   |
+| Done and In progress ask before writing          | `chooseStatus` prompt branch removed    | `choosing Done opens the completion prompt…`, `asks for Started on alone…`          | no dialog `Set 010 to Done` / `Set 020 to In progress` |
+| the three `setStatus` refusals are worded        | the three sentences struck              | `says why be-01 refused a status with <code>` ×3                                    | the fallback toast instead                             |
+| each predecessor bordered in its status colour   | done-only strip                         | `borders each predecessor in its own status colour`                                 | `3px solid transparent`                                |
+| an unknown status word never draws a blank glyph | contract `status` widened to `string`   | `rejects a status word it does not know…` (`wbs-api.test.ts`)                       | `promise resolved … instead of rejecting`              |
+| the hold strip is painted in a browser           | the `on_hold` strip selector struck     | `holds a row from its menu, paints the hold on its strip…` (Chromium)               | only the row separator in `box-shadow`                 |
+
+A rejected read renders the page's failed-read state with Retry and no Status cell
+(`shows a plan read refused for a status word it does not know as a failed read`).
+`e2e/status.spec.ts` ran locally with `E2E_PORT_SHIFT=2000`: 3 passed.
+
 ## Not run
 
 - The h2puni host gate; the orchestrator runs it on the integration branch.

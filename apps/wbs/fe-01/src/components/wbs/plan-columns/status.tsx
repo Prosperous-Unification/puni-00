@@ -1,5 +1,4 @@
 import { cellKey } from '../editable-grid';
-import { isoToday } from '../gantt-panel';
 import type { PlanLive } from '../plan-live';
 import { StatusCell } from '../status-cell';
 import { column } from './column';
@@ -26,20 +25,17 @@ export function createStatusColumn({ live }: { live: PlanLive }) {
         rowNumber={row.original.number}
         rowId={row.original.id}
         status={row.original.status}
+        offers={live.current.statusOffers(row.original)}
         choose={(status) => {
-          // `Done` is asked about before it is written — the completion prompt
-          // holds the day and sends the command on confirm; `Unknown` is sent
-          // at once, with the reader's day be-01 reads nothing from.
-          // Proof: this branch collapsed to a direct `setStatus`, and
-          // `choosing Done opens the completion prompt and sends nothing until
-          // it is confirmed` fails on `Unable to find an accessible element
-          // with the role "dialog" and name "Mark 010 done"` — the row marked
-          // done with nobody asked; watched 2026-09-13.
-          if (status === 'done') {
-            live.current.openCompletionPrompt(row.original.id);
-            return;
-          }
-          void live.current.setStatus(row.original.id, status, isoToday(new Date()));
+          // `Done` and `In progress` are asked about before they are written —
+          // the completion prompt holds the days and sends the command on
+          // confirm; every other status is sent at once.
+          // Proof: `chooseStatus`'s prompt branch removed so every status was
+          // sent at once, and `choosing Done opens the completion prompt…` and
+          // `asks for Started on alone before starting a row…` failed on
+          // `Unable to find role="dialog" and name "Set 010 to Done"` and
+          // `"Set 020 to In progress"`; watched 2026-09-29.
+          live.current.chooseStatus(row.original.id, status);
         }}
         onOpenChange={(open) => {
           // The lift for a pinned cell's popover (`StatusCell`'s class note):

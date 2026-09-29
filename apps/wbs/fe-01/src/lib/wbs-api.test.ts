@@ -1427,6 +1427,28 @@ describe('read ownership across API lifetimes', () => {
     });
   });
 
+  it('rejects a status word it does not know, so the plan reads as a failed query and never a blank glyph', async () => {
+    // `add-work-item-statuses`: the Status cell draws `STATUS_GLYPH[status]`,
+    // which is nothing for a word this client has never heard of. The read's
+    // own schema is where that is caught, once, and the page's query-failure
+    // state is what a rejected tree read renders.
+    // Proof: with the contract's `status` widened to `string` in
+    // `libs/wbs/domain/contracts/src/http/work-item-response.ts`, this failed
+    // on `promise resolved … instead of rejecting`; watched 2026-09-29.
+    const tree = JSON.parse(TREE('p1', ['w1'])) as { workItems: { status: string }[] };
+    const [row] = tree.workItems;
+    row.status = 'paused';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
+    );
+
+    await expect(httpProjectApi('t').tree('p1')).rejects.toMatchObject({
+      message: 'invalid_response',
+      problem: { kind: 'failure', failure: { code: 'invalid_response' } },
+    });
+  });
+
   it('does not lend a pre-edit tree response to a later API owner', async () => {
     let release!: (response: Response) => void;
     const oldResponse = new Promise<Response>((resolve) => {
