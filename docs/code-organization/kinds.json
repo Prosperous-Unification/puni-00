@@ -209,16 +209,6 @@
       "rationale": "be-01's dormant domain-proof worker calls checkDomainProofs to run one bounded TXT lookup per due retained claim through the DomainProofChecks port; it holds no store or timer of its own"
     },
     {
-      "path": "libs/wbs/application/core/src/service/history.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-history module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/import.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-import module directly"
-    },
-    {
       "path": "libs/wbs/application/core/src/service/login-throttle.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core or the authentication module directly"
@@ -240,16 +230,6 @@
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
       "rationale": "plan-commands.ts consumes its command type and batch-limit value, which carry no store, clock or runtime access"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/plan-document.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-document module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/prepare-import.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-import module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/priority-band.service.ts",

@@ -199,11 +199,8 @@
         "kind": "declared",
         "memberships": [
           { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/service/history.service.ts"
-          }
+          { "kind": "path", "path": "libs/wbs/application/core/src/http/history.routes.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" }
         ]
       }
     },
@@ -798,34 +795,14 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/compose.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/index.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/http/import.routes.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/service/import.service.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/service/prepare-import.ts"
-          },
+          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/http/import.routes.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
           {
             "kind": "path",
             "path": "libs/wbs/application/core/src/testing/import-service-source-contract.ts"
           },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/testing/writes-fixture.ts"
-          }
+          { "kind": "path", "path": "libs/wbs/application/core/src/testing/writes-fixture.ts" }
         ]
       }
     },
@@ -844,17 +821,12 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
+          { "kind": "path", "path": "libs/wbs/application/core/src/http/import.routes.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/http/project.routes.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
           {
             "kind": "path",
-            "path": "libs/wbs/application/core/src/http/project.routes.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/index.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/service/plan-document.ts"
+            "path": "libs/wbs/application/core/src/testing/import-service-source-contract.ts"
           }
         ]
       }

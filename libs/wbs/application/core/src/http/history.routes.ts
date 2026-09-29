@@ -1,8 +1,8 @@
 import { readHistory } from '@wbs/contracts';
 
+import type { HistoryService } from '../module/plan-history/plan-history.feature';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { PlanEventFilter } from '../ports/plan-event-store';
-import type { HistoryService } from '../service/history.service';
 import type { ProjectService } from '../service/project.service';
 import { bind, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';

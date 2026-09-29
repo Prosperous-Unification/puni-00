@@ -1,6 +1,6 @@
 # Plan import
 
-<!-- module-index {"schemaVersion":1,"moduleId":"module.application.plan-import","memberships":[{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"plan-import.feature.ts"},{"kind":"path","path":"prepare-import.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every reader this packet verified by reading compose.ts and index.ts."},{"section":"invariants","reason":"The commit-then-publish and directory-names-are-authoritative invariants are documented on ImportService; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"},{"kind":"path","path":"libs/wbs/application/core/src/http/import.routes.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/import.service.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/prepare-import.ts"},{"kind":"path","path":"libs/wbs/application/core/src/testing/import-service-source-contract.ts"},{"kind":"path","path":"libs/wbs/application/core/src/testing/writes-fixture.ts"}],"knowledgeLimit":"Only the composition root, the core barrel, the two compatibility shims and the two testing fixtures that deep-import them are declared; a deep import of plan-import.feature.ts or prepare-import.ts by a test fixture elsewhere is not tracked here."}} -->
+<!-- module-index {"schemaVersion":1,"moduleId":"module.application.plan-import","memberships":[{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"plan-import.feature.ts"},{"kind":"path","path":"prepare-import.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every reader this packet verified by reading compose.ts and index.ts."},{"section":"invariants","reason":"The commit-then-publish and directory-names-are-authoritative invariants are documented on ImportService; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/http/import.routes.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"},{"kind":"path","path":"libs/wbs/application/core/src/testing/import-service-source-contract.ts"},{"kind":"path","path":"libs/wbs/application/core/src/testing/writes-fixture.ts"}],"knowledgeLimit":"Only the composition root, the core barrel, the import routes and the two testing fixtures that deep-import it are declared; a deep import of plan-import.feature.ts or prepare-import.ts by a test elsewhere is not tracked here."}} -->
 
 The fourth sealed DI Bag module in the core, following Plan history's, Bounded replay sweep's and
 Realtime's pattern: `module.ts` seals the graph, `check.ts` is the only place that builds a bag, and
@@ -22,12 +22,10 @@ The applicable check is the `wbs-core:test` target declared in
 ## Consumers
 
 `libs/wbs/application/core/src/compose.ts` installs the module;
-`libs/wbs/application/core/src/index.ts`, `libs/wbs/application/core/src/http/import.routes.ts`,
-`libs/wbs/application/core/src/service/import.service.ts`,
-`libs/wbs/application/core/src/service/prepare-import.ts`,
+`libs/wbs/application/core/src/index.ts` re-exports its files from the `@wbs/core` barrel;
+`libs/wbs/application/core/src/http/import.routes.ts`,
 `libs/wbs/application/core/src/testing/import-service-source-contract.ts` and
-`libs/wbs/application/core/src/testing/writes-fixture.ts` keep the former `@wbs/core` deep-import
-names.
+`libs/wbs/application/core/src/testing/writes-fixture.ts` import `plan-import.feature.ts` directly.
 
 ## Wiki registration
 
