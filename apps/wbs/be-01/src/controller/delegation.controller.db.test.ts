@@ -184,6 +184,7 @@ describe('after activation', () => {
       body: { error: 'insufficient_scope' },
     });
     for (const [method, path, body] of [
+      ['GET', '/api/organization/members', undefined],
       ['GET', '/api/organization/join-requests', undefined],
       ['POST', '/api/organization/join-requests/missing/approve', { role: 'viewer' }],
       ['POST', '/api/organization/join-requests/missing/deny', undefined],

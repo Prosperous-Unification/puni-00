@@ -142,6 +142,16 @@ The active-organization GET `/api/organization/join-requests` SHALL list request
 - **THEN** the first response is 201 with a pending request and no membership; the second refuses with `join_request_pending`
 - **AND** an absent organization, another domain and a no-longer-verified claim all answer the same `404 not_found`
 
+### Requirement: Administrators list the active organization's members
+
+`GET /api/organization/members` SHALL answer the members of the caller's server-resolved active organization, each with user ID, username, email (null when absent), role and membership creation time, only to a caller whose current role there is admin or super-admin, read in the same transaction as activation and the caller's role. A member or viewer SHALL receive 403 `forbidden`; a delegated principal SHALL receive 403 `insufficient_scope`; an unbound session or removed membership SHALL receive the organization refusal. Onboarding discovery SHALL NOT include the member list.
+
+#### Scenario: Only administrators read the member list
+
+- **GIVEN** an activated organization with a super-admin, an admin, a member and a viewer
+- **WHEN** each requests the member list
+- **THEN** the super-admin and admin receive 200 with exactly that organization's members, and the member and viewer receive 403 `forbidden`
+
 ### Requirement: Organization administration has explicit rendered states
 
 fe-01 SHALL provide onboarding, organization switching, a members page for invites, roles, removal and pending requests, and domain settings. Loading, no memberships, empty lists, expired invite, query failure and lost permissions SHALL render distinct states. A stale tab SHALL not retain foreign organization data after switch or membership removal.

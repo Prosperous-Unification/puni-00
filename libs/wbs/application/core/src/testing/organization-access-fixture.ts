@@ -20,6 +20,8 @@ export const legacyOrganizationAccess: OrganizationAccess = {
 export const refusingMemberships: MembershipAdministration = {
   administer: () =>
     Promise.reject(new Error('membership administration was reached in a pre-activation suite')),
+  listMembers: () =>
+    Promise.reject(new Error('member listing was reached in a pre-activation suite')),
 };
 
 /** Domain routes in unrelated suites throw if a test unexpectedly reaches them. */

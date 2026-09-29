@@ -1329,3 +1329,17 @@ All faults were restored before commit.
 | A shown TXT record leaves with its status     | Kept the shown record whatever the list said  | `clears the shown TXT record once its claim leaves pending` failed: the record region stayed on screen                          |
 
 The invitation code input now sets `autoComplete="off"`. Both faults were restored before commit.
+
+## Slice 39e — member list (task 4.6)
+
+| Check                                   | Injected fault                                 | Observed failure                                                                                                                         |
+| --------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Only admin and super-admin list members | Store admitted any current member              | `refuses a member and a viewer the member list` failed (4 pass, 1 fail)                                                                  |
+| The list is scoped to the organization  | Dropped the store's organization predicate     | `lists the active organization to an admin and a super-admin` and `lists only the active organization's members` failed (3 pass, 2 fail) |
+| The store rechecks activation           | Skipped the activation read                    | `OrganizationRepository.listMembers > refuses before activation` failed                                                                  |
+| Delegated callers are refused           | Removed the route's delegation guard           | `refuses delegated onboarding discovery and writes` failed                                                                               |
+| The role change sends the chosen role   | Sent the listed role                           | `changes a role to the chosen one and re-reads the list` failed: `expected { role: 'viewer' } to deeply equal { role: 'member' }`        |
+| Removal needs the in-page confirmation  | Removed on the first click                     | `removes only after confirmation` failed: `expected true to be false`                                                                    |
+| The last super-admin has its own copy   | Answered `last_super_admin` with the role copy | `renders the last_super_admin change refusal` failed: received `Your role cannot make this change.`                                      |
+
+All faults were restored before commit.

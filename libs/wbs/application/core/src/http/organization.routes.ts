@@ -1,4 +1,4 @@
-import { changeMemberRole, removeMember } from '@wbs/contracts';
+import { changeMemberRole, listMembers, removeMember } from '@wbs/contracts';
 
 import type { Clock } from '../ports/clock';
 import type {
@@ -39,6 +39,28 @@ export function organizationRoutes(
   clock: Pick<Clock, 'now'>,
 ) {
   return [
+    bind(listMembers, async ({ principal }): Promise<HttpReply<typeof listMembers>> => {
+      // Proof: 2026-09-29, bypassing this guard failed `refuses delegated
+      // onboarding discovery and writes` at the member list.
+      if (principal.delegation !== undefined)
+        return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
+      const resolved = await organizations.resolve(principal);
+      if (!resolved.ok) return organizationRefusal(resolved.refusal);
+      if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
+      const listed = await memberships.listMembers(
+        resolved.access.scope.organizationId,
+        principal.id,
+      );
+      if (!listed.ok) {
+        switch (listed.refusal) {
+          case 'onboarding_inactive':
+            return { ok: false, status: 403, body: { error: 'onboarding_inactive' } };
+          case 'forbidden':
+            return { ok: false, status: 403, body: { error: 'forbidden' } };
+        }
+      }
+      return { ok: true, status: 200, body: { members: [...listed.members] } };
+    }),
     bind(
       changeMemberRole,
       async ({ params, body, principal }): Promise<HttpReply<typeof changeMemberRole>> => {
