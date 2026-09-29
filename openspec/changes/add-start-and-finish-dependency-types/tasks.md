@@ -93,4 +93,5 @@
 
 ## 12. Verify
 
-- [ ] 12.1 Run mounted/transfer/scheduler/browser checks, rollback guard, format, lint, typecheck, build, OpenSpec validation and host gate. Record outputs and observed faults in verify.md.
+- [x] 12.1 Run mounted/transfer/scheduler/browser checks, rollback guard, format, lint, typecheck, build, OpenSpec validation and host gate. Record outputs and observed faults in verify.md.
+      Evidence: round 29, PR #216 (merge `802432df`, head `87afcbb7`, which carries #183, #190 and #214): h2puni `gate-87afcbb7b39c-20260929T012741Z.log` printed `h2puni gate: running on 87afcbb7…`, ran test, lint, typecheck and build for 35 projects, OpenSpec validation and the solver-image smoke, `GATE_EXIT=0`. CI on #216: `gate workspace`, `gate tool wiki` and `pixels` 4/4 passed; `lint` failed only on `ACTIVATION_*`. See verify.md.

@@ -262,3 +262,10 @@ The Playwright Gantt spec's typed-chip selectors were updated and e2e was not ru
 - `typed-dependency-commands.controller.db.test.ts` "publishes a tight solver answer for an SS/FF plan written through the commands" writes estimates and FS/SS relationships through `/commands` (project rounding `exact`, X 1 day → A 5/6 day → B, X→B SS). It builds the solver request pair from the project's schedule input and feeds `evaluateSolverOutcome` the quantised Fast baseline (A at unit 48, B at 88) as a feasible answer. It expects `ok`.
 - Proof: with `schedule.ts` and `real-boundaries.ts` reverted to their pre-#196 state, the test failed with `{ kind: 'failed', reason: 'invalid-output' }` (0 pass / 1 fail); with the fix it passes.
 - `env -u CLAUDECODE bunx nx affected -t typecheck test lint --base=origin/main` succeeded for 19 projects (61 tasks, 15 from cache).
+
+## 2026-09-29 integration gate (task 12.1)
+
+- Round 29, PR #216, head `87afcbb7b39cc72d528a4408e1f41fada983bb77` (#183, #190, #196 in round 28, #214), merged to main as `802432df`.
+- h2puni `~/gate-87afcbb7b39c-20260929T012741Z.log`: `h2puni gate: running on 87afcbb7b39cc72d528a4408e1f41fada983bb77`; `Successfully ran targets test, lint, typecheck, build for 35 projects and 5 tasks they depend on`; `solver-image-smoke` for `wbs-be-01` passed; `GATE_EXIT=0`. OpenSpec validation reported 0 failed.
+- CI on #216: `gate workspace` (with Migration lint), `gate tool wiki` and `pixels` shards 1–4 passed. `lint` failed on the repo-wide `ACTIVATION_*` download only.
+- Task 1.2 remains open. Prod `be-01-green` on h2puni was created on 2026-08-23 from an image that predates Stage A (checked 2026-09-29 with `docker ps`). No compatible-reader release has been deployed there before the Stage B writes that main now carries.

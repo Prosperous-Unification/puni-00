@@ -1280,3 +1280,52 @@ The earlier review's fault injections were restored, and its recorded focused ru
 | Concurrent rotation verify became a 500       | Mounted `answers stale when a concurrent verify completes the rotation during DNS lookup` held two verifies at the DNS barrier after one rotate and first answered `[200, 500]`: the commit guard required both previous-proof fields for any rotation snapshot. | The commit guard throws only on a split previous-proof pair; both fields null falls through to the snapshot comparison, which answers stale 409. |
 | Split previous-proof pair lacked a negative   | With CHECK constraints disabled only to force `previous_proof_valid_until = NULL` during DNS lookup, removing the split-pair clause made mounted `throws when a rotation overlap pair splits during DNS lookup` answer stale 409 rather than 500.                | The new clause is covered by that test.                                                                                                          |
 | Capture Proof was covered by the commit guard | Removing the capture timestamp validation still answered 500 in `throws when a suspended claim lacks retained timestamps at capture`, because the commit guard threw. With the new zero-lookup assertion the same removal failed with 1 DNS lookup observed.     | The test counts DNS lookups; the capture Proof comment names that observation.                                                                   |
+
+## Slice 39a — password email verification screens (task 4.6)
+
+`EmailVerification` renders inside onboarding's `verification_required` state. Component tests drive the real `browserClient` through a stubbed `fetch`.
+
+| Check                            | Injected fault                                          | Observed failure                                                                                                                                                                                |
+| -------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Confirmation re-reads onboarding | Replaced `await onVerified()` with a no-op              | `sends a challenge, confirms the code and re-reads onboarding` failed: the create form never appeared (1 failed, 9 passed)                                                                      |
+| Lost delivery has its own copy   | Answered `delivery_failed` with the generic reload copy | `renders the delivery_failed challenge refusal on the address step` failed: `expected <p role="alert"></p> to have property "textContent" with value 'We could not send the code. Try again …'` |
+
+Both faults were restored before commit.
+
+## Slice 39b — invitations and the organization page (task 4.6)
+
+| Check                                      | Injected fault                                           | Observed failure                                                                                                                                                                |
+| ------------------------------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lost access clears the organization's rows | Rendered the panels whatever `loss` held                 | `clears the organization's rows when a refusal says access was lost` and the three `renders the … list refusal as the page state` cases failed (4 failed, 10 passed)            |
+| Acceptance re-reads onboarding             | Replaced `await onAccepted()` with a no-op               | `accepts an invitation and re-reads onboarding` failed (1 failed, 6 passed)                                                                                                     |
+| Recipient mismatch has its own copy        | Answered `recipient_mismatch` with the invalid-code copy | `renders the recipient_mismatch acceptance refusal` failed: `expected <p role="alert"></p> to have property "textContent" with value 'This invitation was sent to a differen…'` |
+
+All faults were restored before commit.
+
+## Slice 39c — join-request decisions (task 4.6)
+
+| Check                          | Injected fault                                   | Observed failure                                                                                                                                                           |
+| ------------------------------ | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Approval sends the chosen role | Sent a fixed `member` role                       | `approves at the chosen role, then re-reads the list` failed: `expected { role: 'member' } to deeply equal { role: 'viewer' }`                                             |
+| Domain change has its own copy | Answered `domain_changed` with the resolved copy | `renders the domain_changed approval refusal` failed: `expected <p role="status"></p> to have property "textContent" with value 'The requester's email or the organizat…'` |
+
+Both faults were restored before commit. `drops every panel when another panel loses access` covers a loss reported by the join-request panel clearing the invitation rows.
+
+## Slice 39d — domain settings (task 4.6)
+
+| Check                                  | Injected fault                                          | Observed failure                                                                                                                                                               |
+| -------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| DNS outage has its own copy            | Answered `dns_unavailable` with the proof-mismatch copy | `renders the dns_unavailable verify refusal` failed: `expected <p role="status"></p> to have property "textContent" with value 'DNS could not be reached. Try again la…'`      |
+| Release needs the in-page confirmation | Deleted on the first Release click                      | `releases only after confirmation` failed: `expected true to be false`                                                                                                         |
+| Suspension is its own rendered state   | Keyed the suspension notice on `pending`                | `renders suspension and a failed proof check as distinct states` failed: `expected 'old.test SuspendedLast successful che…' to match /Suspended: the TXT proof has not been…/` |
+
+All faults were restored before commit.
+
+### Slice 39d review fixes (Fable, 2026-09-29)
+
+| Check                                         | Injected fault                                | Observed failure                                                                                                                |
+| --------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| An expired pending challenge offers no Verify | Dropped the expiry guard on the Verify button | `replaces Verify on a pending claim whose challenge expired` failed: `expected <button type="button" …(1)></button> to be null` |
+| A shown TXT record leaves with its status     | Kept the shown record whatever the list said  | `clears the shown TXT record once its claim leaves pending` failed: the record region stayed on screen                          |
+
+The invitation code input now sets `autoComplete="off"`. Both faults were restored before commit.

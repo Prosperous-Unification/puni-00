@@ -87,4 +87,5 @@
 
 ## 11. Verify
 
-- [ ] 11.1 Run mounted/domain/scheduler/browser checks, migration lint and rollback, format, lint, typecheck, build, OpenSpec validation and host gate. Record outputs and every observed fault in verify.md.
+- [x] 11.1 Run mounted/domain/scheduler/browser checks, migration lint and rollback, format, lint, typecheck, build, OpenSpec validation and host gate. Record outputs and every observed fault in verify.md.
+      Evidence: round 29, PR #216 (merge `802432df`, head `87afcbb7`): h2puni `gate-87afcbb7b39c-20260929T012741Z.log` printed `h2puni gate: running on 87afcbb7…`, ran test, lint, typecheck and build for 35 projects, OpenSpec validation and the solver-image smoke, `GATE_EXIT=0`. CI on #216: `gate workspace` (includes Migration lint), `gate tool wiki` and `pixels` 4/4 passed; `lint` failed only on `ACTIVATION_*`. Rollback is covered by `migrate-down.db.test.ts` (`20260927213000_add_typed_dependency`) inside that gate. See verify.md.
