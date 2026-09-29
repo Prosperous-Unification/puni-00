@@ -33,3 +33,23 @@ The command registry SHALL accept `addTypedDependency`, `updateTypedDependency` 
 - **GIVEN** an SS or FF dependency added earlier in a command batch
 - **WHEN** a later legacy or typed command would close a step-node cycle
 - **THEN** the entire batch is refused atomically with the offending command identified
+
+#### Scenario: Typed edit and undo
+
+- **GIVEN** an FS typed relationship between selected steps
+- **WHEN** it is edited to another valid endpoint and then undone
+- **THEN** one undo restores the prior endpoints, type and ID
+- **AND** a concurrent conflicting change causes a visible stale-undo refusal
+
+#### Scenario: Batch closes a slice cycle
+
+- **GIVEN** one typed dependency was added earlier in a command batch
+- **WHEN** a later command would close an expanded slice cycle
+- **THEN** the batch is refused atomically with the offending command identified
+
+#### Scenario: A batch creates a work item and depends on its step
+
+- **GIVEN** a batch whose first command creates leaf C with ref `c`
+- **WHEN** a later command adds FS from `{ scope: node, workItemRef: c, stepId: Dev }` to node `B.dev`
+- **THEN** the relationship names C's Dev step node after commit
+- **AND** if any later command is refused, neither C nor the relationship is stored

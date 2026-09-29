@@ -110,6 +110,10 @@ facts`.
 - [x] 8.1 `apps/fe-01/e2e/status.spec.ts`: show the three columns, choose Done, name struck,
       Fact end reads today, the row's bar stops inside today's axis cell and carries
       `data-done` — run on `E2E_PORT_SHIFT=1900`.
-- [ ] 8.2 Gate: `bunx nx run-many -t test lint typecheck -p domain core contracts store-sqlite
+- [x] 8.2 Gate: `bunx nx run-many -t test lint typecheck -p domain core contracts store-sqlite
 store-memory be-01 mcp-01 fe-01`, `bunx nx format:check --all`, `openspec validate --all
 --json`, whole browser gate; `verify.md` with the failure-proof table; PR; CI green.
+      Evidence: merged by wbs-tool-v1 PR #423 (`a1fb5f39`, 2026-09-13), whose CI `gate` and
+      `pixels` 4/4 passed (`lint` failed only on the `ACTIVATION_ARCHIVE_URL` download); the
+      failure-proof table is in `verify.md`. Re-gated on main by round 29, PR #216: h2puni
+      `gate-87afcbb7b39c-20260929T012741Z.log`, `GATE_EXIT=0`.
