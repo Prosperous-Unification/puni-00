@@ -1,12 +1,6 @@
+import type { StoredDependency } from './dependency-values';
 import type { WriteStamp } from './write-stamp';
-
-/** A finish-to-start edge as it is stored: either end may be a parent. */
-export interface StoredDependency {
-  id: string;
-  projectId: string;
-  predecessorId: string;
-  successorId: string;
-}
+export type { StoredDependency } from './dependency-values';
 
 export interface DependencyStore {
   listByProject(projectId: string): Promise<StoredDependency[]>;

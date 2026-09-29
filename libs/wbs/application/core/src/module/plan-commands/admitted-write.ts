@@ -1,9 +1,10 @@
 import { AnnouncementCollector } from '../../ports/announcement-collector';
-import { type EditAdmission, NO_ADMISSION } from '../../ports/edit-admission';
+import { NO_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
-import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
+import type { UnitOfWork } from '../../ports/unit-of-work';
 import type { ProjectService } from '../project/project.resource';
 import type { StepService } from '../step/step.resource';
+import { type AdmittedGraphFactory, runAdmitted } from './admitted-scope.resource';
 
 /** The two route writes that validate the combined dependency graph before they write. */
 export interface AdmittedServices {
@@ -19,11 +20,7 @@ export interface AdmittedWriteSource {
    * here authorize through the caller's access themselves and ask no
    * admission, so any gated service reached through this graph is refused.
    */
-  readonly batch: (
-    scope: Scope,
-    broadcast: Broadcaster,
-    admission: EditAdmission,
-  ) => AdmittedServices;
+  readonly batch: AdmittedGraphFactory<AdmittedServices>;
   readonly announcements: Broadcaster;
 }
 
@@ -42,8 +39,8 @@ export function admittedWrites(source: AdmittedWriteSource) {
     act: (graph: AdmittedServices) => Promise<T>,
   ): Promise<T> => {
     const collector = new AnnouncementCollector(source.announcements);
-    const outcome = await source.uow.run<T>(async (scope) => {
-      const value = await act(source.batch(scope, collector, NO_ADMISSION));
+    const outcome = await runAdmitted<T>(source.uow, async (scope) => {
+      const value = await act(scope.graphOf(source.batch, collector, NO_ADMISSION));
       return value.ok ? { commit: true, value } : { commit: false, value };
     });
     if (outcome.ok) await collector.send();

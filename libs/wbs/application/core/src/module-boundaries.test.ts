@@ -6,8 +6,12 @@ import ts from 'typescript';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const sourceRoot = `${root}src/`;
-/** The baseline permits only removal; a new feature cannot nominate itself as debt. */
-const allowedDebt = new Set(['plan-import', 'plan-commands']);
+/**
+ * The baseline permits only removal; a new feature cannot nominate itself as debt.
+ * Empty since WBS 040.11 closed Plan import and Plan commands, so every audited
+ * module is closed and any entry is refused as new debt.
+ */
+const allowedDebt = new Set<string>();
 const debt = new Set(allowedDebt);
 const auditedModules = [
   'plan-commands',
@@ -343,13 +347,9 @@ test('malformed import type cannot silently leave the audit', async () => {
 
 test('new feature debt cannot be added to the shrink-only ledger', () => {
   const files = [`${sourceRoot}module/new-feature/new-feature.feature.ts`];
-  expect(
-    findCoverageFailures(
-      files,
-      new Set(),
-      new Set(['plan-import', 'plan-commands', 'new-feature']),
-    ),
-  ).toContain('new-feature: new debt is not allowed');
+  expect(findCoverageFailures(files, new Set(), new Set(['new-feature']))).toContain(
+    'new-feature: new debt is not allowed',
+  );
 });
 
 test('a closed module with no directory is refused', async () => {
@@ -362,7 +362,7 @@ test('a closed module with no directory is refused', async () => {
 test('every feature module is closed or recorded as debt', async () => {
   const program = await createProgramWith('module/plan-history/plan-history.feature.ts', '');
   const files = program.getSourceFiles().map((source) => source.fileName);
-  expect(
-    findCoverageFailures(files, new Set(['plan-history']), new Set(['plan-import'])),
-  ).toContain('authentication: unlisted feature module');
+  expect(findCoverageFailures(files, new Set(['plan-history']), new Set())).toContain(
+    'authentication: unlisted feature module',
+  );
 }, 120_000);

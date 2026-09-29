@@ -1,5 +1,5 @@
 import type { PlanCommandKind } from '@wbs/contracts';
-import { canWriteInOrganization, type OrganizationScope } from '@wbs/domain';
+import type { OrganizationScope } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type {
@@ -8,7 +8,7 @@ import type {
   PersonWithTeams,
   ServiceTeam,
   TeamWithServices,
-} from '../../ports/directory-store';
+} from '../../ports/directory-values';
 import {
   CREATOR_ADMISSION,
   type EditAdmission,
@@ -18,10 +18,9 @@ import {
 } from '../../ports/edit-admission';
 import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
-import type { ProjectCrossReferenceKind, RecoveryAuditDetail } from '../../ports/project-store';
-import type { PlanTransactionalStores } from '../../ports/stores';
-import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
-import type { Service, Tag, WorkItemType } from '../../ports/work-item-store';
+import type { ProjectCrossReferenceKind } from '../../ports/project-values';
+import type { UnitOfWork } from '../../ports/unit-of-work';
+import type { Service, Tag, WorkItemType } from '../../ports/work-item-values';
 import type { DirectoryUsage } from '../../service/directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
 import type { CapacityService } from '../capacity/capacity.resource';
@@ -40,8 +39,13 @@ import type {
   WorkItemOutcome,
   WorkItemService,
 } from '../work-item/work-item.resource';
+import {
+  type AdmittedDecision,
+  type AdmittedGraphFactory,
+  type AdmittedScope,
+  runAdmitted,
+} from './admitted-scope.resource';
 import { applyCommand, bindCommands, CommandContext, CommandRefused } from './command-bindings';
-import { createWorkingPlan } from './working-plan.resource';
 
 /**
  * The services a command batch can invoke, and `steps` for the
@@ -184,11 +188,7 @@ export interface PlanCommandRunnerOptions {
    * rule under legacy access, and under scoped access only the grant this
    * act's own unit of work established (see {@link grantAdmission}).
    */
-  batchServices: (
-    scope: Scope,
-    broadcast: Broadcaster,
-    admission: EditAdmission,
-  ) => PlanCommandServices;
+  batchServices: AdmittedGraphFactory<PlanCommandServices>;
   /**
    * The process graph used after the unit of work settles: reads and broadcasts
    * here observe the committed source and take their own turn.
@@ -372,19 +372,20 @@ export class PlanCommandRunner {
     // Scoped writes are admitted only through this act's own grant; a
     // directory batch names no project and is granted none.
     let grant: GrantedAdmission | null = null;
-    const done = await this.opts.uow
-      .run<Applied>(async (scope): Promise<Decision<Applied>> => {
+    const done = await runAdmitted<Applied>(
+      this.opts.uow,
+      async (scope): Promise<AdmittedDecision<Applied>> => {
         if (access.kind === 'scoped') {
           // Proof: skipping this admission made `answers 404 alike for a foreign
           // and an absent project` in `command-organization.controller.db.test.ts`
           // answer 200 instead of 404; watched 2026-09-27.
-          const refusal = await refuseOutsideScope(scope.stores, projectId, actorId, access.scope, {
+          const refusal = await scope.refuseOutsideScope(projectId, actorId, access.scope, {
             commands: commands.map(({ kind }) => kind),
           });
           if (refusal !== null) return { commit: false, value: { ok: false, refusal } };
           if (projectId !== null) grant = grantAdmission(projectId, actorId);
         }
-        const workingPlan = projectId === null ? undefined : createWorkingPlan(scope, projectId);
+        const workingPlan = projectId === null ? undefined : scope.openWorkingPlan(projectId);
         // Proof: building from publicServices let the refused write survive:
         // expected [], received ["rolled back"] (2026-09-09).
         // Proof: caching the first graph made the subsequent batch omit `later`:
@@ -393,8 +394,8 @@ export class PlanCommandRunner {
           // Proof: retaining the first working graph across SQLite batches made
           // the second undo restore stale 4/5/6 figures instead of an intervening
           // ordinary write's 7/8/9 figures.
-          const graph = this.opts.batchServices(
-            workingPlan === undefined ? scope : { stores: workingPlan.stores },
+          const graph = (workingPlan === undefined ? scope : workingPlan.scope).graphOf(
+            this.opts.batchServices,
             collector,
             admissionOf(access, grant),
           );
@@ -425,7 +426,7 @@ export class PlanCommandRunner {
           }
           let applied: Applied;
           const collected = await graph.workItems.collect(() =>
-            this.applyAll(graph, scope.stores, projectId, actorId, commands, access),
+            this.applyAll(graph, scope, projectId, actorId, commands, access),
           );
           if (projectId !== null) {
             const needsCalendarPreflight = commands.some(({ kind }) =>
@@ -470,9 +471,9 @@ export class PlanCommandRunner {
           // refused and throwing batches keep reading after settlement.
           workingPlan?.close();
         }
-      })
+      },
       // Proof: see `admissionOf`.
-      .finally(() => grant?.expire());
+    ).finally(() => grant?.expire());
     if ('ok' in done) return done;
     // After the commit and after the turn is let go, which is what the whole
     // collector is for.
@@ -536,8 +537,9 @@ export class PlanCommandRunner {
     let grant: GrantedAdmission | null = null;
     // The step's own broadcast is collected rather than sent, for the reason
     // `execute` gives: the push happens after the turn is let go.
-    const walked = await this.opts.uow
-      .run<Collected<UndoOutcome>>(async (scope): Promise<Decision<Collected<UndoOutcome>>> => {
+    const walked = await runAdmitted<Collected<UndoOutcome>>(
+      this.opts.uow,
+      async (scope): Promise<AdmittedDecision<Collected<UndoOutcome>>> => {
         const refuse = (reason: 'not_found' | 'forbidden') => ({
           commit: false as const,
           value: {
@@ -551,13 +553,13 @@ export class PlanCommandRunner {
           // foreign project as of an absent one` in
           // `command-organization.controller.db.test.ts` answer the foreign
           // undo with 409 instead of 404; watched 2026-09-27.
-          const refusal = await refuseOutsideScope(scope.stores, projectId, actorId, access.scope, {
+          const refusal = await scope.refuseOutsideScope(projectId, actorId, access.scope, {
             journal,
           });
           if (refusal !== null) return refuse(refusal);
           grant = grantAdmission(projectId, actorId);
         }
-        const graph = this.opts.batchServices(scope, collector, admissionOf(access, grant));
+        const graph = scope.graphOf(this.opts.batchServices, collector, admissionOf(access, grant));
         const { workItems } = graph;
         const collected = await workItems.collect(() => step(graph));
         if (collected.result.ok && access.kind === 'scoped') {
@@ -567,7 +569,7 @@ export class PlanCommandRunner {
           // check made `rolls back an undo that would restore a foreign label`
           // in `command-organization.controller.db.test.ts` answer 200 instead
           // of 404; watched 2026-09-27.
-          const crossing = await scope.stores.projects.findCrossReferences(
+          const crossing = await scope.listCrossReferenceKinds(
             projectId,
             access.scope.organizationId,
           );
@@ -591,13 +593,13 @@ export class PlanCommandRunner {
                   // memory composition throw `no journal entry id-5` instead
                   // of consuming the committed stale entry (compose.test.ts).
                   // The repair writes no project, so it is granted nothing.
-                  await this.opts
-                    .batchServices(repairScope, collector, NO_ADMISSION)
+                  await repairScope
+                    .graphOf(this.opts.batchServices, collector, NO_ADMISSION)
                     .workItems.discardEntry(entryId);
                 },
         };
-      })
-      .finally(() => grant?.expire());
+      },
+    ).finally(() => grant?.expire());
     await collector.send();
     // The direct broadcaster, for `execute`'s reason: the collector has been
     // drained and will not be again.
@@ -617,7 +619,7 @@ export class PlanCommandRunner {
    */
   private async applyAll(
     graph: PlanCommandServices,
-    stores: PlanTransactionalStores,
+    scope: AdmittedScope,
     projectId: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
@@ -686,12 +688,12 @@ export class PlanCommandRunner {
         // tag, type, person and predecessor, all or none` in
         // `command-organization.controller.db.test.ts` answer 200 instead of
         // 404 `unknown_service` for the first case; watched 2026-09-27.
-        const crossing = await stores.projects.findCrossReferences(
+        const crossing = await scope.listCrossReferenceKinds(
           projectId,
           access.scope.organizationId,
         );
         const first = crossing.at(0);
-        if (first !== undefined) context.refuse({ reason: crossingRefusal(first.kind) });
+        if (first !== undefined) context.refuse({ reason: crossingRefusal(first) });
       }
     }
     return applied;
@@ -720,53 +722,6 @@ function admissionOf(access: ResourceAccess, grant: GrantedAdmission | null): Ed
 function legacyOutcome(outcome: ScopedBatchOutcome): BatchOutcome {
   if ('refusal' in outcome) throw new Error('a legacy batch was refused as out of scope');
   return outcome;
-}
-
-/**
- * Why a scoped caller may not run a batch, undo or redo at all, checked in the
- * act's own unit of work: a project the organization does not own is
- * `not_found`, exactly as an absent one; a viewer, or anyone but the creator
- * of a restricted project other than a super-admin, is `forbidden`. A
- * directory batch needs only a writing role. The role and the project are
- * read inside the unit of work, and a super-admin's write to someone else's
- * restricted project is admitted as a recovery whose audit record (`detail`)
- * commits or rolls back with it.
- *
- * @throws when the project already references something outside the
- * organization: corrupt trusted state that activation should have refused,
- * never a base to write on.
- */
-async function refuseOutsideScope(
-  stores: PlanTransactionalStores,
-  projectId: string | null,
-  actorId: string,
-  scope: OrganizationScope,
-  detail: RecoveryAuditDetail,
-): Promise<'not_found' | 'forbidden' | null> {
-  if (projectId === null) return canWriteInOrganization(scope.role) ? null : 'forbidden';
-  const admitted = await stores.projects.admitEditInOrganization(
-    projectId,
-    scope.organizationId,
-    actorId,
-    detail,
-  );
-  if (admitted === null) return 'not_found';
-  // Proof: skipping this refusal made `refuses a viewer every batch, undo
-  // and redo` and `refuses a super-admin removed or demoted before the batch`
-  // in `command-organization.controller.db.test.ts` answer 200; watched
-  // 2026-09-28.
-  if (admitted === 'forbidden') return 'forbidden';
-  const crossing = await stores.projects.findCrossReferences(projectId, scope.organizationId);
-  // Proof: skipping this check made `fails closed on a project that already
-  // crosses its organization` in `command-organization.controller.db.test.ts`
-  // answer 200 instead of 500; watched 2026-09-27.
-  if (crossing.length > 0) {
-    const kinds = [...new Set(crossing.map((reference) => reference.kind))].sort();
-    throw new Error(
-      `project "${projectId}" holds references outside its organization: ${kinds.join(', ')}`,
-    );
-  }
-  return null;
 }
 
 /**
