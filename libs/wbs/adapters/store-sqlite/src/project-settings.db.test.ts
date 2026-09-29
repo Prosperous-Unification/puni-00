@@ -202,6 +202,7 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
@@ -253,6 +254,7 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
@@ -347,6 +349,7 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',

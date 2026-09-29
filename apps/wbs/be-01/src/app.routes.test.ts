@@ -10,6 +10,7 @@ import {
   startOidcLogin,
 } from '@wbs/contracts';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
+import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import type { AppOptions } from './app';
@@ -50,6 +51,7 @@ function options(): AppOptions {
     emailVerification: refusingEmailVerification,
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
+    spaces: inMemorySpaces(new Map()),
     emailDelivery: refusingTestEmailDelivery,
     onboarding: {
       discover: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
@@ -183,6 +185,10 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   },
   'patchApiProjectsByIdCalendar-markersByMarkerId': { name: 'Renamed route probe' },
   'postApiProjectsByIdSaved-plans': {},
+  postApiSpaces: { name: 'Route probe' },
+  patchApiSpacesById: { name: 'Renamed route probe' },
+  postApiSpacesByIdProjects: { projectId: ROUTE_ID },
+  postApiSpacesByIdProjectsByProjectIdMove: {},
   'patchApiSaved-plansById': { name: 'Renamed snapshot' },
   postInternalForward: { message: { kind: 'route-probe' }, trace_id: 'route-probe' },
   postInternalResume: { resume_points: { subscription: -1 }, trace_id: 'route-probe' },
@@ -236,6 +242,8 @@ const SIGNED_IN_OPERATIONS = [
   'getApiProjectsByIdWork-items',
   'getApiSaved-plansById',
   'getApiServices',
+  'getApiSpaces',
+  'getApiSpacesById',
   'getApiTags',
   'getApiTeams',
   'getApiWork-item-types',
@@ -248,11 +256,14 @@ const WRITE_SCOPE_OPERATIONS = [
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',
   'deleteApiSaved-plansById',
+  'deleteApiSpacesById',
+  'deleteApiSpacesByIdProjectsByProjectId',
   'patchApiOrganizationMembersByUserId',
   'patchApiProjectsById',
   'patchApiProjectsByIdCalendar-markersByMarkerId',
   'patchApiProjectsByIdStepsByStepId',
   'patchApiSaved-plansById',
+  'patchApiSpacesById',
   'postApiDirectoryCommands',
   'postApiOnboardingEmailChallenges',
   'postApiOnboardingEmailChallengesConfirm',
@@ -275,6 +286,9 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiProjectsByIdSteps',
   'postApiProjectsByIdUndo',
   'postApiProjectsImport',
+  'postApiSpaces',
+  'postApiSpacesByIdProjects',
+  'postApiSpacesByIdProjectsByProjectIdMove',
 ] as const;
 const INTERNAL_OPERATIONS = ['postInternalForward', 'postInternalResume'] as const;
 const GATEWAY_OPERATIONS = ['postInternalGatewayProjectAccess'] as const;
@@ -297,12 +311,15 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',
   'deleteApiSaved-plansById',
+  'deleteApiSpacesById',
+  'deleteApiSpacesByIdProjectsByProjectId',
   'getApiProjectsByIdHistory',
   'patchApiOrganizationMembersByUserId',
   'patchApiProjectsById',
   'patchApiProjectsByIdCalendar-markersByMarkerId',
   'patchApiProjectsByIdStepsByStepId',
   'patchApiSaved-plansById',
+  'patchApiSpacesById',
   'postApiAuthContext',
   'postApiAuthLinkAuth0',
   'postApiAuthLogout',
@@ -322,6 +339,9 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiProjectsByIdUndo',
   'postApiProjectsImport',
   'postApiSmokeEcho',
+  'postApiSpaces',
+  'postApiSpacesByIdProjects',
+  'postApiSpacesByIdProjectsByProjectIdMove',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
   'getApiAuthLinkAuth0Callback',
@@ -345,6 +365,8 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiProjectsByIdWork-items',
   'getApiSaved-plansById',
   'getApiServices',
+  'getApiSpaces',
+  'getApiSpacesById',
   'getApiTags',
   'getApiTeams',
   'getApiWork-item-types',

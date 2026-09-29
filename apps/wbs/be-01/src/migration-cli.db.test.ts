@@ -71,6 +71,10 @@ describe('migration deploy entrypoints', () => {
         'work-item-status-facts-rollback-cli.ts',
         ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/work-item-status-facts-rollback'"],
       ],
+      [
+        'space-rollback-cli.ts',
+        ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/space-rollback'"],
+      ],
     ]);
     for (const [file, imports] of expectedImports) {
       const source = readFileSync(join(APP_ROOT, 'src', file), 'utf8');
@@ -163,6 +167,75 @@ describe('migration deploy entrypoints', () => {
     const failed = await runCli('backfill-step-codes-cli.ts', join(root, 'empty.db'));
     expect(failed.exitCode).not.toBe(0);
     expect(failed.stderr).toContain('no such table: step');
+  }, 60_000);
+
+  it('saves, removes and restores spaces through the rollback CLI', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-spaces-cli-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    const savedPath = join(root, 'spaces.json');
+    runMigrations(dbPath, MIGRATIONS);
+    const sqlite = openDatabase(dbPath);
+    try {
+      sqlite.run(
+        "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
+      );
+      sqlite.run("INSERT INTO organization (id,name,created_at) VALUES ('o','O',1)");
+      sqlite.run(
+        "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+      );
+      sqlite.run("INSERT INTO project_organization (resource_id,organization_id) VALUES ('p','o')");
+      sqlite.run(
+        "INSERT INTO space (id,organization_id,name,revision,created_at,created_by) VALUES ('s','o','Q3',1,1,'u')",
+      );
+      sqlite.run(
+        "INSERT INTO space_project (space_id,project_id,organization_id,position,created_at,created_by) VALUES ('s','p','o',10,1,'u')",
+      );
+    } finally {
+      sqlite.close();
+    }
+    expect(await runCli('space-rollback-cli.ts', dbPath, 'save', savedPath)).toEqual({
+      exitCode: 0,
+      stdout: 'spaces saved: 1\n',
+      stderr: '',
+    });
+    expect(JSON.parse(readFileSync(savedPath, 'utf8'))).toMatchObject({
+      format: 'space-save',
+      version: 1,
+      spaces: [{ id: 's', members: [{ projectId: 'p', position: 10 }] }],
+    });
+    expect(await runCli('space-rollback-cli.ts', dbPath, 'remove', savedPath)).toEqual({
+      exitCode: 0,
+      stdout: 'spaces removed: 1\n',
+      stderr: '',
+    });
+    expect(await runCli('space-rollback-cli.ts', dbPath, 'restore', savedPath)).toEqual({
+      exitCode: 0,
+      stdout: 'spaces restored: 1\n',
+      stderr: '',
+    });
+    const restored = openDatabase(dbPath);
+    try {
+      expect(restored.query('SELECT space_id, project_id FROM space_project').all()).toEqual([
+        { space_id: 's', project_id: 'p' },
+      ]);
+    } finally {
+      restored.close();
+    }
+    const invalid = await runCli('space-rollback-cli.ts', dbPath, 'erase', savedPath);
+    expect(invalid.exitCode).not.toBe(0);
+    expect(invalid.stderr).toContain('usage:');
+    const missingArgument = await runCli('space-rollback-cli.ts', dbPath, 'restore');
+    expect(missingArgument.exitCode).not.toBe(0);
+    expect(missingArgument.stderr).toContain('usage:');
+    const absentFile = await runCli(
+      'space-rollback-cli.ts',
+      dbPath,
+      'remove',
+      join(root, 'absent.json'),
+    );
+    expect(absentFile.exitCode).not.toBe(0);
+    expect(absentFile.stderr).toContain('ENOENT');
   }, 60_000);
 
   it('saves, removes and restores readiness and holds through the rollback CLI', async () => {
