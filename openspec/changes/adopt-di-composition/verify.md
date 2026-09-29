@@ -2560,11 +2560,16 @@ sources` on `Received: undefined` (3 pass, 1 fail); prepending
   translates the rollback repair. The Working plan's five parts are renamed `*.resource.ts`. The
   entity values the features name move to `ports/{work-item,directory,dependency,command-journal}-values.ts`
   and `ports/project-values.ts`, re-exported by their store ports. `allowedDebt` is empty.
-- Boundary-check negatives (`module-boundaries.test.ts`, each 0 pass, 1 fail, restored): an
-  `import()` type of `SubtreeCopy` in `plan-import.feature.ts`; `plan-commands.feature.ts` importing
-  from `work-item-store` again; a `Scope`-typed parameter in `admitted-write.ts`; a cast reaching
-  `AdmittedScope`'s private scope in `plan-commands.feature.ts`; `plan-import` added back to `debt`
-  (`new debt is not allowed`, `stale debt ledger`).
+- Boundary-check negatives (`module-boundaries.test.ts`, the whole 10-test file 9 pass, 1 fail each,
+  re-observed 2026-09-30, restored): an `import()` type of `SubtreeCopy` in `plan-import.feature.ts`;
+  `plan-commands.feature.ts` importing from `work-item-store` again; a `Scope`-typed parameter in
+  `admitted-write.ts`; a cast reaching `AdmittedScope`'s private scope in `plan-commands.feature.ts`;
+  `plan-import` added back to `debt` (`new debt is not allowed`, `stale debt ledger`).
+- Runtime privacy (review, 2026-09-30): the audit reads types only, and Fable's
+  `Reflect.get(scope, 'scope')` probe passed it while the field was TypeScript `private`.
+  `AdmittedScope` and `ImportedPlanResource` now hold the scope in a `#scope` field. New tests in
+  `plan-command-scope.test.ts` and `plan-import/module.test.ts` assert no own keys and an undefined
+  `Reflect.get`. Declaring the field `private readonly scope` again failed both (8 pass, 2 fail).
 - Production-path negatives, each restored:
 
 | Fault injected                                             | Observed failing test                                                                 |

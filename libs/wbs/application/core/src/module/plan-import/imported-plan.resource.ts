@@ -47,7 +47,11 @@ export type LabelOutcome = { ok: true } | { ok: false; reason: string };
  * because the import reports that one as `source_refused`.
  */
 export class ImportedPlanResource {
-  constructor(private readonly scope: Scope) {}
+  readonly #scope: Scope;
+
+  constructor(scope: Scope) {
+    this.#scope = scope;
+  }
 
   /**
    * Whether a project the caller can collide with already holds the slug.
@@ -62,11 +66,11 @@ export class ImportedPlanResource {
   async isSolutionSlugHeld(slug: string, access: ResourceAccess): Promise<boolean> {
     const holder =
       access.kind === 'scoped'
-        ? await this.scope.stores.projects.findBySolutionSlugInOrganization(
+        ? await this.#scope.stores.projects.findBySolutionSlugInOrganization(
             slug,
             access.scope.organizationId,
           )
-        : await this.scope.stores.projects.findBySolutionSlug(slug);
+        : await this.#scope.stores.projects.findBySolutionSlug(slug);
     return holder !== null;
   }
 
@@ -85,14 +89,14 @@ export class ImportedPlanResource {
     access: ResourceAccess,
   ): Promise<void> {
     if (access.kind === 'scoped') {
-      await this.scope.stores.projects.createInOrganization(
+      await this.#scope.stores.projects.createInOrganization(
         project,
         steps,
         stamp,
         access.scope.organizationId,
       );
     } else {
-      await this.scope.stores.projects.create(project, steps, stamp);
+      await this.#scope.stores.projects.create(project, steps, stamp);
     }
   }
 
@@ -102,7 +106,7 @@ export class ImportedPlanResource {
     bands: readonly PriorityBand[],
     stamp: WriteStamp,
   ): Promise<void> {
-    const written = await this.scope.stores.priorityBands.replace(projectId, bands, stamp);
+    const written = await this.#scope.stores.priorityBands.replace(projectId, bands, stamp);
     if (!written.ok) throw new Error(`created project refused its priority bands: ${projectId}`);
   }
 
@@ -113,24 +117,24 @@ export class ImportedPlanResource {
     size: number | null,
     stamp: WriteStamp,
   ): Promise<void> {
-    const written = await this.scope.stores.capacity.set(projectId, teamId, size, stamp);
+    const written = await this.#scope.stores.capacity.set(projectId, teamId, size, stamp);
     if (!written.ok) throw new Error(`created project refused its capacity: ${projectId}`);
   }
 
   /** @throws when the created project refuses the marker, naming the store's reason. */
   async createCalendarMarker(marker: CalendarMarker): Promise<void> {
-    const written = await this.scope.stores.calendarMarkers.create(marker);
+    const written = await this.#scope.stores.calendarMarkers.create(marker);
     if (!written.ok)
       throw new Error(`created project refused its calendar marker: ${written.reason}`);
   }
 
   /** Inserts the whole prepared tree, parents first, with its step values and edges. */
   async insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void> {
-    await this.scope.stores.subtrees.insertSubtree(copy, stamp);
+    await this.#scope.stores.subtrees.insertSubtree(copy, stamp);
   }
 
   async addTypedDependency(row: StoredTypedDependency, stamp: WriteStamp): Promise<void> {
-    await this.scope.stores.typedDependencies.add(row, stamp);
+    await this.#scope.stores.typedDependencies.add(row, stamp);
   }
 
   /**
@@ -145,7 +149,7 @@ export class ImportedPlanResource {
     labels: ImportedLabels,
     stamp: WriteStamp,
   ): Promise<LabelOutcome> {
-    const written = await this.scope.stores.workItems.patch(workItemId, labels, stamp);
+    const written = await this.#scope.stores.workItems.patch(workItemId, labels, stamp);
     return written.ok ? { ok: true } : { ok: false, reason: written.reason };
   }
 
@@ -162,11 +166,11 @@ export class ImportedPlanResource {
   async listToldProjectIds(actorId: string, access: ResourceAccess): Promise<string[]> {
     const told =
       access.kind === 'scoped'
-        ? await this.scope.stores.projects.listForInOrganization(
+        ? await this.#scope.stores.projects.listForInOrganization(
             actorId,
             access.scope.organizationId,
           )
-        : await this.scope.stores.projects.list();
+        : await this.#scope.stores.projects.list();
     return told.map(({ id }) => id);
   }
 }

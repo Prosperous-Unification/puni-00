@@ -261,8 +261,11 @@ test('closed feature modules do not reference repository ports and debt stays li
   // type of SubtreeCopy in plan-import.feature.ts, a work-item-store import in
   // plan-commands.feature.ts, a Scope-typed parameter in admitted-write.ts and a
   // cast reaching AdmittedScope's private scope in plan-commands.feature.ts each
-  // failed this assertion (0 pass, 1 fail each); adding plan-import back to
-  // `debt` reported `new debt is not allowed` (0 pass, 1 fail).
+  // failed this assertion (whole file 9 pass, 1 fail each; re-observed
+  // 2026-09-30); adding plan-import back to `debt` reported `new debt is not
+  // allowed` (9 pass, 1 fail). The audit reads types only: a runtime
+  // `Reflect.get(scope, 'scope')` passes it, which is why AdmittedScope and
+  // ImportedPlanResource keep the scope in a `#` field with their own tests.
   expect(failed).toEqual([]);
 }, 120_000);
 

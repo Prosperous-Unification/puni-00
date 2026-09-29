@@ -41,7 +41,11 @@ export interface OpenWorkingPlan {
  * needs, and never names a repository port.
  */
 export class AdmittedScope {
-  constructor(private readonly scope: Scope) {}
+  readonly #scope: Scope;
+
+  constructor(scope: Scope) {
+    this.#scope = scope;
+  }
 
   /** The graph `factory` builds over this scope. */
   graphOf<G>(
@@ -49,7 +53,7 @@ export class AdmittedScope {
     broadcast: Broadcaster,
     admission: EditAdmission,
   ): G {
-    return factory(this.scope, broadcast, admission);
+    return factory(this.#scope, broadcast, admission);
   }
 
   /**
@@ -61,7 +65,7 @@ export class AdmittedScope {
    * `throws after its batch closes`; watched 2026-09-29.
    */
   openWorkingPlan(projectId: string): OpenWorkingPlan {
-    const plan = createWorkingPlan(this.scope, projectId);
+    const plan = createWorkingPlan(this.#scope, projectId);
     return {
       scope: new AdmittedScope({ stores: plan.stores }),
       close: () => {
@@ -83,7 +87,7 @@ export class AdmittedScope {
     projectId: string,
     organizationId: string,
   ): Promise<ProjectCrossReferenceKind[]> {
-    const crossing = await this.scope.stores.projects.findCrossReferences(
+    const crossing = await this.#scope.stores.projects.findCrossReferences(
       projectId,
       organizationId,
     );
@@ -111,7 +115,7 @@ export class AdmittedScope {
     detail: RecoveryAuditDetail,
   ): Promise<'not_found' | 'forbidden' | null> {
     if (projectId === null) return canWriteInOrganization(organization.role) ? null : 'forbidden';
-    const admitted = await this.scope.stores.projects.admitEditInOrganization(
+    const admitted = await this.#scope.stores.projects.admitEditInOrganization(
       projectId,
       organization.organizationId,
       actorId,
