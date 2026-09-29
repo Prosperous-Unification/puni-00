@@ -195,7 +195,7 @@ test('mounted malformed priority names workItems[3].priority', async () => {
 
 test('mounted unknown version precedes version-specific validation', async () => {
   const supplied = documentBody();
-  Reflect.set(supplied.document, 'version', 5);
+  Reflect.set(supplied.document, 'version', 6);
   Reflect.set(supplied.workItems[3] ?? {}, 'priority', 'high');
   const response = await mounted().handle(
     new Request('https://backend.example/api/projects/import', {
@@ -346,6 +346,52 @@ test.each(preparationFaults)(
     });
   },
 );
+
+test.each([
+  ['missing type', 'type'],
+  ['unsupported type', 'type'],
+  ['dangling step', 'predecessor.step'],
+  ['duplicate relationship', 'typedDependencies[1]'],
+] as const)('mounted v5 import refuses %s before opening a unit of work', async (fault, path) => {
+  const supplied = planDocumentFixture();
+  supplied.document.version = 5;
+  supplied.workItems.push({
+    ...structuredClone(rowOf(supplied)),
+    id: 'row-2',
+    name: 'Second',
+    position: 20,
+    externalRefs: [],
+  });
+  const relationship: object = {
+    id: 'link',
+    predecessor: { scope: 'whole', workItem: 'row-1' },
+    successor: { scope: 'whole', workItem: 'row-2' },
+    type: 'FF',
+  };
+  if (fault === 'missing type') Reflect.deleteProperty(relationship, 'type');
+  if (fault === 'unsupported type') Reflect.set(relationship, 'type', 'SF');
+  if (fault === 'dangling step')
+    Reflect.set(relationship, 'predecessor', {
+      scope: 'node',
+      workItem: 'row-1',
+      step: 'absent',
+    });
+  const relationships =
+    fault === 'duplicate relationship'
+      ? [relationship, { ...relationship, id: 'again' }]
+      : [relationship];
+  Reflect.set(supplied, 'typedDependencies', relationships);
+  const uow = countingUnitOfWork();
+  const response = await postPlan(mounted(uow), supplied);
+  // Proof: admitting a missing v5 type through the classifier made this test
+  // return 204 and open a unit of work instead of 400/zero calls (2026-09-28).
+  expect(response.status).toBe(400);
+  expect(uow.calls).toEqual([]);
+  expect(await response.json()).toMatchObject({
+    error: 'invalid_body',
+    path: path.startsWith('typedDependencies') ? path : `typedDependencies[0].${path}`,
+  });
+});
 
 test('mounted enabled unavailable optimizer creates nothing', async () => {
   const supplied = planDocumentFixture();

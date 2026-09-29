@@ -1,8 +1,7 @@
 /**
  * The relationship types a typed dependency may carry.
  *
- * Readers understand all three lower-bound relationships. Writes remain FS
- * until the commands change opens that gate. A stored type outside this list
+ * Readers and writes understand all three lower-bound relationships. A stored type outside this list
  * is a row this release did not write, and a read that meets one must refuse it through
  * {@link isRelationshipType} rather than schedule it as FS.
  */
@@ -10,10 +9,15 @@ export const RELATIONSHIP_TYPES = ['FS', 'SS', 'FF'] as const;
 export type RelationshipType = (typeof RELATIONSHIP_TYPES)[number];
 
 /** Relationship types the current command and import write paths may persist. */
-export const WRITABLE_RELATIONSHIP_TYPES = ['FS'] as const;
+export const WRITABLE_RELATIONSHIP_TYPES = RELATIONSHIP_TYPES;
 
-/** Whether a new relationship may be written by this release. */
-export function isWritableRelationshipType(value: unknown): value is 'FS' {
+/**
+ * Whether a new relationship may be written by this release.
+ * Proof: accepting every string made `refuses an SF write at the application boundary`
+ * receive `{ ok: true, value: "item-7" }` instead of `unsupported_relationship_type`;
+ * watched 2026-09-28.
+ */
+export function isWritableRelationshipType(value: unknown): value is RelationshipType {
   return (
     typeof value === 'string' && (WRITABLE_RELATIONSHIP_TYPES as readonly string[]).includes(value)
   );
@@ -38,8 +42,9 @@ export function isDependencyEndpointScope(value: unknown): value is DependencyEn
 /**
  * One end of a typed dependency.
  *
- * - `whole`: a work item. A leaf predecessor is left at its last step node and a
- *   leaf successor entered at its first; a parent means every descendant leaf.
+ * - `whole`: a work item. For each leaf, FS joins predecessor sinks to successor
+ *   sources (last to first), SS joins sources to sources (first to first), and
+ *   FF joins sinks to sinks (last to last); a parent means every descendant leaf.
  * - `node`: one leaf's step node, held as the pair the store keys it by. The
  *   wire spells it as a step node ID (`formatStepNodeId`).
  * - `descendant-step`: one project step in every leaf beneath a parent.

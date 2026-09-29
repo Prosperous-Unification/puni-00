@@ -4621,9 +4621,9 @@ export class WorkItemService {
     existing: readonly StoredTypedDependency[],
     proposed: StoredTypedDependency,
   ): Promise<WorkItemRefusal | null> {
-    // Proof: widening this and both command entry checks to the read predicate
-    // made `refuses an SS write at the application boundary` accept SS with
-    // `{ ok: true, value: "item-7" }`; watched 2026-09-28.
+    // Proof: accepting every string in isWritableRelationshipType made `refuses an SF write
+    // at the application boundary` accept SF with `{ ok: true, value: "item-7" }`;
+    // watched 2026-09-28.
     if (!isWritableRelationshipType(proposed.type)) return 'unsupported_relationship_type';
     const leaves = new Map(
       rows.map((row) => [row.id, !rows.some((child) => child.parentId === row.id)]),
@@ -4660,7 +4660,12 @@ export class WorkItemService {
     return cycle === null ? null : cycle.kind === 'self_node' ? 'self_node' : 'cycle';
   }
 
-  /** Compares a journalled relationship with the current stored row. */
+  /**
+   * Compares a journalled relationship with the current stored row.
+   * Proof: bypassing the endpoint/type key comparison made `refuses undo when only a
+   * journalled relationship type changed outside history` receive 200 instead of 409;
+   * watched 2026-09-28.
+   */
   private sameTypedDependency(
     left: StoredTypedDependency | undefined,
     right: StoredTypedDependency,
@@ -4804,6 +4809,18 @@ export class WorkItemService {
     // is unrepresentable rather than separately guarded.
     const refusal = canDepend(rows, existing, predecessorId, id);
     if (refusal !== null) return { ok: false, reason: refusal };
+
+    // Proof: omitting the proposed legacy edge from the combined graph made
+    // `refuses a direct legacy write that closes a typed SS cycle` receive
+    // `{ ok: true, value: null }` instead of `cycle`; watched 2026-09-28.
+    const cycle = await this.graph.findCycle(workItem.projectId, {
+      legacy: [
+        ...existing,
+        { id: 'proposed', projectId: workItem.projectId, predecessorId, successorId: id },
+      ],
+    });
+    if (cycle !== null)
+      return { ok: false, reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' };
 
     const stamp = this.clock.stampFor(actorId);
     await this.opts.dependencies.add(
@@ -4988,6 +5005,8 @@ export class WorkItemService {
     // Proof: this check skipped made `refuses an undo that would close a
     // step-node cycle` fail on `Expected: 409, Received: 200`; watched
     // 2026-09-27.
+    // Proof: bypassing it with an SS relationship present made the same mounted
+    // undo test receive 200 instead of 409; watched 2026-09-28.
     const cycle = await this.graph.findCycle(projectId);
     if (cycle !== null) {
       await this.opts.journal.discard(entry.id);

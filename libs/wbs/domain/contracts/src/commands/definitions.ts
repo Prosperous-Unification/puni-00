@@ -202,11 +202,13 @@ export const commandDefinitions = {
       kind: "'addTypedDependency'",
       predecessor: dependencyEndpoint,
       successor: dependencyEndpoint,
-      type: 'string',
+      // Proof: accepting string made the mounted unsupported-type test receive 422
+      // instead of the input-boundary 400; watched 2026-09-28.
+      type: "'FS' | 'SS' | 'FF'",
     }),
     scope: 'project',
     description:
-      'Add a typed dependency. Use FS for finish-to-start; each endpoint is whole work item, leaf step node, or one step across all descendant leaves. Returns a stable relationship id.',
+      'Add a typed FS, SS or FF dependency. Each endpoint is whole work item, leaf step node, or one step across all descendant leaves. Returns a stable relationship id.',
   }),
   updateTypedDependency: defineCommand('updateTypedDependency', {
     schema: type({
@@ -214,11 +216,13 @@ export const commandDefinitions = {
       dependencyId: 'string',
       predecessor: dependencyEndpoint,
       successor: dependencyEndpoint,
-      type: 'string',
+      // Proof: accepting string made the mounted unsupported-update test receive
+      // 422 instead of the input-boundary 400; watched 2026-09-28.
+      type: "'FS' | 'SS' | 'FF'",
     }),
     scope: 'project',
     description:
-      'Change both endpoints and type of a typed relationship by its stable dependencyId; FS is supported.',
+      'Change both endpoints and FS, SS or FF type of a typed relationship by its stable dependencyId.',
   }),
   removeTypedDependency: defineCommand('removeTypedDependency', {
     schema: type({ kind: "'removeTypedDependency'", dependencyId: 'string' }),

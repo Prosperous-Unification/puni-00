@@ -160,13 +160,48 @@ async function typedOnlyRows() {
     'p1',
     { scope: 'whole', workItemId: predecessor.id },
     { scope: 'whole', workItemId: successor.id },
+    'FS',
   );
   render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
-  await screen.findByRole('button', { name: 'Stop 020 waiting for 010' });
+  await screen.findByRole('button', { name: /^Stop 020 waiting for 010/ });
   return api;
 }
 
 describe('dependencies in the table', () => {
+  itDom('keeps SS when a desktop edit changes only the successor scope', async () => {
+    const api = fakeApi();
+    const source = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const target = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: source.id,
+      name: 'Sand',
+    });
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'whole', workItemId: source.id },
+      { scope: 'whole', workItemId: target.id },
+      'SS',
+    );
+    const updated = recordCalls(api, 'updateTypedDependency');
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    const chip = await screen.findByRole('button', {
+      name: /Edit dependency: .*010 Strip.*020 Sand.*Start-to-start/,
+    });
+    expect(chip.textContent).toContain('010 SS');
+    fireEvent.keyDown(chip, { key: 'Enter' });
+    expect(screen.getByLabelText('Relationship')).toHaveProperty('value', 'SS');
+    fireEvent.change(screen.getByLabelText('This work item'), { target: { value: QA.id } });
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Customize dependency' })).getByRole('button', {
+        name: 'Save',
+      }),
+    );
+    await waitFor(() => {
+      expect(updated).toHaveLength(1);
+    });
+    expect(updated[0]?.[4]).toBe('SS');
+    expect(updated[0]?.[3]).toEqual({ scope: 'node', stepNodeId: `sn1.${target.id}.${QA.id}` });
+  });
   itDom('names and removes a whole typed wait through the legacy chip control', async () => {
     // Proof: with the typed chip's Edit name still in place, this test failed
     // to find `Stop 020 waiting for 010`; watched 2026-09-28.
@@ -174,14 +209,14 @@ describe('dependencies in the table', () => {
     const dependency = (await api.tree('p1')).typedDependencies?.[0];
     if (dependency === undefined) throw new Error('Missing typed dependency fixture');
     const removed = recordCalls(api, 'removeTypedDependency');
-    const chip = screen.getByRole('button', { name: 'Stop 020 waiting for 010' });
+    const chip = screen.getByRole('button', { name: /^Stop 020 waiting for 010/ });
     expect(chip).toHaveAttribute('data-reference-chip', api.rows[0]?.id);
     expect(chip.textContent).toBe('010 ✕');
     fireEvent.click(chip);
     await waitFor(() => {
       expect(removed).toHaveLength(1);
       expect(removed[0]).toEqual(['p1', dependency.id]);
-      expect(screen.queryByRole('button', { name: 'Stop 020 waiting for 010' })).toBeNull();
+      expect(screen.queryByRole('button', { name: /^Stop 020 waiting for 010/ })).toBeNull();
     });
   });
   itDom(
@@ -224,12 +259,13 @@ describe('dependencies in the table', () => {
       'p1',
       { scope: 'whole', workItemId: api.rows[0]?.id },
       { scope: 'whole', workItemId: api.rows[1]?.id },
+      'FS',
     ]);
     const chip = await screen.findByRole('button', {
-      name: 'Stop 020 waiting for 010',
+      name: /^Stop 020 waiting for 010/,
     });
     expect(chip.textContent).toBe('010 ✕');
-    expect(chip).toHaveAttribute('title', 'FS dependency. Enter to edit.');
+    expect(chip.getAttribute('title')).toMatch(/Finish-to-start.*Enter to edit/);
     expect(screen.getByRole('button', { name: 'Customize 010 - Strip' })).toBeDefined();
     fireEvent.keyDown(chip, { key: 'Enter' });
     expect(screen.getByRole('dialog', { name: 'Customize dependency' })).toBeDefined();
@@ -245,7 +281,7 @@ describe('dependencies in the table', () => {
     fireEvent.focus(screen.getByLabelText('Add a dependency to 020'));
     fireEvent.click(screen.getByRole('option', { name: '010 - Strip' }));
     const chip = await screen.findByRole('button', {
-      name: 'Stop 020 waiting for 010',
+      name: /^Stop 020 waiting for 010/,
     });
     fireEvent.keyDown(chip, { key: 'Enter' });
     fireEvent.change(screen.getByLabelText('Predecessor'), { target: { value: DEV.id } });
@@ -280,15 +316,16 @@ describe('dependencies in the table', () => {
         'p1',
         { scope: 'whole', workItemId: source.id },
         { scope: 'whole', workItemId: target.id },
+        'FS',
       );
       render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
       const input = await screen.findByLabelText<HTMLInputElement>('Add a dependency to 020');
       fireEvent.focus(input);
       fireEvent.keyDown(input, { key: 'Home' });
       const chip = await screen.findByRole('button', {
-        name: 'Stop 020 waiting for 010',
+        name: /^Stop 020 waiting for 010/,
       });
-      expect(chip).toHaveAttribute('title', 'FS dependency. Enter to edit.');
+      expect(chip.getAttribute('title')).toMatch(/Finish-to-start.*Enter to edit/);
       expect(document.activeElement).toBe(chip);
       fireEvent.keyDown(chip, { key: 'Enter' });
       expect(
@@ -305,7 +342,7 @@ describe('dependencies in the table', () => {
       await waitFor(() => {
         expect(screen.getByText('Dependency removed.')).toBeDefined();
       });
-      expect(screen.queryByRole('button', { name: 'Stop 020 waiting for 010' })).toBeNull();
+      expect(screen.queryByRole('button', { name: /^Stop 020 waiting for 010/ })).toBeNull();
       fireEvent.keyDown(input, { key: 'Tab' });
       expect(document.activeElement).not.toBe(chip);
     },
@@ -328,16 +365,18 @@ describe('dependencies in the table', () => {
       'p1',
       { scope: 'whole', workItemId: source.id },
       { scope: 'whole', workItemId: target.id },
+      'FS',
     );
     await api.addTypedDependency(
       'p1',
       { scope: 'node', stepNodeId: `sn1.${other.id}.${DEV.id}` },
       { scope: 'node', stepNodeId: `sn1.${target.id}.${QA.id}` },
+      'FS',
     );
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     const input = await screen.findByLabelText('Add a dependency to 020');
     fireEvent.focus(input);
-    fireEvent.keyDown(await screen.findByRole('button', { name: 'Stop 020 waiting for 010' }), {
+    fireEvent.keyDown(await screen.findByRole('button', { name: /^Stop 020 waiting for 010/ }), {
       key: 'Enter',
     });
     expect(screen.getByLabelText('Predecessor')).toHaveProperty('value', 'whole');
@@ -357,12 +396,13 @@ describe('dependencies in the table', () => {
       'p1',
       { scope: 'whole', workItemId: source.id },
       { scope: 'whole', workItemId: target.id },
+      'FS',
     );
     const original = (await api.tree('p1')).typedDependencies?.[0];
     if (original === undefined) throw new Error('Missing fixture dependency');
     const added = recordCalls(api, 'addTypedDependency');
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
-    fireEvent.keyDown(await screen.findByRole('button', { name: 'Stop 020 waiting for 010' }), {
+    fireEvent.keyDown(await screen.findByRole('button', { name: /^Stop 020 waiting for 010/ }), {
       key: 'Enter',
     });
     await api.removeTypedDependency('p1', original.id);
@@ -393,6 +433,7 @@ describe('dependencies in the table', () => {
         'p1',
         { scope: 'whole', workItemId: source.id },
         { scope: 'whole', workItemId: target.id },
+        'FS',
       );
       const readPlan = api.tree.bind(api);
       let predecessorDeleted = false;
@@ -407,7 +448,7 @@ describe('dependencies in the table', () => {
           : plan;
       };
       render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
-      fireEvent.keyDown(await screen.findByRole('button', { name: 'Stop 020 waiting for 010' }), {
+      fireEvent.keyDown(await screen.findByRole('button', { name: /^Stop 020 waiting for 010/ }), {
         key: 'Enter',
       });
       predecessorDeleted = true;
@@ -537,6 +578,7 @@ describe('dependencies in the table', () => {
         'p1',
         { scope: 'node', stepNodeId: `sn1.${source.id}.${DEV.id}` },
         { scope: 'node', stepNodeId: `sn1.${target.id}.${DEV.id}` },
+        'FS',
       );
       render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
       await screen.findByLabelText('Add a dependency to 020');
@@ -565,6 +607,7 @@ describe('dependencies in the table', () => {
       'p1',
       { scope: 'whole', workItemId: source.id },
       { scope: 'whole', workItemId: target.id },
+      'FS',
     );
     const added = recordCalls(api, 'addTypedDependency');
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
@@ -618,6 +661,7 @@ describe('dependencies in the table', () => {
       'p1',
       { scope: 'node', stepNodeId: `sn1.${api.rows[0]?.id}.${QA.id}` },
       { scope: 'node', stepNodeId: `sn1.${api.rows[1]?.id}.${QA.id}` },
+      'FS',
     ]);
   });
   itDom(
@@ -676,6 +720,7 @@ describe('dependencies in the table', () => {
       'p1',
       { scope: 'node', stepNodeId: `sn1.${api.rows[0]?.id}.${QA.id}` },
       { scope: 'node', stepNodeId: `sn1.${api.rows[1]?.id}.${QA.id}` },
+      'FS',
     ]);
   });
 
@@ -697,11 +742,13 @@ describe('dependencies in the table', () => {
       'p1',
       { scope: 'whole', workItemId: predecessorId },
       { scope: 'whole', workItemId: successorId },
+      'FS',
     );
     await api.addTypedDependency(
       'p1',
       { scope: 'node', stepNodeId: `sn1.${predecessorId}.${DEV.id}` },
       { scope: 'node', stepNodeId: `sn1.${successorId}.${DEV.id}` },
+      'FS',
     );
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Add a dependency to 020');
@@ -709,12 +756,12 @@ describe('dependencies in the table', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('button', {
-          name: 'Stop 020 waiting for 010',
+          name: /^Stop 020 waiting for 010/,
         }).textContent,
       ).toBe('010 ✕');
       expect(
         screen.getByRole('button', {
-          name: /Edit dependency: Dev step of 010 Strip finishes before Dev step of 020 Sand starts/,
+          name: /Edit dependency: Dev step of 010 Strip to Dev step of 020 Sand, Finish-to-start/,
         }).textContent,
       ).toBe('010.dev FS → dev');
     });
@@ -765,7 +812,7 @@ describe('dependencies in the table', () => {
     dependOn('020', '010');
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 020 waiting for 010')).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 020 waiting for 010/)).toBeDefined();
     });
     expect(api.rows).toHaveLength(3);
   });
@@ -788,13 +835,13 @@ describe('dependencies in the table', () => {
     await threeRoots();
     dependOn('020', '010');
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 020 waiting for 010')).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 020 waiting for 010/)).toBeDefined();
     });
 
-    fireEvent.click(screen.getByLabelText('Stop 020 waiting for 010'));
+    fireEvent.click(screen.getByLabelText(/^Stop 020 waiting for 010/));
 
     await waitFor(() => {
-      expect(screen.queryByLabelText('Stop 020 waiting for 010')).toBeNull();
+      expect(screen.queryByLabelText(/^Stop 020 waiting for 010/)).toBeNull();
     });
   });
 
@@ -878,7 +925,7 @@ describe('dependencies in the table', () => {
     await threeRoots();
     dependOn('030', '010');
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
     });
     dependOn('030', '020');
     await waitFor(() => {
@@ -914,7 +961,7 @@ describe('dependencies in the table', () => {
     await threeRoots();
     dependOn('030', '010');
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
     });
     fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
 
@@ -945,7 +992,9 @@ describe('dependencies in the table', () => {
     expect(add).toHaveAttribute('data-reference-add');
     expect(add.className).toContain('bg-transparent');
     for (const number of ['010', '020', '030']) {
-      const chip = screen.getByRole('button', { name: `Stop 050 waiting for ${number}` });
+      const chip = screen.getByRole('button', {
+        name: new RegExp(`^Stop 050 waiting for ${number}`),
+      });
       expect(chip).toHaveAttribute('data-reference-chip');
       expect(chip.className).toContain('bg-muted');
       expect(chip.className).toContain('border-0');
@@ -1103,7 +1152,7 @@ describe('dependencies in the table', () => {
     await threeRoots();
     dependOn('030', '010');
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
     });
     fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
 
@@ -1128,7 +1177,7 @@ describe('dependencies in the table', () => {
     await threeRoots();
     dependOn('030', '010');
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
     });
     fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
 
@@ -1232,7 +1281,7 @@ describe('dependencies in the table', () => {
     });
     fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 030 waiting for 010').tabIndex).toBe(-1);
+      expect(screen.getByLabelText(/^Stop 030 waiting for 010/).tabIndex).toBe(-1);
     });
     return waited;
   };
@@ -1285,7 +1334,7 @@ describe('dependencies in the table', () => {
     await threeRoots();
     dependOn('030', '010');
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
     });
     fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
 
@@ -1343,7 +1392,7 @@ describe('dependencies in the table', () => {
     await threeRoots();
     dependOn('030', '010');
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
     });
     fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
 
@@ -1425,19 +1474,19 @@ describe('dependencies in the table', () => {
     await threeRoots();
     dependOn('030', '010');
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
     });
     fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
 
     expect(addButtonOf('030').tabIndex).toBe(-1);
     // Both at rest: the chip's -1 is `deps-single-line`'s and is asserted
     // beside this one so the contrast below is between two known states.
-    expect(screen.getByLabelText('Stop 030 waiting for 010').tabIndex).toBe(-1);
+    expect(screen.getByLabelText(/^Stop 030 waiting for 010/).tabIndex).toBe(-1);
 
     fireEvent.focus(screen.getByLabelText('Add a dependency to 030'));
     expect(stripOf('030').strip.style.flexWrap).toBe('wrap');
     // The chip is back in the order — and the add button is still out of it.
-    expect(screen.getByLabelText('Stop 030 waiting for 010').tabIndex).toBe(0);
+    expect(screen.getByLabelText(/^Stop 030 waiting for 010/).tabIndex).toBe(0);
     expect(addButtonOf('030').tabIndex).toBe(-1);
   });
 
@@ -1497,7 +1546,7 @@ describe('dependencies in the table', () => {
       fireEvent.blur(screen.getByLabelText('Add a dependency to 030'));
       dependOn('020', '010');
       await waitFor(() => {
-        expect(screen.getByLabelText('Stop 020 waiting for 010')).toBeDefined();
+        expect(screen.getByLabelText(/^Stop 020 waiting for 010/)).toBeDefined();
       });
       expect(stripOf('020').strip.style.flexWrap).toBe('wrap');
     },
@@ -1592,7 +1641,7 @@ describe('picking dependencies from a list', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('button', {
-          name: 'Stop 020 waiting for 010',
+          name: /^Stop 020 waiting for 010/,
         }),
       ).toBeDefined();
     });
@@ -1610,7 +1659,7 @@ describe('picking dependencies from a list', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('button', {
-          name: 'Stop 020 waiting for 030',
+          name: /^Stop 020 waiting for 030/,
         }),
       ).toBeDefined();
     });
@@ -1626,7 +1675,7 @@ describe('picking dependencies from a list', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('button', {
-          name: 'Stop 020 waiting for 030',
+          name: /^Stop 020 waiting for 030/,
         }),
       ).toBeDefined();
     });
@@ -1740,7 +1789,7 @@ describe('picking dependencies from a list', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('button', {
-          name: 'Stop 030 waiting for 040',
+          name: /^Stop 030 waiting for 040/,
         }),
       ).toBeDefined();
     });
@@ -1753,8 +1802,8 @@ describe('picking dependencies from a list', () => {
     fireEvent.change(input, { target: { value: '010, 030' } });
     fireEvent.keyDown(input, { key: 'Enter' });
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 020 waiting for 010')).toBeDefined();
-      expect(screen.getByLabelText('Stop 020 waiting for 030')).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 020 waiting for 010/)).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 020 waiting for 030/)).toBeDefined();
     });
   });
 });
@@ -2192,7 +2241,7 @@ describe('hovering a dependency lights the rows it names', () => {
     const api = await threeRoots();
     dependOn('030', '010');
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
     });
     dependOn('030', '020');
     await waitFor(() => {
@@ -2288,7 +2337,7 @@ describe('hovering a dependency lights the rows it names', () => {
     fireEvent.mouseEnter(hoverTargetOf('030'));
     expect(litNumbers()).toEqual(['010', '020']);
 
-    fireEvent.mouseEnter(screen.getByLabelText('Stop 030 waiting for 010'));
+    fireEvent.mouseEnter(screen.getByLabelText(/^Stop 030 waiting for 010/));
     expect(litNumbers()).toEqual(['010']);
 
     // Off the pill but still in the cell: back to the whole waited-for set,
@@ -2296,7 +2345,7 @@ describe('hovering a dependency lights the rows it names', () => {
     // the pointer went — jsdom's default of null reads as leaving the whole
     // cell, which fires the wrapper's leave too and would make this pass for
     // the wrong reason.
-    fireEvent.mouseLeave(screen.getByLabelText('Stop 030 waiting for 010'), {
+    fireEvent.mouseLeave(screen.getByLabelText(/^Stop 030 waiting for 010/), {
       relatedTarget: screen.getByLabelText('Add a dependency to 030'),
     });
     expect(litNumbers()).toEqual(['010', '020']);
@@ -2313,7 +2362,7 @@ describe('hovering a dependency lights the rows it names', () => {
     async () => {
       await planWhere030Waits();
       fireEvent.mouseEnter(hoverTargetOf('030'));
-      fireEvent.mouseEnter(screen.getByLabelText('Stop 030 waiting for 010'));
+      fireEvent.mouseEnter(screen.getByLabelText(/^Stop 030 waiting for 010/));
       expect(litNumbers()).toEqual(['010']);
 
       // The ✕ *is* the pill, and that is the whole of the fault: the click
@@ -2321,9 +2370,9 @@ describe('hovering a dependency lights the rows it names', () => {
       // can ever arrive to say the pointer left it. Nothing else moves here —
       // no leave is fired, no hover is re-entered — because nothing else moves
       // in the browser either. The pointer is exactly where it was.
-      fireEvent.click(screen.getByLabelText('Stop 030 waiting for 010'));
+      fireEvent.click(screen.getByLabelText(/^Stop 030 waiting for 010/));
       await waitFor(() => {
-        expect(screen.queryByLabelText('Stop 030 waiting for 010')).toBeNull();
+        expect(screen.queryByLabelText(/^Stop 030 waiting for 010/)).toBeNull();
       });
 
       // The cut edge's row is dark and the remaining dependency's is lit: the
@@ -2375,7 +2424,7 @@ describe('hovering a dependency lights the rows it names', () => {
     // one's focus, which is why the box's blur cannot clear what the chip's
     // focus is about to write.
     fireEvent.blur(box);
-    fireEvent.focus(screen.getByLabelText('Stop 030 waiting for 010'));
+    fireEvent.focus(screen.getByLabelText(/^Stop 030 waiting for 010/));
     expect(litNumbers()).toEqual(['010']);
 
     // A blur clears where a mouseleave widens, and the asymmetry is the point:
@@ -2383,7 +2432,7 @@ describe('hovering a dependency lights the rows it names', () => {
     // leave is what clears, but a blur means nothing of the sort. Widening here
     // would leave the cell lit with nobody in it once the focus walked out of
     // the plan from a chip.
-    fireEvent.blur(screen.getByLabelText('Stop 030 waiting for 010'));
+    fireEvent.blur(screen.getByLabelText(/^Stop 030 waiting for 010/));
     expect(litNumbers()).toEqual([]);
   });
 
@@ -2400,7 +2449,7 @@ describe('hovering a dependency lights the rows it names', () => {
     expect(entryOf('010 - Strip').style.background).toBe('');
     expect(entryOf('020 - Sand').style.background).toBe('');
 
-    fireEvent.mouseEnter(screen.getByLabelText('Stop 030 waiting for 010'));
+    fireEvent.mouseEnter(screen.getByLabelText(/^Stop 030 waiting for 010/));
 
     // The same tint the lit rows use, as a background swatch — emphasis by
     // weight would make one line read as a heading over the others. The card's
@@ -2414,7 +2463,7 @@ describe('hovering a dependency lights the rows it names', () => {
 
     // To the input area, not out of the cell (`relatedTarget`, as above): the
     // card stays open and no entry is singled out any more.
-    fireEvent.mouseLeave(screen.getByLabelText('Stop 030 waiting for 010'), {
+    fireEvent.mouseLeave(screen.getByLabelText(/^Stop 030 waiting for 010/), {
       relatedTarget: screen.getByLabelText('Add a dependency to 030'),
     });
     expect(entryOf('010 - Strip').style.background).toBe('');
@@ -2532,7 +2581,7 @@ describe('hovering a dependency lights the rows it names', () => {
     // `setHoveredCell` toggle added to the pill's enter failed it on `expected
     // 4 to be less than or equal to 2`.
     fireEvent.mouseOut(hoverTargetOf('030'), {
-      relatedTarget: screen.getByLabelText('Stop 030 waiting for 010'),
+      relatedTarget: screen.getByLabelText(/^Stop 030 waiting for 010/),
     });
     // The light really moved, or the count below is about nothing.
     expect(litNumbers()).toEqual(['010']);
@@ -2558,7 +2607,7 @@ describe('adding several dependencies at once', () => {
     typeDeps('030', '010, 020');
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
     });
     expect(screen.getByLabelText('Stop 030 waiting for 020')).toBeDefined();
     expect(added).toHaveLength(2);
@@ -2570,7 +2619,7 @@ describe('adding several dependencies at once', () => {
     typeDeps('030', '010 020');
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
     });
     expect(screen.getByLabelText('Stop 030 waiting for 020')).toBeDefined();
   });
@@ -2583,7 +2632,7 @@ describe('adding several dependencies at once', () => {
     typeDeps('030', '010, 999');
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
     });
     expect(screen.getByRole('alert').textContent).toContain('No work item numbered 999');
   });
@@ -2600,7 +2649,7 @@ describe('adding several dependencies at once', () => {
     typeDeps('030', '010, 020');
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Stop 030 waiting for 010')).toBeDefined();
+      expect(screen.getByLabelText(/^Stop 030 waiting for 010/)).toBeDefined();
     });
     expect(screen.getByRole('alert').textContent).toContain('020 (cycle)');
     expect(screen.queryByLabelText('Stop 030 waiting for 020')).toBeNull();
@@ -2614,7 +2663,7 @@ describe('adding several dependencies at once', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('button', {
-          name: 'Stop 030 waiting for 010',
+          name: /^Stop 030 waiting for 010/,
         }),
       ).toBeDefined();
     });

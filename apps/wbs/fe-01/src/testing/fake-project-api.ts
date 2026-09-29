@@ -1095,7 +1095,7 @@ export function fakeProjectApi(): ProjectApi & {
       renumber();
       return Promise.resolve();
     },
-    addTypedDependency(_projectId, predecessor, successor) {
+    addTypedDependency(_projectId, predecessor, successor, type) {
       typedDependencies.push({
         id: `dependency-${String(++nextDependencyId)}`,
         predecessor:
@@ -1114,12 +1114,12 @@ export function fakeProjectApi(): ProjectApi & {
                 stepId: successor.stepNodeId.split('.')[2],
               }
             : successor,
-        type: 'FS',
+        type,
       });
       renumber();
       return Promise.resolve();
     },
-    updateTypedDependency(_projectId, dependencyId, predecessor, successor) {
+    updateTypedDependency(_projectId, dependencyId, predecessor, successor, type) {
       const dependency = typedDependencies.find((candidate) => candidate.id === dependencyId);
       if (dependency === undefined) return Promise.reject(new Error('not_found'));
       dependency.predecessor =
@@ -1138,6 +1138,7 @@ export function fakeProjectApi(): ProjectApi & {
               stepId: successor.stepNodeId.split('.')[2],
             }
           : successor;
+      dependency.type = type;
       renumber();
       return Promise.resolve();
     },
