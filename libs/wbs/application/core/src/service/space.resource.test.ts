@@ -424,7 +424,7 @@ describe('SpaceResource roll-ups', () => {
     const { service, id, totals, advance } = await rolling();
     expect(totalOf(await service.rollUps('ada', MEMBER, id, ['a1']), 'a1')).toBe(3);
     totals.set('a1', 5);
-    advance(59_999);
+    advance(299_999);
     expect(totalOf(await service.rollUps('ada', MEMBER, id, ['a1']), 'a1')).toBe(3);
     advance(1);
     expect(totalOf(await service.rollUps('ada', MEMBER, id, ['a1']), 'a1')).toBe(5);

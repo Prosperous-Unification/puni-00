@@ -47,6 +47,9 @@ export function PageNav() {
       <Link to="/directory" className={shape} activeProps={marked}>
         Directory
       </Link>
+      <Link to="/spaces" className={shape} activeProps={marked}>
+        Spaces
+      </Link>
     </nav>
   );
 }
