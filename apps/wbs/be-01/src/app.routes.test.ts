@@ -235,8 +235,8 @@ const SIGNED_IN_OPERATIONS = [
   'getApiOrganizationDomains',
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
-  'getApiOrganizationProject-rank',
   'getApiOrganizationMembers',
+  'getApiOrganizationProject-rank',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
@@ -284,6 +284,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiOrganizationInvitations',
   'postApiOrganizationJoinRequestsByIdApprove',
   'postApiOrganizationJoinRequestsByIdDeny',
+  'postApiOrganizationProjectsByIdRank',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -297,7 +298,6 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiSpaces',
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
-  'postApiOrganizationProjectsByIdRank',
 ] as const;
 const INTERNAL_OPERATIONS = ['postInternalForward', 'postInternalResume'] as const;
 const GATEWAY_OPERATIONS = ['postInternalGatewayProjectAccess'] as const;
@@ -337,6 +337,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiOrganizationDomainsByIdRotate',
   'postApiOrganizationDomainsByIdVerify',
   'postApiOrganizationDomainsChallenges',
+  'postApiOrganizationProjectsByIdRank',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -351,7 +352,6 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiSpaces',
   'postApiSpacesByIdProjects',
   'postApiSpacesByIdProjectsByProjectIdMove',
-  'postApiOrganizationProjectsByIdRank',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
   'getApiAuthLinkAuth0Callback',
@@ -363,8 +363,8 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiOrganizationDomains',
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
-  'getApiOrganizationProject-rank',
   'getApiOrganizationMembers',
+  'getApiOrganizationProject-rank',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
