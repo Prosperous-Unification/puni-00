@@ -2794,6 +2794,8 @@ function floorWordsOf(
  * row this cannot explain is simply absent from the map and its cell says
  * exactly what it said before this existed — and the chart, on the same
  * payload, still refuses out loud. Silence here is never silence everywhere.
+ * That includes a bar held elsewhere whose holder the read does not label:
+ * its row's cell blanks under this policy while the chart refuses it.
  *
  * Parents are skipped: a parent holds no slices, its span is a projection of
  * what is underneath, and nothing floors it.

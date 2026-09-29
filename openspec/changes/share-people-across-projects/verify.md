@@ -313,3 +313,20 @@ wbs-fe-01.
 
 Deferred, as tasks.md 7.1 says: the settings switch (with its route, slice 8), a header count (no
 floor has one in fe-01), and a link on the sentence (it is hover text).
+
+### Slice 7 review (Fable, on `fce82cbb`)
+
+Mergeable once the two new throws had production-path negatives. `holdersOf` moved to
+`elsewhere-chain.ts` and is refused a booking with no label (no row, no number, no project); the
+count throw fires when a read is scheduled around bookings by a scheduler that drops them (the
+Fast-only fixture with an `elsewhereAbove`). Both stay throws: they are invariant violations.
+`chartReadOf` and `elsewhereHoldersOf` were extracted so one fe test runs from a wire read to the
+bar's sentence. `chainAbove` notes that one influencer's orphan row answers 500 for every project
+below it, and `startFloorByRow` that an unlabelled holder blanks its table cell under the table's
+policy while the chart refuses it.
+
+| Check (file)                                         | Fault injected                      | Test that observed the failure                                                  | Result            |
+| ---------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------- | ----------------- |
+| unlabelled holder (`elsewhere-chain.ts` `holdersOf`) | the throw replaced by `continue`    | `refuses a booking whose holder the chain read no label for`                    | `[]` returned     |
+| count (`work-item.resource.ts`)                      | the throw replaced by a zero        | `refuses a schedule that reports no count of the bookings it was placed around` | the read resolved |
+| read to chart (`use-plan-read.ts` `chartReadOf`)     | `[]` in place of the read's holders | `carries each label from the read to the bar that waits for it`                 | `GanttDataError`  |

@@ -18,6 +18,7 @@ import { AvailableWorkItemService as WorkItemService } from '../../testing/avail
 import { type RecordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { inMemoryServices } from '../../testing/harness';
+import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { poolsFor, type WorkItemServiceOptions } from './work-item.resource';
 
@@ -2377,5 +2378,41 @@ describe('assignment projections isolate memory projects', () => {
     expect((await service.tree(other.id))?.assignedPeople).toEqual([
       { id: 'grace', name: 'grace' },
     ]);
+  });
+});
+
+describe('a read scheduled around bookings elsewhere', () => {
+  const flat = (days: number) => ({ optimistic: days, realistic: days, pessimistic: days });
+
+  it('refuses a schedule that reports no count of the bookings it was placed around', async () => {
+    await projects.update(projectId, { startDate: '2026-10-05' }, WROTE);
+    const strip = await add('Strip');
+    await service.setEstimate(strip, OWNER, stepId, flat(2));
+    await directory.assign(strip, stepId, 'ada', WROTE);
+    // Ada booked in a project above, and a scheduler that places without the
+    // booking: the Fast-only fixture takes eight arguments and drops the
+    // ninth, so its schedule carries no `waitingElsewhere` — the engine
+    // breaking its own promise, which is what the throw names.
+    const around = new WorkItemService({
+      ...serviceOptions,
+      scheduler: fastScheduler,
+      elsewhereAbove: () =>
+        Promise.resolve({
+          elsewhere: new Map([
+            ['ada', [{ start: 0, end: 3, projectId: 'platform', workItemId: 'w-9' }]],
+          ]),
+          holders: [
+            {
+              projectId: 'platform',
+              projectName: 'Platform',
+              workItemId: 'w-9',
+              number: '010',
+              name: 'Rewire',
+            },
+          ],
+        }),
+    });
+
+    expect(around.tree(projectId)).rejects.toThrow('reported no count');
   });
 });

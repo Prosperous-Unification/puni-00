@@ -1,4 +1,3 @@
-import type { Elsewhere } from '@wbs/domain';
 import {
   addWorkdays,
   allowanceOf,
@@ -135,6 +134,8 @@ import {
   addBookings,
   bookingsOf,
   elsewhereFor,
+  type HolderLabels,
+  holdersOf,
   influencersOf,
   NO_BOOKINGS_ELSEWHERE,
   peopleIn,
@@ -472,46 +473,6 @@ function selectedSchedule(
     throw new Error('optimized plan reader reported ready without a schedule');
   }
   return { schedule: ready, displayed: project.scheduleObjective, awaitingSolve: false };
-}
-
-/** Each influencer's name and its rows' numbers and names, by project id. */
-type HolderLabels = Map<
-  string,
-  {
-    projectName: string;
-    rows: ReadonlyMap<string, { number: string | undefined; name: string }>;
-  }
->;
-
-/**
- * One label per work item holding a booking in `elsewhere`, in the order the
- * bookings are listed.
- *
- * @throws when a booking names a project or row the chain read no label for,
- * or a row its numbering missed: both come from the one read, so a miss is a
- * broken chain, never a booking to leave unnamed.
- */
-function holdersOf(elsewhere: Elsewhere, labels: HolderLabels): ElsewhereHolderLabel[] {
-  const holders = new Map<string, ElsewhereHolderLabel>();
-  for (const bookings of elsewhere.values()) {
-    for (const { projectId, workItemId } of bookings) {
-      const key = `${projectId}\u0000${workItemId}`;
-      if (holders.has(key)) continue;
-      const project = labels.get(projectId);
-      const row = project?.rows.get(workItemId);
-      if (project === undefined || row?.number === undefined) {
-        throw new Error(`booking elsewhere held by ${projectId}/${workItemId} has no label`);
-      }
-      holders.set(key, {
-        projectId,
-        projectName: project.projectName,
-        workItemId,
-        number: row.number,
-        name: row.name,
-      });
-    }
-  }
-  return [...holders.values()];
 }
 
 /**
@@ -1892,6 +1853,10 @@ export class WorkItemService {
    * or the refusal naming the first influencer whose engine is not installed
    * here. Empty, reading nothing, when the organization is isolated or `names`
    * is empty.
+   *
+   * Every influencer is read whole, so a fault in one fails every project
+   * below it: an orphan row there, which `deriveNumbers` refuses, answers 500
+   * on each of their plan reads, not only on its own.
    */
   private async chainAbove(
     projectId: string,
@@ -2399,6 +2364,11 @@ export class WorkItemService {
       waitingForPerson = planned.waitingForPerson;
       waitingForCapacity = planned.waitingForCapacity;
       if (chained.elsewhere.size > 0) {
+        // The engine promises the count exactly when it was handed bookings.
+        // Proof: this throw replaced by a zero made `refuses a schedule that
+        // reports no count of the bookings it was placed around`
+        // (`work-item.resource.test.ts`) resolve with a tree; watched
+        // 2026-09-29.
         if (planned.waitingElsewhere === undefined) {
           throw new Error('a schedule placed around bookings elsewhere reported no count of them');
         }

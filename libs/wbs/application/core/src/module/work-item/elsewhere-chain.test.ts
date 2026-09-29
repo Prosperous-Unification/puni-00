@@ -1,7 +1,13 @@
 import { dateOfWorkdayOrdinal } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import { elsewhereFor, influencersOf, type RunningBookings } from './elsewhere-chain';
+import {
+  elsewhereFor,
+  type HolderLabels,
+  holdersOf,
+  influencersOf,
+  type RunningBookings,
+} from './elsewhere-chain';
 
 const peopleOf = (entries: Record<string, string[]>) =>
   new Map(Object.entries(entries).map(([id, people]) => [id, new Set(people)] as const));
@@ -98,5 +104,42 @@ describe('elsewhereFor', () => {
     expect(() => elsewhereFor(new Set(['ana']), overlapping, dateOfWorkdayOrdinal(ANCHOR))).toThrow(
       'overlap across projects',
     );
+  });
+});
+
+describe('holdersOf', () => {
+  const booked = new Map([
+    [
+      'ana',
+      [
+        { start: 0, end: 2, projectId: 'platform', workItemId: 'w-1' },
+        { start: 4, end: 5, projectId: 'platform', workItemId: 'w-1' },
+      ],
+    ],
+  ]);
+  const labels = (rows: [string, { number: string | undefined; name: string }][]): HolderLabels =>
+    new Map([['platform', { projectName: 'Platform', rows: new Map(rows) }]]);
+
+  it('labels each holding work item once, as its own plan names it', () => {
+    expect(holdersOf(booked, labels([['w-1', { number: '010', name: 'Rewire' }]]))).toEqual([
+      {
+        projectId: 'platform',
+        projectName: 'Platform',
+        workItemId: 'w-1',
+        number: '010',
+        name: 'Rewire',
+      },
+    ]);
+  });
+
+  it('refuses a booking whose holder the chain read no label for', () => {
+    // A row the influencer's read did not hold, one its numbering missed, and
+    // a project the chain never labelled: each a broken chain, never a booking
+    // to leave unnamed.
+    expect(() => holdersOf(booked, labels([]))).toThrow('has no label');
+    expect(() =>
+      holdersOf(booked, labels([['w-1', { number: undefined, name: 'Rewire' }]])),
+    ).toThrow('has no label');
+    expect(() => holdersOf(booked, new Map())).toThrow('has no label');
   });
 });

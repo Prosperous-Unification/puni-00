@@ -10,6 +10,7 @@ import {
   type EstimateRoundingView,
   type PertWeightsView,
   type PlanOptimizationView,
+  type PlanRead,
   type SliceView,
   type StepView,
 } from '@/lib/wbs-api';
@@ -158,6 +159,25 @@ export interface ChartRead {
  * asks otherwise — and with no slices to draw there is no arrow for it to place
  * either way.
  */
+/** Everything the chart is drawn from, off one delivered plan read. */
+export function chartReadOf(read: PlanRead, generation: number): ChartRead {
+  return {
+    slices: read.slices,
+    steps: read.steps,
+    people: read.assignedPeople,
+    // Absent exactly when the plan was scheduled around no booking.
+    // Proof: `[]` in its place made `carries each label from the read to the
+    // bar that waits for it` (`plan-chart-input.test.ts`) throw
+    // `GanttDataError`; watched 2026-09-29.
+    elsewhereHolders: read.elsewhereHolders ?? [],
+    depReach: read.depReach,
+    pertWeights: read.pertWeights,
+    estimateRounding: read.estimateRounding,
+    ...(read.optimization === undefined ? {} : { optimization: read.optimization }),
+    generation,
+  };
+}
+
 export const NO_CHART_READ: ChartRead = {
   slices: [],
   steps: [],
@@ -265,22 +285,7 @@ export function usePlanReadState({ project }: { project: ProjectRuntime }) {
       // read put them — and `replaces the slices on every refetch, as it replaces
       // the rows` failed on `expected '2' to be '1'`: a second row on screen with
       // the one-row plan's slices still behind it; watched 2026-08-09.
-      tree === null
-        ? NO_CHART_READ
-        : {
-            slices: tree.value.slices,
-            steps: tree.value.steps,
-            people: tree.value.assignedPeople,
-            // Absent exactly when the plan was scheduled around no booking.
-            elsewhereHolders: tree.value.elsewhereHolders ?? [],
-            depReach: tree.value.depReach,
-            pertWeights: tree.value.pertWeights,
-            estimateRounding: tree.value.estimateRounding,
-            ...(tree.value.optimization === undefined
-              ? {}
-              : { optimization: tree.value.optimization }),
-            generation: tree.generation,
-          },
+      tree === null ? NO_CHART_READ : chartReadOf(tree.value, tree.generation),
     [tree],
   );
 

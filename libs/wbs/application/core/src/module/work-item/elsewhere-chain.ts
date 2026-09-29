@@ -9,6 +9,8 @@ import {
 } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
+import type { ElsewhereHolderLabel } from '../../ports/scheduler';
+
 /**
  * One booking on the organization's absolute workday axis
  * ({@link workdayOrdinalOf} plus the holding project's offset), so bookings of
@@ -172,4 +174,48 @@ export function elsewhereFor(
 /** `input` with `elsewhere` stated, or unchanged when it is empty, so its hash stays. */
 export function withElsewhere(input: ScheduleInput, elsewhere: Elsewhere): ScheduleInput {
   return elsewhere.size === 0 ? input : { ...input, elsewhere };
+}
+
+/** Each influencer's name and its rows' numbers and names, by project id. */
+export type HolderLabels = Map<
+  string,
+  {
+    projectName: string;
+    rows: ReadonlyMap<string, { number: string | undefined; name: string }>;
+  }
+>;
+
+/**
+ * One label per work item holding a booking in `elsewhere`, in the order the
+ * bookings are listed.
+ *
+ * @throws when a booking names a project or row the chain read no label for,
+ * or a row its numbering missed: both come from the one read, so a miss is a
+ * broken chain, never a booking to leave unnamed.
+ *
+ * Proof: this throw replaced by `continue` made `refuses a booking whose
+ * holder the chain read no label for` (`elsewhere-chain.test.ts`) answer an
+ * empty list; watched 2026-09-29.
+ */
+export function holdersOf(elsewhere: Elsewhere, labels: HolderLabels): ElsewhereHolderLabel[] {
+  const holders = new Map<string, ElsewhereHolderLabel>();
+  for (const bookings of elsewhere.values()) {
+    for (const { projectId, workItemId } of bookings) {
+      const key = `${projectId}\u0000${workItemId}`;
+      if (holders.has(key)) continue;
+      const project = labels.get(projectId);
+      const row = project?.rows.get(workItemId);
+      if (project === undefined || row?.number === undefined) {
+        throw new Error(`booking elsewhere held by ${projectId}/${workItemId} has no label`);
+      }
+      holders.set(key, {
+        projectId,
+        projectName: project.projectName,
+        workItemId,
+        number: row.number,
+        name: row.name,
+      });
+    }
+  }
+  return [...holders.values()];
 }
