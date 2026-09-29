@@ -1,0 +1,6 @@
+- [x] 1. Required-key preflight in `startGreen` and the prod OIDC carrier (`docker.ts`, `env.ts`), with refusals and release-boot coherence tests.
+- [x] 2. `--override-with-ledger` in `bin/assert-no-prod-release.sh`, with ledger and unreadable-state negatives.
+- [x] 3. `snapshotDatabase`/`restoreDatabase`, the be-01 CLIs, and the `backup-db` swap step, with restore and abort tests.
+- [x] 4. Smoke read suite and `buildSmokeCommand`'s optional read-account file.
+- [x] 5. Runbook "First product deploy" and the auth-integration note.
+- [ ] 6. Operator: write the prod env files and `oidc.env`, dump the ledger, run the gate with the override, then deploy (Dany).
