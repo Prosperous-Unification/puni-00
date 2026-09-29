@@ -38,6 +38,8 @@ incidents; those IDs deliberately share one preserved payload anchor.
 | R5-26    | [r5.catalogue.048](#r5-catalogue-048)                                                            |
 | R5-27    | [r5.catalogue.049](#r5-catalogue-049)                                                            |
 | R5-28    | none — see [Checks kept without a reachable negative](#checks-kept-without-a-reachable-negative) |
+| R5-29    | none — see [Checks kept without a reachable negative](#checks-kept-without-a-reachable-negative) |
+| R5-30    | none — see [Checks kept without a reachable negative](#checks-kept-without-a-reachable-negative) |
 
 ## Checks kept without a reachable negative
 
@@ -58,6 +60,22 @@ it guards is separately proven to run standalone by executing it. The rule this 
 labelling, not the exception: a check whose negative cannot be reached says so at its throw site
 and here, and is never counted in a verify.md proof table as though it had been watched. Claiming
 it green would be the incident.
+
+**R5-29 — the weighted resource-order pool refusal, relabelled an invariant.**
+`rebuildResourceOrder` in `libs/wbs/domain/domain/src/schedule.ts` throws `overlaps pool <id>` when
+a slice finds no free slot in a pool. It used to be the watched refusal for a pinned pool overlap
+(`rejects a pinned pool overlap in resource-order replay`). Since `holdPinnedResources` refuses that
+overlap during the pinned replay, before resource order is rebuilt, the branch is unreachable:
+disabling it left wbs-domain and wbs-contracts green (791 / 430 pass, 2026-09-28). It is kept
+because it states the invariant the rebuilt edges rely on, and its throw site says so.
+
+**R5-30 — the Fast weighted replay's person-overlap invariant.** The weighted replay in the same
+file throws `overlaps a resource reservation` when, without pins, a slice's person window does not
+start at its placed start. Fast placement put every slice into a person window over the same
+intervals, so no input is known to reach it — disabling it left wbs-domain and wbs-contracts green
+(791 / 431 pass, 2026-09-29); the pinned replay's equivalent refusal lives in
+`holdPinnedResources`, which has observed negatives. Kept so a placement change that let Fast
+overlap a person would stop, not publish; its throw site says so.
 
 <a id="r5-catalogue-heading"></a>
 <!-- root-source:r5.catalogue.heading -->

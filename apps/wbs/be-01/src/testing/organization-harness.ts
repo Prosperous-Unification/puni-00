@@ -135,6 +135,11 @@ export class OrganizationHarness {
     });
   }
 
+  /** Calls the production release transaction directly to prove its marker guard. */
+  releaseDomainClaim(organizationId: string, actorId: string, claimId: string) {
+    return this.domains.releaseClaim(organizationId, actorId, claimId);
+  }
+
   /**
    * `delegationKey`, when given, is the RS256 public key the app verifies
    * delegation tokens with (task 2.5); upstream identities resolve through the

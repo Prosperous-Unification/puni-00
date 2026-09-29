@@ -93,3 +93,4 @@ On successful initial verification, WBS SHALL promote the verified challenge dig
 - **GIVEN** A releases its verified domain
 - **WHEN** B requests ownership without a fresh B-bound TXT proof
 - **THEN** B remains unverified
+- **AND** release invalidates B's pending challenge issued before release; B must issue a new organization-bound challenge and pass authoritative verification before becoming the owner
