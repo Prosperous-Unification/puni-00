@@ -52,6 +52,7 @@ import {
   refusingMemberships,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
@@ -132,6 +133,7 @@ beforeEach(() => {
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
+    projectRanks: refusingProjectRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     history: testHistoryService(),

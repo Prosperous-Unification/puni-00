@@ -23,6 +23,7 @@ import {
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects, projectRow, testProjectService } from '../testing/project-fixture';
+import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { refusingSpaces } from '../testing/space-fixture';
@@ -85,6 +86,7 @@ describe('one plan’s history, over HTTP', () => {
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,
       spaces: refusingSpaces,
+      projectRanks: refusingProjectRanks,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),

@@ -16,6 +16,7 @@ import {
 } from '@wbs/domain';
 
 import type { ResourceAccess } from '../ports/organization-access';
+import type { ProjectRankStore } from '../ports/project-rank-store';
 import type { DirectoryService } from './directory.service';
 import type { ProjectService } from './project.service';
 import type { WorkItemService } from './work-item.service';
@@ -77,6 +78,8 @@ export interface UnavailableProject extends NamedProject {
 export interface PersonLoadRead {
   readonly person: { readonly id: string; readonly name: string };
   readonly projects: (NamedProject & {
+    /** 1-based place in the organization's project rank; creation order under legacy access. */
+    readonly rank: number;
     readonly engine: 'fast' | 'optimized';
     readonly bookings: BookingView[];
   })[];
@@ -125,6 +128,7 @@ export interface PersonLoadOptions {
   projects: Pick<ProjectService, 'listWithin'>;
   workItems: Pick<WorkItemService, 'latestSeq' | 'treeWithin'>;
   directory: Pick<DirectoryService, 'listWithin'>;
+  ranks: Pick<ProjectRankStore, 'orderIn'>;
   /** How many project readings the process keeps; the least recently read goes first. */
   memoSize?: number;
 }
@@ -172,7 +176,7 @@ export class PersonLoad {
     const readings = await this.readProjects(actorId, access);
     const projects: PersonLoadRead['projects'][number][] = [];
     const theirs: Booking[] = [];
-    for (const { project, reading } of readings) {
+    for (const { project, rank, reading } of readings) {
       if (reading.kind !== 'dated') continue;
       const mine = reading.bookings.filter((booking) => booking.personId === personId);
       theirs.push(...mine);
@@ -180,6 +184,7 @@ export class PersonLoad {
       if (shown.length === 0) continue;
       projects.push({
         ...project,
+        rank,
         engine: reading.engine,
         bookings: shown.map(viewOf),
       });
@@ -230,11 +235,20 @@ export class PersonLoad {
   }
 
   /**
-   * Every project the caller can open, in creation order then id — the order
-   * the rank's unranked tail will keep — each with its reading.
+   * Every project the caller can open, in the organization's project rank —
+   * under legacy access, which has no organization, in creation order then id —
+   * each with its reading and its 1-based rank.
+   *
+   * The rank is renumbered over the caller's listed projects, not copied from
+   * the organization's order. Today the two agree, because every current
+   * member lists every project of the organization; were a read restriction
+   * ever to hide one, copying the organization's numbers would leave a gap
+   * that tells the reader a project exists they cannot see.
    *
    * A project listed and then deleted before its tree is read is gone, not
-   * unreadable, and is left out like any project the list no longer holds.
+   * unreadable, and is left out like any project the list no longer holds. One
+   * created between the list and the rank read follows every ranked one, as an
+   * unranked project does.
    *
    * Proof: listing and reading the projects under legacy access instead of
    * the caller's made `omits a foreign project that assigns the same person
@@ -244,16 +258,35 @@ export class PersonLoad {
   private async readProjects(
     actorId: string,
     access: ResourceAccess,
-  ): Promise<{ project: NamedProject; reading: ProjectReading }[]> {
+  ): Promise<{ project: NamedProject; rank: number; reading: ProjectReading }[]> {
     const listed = await this.opts.projects.listWithin(actorId, access);
-    const ordered = [...listed].sort(
+    const byCreation = [...listed].sort(
       (a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
     );
-    const read: { project: NamedProject; reading: ProjectReading }[] = [];
-    for (const project of ordered) {
+    const place =
+      access.kind === 'scoped'
+        ? new Map(
+            (await this.opts.ranks.orderIn(access.scope.organizationId)).map(
+              (each) => [each.projectId, each.rank] as const,
+            ),
+          )
+        : new Map<string, number>();
+    // Proof: ordering by creation alone made `orders the load reads by the rank,
+    // naming each rank` in `project-rank.controller.db.test.ts` read
+    // `Platform, Billing` instead of `Billing, Platform`; watched 2026-09-29.
+    const ordered = byCreation
+      .map((project, index) => ({ project, rank: place.get(project.id) ?? place.size + index + 1 }))
+      .sort((a, b) => a.rank - b.rank);
+    const read: { project: NamedProject; rank: number; reading: ProjectReading }[] = [];
+    for (const [index, { project }] of ordered.entries()) {
       const reading = await this.reading(project.id, project.revision, access);
-      if (reading !== null)
-        read.push({ project: { projectId: project.id, name: project.name }, reading });
+      if (reading !== null) {
+        read.push({
+          project: { projectId: project.id, name: project.name },
+          rank: index + 1,
+          reading,
+        });
+      }
     }
     return read;
   }

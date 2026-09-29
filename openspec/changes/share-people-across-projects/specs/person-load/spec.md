@@ -52,8 +52,8 @@ at least two bookings are active, naming every booking active in it.
 
 `GET /api/people/:personId/load?from=YYYY-MM-DD&to=YYYY-MM-DD` SHALL answer `200` with the
 person's `id` and organization-local `name`. It SHALL list every readable project that has a
-booking of the person intersecting the window `[from, to]` (inclusive dates), ordered by
-project creation and then id. Each project SHALL carry its id, name, displayed engine and those
+booking of the person intersecting the window `[from, to]` (inclusive dates), in the project
+rank's order (spec `project-rank`). Each project SHALL carry its id, name, displayed engine and those
 bookings. Each booking SHALL carry its work item's id, number and name, step id, `startsOn`,
 `endsOn` and width. The answer SHALL also carry the overlaps that intersect the window. It
 SHALL list readable undated projects that assign the person. It SHALL list, with a reason,

@@ -10,6 +10,7 @@ import {
   OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
+  ProjectRankRepository,
   SpaceRepository,
   SqliteOrganizationAccess,
 } from '@wbs/store-sqlite';
@@ -216,6 +217,7 @@ export async function bootBe01(
               invitations: new InvitationRepository(db, services.gate),
               joinRequests: new JoinRequestRepository(db, services.gate),
               spaces: new SpaceRepository(db, services.gate),
+              projectRanks: new ProjectRankRepository(db, services.gate),
               emailDelivery: refusingEmailDelivery,
               steps: services.steps,
               calendarMarkers: services.calendarMarkers,

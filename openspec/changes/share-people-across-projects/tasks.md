@@ -32,8 +32,8 @@
 
 ## 3. Rank
 
-- [ ] 3.1 Table, routes and order; `rank` added to the load reads.
-- [ ] 3.2 Negatives: composite FK dropped → a foreign project ranks; admin policy removed →
+- [x] 3.1 Table, routes and order; `rank` added to the load reads.
+- [x] 3.2 Negatives: composite FK dropped → a foreign project ranks; admin policy removed →
       a member gets 200, not 403; tie rule removed → two reads order equal positions
       differently.
 

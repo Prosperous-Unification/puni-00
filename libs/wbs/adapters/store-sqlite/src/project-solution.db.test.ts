@@ -142,6 +142,7 @@ describe('scoped solution links', () => {
   describe('the rollback', () => {
     it('rolls back while nothing is linked before activation', () => {
       expect(rollbackTo(path, FOLDER, AUDIT)).toEqual([
+        '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
