@@ -7,8 +7,11 @@ export type StubAnswer = (body: unknown) => Response;
 export interface StubRequest {
   route: string;
   body: unknown;
-  /** The query string as sent, `?` included, or `''`. */
-  search: string;
+  /**
+   * The query string as sent, `?` included; absent when there was none, so a
+   * suite asserting whole requests without queries is unchanged.
+   */
+  search?: string;
 }
 
 /** A JSON response with the given status. */
@@ -38,7 +41,7 @@ export function stubServer(routes: Record<string, StubAnswer[]>): StubRequest[] 
       const address = new URL(url, 'http://wbs.test');
       const route = `${init?.method ?? 'GET'} ${address.pathname}`;
       const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
-      sent.push({ route, body, search: address.search });
+      sent.push({ route, body, ...(address.search === '' ? {} : { search: address.search }) });
       const queue = queues.get(route) ?? [];
       const next = queue.length > 1 ? queue.shift() : queue[0];
       if (next === undefined) return Promise.reject(new Error(`unstubbed ${route}`));
