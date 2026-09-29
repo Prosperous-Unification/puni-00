@@ -1,17 +1,20 @@
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 
-import { JoinRequestRepository, OPEN, openConnection } from '@wbs/store-sqlite';
+import { openConnection } from '@wbs/store-sqlite/db';
+import { OPEN } from '@wbs/store-sqlite/gate';
+import { JoinRequestRepository } from '@wbs/store-sqlite/join-request';
 
-const [databasePath, actorId, requestId, decision, marker] = process.argv.slice(2);
-if (!databasePath || !actorId || !requestId || !decision || !marker)
+// Deep imports, not the `@wbs/store-sqlite` barrel, which loads the whole store.
+const [databasePath, actorId, requestId, decision, lane] = process.argv.slice(2);
+if (!databasePath || !actorId || !requestId || !decision || !lane)
   throw new Error('missing worker argument');
 if (decision !== 'approve' && decision !== 'deny') throw new Error('invalid decision');
 
 const connection = openConnection(databasePath);
 try {
-  writeFileSync(`${marker}.ready`, 'ready');
+  process.stdout.write('ready\n');
   while (!existsSync(`${databasePath}.go`)) await Bun.sleep(1);
-  writeFileSync(`${marker}.attempt`, 'attempt');
+  process.stdout.write('attempt\n');
   const repository = new JoinRequestRepository(connection.db, OPEN);
   const stamp = { at: Date.now(), by: actorId };
   const answer =
@@ -21,7 +24,7 @@ try {
           actorId,
           requestId,
           'viewer',
-          `${marker}-digest`,
+          `${databasePath}.${lane}-digest`,
           stamp.at + 1000,
           stamp,
         )
