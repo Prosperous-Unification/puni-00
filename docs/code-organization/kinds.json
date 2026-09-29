@@ -63,11 +63,6 @@
       "disposition": "re-export shim; delete when importers use @wbs/core/service/project.service directly"
     },
     {
-      "path": "apps/wbs/be-01/src/service/retention-job.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/roll-up.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core/service/roll-up directly"
@@ -287,16 +282,6 @@
       "disposition": "re-export shim; delete when importers use @wbs/core or the project module directly"
     },
     {
-      "path": "libs/wbs/application/core/src/service/retention-job.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the bounded-replay-sweep module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/retention-timer.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the bounded-replay-sweep module directly"
-    },
-    {
       "path": "libs/wbs/application/core/src/service/roll-up.ts",
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
@@ -369,11 +354,6 @@
       "path": "libs/wbs/application/core/src/service/working-plan.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core or the plan-commands module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/use-cases/retention-sweep.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the bounded-replay-sweep module directly"
     },
     {
       "path": "libs/wbs/application/core/src/use-cases/run-command-batch.ts",

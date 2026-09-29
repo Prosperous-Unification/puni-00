@@ -1,11 +1,11 @@
 import { EventLogService } from '@wbs/core';
+import { runRetention } from '@wbs/core/module/bounded-replay-sweep/retention-job';
 import { makeTestDb } from '@wbs/validation/fixtures';
 import type { Database } from 'bun:sqlite';
 import { describe, expect, it } from 'bun:test';
 
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
-import { runRetention } from './retention-job';
 
 const BOOT_SQL = `
   CREATE TABLE event_log (
