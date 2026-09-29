@@ -587,6 +587,56 @@ describe('OptimizationCoordinator read', () => {
     // post-release pump leaves p-1 and p-2 queued after the p-0 children exit.
   });
 
+  it('releases the reserved slot when the queued project’s input cannot be stated', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const generation = allocateGeneration(db, 'p-1', CONTRACT, scheduleInputHash(INPUT), 2);
+    expect(
+      enqueueSolverRequest(db, {
+        projectId: 'p-1',
+        contractVersion: CONTRACT,
+        generation,
+        objective: 'pri',
+        budgetMs: BUDGET,
+        enqueuedAt: 3,
+      }),
+    ).toEqual({ kind: 'queued' });
+    const errors: unknown[] = [];
+    const instance = new OptimizationCoordinator({
+      repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
+      hashInput: scheduleInputHash,
+      contractVersion: CONTRACT,
+      solverVersion: '0.1.0',
+      budgetMs: BUDGET,
+      ownerId: 'blue',
+      now: () => 10,
+      attemptToken: () => 'blue-token',
+      // What `scheduleInput` throws when an influencer's engine is missing.
+      inputOf: () => Promise.reject(new Error('scheduled around p-0, whose engine is missing')),
+      enabledOf: () => Promise.resolve(true),
+      spawn: () => {
+        throw new Error('an unstatable input reached the launcher');
+      },
+      pushRecorded: () => Promise.resolve(),
+      onChildError: (error) => {
+        errors.push(error);
+      },
+      setInterval: () => 'drain-timer',
+      clearInterval: () => undefined,
+    });
+
+    instance.start();
+    await instance.drain();
+    await instance.stop();
+
+    expect(errors.map((error) => (error instanceof Error ? error.message : String(error)))).toEqual(
+      ['scheduled around p-0, whose engine is missing'],
+    );
+    // Proof: the release dropped left one `solver_slot` row held until its
+    // lease expired; watched 2026-09-29.
+    expect(db.select().from(solverSlot).all()).toEqual([]);
+  });
+
   it('does not allocate a replacement generation when a stale queued project was switched off', async () => {
     const { path, db } = database();
     seedProject(path);

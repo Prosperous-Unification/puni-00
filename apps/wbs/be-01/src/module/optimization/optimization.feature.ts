@@ -348,7 +348,20 @@ export class OptimizationCoordinator {
         budgetMs: next.entry.budgetMs,
         attemptToken: next.admission.attemptToken,
       };
-      const input = await this.options.inputOf(next.entry.projectId);
+      // Under shared people the input cannot be stated while an influencer's
+      // engine is missing, and `inputOf` throws: the slot this attempt holds
+      // goes back before the failure leaves the pump, not when its lease ends.
+      // Proof: the release dropped made `releases the reserved slot when the
+      // queued project’s input cannot be stated`
+      // (`optimization-coordinator.db.test.ts`) find the slot still held;
+      // watched 2026-09-29.
+      let input: Awaited<ReturnType<typeof this.options.inputOf>>;
+      try {
+        input = await this.options.inputOf(next.entry.projectId);
+      } catch (error) {
+        this.options.repository.releaseSlot(slot);
+        throw error;
+      }
       if (input === null) {
         this.options.repository.releaseSlot(slot);
         continue;

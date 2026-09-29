@@ -233,7 +233,9 @@ describe('booking changes fan out down the rank', () => {
     await plan(platform, [{ step: 0, days: 2, personId: 'pe-a' }]);
     await plan(billing, [{ step: 0, days: 2, personId: 'pe-a' }]);
     await plan(search, [{ step: 0, days: 2, personId: 'pe-b' }]);
+    // A fresh process tells every project below once; count from here.
     const told = elsewhereChanged(billing).length;
+    const quiet = elsewhereChanged(search).length;
     const held = (await slicesOf(platform)).at(0);
     if (held === undefined) throw new Error('Platform scheduled nothing');
     const read = await h.call('ada', 'GET', `/api/projects/${platform}`);
@@ -255,8 +257,39 @@ describe('booking changes fan out down the rank', () => {
     expect(elsewhereChanged(billing)).toHaveLength(told + 1);
     expect(elsewhereChanged(billing).at(-1)).toMatchObject({ causeProjectId: platform });
     // Search shares nobody with Platform, directly or through Billing.
-    expect(elsewhereChanged(search)).toEqual([]);
+    expect(elsewhereChanged(search)).toHaveLength(quiet);
     expect(await startOf(billing, 'pe-a')).toEqual([3]);
+  });
+
+  it('tells a project the one above stopped sharing with, and its load is fresh', async () => {
+    share();
+    await plan(platform, [{ step: 0, days: 2, personId: 'pe-a' }]);
+    await plan(billing, [{ step: 0, days: 2, personId: 'pe-a' }]);
+    const load = async () => {
+      const answer = await h.call(
+        'ada',
+        'GET',
+        `/api/people/pe-a/load?from=${START}&to=2026-10-16`,
+      );
+      const body = answer.body as {
+        projects: { projectId: string; bookings: { startsOn: string }[] }[];
+      };
+      return body.projects.find((each) => each.projectId === billing)?.bookings[0]?.startsOn;
+    };
+    // Warm the load memo on Billing's booking after Platform's.
+    expect(await load()).toBe('2026-10-07');
+    const told = elsewhereChanged(billing).length;
+    const held = (await slicesOf(platform)).at(0);
+    if (held === undefined) throw new Error('Platform scheduled nothing');
+
+    // Platform hands its work to Ben: Billing no longer shares anybody with it.
+    await command(platform, [
+      { kind: 'setAssignee', workItemId: held.workItemId, stepId: held.stepId, personId: 'pe-b' },
+    ]);
+
+    expect(elsewhereChanged(billing)).toHaveLength(told + 1);
+    expect(await startOf(billing, 'pe-a')).toEqual([0]);
+    expect(await load()).toBe(START);
   });
 
   it('publishes nothing in an isolated organization', async () => {

@@ -23,16 +23,24 @@ export interface ElsewhereFanOutOptions {
  * after one that can change a schedule's input the cause's displayed bookings
  * are compared with the ones this process last fanned out for it. When they
  * moved, `elsewhere_changed` goes through `inner` to every project the cause
- * influences, which re-reads, re-solves and misses a sequence-keyed memo. A
- * rename moves no booking and publishes nothing; a fresh process fans out once
- * per project, harmlessly. Blue and green each keep their own signatures.
+ * influences or influenced last time, which re-reads, re-solves and misses a
+ * sequence-keyed memo. A rename moves no booking and publishes nothing; a
+ * fresh process tells every project below once, harmlessly. Blue and green
+ * each keep their own records.
+ *
+ * A deleted project publishes nothing and is not heard here. No production
+ * path deletes a project today (`beginOptimizationDrain` has no caller outside
+ * its tests); the first one must tell the organization's other projects.
  *
  * Under `isolated` it reads nothing beyond the mode, and a project whose
  * bookings are unknowable here (an engine not installed) always fans out.
  */
 export class ElsewhereFanOut implements Broadcaster {
-  /** The bookings signature each project last fanned out for, one per project. */
-  private readonly published = new Map<string, string>();
+  /**
+   * Per project, the bookings signature it last fanned out for and the
+   * projects it influenced then.
+   */
+  private readonly published = new Map<string, { signature: string; influenced: Set<string> }>();
 
   constructor(private readonly opts: ElsewhereFanOutOptions) {}
 
@@ -53,25 +61,52 @@ export class ElsewhereFanOut implements Broadcaster {
   async bookingsMayHaveMoved(projectId: string): Promise<void> {
     const sharing = await this.opts.projects.sharingOf(projectId);
     if (sharing.mode === 'isolated') return;
+    const peopleOf = await this.peopleOf(sharing.order);
+    // A project that has just started sharing a person, by its own edit, joins
+    // the record of each project above it now, so a later change there that
+    // releases it still tells it.
+    // Proof: this registration removed made `tells a project the one above
+    // stopped sharing with, and its load is fresh`
+    // (`shared-people.controller.db.test.ts`) record only the fresh process's
+    // `elsewhere_changed` for Billing, not the release (1 of 2); watched
+    // 2026-09-29.
+    for (const above of influencersOf(projectId, sharing.order, peopleOf)) {
+      this.published.get(above)?.influenced.add(projectId);
+    }
     const bookings = await this.opts.bookingsOf(projectId);
     if (bookings === null) return;
     const signature = bookings instanceof Map ? signatureOf(bookings) : null;
+    const held = this.published.get(projectId);
     // Proof: this comparison removed made `publishes nothing below for a
     // rename, and tells it of a longer booking`
     // (`shared-people.controller.db.test.ts`) record one `elsewhere_changed`
     // for the rename; watched 2026-09-29.
-    if (signature !== null && this.published.get(projectId) === signature) return;
-    if (signature !== null) this.published.set(projectId, signature);
-    const peopleOf = await this.peopleOf(sharing.order);
+    if (signature !== null && held?.signature === signature) return;
     const below = sharing.order.slice(sharing.order.indexOf(projectId) + 1);
+    const influenced = new Set(
+      below.filter((each) => influencersOf(each, sharing.order, peopleOf).includes(projectId)),
+    );
+    // Told: whom it influences now, and whom it influenced when it last fanned
+    // out — a project it has just stopped sharing a person with (a reassign,
+    // an unassign, a deleted row) moves too, though it is no longer in reach.
+    // With no record, as in a fresh process, whom it released is unknown, so
+    // every project below is told.
+    // Proof: only the current set told made `tells a project the one above
+    // stopped sharing with, and its load is fresh`
+    // (`shared-people.controller.db.test.ts`) record no `elsewhere_changed`
+    // for Billing (0 of 1); watched 2026-09-29.
     for (const each of below) {
-      if (!influencersOf(each, sharing.order, peopleOf).includes(projectId)) continue;
+      const reached = held === undefined || held.influenced.has(each) || influenced.has(each);
+      if (!reached) continue;
       await this.opts.inner.publish(each, {
         type: 'elsewhere_changed',
         projectId: each,
         causeProjectId: projectId,
       });
     }
+    // Recorded after every project was told: a publish that throws leaves the
+    // old record, and the next change fans out again.
+    if (signature !== null) this.published.set(projectId, { signature, influenced });
   }
 
   /**

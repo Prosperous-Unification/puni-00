@@ -258,6 +258,34 @@ Deviations and what is not observed:
   reads compute the chain fresh.
 - The memo's cost budget (30 projects sharing ten people, cold ≤ 2 s, warm ≤ 150 ms) is not
   measured. The chain schedules every influencer on each read of a shared project; nothing is shared
-  until the slice 8 route ships.
+  until the slice 8 route ships, and measuring it is task 8.0, before that route.
 - A rank move tells every other project of a shared organization, not only those whose influencers
   changed.
+
+### Slice 6 review (Fable, on `40e7e7bb`)
+
+Approved to merge inert on conditions. Important 1: the fan-out computed whom to tell from the
+assignments after the change, so a project an influencer stopped sharing with (Platform's step
+reassigned from Ana to Ben) was never told. Billing's load memo served the stale booking and its
+optimizer was not re-triggered. Now each project's record holds its signature and the projects it
+influenced, and a change tells the union of those and the current set. A project joins the records of
+its current influencers on each of its own events, so one that started sharing after the record was
+taken is on it. A process with no record tells every project below. The record is written only after
+every publish succeeded. The design's memo paragraph (D3) is corrected.
+
+A project deletion is not hooked: no production path deletes a project (`beginOptimizationDrain`, the
+only deletion writer, has no caller outside its tests, and the drain's finish reports counts). Task
+8.0 records that the first deletion path must tell the organization's other projects.
+
+The queue pump (`optimization.feature.ts`) now releases the slot it reserved when `inputOf` throws,
+which `scheduleInput` does while an influencer's engine is missing, instead of holding it until the
+lease expires.
+
+| Check (file)                                                     | Fault injected                                            | Test that observed the failure                                                | Result                           |
+| ---------------------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------- |
+| released project told (`elsewhere-fan-out.ts`)                   | only the current influenced set told                      | `tells a project the one above stopped sharing with, and its load is fresh`   | 0 of 1 `elsewhere_changed`       |
+| registration above (`elsewhere-fan-out.ts`)                      | a project's registration with its influencers removed     | same                                                                          | the release not told (1 of 2)    |
+| slot released on an unstatable input (`optimization.feature.ts`) | the release absent (the test written first, then the fix) | `releases the reserved slot when the queued project’s input cannot be stated` | the `solver_slot` row still held |
+
+The same test checks that Billing's load reads `2026-10-05` after the reassign, not the warm memo's
+`2026-10-07`.

@@ -35,8 +35,14 @@ A read takes `revision` from the project list it has just read, and asks `latest
 equal the memo's values, the bookings are reused; otherwise the tree is read again. Readings
 whose engine is unavailable are never memoized. The memo is bounded (LRU), and correctness never
 depends on it. Blue and green each hold their own memo. Under `shared` (slice 6), the key stays
-`revision` and `seq`: a change to the bookings above a project, a rank move included, publishes
-`elsewhere_changed` to it, which advances its `seq`.
+`revision` and `seq`, which is sound only while every change to the bookings a project is scheduled
+around advances its `seq` through `elsewhere_changed`. The fan-out tells the projects a cause
+influences now and every project it influenced when this process last fanned out for it (each
+project joins the records of its influencers on its own events), so a project released by a
+reassign, an unassign or a deleted row is told. A process with no record tells every project
+below, and a rank move tells the whole organization. A project deletion publishes nothing: no
+production path deletes a project today, and the first one must tell the organization's other
+projects before this key is sound for it.
 
 ## D4. The leak rule
 

@@ -84,5 +84,9 @@
 
 ## 8. Mode route
 
+- [ ] 8.0 Preconditions from Fable's review of slice 6: measure the chain's cost budget (30
+      projects sharing ten people, cold ≤ 2 s, warm ≤ 150 ms) before the route ships; and give the
+      first project-deletion path (none exists today) an `elsewhere_changed` to the organization's
+      other projects.
 - [ ] 8.1 `PATCH /api/organization {sharedPeople}`, super-admin only, after 6 and 7 are on main.
 - [ ] 8.2 Negative: policy removed → an admin gets 200, not 403.
