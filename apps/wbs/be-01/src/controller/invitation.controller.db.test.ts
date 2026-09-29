@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
-import { existsSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 
 import { type Gate, InvitationRepository, openConnection } from '@wbs/store-sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { LaneProcess } from '../testing/lane-process';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 describe('organization invitations', () => {
@@ -27,7 +28,8 @@ describe('organization invitations', () => {
     );
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await LaneProcess.stopAll();
     harness.close();
   });
 
@@ -197,50 +199,34 @@ describe('organization invitations', () => {
       .digest('hex');
     const databasePath = harness.databasePath();
     const workerPath = new URL('../testing/invitation-accept.worker.ts', import.meta.url).pathname;
-    const lanes = ['0', '1'];
-    const workers = lanes.map((lane) =>
-      Bun.spawn(
-        [
-          process.execPath,
-          workerPath,
-          databasePath,
-          harness.userId('recipient'),
-          digest,
-          `${databasePath}.${lane}`,
-        ],
-        {
-          stdout: 'pipe',
-          stderr: 'pipe',
-        },
-      ),
+    const workers = ['0', '1'].map(() =>
+      LaneProcess.spawn([
+        process.execPath,
+        workerPath,
+        databasePath,
+        harness.userId('recipient'),
+        digest,
+      ]),
     );
-    try {
-      for (let wait = 0; wait < 500; wait++) {
-        if (lanes.every((lane) => existsSync(`${databasePath}.${lane}.ready`))) break;
-        await Bun.sleep(10);
-      }
-      expect(lanes.every((lane) => existsSync(`${databasePath}.${lane}.ready`))).toBe(true);
-      writeFileSync(`${databasePath}.go`, 'go');
-      const answers = await Promise.all(
-        workers.map(async (worker) => {
-          const exit = await worker.exited;
-          const body = await new Response(worker.stdout).text();
-          const errors = await new Response(worker.stderr).text();
-          expect(exit).toBe(0);
-          expect(errors).toBe('');
-          return JSON.parse(body) as { ok: boolean; refusal?: string };
-        }),
-      );
-      expect(answers.map((answer) => answer.ok).sort()).toEqual([false, true]);
-      expect(answers.find((answer) => !answer.ok)?.refusal).toBe('invitation_invalid');
-      expect(
-        harness.sqlite
-          .query('SELECT COUNT(*) AS count FROM organization_membership WHERE user_id = ?')
-          .get(harness.userId('recipient')),
-      ).toEqual({ count: 1 });
-    } finally {
-      for (const worker of workers) worker.kill();
-    }
+    // Proof: 2026-09-29, a worker that threw before printing `ready` failed
+    // this wait at once with its stderr, instead of after a fixed poll budget.
+    await Promise.all(workers.map((worker) => worker.expectLine('ready')));
+    writeFileSync(`${databasePath}.go`, 'go');
+    const answers = await Promise.all(
+      workers.map(async (worker) => {
+        const exit = await worker.finish();
+        expect(exit.code, exit.errors).toBe(0);
+        expect(exit.errors).toBe('');
+        return JSON.parse(exit.answer) as { ok: boolean; refusal?: string };
+      }),
+    );
+    expect(answers.map((answer) => answer.ok).sort()).toEqual([false, true]);
+    expect(answers.find((answer) => !answer.ok)?.refusal).toBe('invitation_invalid');
+    expect(
+      harness.sqlite
+        .query('SELECT COUNT(*) AS count FROM organization_membership WHERE user_id = ?')
+        .get(harness.userId('recipient')),
+    ).toEqual({ count: 1 });
   });
 
   it("refuses an admin's admin invitation and a removed issuer", async () => {

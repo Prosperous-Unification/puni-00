@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { LaneProcess } from '../testing/lane-process';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 describe('password email verification', () => {
@@ -12,7 +13,8 @@ describe('password email verification', () => {
     harness = OrganizationHarness.open();
     await harness.register('ada');
   });
-  afterEach(() => {
+  afterEach(async () => {
+    await LaneProcess.stopAll();
     harness.close();
   });
 
@@ -205,20 +207,18 @@ describe('password email verification', () => {
     const beaToken = harness.deliveredEmailToken(address);
     const folder = dirname(harness.databasePath());
     const release = join(folder, 'confirm-release');
-    const spawnConfirmation = (name: 'ada' | 'bea', token: string) => {
-      const ready = join(folder, `confirm-${name}-ready`);
-      const child = Bun.spawn({
-        cmd: [
-          process.execPath,
-          '-e',
-          `
+    const spawnConfirmation = (name: 'ada' | 'bea', token: string) =>
+      LaneProcess.spawn([
+        process.execPath,
+        '-e',
+        `
           import { createHash } from 'node:crypto';
-          import { existsSync, writeFileSync } from 'node:fs';
+          import { existsSync } from 'node:fs';
           import { openDrizzle } from '@wbs/store-sqlite/db';
-          import { EmailVerificationRepository } from '@wbs/store-sqlite';
+          import { EmailVerificationRepository } from '@wbs/store-sqlite/email-verification';
           import { OPEN } from '@wbs/store-sqlite/gate';
           const verification = new EmailVerificationRepository(openDrizzle(${JSON.stringify(harness.databasePath())}), OPEN);
-          writeFileSync(${JSON.stringify(ready)}, '');
+          process.stdout.write('ready\\n');
           const started = Date.now();
           while (!existsSync(${JSON.stringify(release)})) {
             if (Date.now() - started > 10000) throw new Error('confirmation was never released');
@@ -230,26 +230,16 @@ describe('password email verification', () => {
           );
           process.stdout.write(JSON.stringify(answer));
         `,
-        ],
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-      return { child, ready };
-    };
+      ]);
     const workers = [spawnConfirmation('ada', adaToken), spawnConfirmation('bea', beaToken)];
-    const started = Date.now();
-    while (workers.some(({ ready }) => !existsSync(ready))) {
-      if (Date.now() - started > 10_000) throw new Error('confirmation worker did not start');
-      await Bun.sleep(5);
-    }
+    await Promise.all(workers.map((worker) => worker.expectLine('ready')));
     writeFileSync(release, 'go');
     const answers = await Promise.all(
-      workers.map(async ({ child }) => {
-        const output = await new Response(child.stdout).text();
-        const errors = await new Response(child.stderr).text();
-        expect(await child.exited).toBe(0);
-        expect(errors).toBe('');
-        return JSON.parse(output) as { ok: boolean; refusal?: string };
+      workers.map(async (worker) => {
+        const exit = await worker.finish();
+        expect(exit.code, exit.errors).toBe(0);
+        expect(exit.errors).toBe('');
+        return JSON.parse(exit.answer) as { ok: boolean; refusal?: string };
       }),
     );
     expect(answers.filter((answer) => answer.ok)).toHaveLength(1);
