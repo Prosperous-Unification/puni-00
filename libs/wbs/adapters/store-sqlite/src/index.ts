@@ -47,6 +47,7 @@ export * from './schedule-input-hash';
 export * from './schema';
 export type { OpenSqliteSourceOptions, SqliteSource } from './source';
 export { openSqliteSource } from './source';
+export * from './space';
 export * from './sqlite-unit-of-work';
 export * from './step';
 export * from './step-measure';

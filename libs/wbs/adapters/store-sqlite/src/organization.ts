@@ -1,11 +1,22 @@
-import type { MembershipAdministered, MembershipAdministration, WriteStamp } from '@wbs/core';
-import { mayAdministerMembership, ORGANIZATION_ROLES, type OrganizationRole } from '@wbs/domain';
+import type {
+  MembershipAdministered,
+  MembershipAdministration,
+  MembersListed,
+  WriteStamp,
+} from '@wbs/core';
+import {
+  mayAdministerMembership,
+  mayInvite,
+  ORGANIZATION_ROLES,
+  type OrganizationRole,
+} from '@wbs/domain';
 import { and, count, eq, ne } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Gate } from './gate';
-import { organization, organizationMembership } from './schema';
+import { readOrganizationActivation } from './organization-activation';
+import { organization, organizationMembership, users } from './schema';
 
 /** One of a user's current memberships. */
 export interface Membership {
@@ -202,6 +213,47 @@ export class OrganizationRepository implements MembershipAdministration {
         },
         { behavior: 'immediate' },
       );
+    });
+  }
+
+  /**
+   * {@link MembershipAdministration.listMembers}: activation, the actor's
+   * current role and the rows are read in one transaction, ordered by join
+   * time then user id.
+   *
+   * Proof, each watched 2026-09-29: admitting any member made
+   * `refuses a member and a viewer the member list`
+   * (`member-list.controller.db.test.ts`) fail; dropping the organization
+   * predicate made `lists only the active organization's members` there
+   * return org-a's members to org-b's super-admin; skipping the activation
+   * read made `OrganizationRepository.listMembers > refuses before activation`
+   * (`organization-records.db.test.ts`) list instead of refusing.
+   */
+  async listMembers(organizationId: string, actorId: string): Promise<MembersListed> {
+    await Promise.resolve();
+    return this.db.transaction((tx): MembersListed => {
+      if (readOrganizationActivation(tx) !== 'activated')
+        return { ok: false, refusal: 'onboarding_inactive' };
+      const actor = roleIn(tx, organizationId, actorId);
+      if (actor === null || !mayInvite(actor, 'viewer')) return { ok: false, refusal: 'forbidden' };
+      const rows = tx
+        .select({
+          userId: organizationMembership.userId,
+          username: users.username,
+          email: users.email,
+          role: organizationMembership.role,
+          createdAt: organizationMembership.createdAt,
+        })
+        .from(organizationMembership)
+        .innerJoin(users, eq(users.id, organizationMembership.userId))
+        .where(eq(organizationMembership.organizationId, organizationId))
+        .orderBy(organizationMembership.createdAt, organizationMembership.userId)
+        .all();
+      const known: readonly string[] = ORGANIZATION_ROLES;
+      for (const row of rows)
+        if (!known.includes(row.role))
+          throw new Error(`membership in organization "${organizationId}" has a malformed role`);
+      return { ok: true, members: rows };
     });
   }
 

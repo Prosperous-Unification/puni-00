@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { envLayout } from '@tools/env';
 import { describe, expect, it } from 'bun:test';
 
@@ -497,6 +501,44 @@ describe('buildSmokeCommand', () => {
     const cmd = buildSmokeCommand(state({}), envLayout('prod'));
     expect(cmd).toContain('-v /home/puni1/wbs/bin/smoke.js:/smoke.js:ro');
     expect(cmd).not.toContain('$PWD');
+  });
+
+  it('passes be-01 its API base for the read checks', () => {
+    const cmd = buildSmokeCommand(
+      state({ be: { tier: 'be', activeColor: 'green', lastDeployedSha: 'x' } }),
+      envLayout('prod'),
+    );
+    expect(cmd).toContain('-e SMOKE_API_URL=http://be-01-green:3100 ');
+  });
+
+  // Proof: always passing the read-account env file made this case fail on
+  // the absent file (68 pass, 1 fail, 2026-09-29).
+  it('hands docker the read-account file only when the host has one', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-smoke-cmd-'));
+    const bin = join(root, 'fake-bin');
+    mkdirSync(bin);
+    writeFileSync(join(bin, 'docker'), '#!/bin/sh\nprintf "%s\\n" "$@"\n', { mode: 0o755 });
+    const layout = { ...envLayout('prod'), root };
+    const run = async () => {
+      const child = Bun.spawn(['bash', '-c', buildSmokeCommand(state({}), layout)], {
+        env: { PATH: `${bin}:${process.env['PATH'] ?? ''}` },
+        stdout: 'pipe',
+      });
+      const [exitCode, stdout] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+      ]);
+      expect(exitCode).toBe(0);
+      return stdout.split('\n');
+    };
+    try {
+      expect(await run()).not.toContain(`${root}/smoke-read.env`);
+      writeFileSync(join(root, 'smoke-read.env'), 'SMOKE_READ_USER_ID=u\n');
+      const args = await run();
+      expect(args[args.indexOf(`${root}/smoke-read.env`) - 1]).toBe('--env-file');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('omits an override for a tier with no recorded state rather than guessing a colour', () => {

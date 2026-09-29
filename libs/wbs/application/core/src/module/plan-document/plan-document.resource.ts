@@ -6,11 +6,19 @@ import {
   type PlanDocument,
   planDocumentHeaderRequest,
   type PlanDocumentImport,
+  type PlanDocumentRequest,
   planDocumentRequest,
   validateSchema,
   type WorkItemTree,
 } from '@wbs/contracts';
-import { formatStepNodeId, formatStepReference, NO_ALLOWANCE, orderSteps } from '@wbs/domain';
+import {
+  formatStepNodeId,
+  formatStepReference,
+  isHold,
+  isReadiness,
+  NO_ALLOWANCE,
+  orderSteps,
+} from '@wbs/domain';
 
 import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { Clock } from '../../ports/clock';
@@ -286,6 +294,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     version !== 2 &&
     version !== 3 &&
     version !== 4 &&
+    version !== 5 &&
     version !== PLAN_DOCUMENT_VERSION
   ) {
     return { ok: false, code: 'unsupported_version', path: 'document.version' };
@@ -295,7 +304,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     return { ok: false, code: 'invalid_body', path: pathOf(checked.issues[0]?.path) };
   }
   const typedDependencies: PlanDocumentImport['typedDependencies'] = [];
-  if (version === 4 || version === 5) {
+  if (version >= 4) {
     // Proof (2026-09-28): removing this check made a missing version-4 list
     // throw from .entries instead of returning invalid_typed_dependency.
     if (!Array.isArray(checked.value.typedDependencies))
@@ -358,7 +367,49 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       return { ok: false, code: 'invalid_body', path: `steps[${String(at)}].code` };
     steps.push({ ...step, allowancePercent: step.allowancePercent, code });
   }
-  return { ok: true, value: { ...checked.value, steps, typedDependencies } };
+  const workItems = statusFactsOf(version, checked.value.workItems);
+  if (!Array.isArray(workItems)) return workItems;
+  return { ok: true, value: { ...checked.value, steps, typedDependencies, workItems } };
+}
+
+/**
+ * Each row's readiness and hold as the file states them: from version 6 every
+ * row names both, each null or a member of its vocabulary and never on a
+ * parent; before version 6 both read as nothing said (`add-work-item-statuses`).
+ *
+ * A hold on a row whose work is done is accepted: marking progress never
+ * clears a hold, the status read folds done over it, and the file carries what
+ * the store holds, so refusing it would refuse the plan's own export.
+ *
+ * Proof: the vocabulary check removed made `refuses a version-6 hold or
+ * readiness outside its vocabulary…` accept `hold: 'paused'`; the parent check
+ * removed accepted a hold on the parent; watched 2026-09-29. A hold refused on
+ * done work made `re-imports its own export of a leaf held and then marked
+ * done` fail on `Expected: true, Received: false`; watched 2026-09-29 (Fable
+ * review of #225).
+ */
+function statusFactsOf(
+  version: number,
+  rows: PlanDocumentRequest['workItems'],
+): PlanDocumentImport['workItems'] | Extract<PlanDocumentClassification, { ok: false }> {
+  if (version < 6) return rows.map((row) => ({ ...row, readiness: null, hold: null }));
+  const parents = new Set(rows.map((row) => row.parentId));
+  const imported: PlanDocumentImport['workItems'] = [];
+  for (const [at, row] of rows.entries()) {
+    const path = (field: string) => `workItems[${String(at)}].${field}`;
+    const readiness =
+      row.readiness === null ? null : isReadiness(row.readiness) ? row.readiness : undefined;
+    if (readiness === undefined) {
+      return { ok: false, code: 'invalid_body', path: path('readiness') };
+    }
+    const hold = row.hold === null ? null : isHold(row.hold) ? row.hold : undefined;
+    if (hold === undefined) return { ok: false, code: 'invalid_body', path: path('hold') };
+    if (parents.has(row.id) && (readiness !== null || hold !== null)) {
+      return { ok: false, code: 'invalid_body', path: path(hold === null ? 'readiness' : 'hold') };
+    }
+    imported.push({ ...row, readiness, hold });
+  }
+  return imported;
 }
 
 function pathOf(path: readonly (PropertyKey | { key: PropertyKey })[] | undefined): string {

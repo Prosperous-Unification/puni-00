@@ -118,6 +118,111 @@ describe('assert-no-prod-release', () => {
     expect(result.output).not.toContain('nothing is deployed');
   });
 
+  describe('--override-with-ledger', () => {
+    const SKELETON = '20260426171432_talented_smiling_tiger';
+
+    /** Writes a ledger dump beside the state directory and returns its path. */
+    function ledger(dir: string, body: string): string {
+      const path = join(dir, '..', 'ledger.txt');
+      writeFileSync(path, body);
+      return path;
+    }
+
+    async function runOverride(dir: string, flag: string) {
+      const child = Bun.spawn(['bash', GATE, dir, flag], { stdout: 'pipe', stderr: 'pipe' });
+      const [exitCode, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      return { exitCode, output: stdout + stderr };
+    }
+
+    it('accepts a recorded release whose ledger holds only the skeleton migration', async () => {
+      const dir = stateDir({ 'be.json': DEPLOYED_BE });
+      const result = await runOverride(
+        dir,
+        `--override-with-ledger=${ledger(dir, `${SKELETON}\n`)}`,
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(result.output).toContain('OVERRIDE ACCEPTED');
+    });
+
+    // Proof: the ledger comparison replaced by `false` made this case, the
+    // split-name case and the empty-ledger case fail (12 pass, 3 fail): each
+    // exited 0 with OVERRIDE ACCEPTED. Observed 2026-09-29.
+    it('refuses a ledger that lists any later migration', async () => {
+      const dir = stateDir({ 'be.json': DEPLOYED_BE });
+      const result = await runOverride(
+        dir,
+        `--override-with-ledger=${ledger(dir, `${SKELETON}\n20260824010000_add_oidc_identity\n`)}`,
+      );
+
+      expect(result.exitCode).not.toBe(0);
+      expect(result.output).toContain('override refused');
+      expect(result.output).not.toContain('OVERRIDE ACCEPTED');
+    });
+
+    it('refuses the skeleton name split across two lines', async () => {
+      const dir = stateDir({ 'be.json': DEPLOYED_BE });
+      const result = await runOverride(
+        dir,
+        `--override-with-ledger=${ledger(dir, '20260426171432_talented_\nsmiling_tiger\n')}`,
+      );
+
+      expect(result.exitCode).not.toBe(0);
+    });
+
+    it('refuses an empty ledger', async () => {
+      const dir = stateDir({ 'be.json': DEPLOYED_BE });
+      const result = await runOverride(dir, `--override-with-ledger=${ledger(dir, '')}`);
+
+      expect(result.exitCode).not.toBe(0);
+      expect(result.output).toContain('override refused');
+    });
+
+    // Proof: the `[ ! -r ]` ledger arm removed made this case fail (14 pass,
+    // 1 fail): `sed` exited under `set -e` with only its own Permission
+    // denied, never the refusal. Observed 2026-09-29.
+    it('refuses an unreadable ledger', async () => {
+      const dir = stateDir({ 'be.json': DEPLOYED_BE });
+      const path = ledger(dir, `${SKELETON}\n`);
+      chmodSync(path, 0o000);
+      const result = await runOverride(dir, `--override-with-ledger=${path}`);
+
+      expect(result.exitCode).not.toBe(0);
+      expect(result.output).toContain('missing or unreadable');
+    });
+
+    it('refuses a missing ledger', async () => {
+      const dir = stateDir({ 'be.json': DEPLOYED_BE });
+      const result = await runOverride(dir, `--override-with-ledger=${join(dir, 'absent.txt')}`);
+
+      expect(result.exitCode).not.toBe(0);
+      expect(result.output).toContain('missing or unreadable');
+    });
+
+    it('never excuses an unreadable state file', async () => {
+      const dir = stateDir({ 'be.json': DEPLOYED_BE });
+      chmodSync(join(dir, 'be.json'), 0o000);
+      const result = await runOverride(
+        dir,
+        `--override-with-ledger=${ledger(dir, `${SKELETON}\n`)}`,
+      );
+
+      expect(result.exitCode).not.toBe(0);
+      expect(result.output).toContain('could not be read');
+    });
+
+    it('refuses an unknown option rather than ignoring it', async () => {
+      const result = await runOverride(stateDir({ 'be.json': DEPLOYED_BE }), '--force');
+
+      expect(result.exitCode).not.toBe(0);
+      expect(result.output).toContain('unknown argument');
+    });
+  });
+
   it('refuses when no state directory is named at all', async () => {
     const child = Bun.spawn(['bash', GATE], { stdout: 'pipe', stderr: 'pipe' });
     const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
