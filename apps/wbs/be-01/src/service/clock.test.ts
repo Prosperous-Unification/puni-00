@@ -148,6 +148,8 @@ describe('one clock', () => {
     // Proof: removing `export` from core's WorkItemService failed here on
     // Expected to contain "export class WorkItemService" (2026-09-09).
     expect(coreWorkItems?.text).toContain('export class WorkItemService');
+    // Proof (2026-09-29): dropping `apps/wbs/be-01/src/service` from FOLDERS failed here on
+    // Received: undefined (3 pass, 1 fail).
     expect(beWiring).toBeDefined();
     expect(beWiring?.text).toContain('export function optimizerWiring(');
     // Proof (2026-09-24): returning `[...FOLDERS, ...modulesIn(MODULES)]` from `serviceFolders`
