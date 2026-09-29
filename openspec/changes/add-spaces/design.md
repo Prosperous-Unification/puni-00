@@ -50,6 +50,16 @@ file validated at the CLI boundary, `remove` refusing a save that no longer matc
 all or none. The runbook section is `docs/runbook-prod-deploy.md#space-rollback`. Code
 rollback needs no swap guard: an older image has no spaces routes and the tables are inert.
 
+## D3a — Known hints, deferred (Fable review of slice 2)
+
+Rows answer stored positions, and a space answers its revision. Both can hint at a hidden
+member: a gap between two visible positions, or a revision that moved with no visible change.
+Today the project predicate admits every current member, so nothing is hidden and the hints
+reveal nothing. When a project read restriction exists, rows SHALL answer ordinal positions
+(1, 2, 3 over the rendered rows) and the revision SHALL be reconsidered; until then both are
+recorded here as known hints. Every membership write already gates the member and its anchor
+(spec `space-authorization`).
+
 ## D4 — Resource, roll-ups, in progress now, fe
 
 As the specs state. Roll-ups: `rollUpProject(tree)` over `WorkItemResource.tree()`; a

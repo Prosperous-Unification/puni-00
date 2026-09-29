@@ -29,6 +29,7 @@ function open(visible: readonly string[], legacy: string | null = null) {
     ['a1', 'org-a'],
     ['a2', 'org-a'],
     ['a3', 'org-a'],
+    ['a4', 'org-a'],
     ['b1', 'org-b'],
   ]);
   const spaces = inMemorySpaces(owners, legacy);
@@ -89,6 +90,68 @@ describe('SpaceResource', () => {
     });
     const read = await service.read('ada', MEMBER, id);
     expect(read).toMatchObject({ ok: true, value: { rows: [] } });
+  });
+
+  describe('a hidden member, over space {a1, a2 hidden, a3}', () => {
+    async function hidingA2() {
+      const everyone = open(['a1', 'a2', 'a3', 'a4']);
+      const id = await spaceWith(everyone.service, MEMBER, ['a1', 'a2', 'a3']);
+      const visible = ['a1', 'a3', 'a4'];
+      const hiding = new SpaceResource({
+        spaces: everyone.spaces,
+        clock: testClock,
+        projects: {
+          listWithin: () => Promise.resolve(visible.map(readable)),
+          readWithin: (projectId) =>
+            Promise.resolve(
+              visible.includes(projectId) ? { project: readable(projectId), steps: [] } : null,
+            ),
+        },
+      });
+      const unchanged = async () => {
+        const members = await everyone.spaces.membersOf('org-a', id);
+        const space = await everyone.spaces.findIn('org-a', id);
+        return { members, revision: space?.revision };
+      };
+      return { hiding, id, unchanged, before: await unchanged() };
+    }
+    const notFound = { ok: false, refusal: 'not_found' } as const;
+
+    it('refuses to place a project after it, as if it were not a member', async () => {
+      const { hiding, id, unchanged, before } = await hidingA2();
+      // Proof, observed 2026-09-29: with the anchor gate removed from
+      // `addProject`, this add answered `{ ok: true, value: 25 }`.
+      expect(await hiding.addProject('ada', MEMBER, id, 'a4', 'a2')).toEqual(notFound);
+      expect(await unchanged()).toEqual(before);
+    });
+
+    it('refuses to move it, or to move another after it', async () => {
+      const { hiding, id, unchanged, before } = await hidingA2();
+      // Proof, observed 2026-09-29: with the member gate removed from
+      // `moveProject`, the first move answered `{ ok: true, value: 5 }`;
+      // with the anchor gate removed, the second answered `{ ok: true, value: 30 }`.
+      expect(await hiding.moveProject('ada', MEMBER, id, 'a2', null)).toEqual(notFound);
+      expect(await hiding.moveProject('ada', MEMBER, id, 'a3', 'a2')).toEqual(notFound);
+      expect(await unchanged()).toEqual(before);
+    });
+
+    it('refuses to remove it', async () => {
+      const { hiding, id, unchanged, before } = await hidingA2();
+      // Proof, observed 2026-09-29: with the member gate removed from
+      // `removeProject`, this remove answered `{ ok: true, value: null }`.
+      expect(await hiding.removeProject('ada', MEMBER, id, 'a2')).toEqual(notFound);
+      expect(await unchanged()).toEqual(before);
+    });
+
+    it('still places, moves and removes around it by visible members', async () => {
+      const { hiding, id } = await hidingA2();
+      expect(await hiding.addProject('ada', MEMBER, id, 'a4', 'a1')).toMatchObject({ ok: true });
+      expect(await hiding.moveProject('ada', MEMBER, id, 'a3', null)).toMatchObject({ ok: true });
+      expect(await hiding.removeProject('ada', MEMBER, id, 'a4')).toEqual({
+        ok: true,
+        value: null,
+      });
+    });
   });
 
   it("answers another organization's space as not_found to its members", async () => {

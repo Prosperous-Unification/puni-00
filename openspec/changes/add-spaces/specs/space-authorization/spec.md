@@ -40,14 +40,23 @@ be answered `403 forbidden`. Any member MAY add a restricted project.
 Every space read SHALL filter members through the same predicate the project routes use
 (`findProjectWithin`, `listForInOrganization`). A project the caller cannot open SHALL be
 omitted entirely: no row, no placeholder, no count, no name, no roll-up and no in-progress
-item; space-level folds SHALL cover rendered rows only. Adding such a project SHALL answer the
-project route's own `404 not_found`.
+item; space-level folds SHALL cover rendered rows only. Every membership write SHALL gate each
+project it names, the member and the `afterProjectId` anchor alike, through the project routes'
+own read: adding, moving or removing a project the caller cannot open, or placing one after
+it, SHALL answer that route's `404 not_found` and write nothing, exactly as for a project that
+is no member.
 
 #### Scenario: a hidden member
 
 - **GIVEN** a space of three members, one of which the caller's project store does not return
 - **WHEN** the caller reads the space, its roll-ups and in progress now
 - **THEN** that project appears in none of them and the space counts two
+
+#### Scenario: a hidden member cannot be written or probed
+
+- **GIVEN** space `s` holding `a1`, `a2` and `a3`, and a caller who cannot open `a2`
+- **WHEN** the caller adds `a4` after `a2`, moves `a2`, moves `a3` after `a2`, or removes `a2`
+- **THEN** each answers `404 not_found`, and the membership and revision are unchanged
 
 #### Scenario: adding a foreign project
 

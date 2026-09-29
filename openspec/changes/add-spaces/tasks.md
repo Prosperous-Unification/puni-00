@@ -32,9 +32,16 @@
       store's ownership read also refuses a foreign project, so the controller cannot see the
       bypass); organization condition removed → a foreign space reads 200 not 404; readable
       filter removed → a hidden member gets a row.
+- [x] 2.4 Review fix (Fable, Important): gate the member and the `afterProjectId` anchor of
+      add, move and remove through `readWithin`. Negatives: anchor gate removed on add → placed
+      after a hidden member; member gate removed on move and remove → a hidden member moved or
+      removed; anchor gate removed on move → moved after a hidden member.
 
 ## 3. Roll-ups
 
+- [ ] 3.0 Carried from the slice 2 review: `SpaceResource.list` reads each space's members one by
+      one (N+1), and `read` runs `listWithin` before it knows the space exists. Fold both into the
+      read path this slice builds, inside the `GET /api/spaces/:id` 30 ms budget.
 - [ ] 3.1 Red: `rollUpProject` examples; cache; chunk endpoint; `.db.test.ts` budget.
 - [ ] 3.2 Green: implement.
 - [ ] 3.3 Negatives: `seq` dropped from the key → a command then a read serves the old total;

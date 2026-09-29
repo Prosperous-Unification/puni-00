@@ -72,10 +72,14 @@ failed `tool-devsync:test` (the new file in `service/` was unclassified; renamed
 while the host disk was full; the suite passes alone, 32 of 32). The rerun at `12d6c682`:
 `Successfully ran targets typecheck, test, lint for 19 projects`.
 
-| Check                     | Fault injected                                       | Test that observed it                                                      | Observed                                       |
-| ------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------- |
-| viewer refused writes     | `writableOwner`'s role check skipped                 | `refuses a viewer every space write and lets the viewer read` (controller) | `status: 201` for the viewer's create, not 403 |
-| same, service level       | same                                                 | `refuses a viewer every write and lets the viewer read`                    | `Expected - 2 / Received + 10`                 |
-| foreign space is absent   | organization condition dropped from `inOrganization` | `answers another organization's space as absent to every route`            | `status: 200`, not 404                         |
-| leak rule: rows and count | readable filter removed in `read`                    | `omits a project the caller cannot open from the rows and the count`       | a third row                                    |
-| leak rule: add            | `readWithin` gate bypassed in `addProject`           | `answers a project the caller cannot open as not_found, adding nothing`    | the store's position instead of `not_found`    |
+| Check                           | Fault injected                                       | Test that observed it                                                      | Observed                                       |
+| ------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------- |
+| viewer refused writes           | `writableOwner`'s role check skipped                 | `refuses a viewer every space write and lets the viewer read` (controller) | `status: 201` for the viewer's create, not 403 |
+| same, service level             | same                                                 | `refuses a viewer every write and lets the viewer read`                    | `Expected - 2 / Received + 10`                 |
+| foreign space is absent         | organization condition dropped from `inOrganization` | `answers another organization's space as absent to every route`            | `status: 200`, not 404                         |
+| leak rule: rows and count       | readable filter removed in `read`                    | `omits a project the caller cannot open from the rows and the count`       | a third row                                    |
+| leak rule: add                  | `readWithin` gate bypassed in `addProject`           | `answers a project the caller cannot open as not_found, adding nothing`    | the store's position instead of `not_found`    |
+| leak rule: add anchor (review)  | `afterProjectId` left out of the `addProject` gate   | `refuses to place a project after it, as if it were not a member`          | `{ ok: true, value: 25 }`                      |
+| leak rule: move member (review) | `projectId` left out of the `moveProject` gate       | `refuses to move it, or to move another after it`                          | `{ ok: true, value: 5 }`                       |
+| leak rule: move anchor (review) | `afterProjectId` left out of the `moveProject` gate  | same                                                                       | `{ ok: true, value: 30 }`                      |
+| leak rule: remove (review)      | the `removeProject` gate removed                     | `refuses to remove it`                                                     | `{ ok: true, value: null }`                    |

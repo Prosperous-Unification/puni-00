@@ -234,12 +234,14 @@ export class SpaceResource {
     if (spaceId === ALL_PROJECTS) return { ok: false, refusal: 'virtual_space' };
     const owner = await this.writableOwner(access);
     if (!owner.ok) return owner;
-    // Proof, observed 2026-09-29: with this read bypassed, `answers a project
-    // the caller cannot open as not_found, adding nothing` in
-    // `space.resource.test.ts` received the store's position instead. Over
-    // SQLite today the store's ownership read refuses a foreign project too;
-    // this is the gate a future read restriction on projects relies on.
-    if ((await this.opts.projects.readWithin(projectId, access)) === null) {
+    // Proof, observed 2026-09-29: with `projectId` left out of this gate,
+    // `answers a project the caller cannot open as not_found, adding nothing`
+    // in `space.resource.test.ts` received the store's position instead; with
+    // `afterProjectId` left out, `refuses to place a project after it, as if
+    // it were not a member` received `{ ok: true, value: 25 }`. Over SQLite
+    // today the store's ownership read refuses a foreign project too; this is
+    // the gate a future read restriction on projects relies on.
+    if (!(await this.canOpenAll(access, projectId, afterProjectId))) {
       return { ok: false, refusal: 'not_found' };
     }
     const written = await this.opts.spaces.addProject(
@@ -265,6 +267,9 @@ export class SpaceResource {
     if (spaceId === ALL_PROJECTS) return { ok: false, refusal: 'virtual_space' };
     const owner = await this.writableOwner(access);
     if (!owner.ok) return owner;
+    // Proof, observed 2026-09-29: with this gate removed, `refuses to remove
+    // it` in `space.resource.test.ts` received `{ ok: true, value: null }`.
+    if (!(await this.canOpenAll(access, projectId))) return { ok: false, refusal: 'not_found' };
     return (await this.opts.spaces.removeProject(
       owner.organizationId,
       spaceId,
@@ -287,6 +292,13 @@ export class SpaceResource {
     if (spaceId === ALL_PROJECTS) return { ok: false, refusal: 'virtual_space' };
     const owner = await this.writableOwner(access);
     if (!owner.ok) return owner;
+    // Proof, observed 2026-09-29: with `projectId` left out of this gate,
+    // `refuses to move it, or to move another after it` in
+    // `space.resource.test.ts` received `{ ok: true, value: 5 }`; with
+    // `afterProjectId` left out, the second move received `{ ok: true, value: 30 }`.
+    if (!(await this.canOpenAll(access, projectId, afterProjectId))) {
+      return { ok: false, refusal: 'not_found' };
+    }
     const written = await this.opts.spaces.moveProject(
       owner.organizationId,
       spaceId,
@@ -300,6 +312,24 @@ export class SpaceResource {
       throw new Error(`space ${spaceId} answered already_in_space to a move`);
     }
     return written.ok ? { ok: true, value: written.position } : { ok: false, refusal: 'not_found' };
+  }
+
+  /**
+   * Whether the caller can open every named project through the project
+   * routes' own read (`null` names none). A membership write addressing a
+   * project the caller cannot open, as the member or as the anchor, answers
+   * that route's 404 exactly as if it were no member: the leak rule for
+   * writes, so a hidden member is neither movable, removable nor probeable.
+   */
+  private async canOpenAll(
+    access: ResourceAccess,
+    ...projectIds: readonly (string | null)[]
+  ): Promise<boolean> {
+    for (const projectId of projectIds) {
+      if (projectId === null) continue;
+      if ((await this.opts.projects.readWithin(projectId, access)) === null) return false;
+    }
+    return true;
   }
 
   private async ownerOf(access: ResourceAccess): Promise<Owner> {
