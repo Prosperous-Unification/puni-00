@@ -17,8 +17,10 @@ import type { PlanTableFeatures } from './plan-columns/column';
 import { showDay } from './plan-number-format';
 import { type PlanRenderRow } from './plan-render-rows';
 import { spanOfRow } from './plan-span';
+import { STATUS_LABEL } from './status-cell';
 import type { ChartRead } from './use-plan-read';
 import { type TreeRow } from './wbs-rows';
+import { rowWords } from './work-item-words';
 
 interface ShownPlanRow {
   source: TreeRow;
@@ -97,6 +99,7 @@ export function usePlanChartInput({
   teams,
   priorityBands,
   startFloor,
+  typedDependencies,
 }: {
   shownRows: Row<PlanTableFeatures, PlanRenderRow>[];
   startDate: string | null;
@@ -109,6 +112,8 @@ export function usePlanChartInput({
   teams: TeamView[];
   priorityBands: PriorityBandView[];
   startFloor: React.RefObject<ReadonlyMap<string, string>>;
+  /** The plan's authored relationships, whose predecessors can stop a row as a stored edge can. */
+  typedDependencies: readonly TypedDependencyView[];
 }) {
   const structuralRows = useShownPlanRows(shownRows);
 
@@ -132,6 +137,34 @@ export function usePlanChartInput({
    * Built outside the column registry; its readers use the stable contract in
    * `plan-live.ts` rather than making chart inputs rebuild column definitions.
    */
+  /**
+   * A row's direct predecessors: its stored edges and every authored
+   * relationship that ends on it, once each. Since stage B the dependency cell
+   * writes authored relationships, so a row's `dependsOn` alone misses them.
+   *
+   * Proof: this read reduced to `dependsOn`, and the browser gate `a held row
+   * says On hold…` failed on `Blocked by proxy — work it depends on is on hold
+   * or blocked` where `waiting on 010` was owed; watched in Chromium 2026-09-29.
+   */
+  const predecessorsOf = useCallback(
+    (row: TreeRow): string[] => [
+      ...new Set([
+        ...row.dependsOn,
+        ...typedDependencies
+          .filter((dependency) => dependency.successor.workItemId === row.id)
+          .map((dependency) => dependency.predecessor.workItemId),
+      ]),
+    ],
+    [typedDependencies],
+  );
+  /** Each row's status and its words, for the predecessors a bar names ({@link GanttRow.stoppedBy}). */
+  const statusOf = useMemo(
+    () =>
+      new Map(
+        flat.map((row) => [row.id, { status: row.status, words: rowWords(row.number, row.name) }]),
+      ),
+    [flat],
+  );
   const ganttPlan: GanttPlan = useMemo<GanttPlan>(
     () => ({
       rows: structuralRows.map((row) => ({
@@ -192,6 +225,21 @@ export function usePlanChartInput({
           // same way rather than left as a bare id.
           (predecessorId) => namedInTheTree.get(predecessorId) ?? 'work that is not shown',
         ),
+        // The predecessors that stop this row, each with its status said, for a
+        // blocked-by-proxy bar's card (`add-work-item-statuses`). A predecessor
+        // the tree does not hold is not on the list: nothing says what it reads.
+        stoppedBy: predecessorsOf(row.source).flatMap((predecessorId) => {
+          const predecessor = statusOf.get(predecessorId);
+          if (
+            predecessor === undefined ||
+            (predecessor.status !== 'on_hold' &&
+              predecessor.status !== 'blocked' &&
+              predecessor.status !== 'blocked_by_proxy')
+          ) {
+            return [];
+          }
+          return [`${predecessor.words} (${STATUS_LABEL[predecessor.status]})`];
+        }),
       })),
       slices: chartRead.slices,
       // The full tree, ids and parents alone — `flat` and not `shownRows`, for
@@ -199,6 +247,13 @@ export function usePlanChartInput({
       // the predecessor's leaves' slices, and a collapsed branch's leaves are
       // exactly the rows the shown set has dropped (design.md D6).
       tree: flat.map((row) => ({ id: row.id, parentId: row.parentId })),
+      // Off `flat` for `tree`'s reason: a held leaf under a collapsed branch is
+      // still no end of an arrow.
+      heldLeafIds: new Set(
+        flat
+          .filter((row) => row.subRows.length === 0 && row.status === 'on_hold')
+          .map((row) => row.id),
+      ),
       // Why the rows above are the length they are, which the list itself cannot
       // say: `isFiltering`'s one answer, the same one the count beside the Find
       // box and the empty-answer sentence read, so the chart's account of what it
@@ -241,6 +296,8 @@ export function usePlanChartInput({
       priorityBands,
       filtering,
       namedInTheTree,
+      statusOf,
+      predecessorsOf,
       effectiveTeamLabelOf,
       effectiveTagLabelOf,
     ],

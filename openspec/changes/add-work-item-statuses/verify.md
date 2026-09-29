@@ -184,6 +184,26 @@ A rejected read renders the page's failed-read state with Retry and no Status ce
 (`shows a plan read refused for a status word it does not know as a failed read`).
 `e2e/status.spec.ts` ran locally with `E2E_PORT_SHIFT=2000`: 3 passed.
 
+### Slice 7 — fe-01 Gantt
+
+| Check                                               | Fault injected                                   | Test that observed it                                                  | Observed                                                        |
+| --------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------- | --------------------------------------------------------------- |
+| a held row says On hold                             | `label.held` read as `false`                     | `draws no bar for a held leaf and says On hold in its row instead`     | `[ 'strip', false ]`                                            |
+| the panel prints the word                           | `held` filter inverted                           | `says On hold in a held row and draws it no bar`                       | `expected undefined to be 'On hold'`                            |
+| a bar knows what stops it                           | `stop` read as `null`                            | `hatches the bar a held predecessor stops…`, `outlines a blocked bar…` | `null` where `blocked_by_proxy` / `blocked` owed                |
+| the proxy card names the predecessor                | proxy words returned null                        | `names the held predecessor on a hatched bar`                          | name without `Blocked by proxy — waiting on`                    |
+| the card reads authored predecessors                | predecessors reduced to `dependsOn`              | browser gate `a held row says On hold…`                                | `work it depends on is on hold or blocked`, no `waiting on 010` |
+| a blocked bar is outlined red                       | the `blocked` stroke arm dropped                 | `outlines a blocked bar in the blocked red…`                           | `'#94a3b8'` where `'#dc2626'` owed                              |
+| the critical ring does not paint over it            | `!blocked` dropped from `barClasses`             | browser gate (jsdom passed)                                            | computed stroke `oklch(0.129 0.042 264.695)`                    |
+| stored arrows from a blocked bar are red            | `blocked` read as `false`                        | `outlines a blocked bar and draws its arrows…`                         | `[ 'strip', false ]`                                            |
+| authored arrows from a blocked bar are red          | typed `blocked` read as `false`                  | browser gate                                                           | no `path[data-gantt-arrow][data-blocked]`                       |
+| a branch with a held leaf still draws its arrow     | held-leaf filter removed from `leavesUnderOf`    | `leaves an arrow from a branch with a held leaf…`                      | `GanttDataError: … strip has no slice in this payload`          |
+| an authored dependency on a held leaf draws nothing | held-leaf filter removed from the typed resolver | `draws no typed arrow from a held leaf…`                               | `GanttDataError: missing chart slices for strip`                |
+
+The last two were live faults since slice 4: a held leaf has no slice, and the chart read that
+as a broken payload. `e2e/status.spec.ts` (Chromium, `E2E_PORT_SHIFT=2000`): 4 passed, with the
+held/hatched and blocked screenshots attached.
+
 ## Not run
 
 - The h2puni host gate; the orchestrator runs it on the integration branch.

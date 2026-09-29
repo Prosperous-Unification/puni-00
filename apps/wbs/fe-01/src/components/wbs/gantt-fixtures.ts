@@ -55,6 +55,7 @@ export const rowAt = (
   tags: { own: [], inherited: [] },
   trioByStep: new Map(),
   waitsFor: [],
+  stoppedBy: [],
   ...extras,
 });
 
@@ -106,6 +107,7 @@ export const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   slices: [],
   dependencies: [],
   tree: treeFrom(parts.rows ?? []),
+  heldLeafIds: new Set(),
   // Off unless a test is about the sentence a filter's dropped waits earn.
   narrowedByFilter: false,
   steps: [{ id: 'dev', name: 'Dev' }],

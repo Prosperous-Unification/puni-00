@@ -1816,6 +1816,7 @@ export function WbsTable({
     teams,
     priorityBands,
     startFloor,
+    typedDependencies,
   });
   const pickGanttDayPx = useCallback<NonNullable<ComponentProps<typeof GanttPanel>['onPickDayPx']>>(
     (picked) => {

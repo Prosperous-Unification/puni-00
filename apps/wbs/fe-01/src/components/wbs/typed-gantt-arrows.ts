@@ -45,7 +45,12 @@ export function resolveTypedGanttArrows(plan: GanttPlan): {
     // `missing chart slices for missing` instead. Watched 2026-09-28.
     if (!parents.has(workItemId)) throw new GanttDataError(`unknown chart work item ${workItemId}`);
     const descendants = children.get(workItemId);
-    return descendants === undefined ? [workItemId] : descendants.flatMap(leavesUnder);
+    const leaves = descendants === undefined ? [workItemId] : descendants.flatMap(leavesUnder);
+    // A held leaf is out of the schedule and has no slice: it is no end of an
+    // arrow, and its absence is not a broken payload (`add-work-item-statuses`).
+    // Proof: this filter removed, and `draws no typed arrow from a held leaf…`
+    // threw `missing chart slices for strip`; watched 2026-09-29.
+    return leaves.filter((leaf) => !plan.heldLeafIds.has(leaf));
   };
   const endsOf = (
     endpoint: TypedChartEndpoint,
@@ -156,6 +161,11 @@ export function resolveTypedGanttArrows(plan: GanttPlan): {
           toStart: after.earliestStart,
           // Proof: using the unknown placeholder's finish (start + 2) made `attaches SS to starts and FF to actual finishes, including an unknown tick` fail with FF toX 4 instead of the scheduled tick at 2; watched 2026-09-28.
           toFinish: after.earliestFinish,
+          // Leaving a blocked row: drawn in the blocked red (`add-work-item-statuses`).
+          // Proof: this read replaced by `false`, and the browser gate `a held
+          // row says On hold…` found no `path[data-gantt-arrow][data-blocked]`
+          // (`Expected: 1 · Received: 0`); watched in Chromium 2026-09-29.
+          blocked: plan.rows[from.index]?.status === 'blocked',
           type: dependency.type,
           count: 1,
           proxy,

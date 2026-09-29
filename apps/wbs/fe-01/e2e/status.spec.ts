@@ -328,3 +328,88 @@ test.describe('holding and starting a row, in a browser (add-work-item-statuses)
     expect(await stripOf()).toContain(await tokenColour('--status-in-progress'));
   });
 });
+
+test.describe('each status on the chart, in a browser (add-work-item-statuses)', () => {
+  test('a held row says On hold and draws no bar, its successor is hatched, and a blocked bar is outlined red', async ({
+    page,
+  }, testInfo) => {
+    await seedALongRow(page);
+    await page.getByRole('button', { name: 'Add work item' }).click();
+    const estimate = page.getByLabel('Dev estimate for 020');
+    await estimate.fill('5');
+    await estimate.blur();
+    await expect(estimate).not.toHaveValue('');
+    const depends = page.getByLabel('Add a dependency to 020');
+    await depends.click();
+    await depends.fill('010');
+    await depends.press('Enter');
+    await expect(page.getByRole('button', { name: /^Stop 020 waiting for / })).toHaveCount(1);
+
+    await page.getByRole('button', { name: 'Actions for 010' }).click();
+    await page.getByRole('menuitem', { name: 'Set status to On hold' }).click();
+    await expect(page.locator('tbody tr[data-row-id]').first()).toHaveAttribute(
+      'data-row-status',
+      'on_hold',
+    );
+    await openTheChart(page);
+
+    // 020's two bars, Dev and its unestimated QA, and none of 010's: 010 is
+    // out of the schedule and says so in its row.
+    await expect(page.locator('[data-gantt-bar]')).toHaveCount(2);
+    const held = page.locator('[data-gantt-held]');
+    await expect(held).toHaveText('On hold');
+    await boxOf(held, 'the On hold word');
+    const hatched = page.locator('[data-gantt-bar][data-blocked-by-proxy="true"]');
+    await expect(hatched).toHaveCount(2);
+    const devBar = hatched.first();
+    await expect(devBar).toHaveAttribute('aria-label', /Blocked by proxy — waiting on 010/);
+    // The hatch is painted over the bar, edge to edge: measured, not assumed.
+    // Within a pixel and a half: the bar's box carries its 2px outline's
+    // half-pixel overhang, the hatch's does not.
+    const bar = await boxOf(devBar, 'the hatched bar');
+    // Both are drawn off the same bars in the same order, so the first hatch
+    // is the first hatched bar's.
+    const hatch = await boxOf(page.locator('[data-gantt-bar-hatch]').first(), 'the hatch');
+    expect(
+      Math.abs(hatch.left - bar.left),
+      'the hatch starts where the bar does',
+    ).toBeLessThanOrEqual(1.5);
+    expect(
+      Math.abs(hatch.right - bar.right),
+      'the hatch stops where the bar does',
+    ).toBeLessThanOrEqual(1.5);
+    const shotHeld = testInfo.outputPath('held-and-hatched.png');
+    await page.screenshot({ path: shotHeld });
+    await testInfo.attach('a held row and the bar it stops', {
+      path: shotHeld,
+      contentType: 'image/png',
+    });
+
+    await page.getByRole('button', { name: 'Actions for 010' }).click();
+    await page.getByRole('menuitem', { name: 'Set status to Blocked' }).click();
+    const blocked = page.locator('[data-gantt-bar][data-blocked="true"]');
+    await expect(blocked).toHaveCount(2);
+    await expect(page.locator('[data-gantt-held]')).toHaveCount(0);
+    expect(await blocked.first().evaluate((rect) => getComputedStyle(rect).stroke)).toBe(
+      'rgb(220, 38, 38)',
+    );
+    await expect(page.locator('[data-gantt-bar][data-blocked-by-proxy="true"]')).toHaveCount(2);
+    // The arrow leaving the blocked bar, in the blocked red, whichever kind of
+    // dependency the cell wrote.
+    // The switch only when the arrows are not already on: pressing it turns them off.
+    if ((await page.locator('path[data-gantt-arrow]').count()) === 0) {
+      await page.locator('[data-gantt-detail-toggle]').click();
+    }
+    const leaving = page.locator('path[data-gantt-arrow][data-blocked="true"]');
+    await expect(leaving).toHaveCount(1);
+    expect(await leaving.evaluate((path) => getComputedStyle(path).stroke)).toBe(
+      'rgb(220, 38, 38)',
+    );
+    const shotBlocked = testInfo.outputPath('blocked.png');
+    await page.screenshot({ path: shotBlocked });
+    await testInfo.attach('a blocked row and the bar it stops', {
+      path: shotBlocked,
+      contentType: 'image/png',
+    });
+  });
+});

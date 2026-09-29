@@ -116,6 +116,11 @@
 
 ## 7. fe-01 Gantt
 
-- [ ] 7.1 Red: no bar for held, blocked outline, proxy hatch, arrows, bracket; pixel shards.
-- [ ] 7.2 Green.
-- [ ] 7.3 Negative: held filter removed → a held leaf draws a bar.
+- [x] 7.1 Red: no bar for held, blocked outline, proxy hatch, arrows, bracket; pixel shards
+      (`e2e/status.spec.ts`, `each status on the chart, in a browser`).
+- [x] 7.2 Green: `On hold` in a held row; `data-blocked` and the blocked red outline;
+      `data-blocked-by-proxy`, the hatch and the card naming the predecessors in the way (stored
+      and authored); arrows leaving a blocked bar in the blocked red; a held leaf is no end of an
+      arrow, stored or authored, instead of reading as a broken payload.
+- [x] 7.3 Negative: held filter removed → the held row loses its `On hold` word (a held leaf
+      has no slice, so slice 4's `schedule === null` skip is what keeps it barless).
