@@ -221,9 +221,10 @@ and `updatedAt`. An absent or foreign project and an absent work item SHALL answ
 
 ### Requirement: The whole-tree read is unchanged and steers to the pages
 
-`GET /api/projects/:id/work-items` SHALL answer exactly as before this change. Its summary,
-which the MCP tool description carries, SHALL say it answers the whole tree and SHALL name
-the work-item-rows and single work-item reads for a page or for one work item.
+`GET /api/projects/:id/work-items` SHALL answer exactly as before this change. Its summary
+and description, which the MCP tool description carries, SHALL say it answers the whole
+tree and SHALL name the work-item-rows and single work-item reads for a page or for one
+work item.
 
 #### Scenario: the whole-tree read is unchanged
 

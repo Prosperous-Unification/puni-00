@@ -312,7 +312,11 @@ type BareRefusalCode =
   | 'organization_required'
   | 'name_taken'
   | 'already_in_space'
-  | 'virtual_space';
+  | 'virtual_space'
+  // Work-item pages (`list-search-and-paging`): a cursor whose work item has
+  // left the project; a `parentId` naming no work item of the project.
+  | 'stale_cursor'
+  | 'unknown_parent';
 
 type SharedCommandCode =
   'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use' | 'calendar_range';

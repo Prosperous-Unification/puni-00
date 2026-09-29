@@ -592,6 +592,14 @@ export interface WorkItemStore {
    * nothing here consults it.
    */
   listByProject(projectId: string): Promise<LabelledWorkItem[]>;
+  /**
+   * Every work item of one project with its own update instant, the stamped
+   * `updated_at` its writes and its satellites' writes move; `null` for a row
+   * last written before the audit columns. Read beside the tree by work-item
+   * pages (spec `list-reads`), never folded into the tree's rows, whose wire
+   * shape stays unchanged.
+   */
+  listUpdateInstants(projectId: string): Promise<ReadonlyMap<string, number | null>>;
   /** The requested rows that belong to `projectId`, in the full project reader's order. */
   listByIds(projectId: string, ids: readonly string[]): Promise<LabelledWorkItem[]>;
   /**

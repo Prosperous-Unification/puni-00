@@ -198,6 +198,14 @@ export class WorkItemRepository implements WorkItemStore {
     return this.listRows(projectId);
   }
 
+  async listUpdateInstants(projectId: string): Promise<ReadonlyMap<string, number | null>> {
+    const rows = await this.db
+      .select({ id: workItem.id, updatedAt: workItem.updatedAt })
+      .from(workItem)
+      .where(eq(workItem.projectId, projectId));
+    return new Map(rows.map((row) => [row.id, row.updatedAt]));
+  }
+
   async listByIds(projectId: string, ids: readonly string[]): Promise<LabelledWorkItem[]> {
     if (ids.length === 0) return [];
     return this.listRows(projectId, ids);

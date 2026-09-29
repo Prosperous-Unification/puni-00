@@ -325,6 +325,7 @@ function faultedUnitOfWork(
         };
         const workItems: WorkItemStore = {
           listByProject: (projectId) => stored.listByProject(projectId),
+          listUpdateInstants: (projectId) => stored.listUpdateInstants(projectId),
           listByIds: (projectId, ids) => stored.listByIds(projectId, ids),
           listPlacements: (projectId, ids) => stored.listPlacements(projectId, ids),
           findById: (id) => stored.findById(id),

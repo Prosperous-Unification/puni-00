@@ -31,6 +31,7 @@ export * from './http/smoke-shapes';
 export * from './http/solution-shapes';
 export * from './http/space-shapes';
 export * from './http/step-shapes';
+export * from './http/work-item-fields';
 export * from './http/work-item-response';
 export * from './http/work-item-shapes';
 export * from './internal';
