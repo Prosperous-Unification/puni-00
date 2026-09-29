@@ -14,7 +14,7 @@ const claim = (id: string, domain: string, fields: Record<string, unknown> = {})
   id,
   domain,
   status: 'pending',
-  challengeExpiresAt: 2,
+  challengeExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
   lastSuccessAt: null,
   lastCheckedAt: null,
   proofWarning: false,
@@ -180,5 +180,55 @@ describe('domain settings', () => {
     await waitFor(() => {
       expect(losses).toEqual(['no_organization']);
     });
+  });
+
+  it('replaces Verify on a pending claim whose challenge expired', async () => {
+    stubServer({
+      'GET /api/organization/domains': [
+        () => answer(200, { domains: [claim('c', 'acme.test', { challengeExpiresAt: 1 })] }),
+      ],
+    });
+    renderPanel();
+    expect(await screen.findByText('Challenge expired, issue a new one.')).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Verify acme.test' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Issue a new challenge for acme.test' }),
+    ).toBeDefined();
+  });
+
+  it('clears the shown TXT record once its claim leaves pending', async () => {
+    stubServer({
+      'GET /api/organization/domains': [
+        () => answer(200, { domains: [] }),
+        () => answer(200, { domains: [claim('c', 'acme.test')] }),
+        () => answer(200, { domains: [claim('c', 'acme.test', { status: 'verified' })] }),
+      ],
+      'POST /api/organization/domains/challenges': [() => answer(201, challenge)],
+      'POST /api/organization/domains/c/verify': [
+        () => answer(200, { id: 'c', status: 'verified' }),
+      ],
+    });
+    renderPanel();
+    fireEvent.change(await screen.findByLabelText('Domain'), { target: { value: 'acme.test' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Claim domain' }));
+    await screen.findByRole('region', { name: 'TXT record to publish' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Verify acme.test' }));
+    expect(await screen.findByText('acme.test is verified.')).toBeDefined();
+    await waitFor(() => {
+      expect(screen.queryByRole('region', { name: 'TXT record to publish' })).toBeNull();
+    });
+  });
+
+  it('keeps a rotated proof shown while its claim stays verified', async () => {
+    stubServer({
+      'GET /api/organization/domains': [
+        () => answer(200, { domains: [claim('c', 'acme.test', { status: 'verified' })] }),
+      ],
+      'POST /api/organization/domains/c/rotate': [() => answer(201, challenge)],
+    });
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Rotate the proof for acme.test' }));
+    await screen.findByText('New proof issued. The previous one stays valid for up to 24 hours.');
+    expect(screen.getByRole('region', { name: 'TXT record to publish' })).toBeDefined();
   });
 });

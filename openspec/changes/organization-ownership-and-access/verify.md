@@ -1320,3 +1320,12 @@ Both faults were restored before commit. `drops every panel when another panel l
 | Suspension is its own rendered state   | Keyed the suspension notice on `pending`                | `renders suspension and a failed proof check as distinct states` failed: `expected 'old.test SuspendedLast successful che…' to match /Suspended: the TXT proof has not been…/` |
 
 All faults were restored before commit.
+
+### Slice 39d review fixes (Fable, 2026-09-29)
+
+| Check                                         | Injected fault                                | Observed failure                                                                                                                |
+| --------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| An expired pending challenge offers no Verify | Dropped the expiry guard on the Verify button | `replaces Verify on a pending claim whose challenge expired` failed: `expected <button type="button" …(1)></button> to be null` |
+| A shown TXT record leaves with its status     | Kept the shown record whatever the list said  | `clears the shown TXT record once its claim leaves pending` failed: the record region stayed on screen                          |
+
+The invitation code input now sets `autoComplete="off"`. Both faults were restored before commit.

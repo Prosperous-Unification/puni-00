@@ -32,10 +32,12 @@ type DomainClaim = Extract<
   { kind: 'success' }
 >['body']['domains'][number];
 type Challenge = Extract<ClientReply<typeof createDomainChallenge>, { kind: 'success' }>['body'];
+/** A TXT record on screen, and the claim status it was issued for. */
+type ShownChallenge = Challenge & { issuedFor: DomainClaim['status'] };
 type View =
   | { kind: 'loading' }
   | { kind: 'failure'; message: string }
-  | { kind: 'ready'; claims: readonly DomainClaim[] };
+  | { kind: 'ready'; claims: readonly DomainClaim[]; readAt: number };
 
 /**
  * The active organization's domain claims. The list carries no proof secret,
@@ -49,7 +51,7 @@ export function DomainsPanel({
 }): React.JSX.Element {
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [domain, setDomain] = useState('');
-  const [challenge, setChallenge] = useState<Challenge | null>(null);
+  const [challenge, setChallenge] = useState<ShownChallenge | null>(null);
   const [releasing, setReleasing] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState('');
@@ -59,7 +61,17 @@ export function DomainsPanel({
     const reply = await domains.getApiOrganizationDomains({});
     switch (reply.kind) {
       case 'success':
-        setView({ kind: 'ready', claims: reply.body.domains });
+        setView({ kind: 'ready', claims: reply.body.domains, readAt: Date.now() });
+        // Proof: 2026-09-29, keeping the record whatever the list said failed
+        // `clears the shown TXT record once its claim leaves pending`.
+        setChallenge((shown) =>
+          shown !== null &&
+          reply.body.domains.some(
+            (claim) => claim.id === shown.id && claim.status === shown.issuedFor,
+          )
+            ? shown
+            : null,
+        );
         return;
       case 'failure':
         setView({ kind: 'failure', message: failureMessage(reply.failure) });
@@ -145,7 +157,7 @@ export function DomainsPanel({
                   body: { domain: domain.trim() },
                 });
                 if (reply.kind === 'success') {
-                  setChallenge(reply.body);
+                  setChallenge({ ...reply.body, issuedFor: 'pending' });
                   setDomain('');
                 }
                 return reply;
@@ -215,7 +227,14 @@ export function DomainsPanel({
                     Last successful check: {moment(claim.lastSuccessAt)}. Last check:{' '}
                     {moment(claim.lastCheckedAt)}.
                   </p>
-                  {claim.status !== 'verified' && (
+                  {/*
+                   * Proof: 2026-09-29, offering Verify on an expired challenge
+                   * failed `replaces Verify on a pending claim whose challenge expired`.
+                   */}
+                  {isChallengeExpired(claim, view.readAt) && (
+                    <p>Challenge expired, issue a new one.</p>
+                  )}
+                  {claim.status !== 'verified' && !isChallengeExpired(claim, view.readAt) && (
                     <button
                       type="button"
                       disabled={sending}
@@ -243,7 +262,8 @@ export function DomainsPanel({
                           const reply = await domains.postApiOrganizationDomainsChallenges({
                             body: { domain: claim.domain },
                           });
-                          if (reply.kind === 'success') setChallenge(reply.body);
+                          if (reply.kind === 'success')
+                            setChallenge({ ...reply.body, issuedFor: 'pending' });
                           return reply;
                         }, 'Challenge issued. Publish the TXT record below, then verify.');
                       }}
@@ -261,7 +281,8 @@ export function DomainsPanel({
                           const reply = await domains.postApiOrganizationDomainsByIdRotate({
                             params: { id: claim.id },
                           });
-                          if (reply.kind === 'success') setChallenge(reply.body);
+                          if (reply.kind === 'success')
+                            setChallenge({ ...reply.body, issuedFor: claim.status });
                           return reply;
                         }, 'New proof issued. The previous one stays valid for up to 24 hours.');
                       }}
@@ -327,6 +348,15 @@ const STATUS_NAMES: Record<DomainClaim['status'], string> = {
   verified: 'Verified',
   suspended: 'Suspended',
 };
+
+/** A pending claim whose TXT challenge lapsed when the list was read can no longer verify. */
+function isChallengeExpired(claim: DomainClaim, readAt: number): boolean {
+  return (
+    claim.status === 'pending' &&
+    claim.challengeExpiresAt !== null &&
+    claim.challengeExpiresAt <= readAt
+  );
+}
 
 function moment(at: number | null): string {
   return at === null ? 'never' : new Date(at).toLocaleString();
