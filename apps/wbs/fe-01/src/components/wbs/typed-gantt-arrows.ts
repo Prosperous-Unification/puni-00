@@ -47,7 +47,11 @@ export function resolveTypedGanttArrows(plan: GanttPlan): {
     const descendants = children.get(workItemId);
     return descendants === undefined ? [workItemId] : descendants.flatMap(leavesUnder);
   };
-  const endsOf = (endpoint: TypedChartEndpoint, side: 'predecessor' | 'successor') =>
+  const endsOf = (
+    endpoint: TypedChartEndpoint,
+    side: 'predecessor' | 'successor',
+    type: 'FS' | 'SS' | 'FF',
+  ) =>
     leavesUnder(endpoint.workItemId).map((leafId) => {
       const own = slices.get(leafId);
       // Proof: disabling this guard made the missing-slices chart test get a
@@ -62,9 +66,18 @@ export function resolveTypedGanttArrows(plan: GanttPlan): {
       // test resolve without throwing. Watched 2026-09-28.
       if (endpoint.scope === 'descendant-step' && leafId === endpoint.workItemId)
         throw new GanttDataError(`descendant-step endpoint is a leaf: ${leafId}`);
+      // Proof: retaining FS's last-source/first-target pair for every type made `uses first whole steps for SS starts and last whole steps for FF finishes` place SS at A-qa and FF at B-dev; watched 2026-09-28.
+      const wholeIndex =
+        side === 'predecessor'
+          ? type === 'SS'
+            ? 0
+            : own.length - 1
+          : type === 'FF'
+            ? own.length - 1
+            : 0;
       const slice =
         endpoint.scope === 'whole'
-          ? own[side === 'predecessor' ? own.length - 1 : 0]
+          ? own[wholeIndex]
           : own.find((candidate) => candidate.stepId === endpoint.stepId);
       // Proof: disabling this guard made the missing-step chart test get a
       // TypeError reading `workItemId` from undefined. Watched 2026-09-28.
@@ -88,8 +101,8 @@ export function resolveTypedGanttArrows(plan: GanttPlan): {
   const internal = new Map<string, Set<string>>();
   for (const dependency of plan.typedDependencies ?? []) {
     const scope = `${dependency.predecessor.scope}->${dependency.successor.scope}`;
-    for (const before of endsOf(dependency.predecessor, 'predecessor')) {
-      for (const after of endsOf(dependency.successor, 'successor')) {
+    for (const before of endsOf(dependency.predecessor, 'predecessor', dependency.type)) {
+      for (const after of endsOf(dependency.successor, 'successor', dependency.type)) {
         const from = visibleOf(before.workItemId);
         const to = visibleOf(after.workItemId);
         if (from === null || to === null) continue;
@@ -141,6 +154,9 @@ export function resolveTypedGanttArrows(plan: GanttPlan): {
           fromFinish: before.earliestFinish,
           toRowIndex: to.index,
           toStart: after.earliestStart,
+          // Proof: using the unknown placeholder's finish (start + 2) made `attaches SS to starts and FF to actual finishes, including an unknown tick` fail with FF toX 4 instead of the scheduled tick at 2; watched 2026-09-28.
+          toFinish: after.earliestFinish,
+          type: dependency.type,
           count: 1,
           proxy,
           scope,

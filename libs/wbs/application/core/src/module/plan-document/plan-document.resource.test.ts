@@ -260,7 +260,7 @@ test('JSON export is a versioned plan document and settings says what project sa
   expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
   expect(exported.document).toEqual({
     format: 'wbs-plan',
-    version: 4,
+    version: 5,
     exportedAt: '2026-09-13T12:30:00.000Z',
   });
   expect(exported.settings).toEqual({
@@ -329,7 +329,7 @@ test('malformed priority names workItems[3].priority', async () => {
 
 test('unknown version precedes version-specific validation', async () => {
   const future = structuredClone(await exportDocument());
-  Reflect.set(future.document, 'version', 5);
+  Reflect.set(future.document, 'version', 6);
   const row = future.workItems[0];
   future.workItems = Array.from({ length: 4 }, () => structuredClone(row));
   Reflect.set(future.workItems[3] ?? {}, 'priority', 'high');
@@ -342,11 +342,86 @@ test('unknown version precedes version-specific validation', async () => {
 
 test('refuses a version-4 document without its typed dependency list', async () => {
   const missing = structuredClone(await exportDocument());
+  Reflect.set(missing.document, 'version', 4);
   Reflect.deleteProperty(missing, 'typedDependencies');
   expect(await classifyPlanDocument(missing)).toEqual({
     ok: false,
     code: 'invalid_typed_dependency',
     path: 'typedDependencies',
+  });
+});
+
+test('version 5 classifies SS and FF while version 4 keeps its FS-only conversion', async () => {
+  const latest = structuredClone(await exportDocument());
+  latest.typedDependencies = [
+    {
+      id: 'start-link',
+      predecessor: { scope: 'whole', workItem: 'row-1' },
+      successor: { scope: 'whole', workItem: 'row-2' },
+      type: 'SS',
+    },
+    {
+      id: 'finish-link',
+      predecessor: { scope: 'whole', workItem: 'row-1' },
+      successor: { scope: 'whole', workItem: 'row-2' },
+      type: 'FF',
+    },
+  ];
+  const classified = await classifyPlanDocument(latest);
+  expect(classified).toMatchObject({ ok: true });
+  if (!classified.ok) return;
+  expect(classified.value.typedDependencies.map(({ type }) => type)).toEqual(['SS', 'FF']);
+
+  const legacy = structuredClone(latest);
+  Reflect.set(legacy.document, 'version', 4);
+  expect(await classifyPlanDocument(legacy)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+    path: 'typedDependencies[0].type',
+  });
+});
+
+test('version 5 refuses a missing relationship type', async () => {
+  const latest = structuredClone(await exportDocument());
+  const relationship: object = {
+    id: 'untyped',
+    predecessor: { scope: 'whole', workItem: 'row-1' },
+    successor: { scope: 'whole', workItem: 'row-2' },
+  };
+  Reflect.set(latest, 'typedDependencies', [relationship]);
+  expect(await classifyPlanDocument(latest)).toMatchObject({
+    ok: false,
+    code: 'invalid_typed_dependency',
+    path: 'typedDependencies[0].type',
+  });
+});
+
+test('version 5 export keeps SS and FF types from the trusted tree', async () => {
+  const tree = structuredClone(TREE);
+  tree.typedDependencies = [
+    {
+      id: 'start-link',
+      predecessor: { scope: 'whole', workItemId: 'row-1' },
+      successor: { scope: 'whole', workItemId: 'row-2' },
+      type: 'SS',
+    },
+    {
+      id: 'finish-link',
+      predecessor: { scope: 'whole', workItemId: 'row-1' },
+      successor: { scope: 'whole', workItemId: 'row-2' },
+      type: 'FF',
+    },
+  ];
+  const exported = await service().export(PROJECT, tree, LEGACY_ACCESS);
+  expect(exported).toMatchObject({
+    ok: true,
+    value: {
+      document: { version: 5 },
+      typedDependencies: [
+        { id: 'start-link', type: 'SS' },
+        { id: 'finish-link', type: 'FF' },
+      ],
+    },
   });
 });
 
@@ -471,9 +546,10 @@ test('throws when a trusted typed relationship has an unknown type', async () =>
       id: 'link',
       predecessor: { scope: 'whole', workItemId: 'row-1' },
       successor: { scope: 'whole', workItemId: 'row-1' },
-      type: 'SS',
+      type: 'FS',
     },
   ];
+  Reflect.set(malformed.typedDependencies[0] ?? {}, 'type', 'SF');
   expect(await exportError(malformed)).toContain('unknown typed dependency type');
 });
 

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
-import type { DependencyEndpoint } from '@wbs/domain';
+import { type DependencyEndpoint, sliceKey } from '@wbs/domain';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, expect, it } from 'bun:test';
 
@@ -29,6 +29,8 @@ import { AuthService } from '../service/auth.service';
 import { DirectoryService } from '../service/directory.service';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { ProjectService } from '../service/project.service';
+import { evaluateSolverOutcome } from '../service/solver-exit-outcome';
+import { buildSolverRequestPair } from '../service/solver-request-pair';
 import { StepService } from '../service/step.service';
 import { WorkItemService } from '../service/work-item.service';
 import { buildStores } from '../services';
@@ -75,6 +77,7 @@ let dependencies: DependencyRepository;
 let estimates: EstimateRepository;
 let projects: ProjectRepository;
 let steps: StepRepository;
+let workItemService: WorkItemService;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-typed-graph-'));
@@ -137,6 +140,7 @@ beforeEach(() => {
       broadcast: recordingBroadcaster(),
     }),
   };
+  workItemService = writing.workItems;
   app = buildApp({
     loginThrottle: testLoginThrottle(),
     clock: testClock,
@@ -425,10 +429,10 @@ it('refuses invalid typed endpoints, duplicate keys, unsupported types and absen
   }
   const unsupported = await command(at.projectId, at.token, {
     ...typedCommand(at, whole(at.a)),
-    type: 'SS',
+    type: 'SF',
   });
-  expect(unsupported.status).toBe(422);
-  expect(await unsupported.json()).toMatchObject({ error: 'unsupported_relationship_type' });
+  expect(unsupported.status).toBe(400);
+  expect(await unsupported.json()).toMatchObject({ error: 'invalid_body' });
   const first = await command(at.projectId, at.token, typedCommand(at, whole(at.a)));
   expect(first.status).toBe(200);
   const duplicate = await command(at.projectId, at.token, typedCommand(at, whole(at.a)));
@@ -440,6 +444,111 @@ it('refuses invalid typed endpoints, duplicate keys, unsupported types and absen
   });
   expect(absent.status).toBe(404);
   expect(await absent.json()).toMatchObject({ error: 'unknown_dependency' });
+});
+
+it('retains FS and SS on the same endpoints but refuses a duplicate SS', async () => {
+  const at = await plan();
+  const first = await command(at.projectId, at.token, typedCommand(at));
+  expect(first.status).toBe(200);
+  const second = await command(at.projectId, at.token, { ...typedCommand(at), type: 'SS' });
+  expect(second.status).toBe(200);
+  const duplicate = await command(at.projectId, at.token, { ...typedCommand(at), type: 'SS' });
+  expect(duplicate.status).toBe(409);
+  expect(await duplicate.json()).toMatchObject({ error: 'duplicate_dependency', at: 0 });
+  expect((await typed.listByProject(at.projectId)).map((row) => row.type).sort()).toEqual([
+    'FS',
+    'SS',
+  ]);
+});
+
+it('refuses an unsupported typed update at the HTTP boundary without changing the row', async () => {
+  const at = await plan();
+  const added = await command(at.projectId, at.token, typedCommand(at));
+  expect(added.status).toBe(200);
+  const id = ((await added.json()) as { results: { id: string }[] }).results[0]?.id;
+  const changed = await command(at.projectId, at.token, {
+    kind: 'updateTypedDependency',
+    dependencyId: id,
+    predecessor: node(at.a, at.qaId),
+    successor: whole(at.b),
+    type: 'SF',
+  });
+  expect(changed.status).toBe(400);
+  expect(await changed.json()).toMatchObject({ error: 'invalid_body' });
+  expect((await typed.listByProject(at.projectId))[0]).toMatchObject({
+    id,
+    predecessor: node(at.a, at.devId),
+    successor: node(at.b, at.devId),
+    type: 'FS',
+  });
+});
+
+it('undoes an FF to SS update to the exact FF relationship and redoes SS', async () => {
+  const at = await plan();
+  const added = await command(at.projectId, at.token, { ...typedCommand(at), type: 'FF' });
+  expect(added.status).toBe(200);
+  const id = ((await added.json()) as { results: { id: string }[] }).results[0]?.id;
+  const changed = await command(at.projectId, at.token, {
+    kind: 'updateTypedDependency',
+    dependencyId: id,
+    predecessor: node(at.a, at.qaId),
+    successor: whole(at.b),
+    type: 'SS',
+  });
+  expect(changed.status).toBe(200);
+  const undo = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+  expect(undo.status).toBe(200);
+  expect((await typed.listByProject(at.projectId))[0]).toMatchObject({
+    id,
+    predecessor: node(at.a, at.devId),
+    successor: node(at.b, at.devId),
+    type: 'FF',
+  });
+  const redo = await send(`/api/projects/${at.projectId}/redo`, at.token, { method: 'POST' });
+  expect(redo.status).toBe(200);
+  expect((await typed.listByProject(at.projectId))[0]).toMatchObject({
+    id,
+    predecessor: node(at.a, at.qaId),
+    successor: whole(at.b),
+    type: 'SS',
+  });
+});
+
+it('refuses a later cycle command after an SS add and rolls back the batch', async () => {
+  const at = await plan();
+  const response = await send(`/api/projects/${at.projectId}/commands`, at.token, {
+    method: 'POST',
+    body: JSON.stringify({
+      commands: [
+        { ...typedCommand(at, node(at.a, at.qaId), node(at.b, at.qaId)), type: 'SS' },
+        typedCommand(at, node(at.b, at.qaId), node(at.a, at.devId)),
+      ],
+    }),
+  });
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({
+    error: 'cycle',
+    at: 1,
+    kind: 'addTypedDependency',
+  });
+  expect(await typed.listByProject(at.projectId)).toEqual([]);
+});
+
+it('refuses a later legacy add that closes an SS cycle and rolls back the batch', async () => {
+  const at = await plan();
+  const response = await send(`/api/projects/${at.projectId}/commands`, at.token, {
+    method: 'POST',
+    body: JSON.stringify({
+      commands: [
+        { ...typedCommand(at, whole(at.a), whole(at.b)), type: 'SS' },
+        { kind: 'addDependency', workItemId: at.a, predecessorId: at.b },
+      ],
+    }),
+  });
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({ error: 'cycle', at: 1, kind: 'addDependency' });
+  expect(await typed.listByProject(at.projectId)).toEqual([]);
+  expect(await dependencies.listByProject(at.projectId)).toEqual([]);
 });
 
 it('refuses a self node and a step-node cycle before writing', async () => {
@@ -628,6 +737,32 @@ it('refuses undo of an update when the stored relationship changed outside the j
   expect((await typed.listByProject(at.projectId)).at(0)?.successor).toEqual(node(at.b, at.devId));
 });
 
+it('refuses undo when only a journalled relationship type changed outside history', async () => {
+  const at = await plan();
+  const added = await command(at.projectId, at.token, { ...typedCommand(at), type: 'FF' });
+  expect(added.status).toBe(200);
+  const stored = (await typed.listByProject(at.projectId)).at(0);
+  if (stored === undefined) throw new Error('typed add did not persist');
+  const updated = await command(at.projectId, at.token, {
+    kind: 'updateTypedDependency',
+    dependencyId: stored.id,
+    predecessor: stored.predecessor,
+    successor: stored.successor,
+    type: 'SS',
+  });
+  expect(updated.status).toBe(200);
+  const sqlite = openDatabase(join(dir, 'test.db'));
+  try {
+    sqlite.query('UPDATE typed_dependency SET type = ? WHERE id = ?').run('FS', stored.id);
+  } finally {
+    sqlite.close();
+  }
+  const undo = await send(`/api/projects/${at.projectId}/undo`, at.token, { method: 'POST' });
+  expect(undo.status).toBe(409);
+  expect(await undo.json()).toMatchObject({ error: 'stale_undo' });
+  expect((await typed.listByProject(at.projectId)).at(0)?.type).toBe('FS');
+});
+
 it('rejects a cycle introduced by the second typed add', async () => {
   const at = await plan();
   const first = await command(
@@ -687,4 +822,96 @@ it('refuses redo when its relationship ID has been reused', async () => {
     error: 'stale_undo',
     detail: 'that relationship identity is already in use.',
   });
+});
+
+/**
+ * The commands path end to end, now that SS/FF writes are open: a plan whose
+ * relationships were written through `addTypedDependency` reaches the solver
+ * seam, and a solver answer that abuts on its own axis publishes rather than
+ * failing as `invalid-output`.
+ *
+ * X (1 day), then A (PERT 0.5/0.75/1.5 = 5/6 of a day, `exact` rounding), then B,
+ * with X→B SS so the weighted placement runs. The answer is the quantised Fast
+ * baseline itself, which pins A at unit 48 and B at unit 88: B starts exactly
+ * where A finishes on the solver axis, and 1 + 5/6 differs from 88/48 by one
+ * ulp in the real domain.
+ *
+ * Proof: with `schedule.ts` and `real-boundaries.ts` reverted to their state
+ * before batch-9/010-4-7-weighted-pin-drift (the strict `<` pinned-bound
+ * refusal), this test failed with `{ kind: 'failed', reason: 'invalid-output' }`
+ * where `ok` was expected; watched 2026-09-29.
+ */
+it('publishes a tight solver answer for an SS/FF plan written through the commands', async () => {
+  const at = await plan();
+  const exact = await send(`/api/projects/${at.projectId}`, at.token, {
+    method: 'PATCH',
+    body: JSON.stringify({ estimateRounding: 'exact' }),
+  });
+  expect(exact.status).toBe(200);
+  const created = await command(at.projectId, at.token, {
+    kind: 'createWorkItem',
+    parentId: null,
+    afterId: null,
+    name: 'X',
+  });
+  const x = ((await created.json()) as { results: { id?: string }[] }).results[0]?.id;
+  if (x === undefined) throw new Error('createWorkItem minted no id');
+  const estimate = (workItemId: string, days: number[]) => ({
+    kind: 'setEstimate',
+    workItemId,
+    stepId: at.devId,
+    days: { optimistic: days[0], realistic: days[1], pessimistic: days[2] },
+  });
+  const link = (predecessor: string, successor: string, type: 'FS' | 'SS') => ({
+    kind: 'addTypedDependency',
+    predecessor: whole(predecessor),
+    successor: whole(successor),
+    type,
+  });
+  const written = await send(`/api/projects/${at.projectId}/commands`, at.token, {
+    method: 'POST',
+    body: JSON.stringify({
+      commands: [
+        estimate(x, [1, 1, 1]),
+        estimate(at.a, [0.5, 0.75, 1.5]),
+        estimate(at.b, [1, 1, 1]),
+        link(x, at.a, 'FS'),
+        link(x, at.b, 'SS'),
+        link(at.a, at.b, 'FS'),
+      ],
+    }),
+  });
+  expect(written.status).toBe(200);
+
+  const input = await workItemService.scheduleInput(at.projectId);
+  if (input === null) throw new Error('the written project has no schedule input');
+  expect(input.typed.map((dependency) => dependency.type).sort()).toEqual(['FS', 'FS', 'SS']);
+  const pair = buildSolverRequestPair(input, '0.1.4', 60_000);
+  if (!pair.time.ok) throw new Error('the written plan was refused a solver request');
+  const request = pair.time.request;
+  const offsets = request.baselineOffsets;
+  const a = sliceKey(at.a, at.devId);
+  const b = sliceKey(at.b, at.devId);
+  expect([offsets[a], offsets[b]]).toEqual([48, 88]);
+
+  let makespan = 0;
+  let priority = 0;
+  for (const slice of request.slices) {
+    const finish = offsets[slice.key] + slice.durationUnits;
+    makespan = Math.max(makespan, finish);
+    priority += slice.priorityWeight * finish;
+  }
+  const term = (value: number) => ({ value, stageValue: value, bound: value, status: 'optimal' });
+  const stdout = `${JSON.stringify({
+    wireVersion: request.wireVersion,
+    status: 'feasible',
+    offsets,
+    objectiveValues: { makespan: term(makespan), priority: term(priority), movement: term(0) },
+  })}\n`;
+
+  const outcome = evaluateSolverOutcome(input, request, { kind: 'response', stdout });
+  expect(outcome).toMatchObject({ kind: 'ok' });
+  if (outcome.kind !== 'ok') return;
+  const placed = outcome.optimized.schedule.slices;
+  expect(placed.get(b)?.earliestStart).toBeGreaterThanOrEqual(placed.get(a)?.earliestFinish ?? NaN);
 });
