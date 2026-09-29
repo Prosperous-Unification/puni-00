@@ -115,6 +115,10 @@ Each fault was injected into the production code, the named test run, and the fi
 
 The new parent's statements are cleared before the child is inserted or the row moves in. A plan read injected right after the store's write proves it: with the clear moved back after the write, `no read sees a parent holding a statement while a first child is created` and `… while a row moves under a leaf` each failed on the injected read (`parent … holds a readiness or a hold`).
 
+### Move undo ordering (Fable review, round 4)
+
+Undoing a move orders its writes as: clear the parent the row left, move the row back, then restore the statements of the row it had moved under. Each patch therefore lands on a leaf. With the parent's clear after the move-back, `no read sees a parent holding a statement while a move that emptied it is undone` failed on the read injected after the store's move (`parent … holds a readiness or a hold`).
+
 ## Not run
 
 - The h2puni host gate; the orchestrator runs it on the integration branch.

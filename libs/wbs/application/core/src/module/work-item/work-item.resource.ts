@@ -2949,13 +2949,18 @@ export class WorkItemService {
         statementsCleared?.forward,
         'before',
       ),
-      // Back where it was first, and only then the statements: the row it came
-      // from is a leaf again only once it has moved back, and a statement
-      // restored before that would land on a parent, which the write refuses.
-      // Proof: the patches ordered before the move-back made `clears the
-      // readiness and hold of a leaf another row moves under, and one undo
-      // restores them` fail on `Expected: true, Received: false` — the undo was
-      // refused; watched 2026-09-29.
+      // The parent it left cleared first, then back where it was, then the
+      // statements of the row it had moved under: each patch lands while its
+      // row is a leaf, so no read between the writes sees a parent holding a
+      // statement, and the write never refuses a statement on a parent.
+      // Proof: the new parent's restore ordered before the move-back made
+      // `clears the readiness and hold of a leaf another row moves under, and
+      // one undo restores them` fail on `Expected: true, Received: false` — the
+      // undo was refused; watched 2026-09-29. The left parent's clear ordered
+      // after the move-back made `no read sees a parent holding a statement
+      // while a move that emptied it is undone` fail on the read taken after
+      // the move-back (`parent … holds a readiness or a hold`); watched
+      // 2026-09-29 (Fable review, round 4).
       inverse: withPatchStep(
         withPatchStep(
           {
@@ -2968,7 +2973,7 @@ export class WorkItemService {
           'after',
         ),
         statementsHandedUp?.inverse,
-        'after',
+        'before',
       ),
       touched: [
         id,
