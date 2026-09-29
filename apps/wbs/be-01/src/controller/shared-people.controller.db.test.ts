@@ -210,3 +210,69 @@ describe('a shared organization', () => {
     ).toEqual([2]);
   });
 });
+
+/** The `elsewhere_changed` events recorded for `projectId`, oldest first. */
+function elsewhereChanged(projectId: string): { causeProjectId: string }[] {
+  return h.sqlite
+    .query<{ message: string }, [string]>(
+      'SELECT message FROM event_log WHERE subscription = ? ORDER BY seq',
+    )
+    .all(`project:${projectId}`)
+    .map((row) => JSON.parse(row.message) as { type: string; causeProjectId: string })
+    .filter((event) => event.type === 'elsewhere_changed');
+}
+
+async function command(projectId: string, commands: unknown[]): Promise<void> {
+  const applied = await h.call('ada', 'POST', `/api/projects/${projectId}/commands`, { commands });
+  if (applied.status !== 200) throw new Error(`command refused: ${JSON.stringify(applied)}`);
+}
+
+describe('booking changes fan out down the rank', () => {
+  it('publishes nothing below for a rename, and tells it of a longer booking', async () => {
+    share();
+    await plan(platform, [{ step: 0, days: 2, personId: 'pe-a' }]);
+    await plan(billing, [{ step: 0, days: 2, personId: 'pe-a' }]);
+    await plan(search, [{ step: 0, days: 2, personId: 'pe-b' }]);
+    const told = elsewhereChanged(billing).length;
+    const held = (await slicesOf(platform)).at(0);
+    if (held === undefined) throw new Error('Platform scheduled nothing');
+    const read = await h.call('ada', 'GET', `/api/projects/${platform}`);
+    const stepId = (read.body as { steps: { id: string }[] }).steps.at(0)?.id;
+
+    await command(platform, [
+      { kind: 'patchWorkItem', workItemId: held.workItemId, patch: { name: 'Renamed' } },
+    ]);
+    expect(elsewhereChanged(billing)).toHaveLength(told);
+
+    await command(platform, [
+      {
+        kind: 'setEstimate',
+        workItemId: held.workItemId,
+        stepId,
+        days: { optimistic: 3, realistic: 3, pessimistic: 3 },
+      },
+    ]);
+    expect(elsewhereChanged(billing)).toHaveLength(told + 1);
+    expect(elsewhereChanged(billing).at(-1)).toMatchObject({ causeProjectId: platform });
+    // Search shares nobody with Platform, directly or through Billing.
+    expect(elsewhereChanged(search)).toEqual([]);
+    expect(await startOf(billing, 'pe-a')).toEqual([3]);
+  });
+
+  it('publishes nothing in an isolated organization', async () => {
+    await plan(platform, [{ step: 0, days: 2, personId: 'pe-a' }]);
+    await plan(billing, [{ step: 0, days: 2, personId: 'pe-a' }]);
+    expect(elsewhereChanged(billing)).toEqual([]);
+  });
+
+  it('tells the projects of a shared organization that the rank moved', async () => {
+    share();
+    const moved = await h.call('ada', 'POST', `/api/organization/projects/${search}/rank`, {
+      afterProjectId: null,
+    });
+    expect(moved.status).toBe(200);
+    expect(elsewhereChanged(platform)).toMatchObject([{ causeProjectId: search }]);
+    expect(elsewhereChanged(billing)).toHaveLength(1);
+    expect(elsewhereChanged(search)).toEqual([]);
+  });
+});

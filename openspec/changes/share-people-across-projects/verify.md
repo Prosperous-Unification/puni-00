@@ -194,3 +194,70 @@ Fable's review of slice 5 (approved, no Critical or Important findings) added:
   belongs there is a deploy-safety decision. This slice changes the protocol and the solver together,
   so the solver path already forces the rebuild. A future protocol-only bump would not reinstall the
   supervisor.
+
+## Slice 6 — chain, mode, guard, fan-out
+
+On `batch-9/010-4-16-capacity-chain`, stacked on slice 5 (`103135be`). Migration
+`20260929200000_add_shared_people` adds `organization.shared_people` (0 = isolated, the default). A
+plan read, the restarted solve's input, a command batch and a saved plan's capture all schedule a
+project around the same bookings: `WorkItemService.elsewhereOf` computes the influencers (the
+closure of higher-ranked projects sharing a person, from assignments), schedules each in rank order
+around the ones before it, and takes its displayed schedule's bookings. Influencers are read in
+`capture` mode, so reading one project never queues another's solve. A batch's working plan sees one
+project, so a batch asks the public graph (`elsewhereAbove`). An influencer's `engine_unavailable`
+is the read's 409, naming it in `projectId`. `SCHEDULE_ALGORITHM_ID` stays `slice-leveling-v4`.
+
+`elsewhere_changed {projectId, causeProjectId}` comes from `ElsewhereFanOut`, the outermost
+announcements layer. After a schedule-input event on a shared project, it compares the project's
+displayed bookings with the ones it last fanned out for. On a change, it tells every project the
+cause influences. A stored optimized result calls it from `services.ts`, and a rank move tells every
+other project of a shared organization (`announcingRankMoves`). `changesScheduleInput` includes the
+event, so the project below re-solves. fe-01 treats it as an unknown type and refetches everything
+until slice 7.
+
+| Check (file)                                                | Fault injected                                 | Test that observed the failure                                                                                                     | Result                                        |
+| ----------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| closure (`elsewhere-chain.ts`)                              | one step: an influencer's people not added     | `reaches a project above through a shared person of another influencer`; `schedules C around B's bookings as they stand after A's` | A left out; C at 4, not 6                     |
+| mode (`project.ts` `sharingOf`)                             | every owned project read as shared             | `keeps an isolated organization's dates, and the load view reports the overlap`                                                    | Billing's slice at 2, not 0                   |
+| influencer refusal (`work-item.resource.ts`)                | the refusal read as booking nothing            | `refuses to read below an influencer whose engine is missing`                                                                      | 200 with Fast dates, not 409                  |
+| refusal names the influencer (`engine-unavailable-body.ts`) | `projectId` spread removed                     | same                                                                                                                               | body without `projectId`                      |
+| batch source (`work-item.resource.ts`)                      | `elsewhereAbove` delegation removed            | `applies a command to a project below once shared`                                                                                 | 500: working plan cannot read another project |
+| saved plan (`saved-plans.feature.ts`)                       | the source's bookings ignored                  | `saves a shared organization's plan around the bookings above it`                                                                  | Ana's saved slice at 0, not 2                 |
+| `schedulePlanInput` (`saved-plan-schedule.ts`)              | `input.elsewhere` not passed to `schedule()`   | `schedules a captured plan around its bookings elsewhere`                                                                          | start 0 bound by `projectStart`, not 3        |
+| fan-out signature (`elsewhere-fan-out.ts`)                  | the comparison removed                         | `publishes nothing below for a rename, and tells it of a longer booking`                                                           | one `elsewhere_changed` for the rename        |
+| rank move (`elsewhere-fan-out.ts`)                          | the announcement dropped                       | `tells the projects of a shared organization that the rank moved`                                                                  | no `elsewhere_changed`                        |
+| re-solve trigger (`optimizer-trigger-broadcaster.ts`)       | `elsewhere_changed` not a schedule-input event | `re-solves a project below when the one above moves`                                                                               | no trigger                                    |
+| swap vocabulary (`swap.ts`)                                 | `CAPACITY_MODES_VOCABULARY` left out           | `refuses a pre-feature image while an organization is shared, and stops green`                                                     | the swap migrated                             |
+| stored modes (`docker.ts`)                                  | `HAVING count(*) > 0` removed                  | `reads shared organizations, none before the column or while every one is isolated`                                                | `[{ kind: 'shared', count: 0 }]`              |
+| `down.sql` guard                                            | the guard's INSERT removed                     | `refuses while an organization is shared, keeping the column and the ledger`                                                       | the column dropped                            |
+| reset (`shared-people-rollback.ts`)                         | reduced to comparing counts                    | `refuses to reset a save that no longer matches, changing nothing`                                                                 | both organizations reset                      |
+| rollback CLI usage guard                                    | cut to the empty-file check                    | `saves, resets and restores shared organizations through the rollback CLI`                                                         | `erase` exited 0 as a restore                 |
+
+Commands, run one at a time with `CLAUDECODE` unset where Bun's diff output matters:
+
+- `bun test src` in core: 793 pass.
+- `bun test` in store-sqlite: 1,211 pass with `CLAUDECODE` unset. An earlier run under
+  `CLAUDECODE=1` failed 7: the audit check (the rollback's updates now stamp `auditOnUpdate`) and six
+  conformance cases that fail only on Bun's diff formatting under that variable.
+- store-memory: 145 pass. contracts: 445 pass. mcp-01: 323 pass.
+- `tool-remote-scripts` swap and docker tests: 184 pass.
+- be-01: 1,614 pass, 1 skipped.
+- Typecheck: wbs-core, wbs-store-sqlite, wbs-store-memory, wbs-be-01, wbs-fe-01, wbs-mcp-01 and
+  tool-remote-scripts.
+
+Deviations and what is not observed:
+
+- The chain's reads are not one transaction (spec amended): no read seam offers one, and a plan read
+  is not one today. A commit mid-chain is followed by `elsewhere_changed`.
+- `down.sql` guards shared organizations only (spec amended); the rank migration's own `down.sql`
+  guards ranks.
+- `PersonLoad`'s memo keeps its `revision` and `seq` key and gains no `basisHash`: every change to a
+  project's bookings above now advances its `seq` through `elsewhere_changed`, a rank move included.
+- The optimized-result hook in `services.ts` is typechecked but not proved by a failing test: a
+  stored outcome needs the solver lifecycle, which no mounted test drives. It is a notification;
+  reads compute the chain fresh.
+- The memo's cost budget (30 projects sharing ten people, cold ≤ 2 s, warm ≤ 150 ms) is not
+  measured. The chain schedules every influencer on each read of a shared project; nothing is shared
+  until the slice 8 route ships.
+- A rank move tells every other project of a shared organization, not only those whose influencers
+  changed.

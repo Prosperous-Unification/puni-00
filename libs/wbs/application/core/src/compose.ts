@@ -38,6 +38,7 @@ import type { PlanTransactionalStores, TransactionalStores } from './ports/store
 import type { Intervals, Timers } from './ports/timers';
 import type { Scope } from './ports/unit-of-work';
 import { DependencyGraphGuard } from './service/dependency-graph';
+import { ElsewhereFanOut } from './service/elsewhere-fan-out';
 import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
 
 /** Runtime capabilities required by every service composition. */
@@ -192,6 +193,12 @@ interface CommonServices extends WritingServices {
    * second, stateless `PlanCommandRunner` over the same values (task 7.4).
    */
   readonly commands: PlanCommandRunner;
+  /**
+   * The outermost layer of {@link announcements}, exposed for the two changes
+   * that move a project's bookings without passing through it: a stored
+   * optimized result and a rank move (ADR 0034).
+   */
+  readonly elsewhereFanOut: ElsewhereFanOut;
 }
 
 export type AccountlessServices = CommonServices;
@@ -250,10 +257,19 @@ export function composeServices(
     },
   });
   const { replayBuffer: buffer, broadcaster } = realtime;
-  const announcements: Broadcaster =
+  const triggering: Broadcaster =
     runtime.onPlanChanged === undefined
       ? broadcaster
       : new OptimizerTriggerBroadcaster(broadcaster, runtime.onPlanChanged);
+  // Outermost, so its `elsewhere_changed` still starts the optimizer below.
+  // `publicServices` is read only when an event arrives, after it exists.
+  const elsewhereFanOut = new ElsewhereFanOut({
+    inner: triggering,
+    projects: source.stores.projects,
+    directory: source.stores.directory,
+    bookingsOf: (projectId) => publicServices.workItems.displayedBookings(projectId),
+  });
+  const announcements: Broadcaster = elsewhereFanOut;
   const publicServices = servicesOver(source.stores, {
     clock: runtime.clock,
     broadcast: announcements,
@@ -283,6 +299,7 @@ export function composeServices(
     clock: runtime.clock,
     scheduler: runtime.scheduler,
     announcements,
+    elsewhereFanOut,
     gatewayBroadcaster: broadcaster,
     replayBuffer: buffer,
     uow: source.uow,

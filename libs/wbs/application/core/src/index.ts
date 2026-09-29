@@ -123,6 +123,7 @@ export * from './service/directory.service';
 export * from './service/directory-usage';
 export * from './service/gateway-broadcaster';
 // Compatibility export: Plan history's symbols keep their barrel names.
+export * from './service/elsewhere-fan-out';
 export * from './service/history.service';
 export * from './service/import.service';
 export * from './service/login-throttle';

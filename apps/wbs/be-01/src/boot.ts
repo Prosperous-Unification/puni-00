@@ -1,5 +1,5 @@
 import { buildOidcVerifier } from '@wbs/auth';
-import type { DelegationIssuer } from '@wbs/core';
+import { announcingRankMoves, type DelegationIssuer } from '@wbs/core';
 import type { Logger } from '@wbs/observability';
 import {
   DomainClaimRepository,
@@ -217,7 +217,12 @@ export async function bootBe01(
               invitations: new InvitationRepository(db, services.gate),
               joinRequests: new JoinRequestRepository(db, services.gate),
               spaces: new SpaceRepository(db, services.gate),
-              projectRanks: new ProjectRankRepository(db, services.gate),
+              // A rank move under shared people tells every project of the
+              // organization; see `announcingRankMoves`.
+              projectRanks: announcingRankMoves(
+                new ProjectRankRepository(db, services.gate),
+                services.elsewhereFanOut,
+              ),
               emailDelivery: refusingEmailDelivery,
               steps: services.steps,
               calendarMarkers: services.calendarMarkers,

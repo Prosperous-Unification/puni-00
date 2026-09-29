@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { CREATOR_ADMISSION, type DomainResolver } from '@wbs/core';
+import { announcingRankMoves, CREATOR_ADMISSION, type DomainResolver } from '@wbs/core';
 import { createLogger } from '@wbs/observability';
 import {
   DomainClaimRepository,
@@ -346,7 +346,10 @@ export class OrganizationHarness {
       invitations: new InvitationRepository(source.db, services.gate),
       joinRequests: new JoinRequestRepository(source.db, services.gate),
       spaces: new SpaceRepository(source.db, services.gate),
-      projectRanks: new ProjectRankRepository(source.db, services.gate),
+      projectRanks: announcingRankMoves(
+        new ProjectRankRepository(source.db, services.gate),
+        services.elsewhereFanOut,
+      ),
       emailDelivery: {
         deliver: () => Promise.reject(new Error('composed harness mail sink refuses delivery')),
       },

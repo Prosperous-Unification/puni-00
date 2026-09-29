@@ -189,7 +189,19 @@ export type ProjectEvent =
    * Carrying the row would additionally announce it to every reader of the
    * project — including one the list route would have answered differently.
    */
-  | { type: 'calendar_markers_changed' };
+  | { type: 'calendar_markers_changed' }
+  /**
+   * Under shared people, the bookings of `causeProjectId`, ranked above
+   * `projectId`, moved, so `projectId`'s dates may have (spec
+   * `shared-people-mode`, "Booking changes fan out down the rank"). Published
+   * to every project the cause influences, never for a change that leaves its
+   * bookings where they were.
+   *
+   * It moves no row of `projectId`, and advances its sequence all the same:
+   * that is what re-reads its plan, re-solves it, and misses a memo keyed on
+   * the sequence.
+   */
+  | { type: 'elsewhere_changed'; projectId: string; causeProjectId: string };
 
 /**
  * The subscription name carrying a project's edits.

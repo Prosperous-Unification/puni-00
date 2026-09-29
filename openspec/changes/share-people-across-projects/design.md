@@ -34,8 +34,9 @@ cover different writes:
 A read takes `revision` from the project list it has just read, and asks `latestSeq`. When both
 equal the memo's values, the bookings are reused; otherwise the tree is read again. Readings
 whose engine is unavailable are never memoized. The memo is bounded (LRU), and correctness never
-depends on it. Blue and green each hold their own memo. Under `shared` (slice 6), the key gains
-`basisHash`, the hash of the bookings that fed the project.
+depends on it. Blue and green each hold their own memo. Under `shared` (slice 6), the key stays
+`revision` and `seq`: a change to the bookings above a project, a rank move included, publishes
+`elsewhere_changed` to it, which advances its `seq`.
 
 ## D4. The leak rule
 

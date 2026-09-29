@@ -156,8 +156,15 @@ export function buildServices(options: ServicesOptions): BeServices {
         (await source.stores.projects.findById(projectId))?.optimizationEnabled === true,
       hashInput: scheduleInputHash,
       spawn: optimizer.spawn,
-      pushRecorded: (subscription, recorded, event) =>
-        graph.gatewayBroadcaster.pushRecorded(subscription, recorded, event),
+      // A stored optimized result changes what its project displays, and so
+      // its bookings, without an edit: the fan-out compares them after the
+      // live push, and a failure takes the push's own failure path.
+      pushRecorded: async (subscription, recorded, event) => {
+        await graph.gatewayBroadcaster.pushRecorded(subscription, recorded, event);
+        if (event.type === 'schedule_optimized') {
+          await graph.elsewhereFanOut.bookingsMayHaveMoved(event.projectId);
+        }
+      },
       onChildError: (error) => {
         options.logger.error({ err: error }, 'optimizer child failed');
       },

@@ -5,6 +5,21 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { OptimizerTriggerBroadcaster } from './optimizer-trigger-broadcaster';
 
 describe('OptimizerTriggerBroadcaster', () => {
+  it('re-solves a project below when the one above moves', async () => {
+    const changed: string[] = [];
+    const broadcast = new OptimizerTriggerBroadcaster(recordingBroadcaster(), (projectId) => {
+      changed.push(projectId);
+    });
+
+    await broadcast.publish('below', {
+      type: 'elsewhere_changed',
+      projectId: 'below',
+      causeProjectId: 'above',
+    });
+
+    expect(changed).toEqual(['below']);
+  });
+
   it('triggers only after a scheduling-input event was published', async () => {
     const inner = recordingBroadcaster();
     const changed: string[] = [];
