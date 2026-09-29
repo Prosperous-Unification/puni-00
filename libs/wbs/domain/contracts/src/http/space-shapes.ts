@@ -251,3 +251,46 @@ export const readSpaceRollUps = defineEndpointShape({
   refusals: [...common, notFound],
   document: { summary: 'Read roll-ups for projects of a space.' },
 });
+
+const inProgressItem = type({
+  projectId: 'string',
+  projectName: 'string',
+  position: 'number',
+  workItemId: 'string',
+  number: 'string',
+  name: 'string',
+  dates: type({ startsOn: 'string', endsOn: 'string' }).or('null'),
+  lateBy: 'number | null',
+  assignees: type({ id: 'string', name: 'string' }).array(),
+  step: type({ id: 'string', name: 'string' }).or('null'),
+});
+
+/**
+ * The leaves in progress across the readable members of a space, by end date
+ * with undated last, then space position, then number. `limit` defaults to
+ * 200 and refuses above 1000 with 400; `truncated` says whether items were
+ * cut; `unavailable` names members whose scheduler engine is down.
+ */
+export const readSpaceInProgress = defineEndpointShape({
+  method: 'GET',
+  path: '/api/spaces/:id/in-progress',
+  operationId: 'getApiSpacesByIdIn-progress',
+  policies: readPolicies,
+  params: spaceParams,
+  query: requestSchema(type({ 'limit?': 'string' })),
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(
+        type({
+          items: inProgressItem.array(),
+          truncated: 'boolean',
+          unavailable: type('string').array(),
+        }),
+      ),
+    },
+  ],
+  refusals: [...common, notFound],
+  document: { summary: 'List the work in progress across a space.' },
+});

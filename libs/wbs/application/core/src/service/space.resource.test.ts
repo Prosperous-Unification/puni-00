@@ -292,6 +292,8 @@ describe('SpaceResource roll-ups', () => {
       ['a2', 1],
     ]);
     const unavailable = new Set<string>();
+    /** Extra in-progress leaves per project, each `[number, endsOn]`. */
+    const leaves = new Map<string, [string, string | null][]>();
     let treeReads = 0;
     const spaces = inMemorySpaces(
       new Map([
@@ -300,7 +302,7 @@ describe('SpaceResource roll-ups', () => {
       ]),
     );
     const trees = {
-      treeWithin: (projectId: string) => {
+      treeWithin: (projectId: string, access: ResourceAccess) => {
         treeReads += 1;
         if (unavailable.has(projectId)) {
           return Promise.resolve({
@@ -318,8 +320,29 @@ describe('SpaceResource roll-ups', () => {
               finalTotal: totals.get(projectId) ?? 0,
               dates: { startsOn: '2026-10-01', endsOn: '2026-10-09' },
               estimates: { s1: 1 },
+              number: '1',
+              name: 'Root',
+              assignees: {},
+              progress: {},
             },
+            ...(leaves.get(projectId) ?? []).map(([number, endsOn]) => ({
+              id: `${projectId}-${number}`,
+              parentId: null,
+              status: 'in_progress',
+              finalTotal: 1,
+              dates: endsOn === null ? null : { startsOn: '2026-10-01', endsOn },
+              estimates: { s1: 1 },
+              number,
+              name: `Leaf ${number}`,
+              assignees: { s1: 'kat' },
+              progress: { s1: 'in_progress' },
+            })),
           ],
+          slices: [],
+          steps: [{ id: 's1', name: 'Dev' }],
+          // As `treeWithin` does: legacy reads carry the root directory's
+          // names, scoped reads the organization's own.
+          assignedPeople: [{ id: 'kat', name: access.kind === 'legacy' ? 'Root Kat' : 'Kat' }],
           scheduleError: null,
           waitingForPerson: 0,
           waitingForCapacity: 0,
@@ -360,6 +383,7 @@ describe('SpaceResource roll-ups', () => {
       totals,
       seqs,
       unavailable,
+      leaves,
       reads: () => treeReads,
       advance: (ms: number) => {
         now += ms;
@@ -440,5 +464,79 @@ describe('SpaceResource roll-ups', () => {
     unavailable.delete('a2');
     expect(totalOf(await service.rollUps('ada', MEMBER, id, ['a2']), 'a2')).toBe(4);
     expect(reads()).toBe(2);
+  });
+
+  it('lists the leaves in progress across readable members, by end date then place then number', async () => {
+    const { service, id, leaves } = await rolling();
+    leaves.set('a1', [
+      ['2', '2026-10-09'],
+      ['1', null],
+    ]);
+    leaves.set('a2', [['1', '2026-10-05']]);
+    const answer = await service.inProgress('ada', MEMBER, id, 200);
+    if (!answer.ok) throw new Error(answer.refusal);
+    expect(answer.value.truncated).toBe(false);
+    expect(answer.value.items.map(({ projectId, number }) => `${projectId}/${number}`)).toEqual([
+      'a2/1',
+      'a1/2',
+      'a1/1',
+    ]);
+    expect(answer.value.items[0]).toMatchObject({
+      projectName: 'a2',
+      name: 'Leaf 1',
+      step: { id: 's1', name: 'Dev' },
+      assignees: [{ id: 'kat', name: 'Kat' }],
+    });
+  });
+
+  it('cuts the list at the limit and says it was cut', async () => {
+    const { service, id, leaves } = await rolling();
+    leaves.set(
+      'a1',
+      Array.from({ length: 1_001 }, (_, at): [string, string | null] => [String(at + 1), null]),
+    );
+    const answer = await service.inProgress('ada', MEMBER, id, 1_000);
+    if (!answer.ok) throw new Error(answer.refusal);
+    expect(answer.value.items).toHaveLength(1_000);
+    expect(answer.value.truncated).toBe(true);
+    const whole = await service.inProgress('ada', MEMBER, id, 1_001);
+    expect(whole).toMatchObject({ ok: true, value: { truncated: false } });
+  });
+
+  it('takes nothing from a member the caller cannot open, and names unavailable engines', async () => {
+    const { service, id, leaves } = await rolling(['a1']);
+    leaves.set('a2', [['1', '2026-10-05']]);
+    leaves.set('a1', [['1', '2026-10-06']]);
+    expect(await service.inProgress('ada', MEMBER, id, 200)).toMatchObject({
+      ok: true,
+      value: { items: [{ projectId: 'a1' }], unavailable: [] },
+    });
+    const fresh = await rolling(['a1']);
+    fresh.unavailable.add('a1');
+    expect(await fresh.service.inProgress('ada', MEMBER, fresh.id, 200)).toMatchObject({
+      ok: true,
+      value: { items: [], unavailable: ['a1'] },
+    });
+  });
+
+  it("keeps a legacy read's assignee names from a scoped reader", async () => {
+    const { service, leaves } = await rolling();
+    leaves.set('a1', [['1', '2026-10-05']]);
+    const namesOf = async (access: ResourceAccess) => {
+      const answer = await service.inProgress('ada', access, ALL_PROJECTS, 200);
+      if (!answer.ok) throw new Error(answer.refusal);
+      return answer.value.items.flatMap(({ assignees }) => assignees.map(({ name }) => name));
+    };
+    expect(await namesOf(LEGACY_ACCESS)).toEqual(['Root Kat']);
+    expect(await namesOf(MEMBER)).toEqual(['Kat']);
+  });
+
+  it('names no unavailable engine of a member the caller cannot open', async () => {
+    const { service, id, unavailable } = await rolling(['a1']);
+    unavailable.add('a2');
+    expect(await service.inProgress('ada', MEMBER, id, 200)).toMatchObject({
+      ok: true,
+      value: { unavailable: [] },
+    });
   });
 });

@@ -66,6 +66,7 @@ export * from './without-held-subtrees';
 // The one write gate every resource and feature asks: `canEditProject`. Domain
 // code rather than a Project-resource export, because a resource importing a
 // sibling resource for it is the sideways edge K6 forbids.
+export * from './in-progress-now';
 export * from './organization-access';
 export * from './project-ownership';
 export * from './project-roll-up';

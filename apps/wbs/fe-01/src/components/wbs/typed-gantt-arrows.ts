@@ -39,7 +39,12 @@ export function resolveTypedGanttArrows(plan: GanttPlan): {
         (stepOrder.get(left.stepId ?? '') ?? Number.POSITIVE_INFINITY) -
         (stepOrder.get(right.stepId ?? '') ?? Number.POSITIVE_INFINITY),
     );
-  const rows = new Map(plan.rows.map((row, rowIndex) => [row.id, rowIndex]));
+  const rows = new Map(
+    plan.rows.map((row, rowIndex) => [
+      row.id,
+      { index: rowIndex, blocked: row.status === 'blocked' },
+    ]),
+  );
   const leavesUnder = (workItemId: string): string[] => {
     // Proof: disabling this guard made the unknown-work-item chart test get
     // `missing chart slices for missing` instead. Watched 2026-09-28.
@@ -47,11 +52,9 @@ export function resolveTypedGanttArrows(plan: GanttPlan): {
     const descendants = children.get(workItemId);
     const leaves = descendants === undefined ? [workItemId] : descendants.flatMap(leavesUnder);
     // A held leaf is out of the schedule and has no slice: it is no end of an
-    // authored arrow, and its absence is not a broken payload
-    // (`add-work-item-statuses`).
-    // Proof: this filter removed, and `draws no authored arrow to or from a
-    // held leaf…` threw `GanttDataError: missing chart slices for strip`;
-    // watched 2026-09-29, which is what main did to every such chart.
+    // arrow, and its absence is not a broken payload (`add-work-item-statuses`).
+    // Proof: this filter removed, and `draws no typed arrow from a held leaf…`
+    // threw `missing chart slices for strip`; watched 2026-09-29.
     return leaves.filter((leaf) => !plan.heldLeafIds.has(leaf));
   };
   const endsOf = (
@@ -95,11 +98,11 @@ export function resolveTypedGanttArrows(plan: GanttPlan): {
         throw new GanttDataError(`missing chart step ${String(endpoint.stepId)} in ${leafId}`);
       return slice;
     });
-  const visibleOf = (leafId: string): { id: string; index: number } | null => {
+  const visibleOf = (leafId: string): { id: string; index: number; blocked: boolean } | null => {
     let cursor: string | null = leafId;
     while (cursor !== null) {
-      const index = rows.get(cursor);
-      if (index !== undefined) return { id: cursor, index };
+      const shown = rows.get(cursor);
+      if (shown !== undefined) return { id: cursor, ...shown };
       cursor = parents.get(cursor) ?? null;
     }
     return null;
@@ -163,6 +166,11 @@ export function resolveTypedGanttArrows(plan: GanttPlan): {
           toStart: after.earliestStart,
           // Proof: using the unknown placeholder's finish (start + 2) made `attaches SS to starts and FF to actual finishes, including an unknown tick` fail with FF toX 4 instead of the scheduled tick at 2; watched 2026-09-28.
           toFinish: after.earliestFinish,
+          // Leaving a blocked row: drawn in the blocked red (`add-work-item-statuses`).
+          // Proof: this read replaced by `false`, and the browser gate `a held
+          // row says On hold…` found no `path[data-gantt-arrow][data-blocked]`
+          // (`Expected: 1 · Received: 0`); watched in Chromium 2026-09-29.
+          blocked: from.blocked,
           type: dependency.type,
           count: 1,
           proxy,

@@ -1,10 +1,13 @@
 import {
   canWriteInOrganization,
+  type InProgressLeaf,
+  inProgressLeavesOf,
   POSITION_STEP,
   type ProjectRollUp,
   ROLLUP_DTO_VERSION,
   rollUpProject,
   SCHEDULER_CONTRACT_VERSION,
+  sortInProgress,
 } from '@wbs/domain';
 
 import type { ProjectService } from '../module/project/project.resource';
@@ -48,6 +51,13 @@ export interface SpaceSummary {
   createdAt: number | null;
 }
 
+/** One leaf in progress in a space, with its project and that project's place. */
+export interface InProgressItem extends InProgressLeaf {
+  projectId: string;
+  projectName: string;
+  position: number;
+}
+
 /** One readable project in its place. */
 export interface SpaceRow {
   project: ProjectWithAccess;
@@ -77,19 +87,31 @@ export interface UnavailableRollUp {
   kind: 'unavailable';
 }
 
+/** An in-progress read's default and largest `limit` (spec `in-progress-now`). */
+export const IN_PROGRESS_LIMIT = { default: 200, max: 1_000 } as const;
+
 /** The most roll-ups one request may ask for (spec `space-read`). */
 export const ROLL_UPS_PER_REQUEST = 50;
 
+/** What one tree read yields for a space: its roll-up and its leaves in progress. */
+export interface RolledProject {
+  rollUp: ProjectRollUp;
+  inProgress: InProgressLeaf[];
+}
+
 /**
- * A per-process LRU of project roll-ups (`add-spaces` design, memo §8).
+ * A per-process LRU of {@link RolledProject}s (`add-spaces` design, memo §8).
  *
- * Keyed by project, event sequence, scheduler contract and roll-up version:
- * every write to a project publishes to its sequence, so a hit is current in
- * the writing process. Another process's write (blue/green overlap) or a
- * missed publication converges within {@link RollUpCache.ttlMs}.
+ * Keyed by project, event sequence, project revision, reader access,
+ * scheduler contract and roll-up version: every plan write publishes to the
+ * sequence and every settings write moves the revision, so a hit is current
+ * in the writing process. Another process's write (blue/green overlap) or a
+ * missed publication converges within {@link RollUpCache.ttlMs}. `capacity`
+ * counts entries, one per project and reader, whatever number of leaves each
+ * holds.
  */
 export class RollUpCache {
-  private readonly held = new Map<string, { rollUp: ProjectRollUp; storedAt: number }>();
+  private readonly held = new Map<string, { rolled: RolledProject; storedAt: number }>();
 
   constructor(
     private readonly clock: Pick<Clock, 'now'>,
@@ -98,16 +120,20 @@ export class RollUpCache {
   ) {}
 
   /**
-   * The key for one project at one event sequence and one project revision.
+   * The key for one project at one event sequence and one project revision,
+   * as one kind of reader sees it.
    * The revision is not redundant with the sequence: a project settings change
    * (start date, PERT weights, reach, estimate method or rounding) advances
    * the revision and moves dates and totals, yet publishes no event.
    */
-  static keyOf(projectId: string, seq: number, revision: number): string {
-    return `${projectId}:${String(seq)}:${String(revision)}:${String(SCHEDULER_CONTRACT_VERSION)}:${String(ROLLUP_DTO_VERSION)}`;
+  static keyOf(projectId: string, seq: number, revision: number, access: ResourceAccess): string {
+    // The access is part of what a tree read answers: scoped reads rename
+    // assignees to the organization's own names (`treeWithin`).
+    const reader = access.kind === 'legacy' ? 'legacy' : `org:${access.scope.organizationId}`;
+    return `${projectId}:${String(seq)}:${String(revision)}:${reader}:${String(SCHEDULER_CONTRACT_VERSION)}:${String(ROLLUP_DTO_VERSION)}`;
   }
 
-  get(key: string): ProjectRollUp | undefined {
+  get(key: string): RolledProject | undefined {
     const entry = this.held.get(key);
     if (entry === undefined) return undefined;
     // Proof, observed 2026-09-29: with this expiry skipped, `expires a roll-up
@@ -119,12 +145,12 @@ export class RollUpCache {
     }
     this.held.delete(key);
     this.held.set(key, entry);
-    return entry.rollUp;
+    return entry.rolled;
   }
 
-  set(key: string, rollUp: ProjectRollUp): void {
+  set(key: string, rolled: RolledProject): void {
     this.held.delete(key);
-    this.held.set(key, { rollUp, storedAt: this.clock.now() });
+    this.held.set(key, { rolled, storedAt: this.clock.now() });
     for (const oldest of this.held.keys()) {
       if (this.held.size <= this.capacity) break;
       this.held.delete(oldest);
@@ -284,9 +310,9 @@ export class SpaceResource {
       const revision = revisions.get(projectId);
       // Checked readable above; absent here would be the list changing mid-call.
       if (revision === undefined) return { ok: false, refusal: 'not_found' };
-      const rolled = await this.rollUpOf(projectId, revision, access);
+      const rolled = await this.rolledOf(projectId, revision, access);
       if (rolled === null) return { ok: false, refusal: 'not_found' };
-      rollUps[projectId] = rolled;
+      rollUps[projectId] = 'kind' in rolled ? rolled : rolled.rollUp;
     }
     return { ok: true, value: rollUps };
   }
@@ -294,17 +320,24 @@ export class SpaceResource {
   /**
    * One project's roll-up, from the cache when its sequence and revision match.
    *
+   * An entry is keyed by the reader's access as well, because the tree read
+   * answers differently by access: under scoped access it renames assignees
+   * to the organization's own names. A legacy read cached just before
+   * activation is therefore never served to a scoped reader.
+   *
    * A cache hit skips `treeWithin`, and with it the access gate's fail-closed
-   * cross-reference check (`admits`). Readability is still checked on every
-   * call, above. What a hit can miss is only corrupt state (a reference
-   * across organizations written after the entry was cached) and for at most
-   * the 60 s TTL; the next miss reads the tree and fails closed.
+   * cross-reference check (`admits`); readability is still checked on every
+   * call, above. So a hit can miss a reference across organizations written
+   * after the entry was cached (corrupt state, which no route writes), and a
+   * change the cache key does not carry, such as a person renamed in the
+   * directory (no event, no project revision). Both last at most the 60 s TTL;
+   * the next miss reads the tree afresh and fails closed.
    */
-  private async rollUpOf(
+  private async rolledOf(
     projectId: string,
     revision: number,
     access: ResourceAccess,
-  ): Promise<ProjectRollUp | UnavailableRollUp | null> {
+  ): Promise<RolledProject | UnavailableRollUp | null> {
     const seq = await this.opts.sequences.latestSeq(projectId);
     // Proof, observed 2026-09-29: with the sequence left out of this key,
     // `answers a command's new total on the next read, and serves an unchanged
@@ -314,7 +347,10 @@ export class SpaceResource {
     // `answers new dates after a start date change that publishes no event` in
     // `space-organization.controller.db.test.ts` received the cached
     // `2026-10-05` instead of `2026-11-02`.
-    const cached = this.opts.rollUpCache.get(RollUpCache.keyOf(projectId, seq, revision));
+    // Proof, observed 2026-09-29: with the access left out of this key, `keeps
+    // a legacy read's assignee names from a scoped reader` in
+    // `space.resource.test.ts` received the legacy name `Root Kat`.
+    const cached = this.opts.rollUpCache.get(RollUpCache.keyOf(projectId, seq, revision, access));
     if (cached !== undefined) return cached;
     const tree = await this.opts.trees.treeWithin(projectId, access);
     if (tree === null) return null;
@@ -336,10 +372,90 @@ export class SpaceResource {
       projectRevision: tree.projectRevision,
       seq: tree.seq,
     });
+    const rolled: RolledProject = {
+      rollUp,
+      inProgress: inProgressLeavesOf({
+        workItems: tree.workItems,
+        slices: tree.slices,
+        steps: tree.steps,
+        assignedPeople: tree.assignedPeople,
+      }),
+    };
     // Keyed by the sequence and revision the tree itself read, which are the
     // ones its rows are current at.
-    this.opts.rollUpCache.set(RollUpCache.keyOf(projectId, tree.seq, tree.projectRevision), rollUp);
-    return rollUp;
+    this.opts.rollUpCache.set(
+      RollUpCache.keyOf(projectId, tree.seq, tree.projectRevision, access),
+      rolled,
+    );
+    return rolled;
+  }
+
+  /**
+   * The leaves in progress across the readable members of a space (`all`:
+   * every project the caller can open), ordered by end date with undated last,
+   * then space position, then number, and cut to `limit`
+   * (spec `in-progress-now`). A project whose engine is unavailable
+   * contributes nothing; `unavailable` names those projects.
+   */
+  async inProgress(
+    actorId: string,
+    access: ResourceAccess,
+    spaceId: string,
+    limit: number,
+  ): Promise<
+    SpaceAnswer<
+      { items: InProgressItem[]; truncated: boolean; unavailable: string[] },
+      'organization_required' | 'not_found'
+    >
+  > {
+    const projects = await this.opts.projects.listWithin(actorId, access);
+    const readable = new Map(projects.map((project) => [project.id, project]));
+    let placed: { projectId: string; position: number }[];
+    if (spaceId === ALL_PROJECTS) {
+      placed = projects.map(({ id }, index) => ({
+        projectId: id,
+        position: (index + 1) * POSITION_STEP,
+      }));
+    } else {
+      const owner = await this.ownerOf(access);
+      if (!owner.ok) return owner;
+      const members = await this.opts.spaces.membersOf(owner.organizationId, spaceId);
+      if (members === null) return { ok: false, refusal: 'not_found' };
+      // The leak rule: a member the caller cannot open contributes nothing.
+      // Proof, observed 2026-09-29: with this filter removed, `takes nothing
+      // from a member the caller cannot open, and names unavailable engines`
+      // in `space.resource.test.ts` threw on the hidden member instead.
+      placed = members.filter(({ projectId }) => readable.has(projectId));
+    }
+    const items: InProgressItem[] = [];
+    const unavailable: string[] = [];
+    for (const { projectId, position } of placed) {
+      const project = readable.get(projectId);
+      // `placed` holds only readable projects, so this is a broken invariant.
+      if (project === undefined) throw new Error(`placed project ${projectId} is not readable`);
+      const rolled = await this.rolledOf(projectId, project.revision, access);
+      // Deleted since the list was read: nothing of it is in progress.
+      if (rolled === null) continue;
+      if ('kind' in rolled) {
+        unavailable.push(projectId);
+        continue;
+      }
+      for (const leaf of rolled.inProgress) {
+        items.push({ ...leaf, projectId, projectName: project.name, position });
+      }
+    }
+    const ordered = sortInProgress(items, ({ dates }) => dates?.endsOn ?? null);
+    // Proof, observed 2026-09-29: with this cut removed, `cuts the list at
+    // the limit and says it was cut` in `space.resource.test.ts` received
+    // 1,001 items instead of 1,000.
+    return {
+      ok: true,
+      value: {
+        items: ordered.slice(0, limit),
+        truncated: ordered.length > limit,
+        unavailable,
+      },
+    };
   }
 
   async rename(
