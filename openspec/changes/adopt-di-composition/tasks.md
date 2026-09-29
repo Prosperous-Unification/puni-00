@@ -300,7 +300,16 @@
       deleted with their `kinds.json` rows (59 shim rows remain, 33 of them naming a module).
       `AGE_THEIR_OWN_ENTRIES` keeps `retention-timer.ts`: it matches by file name, and the owner
       `module/bounded-replay-sweep/retention-timer.ts` keeps that name. The task stays open for
-      the shims that still have importers.
+      the shims that still have importers. **2026-09-29:** every remaining re-export shim is
+      deleted: their importers name the owning module file (or `@wbs/core`,
+      `@wbs/runtime-portable`, or a core service file) directly, and `kinds.json` drops all 56
+      `re-export shim` rows (80 entries become 24). Only the `auth.service.ts`,
+      `saved-plan.service.ts` and `saved-plan-schedule.ts` compatibility adapters stay, since
+      direct callers still construct them from stores. The task stays open for its first half:
+      tests of moved code (`gateway-broadcaster.test.ts`, the two `replay-buffer` suites,
+      `retention-timer.test.ts`, `prepare-import.test.ts` under `service/`, and
+      `use-cases/admission.test.ts`, and be-01 `service/` suites such as `retention-job.test.ts`
+      and `replay-orchestrator.test.ts`) still live outside their owners' modules.
 - [x] 7.2 Update `docs/code-organization/kinds.json` for every moved and suffix-declared file: a
       suffix-declared path carries no entry, and a retained unsuffixed shim keeps one. Closed
       2026-09-24 by evidence: both halves hold on this tree under
