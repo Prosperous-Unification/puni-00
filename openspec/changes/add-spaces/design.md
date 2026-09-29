@@ -70,6 +70,6 @@ first came in at 4,961 ms, which traced to the access gate's `findCrossReference
 whole tables, fixed separately (#235).
 
 As the specs state. Roll-ups: `rollUpProject(tree)` over `WorkItemResource.tree()`; a
-per-process LRU of 2,000 entries keyed `(projectId, seq, SCHEDULER_CONTRACT_VERSION,
+per-process LRU of 2,000 entries keyed `(projectId, seq, project revision, SCHEDULER_CONTRACT_VERSION,
 ROLLUP_DTO_VERSION)` with a 60 s TTL; chunks of at most 20 from fe, 50 at the route. Rejected
 there: a shared cache table, roll-ups inside the space read, keying on `project.revision`.

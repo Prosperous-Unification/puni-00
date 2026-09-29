@@ -323,7 +323,8 @@ describe('SpaceResource roll-ups', () => {
           scheduleError: null,
           waitingForPerson: 0,
           waitingForCapacity: 0,
-          projectRevision: 1,
+          // The revision `listWithin` answers for it, as the real tree agrees.
+          projectRevision: 0,
           seq: seqs.get(projectId) ?? 0,
         });
       },

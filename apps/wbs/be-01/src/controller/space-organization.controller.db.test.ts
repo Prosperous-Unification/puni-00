@@ -203,6 +203,50 @@ describe('after activation', () => {
     ).toBe(200);
   });
 
+  it('answers new dates after a start date change that publishes no event', async () => {
+    const space = await createSpace('ada', 'Q3');
+    await h.call('ada', 'POST', `/api/spaces/${space}/projects`, { projectId: own });
+    await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+      commands: [{ kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Root' }],
+    });
+    const rows = (await h.call('ada', 'GET', `/api/projects/${own}/work-items`)).body as {
+      workItems: { id: string }[];
+    };
+    const project = (await h.call('ada', 'GET', `/api/projects/${own}`)).body as {
+      steps: { id: string }[];
+    };
+    const row = rows.workItems.at(0);
+    const step = project.steps.at(0);
+    if (row === undefined || step === undefined) throw new Error('no row or step');
+    await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+      commands: [
+        {
+          kind: 'setEstimate',
+          workItemId: row.id,
+          stepId: step.id,
+          days: { optimistic: 2, realistic: 2, pessimistic: 2 },
+        },
+      ],
+    });
+    const datesOf = async () =>
+      (
+        (await h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?projectIds=${own}`)).body as {
+          rollUps: Record<string, { dates: { startsOn: string } | null }>;
+        }
+      ).rollUps[own].dates?.startsOn;
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { startDate: '2026-10-05' })).status,
+    ).toBe(200);
+    expect(await datesOf()).toBe('2026-10-05');
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { startDate: '2026-11-02' })).status,
+    ).toBe(200);
+    // Proof, observed 2026-09-29: with the project revision left out of the
+    // roll-up cache key, this read answered the cached `2026-10-05`: a start
+    // date change advances the revision but publishes no event.
+    expect(await datesOf()).toBe('2026-11-02');
+  });
+
   it('refuses 51 project ids with 400 and computes nothing', async () => {
     const space = await createSpace('ada', 'Q3');
     const ids = Array.from({ length: 51 }, (_, index) => `p${String(index)}`).join(',');

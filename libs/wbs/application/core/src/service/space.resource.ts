@@ -97,9 +97,14 @@ export class RollUpCache {
     readonly ttlMs = 60_000,
   ) {}
 
-  /** The key for one project at one sequence. */
-  static keyOf(projectId: string, seq: number): string {
-    return `${projectId}:${String(seq)}:${String(SCHEDULER_CONTRACT_VERSION)}:${String(ROLLUP_DTO_VERSION)}`;
+  /**
+   * The key for one project at one event sequence and one project revision.
+   * The revision is not redundant with the sequence: a project settings change
+   * (start date, PERT weights, reach, estimate method or rounding) advances
+   * the revision and moves dates and totals, yet publishes no event.
+   */
+  static keyOf(projectId: string, seq: number, revision: number): string {
+    return `${projectId}:${String(seq)}:${String(revision)}:${String(SCHEDULER_CONTRACT_VERSION)}:${String(ROLLUP_DTO_VERSION)}`;
   }
 
   get(key: string): ProjectRollUp | undefined {
@@ -257,7 +262,9 @@ export class SpaceResource {
       'organization_required' | 'not_found'
     >
   > {
-    const readable = await this.readableIds(actorId, access);
+    const projects = await this.opts.projects.listWithin(actorId, access);
+    const revisions = new Map(projects.map(({ id, revision }) => [id, revision]));
+    const readable = new Set(revisions.keys());
     let members: Set<string> = readable;
     if (spaceId !== ALL_PROJECTS) {
       const owner = await this.ownerOf(access);
@@ -274,7 +281,10 @@ export class SpaceResource {
     }
     const rollUps: Record<string, ProjectRollUp | UnavailableRollUp> = {};
     for (const projectId of projectIds) {
-      const rolled = await this.rollUpOf(projectId, access);
+      const revision = revisions.get(projectId);
+      // Checked readable above; absent here would be the list changing mid-call.
+      if (revision === undefined) return { ok: false, refusal: 'not_found' };
+      const rolled = await this.rollUpOf(projectId, revision, access);
       if (rolled === null) return { ok: false, refusal: 'not_found' };
       rollUps[projectId] = rolled;
     }
@@ -283,6 +293,7 @@ export class SpaceResource {
 
   private async rollUpOf(
     projectId: string,
+    revision: number,
     access: ResourceAccess,
   ): Promise<ProjectRollUp | UnavailableRollUp | null> {
     const seq = await this.opts.sequences.latestSeq(projectId);
@@ -290,7 +301,11 @@ export class SpaceResource {
     // `answers a command's new total on the next read, and serves an unchanged
     // one from the cache` in `space.resource.test.ts` received the old total 3
     // instead of 5.
-    const cached = this.opts.rollUpCache.get(RollUpCache.keyOf(projectId, seq));
+    // Proof, observed 2026-09-29: with the revision left out of this key,
+    // `answers new dates after a start date change that publishes no event` in
+    // `space-organization.controller.db.test.ts` received the cached
+    // `2026-10-05` instead of `2026-11-02`.
+    const cached = this.opts.rollUpCache.get(RollUpCache.keyOf(projectId, seq, revision));
     if (cached !== undefined) return cached;
     const tree = await this.opts.trees.treeWithin(projectId, access);
     if (tree === null) return null;
@@ -312,9 +327,9 @@ export class SpaceResource {
       projectRevision: tree.projectRevision,
       seq: tree.seq,
     });
-    // Keyed by the sequence the tree itself read, which is the one its rows
-    // are current at.
-    this.opts.rollUpCache.set(RollUpCache.keyOf(projectId, tree.seq), rollUp);
+    // Keyed by the sequence and revision the tree itself read, which are the
+    // ones its rows are current at.
+    this.opts.rollUpCache.set(RollUpCache.keyOf(projectId, tree.seq, tree.projectRevision), rollUp);
     return rollUp;
   }
 

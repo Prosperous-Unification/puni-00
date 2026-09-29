@@ -99,10 +99,11 @@ that in `findCrossReferences` scanning `work_item` and `dependency`. After the i
 merged here) it measures 484 ms and is asserted ≤ 1,000 ms × slack; the proof is that the
 pre-fix figure is over three times that bound.
 
-| Check                     | Fault injected                                            | Test that observed it                                                                        | Observed                           |
-| ------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------- |
-| cache keyed by sequence   | the sequence left out of `RollUpCache.keyOf`              | `answers a command's new total on the next read, and serves an unchanged one from the cache` | `Expected: 5`, `Received: 3`       |
-| cache expires             | the TTL check skipped                                     | `expires a roll-up after the TTL even at the same sequence`                                  | `Expected: 5`, `Received: 3`       |
-| status is the parent fold | `foldStatuses` swapped for an `agree` fold seeded unknown | `folds the roots, so a project whose roots are all on hold reads on_hold`                    | `Received: "in_progress"`          |
-| leak rule: roll-ups       | the readable check removed from `rollUps`                 | `answers no roll-up for a project the caller cannot open`                                    | `ok: true` with the hidden roll-up |
-| at most 50 ids            | the limit removed from `projectIdsOf`                     | `refuses 51 project ids with 400 and computes nothing`                                       | `status: 404`, not 400             |
+| Check                                     | Fault injected                                            | Test that observed it                                                                        | Observed                                   |
+| ----------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| cache keyed by sequence                   | the sequence left out of `RollUpCache.keyOf`              | `answers a command's new total on the next read, and serves an unchanged one from the cache` | `Expected: 5`, `Received: 3`               |
+| cache expires                             | the TTL check skipped                                     | `expires a roll-up after the TTL even at the same sequence`                                  | `Expected: 5`, `Received: 3`               |
+| status is the parent fold                 | `foldStatuses` swapped for an `agree` fold seeded unknown | `folds the roots, so a project whose roots are all on hold reads on_hold`                    | `Received: "in_progress"`                  |
+| leak rule: roll-ups                       | the readable check removed from `rollUps`                 | `answers no roll-up for a project the caller cannot open`                                    | `ok: true` with the hidden roll-up         |
+| at most 50 ids                            | the limit removed from `projectIdsOf`                     | `refuses 51 project ids with 400 and computes nothing`                                       | `status: 404`, not 400                     |
+| cache keyed by revision (capacity review) | the revision left out of `RollUpCache.keyOf`              | `answers new dates after a start date change that publishes no event` (mounted)              | `Received: "2026-10-05"`, not `2026-11-02` |
