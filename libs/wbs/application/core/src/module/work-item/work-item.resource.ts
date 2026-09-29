@@ -1668,6 +1668,18 @@ export class WorkItemService {
     return { kind: 'shared', project: captured.project, tree, document: captured.document };
   }
 
+  /**
+   * Every work item's update instant ({@link WorkItemStore.listUpdateInstants})
+   * through the caller's access: null for a project the caller cannot read.
+   */
+  async updateInstantsWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<ReadonlyMap<string, number | null> | null> {
+    if (!(await this.admits(projectId, access))) return null;
+    return this.opts.workItems.listUpdateInstants(projectId);
+  }
+
   /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */
   async treeWithin(
     projectId: string,

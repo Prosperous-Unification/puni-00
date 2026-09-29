@@ -111,6 +111,11 @@ export function inMemoryWorkItems(
   }
 
   return {
+    // This fixture's writes ignore their stamps, so it holds no instant to
+    // answer; only work-item pages read this, and they are proved on SQLite.
+    listUpdateInstants() {
+      return Promise.reject(new Error('the in-memory work-item store keeps no update instants'));
+    },
     listByProject(projectId) {
       return Promise.resolve(
         [...byId.values()]

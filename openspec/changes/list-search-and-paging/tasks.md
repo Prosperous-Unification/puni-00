@@ -21,15 +21,15 @@
 
 ## 2. Work-item rows and one work item (branch `batch-9/170-list-paging-work-items`)
 
-- [ ] 2.1 Red: unit tests for the row page (tree order before filters, each filter,
+- [x] 2.1 Red: unit tests for the row page (tree order before filters, each filter,
       `depth` with and without `parentId`, the field-group partition against the tree
       schema, `stale_cursor`, `unknown_parent`).
-- [ ] 2.2 Red: mounted db tests: default outline, a walk across a re-derived tree partitions
+- [x] 2.2 Red: mounted db tests: default outline, a walk across a re-derived tree partitions
       once, `fields`, foreign project 404, one work item equals its tree entry plus slices,
       foreign and absent work item 404, every 400.
-- [ ] 2.3 Green: shapes `getWorkItemRows` and `getWorkItem`, `getWorkItems` summary, routes,
+- [x] 2.3 Green: shapes `getWorkItemRows` and `getWorkItem`, `getWorkItems` summary, routes,
       `listUpdateInstants` in both adapters, mcp-01 README count +2.
-- [ ] 2.4 Negatives: unknown status admitted; unknown group admitted; depth bound removed;
+- [x] 2.4 Negatives: unknown status admitted; unknown group admitted; depth bound removed;
       filter applied before ordering; stale cursor resumed from the top; parent check
       removed; README count left unchanged.
 
