@@ -63,7 +63,14 @@ nothing, and forging one can only position a walk among rows the caller may read
 
 - Projects: `{ v: 1, k: [updatedAt | null, id] }`. Keyset resumption; a stored key rather
   than "after id" keeps page 2 from restarting near the top when the boundary project
-  itself was edited (it moved to the top and is not answered again).
+  itself was edited (it moved to the top and is not answered again). The honest costs,
+  stated in the spec: a project edited before it is reached is missed for that walk, and
+  a pruned plan event can lower an instant so a served project is served again.
+- Follow-up, not in this change: a covering index `work_item(project_id, updated_at)`
+  (Fable measured the list at 7-11 ms, 0.6 ms with it, for 300 projects of 200 items).
+  It is an additive migration with `down.sql`, but every new migration name is pinned in
+  about 24 store test files and would race the queued capacity migrations
+  (`20260929210000` latest), so it lands on its own with a stamp after them.
 - Work-item rows: `{ v: 1, after: id }`. Tree order is re-derived per read and positions
   are respaced on insert, so a stored position would mis-resume where an id does not.
   An id no longer in the tree is `409 stale_cursor` (precedent: `stale_address_revision`):
