@@ -64,6 +64,11 @@ export function organizationRoutes(
     bind(
       changeMemberRole,
       async ({ params, body, principal }): Promise<HttpReply<typeof changeMemberRole>> => {
+        // Proof: 2026-09-29, bypassing this guard made `refuses delegated member
+        // administration even for a super-admin` answer 200 with the
+        // membership changed.
+        if (principal.delegation !== undefined)
+          return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');
@@ -82,6 +87,11 @@ export function organizationRoutes(
       },
     ),
     bind(removeMember, async ({ params, principal }): Promise<HttpReply<typeof removeMember>> => {
+      // Proof: 2026-09-29, bypassing this guard made `refuses delegated member
+      // administration even for a super-admin` answer 204 with the membership
+      // removed.
+      if (principal.delegation !== undefined)
+        return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
       const resolved = await organizations.resolve(principal);
       if (!resolved.ok) return organizationRefusal(resolved.refusal);
       if (resolved.access.kind === 'legacy') return organizationRefusal('no_active_organization');

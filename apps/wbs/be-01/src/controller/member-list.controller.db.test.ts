@@ -79,6 +79,9 @@ describe('the member list', () => {
   it('refuses a removed administrator', async () => {
     h.activate();
     h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('adam')]);
-    expect((await h.call('adam', 'GET', '/api/organization/members')).status).toBe(403);
+    expect(await h.call('adam', 'GET', '/api/organization/members')).toEqual({
+      status: 403,
+      body: { error: 'not_a_member' },
+    });
   });
 });

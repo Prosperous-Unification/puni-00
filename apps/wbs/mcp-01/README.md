@@ -18,7 +18,7 @@ routes — the five that create, list, read, rename and delete a snapshot, plus
 `getApiProjectsByIdSaved-plansCompare`, which answers what changed between two
 of them — the four calendar-marker routes that list, add, edit and delete a
 dated annotation on a project's axis, the three membership routes that list, promote or demote, and
-remove members of the active organization, three invitation administration routes, three join-request administration routes, the organization domain-claim routes,
+remove members of the active organization (which, like the onboarding routes below, refuse every delegated caller and so answer an MCP client with 403), three invitation administration routes, three join-request administration routes, the organization domain-claim routes,
 and six onboarding routes, which refuse every delegated caller and so answer an
 MCP client with 403. The marker writes are not batched with the
 rest: a marker is not a plan edit, so no `commands` command creates one. One call
