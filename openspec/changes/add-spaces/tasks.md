@@ -50,14 +50,16 @@
       `foldStatuses` swapped for an `agree` fold → an all-held project reads `in_progress`;
       readable filter removed → a hidden project's roll-up is answered; TTL expiry skipped → a
       stale total past 60 s; the 50-id limit removed → 404 instead of 400.
-- [x] 3.5 The cache key carries the project revision (Fable's capacity review): a project
-      settings change moves dates and totals without an event. Mounted negative: start date
-      changed, revision left out → the cached old dates are answered.
 - [x] 3.4 The cold budget (Fable's profile): 4,607 of 4,961 ms was `findCrossReferences` in the
       access gate scanning `work_item` and `dependency`, not the tree (about 16 ms per 300
       rows). Fixed in #235 off main (both incoming arms now probe indexes, with an
       `EXPLAIN QUERY PLAN` proof), merged here. Chunks stay at 20; a cold chunk of 20 now
-      measures 484 ms and is asserted ≤ 1,000 ms × slack.
+      measures 444–484 ms. Fable's review: a wall-clock cold bound flakes on CI (coverage,
+      two parallel tasks, four vCPUs), so the cold path is asserted by its work instead (one
+      tree read per project cold, none warm, no gate table scan) and its time is printed only.
+- [x] 3.5 The cache key carries the project revision (Fable's capacity review): a project
+      settings change moves dates and totals without an event. Mounted negative: start date
+      changed, revision left out → the cached old dates are answered.
 
 ## 4. In progress now
 

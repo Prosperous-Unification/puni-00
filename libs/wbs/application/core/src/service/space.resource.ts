@@ -291,6 +291,15 @@ export class SpaceResource {
     return { ok: true, value: rollUps };
   }
 
+  /**
+   * One project's roll-up, from the cache when its sequence and revision match.
+   *
+   * A cache hit skips `treeWithin`, and with it the access gate's fail-closed
+   * cross-reference check (`admits`). Readability is still checked on every
+   * call, above. What a hit can miss is only corrupt state (a reference
+   * across organizations written after the entry was cached) and for at most
+   * the 60 s TTL; the next miss reads the tree and fails closed.
+   */
   private async rollUpOf(
     projectId: string,
     revision: number,

@@ -88,16 +88,19 @@ while the host disk was full; the suite passes alone, 32 of 32). The rerun at `1
 
 Written on `batch-9/010-4-15-spaces-roll-ups`, stacked on the routes branch after main
 `4bb71e5f` (statuses) was merged through storage. `project-roll-up.test.ts` 5 pass;
-`space.resource.test.ts` 18 pass; `space-organization.controller.db.test.ts` 10 pass (the
+`space.resource.test.ts` 18 pass; `space-organization.controller.db.test.ts` 11 pass (the
 after-activation block now opens the composed harness, whose real units of work the command
 case needs; the viewer, foreign-space and limit negatives were re-observed there).
 
-**Budget** (`space-roll-up-performance.db.test.ts`, 30 imported projects of 300 rows, this
-host, slack 3 locally and 4 on CI): space read 3.4–4.0 ms (≤ 30); warm chunk of 20 11.2–13.9 ms
-(≤ 100). The cold chunk of 20 first measured 4,961–4,972 ms. Fable's profile put 4,607 ms of
-that in `findCrossReferences` scanning `work_item` and `dependency`. After the index fix (#235,
-merged here) it measures 484 ms and is asserted ≤ 1,000 ms × slack; the proof is that the
-pre-fix figure is over three times that bound.
+**Budget** (`space-roll-up-performance.db.test.ts`, 30 imported projects of 300 rows): the space
+read (3–4 ms) is asserted under 120 ms and the warm chunk of 20 (11–15 ms) under 400 ms. The cold
+chunk first measured 4,961 ms; Fable's profile put 4,607 ms of it in `findCrossReferences`
+scanning `work_item` and `dependency`, fixed in #235 and merged here, after which it measures
+444–484 ms. Per Fable's review it is not bounded by wall clock, since CI runs be-01 under
+coverage beside another task on four vCPUs and no calibrated factor exists. The test asserts
+the cold path's work instead: 20 tree reads cold, none warm (cache hits ignored → 20 warm
+reads), and no gate table scan (`#235`'s parent arm restored → `SCAN w`, 4,115 ms). The time is
+printed.
 
 | Check                                     | Fault injected                                            | Test that observed it                                                                        | Observed                                   |
 | ----------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------ |
