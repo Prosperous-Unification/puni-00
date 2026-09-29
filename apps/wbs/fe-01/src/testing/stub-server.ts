@@ -7,6 +7,8 @@ export type StubAnswer = (body: unknown) => Response;
 export interface StubRequest {
   route: string;
   body: unknown;
+  /** The query string as sent, `?` included, or `''`. */
+  search: string;
 }
 
 /** A JSON response with the given status. */
@@ -33,9 +35,10 @@ export function stubServer(routes: Record<string, StubAnswer[]>): StubRequest[] 
   vi.stubGlobal(
     'fetch',
     vi.fn((url: string, init?: RequestInit) => {
-      const route = `${init?.method ?? 'GET'} ${new URL(url, 'http://wbs.test').pathname}`;
+      const address = new URL(url, 'http://wbs.test');
+      const route = `${init?.method ?? 'GET'} ${address.pathname}`;
       const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
-      sent.push({ route, body });
+      sent.push({ route, body, search: address.search });
       const queue = queues.get(route) ?? [];
       const next = queue.length > 1 ? queue.shift() : queue[0];
       if (next === undefined) return Promise.reject(new Error(`unstubbed ${route}`));

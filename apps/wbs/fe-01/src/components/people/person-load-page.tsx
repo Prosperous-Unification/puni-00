@@ -5,6 +5,7 @@ import { AppHeader } from '@/components/chrome/app-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
+import { loadRefusalWords } from './load-refusal';
 import { type LoadWindow, placeInWindow } from './load-window';
 
 const people = browserClient([readPersonLoad]);
@@ -88,7 +89,7 @@ export function PersonLoadPage({
             setView(
               reply.body.error === 'not_found'
                 ? { kind: 'absent' }
-                : { kind: 'failure', message: refusalWords(reply.body.error) },
+                : { kind: 'failure', message: loadRefusalWords(reply.body.error) },
             );
             return;
           default:
@@ -113,17 +114,6 @@ export function PersonLoadPage({
       </main>
     </div>
   );
-}
-
-function refusalWords(error: string): string {
-  switch (error) {
-    case 'no_active_organization':
-      return 'Choose an organization to see its people’s load.';
-    case 'not_a_member':
-      return 'You are no longer a member of this organization.';
-    default:
-      return 'The load could not be read. Try again.';
-  }
 }
 
 function Body({ view, window }: { view: View; window: LoadWindow }): React.JSX.Element {
@@ -253,6 +243,7 @@ function Lane({
             key={`${booking.workItemId}:${booking.stepId ?? ''}`}
             role="listitem"
             aria-label={`${booking.number} ${booking.name}, ${booking.startsOn} to ${booking.endsOn}${hatched ? ', booked twice' : ''}`}
+            title={`${booking.number} ${booking.name}`}
             data-overlapping={hatched ? 'true' : 'false'}
             className="bg-primary/70 absolute top-1 bottom-1 rounded-sm"
             style={{

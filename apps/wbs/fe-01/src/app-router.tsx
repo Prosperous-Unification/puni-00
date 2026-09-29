@@ -97,7 +97,7 @@ const directoryRoute = createRoute({
   component: function DirectoryRoute() {
     const { session, account, nav } = directoryRoute.useRouteContext();
     const [window] = useState(() => loadWindowFrom(localToday(new Date())));
-    const load = usePeopleLoad(window);
+    const load = usePeopleLoad(window, session.directory);
     return (
       // Nothing rather than a spinner: the chunk is fetched from the same
       // origin that just served the document, and a flash of "loading…"

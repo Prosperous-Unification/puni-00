@@ -48,12 +48,15 @@ commands advance the real event sequence.
 
 On `batch-9/010-4-16-capacity-load-page`, stacked on the load-view branch.
 
-| Command                                                                                                    | Result          |
-| ---------------------------------------------------------------------------------------------------------- | --------------- |
-| `TZ=UTC bunx vitest run src/components/people src/app-router.test.tsx src/components/directory` (in fe-01) | 64 pass, 0 fail |
-| `bunx nx run wbs-fe-01:typecheck`                                                                          | succeeded       |
+| Command                                                                                                    | Result                                                       |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `TZ=UTC bunx vitest run src/components/people src/app-router.test.tsx src/components/directory` (in fe-01) | 68 pass, 0 fail (after Fable's review of #240; 65 before it) |
+| `bunx nx run wbs-fe-01:typecheck`                                                                          | succeeded                                                    |
 
-| Check (file)                                                | Fault injected                                                     | Test that observed the failure                                                      | Result                                      |
-| ----------------------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------- |
-| overlap hatching (`fe-01/.../person-load-page.tsx`, `Lane`) | hatch by whole-day date intersection instead of overlap membership | `does not hatch a hand-off inside one day`                                          | `['true', 'true']` for `['false', 'false']` |
-| closed reason list (`contracts/.../person-load-shapes.ts`)  | `reason` widened to `'string'`                                     | `shows the query failure for a reason the contract does not name, not a blank lane` | no alert found                              |
+| Check (file)                                                            | Fault injected                                                     | Test that observed the failure                                                      | Result                                         |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------- | ---------------------------------------------- |
+| overlap hatching (`fe-01/.../person-load-page.tsx`, `Lane`)             | hatch by whole-day date intersection instead of overlap membership | `does not hatch a hand-off inside one day`                                          | `['true', 'true']` for `['false', 'false']`    |
+| closed reason list (`contracts/.../person-load-shapes.ts`)              | `reason` widened to `'string'`                                     | `shows the query failure for a reason the contract does not name, not a blank lane` | no alert found                                 |
+| unknown load (`fe-01/.../people-load-summary.tsx`, `loadLineOf`)        | the `unavailable` caveat dropped                                   | `says the load is partly unknown when a project could not be read`                  | `0 d booked, 0 d overlapping` read as complete |
+| refresh with the directory (`people-load-summary.tsx`, `usePeopleLoad`) | the directory snapshot left out of the effect's dependencies       | `reads the load again when the directory reads again, and not mid-write`            | one read instead of two                        |
+| link name (`people-load-summary.tsx`, `PersonLoadSummary`)              | `aria-label` cut to `Load of <name>`                               | `sums each person’s weeks into a link whose name carries the figures`, and two more | no link with the figures in its name           |

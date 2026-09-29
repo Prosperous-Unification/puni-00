@@ -162,7 +162,10 @@ hatch a booking only when be-01 names it in an overlap, and never infer an overl
 dates. It SHALL render loading, empty, query-failure, absent-person, undated and unavailable
 states. A response the shared contract refuses, such as an unknown unavailable reason, SHALL
 render the query-failure state. The directory SHALL show each person's booked and overlapping
-workdays over the same window, linked to their load page.
+workdays over the same window, linked to their load page, with the figures in the link's
+accessible name. When any readable project could not be read, every line SHALL say the load is
+partly unknown rather than show the figures as complete. The line SHALL be read again whenever
+the directory reads again: on arrival, after each of its writes, and on focus or visibility.
 
 #### Scenario: a hand-off inside one day
 
@@ -176,3 +179,9 @@ workdays over the same window, linked to their load page.
 - **GIVEN** be-01 answers an unavailable project with a reason the contract does not name
 - **WHEN** the load page reads it
 - **THEN** it shows the query-failure alert and names no project
+
+#### Scenario: an unreadable project
+
+- **GIVEN** Ana's only project reports `engine_unavailable`
+- **WHEN** the directory draws her load line
+- **THEN** it reads `0 d booked, 0 d overlapping; partly unknown: 1 project unavailable`

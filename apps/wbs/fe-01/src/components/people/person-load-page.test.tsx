@@ -44,7 +44,9 @@ describe('the person load page', () => {
     expect(screen.getByText('Loading load…')).toBeDefined();
     expect(await screen.findByText('Nothing booked in these weeks.')).toBeDefined();
     expect(WINDOW).toEqual({ from: '2026-10-05', to: '2026-11-27', workdays: 40 });
-    expect(sent.map((call) => call.route)).toEqual([ROUTE]);
+    expect(sent.map((call) => [call.route, call.search])).toEqual([
+      [ROUTE, '?from=2026-10-05&to=2026-11-27'],
+    ]);
   });
 
   it('draws one lane per project and hatches the bookings be-01 names in an overlap', async () => {
@@ -91,6 +93,7 @@ describe('the person load page', () => {
     // Three of forty workdays, from the window's first.
     expect(bar.style.left).toBe('0%');
     expect(bar.style.width).toBe('7.5%');
+    expect(bar.getAttribute('title')).toBe('010 Work w1');
     expect(screen.getByText('Billing (optimized)')).toBeDefined();
     expect(screen.getByText('Booked twice on 2026-10-05 to 2026-10-06.')).toBeDefined();
   });
