@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { closeSync, openSync } from 'node:fs';
 
-import { Database } from 'bun:sqlite';
+import { Database, SQLiteError } from 'bun:sqlite';
 
 import {
   McpStoreRefused,
@@ -68,7 +68,7 @@ export class McpSessionStore {
       const created = path === ':memory:' || createdAbsent(path);
       db = new Database(path, { create: false, readwrite: true, strict: true });
       db.run('PRAGMA busy_timeout = 5000');
-      db.run('PRAGMA journal_mode = WAL');
+      switchToWal(db);
       db.run('PRAGMA foreign_keys = ON');
       db.run('PRAGMA synchronous = FULL');
       migrateMcpStore(db, created);
@@ -445,6 +445,42 @@ export class McpSessionStore {
         { cause },
       );
     }
+  }
+}
+
+const WAL_SWITCH_ATTEMPTS = 100;
+const WAL_SWITCH_PAUSE_MS = 50;
+
+/**
+ * Sets `journal_mode = WAL`, retrying `SQLITE_BUSY` for up to 100 attempts 50 ms apart, the
+ * same 5 s a `busy_timeout` would wait.
+ *
+ * `busy_timeout` does not cover this pragma. On a store not yet in WAL, the switch takes a read
+ * lock and then upgrades it to write the header, and SQLite refuses such an upgrade at once
+ * rather than call the busy handler, because two upgraders could wait on each other forever.
+ * Two starts on one absent store collide exactly here: the creator refused with `database is
+ * locked` while its rival refused the empty file as not its own, and the store stayed an empty
+ * file that every later start refuses.
+ *
+ * @param db The store connection, outside any transaction.
+ * @param pause Waits between attempts; a test passes one that releases its rival's lock.
+ * @throws The last `SQLITE_BUSY` when every attempt is refused, or any other error at once.
+ */
+export function switchToWal(
+  db: Database,
+  pause: (ms: number) => void = (ms) => {
+    Bun.sleepSync(ms);
+  },
+): void {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      db.run('PRAGMA journal_mode = WAL');
+      return;
+    } catch (cause) {
+      const busy = cause instanceof SQLiteError && cause.code === 'SQLITE_BUSY';
+      if (!busy || attempt === WAL_SWITCH_ATTEMPTS) throw cause;
+    }
+    pause(WAL_SWITCH_PAUSE_MS);
   }
 }
 

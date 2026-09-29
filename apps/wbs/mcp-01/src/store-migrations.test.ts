@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
 
-import { type FamilyInput, McpSessionStore } from './session-store';
+import { type FamilyInput, McpSessionStore, switchToWal } from './session-store';
 import {
   MCP_STORE_MIGRATIONS,
   migrateMcpStore,
@@ -297,11 +297,83 @@ describe('MCP store migrations', () => {
       Bun.spawn(['bun', script, path], { stdout: 'pipe', stderr: 'pipe' }),
     );
     const outputs = await Promise.all(starts.map((start) => new Response(start.stdout).text()));
-    expect(outputs.some((output) => output.startsWith('opened'))).toBeTrue();
-    for (const output of outputs)
-      expect(output).toMatch(/^opened|^refused.*(exists but is empty|database is locked)/);
+    // The rival of the start that created the file may refuse it as empty, but the creator must
+    // open. `database is locked` is no longer an accepted refusal: it was the WAL switch refusing
+    // the creator, which then left both starts refused and the store an empty file (switchToWal).
+    expect(outputs, outputs.join('\n')).toSatisfy((all) =>
+      all.some((output) => output.startsWith('opened')),
+    );
+    for (const output of outputs) expect(output).toMatch(/^opened|^refused.*exists but is empty/);
     new McpSessionStore(path, [KEY]).close();
     expect(ledger(path)).toEqual([BASELINE, BINDING]);
+  });
+});
+
+describe('switchToWal', () => {
+  /** A rival start inside its migration: it holds the write lock on a store not yet in WAL. */
+  function rivalHoldingTheWriteLock(): { path: string; rival: Database } {
+    const path = storePath();
+    writeFileSync(path, '');
+    const rival = new Database(path, { strict: true });
+    rival.run('BEGIN IMMEDIATE');
+    return { path, rival };
+  }
+
+  function starting(path: string): Database {
+    const db = new Database(path, { create: false, readwrite: true, strict: true });
+    db.run('PRAGMA busy_timeout = 5000');
+    return db;
+  }
+
+  it('waits out a rival that holds the write lock, which busy_timeout does not', () => {
+    const { path, rival } = rivalHoldingTheWriteLock();
+    const db = starting(path);
+    try {
+      // The mechanism itself: the plain pragma is refused at once despite busy_timeout.
+      expect(() => db.run('PRAGMA journal_mode = WAL')).toThrow(/database is locked/);
+      const pauses: number[] = [];
+      // Proof: 2026-09-29, with the retry removed (a single attempt) this threw `database is
+      // locked`; under 24 CPU hogs the two-process start then ended with both starts refused.
+      switchToWal(db, (ms) => {
+        pauses.push(ms);
+        rival.run('COMMIT');
+      });
+      expect(pauses).toEqual([50]);
+      expect(db.query('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' });
+    } finally {
+      db.close();
+      rival.close();
+    }
+  });
+
+  it('gives up with the lock error after 100 refused attempts', () => {
+    const { path, rival } = rivalHoldingTheWriteLock();
+    const db = starting(path);
+    try {
+      let pauses = 0;
+      expect(() => {
+        switchToWal(db, () => {
+          pauses += 1;
+        });
+      }).toThrow(/database is locked/);
+      expect(pauses).toBe(99);
+    } finally {
+      db.close();
+      rival.run('ROLLBACK');
+      rival.close();
+    }
+  });
+
+  it('throws any other error without retrying', () => {
+    const db = new Database(':memory:');
+    db.close();
+    let pauses = 0;
+    expect(() => {
+      switchToWal(db, () => {
+        pauses += 1;
+      });
+    }).toThrow();
+    expect(pauses).toBe(0);
   });
 });
 
