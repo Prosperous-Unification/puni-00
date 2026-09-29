@@ -83,6 +83,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiServices',
     'getApiSpaces',
     'getApiSpacesById',
+    'getApiSpacesByIdRoll-ups',
     'getApiTags',
     'getApiTeams',
     'getApiWork-item-types',

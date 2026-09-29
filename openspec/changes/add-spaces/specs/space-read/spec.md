@@ -78,15 +78,23 @@ fallback.
 
 `GET /api/spaces/:id/roll-ups?projectIds=…` SHALL accept at most 50 ids, each a member the
 caller can open, and answer `{ rollUps: { [projectId]: rollUp } }`. A process cache SHALL key a
-roll-up by project id, the project's event sequence, the scheduler contract version and the
-roll-up version, and SHALL expire an entry after 60 seconds, so a roll-up is never staler than
-60 seconds nor stale at all after a write this process published.
+roll-up by project id, the project's event sequence, the project's revision, the scheduler
+contract version and the roll-up version, and SHALL expire an entry after 60 seconds. A roll-up
+SHALL never be staler than 60 seconds, and SHALL not be stale at all after a write this process
+committed, whether or not that write published an event: a project settings change such as a
+start date advances the revision without an event.
 
 #### Scenario: a command then a read
 
 - **GIVEN** a cached roll-up of `p1`
 - **WHEN** a plan command changes `p1`'s total and the roll-up is read again
 - **THEN** the new total is answered
+
+#### Scenario: a start date change then a read
+
+- **GIVEN** a cached roll-up of `p1` starting 2026-10-05
+- **WHEN** `p1`'s start date is changed to 2026-11-02 and the roll-up is read again
+- **THEN** the dates start 2026-11-02
 
 #### Scenario: fifty-one ids
 

@@ -81,6 +81,15 @@ export function inMemorySpaces(
     membersOf(organizationId, spaceId) {
       return Promise.resolve(find(organizationId, spaceId) === undefined ? null : ordered(spaceId));
     },
+    membersIn(organizationId) {
+      const members = new Map<string, SpaceMember[]>();
+      for (const space of spaces.values()) {
+        if (space.organizationId !== organizationId) continue;
+        const group = ordered(space.id);
+        if (group.length > 0) members.set(space.id, group);
+      }
+      return Promise.resolve(members);
+    },
     create(fresh, stamp) {
       if (nameTaken(fresh.organizationId, fresh.name)) {
         return Promise.resolve({ ok: false, reason: 'name_taken' });

@@ -206,6 +206,28 @@ export function spaceStoreConformance(open: () => SpaceStoreFixture): void {
     expect(await order(fixture, 's-1')).toEqual([a3, a2, a1]);
   });
 
+  it("reads every space's members in one read, in order, without another organization's", async () => {
+    const fixture = open();
+    const { a, b } = fixture.organizations;
+    const [a1, a2, a3] = fixture.projects.a;
+    await created(fixture, 's-1', 'Q3');
+    await created(fixture, 's-2', 'Launch');
+    await created(fixture, 's-3', 'Empty');
+    await fixture.store.addProject(a, 's-1', a2, null, fixture.stamp);
+    await fixture.store.addProject(a, 's-1', a1, null, fixture.stamp);
+    await fixture.store.addProject(a, 's-2', a3, null, fixture.stamp);
+    await fixture.store.create({ id: 's-9', organizationId: b, name: 'Theirs' }, fixture.stamp);
+    await fixture.store.addProject(b, 's-9', fixture.projects.b, null, fixture.stamp);
+    const members = await fixture.store.membersIn(a);
+    expect(Object.fromEntries(members)).toEqual({
+      's-1': [
+        { projectId: a1, position: 5 },
+        { projectId: a2, position: 10 },
+      ],
+      's-2': [{ projectId: a3, position: 10 }],
+    });
+  });
+
   it('keeps one project in many spaces, and removing a space changes no other', async () => {
     const fixture = open();
     const { a } = fixture.organizations;

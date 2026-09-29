@@ -201,3 +201,53 @@ export const moveSpaceProject = defineEndpointShape({
   refusals: [...writing, notFound, virtualSpace],
   document: { summary: 'Move a project within a space.' },
 });
+
+const statusCounts = type({
+  unknown: 'number',
+  draft: 'number',
+  ready: 'number',
+  in_progress: 'number',
+  blocked_by_proxy: 'number',
+  on_hold: 'number',
+  blocked: 'number',
+  done: 'number',
+});
+const rolledUp = type({
+  kind: "'rolled_up'",
+  dates: type({ startsOn: 'string', endsOn: 'string' }).or('null'),
+  finalTotal: 'number',
+  status:
+    "'unknown' | 'draft' | 'ready' | 'in_progress' | 'blocked_by_proxy' | 'on_hold' | 'blocked' | 'done'",
+  counts: { byStatus: statusCounts, leaves: 'number', estimated: 'number' },
+  scheduleError: 'string | null',
+  waitingForPerson: 'number',
+  waitingForCapacity: 'number',
+  displayed: 'string',
+  projectRevision: 'number',
+  seq: 'number',
+});
+const unavailable = type({ kind: "'unavailable'" });
+
+/**
+ * Roll-ups for up to 50 comma-separated `projectIds`, each a member of the
+ * space the caller can open (`all`: any project the caller can open). Any
+ * other id answers 404 for the whole request; more than 50, or none, 400.
+ * Separate from the space read so the rows paint first (design memo §8).
+ */
+export const readSpaceRollUps = defineEndpointShape({
+  method: 'GET',
+  path: '/api/spaces/:id/roll-ups',
+  operationId: 'getApiSpacesByIdRoll-ups',
+  policies: readPolicies,
+  params: spaceParams,
+  query: requestSchema(type({ projectIds: 'string' })),
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(type({ rollUps: type.Record('string', rolledUp.or(unavailable)) })),
+    },
+  ],
+  refusals: [...common, notFound],
+  document: { summary: 'Read roll-ups for projects of a space.' },
+});

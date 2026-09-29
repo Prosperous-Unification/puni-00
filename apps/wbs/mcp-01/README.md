@@ -20,8 +20,8 @@ of them — the four calendar-marker routes that list, add, edit and delete a
 dated annotation on a project's axis, the three membership routes that list, promote or demote, and
 remove members of the active organization (which, like the onboarding routes below, refuse every delegated caller and so answer an MCP client with 403), three invitation administration routes, three join-request administration routes, the organization domain-claim routes,
 and six onboarding routes, which refuse every delegated caller and so answer an
-MCP client with 403, and the eight space routes that list, create, read, rename and delete a
-space and add, remove and move its projects. The marker and space writes are not batched with
+MCP client with 403, and the nine space routes that list, create, read, rename and delete a
+space, add, remove and move its projects, and read its projects' roll-ups. The marker and space writes are not batched with
 the rest: neither is a plan edit, so no `commands` command creates one. One call
 also retries a failed or corrupt optimized variant; Retry is a project lifecycle
 action with no plan-command equivalent. Step edits may address a node with
