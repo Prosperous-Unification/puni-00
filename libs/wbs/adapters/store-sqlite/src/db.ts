@@ -1,4 +1,4 @@
-import { Database } from 'bun:sqlite';
+import { Database, SQLiteError } from 'bun:sqlite';
 import type { Logger } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { drizzle, type SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
@@ -21,8 +21,8 @@ export function openDatabase(dbPath: string): Database {
   const db = new Database(dbPath, { create: true });
   // `run` rather than the deprecated `exec`; behavior is identical for these
   // single-statement PRAGMAs.
-  db.run('PRAGMA journal_mode = WAL;');
   db.run(`PRAGMA busy_timeout = ${String(BUSY_TIMEOUT_MS)};`);
+  switchToWal(db);
   db.run('PRAGMA foreign_keys = ON;');
   // Asserted here, not left to the caller. Setting a PRAGMA is a request, not
   // a guarantee — SQLite reports the mode it actually adopted and does not
@@ -33,6 +33,42 @@ export function openDatabase(dbPath: string): Database {
   // would have been unverified.
   assertPragmas(db);
   return db;
+}
+
+const WAL_SWITCH_ATTEMPTS = 100;
+const WAL_SWITCH_PAUSE_MS = 50;
+
+/**
+ * Sets `journal_mode = WAL`, retrying `SQLITE_BUSY` for up to 100 attempts 50 ms apart, the
+ * same 5 s as `BUSY_TIMEOUT_MS`.
+ *
+ * `busy_timeout` does not cover this pragma. On a file not yet in WAL, the switch takes a read
+ * lock and then upgrades it to write the header, and SQLite refuses such an upgrade at once
+ * rather than call the busy handler, because two upgraders could wait on each other forever.
+ * Two processes opening one new file at the same moment meet exactly here, and without the
+ * retry one of them fails to open with `database is locked`. mcp-01 hit this race in CI on its
+ * own store; its `session-store.ts` carries the same retry.
+ *
+ * @param db A connection outside any transaction.
+ * @param pause Waits between attempts; a test passes one that releases its rival's lock.
+ * @throws The last `SQLITE_BUSY` when every attempt is refused, or any other error at once.
+ */
+export function switchToWal(
+  db: Database,
+  pause: (ms: number) => void = (ms) => {
+    Bun.sleepSync(ms);
+  },
+): void {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      db.run('PRAGMA journal_mode = WAL;');
+      return;
+    } catch (cause) {
+      const busy = cause instanceof SQLiteError && cause.code === 'SQLITE_BUSY';
+      if (!busy || attempt === WAL_SWITCH_ATTEMPTS) throw cause;
+    }
+    pause(WAL_SWITCH_PAUSE_MS);
+  }
 }
 
 /**
