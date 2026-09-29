@@ -167,7 +167,14 @@ export interface ScheduleView {
  * between them.
  */
 export type ScheduleFloorView =
-  'projectStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'capacity' | 'optimizer';
+  | 'projectStart'
+  | 'predecessor'
+  | 'stepOrder'
+  | 'notBefore'
+  | 'person'
+  | 'elsewhere'
+  | 'capacity'
+  | 'optimizer';
 
 /**
  * One placed slice — one work item's work for one step — as be-01 sends it.

@@ -166,12 +166,49 @@ export interface Scheduled {
  * day 4 with a slot opening on day 6 says capacity, and both landing on day 6
  * says person.
  */
+/**
+ * One booking a person holds in a project that outranks the one being
+ * scheduled, on that project's own workday offsets (`[start, end)`, fractions
+ * kept) — CONTEXT "Elsewhere", ADR 0034.
+ */
+export interface ElsewhereBooking {
+  readonly start: number;
+  readonly end: number;
+  readonly projectId: string;
+  readonly workItemId: string;
+}
+
+/** The project and work item a person is booked on elsewhere. */
+export interface ElsewhereHolder {
+  readonly projectId: string;
+  readonly workItemId: string;
+}
+
+/**
+ * Every person's bookings elsewhere, by person id: each list sorted by start
+ * and disjoint (a booking may touch the next, never overlap it). A person
+ * absent from the map is booked nowhere else.
+ */
+export type Elsewhere = ReadonlyMap<string, readonly ElsewhereBooking[]>;
+
 export type ScheduleFloor =
   | 'projectStart'
   | 'predecessor'
   | 'stepOrder'
   | 'notBefore'
   | 'person'
+  /**
+   * The assignee is booked by a project that outranks this one (CONTEXT
+   * "Elsewhere", ADR 0034), and that booking is what set the start.
+   *
+   * Listed after `person` and before `capacity`, so a tie keeps the plan's own
+   * reasons first and a pool that binds on the same instant as a foreign
+   * booking is not named for it. Only ever produced when `schedule()` is given
+   * a non-empty `elsewhere`; the slice then names the holder in
+   * {@link ScheduledSlice.elsewhereHolder}. It points at no slice of this plan,
+   * so {@link resourcePredecessorOf} answers {@link NOBODY} for it.
+   */
+  | 'elsewhere'
   | 'capacity'
   /**
    * The optimizer put it here, and nothing about the plan did — task 4.10.
@@ -200,6 +237,16 @@ export interface ScheduledSlice extends Scheduled {
   /** The person this work is queued behind, as the caller resolved it. */
   personId: string | null;
   boundBy: ScheduleFloor;
+  /**
+   * The booking elsewhere this slice waited for: the project and work item
+   * holding its person when it could have started.
+   *
+   * **Present exactly when `boundBy` is `'elsewhere'`, and absent otherwise**,
+   * rather than `null` on every slice: a plan scheduled without `elsewhere`
+   * must serialize byte for byte as it did before the floor existed, which is
+   * what `fast-golden-corpus.test.ts` holds this engine to.
+   */
+  elsewhereHolder?: ElsewhereHolder;
   /**
    * The slice this one waited behind, or null — the **display referent**, not
    * the graph.
@@ -329,6 +376,15 @@ export interface Schedule {
    * team sized, which is the state this tool shipped in until now.
    */
   waitingForCapacity: number;
+  /**
+   * How many work items hold a slice a booking **elsewhere** is the reason for
+   * — the header's "N tasks wait elsewhere".
+   *
+   * **Present exactly when the call was given a non-empty `elsewhere`**, for
+   * {@link ScheduledSlice.elsewhereHolder}'s reason: a plan nothing outranks
+   * must serialize as it did before the floor existed.
+   */
+  waitingElsewhere?: number;
   /**
    * How many aggregated pool events the levelling pass's window searches
    * visited, together.
@@ -673,6 +729,9 @@ interface WeightedEdge {
  */
 const NOBODY = -1;
 
+/** No bookings elsewhere: the critical-path pass, and every plan nothing outranks. */
+const NOWHERE: Elsewhere = new Map();
+
 /** Where one slice was put, and what put it there. */
 interface Placed {
   start: number;
@@ -694,6 +753,8 @@ interface Placed {
   capacityPredecessors: number[];
   /** Which pool ran out — see {@link ScheduledSlice.capacityTeamId}. */
   capacityTeamId: string | null;
+  /** Who held the person elsewhere; non-null exactly when `boundBy` is `'elsewhere'`. */
+  elsewhereHolder: ElsewhereHolder | null;
 }
 
 /**
@@ -1632,6 +1693,11 @@ function placeSlices(
   withResources: boolean,
   sizes: PoolSizes,
   /**
+   * The people's bookings elsewhere, placed around only when `withResources`.
+   * A person absent from it takes the path this pass always took, unchanged.
+   */
+  elsewhere: Elsewhere,
+  /**
    * Task 4.9's `annotate`: one start per node, or `undefined` for Fast's own.
    *
    * **A mode of this pass, never a second implementation and never a
@@ -1724,7 +1790,35 @@ function placeSlices(
       node.notBefore,
       busy === undefined ? 0 : busy.finish,
     );
-    let window = profile.jointWindowFor(poolIds, width, duration, planFloor);
+    // Proof: this lookup made to answer `undefined` always, so the interval
+    // search is bypassed, made `waits for a booking elsewhere before it
+    // starts` (`schedule-elsewhere.test.ts`) place the slice across the
+    // foreign interval at 0 with `boundBy: 'projectStart'`; watched 2026-09-29.
+    const booked = personId === null ? undefined : elsewhere.get(personId);
+    let away: { start: number; holder: ElsewhereBooking } | null = null;
+    let window: JointWindow;
+    // The pool's own evidence: the search that moved the start, when one did.
+    let pushed: JointWindow | null = null;
+    if (booked === undefined) {
+      window = profile.jointWindowFor(poolIds, width, duration, planFloor);
+    } else {
+      // The search is asked for `[start, start + duration)`, and the slice then
+      // reserves up to {@link tileFinish}'s finish, which can exceed that by
+      // floating-point drift (under {@link withinDrift}) when a work item's
+      // slices tile. A booking starting exactly there is therefore touched,
+      // never entered, beyond drift — the tolerance the weighted replay and
+      // `schedule-elsewhere.test.ts`'s overlap property both apply. The
+      // weighted path re-searches with the tiled length; this pass keeps
+      // Fast's placement unchanged instead, and states the tolerance here.
+      ({ window, pushed, away } = windowAroundElsewhere(
+        booked,
+        profile,
+        poolIds,
+        width,
+        duration,
+        planFloor,
+      ));
+    }
     // Latest wins, and a tie keeps the reason listed first — which is why the
     // person is second to last and capacity is last; see {@link ScheduleFloor}.
     // A slice can carry both, because a team's slot is spent whether or not
@@ -1755,7 +1849,8 @@ function placeSlices(
       { at: fromStepOrder, kind: 'stepOrder' },
       { at: node.notBefore, kind: 'notBefore' },
       ...(busy === undefined ? [] : [{ at: busy.finish, kind: 'person' as const }]),
-      { at: window.start, kind: 'capacity' as const },
+      ...(away === null ? [] : [{ at: away.start, kind: 'elsewhere' as const }]),
+      { at: (pushed ?? window).start, kind: 'capacity' as const },
     ];
     // The tie rule and its proof live on {@link resolveFloor}, which the
     // optimized materialiser calls too — see 4.9.
@@ -1775,11 +1870,17 @@ function placeSlices(
 
     const { held, finish } = tileFinish(anchorOf[node.item], start, at, offsets);
     anchorOf[node.item] = held;
+    // Proof: the final window handed over for a capacity floor too made
+    // `names the pool when a pool pushes past the booking, with its blocking
+    // set` (`schedule-elsewhere.test.ts`) throw `waited for capacity with
+    // nothing holding the pool`; handing `pushed` for every floor made `names
+    // the booking when it pushes past the pool` throw `names t with no pool
+    // binding it`; watched 2026-09-29.
     const { capacityPredecessors, capacityTeamId, referent } = annotateCapacity(
       node.key,
       boundBy,
       start,
-      window,
+      boundBy === 'capacity' && pushed !== null ? pushed : window,
       (blocker) => placed[blocker].finish,
       (blocker) => placedAt[blocker],
     );
@@ -1790,6 +1891,7 @@ function placeSlices(
       resourcePredecessor: resourcePredecessorOf(boundBy, busy, referent),
       capacityPredecessors,
       capacityTeamId,
+      elsewhereHolder: boundBy === 'elsewhere' ? holderOf(node.key, away) : null,
     };
     placedAt[taken] = order.length;
     order.push(taken);
@@ -1866,6 +1968,118 @@ function findPersonWindow(
     start = interval.finish;
   }
   return { start, blocking };
+}
+
+/**
+ * The earliest start at or after `floor` where `duration` fits between one
+ * person's bookings elsewhere, and the booking that ended last before it — or
+ * `null` when no booking moved it. Half-open, as every reservation here is: a
+ * booking ending at an instant leaves that instant free.
+ *
+ * Proof: both comparisons made inclusive made `fits in a gap between bookings,
+ * and a touching booking holds nothing` (`schedule-elsewhere.test.ts`) push a
+ * slice off a booking it only touched; watched 2026-09-29.
+ */
+function elsewhereWindow(
+  bookings: readonly ElsewhereBooking[],
+  floor: number,
+  duration: number,
+): { start: number; holder: ElsewhereBooking | null } {
+  let start = floor;
+  let holder: ElsewhereBooking | null = null;
+  if (duration === 0) return { start, holder };
+  for (const booking of bookings) {
+    if (booking.end <= start) continue;
+    if (booking.start >= start + duration) break;
+    start = booking.end;
+    holder = booking;
+  }
+  return { start, holder };
+}
+
+/**
+ * {@link placeSlices}' window for a person booked elsewhere: move between the
+ * bookings and the pools until both accept one instant.
+ *
+ * Each side keeps its own evidence — the last search that moved the start —
+ * as {@link findResourceWindow} does, because the one that moved last is the
+ * reason. `pushed` is the pool's: the window whose blocking set explains a
+ * `capacity` floor. `window` is the final search, asked from its own answer,
+ * so its blocking set is empty — what {@link annotateCapacity} must be handed
+ * for any other floor, since a team named on a slice no pool held up throws.
+ *
+ * Terminates: every round starts strictly later than the last, and both the
+ * bookings and the pool's events are finite.
+ */
+function windowAroundElsewhere(
+  bookings: readonly ElsewhereBooking[],
+  profile: ReturnType<typeof capacityProfile>,
+  poolIds: readonly string[],
+  width: number,
+  duration: number,
+  floor: number,
+): {
+  window: JointWindow;
+  pushed: JointWindow | null;
+  away: { start: number; holder: ElsewhereBooking } | null;
+} {
+  let from = floor;
+  let away: { start: number; holder: ElsewhereBooking } | null = null;
+  let pushed: JointWindow | null = null;
+  for (;;) {
+    const found = elsewhereWindow(bookings, from, duration);
+    if (found.holder !== null) away = { start: found.start, holder: found.holder };
+    const window = profile.jointWindowFor(poolIds, width, duration, found.start);
+    if (window.start === found.start) return { window, pushed, away };
+    pushed = window;
+    from = window.start;
+  }
+}
+
+/** The holder a slice bound by `elsewhere` names, or a throw when none bound it. */
+function holderOf(key: string, away: { holder: ElsewhereBooking } | null): ElsewhereHolder {
+  if (away === null) throw new Error(`${key} waited elsewhere with no booking holding it`);
+  return { projectId: away.holder.projectId, workItemId: away.holder.workItemId };
+}
+
+/**
+ * Refuses an `elsewhere` the engine cannot place around: a person listed with
+ * no booking, or a booking that is not finite, holds no time, or overlaps or
+ * precedes the one listed before it. The chain read builds these from other
+ * projects' schedules, so a malformed one is a broken caller and never a plan
+ * to place around.
+ *
+ * **A listed person holds at least one booking**, and that is what makes
+ * "non-empty" one fact everywhere: `elsewhere.size > 0` in `schedule()`, in
+ * {@link canonicalScheduleInput}, which calls this, and in the solver request
+ * builder. A person with `[]` would otherwise hash as the booking-free plan
+ * while the engine answered `waitingElsewhere: 0` and refused pinned starts.
+ *
+ * Proof: the call to this removed made `refuses a malformed map`
+ * (`schedule-elsewhere.test.ts`) schedule all five maps; the empty-list refusal
+ * alone removed made it schedule `{ ana: [] }`, and `refuses a person listed
+ * with no booking` (`canonical-schedule-input.test.ts`) hash it; watched
+ * 2026-09-29.
+ */
+export function checkElsewhere(elsewhere: Elsewhere): void {
+  for (const [personId, bookings] of elsewhere) {
+    if (bookings.length === 0) {
+      throw new Error(`elsewhere for ${personId}: a person is listed with no booking`);
+    }
+    let previousEnd = -Infinity;
+    for (const booking of bookings) {
+      if (!Number.isFinite(booking.start) || !Number.isFinite(booking.end)) {
+        throw new Error(`elsewhere for ${personId}: a booking is not finite`);
+      }
+      if (booking.end <= booking.start) {
+        throw new Error(`elsewhere for ${personId}: a booking holds no time`);
+      }
+      if (booking.start < previousEnd) {
+        throw new Error(`elsewhere for ${personId}: bookings overlap or are out of order`);
+      }
+      previousEnd = booking.end;
+    }
+  }
 }
 
 /** Revisit person and pool windows until both accept the same interval. */
@@ -2045,6 +2259,8 @@ function placeWeightedSlices(
   goesFirst: (left: number, right: number) => boolean,
   withResources: boolean,
   sizes: PoolSizes,
+  /** See {@link placeSlices}; seeded into each person's interval list as fixed intervals. */
+  elsewhere: Elsewhere,
   pinned?: readonly number[],
   round = 0,
 ): {
@@ -2066,7 +2282,31 @@ function placeWeightedSlices(
   const order: number[] = [];
   const anchors = new Array<SpanAnchor | undefined>(graph.items);
   const profile = capacityProfile(sizes);
-  const people = new Map<string, { node: number; start: number; finish: number }[]>();
+  // Bookings elsewhere enter each person's interval list as fixed intervals
+  // under node indices below NOBODY, so the window search steps over them like
+  // any other reservation and a blocking list can say which kind held it.
+  // Proof: the seeding skipped made `waits for a booking elsewhere across a
+  // typed dependency` (`schedule-elsewhere.test.ts`) place the slice across
+  // the foreign interval; watched 2026-09-29.
+  const away: ElsewhereBooking[] = [];
+  const awayIntervals = new Map<string, { node: number; start: number; finish: number }[]>();
+  if (withResources) {
+    for (const [personId, bookings] of elsewhere) {
+      awayIntervals.set(
+        personId,
+        bookings.map((booking) => ({
+          node: NOBODY - away.push(booking),
+          start: booking.start,
+          finish: booking.end,
+        })),
+      );
+    }
+  }
+  const awayOf = (node: number | undefined): ElsewhereBooking | undefined =>
+    node === undefined || node >= NOBODY ? undefined : away[NOBODY - node - 1];
+  const seededPeople = () =>
+    new Map([...awayIntervals].map(([personId, intervals]) => [personId, [...intervals]]));
+  const people = seededPeople();
   for (let taken = eligible.take(); taken !== undefined; taken = eligible.take()) {
     const node = nodes[taken];
     const duration = durationOf(node.slice);
@@ -2160,6 +2400,7 @@ function placeWeightedSlices(
       resourcePredecessor: NOBODY,
       capacityPredecessors: [],
       capacityTeamId: null,
+      elsewhereHolder: null,
     };
     order.push(taken);
     if (pinned === undefined && withResources && duration > 0) {
@@ -2183,7 +2424,7 @@ function placeWeightedSlices(
     // may begin before the predecessor that made it eligible.
     // Actual starts decide resource order; plan order only materializes pins.
     const replayProfile = capacityProfile(sizes);
-    const replayPeople = new Map<string, { node: number; start: number; finish: number }[]>();
+    const replayPeople = seededPeople();
     const chronology = [...order].sort(
       (left, right) => placed[left].start - placed[right].start || left - right,
     );
@@ -2197,6 +2438,10 @@ function placeWeightedSlices(
       if (slice.personId !== null) {
         const assigned = replayPeople.get(slice.personId) ?? [];
         assigned.push({ node: at, start: from, finish: until });
+        // Chronological pushes keep a list sorted by start; a seeded one needs
+        // the sort, because its bookings elsewhere were all there first.
+        if (awayIntervals.has(slice.personId))
+          assigned.sort((left, right) => left.start - right.start);
         replayPeople.set(slice.personId, assigned);
       }
       replayProfile.reserve(slice.poolIds, at, slice.width, from, until);
@@ -2272,7 +2517,15 @@ function placeWeightedSlices(
         actualDuration,
       );
       const candidates: FloorCandidate[] = [{ at: planFloor, kind: planKind }];
-      if (person.start > planFloor) candidates.push({ at: person.start, kind: 'person' });
+      // The last interval that pushed says which kind held it: a slice of
+      // this plan (`person`) or a booking elsewhere.
+      // Proof: every push named `person` made `waits for a booking elsewhere
+      // across a typed dependency` (`schedule-elsewhere.test.ts`) read
+      // `boundBy: 'person'`; watched 2026-09-29.
+      const holder = awayOf(person.blocking.at(-1));
+      if (person.start > planFloor) {
+        candidates.push({ at: person.start, kind: holder === undefined ? 'person' : 'elsewhere' });
+      }
       if (pool.start > Math.max(planFloor, person.start))
         candidates.push({ at: pool.start, kind: 'capacity' });
       const resolved = resolveFloor(candidates);
@@ -2283,6 +2536,11 @@ function placeWeightedSlices(
       placed[taken].boundBy = boundBy;
       if (boundBy === 'person')
         placed[taken].resourcePredecessor = person.blocking.at(-1) ?? NOBODY;
+      if (boundBy === 'elsewhere')
+        placed[taken].elsewhereHolder = holderOf(
+          node.key,
+          holder === undefined ? null : { holder },
+        );
       if (boundBy === 'capacity') {
         const annotation = annotateCapacity(
           node.key,
@@ -2322,6 +2580,7 @@ function placeWeightedSlices(
         goesFirst,
         withResources,
         sizes,
+        elsewhere,
         repinned,
         round + 1,
       );
@@ -2889,7 +3148,37 @@ export function schedule(
    * tell which slice came from which.
    */
   pinnedStarts?: ReadonlyMap<string, number>,
+  /**
+   * Every person's bookings in the projects that outrank this one, on this
+   * project's workday offsets — the ninth field of {@link ScheduleInput}, and
+   * the tenth argument here, after `pinnedStarts`, so every existing caller's
+   * positions stand;
+   * `share-people-across-projects` slice 4, ADR 0034.
+   *
+   * No slice of a person is placed across one of their bookings, and a slice
+   * whose start a booking set reads `boundBy: 'elsewhere'` with the holder.
+   * Resources only: the critical-path pass the leveller ranks by is the plan
+   * with nobody in it, and nobody is booked there.
+   *
+   * **Empty by default, and empty places byte for byte as before**: the lookup
+   * that finds a person's bookings misses, and the pass takes the path it
+   * always took. `schedule-elsewhere.test.ts` holds the whole golden corpus to
+   * that, argument supplied and not.
+   *
+   * @throws for a malformed map (see {@link checkElsewhere}), and for a
+   * non-empty map beside `pinnedStarts`: the optimized materialiser learns to
+   * work around bookings with solver wire 3 (slice 5), and until then an
+   * optimized answer placed around none of them is not one to publish.
+   */
+  elsewhere: Elsewhere = new Map(),
 ): Schedule {
+  checkElsewhere(elsewhere);
+  // Proof: this refusal removed made `refuses to materialise pinned starts
+  // around bookings elsewhere` (`schedule-elsewhere.test.ts`) return a
+  // schedule instead of throwing; watched 2026-09-29.
+  if (pinnedStarts !== undefined && elsewhere.size > 0) {
+    throw new Error('pinned starts cannot yet be materialised around bookings elsewhere');
+  }
   const index = indexTree(rows);
   const { leafIds } = index;
   const sliced = groupByWorkItem(leafIds, slices);
@@ -3041,8 +3330,15 @@ export function schedule(
   // computed in is the order the nodes were built in, which is all a plan with
   // no queues in it needs.
   const unleveled = isWeighted
-    ? placeWeightedSlices(graph, weightedEdges, (left, right) => left < right, false, poolSizes)
-    : placeSlices(graph, (left, right) => left < right, false, poolSizes);
+    ? placeWeightedSlices(
+        graph,
+        weightedEdges,
+        (left, right) => left < right,
+        false,
+        poolSizes,
+        NOWHERE,
+      )
+    : placeSlices(graph, (left, right) => left < right, false, poolSizes, NOWHERE);
   const criticalPath = isWeighted
     ? weightedLateTimes(
         graph,
@@ -3202,8 +3498,16 @@ export function schedule(
             : pinnedByNode[left] < pinnedByNode[right];
 
   const leveled = isWeighted
-    ? placeWeightedSlices(graph, weightedEdges, levelOrder, true, poolSizes, pinnedByNode)
-    : placeSlices(graph, levelOrder, true, poolSizes, pinnedByNode);
+    ? placeWeightedSlices(
+        graph,
+        weightedEdges,
+        levelOrder,
+        true,
+        poolSizes,
+        elsewhere,
+        pinnedByNode,
+      )
+    : placeSlices(graph, levelOrder, true, poolSizes, elsewhere, pinnedByNode);
   const projectFinish = Math.max(0, ...leveled.placed.map((each) => each.finish));
   // The augmented graph: the plan's edges and the ones the placement chose. A
   // slice held off by a person cannot slip without moving what that person does
@@ -3237,6 +3541,7 @@ export function schedule(
   const scheduledSlices = new Map<string, ScheduledSlice>();
   const waiting = new Set<string>();
   const waitingOnSlots = new Set<string>();
+  const waitingAway = new Set<string>();
   const projectionFinishes = Array.from({ length: items }, () => 0);
   nodes.forEach((node, at) => {
     projectionFinishes[node.item] = Math.max(
@@ -3280,6 +3585,7 @@ export function schedule(
     // and "waiting for a slot" are different sentences, and `boundBy` names
     // exactly one of them for any slice.
     if (placed.boundBy === 'capacity') waitingOnSlots.add(slice.workItemId);
+    if (placed.boundBy === 'elsewhere') waitingAway.add(slice.workItemId);
     scheduledSlices.set(node.key, {
       workItemId: slice.workItemId,
       stepId: slice.stepId,
@@ -3306,6 +3612,7 @@ export function schedule(
         placed.resourcePredecessor === NOBODY ? null : nodes[placed.resourcePredecessor].key,
       capacityPredecessorIds: placed.capacityPredecessors.map((blocker) => nodes[blocker].key),
       capacityTeamId: placed.capacityTeamId,
+      ...(placed.elsewhereHolder === null ? {} : { elsewhereHolder: placed.elsewhereHolder }),
       lateBy: missed === 0 ? null : missed,
     });
   });
@@ -3320,6 +3627,10 @@ export function schedule(
     workItems: projectOntoWorkItems(rows, index, slicesOf, scheduleOf),
     waitingForPerson: waiting.size,
     waitingForCapacity: waitingOnSlots.size,
+    // Proof: present on every plan made `keeps every golden corpus case byte
+    // for byte, the map supplied empty` (`schedule-elsewhere.test.ts`) fail on
+    // the extra key; watched 2026-09-29.
+    ...(elsewhere.size === 0 ? {} : { waitingElsewhere: waitingAway.size }),
     eventsVisited: leveled.eventsVisited,
   };
   validateRealBoundaries(

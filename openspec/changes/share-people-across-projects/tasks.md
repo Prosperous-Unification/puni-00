@@ -39,19 +39,30 @@
 
 ## 4. Domain
 
-- [ ] 4.1 `elsewhere` in `schedule()`, the floor, the hash, contract 15 and DTO 3.
-- [ ] 4.2 Negatives: interval search bypassed on the FS path → a slice overlaps a foreign
+- [x] 4.1 `elsewhere` in `schedule()`, the floor, the hash, contract 15 and DTO 3.
+- [x] 4.2 Negatives: interval search bypassed on the FS path → a slice overlaps a foreign
       interval; `elsewhere` left out of the hash → a moved booking serves the cached optimized
       result; empty-map corpora stay byte-identical.
 
 ## 5. Wire v3, solver-py 0.2.0
 
+- [ ] 5.0 Obligations from Fable's review of #250:
+  - Thread `elsewhere` (unit-axis scaled) through `materialise-optimized.ts`'s `schedule()` call
+    and through `quantisedFastBaseline` (called in `solver-request-pair.ts`), so that the
+    publication guard never compares a bookings-aware Fast baseline against a bookings-blind
+    optimized plan.
+  - Check whether the `buildSolverRequest` refusal's `throw` is caught around
+    `optimization.feature.ts` (~369); prefer a preflight `{ ok: false }`.
+  - Lift the two slice-4 refusals once wire 3 carries bookings.
 - [ ] 5.1 Wire, model, and Bun re-validation.
 - [ ] 5.2 Negatives: fixed interval dropped in `model.py` → Bun refuses publication; 0.1.4 fed
       v3 → a typed refusal; the ADR 0025 binding rebuilt.
 
 ## 6. Chain, mode, guard, fan-out
 
+- [ ] 6.0 Obligation from Fable's review of #250: thread `elsewhere` into
+      `scheduleInputOfCaptured` / `schedulePlanInput` (`saved-plan-schedule.ts`).
+      `SCHEDULE_ALGORITHM_ID` stays `slice-leveling-v4` through this slice (Fable's decision).
 - [ ] 6.1 Influencers, the chain read, `shared_people`, the guarded `down.sql`, the rollback CLI,
       `capacityModes`, and `elsewhere_changed`.
 - [ ] 6.2 Negatives: closure made non-transitive → C behind B behind A takes A's slot; mode

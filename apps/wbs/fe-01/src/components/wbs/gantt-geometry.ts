@@ -62,7 +62,14 @@ export class GanttDataError extends Error {
  * carrying it came from the optimized path.
  */
 export type BindingFloor =
-  'projectStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'capacity' | 'optimizer';
+  | 'projectStart'
+  | 'predecessor'
+  | 'stepOrder'
+  | 'notBefore'
+  | 'person'
+  | 'elsewhere'
+  | 'capacity'
+  | 'optimizer';
 
 /**
  * The ten colours a person's bars are drawn in, handed out in this order.
@@ -1760,7 +1767,7 @@ export function routeArrow(
  * itself, so it names the anchor instead, in the same shape as the sibling
  * below it.
  */
-const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person' | 'capacity'>, string> = {
+const FLOOR_SENTENCE: Record<Exclude<BindingFloor, 'person' | 'capacity' | 'elsewhere'>, string> = {
   projectStart: 'Starts with the project',
   predecessor: 'Waits for a dependency’s first estimated step',
   stepOrder: 'Waits for an earlier step on this item',
@@ -2680,6 +2687,15 @@ function floorWordsOf(
       }
       return personFloorWords(personName, predecessor, rowNames, stepsById);
     }
+    // be-01 can place around bookings elsewhere (`share-people-across-projects`
+    // slice 4) but sends none until an organization shares its people (slice
+    // 8). The sentence that names the holder is slice 7's; until then a bar
+    // held elsewhere is data this chart has no words for, and it reaches the
+    // error boundary the unknown-floor arm below would have sent it to.
+    case 'elsewhere':
+      throw new GanttDataError(
+        `slice ${slice.id} is held elsewhere, which this chart has no words for yet`,
+      );
     default: {
       // `never` here is the type saying the seven above are all of them; the
       // throw is for the runtime, where a payload can carry a seventh.
