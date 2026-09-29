@@ -6,6 +6,7 @@ import {
   type Schedule,
   schedule,
   type Slice,
+  withoutHeldSubtrees,
   workdaysBetween,
 } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
@@ -43,10 +44,6 @@ export function scheduleInputOfCaptured(reads: PlanInputReads): ScheduleInput {
     ...row,
     factStart: null,
     factEnd: null,
-    // Saved-plan input schema 4 captures both (slice 5); until then a saved
-    // plan reads as nothing said.
-    readiness: null,
-    hold: null,
   }));
   const rule: EstimateRule = {
     method: reads.project.estimateMethod,
@@ -106,17 +103,27 @@ export function scheduleInputOfCaptured(reads: PlanInputReads): ScheduleInput {
               .map((row) => [row.id, row.deadline]),
           ),
         );
-  return {
-    rows,
-    edges: reads.dependencies,
-    slices,
-    notBefore,
-    poolSizes: reads.capacity,
-    reach: reads.project.depReach,
-    deadlines,
-    // Proof: dropping the captured list made `schedules a captured node relationship into a later successor step` observe B.s2 at day 1 instead of 3 (2026-09-27).
-    typed: reads.typedDependencies,
-  };
+  // The live read's hold reduction, on the captured statements: a saved plan
+  // schedules without the work that was on hold when it was saved.
+  // Proof: this reduction bypassed made `schedules a saved plan without its
+  // on-hold work…` fail on B starting at day 3; watched 2026-09-29.
+  const heldLeafIds = new Set(
+    rows.filter((row) => row.hold === 'on_hold' && !hasChildren.has(row.id)).map((row) => row.id),
+  );
+  return withoutHeldSubtrees(
+    {
+      rows,
+      edges: reads.dependencies,
+      slices,
+      notBefore,
+      poolSizes: reads.capacity,
+      reach: reads.project.depReach,
+      deadlines,
+      // Proof: dropping the captured list made `schedules a captured node relationship into a later successor step` observe B.s2 at day 1 instead of 3 (2026-09-27).
+      typed: reads.typedDependencies,
+    },
+    heldLeafIds,
+  );
 }
 
 /** Schedules the canonical input derived from detached capture reads. */

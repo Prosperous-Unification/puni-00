@@ -88,10 +88,18 @@
 
 ## 5. Saved plans and plan document v6
 
-- [ ] 5.1 Red: v3 → v4 upgrade equality, diff reports, v6 round trip, v1–v5 import, refusals.
-- [ ] 5.2 Green: schema 4 with `[3, withNoHolds]`, plan document v6, spreadsheet status word.
-- [ ] 5.3 Negatives: upgrade returns the body unchanged → cross-version equality fails; import
-      vocabulary guard removed → `hold: 'paused'` accepted.
+- [x] 5.1 Red (saved plans): v3 to v4 upgrade compares clean against the current body; a
+      malformed v3 body is refused; the saved plan's schedule leaves out on-hold work and the
+      capture carries readiness and hold; `diffPlans` reports both under `progress`.
+- [x] 5.2 Green (saved plans): `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` 4, `[3, withNoStatusFacts]`,
+      `SUPPORTED_INPUT_BODY_VERSIONS` gains 4, `CapturedWorkItem` and `CanonicalWorkItem` carry
+      both fields, `scheduleInputOfCaptured` applies `withoutHeldSubtrees`.
+- [x] 5.3 Negatives (saved plans): the upgrade returning the body unchanged; the saved plan's
+      reduction handed an empty held set.
+- [ ] 5.4 Plan document v6: waits for typed dependency stage B's v5 (#183) to reach main, so v6
+      is written on top of it rather than on v4. Then import reads v1–v5 with both fields null
+      and refuses a value outside each vocabulary, a statement on a parent, and a hold on a row
+      marked done; the spreadsheet export already carries the status word (`Status` column).
 
 ## 6. fe-01 table (ships in the same integration round as slice 3)
 

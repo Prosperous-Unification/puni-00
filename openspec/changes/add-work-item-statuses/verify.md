@@ -129,6 +129,13 @@ Each fault was injected into the production code, the named test run, and the fi
 | a held row reports no schedule         | placeholder kept in the projection              | same case                                                                            | a zero-length schedule where `null` was owed                          |
 | the Gantt draws nothing for a held row | null-schedule return removed from `layOutGantt` | `draws no bracket for a parent with no schedule, and no arrow to or from a held row` | `TypeError: Cannot read properties of null (reading 'earliestStart')` |
 
+## Slice 5 — saved plans (plan document v6 pending #183)
+
+| Check                             | Fault injected                                   | Test that observed it                                                                   | Observed                                          |
+| --------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| v3 bodies upgrade                 | `withNoStatusFacts` returning the body unchanged | `reads a version-3 body with nothing said about readiness or holds, and compares clean` | `schemaVersion: 3` and missing `readiness`/`hold` |
+| a saved plan leaves out held work | the reduction handed an empty held set           | `schedules a saved plan without its on-hold work, and captures readiness and hold`      | `Expected: 0, Received: 3`                        |
+
 ## Not run
 
 - The h2puni host gate; the orchestrator runs it on the integration branch.

@@ -157,6 +157,56 @@ describe('planInputRowsOf', () => {
     expect(planned.slices.get(sliceKey('B', 's1'))?.earliestStart).toBe(0);
     expect(planned.slices.get(sliceKey('B', 's2'))?.earliestStart).toBe(3);
   });
+  it('schedules a saved plan without its on-hold work, and captures readiness and hold', () => {
+    const first = reads.workItems.at(0);
+    if (first === undefined) throw new Error('fixture has no work item');
+    const captured: PlanInputReads = {
+      ...reads,
+      project: { ...reads.project, startDate: null },
+      steps: reads.steps.map((step) => ({ ...step, allowancePercent: 0 })),
+      workItems: [
+        {
+          ...first,
+          id: 'A',
+          priority: null,
+          teamIds: [],
+          serviceIds: [],
+          readiness: null,
+          hold: 'on_hold',
+        },
+        {
+          ...first,
+          id: 'B',
+          priority: null,
+          teamIds: [],
+          serviceIds: [],
+          readiness: 'ready',
+          hold: null,
+        },
+      ],
+      estimates: [
+        { workItemId: 'A', stepId: 's1', optimistic: 3, realistic: 3, pessimistic: 3 },
+        { workItemId: 'B', stepId: 's1', optimistic: 1, realistic: 1, pessimistic: 1 },
+      ],
+      actuals: [],
+      progress: [],
+      measures: [],
+      dependencies: [{ predecessorId: 'A', successorId: 'B' }],
+      assignments: [],
+      typedDependencies: [],
+      capacity: new Map(),
+    };
+    const planned = schedulePlanInput(captured);
+    // Proof: the saved plan's own reduction bypassed made this fail on B
+    // starting at day 3 behind held work; watched 2026-09-29.
+    expect(planned.slices.get(sliceKey('B', 's1'))?.earliestStart).toBe(0);
+    expect(planned.workItems.has('A')).toBe(false);
+    const rows = planInputRowsOf(captured).workItems;
+    expect(rows.map(({ id, readiness, hold }) => ({ id, readiness, hold }))).toEqual([
+      { id: 'A', readiness: null, hold: 'on_hold' },
+      { id: 'B', readiness: 'ready', hold: null },
+    ]);
+  });
   it('carries the project settings the dates come from, and its solution ref split in two', () => {
     expect(planInputRowsOf(reads).project).toEqual({
       id: 'p1',
