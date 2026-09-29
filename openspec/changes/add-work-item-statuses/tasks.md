@@ -36,34 +36,70 @@
       `hold-kinds-cli.ts` reads as no holds.
 - [x] 2.3 Negatives: the hold vocabulary left out of the swap's list makes four swap cases fail;
       the hold CLI's directory check replaced by an unconditional `[]` makes the missing `src`
-      case fail. The runbook section `#work-item-hold-rollback` the refusal names lands with the
+      case fail. The runbook section `#work-item-status-facts-rollback` the refusal names lands with the
       rollback CLI in slice 3.
 
 ## 3. Storage and command
 
-- [ ] 3.1 Red: migrate/down walk; `setStatus` for each status on leaf and parent, refusals,
-      journal inverse, hand-down, last-child fold, duplicate; read shape.
-- [ ] 3.2 Green: migration (stamp rechecked against main and the queue), guarded `down.sql`,
-      `work-item-hold-rollback-cli.ts`, widened command and `SETTABLE_STATUSES`, CLI prints both
-      kinds; the three `in_progress` cases (parent, reopen, `409 no_steps`, which `done` gains
-      too).
-- [ ] 3.3 Negatives: guard deleted → down succeeds over held rows; inverse omitting `hold` →
-      undo leaves the row held; `invalid_status` guard removed → 500 instead of 400.
+- [x] 3.1 Red: migration walk (`work-item-status-facts-migration.db.test.ts`), store round
+      trip, rollback save/remove/restore and CLI, `workItemStatusesOf`, `setStatus` for every
+      status on leaf and parent with its refusals and one-undo inverse
+      (`work-item-status-command.test.ts`), hand-down, move under a leaf, last-child fold,
+      duplicate; route refusal for `blocked_by_proxy`.
+- [x] 3.2 Green: migration `20260928200000_add_work_item_status_facts` (after
+      `20260928040000` on the orgs stack, rechecked 2026-09-29), guarded `down.sql`,
+      `work-item-status-facts-rollback-cli.ts`, `hold-kinds-cli.ts` printing `HOLDS`, widened
+      `setStatus`, `SETTABLE_STATUSES` and contract, the three `in_progress` cases and
+      `409 no_steps` for `done` too. fe-01 reads every status and still offers only Unknown and
+      Done (`OFFERED_STATUSES`) until slice 6. Moving a row under a leaf clears that leaf's
+      readiness and hold (it becomes a parent; the moved row is other work).
+- [x] 3.3 Negatives, each watched: down guard removed, patch no-field guard lines removed,
+      rollback version/comparison/leaf checks disabled, CLI usage guard bypassed, parent
+      statement guard removed in the read, each `setStatus` refusal removed, the hold inverse
+      dropped, `parseStatus` cast, `isSettableStatus` admitting `blocked_by_proxy`, each
+      structural write skipped, the copy keeping its hold. See `verify.md`.
 
-## 4. Engine reduction
+- [x] 3.4 Fable review (2026-09-29): a statement is never written on a parent (`apply` and the
+      store's conditional `UPDATE`), a move's inverse moves back first, the delete undo test
+      asserts the restored leaf.
+- [x] 3.5 Readiness joins the swap guard (`readiness-kinds-cli.ts`, `READINESS_VOCABULARY`); the
+      rollback CLI becomes `work-item-status-facts-rollback-cli.ts` and saves both columns.
+      Negatives: the vocabulary left out of the swap's list; the CLI's usage guard, the save's
+      version check, the remove's comparison and the restore's leaf check each disabled.
 
-- [ ] 4.1 Red: held assignee's queue, held predecessor, `schedule: null` and parent bracket;
-      golden corpora byte-identical.
-- [ ] 4.2 Green: `withoutHeldSubtrees` in `canonicalScheduleParts`; projection.
-- [ ] 4.3 Negatives: reduction bypassed → a held assignee still delays a successor; edge filter
-      removed → `leavesUnder` throws on a held id.
+## 4. Engine reduction (ships with its fe-01 reader)
+
+- [x] 4.1 Red: `work-item-status-command.test.ts` "an on-hold leaf takes no part in the
+      schedule" (a successor starts at day zero, a held row reports `schedule: null` and
+      `dates: null`, blocked keeps its place, a parent's bracket spans its unheld leaves and is
+      null when all are held); fe-01 `gantt-geometry.test.ts` (no bracket, bar or arrow for a
+      row with no schedule).
+- [x] 4.2 Green: `withoutHeldSubtrees` in `canonicalScheduleParts` (the seam the tree read, the
+      solver request and the restart pump share); the read projects `schedule: null` and
+      `dates: null` for a removed row; the contract's `schedule` is `Scheduled | null`. fe-01
+      reads it: the Start, End and Slack cells, the card's slack, exports and the Gantt say
+      nothing for a held row (slice 7 draws the "On hold" word). Held means a stored `on_hold`
+      on a leaf, per CONTEXT.
+- [x] 4.3 Negatives: the reduction bypassed and the null projection replaced by the
+      placeholder each fail the day-zero case; the Gantt's null-schedule return removed throws
+      `Cannot read properties of null`. The domain proofs (edge filter, ancestor removal) are
+      slice 1's; no golden corpus holds a hold, so the reduction is the identity there
+      (`returns the input unchanged when nothing is held`).
 
 ## 5. Saved plans and plan document v6
 
-- [ ] 5.1 Red: v3 → v4 upgrade equality, diff reports, v6 round trip, v1–v5 import, refusals.
-- [ ] 5.2 Green: schema 4 with `[3, withNoHolds]`, plan document v6, spreadsheet status word.
-- [ ] 5.3 Negatives: upgrade returns the body unchanged → cross-version equality fails; import
-      vocabulary guard removed → `hold: 'paused'` accepted.
+- [x] 5.1 Red (saved plans): v3 to v4 upgrade compares clean against the current body; a
+      malformed v3 body is refused; the saved plan's schedule leaves out on-hold work and the
+      capture carries readiness and hold; `diffPlans` reports both under `progress`.
+- [x] 5.2 Green (saved plans): `CANONICAL_PLAN_INPUT_SCHEMA_VERSION` 4, `[3, withNoStatusFacts]`,
+      `SUPPORTED_INPUT_BODY_VERSIONS` gains 4, `CapturedWorkItem` and `CanonicalWorkItem` carry
+      both fields, `scheduleInputOfCaptured` applies `withoutHeldSubtrees`.
+- [x] 5.3 Negatives (saved plans): the upgrade returning the body unchanged; the saved plan's
+      reduction handed an empty held set.
+- [ ] 5.4 Plan document v6: waits for typed dependency stage B's v5 (#183) to reach main, so v6
+      is written on top of it rather than on v4. Then import reads v1–v5 with both fields null
+      and refuses a value outside each vocabulary, a statement on a parent, and a hold on a row
+      marked done; the spreadsheet export already carries the status word (`Status` column).
 
 ## 6. fe-01 table (ships in the same integration round as slice 3)
 

@@ -168,7 +168,7 @@ export function verifyScheduleLink(
  * about records that already exist (design.md, "Cross-version diffs normalise
  * forward only").
  */
-export const SUPPORTED_INPUT_BODY_VERSIONS: readonly number[] = [1, 2, 3];
+export const SUPPORTED_INPUT_BODY_VERSIONS: readonly number[] = [1, 2, 3, 4];
 export const SUPPORTED_SCHEDULE_BODY_VERSIONS: readonly number[] = [1];
 
 /**

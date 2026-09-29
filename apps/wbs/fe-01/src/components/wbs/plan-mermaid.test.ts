@@ -57,6 +57,8 @@ const row = (over: Partial<ExportRow> & Pick<ExportRow, 'id' | 'number'>): Expor
       deadline: null,
       factStart: null,
       factEnd: null,
+      readiness: null,
+      hold: null,
       status: 'unknown',
       priority: null,
       dates: null,

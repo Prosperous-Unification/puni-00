@@ -53,6 +53,32 @@ Each fault was injected into the production function, the named test run, and th
 | the swap compares stored holds                                | `HOLD_KINDS_VOCABULARY` left out of `STORED_VOCABULARIES` | `refuses an image that reads no holds while holds are stored, and stops green`, three more | 62 pass, 4 fail             |
 | only an absent hold CLI under a readable `src` means no holds | the directory check replaced by an unconditional `[]`     | `does not treat a missing source directory as an older release` (hold kind commands)       | `Expected: 74, Received: 0` |
 
+## Slice 3 — storage and command
+
+Migration stamp rechecked 2026-09-29: newest on main is `20260928030000`; the orgs stack adds
+`20260928040000` (#191); this change takes `20260928200000`. Every migration-enumerating db test
+in `store-sqlite` was extended with it (merging the orgs stack will need both names).
+
+| Check                                        | Fault injected                                  | Test that observed it                                                             | Observed                               |
+| -------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------- |
+| rollback refuses stored holds                | three guard statements removed from `down.sql`  | `refuses rollback over a hold and keeps the hold and the migration record`        | `Received function did not throw`      |
+| a patch naming only readiness or hold writes | the two no-field guard lines removed            | `writes a readiness and a hold and reads them back…`                              | `[readiness, hold]` read back as nulls |
+| hold save version                            | version check disabled                          | `refuses a malformed save`                                                        | `Received function did not throw`      |
+| hold remove matches the table                | row comparison reduced to lengths               | `refuses to remove a save that no longer matches the table`                       | `Received function did not throw`      |
+| hold restore only on leaves                  | leaf check disabled                             | `refuses the whole restore when a saved work item is gone or has become a parent` | `Received function did not throw`      |
+| rollback CLI usage                           | usage guard bypassed                            | `saves, removes and restores holds through the rollback CLI`                      | `Expected: not 0` for `erase`          |
+| no statement on a parent                     | parent check in `workItemStatusesOf` removed    | `refuses a readiness or hold stored on a parent`                                  | `Received function did not throw`      |
+| `no_steps`                                   | refusal removed                                 | `refuses in progress and done with no_steps`                                      | 12 pass, 1 fail                        |
+| `readiness_after_progress`                   | refusal removed                                 | `refuses readiness once a step has spoken, and writes nothing`                    | 12 pass, 1 fail                        |
+| `cannot_hold_done`                           | refusal removed                                 | `refuses a hold on a leaf reading done`                                           | 12 pass, 1 fail                        |
+| hold inverse                                 | `inverse.hold` line removed                     | `holds every leaf beneath a parent, and one undo restores each prior hold`        | 12 pass, 1 fail                        |
+| settable vocabulary                          | `isSettableStatus` admitting `blocked_by_proxy` | `admits the seven statuses a row may be set to…`                                  | `Expected: false, Received: true`      |
+| route guard                                  | `parseStatus` replaced by a cast                | be-01 `refuses a status nobody may set…`                                          | `invalid_body` without `at` and `kind` |
+| hand-down                                    | parent patch skipped on create                  | `hands a leaf’s readiness and hold down to its first child…`                      | `parent … holds a readiness or a hold` |
+| move under a leaf                            | parent patch skipped on move                    | `clears the readiness and hold of a leaf another row moves under…`                | `parent … holds a readiness or a hold` |
+| last-child fold                              | parent patch skipped on delete                  | `gives a parent losing its last child the readiness and hold…`                    | `readiness: null` where `draft` owed   |
+| copy never holds                             | `hold: null` removed from the copy              | `copies a readiness and never a hold`                                             | `hold: "on_hold"`                      |
+
 ## Astra review (2026-09-28)
 
 No Critical. Important 1 (spec must require the least fixed point; the unknown scenario must
@@ -61,6 +87,72 @@ exclude every stopping predecessor): fixed in the spec with a typed-cycle scenar
 future contract, easily reversed, and raised for the Fable review. Minor 3 (typed cycle,
 descendant-step endpoint, inherited floor and deadline, all-held plan): tests added. Minor 4
 (vocabulary guard proofs): recorded above.
+
+## Astra review of slices 2–3 (2026-09-29)
+
+One Critical and six Important findings.
+
+Fixed, each with a test watched failing when the fix is removed:
+
+- **Important 2.** A last-child delete's hand-up parent is now among the undo preconditions. Removing it failed `guards the parent a last-child delete hands statements up to`: the parent's id was absent from the preconditions.
+- **Important 5.** A parent's "already in progress" check reads the full status. Using the progress-only fold instead failed `starts a held branch whose progress fold reads in progress…`, and nothing was written.
+- **Important 6.** Moving a last child away hands the agreed statements up. Skipping that failed `gives the parent a moved last child leaves the statements it agreed on`, with `readiness: null`.
+- **Important 7.** Holding a branch takes the hold off its done leaves. Skipping done leaves failed `takes the hold off a done leaf when its branch is held`, with `hold: "on_hold"`.
+
+The three open findings were decided by Fable on 2026-09-29; see `design.md`, "Decided after the slice 3 review".
+
+### Fable review fixes (2026-09-29)
+
+Each fault was injected into the production code, the named test run, and the file restored.
+
+| Check                                              | Fault injected                                  | Test that observed it                                                                         | Observed                                                                         |
+| -------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `apply` refuses a statement on a row with children | check disabled                                  | `refuses an undo that would put a hold back on a row that has since gained a child`           | refused by the store's condition instead (`gained children as this was written`) |
+| the store writes a statement only on a leaf        | `NOT EXISTS (child)` condition dropped          | `refuses a readiness or hold on a row that has children, in the write itself`                 | `ok: true` with the parent holding `hold: "on_hold"`                             |
+| a move's inverse moves back first                  | statement inverses ordered before the move-back | `clears the readiness and hold of a leaf another row moves under, and one undo restores them` | `Expected: true, Received: false`: the undo was refused                          |
+
+### Hand-down ordering (Fable review of #207, I1)
+
+The new parent's statements are cleared before the child is inserted or the row moves in. A plan read injected right after the store's write proves it: with the clear moved back after the write, `no read sees a parent holding a statement while a first child is created` and `… while a row moves under a leaf` each failed on the injected read (`parent … holds a readiness or a hold`).
+
+### Move undo ordering (Fable review, round 4)
+
+Undoing a move orders its writes as: clear the parent the row left, move the row back, then restore the statements of the row it had moved under. Each patch therefore lands on a leaf. With the parent's clear after the move-back, `no read sees a parent holding a statement while a move that emptied it is undone` failed on the read injected after the store's move (`parent … holds a readiness or a hold`).
+
+### Readiness swap guard (follow-up to #207)
+
+| Check                              | Fault injected                              | Test that observed it                                                             | Observed                          |
+| ---------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------- |
+| the swap compares stored readiness | `READINESS_VOCABULARY` left out of the list | `refuses an image that reads no readiness while readiness is stored`              | 1 pass, 1 fail                    |
+| save version                       | version check disabled                      | `refuses a malformed save`                                                        | `Received function did not throw` |
+| remove matches both columns        | comparison reduced to lengths               | `refuses to remove a save that no longer matches the table`                       | `Received function did not throw` |
+| restore only on leaves             | leaf check disabled                         | `refuses the whole restore when a saved work item is gone or has become a parent` | `Received function did not throw` |
+| CLI usage                          | guard bypassed                              | `saves, removes and restores readiness and holds through the rollback CLI`        | `Expected: not 0`                 |
+
+## Slice 4 — engine reduction
+
+| Check                                  | Fault injected                                  | Test that observed it                                                                | Observed                                                              |
+| -------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| held work leaves the schedule input    | `withoutHeldSubtrees` handed an empty held set  | `lets a successor start at day zero, and reports the held row with no schedule`      | the held row came back scheduled over days 0 to 5                     |
+| a held row reports no schedule         | placeholder kept in the projection              | same case                                                                            | a zero-length schedule where `null` was owed                          |
+| the Gantt draws nothing for a held row | null-schedule return removed from `layOutGantt` | `draws no bracket for a parent with no schedule, and no arrow to or from a held row` | `TypeError: Cannot read properties of null (reading 'earliestStart')` |
+
+## Slice 5 — saved plans (plan document v6 pending #183)
+
+| Check                             | Fault injected                                   | Test that observed it                                                                   | Observed                                          |
+| --------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| v3 bodies upgrade                 | `withNoStatusFacts` returning the body unchanged | `reads a version-3 body with nothing said about readiness or holds, and compares clean` | `schemaVersion: 3` and missing `readiness`/`hold` |
+| a saved plan leaves out held work | the reduction handed an empty held set           | `schedules a saved plan without its on-hold work, and captures readiness and hold`      | `Expected: 0, Received: 3`                        |
+
+### Slice 4 review fixes (Fable, 2026-09-29)
+
+| Check                                    | Fault injected                            | Test that observed it                                                           | Observed                             |
+| ---------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------ |
+| arrange by schedule skips held rows (C1) | full `rows` passed to `arrangeBySchedule` | `arranges a plan holding an on-hold leaf, and leaves the held row where it was` | `no scheduled start for work item …` |
+| a held assignee frees its person (M2)    | reduction bypassed                        | `frees a held assignee for the rest of their queue`                             | the held row still scheduled         |
+
+Held rows keep their stored position when the plan is arranged; an arranged sibling may take
+the same position number, and ADR 0016's id tie-break orders the two.
 
 ## Not run
 

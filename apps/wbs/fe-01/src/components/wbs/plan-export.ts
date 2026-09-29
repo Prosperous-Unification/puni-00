@@ -2,7 +2,7 @@ import { type EffectiveServices, effectiveServicesOf } from '@wbs/domain/effecti
 import { type EffectiveTags, effectiveTagsOf } from '@wbs/domain/effective-tag';
 import { type EffectiveTeams, effectiveTeamsOf } from '@wbs/domain/effective-team';
 import { priorityBandOf } from '@wbs/domain/priority-band';
-import type { ProgressStatus } from '@wbs/domain/progress';
+import type { WorkItemStatus } from '@wbs/domain/progress';
 
 import type { EstimateMethod, PriorityBandView, SliceView } from '@/lib/wbs-api';
 
@@ -105,7 +105,7 @@ export interface ExportRow {
    */
   deadline: string | null;
   /** What the row reads as — `unknown`, `in_progress`, `done` — be-01's fold. */
-  status: ProgressStatus;
+  status: WorkItemStatus;
   /** The day work actually began, or null where nobody has said. */
   factStart: string | null;
   /** The day work actually finished, or null where nobody has said. */
@@ -122,7 +122,13 @@ export interface ExportRow {
    */
   maxParallel: number;
   dates: { startsOn: string; endsOn: string } | null;
-  schedule: { earliestStart: number; earliestFinish: number; float: number; critical: boolean };
+  /** Null for an on-hold row, which takes no part in the schedule. */
+  schedule: {
+    earliestStart: number;
+    earliestFinish: number;
+    float: number;
+    critical: boolean;
+  } | null;
   assignees: Record<string, string | undefined>;
   doesEveryStep: string | null;
 }
@@ -486,13 +492,13 @@ function scopeField(plan: PlanExport, scope: FilteredScope): { key: string; valu
 
 /** What a row's Starts cell says: a date, a day offset, or nothing knowable. */
 function startsCell(plan: PlanExport, row: ExportRow): string {
-  if (plan.scheduleError !== null) return NO_SCHEDULE;
+  if (plan.scheduleError !== null || row.schedule === null) return NO_SCHEDULE;
   return row.dates?.startsOn ?? `day ${showFigure(row.schedule.earliestStart)}`;
 }
 
 /** What a row's Ends cell says. `endsOn` is the last day the work is still on. */
 function endsCell(plan: PlanExport, row: ExportRow): string {
-  if (plan.scheduleError !== null) return NO_SCHEDULE;
+  if (plan.scheduleError !== null || row.schedule === null) return NO_SCHEDULE;
   return row.dates?.endsOn ?? `day ${showFigure(row.schedule.earliestFinish)}`;
 }
 
@@ -842,7 +848,7 @@ function columnsOf(plan: PlanExport, markSums: boolean): ExportColumn[] {
     {
       header: 'Slack',
       cell: (row) => {
-        if (plan.scheduleError !== null) return NO_SCHEDULE;
+        if (plan.scheduleError !== null || row.schedule === null) return NO_SCHEDULE;
         return row.schedule.critical ? 'critical' : showFigure(row.schedule.float);
       },
     },

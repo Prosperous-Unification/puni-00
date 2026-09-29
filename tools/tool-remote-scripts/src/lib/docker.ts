@@ -576,33 +576,43 @@ try {
   ];
 }
 
+/** The two work item statement columns, each with the CLI that names its vocabulary. */
+type StatementColumn = 'hold' | 'readiness';
+
+const KINDS_CLI: Readonly<Record<StatementColumn, string>> = {
+  hold: 'src/hold-kinds-cli.ts',
+  readiness: 'src/readiness-kinds-cli.ts',
+};
+
 /**
- * Reads the hold kinds the incoming release can read. A release older than
- * holds ships no `hold-kinds-cli.ts`, and only that absence under a readable
- * source directory reads as `[]`: no holds understood, so any stored hold
- * refuses the swap. A missing or unreadable `src` exits 74 and a nonregular CLI
- * path 73, exactly as {@link relationshipTypesCommand} does.
+ * Reads the values of one statement column the incoming release can read. A
+ * release older than the column ships no CLI for it, and only that absence
+ * under a readable source directory reads as `[]`: nothing understood, so any
+ * stored value refuses the swap. A missing or unreadable `src` exits 74 and a
+ * nonregular CLI path 73, exactly as {@link relationshipTypesCommand} does.
  *
  * Proof: the directory check replaced by an unconditional `[]` made `does not
  * treat a missing source directory as an older release` (hold kind commands)
  * fail on `Expected: 74, Received: 0`; watched 2026-09-28.
  */
-export function holdKindsCommand(container: string): string[] {
+function statementKindsCommand(container: string, column: StatementColumn): string[] {
+  const cli = KINDS_CLI[column];
   return [
     'exec',
     container,
     'sh',
     '-c',
-    "if test -f src/hold-kinds-cli.ts; then bun run src/hold-kinds-cli.ts; elif test -e src/hold-kinds-cli.ts; then exit 73; elif test -d src && test -r src && test -x src; then printf '[]\\n'; else exit 74; fi",
+    `if test -f ${cli}; then bun run ${cli}; elif test -e ${cli}; then exit 73; elif test -d src && test -r src && test -x src; then printf '[]\\n'; else exit 74; fi`,
   ];
 }
 
 /**
- * Reads each stored hold kind and its count through the shared DB_PATH without
- * importing release code. Empty before `work_item` or its `hold` column exists,
- * which is every database the hold migration has not reached.
+ * Reads each stored value of one statement column and its count through the
+ * shared DB_PATH without importing release code. Empty before `work_item` or
+ * the column exists, which is every database the status facts migration has
+ * not reached.
  */
-export function storedHoldsCommand(container: string): string[] {
+function storedStatementsCommand(container: string, column: StatementColumn): string[] {
   return [
     'exec',
     container,
@@ -613,11 +623,31 @@ const path = process.env.DB_PATH;
 if (!path) throw new Error('DB_PATH must be set');
 const db = new Database(path, { readonly: true });
 try {
-  const column = db.query("SELECT name FROM pragma_table_info('work_item') WHERE name = 'hold'").get();
-  const rows = column === null ? [] : db.query('SELECT hold AS kind, count(*) AS count FROM work_item WHERE hold IS NOT NULL GROUP BY hold ORDER BY hold').all();
+  const column = db.query("SELECT name FROM pragma_table_info('work_item') WHERE name = '${column}'").get();
+  const rows = column === null ? [] : db.query('SELECT ${column} AS kind, count(*) AS count FROM work_item WHERE ${column} IS NOT NULL GROUP BY ${column} ORDER BY ${column}').all();
   console.log(JSON.stringify(rows));
 } finally { db.close(); }`,
   ];
+}
+
+/** The hold kinds the incoming release reads; see {@link statementKindsCommand}. */
+export function holdKindsCommand(container: string): string[] {
+  return statementKindsCommand(container, 'hold');
+}
+
+/** Every stored hold kind and its count; see {@link storedStatementsCommand}. */
+export function storedHoldsCommand(container: string): string[] {
+  return storedStatementsCommand(container, 'hold');
+}
+
+/** The readinesses the incoming release reads; see {@link statementKindsCommand}. */
+export function readinessKindsCommand(container: string): string[] {
+  return statementKindsCommand(container, 'readiness');
+}
+
+/** Every stored readiness and its count; see {@link storedStatementsCommand}. */
+export function storedReadinessesCommand(container: string): string[] {
+  return storedStatementsCommand(container, 'readiness');
 }
 
 /** Applies pending migrations through the path shipped in the backend image. */

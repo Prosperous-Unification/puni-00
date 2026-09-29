@@ -57,7 +57,33 @@ export type PlanInputUpgrade = (body: Record<string, unknown>) => Record<string,
 export const PLAN_INPUT_UPGRADES: ReadonlyMap<number, PlanInputUpgrade> = new Map([
   [1, withZeroStepAllowances],
   [2, withNoTypedDependencies],
+  [3, withNoStatusFacts],
 ]);
+
+/**
+ * Version 3 to 4: readiness and holds did not exist, so every captured work
+ * item said nothing about either (`add-work-item-statuses`).
+ *
+ * Proof: returning the body unchanged made `reads a version-3 body with
+ * nothing said about readiness or holds, and compares clean` fail on
+ * `schemaVersion` and every work item's missing fields; watched 2026-09-29.
+ */
+function withNoStatusFacts(body: Record<string, unknown>): Record<string, unknown> {
+  const workItems = body['workItems'];
+  if (!Array.isArray(workItems)) {
+    throw new Error('a version-3 plan input body holds no work items list');
+  }
+  return {
+    ...body,
+    schemaVersion: 4,
+    workItems: workItems.map((row: unknown) => {
+      if (typeof row !== 'object' || row === null) {
+        throw new Error('a version-3 plan input body holds a work item that is not an object');
+      }
+      return { ...row, readiness: null, hold: null };
+    }),
+  };
+}
 
 /** Version 2 to 3: typed links and step codes did not exist in the saved body. */
 function withNoTypedDependencies(body: Record<string, unknown>): Record<string, unknown> {
