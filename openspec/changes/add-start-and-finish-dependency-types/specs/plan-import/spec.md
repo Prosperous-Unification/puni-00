@@ -33,3 +33,21 @@ New-version export SHALL distinguish typed FS, SS and FF endpoint/type relations
 - **GIVEN** a legacy export with `anchor-slice` reach
 - **WHEN** it is imported
 - **THEN** its dependency retains dynamic project-reach semantics
+
+#### Scenario: Round-trip multiple step links
+
+- **GIVEN** two distinct FS step relationships between the same work-item pair plus one legacy link
+- **WHEN** a plan is exported and imported
+- **THEN** all three retain their distinct endpoint and reach meanings
+
+#### Scenario: A step reference is absent
+
+- **GIVEN** a new-format import references a step not in its project step list
+- **WHEN** the import is validated
+- **THEN** it is refused without a partial plan write
+
+#### Scenario: Duplicate an internal relationship
+
+- **GIVEN** a subtree contains both endpoints of a typed dependency
+- **WHEN** the subtree is duplicated
+- **THEN** the copied relationship addresses copied work items with a new ID and unchanged scopes/type

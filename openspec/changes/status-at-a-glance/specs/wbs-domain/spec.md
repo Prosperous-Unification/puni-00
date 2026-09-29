@@ -181,6 +181,32 @@ be part of the same journal entry as the statements, so one undo takes them away
 - **WHEN** `setStatus` sets it `unknown`
 - **THEN** its `progress` is empty and its fact end is what it was
 
+#### Scenario: the reader's day wins over the server's
+
+- **GIVEN** a browser whose local day is `2026-09-13` while UTC is still `2026-09-12`, and a
+  leaf with no fact end whose forecast ends on or after `2026-09-13`
+- **WHEN** the Status cell marks it done and the completion prompt is confirmed as offered
+- **THEN** the command carries `on: '2026-09-13'` and the fact end reads `2026-09-13`
+
+#### Scenario: the start is filled where empty and kept where typed
+
+- **GIVEN** two leaves, one with no fact start and one with `2026-09-02`
+- **WHEN** each is marked `done` with `on: '2026-09-12', factStart: '2026-09-08'`
+- **THEN** the first's fact start reads `2026-09-08` and the second's still `2026-09-02`
+
+#### Scenario: a non-date start is refused
+
+- **GIVEN** a `setStatus` with `factStart: 'last week'`
+- **WHEN** it reaches the commands route
+- **THEN** it is refused `400 factStart_must_be_a_date` and no row is written
+
+#### Scenario: unknown takes both days, and one undo brings both back
+
+- **GIVEN** a parent marked `done` on `2026-09-12` from `2026-09-08`
+- **WHEN** `setStatus` sets it `unknown`, then the actor undoes once
+- **THEN** every fact start and fact end in scope is `null` after the act and back after the
+  undo, from one journal entry
+
 ### Requirement: The table shows Status, Fact start and Fact end, and strikes a done row
 
 The table SHALL offer three columns — `Status`, `Fact start`, `Fact end` — hidden by default
