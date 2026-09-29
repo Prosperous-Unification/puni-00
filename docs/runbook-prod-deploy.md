@@ -95,6 +95,22 @@ rollback is needed for this case. After deploying a compatible reader again,
 `restore` the saved rows with the command below. `remove` verifies that its
 saved set exactly matches the table before deleting anything.
 
+**Known, deliberate: a reader-only release refuses SS/FF loudly.** Releases built after
+round 25 (#181 Fast, #182 solver) but before the SS/FF writes and UI (#183, #190) report
+`["FS","SS","FF"]` from `relationship-types-cli.ts`. The swap guard therefore admits them over
+a database that holds SS/FF rows. Fast and the solver schedule those rows correctly, but two
+readers in that release still accept only FS:
+
+- the plan export (`plan-document.resource.ts`) throws `unknown typed dependency type SS`, so
+  `GET /api/projects/:id/export` returns 500 for that project;
+- the fe chart (`plan-chart-input.ts`) throws `GanttDataError: unsupported chart dependency SS`,
+  so the chart shows its fault boundary for that project.
+
+Projects without SS/FF rows are unaffected. This is "refuse loudly" rather than a silent FS
+reading, so it stays as it is. To fix it, roll forward to a release that includes #190. If the
+older release must serve those projects, `save` and `remove` the typed rows with the commands
+below.
+
 Rolling back past `20260927213000_add_typed_dependency` refuses while `typed_dependency` holds
 rows: the older release cannot read them, and `down.sql` will not drop them silently. The
 refusal reads `CHECK constraint failed: typed dependencies exist: …`. The procedure is lossless.

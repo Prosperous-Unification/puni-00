@@ -127,7 +127,7 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
     ...tree,
     project: PROJECT,
     stepNodes: [],
-    document: { format: 'wbs-plan', version: 4, exportedAt: '2026-09-14T08:30:00.000Z' },
+    document: { format: 'wbs-plan', version: 5, exportedAt: '2026-09-14T08:30:00.000Z' },
     typedDependencies: [],
     settings: {
       name: PROJECT.name,
@@ -185,7 +185,7 @@ describe('plan JSON transfer', () => {
     expect(new Headers(call?.[1]?.headers).get('x-wbs-token')).toBe('token');
   });
 
-  it('downloads a version-4 JSON representation containing a typed dependency', async () => {
+  it('downloads a version-5 JSON representation containing a typed dependency', async () => {
     const document = PLAN_DOCUMENT(['first', 'second']);
     document['typedDependencies'] = [
       {
@@ -1029,6 +1029,7 @@ describe('the browser writes through command batches (plan-commands)', () => {
             'p1',
             { scope: 'whole', workItemId: 'w1' },
             { scope: 'whole', workItemId: 'w2' },
+            'FS',
           ),
         'addTypedDependency',
       ],
@@ -1039,6 +1040,7 @@ describe('the browser writes through command batches (plan-commands)', () => {
             'd1',
             { scope: 'whole', workItemId: 'w1' },
             { scope: 'whole', workItemId: 'w2' },
+            'FS',
           ),
         'updateTypedDependency',
       ],
@@ -1083,6 +1085,36 @@ describe('the browser writes through command batches (plan-commands)', () => {
       id: 'new',
     });
   });
+
+  it.each(['SS', 'FF'] as const)(
+    'sends %s when an endpoint-only edit keeps its type',
+    async (type) => {
+      const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
+        Promise.resolve(
+          response(
+            200,
+            JSON.stringify({ results: [{ index: 0 }], undoable: true, redoable: false }),
+          ),
+        ),
+      );
+      vi.stubGlobal('fetch', fetched);
+      const api = httpProjectApi('t');
+      await api.updateTypedDependency(
+        'p1',
+        'd1',
+        { scope: 'whole', workItemId: 'w1' },
+        { scope: 'node', stepNodeId: 'sn1.w2.qa' },
+        type,
+      );
+      const body = JSON.parse(bodyOf(fetched.mock.calls[0]?.[1])) as {
+        commands: { type: string; successor: unknown }[];
+      };
+      expect(body.commands[0]).toMatchObject({
+        type,
+        successor: { scope: 'node', stepNodeId: 'sn1.w2.qa' },
+      });
+    },
+  );
 
   it('writes the directory at its own route, answering the entry the batch produced', async () => {
     stubbed(

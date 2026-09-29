@@ -251,6 +251,8 @@ export function usePlanDependencies({
           commands.addTypedDependency(
             { scope: 'whole', workItemId: predecessorId },
             { scope: 'whole', workItemId: successorId },
+            // Proof: changing this one-click default to FF made `commits one whole FS relationship when a search result is clicked` fail on the recorded fourth command argument; watched 2026-09-28.
+            'FS',
           ),
         ),
       );

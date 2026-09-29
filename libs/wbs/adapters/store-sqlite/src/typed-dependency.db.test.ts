@@ -282,6 +282,12 @@ describe('TypedDependencyRepository', () => {
     ]);
   });
 
+  /**
+   * Proof: the `isRelationshipType` read check removed made this case fail on
+   * `Received: (resolved without throwing)`: an SF row came back as a link;
+   * watched 2026-09-28. The fixture bypasses SQLite's known-type CHECK to model
+   * a future or corrupted database row.
+   */
   it('refuses an unsupported stored relationship type on read', async () => {
     const a = await addWorkItem('A');
     const b = await addWorkItem('B');

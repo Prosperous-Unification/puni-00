@@ -1399,31 +1399,33 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const addTypedDependencyAnswer = answers.addTypedDependency;
   if (addTypedDependencyAnswer !== undefined) {
-    checked.addTypedDependency = (projectId, predecessor, successor) =>
+    checked.addTypedDependency = (projectId, predecessor, successor, type) =>
       throughProjectCommand(
         projectId,
-        { kind: 'addTypedDependency', predecessor, successor, type: 'FS' },
+        { kind: 'addTypedDependency', predecessor, successor, type },
         (normalizedProjectId, normalized) =>
           addTypedDependencyAnswer(
             normalizedProjectId,
             normalized.predecessor,
             normalized.successor,
+            normalized.type,
           ),
         () => VOID_COMMAND_RESULT,
       );
   }
   const updateTypedDependencyAnswer = answers.updateTypedDependency;
   if (updateTypedDependencyAnswer !== undefined) {
-    checked.updateTypedDependency = (projectId, dependencyId, predecessor, successor) =>
+    checked.updateTypedDependency = (projectId, dependencyId, predecessor, successor, type) =>
       throughProjectCommand(
         projectId,
-        { kind: 'updateTypedDependency', dependencyId, predecessor, successor, type: 'FS' },
+        { kind: 'updateTypedDependency', dependencyId, predecessor, successor, type },
         (normalizedProjectId, normalized) =>
           updateTypedDependencyAnswer(
             normalizedProjectId,
             normalized.dependencyId,
             normalized.predecessor,
             normalized.successor,
+            normalized.type,
           ),
         () => VOID_COMMAND_RESULT,
       );

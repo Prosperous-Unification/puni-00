@@ -3743,6 +3743,31 @@ describe('setting a card’s priority', () => {
 });
 
 describe('setting what a card waits for', () => {
+  itDom('shows FF wording and editing on a phone card', async () => {
+    const api = dependencyApi();
+    const source = await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+    const target = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: source.id,
+      name: 'Sand',
+    });
+    await api.addTypedDependency(
+      'p1',
+      { scope: 'whole', workItemId: source.id },
+      { scope: 'whole', workItemId: target.id },
+      'FF',
+    );
+    widthIs(PHONE);
+    render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+    await screen.findByLabelText('Name of 020');
+    await openTheSheetOn('020');
+    expect(screen.getByText(/010 FF.*Finish-to-finish/)).toBeDefined();
+    fireEvent.click(
+      screen.getByRole('button', { name: /Edit .*010 Strip.*020 Sand.*Finish-to-finish/ }),
+    );
+    expect(screen.getByLabelText('Relationship')).toHaveProperty('value', 'FF');
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeDefined();
+  });
   itDom('adds one whole FS relationship from a phone search result', async () => {
     const api = dependencyApi();
     const predecessor = await api.createWorkItem('p1', {
@@ -3768,6 +3793,7 @@ describe('setting what a card waits for', () => {
       'p1',
       { scope: 'whole', workItemId: predecessor.id },
       { scope: 'whole', workItemId: successor.id },
+      'FS',
     ]);
   });
   itDom('shows a typed dependency with touch Edit and Remove in the phone sheet', async () => {
@@ -3788,6 +3814,7 @@ describe('setting what a card waits for', () => {
       'p1',
       { scope: 'whole', workItemId: predecessor.id },
       { scope: 'whole', workItemId: successor.id },
+      'FS',
     );
     const removed = recordCalls(api, 'removeTypedDependency');
     widthIs(PHONE);
@@ -3824,11 +3851,13 @@ describe('setting what a card waits for', () => {
       'p1',
       { scope: 'whole', workItemId: first.id },
       { scope: 'whole', workItemId: target.id },
+      'FS',
     );
     await api.addTypedDependency(
       'p1',
       { scope: 'node', stepNodeId: `sn1.${second.id}.${DEV.id}` },
       { scope: 'node', stepNodeId: `sn1.${target.id}.${QA.id}` },
+      'FS',
     );
     widthIs(PHONE);
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
@@ -3852,6 +3881,7 @@ describe('setting what a card waits for', () => {
       'p1',
       { scope: 'node', stepNodeId: `sn1.${source.id}.${DEV.id}` },
       { scope: 'node', stepNodeId: `sn1.${target.id}.${DEV.id}` },
+      'FS',
     );
     const readTree = api.tree.bind(api);
     api.tree = async (projectId) => {
@@ -3882,6 +3912,7 @@ describe('setting what a card waits for', () => {
       'p1',
       { scope: 'whole', workItemId: source.id },
       { scope: 'whole', workItemId: target.id },
+      'FS',
     );
     const original = (await api.tree('p1')).typedDependencies?.[0];
     if (original === undefined) throw new Error('Missing fixture dependency');
@@ -4103,7 +4134,7 @@ describe('setting what a card waits for', () => {
         () => undefined,
         (configured) => {
           const realAdd = configured.addTypedDependency.bind(configured);
-          configured.addTypedDependency = (projectId, predecessor, successor) => {
+          configured.addTypedDependency = (projectId, predecessor, successor, type) => {
             calls.push(
               `add:${successor.scope === 'whole' ? successor.workItemId : ''}:${predecessor.scope === 'whole' ? predecessor.workItemId : ''}`,
             );
@@ -4111,7 +4142,7 @@ describe('setting what a card waits for', () => {
               release = () => {
                 resolve();
               };
-            }).then(() => realAdd(projectId, predecessor, successor));
+            }).then(() => realAdd(projectId, predecessor, successor, type));
           };
         },
       );
