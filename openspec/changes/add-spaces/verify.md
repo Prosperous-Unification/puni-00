@@ -117,9 +117,11 @@ Written on `batch-9/010-4-15-spaces-in-progress`, stacked on the roll-ups branch
 `in-progress-now.test.ts` 3 pass; `space.resource.test.ts` 21 pass;
 `space-organization.controller.db.test.ts` 12 pass; `app.routes.test.ts` 6 pass.
 
-| Check                  | Fault injected                                  | Test that observed it                                                               | Observed                                  |
-| ---------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------- |
-| the fold decides       | status check replaced by "any step in progress" | `never lists a held leaf, whatever its step says`                                   | the held `h` and blocked `b` listed       |
-| the list is cut        | `slice(0, limit)` removed                       | `cuts the list at the limit and says it was cut`                                    | `Received length: 1001`                   |
-| leak rule: in progress | the readable filter removed                     | `takes nothing from a member the caller cannot open, and names unavailable engines` | threw `placed project a2 is not readable` |
-| the limit is bounded   | the maximum check removed from `limitOf`        | `lists work in progress across the space and refuses a limit above 1000 with 400`   | `status: 200` for `limit=1001`            |
+| Check                                 | Fault injected                                  | Test that observed it                                                               | Observed                                  |
+| ------------------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------- |
+| the fold decides                      | status check replaced by "any step in progress" | `never lists a held leaf, whatever its step says`                                   | the held `h` and blocked `b` listed       |
+| the list is cut                       | `slice(0, limit)` removed                       | `cuts the list at the limit and says it was cut`                                    | `Received length: 1001`                   |
+| leak rule: in progress                | the readable filter removed                     | `takes nothing from a member the caller cannot open, and names unavailable engines` | threw `placed project a2 is not readable` |
+| the limit is bounded                  | the maximum check removed from `limitOf`        | `lists work in progress across the space and refuses a limit above 1000 with 400`   | `status: 200` for `limit=1001`            |
+| cache keyed by reader access (review) | the access left out of `RollUpCache.keyOf`      | `keeps a legacy read's assignee names from a scoped reader`                         | `Received: "Root Kat"`, not `Kat`         |
+| last sort key (review)                | the project id tie-break removed                | `orders by end date with undated last, then space position, then number`            | `tie-q` before `tie-a`                    |

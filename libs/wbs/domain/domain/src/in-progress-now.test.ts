@@ -91,12 +91,15 @@ describe('inProgressLeavesOf', () => {
 
 describe('sortInProgress', () => {
   it('orders by end date with undated last, then space position, then number', () => {
-    const item = (id: string, endsOn: string | null, position: number, number: string) => ({
-      id,
-      endsOn,
-      position,
-      number,
-    });
+    // Proof, observed 2026-09-29: with the project id tie-break removed, the
+    // two tied items kept their input order (`tie-q` before `tie-a`).
+    const item = (
+      id: string,
+      endsOn: string | null,
+      position: number,
+      number: string,
+      projectId = 'p',
+    ) => ({ id, endsOn, position, number, projectId });
     const ordered = sortInProgress(
       [
         item('undated', null, 1, '1'),
@@ -105,11 +108,15 @@ describe('sortInProgress', () => {
         item('late-1a', '2026-10-09', 10, '1.10'),
         item('late-1c', '2026-10-09', 10, '1.9'),
         item('early', '2026-10-01', 30, '9'),
+        item('tie-q', '2026-10-01', 30, '9', 'q'),
+        item('tie-a', '2026-10-01', 30, '9', 'a'),
       ],
       ({ endsOn }) => endsOn,
     );
     expect(ordered.map(({ id }) => id)).toEqual([
+      'tie-a',
       'early',
+      'tie-q',
       'late-1c',
       'late-1a',
       'late-1b',

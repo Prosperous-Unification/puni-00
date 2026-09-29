@@ -56,9 +56,10 @@ function projectIdsOf(query: string): string[] | null {
  */
 function limitOf(query: string | undefined): number | null {
   if (query === undefined) return IN_PROGRESS_LIMIT.default;
-  if (!/^[1-9][0-9]*$/.test(query)) return null;
+  // Digits only, leading zeros allowed: `010` is the whole number 10.
+  if (!/^[0-9]{1,7}$/.test(query)) return null;
   const limit = Number(query);
-  return limit > IN_PROGRESS_LIMIT.max ? null : limit;
+  return limit < 1 || limit > IN_PROGRESS_LIMIT.max ? null : limit;
 }
 
 /** Narrowed by the refusals the calling method can answer, so each route declares only those. */
