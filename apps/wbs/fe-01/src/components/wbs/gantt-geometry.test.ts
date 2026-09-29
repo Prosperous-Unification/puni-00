@@ -138,6 +138,7 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   slices: [],
   dependencies: [],
   tree: treeFrom(parts.rows ?? []),
+  heldLeafIds: new Set(),
   // Off unless a test is about the sentence a filter's dropped waits earn.
   narrowedByFilter: false,
   steps: [
@@ -4021,5 +4022,57 @@ describe('a done leaf draws one bar over its facts', () => {
       }),
     );
     expect(chart.brackets.map((bracket) => [bracket.start, bracket.finish])).toEqual([[8, 15]]);
+  });
+});
+
+describe('a held leaf is no end of an arrow (add-work-item-statuses)', () => {
+  // be-01 takes every leaf whose stored hold is `on_hold` out of the schedule,
+  // whatever it reads — done included — so it has no slice in the payload.
+  // `strip` is such a leaf: held, then marked done.
+  const heldThenDone = (depth = 0): GanttRow =>
+    rowAt('strip', 0, 0, { depth, status: 'done', schedule: null });
+
+  it('leaves an arrow from a branch holding a held leaf from the leaf still scheduled', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('branch', 0, 4, { leaf: false }),
+          heldThenDone(1),
+          rowAt('sand', 0, 4, { depth: 1 }),
+          rowAt('paint', 4, 6),
+        ],
+        slices: [sliceAt('sand-dev', 'sand', 0, 4), sliceAt('paint-dev', 'paint', 4, 6)],
+        dependencies: [{ predecessorId: 'branch', successorId: 'paint' }],
+        heldLeafIds: new Set(['strip']),
+      }),
+    );
+    expect(chart.arrows.map((arrow) => [arrow.predecessorId, arrow.fromFinish])).toEqual([
+      ['branch', 4],
+    ]);
+  });
+
+  it('draws no authored arrow to or from a held leaf, and does not read its missing slices as bad data', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [heldThenDone(), rowAt('sand', 0, 3), rowAt('paint', 3, 5)],
+        slices: [sliceAt('sand-dev', 'sand', 0, 3), sliceAt('paint-dev', 'paint', 3, 5)],
+        typedDependencies: [
+          {
+            id: 'from-held',
+            type: 'FS',
+            predecessor: { scope: 'whole', workItemId: 'strip' },
+            successor: { scope: 'whole', workItemId: 'sand' },
+          },
+          {
+            id: 'to-held',
+            type: 'SS',
+            predecessor: { scope: 'whole', workItemId: 'paint' },
+            successor: { scope: 'whole', workItemId: 'strip' },
+          },
+        ],
+        heldLeafIds: new Set(['strip']),
+      }),
+    );
+    expect(chart.typedArrows).toEqual([]);
   });
 });
