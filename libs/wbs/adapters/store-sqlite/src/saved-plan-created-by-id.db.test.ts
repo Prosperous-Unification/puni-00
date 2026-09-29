@@ -179,6 +179,7 @@ describe('saved_plan.created_by_id', () => {
     expect(nullable()).toBe(0);
 
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
@@ -284,6 +285,7 @@ describe('saved_plan.created_by_id', () => {
    */
   it('leaves a row written before the column reading null', () => {
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
