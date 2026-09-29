@@ -173,9 +173,9 @@ export function buildSolverRequest(
   // Proof: this refusal removed made `refuses a plan whose people are booked
   // elsewhere, which wire 2 cannot carry` (`build-solver-request.test.ts`)
   // build a request placing Ann across her booking; watched 2026-09-29.
-  if (
-    [...(plan.elsewhere ?? new Map<string, never[]>()).values()].some((held) => held.length > 0)
-  ) {
+  // A listed person always holds a booking (`checkElsewhere`), so a map with
+  // anyone in it is a plan wire 2 cannot carry.
+  if ((plan.elsewhere?.size ?? 0) > 0) {
     throw new Error(
       'solver wire 2 carries no bookings elsewhere; a shared-people plan needs wire 3',
     );

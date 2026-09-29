@@ -782,8 +782,13 @@ describe('bookings elsewhere in the canonical input', () => {
   it('keeps the hash a plan had before bookings existed when it holds none', () => {
     const before = canonicalScheduleInput(BASE);
     expect(canonicalScheduleInput(plan(new Map()))).toBe(before);
-    expect(canonicalScheduleInput(plan(new Map([['ana', []]])))).toBe(before);
     expect(before).not.toContain('elsewhere');
+  });
+
+  it('refuses a person listed with no booking, as the engine does', () => {
+    const listed = plan(new Map([['ana', []]]));
+    expect(() => canonicalScheduleInput(listed)).toThrow(/listed with no booking/);
+    expect(() => run10(listed)).toThrow(/listed with no booking/);
   });
 
   it('hashes a booking elsewhere, its interval and its holder', () => {
@@ -805,15 +810,18 @@ describe('bookings elsewhere in the canonical input', () => {
     expect(run10(early)).not.toEqual(run10(late));
   });
 
-  it('orders persons and their bookings, so arrival order does not move the hash', () => {
+  it('orders persons, so arrival order does not move the hash, and refuses unordered bookings', () => {
     const forward = new Map([
       ['ana', [held(0, 1), held(2, 3)]],
       ['ben', [held(5, 6)]],
     ]);
     const backward = new Map([
       ['ben', [held(5, 6)]],
-      ['ana', [held(2, 3), held(0, 1)]],
+      ['ana', [held(0, 1), held(2, 3)]],
     ]);
     expect(canonicalScheduleInput(plan(forward))).toBe(canonicalScheduleInput(plan(backward)));
+    expect(() =>
+      canonicalScheduleInput(plan(new Map([['ana', [held(2, 3), held(0, 1)]]]))),
+    ).toThrow(/out of order/);
   });
 });

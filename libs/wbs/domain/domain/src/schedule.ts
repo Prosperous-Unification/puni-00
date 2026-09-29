@@ -1802,6 +1802,14 @@ function placeSlices(
     if (booked === undefined) {
       window = profile.jointWindowFor(poolIds, width, duration, planFloor);
     } else {
+      // The search is asked for `[start, start + duration)`, and the slice then
+      // reserves up to {@link tileFinish}'s finish, which can exceed that by
+      // floating-point drift (under {@link withinDrift}) when a work item's
+      // slices tile. A booking starting exactly there is therefore touched,
+      // never entered, beyond drift — the tolerance the weighted replay and
+      // `schedule-elsewhere.test.ts`'s overlap property both apply. The
+      // weighted path re-searches with the tiled length; this pass keeps
+      // Fast's placement unchanged instead, and states the tolerance here.
       ({ window, pushed, away } = windowAroundElsewhere(
         booked,
         profile,
@@ -2035,16 +2043,29 @@ function holderOf(key: string, away: { holder: ElsewhereBooking } | null): Elsew
 }
 
 /**
- * Refuses an `elsewhere` the engine cannot place around: a booking that is
- * not finite, holds no time, or overlaps or precedes the one listed before it.
- * The chain read builds these from other projects' schedules, so a malformed
- * one is a broken caller and never a plan to place around.
+ * Refuses an `elsewhere` the engine cannot place around: a person listed with
+ * no booking, or a booking that is not finite, holds no time, or overlaps or
+ * precedes the one listed before it. The chain read builds these from other
+ * projects' schedules, so a malformed one is a broken caller and never a plan
+ * to place around.
+ *
+ * **A listed person holds at least one booking**, and that is what makes
+ * "non-empty" one fact everywhere: `elsewhere.size > 0` in `schedule()`, in
+ * {@link canonicalScheduleInput}, which calls this, and in the solver request
+ * builder. A person with `[]` would otherwise hash as the booking-free plan
+ * while the engine answered `waitingElsewhere: 0` and refused pinned starts.
  *
  * Proof: the call to this removed made `refuses a malformed map`
- * (`schedule-elsewhere.test.ts`) schedule all four maps; watched 2026-09-29.
+ * (`schedule-elsewhere.test.ts`) schedule all five maps; the empty-list refusal
+ * alone removed made it schedule `{ ana: [] }`, and `refuses a person listed
+ * with no booking` (`canonical-schedule-input.test.ts`) hash it; watched
+ * 2026-09-29.
  */
-function checkElsewhere(elsewhere: Elsewhere): void {
+export function checkElsewhere(elsewhere: Elsewhere): void {
   for (const [personId, bookings] of elsewhere) {
+    if (bookings.length === 0) {
+      throw new Error(`elsewhere for ${personId}: a person is listed with no booking`);
+    }
     let previousEnd = -Infinity;
     for (const booking of bookings) {
       if (!Number.isFinite(booking.start) || !Number.isFinite(booking.end)) {

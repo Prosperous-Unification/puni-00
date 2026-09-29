@@ -23,6 +23,7 @@
 import type { DependencyReach } from './dependency-reach';
 import type { PlannedRow } from './derive-numbers';
 import {
+  checkElsewhere,
   type DependencyEdge,
   type Elsewhere,
   indexTree,
@@ -264,32 +265,30 @@ export function canonicalScheduleInput(input: ScheduleInput): string {
       type: dependency.type,
     }));
 
-  // Bookings elsewhere by person, each with its holder, both orders fixed
-  // here rather than trusted: a booking that moved is a placement that may
-  // move, and the holder is named on the slice it binds. Present only when a
+  // Bookings elsewhere by person, each with its holder, persons in byte
+  // order: a booking that moved is a placement that may move, and the holder
+  // is named on the slice it binds. Present only when a
   // person holds one, so a plan nothing outranks keeps its hash.
   // Proof: this entry left out made `hashes a booking elsewhere, its
   // interval and its holder` (`canonical-schedule-input.test.ts`) hash every
   // plan alike; watched 2026-09-29.
-  const elsewhere = [...(input.elsewhere ?? new Map<string, never[]>())]
-    .filter(([, bookings]) => bookings.length > 0)
+  // The engine's own refusal first: a map `schedule()` refuses gets no key.
+  // Proof: this call removed made `refuses a person listed with no booking,
+  // as the engine does` and the unordered-bookings case hash what the engine
+  // refuses; watched 2026-09-29.
+  const held = input.elsewhere ?? new Map<string, never[]>();
+  checkElsewhere(held);
+  const elsewhere = [...held]
     .sort(([left], [right]) => byBytes(left, right))
     .map(([personId, bookings]) => ({
       personId,
-      bookings: [...bookings]
-        .sort(
-          (left, right) =>
-            left.start - right.start ||
-            left.end - right.end ||
-            byBytes(left.projectId, right.projectId) ||
-            byBytes(left.workItemId, right.workItemId),
-        )
-        .map((booking) => ({
-          start: booking.start,
-          end: booking.end,
-          projectId: booking.projectId,
-          workItemId: booking.workItemId,
-        })),
+      // Already in order: `checkElsewhere` refuses a list that is not.
+      bookings: bookings.map((booking) => ({
+        start: booking.start,
+        end: booking.end,
+        projectId: booking.projectId,
+        workItemId: booking.workItemId,
+      })),
     }));
 
   return JSON.stringify({

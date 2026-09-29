@@ -115,7 +115,7 @@ describe('buildSolverRequest', () => {
     expect(() => buildSolverRequest(plan, 'pri', spawnOf(planOf()))).toThrow(
       /carries no bookings elsewhere/,
     );
-    expect(requestOf(planOf({ elsewhere: new Map([['ann', []]]) }))).toBeDefined();
+    expect(requestOf(planOf({ elsewhere: new Map() }))).toBeDefined();
   });
 
   it('fills every member the schema requires, and no other', () => {

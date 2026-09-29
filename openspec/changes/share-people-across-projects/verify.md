@@ -87,7 +87,7 @@ branch's migrations at the time of writing (none after it).
 ## Slice 4 — elsewhere in Fast, hash, contract 15, DTO 3
 
 On `batch-9/010-4-16-capacity-elsewhere`, stacked on the rank branch. `SCHEDULER_CONTRACT_VERSION`
-14 → 15 and `CACHE_DTO_VERSION` 2 → 3. `SCHEDULE_ALGORITHM_ID` stays `slice-leveling-v4`: every
+14 → 15 and `CACHE_DTO_VERSION` 2 → 3. `SCHEDULE_ALGORITHM_ID` stays `slice-leveling-v4` (through slice 6, Fable's decision): every
 input without bookings places byte for byte as before, and saved plans capture none.
 
 **Fast digests.** Regenerating the Fast golden corpus after the bump changed exactly one line,
@@ -104,25 +104,33 @@ holder's booking ends where the slice starts, and `waitingElsewhere` counts them
 run asserts it reached > 100 elsewhere-bound slices, > 20 capacity-bound slices beside bookings
 and > 100 weighted plans with bookings).
 
-| Check (file)                                            | Fault injected                    | Test that observed the failure                                                               | Result                                                     |
-| ------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| FS interval search (`schedule.ts`, `placeSlices`)       | the booking lookup forced to miss | `waits for a booking elsewhere before it starts` and 3 more, the overlap property among them | slice placed across the booking                            |
-| weighted seeding (`schedule.ts`, `placeWeightedSlices`) | bookings not seeded               | `waits for a booking elsewhere across a typed dependency`; the overlap property              | slice placed across the booking                            |
-| weighted replay kind (`schedule.ts`)                    | every person wait named `person`  | `waits for a booking elsewhere across a typed dependency`; the property                      | `boundBy: 'person'`                                        |
-| half-open bookings (`schedule.ts`, `elsewhereWindow`)   | comparisons made inclusive        | `fits in a gap between bookings, and a touching booking holds nothing`                       | pushed off a touching booking                              |
-| pool evidence (`schedule.ts`, `annotateCapacity` call)  | final window for a capacity floor | `names the pool when a pool pushes past the booking…`; the property                          | throws `waited for capacity with nothing holding the pool` |
-| final window (same call)                                | pool evidence for every floor     | `names the booking when it pushes past the pool`; the property                               | throws `names t with no pool binding it`                   |
-| malformed map (`checkElsewhere`)                        | the call removed                  | `refuses a malformed map`                                                                    | all four maps scheduled                                    |
-| pinned refusal (`schedule()`)                           | refusal removed                   | `refuses to materialise pinned starts around bookings elsewhere`                             | a schedule returned                                        |
-| `waitingElsewhere` presence                             | always present                    | `keeps every golden corpus case byte for byte, the map supplied empty`                       | extra key                                                  |
-| hash (`canonical-schedule-input.ts`)                    | the `elsewhere` entry left out    | `hashes a booking elsewhere…`, `moves a placement when a booking…moves`                      | one hash for five plans                                    |
-| Fast adapter (`runtime-portable/scheduler.ts`)          | `NOWHERE` passed                  | `hands the bookings elsewhere to Fast`                                                       | empty map seen                                             |
-| wire 2 refusal (`build-solver-request.ts`)              | condition made false              | `refuses a plan whose people are booked elsewhere, which wire 2 cannot carry`                | request built                                              |
-| DTO encode (`schedule-cache-dto.ts`)                    | `waitingElsewhere` dropped        | `round-trips a schedule placed around bookings elsewhere`                                    | count lost                                                 |
-| DTO decode                                              | value taken unchecked             | `refuses a waitingElsewhere that is not a count`                                             | text decoded                                               |
-| DTO fence                                               | left at 2                         | `refuses the version-2 row written before the elsewhere floor existed`                       | v2 row read                                                |
+| Check (file)                                                         | Fault injected                    | Test that observed the failure                                                               | Result                                                     |
+| -------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| FS interval search (`schedule.ts`, `placeSlices`)                    | the booking lookup forced to miss | `waits for a booking elsewhere before it starts` and 3 more, the overlap property among them | slice placed across the booking                            |
+| weighted seeding (`schedule.ts`, `placeWeightedSlices`)              | bookings not seeded               | `waits for a booking elsewhere across a typed dependency`; the overlap property              | slice placed across the booking                            |
+| weighted replay kind (`schedule.ts`)                                 | every person wait named `person`  | `waits for a booking elsewhere across a typed dependency`; the property                      | `boundBy: 'person'`                                        |
+| half-open bookings (`schedule.ts`, `elsewhereWindow`)                | comparisons made inclusive        | `fits in a gap between bookings, and a touching booking holds nothing`                       | pushed off a touching booking                              |
+| pool evidence (`schedule.ts`, `annotateCapacity` call)               | final window for a capacity floor | `names the pool when a pool pushes past the booking…`; the property                          | throws `waited for capacity with nothing holding the pool` |
+| final window (same call)                                             | pool evidence for every floor     | `names the booking when it pushes past the pool`; the property                               | throws `names t with no pool binding it`                   |
+| malformed map (`checkElsewhere`)                                     | the call removed                  | `refuses a malformed map`                                                                    | all four maps scheduled (five since the empty list)        |
+| one "non-empty" (`checkElsewhere`, Fable review)                     | the empty-list refusal removed    | `refuses a malformed map`; `refuses a person listed with no booking, as the engine does`     | `{ ana: [] }` scheduled and hashed                         |
+| hash refuses what the engine refuses (`canonical-schedule-input.ts`) | the `checkElsewhere` call removed | `refuses a person listed with no booking…`; the unordered-bookings case                      | refused maps hashed                                        |
+| pinned refusal (`schedule()`)                                        | refusal removed                   | `refuses to materialise pinned starts around bookings elsewhere`                             | a schedule returned                                        |
+| `waitingElsewhere` presence                                          | always present                    | `keeps every golden corpus case byte for byte, the map supplied empty`                       | extra key                                                  |
+| hash (`canonical-schedule-input.ts`)                                 | the `elsewhere` entry left out    | `hashes a booking elsewhere…`, `moves a placement when a booking…moves`                      | one hash for five plans                                    |
+| Fast adapter (`runtime-portable/scheduler.ts`)                       | `NOWHERE` passed                  | `hands the bookings elsewhere to Fast`                                                       | empty map seen                                             |
+| wire 2 refusal (`build-solver-request.ts`)                           | condition made false              | `refuses a plan whose people are booked elsewhere, which wire 2 cannot carry`                | request built                                              |
+| DTO encode (`schedule-cache-dto.ts`)                                 | `waitingElsewhere` dropped        | `round-trips a schedule placed around bookings elsewhere`                                    | count lost                                                 |
+| DTO decode                                                           | value taken unchecked             | `refuses a waitingElsewhere that is not a count`                                             | text decoded                                               |
+| DTO fence                                                            | left at 2                         | `refuses the version-2 row written before the elsewhere floor existed`                       | v2 row read                                                |
 
 fe-01 learns the member (`ScheduleFloorView`, `BindingFloor`) because the wire carries it; its
 words are slice 7's, so a bar held elsewhere still reaches the error boundary
 (`sends a bar held elsewhere to the error boundary until it has words`). No production path
 produces the floor before slice 6 builds the chain and slice 8 lets an organization share.
+
+Fable's review of #250 unified "non-empty elsewhere": a listed person holds at least one booking
+(`checkElsewhere` refuses `[]`), so `elsewhere.size > 0` means the same thing in the engine, the hash
+(which now calls `checkElsewhere` and no longer sorts bookings it has validated) and the wire 2
+builder. The FS pass's drift between the searched length and `tileFinish`'s finish is documented
+beside the search, not re-searched; the overlap property already applies the same tolerance.

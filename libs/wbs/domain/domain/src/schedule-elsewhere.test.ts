@@ -170,6 +170,7 @@ describe('a person booked elsewhere', () => {
       [[booking(0, 3), booking(2, 4)], /overlap or are out of order/],
       [[booking(3, 4), booking(0, 1)], /overlap or are out of order/],
       [[booking(0, Infinity)], /not finite/],
+      [[], /listed with no booking/],
     ] as const) {
       expect(() => around(rows, slices, new Map([['ana', bookings]]))).toThrow(message);
     }
