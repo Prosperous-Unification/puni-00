@@ -61,6 +61,8 @@ test('pins every generated MCP operation name independently of the registry', ()
     'deleteApiProjectsByIdCalendar-markersByMarkerId',
     'deleteApiProjectsByIdStepsByStepId',
     'deleteApiSaved-plansById',
+    'deleteApiSpacesById',
+    'deleteApiSpacesByIdProjectsByProjectId',
     'getApiExternal-systems',
     'getApiOnboarding',
     'getApiOrganizationDomains',
@@ -79,6 +81,8 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiProjectsByIdWork-items',
     'getApiSaved-plansById',
     'getApiServices',
+    'getApiSpaces',
+    'getApiSpacesById',
     'getApiTags',
     'getApiTeams',
     'getApiWork-item-types',
@@ -88,6 +92,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'patchApiProjectsByIdCalendar-markersByMarkerId',
     'patchApiProjectsByIdStepsByStepId',
     'patchApiSaved-plansById',
+    'patchApiSpacesById',
     'postApiDirectoryCommands',
     'postApiOnboardingEmailChallenges',
     'postApiOnboardingEmailChallengesConfirm',
@@ -110,6 +115,9 @@ test('pins every generated MCP operation name independently of the registry', ()
     'postApiProjectsByIdSteps',
     'postApiProjectsByIdUndo',
     'postApiProjectsImport',
+    'postApiSpaces',
+    'postApiSpacesByIdProjects',
+    'postApiSpacesByIdProjectsByProjectIdMove',
   ]);
 });
 

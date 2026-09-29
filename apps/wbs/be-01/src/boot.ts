@@ -10,6 +10,7 @@ import {
   OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
+  SpaceRepository,
   SqliteOrganizationAccess,
 } from '@wbs/store-sqlite';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
@@ -214,6 +215,7 @@ export async function bootBe01(
               emailVerification: new EmailVerificationRepository(db, services.gate),
               invitations: new InvitationRepository(db, services.gate),
               joinRequests: new JoinRequestRepository(db, services.gate),
+              spaces: new SpaceRepository(db, services.gate),
               emailDelivery: refusingEmailDelivery,
               steps: services.steps,
               calendarMarkers: services.calendarMarkers,

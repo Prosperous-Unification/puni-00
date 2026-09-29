@@ -54,6 +54,8 @@ const ORGANIZATION_TABLES = [
   'organization_audit',
   'project_solution',
   'delegation_use',
+  'space',
+  'space_project',
   'service_organization',
   'service_team_organization',
   'tag_organization',
@@ -742,6 +744,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
