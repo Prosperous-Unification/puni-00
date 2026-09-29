@@ -364,8 +364,13 @@ const LOG_LEVELS: ReadonlySet<string> = new Set([
 
 const atLeast32 = (value: string): string | null =>
   value.length >= 32 ? null : 'must be at least 32 characters';
+/**
+ * ArkType's `string.integer.parse` refuses leading zeros, so `0100` is not an
+ * integer to the loaders even though `Number` reads it as 100.
+ */
+const INTEGER = /^(?:0|[1-9]\d*)$/;
 const positiveInteger = (value: string): string | null =>
-  /^\d+$/.test(value) && Number(value) > 0 ? null : 'must be a positive integer';
+  INTEGER.test(value) && Number(value) > 0 ? null : 'must be a positive integer';
 
 /**
  * The value shapes the be-01 and gw-01 loaders enforce, as a reason or null.
@@ -376,7 +381,10 @@ const positiveInteger = (value: string): string | null =>
  * refused there, and a set admitted here boots there.
  */
 const VALUE_RULES: Readonly<Partial<Record<string, (value: string) => string | null>>> = {
-  PORT: (value) => (/^\d+$/.test(value) ? null : 'must be an integer'),
+  // Proof: restoring `/^\d+$/` as INTEGER made both release-coherence shape
+  // cases (PORT=0100, SOLVER_BUDGET_MS=007) and `refuses a PORT with a
+  // leading zero` fail (173 pass, 3 fail, 2026-09-29).
+  PORT: (value) => (INTEGER.test(value) ? null : 'must be an integer without leading zeros'),
   LOG_LEVEL: (value) =>
     LOG_LEVELS.has(value) ? null : `must be one of ${[...LOG_LEVELS].join('|')}`,
   INTERNAL_AUTH_SECRET: atLeast32,
@@ -452,7 +460,13 @@ export function assertTierEnvComplete(
       if (value === undefined || value === '') missing.push(`${key} (${path})`);
     }
     for (const [key, value] of values) {
-      if (value === '') continue;
+      // An empty optional key still reaches the loader, which refuses it
+      // (`JWT_SIGNING_KEY_PREVIOUS=` fails gw's `string>=32`), so only keys
+      // without a rule may be empty here.
+      // Proof: skipping every empty value again made `refuses an empty
+      // optional signing key` and both release-coherence shape cases fail
+      // (173 pass, 3 fail, 2026-09-29).
+      if (value === '' && VALUE_RULES[key] === undefined) continue;
       // Proof: skipping this line's rules made five cases fail (169 pass,
       // 5 fail, 2026-09-29): the 20-character signing key, the quoted `""`,
       // PORT=32o0, LOG_LEVEL=verbose and both release-coherence shape cases.

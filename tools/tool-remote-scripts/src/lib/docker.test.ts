@@ -817,9 +817,13 @@ describe('assertTierEnvComplete against the release configuration', () => {
 
   function preflightMessage(tier: 'be' | 'gw', env: Record<string, string>): string {
     const app = Object.fromEntries(
-      Object.entries(env).filter(([key]) => key in APP[tier] || key === 'AUTH_MODE'),
+      Object.entries(env).filter(
+        ([key]) => key in APP[tier] || key === 'AUTH_MODE' || key.startsWith('SOLVER_'),
+      ),
     );
-    const shared = Object.fromEntries(Object.entries(env).filter(([key]) => key in SHARED));
+    const shared = Object.fromEntries(
+      Object.entries(env).filter(([key]) => key in SHARED || key === 'JWT_SIGNING_KEY_PREVIOUS'),
+    );
     const oidc = Object.fromEntries(Object.entries(env).filter(([key]) => key in OIDC));
     try {
       assertTierEnvComplete(tier, {
@@ -841,6 +845,10 @@ describe('assertTierEnvComplete against the release configuration', () => {
     NODE_ENV: 'production',
     // The rendered Compose environment supplies this for be (tierComposeContext).
     APP_ORIGIN: 'https://wbs.example.test',
+    // Well-formed optional keys, so the admitted set exercises their rules too.
+    ...(tier === 'be'
+      ? { SOLVER_BUDGET_MS: '120000', SOLVER_SEARCH_WORKERS: '2', SOLVER_MEMORY_LIMIT_MB: '512' }
+      : { JWT_SIGNING_KEY_PREVIOUS: 'p'.repeat(32) }),
   });
 
   for (const tier of ['be', 'gw'] as const) {
@@ -868,23 +876,38 @@ describe('assertTierEnvComplete against the release configuration', () => {
     });
 
     it(`refuses only value shapes the ${tier} release also refuses`, () => {
-      const cases: Record<string, string> = {
-        PORT: '32o0',
-        LOG_LEVEL: 'verbose',
-        INTERNAL_AUTH_SECRET: 's'.repeat(31),
-        JWT_SIGNING_KEY_CURRENT: 'k'.repeat(20),
+      const cases: [string, string][] = [
+        ['PORT', '32o0'],
+        ['PORT', '0100'],
+        ['LOG_LEVEL', 'verbose'],
+        ['INTERNAL_AUTH_SECRET', 's'.repeat(31)],
+        ['JWT_SIGNING_KEY_CURRENT', 'k'.repeat(20)],
         // gw reads only the callback's origin, but the carrier it shares with
         // be must hold be's mounted callback route, so only be is asked here.
-        ...(tier === 'be' ? { AUTH_REDIRECT_URI: 'https://wbs.example.test/other' } : {}),
-      };
-      for (const [key, value] of Object.entries(cases)) {
+        ...(tier === 'be'
+          ? ([
+              ['AUTH_REDIRECT_URI', 'https://wbs.example.test/other'],
+              ['SOLVER_BUDGET_MS', '007'],
+              ['SOLVER_BUDGET_MS', ''],
+              ['SOLVER_SEARCH_WORKERS', '0'],
+              ['SOLVER_MEMORY_LIMIT_MB', 'lots'],
+            ] as [string, string][])
+          : // Only gw derives JWT_SIGNING_KEY_PREVIOUS (SECRET_KEYS).
+            ([
+              ['JWT_SIGNING_KEY_PREVIOUS', ''],
+              ['JWT_SIGNING_KEY_PREVIOUS', 'p'.repeat(20)],
+            ] as [string, string][])),
+      ];
+      for (const [key, value] of cases) {
         const env = { ...complete(tier), [key]: value };
-        expect({ key, message: preflightMessage(tier, env) }).toEqual({
+        expect({ key, value, message: preflightMessage(tier, env) }).toEqual({
           key,
+          value,
           message: expect.stringContaining(`${key} (`) as string,
         });
-        expect({ key, exitCode: bootRelease(tier, env).exitCode }).not.toEqual({
+        expect({ key, value, exitCode: bootRelease(tier, env).exitCode }).not.toEqual({
           key,
+          value,
           exitCode: 0,
         });
       }

@@ -43,6 +43,12 @@ restored. The restored file was compared with `cmp` or rerun green.
 | live WAL moved aside on restore  | `-wal` left out of the displaced set              | `backup.db.test.ts` 6 pass, 1 fail                                             |
 | smoke failure output redacted    | JSON body restored in `responseSummary`           | `auth-read.test.ts` 9 pass, 1 fail on the printed username                     |
 
+Review round 2 (Fable at `909067847`) closed two cases where the preflight admitted a value the
+loaders refused: an empty value for a key with a rule (`JWT_SIGNING_KEY_PREVIOUS=`) and leading
+zeros (`PORT=0100`, `SOLVER_BUDGET_MS=007`). The release-coherence cases now also cover
+`SOLVER_*` and `JWT_SIGNING_KEY_PREVIOUS`. With `/^\d+$/` restored: 173 pass, 3 fail. With every
+empty value skipped again: 173 pass, 3 fail.
+
 The fsync of the partial file and its directory (M4) is not observable in a unit test. It is
 exercised on every snapshot and restore path, but no test proves that it reaches the disk.
 

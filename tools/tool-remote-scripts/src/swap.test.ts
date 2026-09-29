@@ -553,6 +553,22 @@ describe('startGreen required-key preflight', () => {
     expect(events).toEqual(READS_ONLY);
   });
 
+  it('refuses an empty optional signing key that gw would refuse', async () => {
+    const { events, message } = await runStartGreen('gw', {
+      shared: `${SHARED_ENV}JWT_SIGNING_KEY_PREVIOUS=\n`,
+    });
+    expect(message).toContain('JWT_SIGNING_KEY_PREVIOUS (/home/puni1/wbs/.env)');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses a PORT with a leading zero', async () => {
+    const { events, message } = await runStartGreen('be', {
+      app: APP_ENV.be.replace('PORT=3100', 'PORT=0100'),
+    });
+    expect(message).toContain('PORT (/home/puni1/wbs/be-01.env) must be an integer');
+    expect(events).toEqual(READS_ONLY);
+  });
+
   it('refuses AUTH_MODE=local, which the production image cannot boot', async () => {
     const { events, message } = await runStartGreen('be', {
       app: APP_ENV.be.replace('AUTH_MODE=oidc', 'AUTH_MODE=local'),
