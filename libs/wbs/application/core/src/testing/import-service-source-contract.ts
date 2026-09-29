@@ -1185,7 +1185,7 @@ export function importServiceSourceContract(
           if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
           const exported = await exportDocument(source, imported.projectId);
 
-          expect(exported.document.version).toBe(5);
+          expect(exported.document.version).toBe(6);
           expect(exported.typedDependencies).toEqual([]);
           expect(exported.steps.map(({ name, code }) => [name, code])).toEqual([
             ['Discover', codes[0]],
@@ -1241,7 +1241,7 @@ export function importServiceSourceContract(
           verifyStep === undefined
         )
           throw new Error('round-trip relationship references disappeared');
-        expect(exported.document.version).toBe(5);
+        expect(exported.document.version).toBe(6);
         expect(
           exported.typedDependencies.map(({ predecessor, successor, type }) => ({
             predecessor,
@@ -1264,6 +1264,88 @@ export function importServiceSourceContract(
         expect(exported.typedDependencies.map(({ id }) => id)).not.toContain('node-link');
         expect(verify.dependsOn).toContain(build.id);
         expect(exported.settings.depReach).toBe('anchor-slice');
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('round-trips a version-6 readiness and hold, and reads a version-5 file with neither', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 6;
+        const leaf = file.workItems.find(
+          (row) => !file.workItems.some((child) => child.parentId === row.id),
+        );
+        if (leaf === undefined) throw new Error('round-trip fixture has no leaf');
+        Reflect.set(leaf, 'readiness', 'ready');
+        Reflect.set(leaf, 'hold', 'blocked');
+        const classified = await classifyPlanDocument(file);
+        if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
+        const imported = await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS);
+        if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+        const exported = await exportDocument(source, imported.projectId);
+        expect(exported.workItems.find(({ name }) => name === leaf.name)).toMatchObject({
+          readiness: 'ready',
+          hold: 'blocked',
+        });
+
+        file.document.version = 5;
+        const older = await classifyPlanDocument(file);
+        if (!older.ok) throw new Error(`version 5 refused at ${older.path}`);
+        expect(
+          older.value.workItems.every(({ readiness, hold }) => readiness === null && hold === null),
+        ).toBe(true);
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('re-imports its own export of a leaf held and then marked done (add-work-item-statuses)', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 6;
+        const leaf = file.workItems.find(
+          (row) => !file.workItems.some((child) => child.parentId === row.id),
+        );
+        if (leaf === undefined) throw new Error('round-trip fixture has no leaf');
+        Reflect.set(leaf, 'hold', 'on_hold');
+        const classified = await classifyPlanDocument(file);
+        if (!classified.ok) throw new Error(`classification refused at ${classified.path}`);
+        const imported = await importService(source).import(classified.value, ACTOR, LEGACY_ACCESS);
+        if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+
+        const graph = servicesOver(source.stores, {
+          admission: CREATOR_ADMISSION,
+          clock: clockOf({ now: () => STAMP.at, newId: () => crypto.randomUUID() }),
+          broadcast: recordingBroadcaster(),
+          scheduler: fastScheduler,
+        });
+        const tree = await graph.workItems.tree(imported.projectId);
+        if (tree === null || 'kind' in tree) throw new Error('imported project has no tree');
+        const held = tree.workItems.find(({ name }) => name === leaf.name);
+        if (held === undefined) throw new Error('imported leaf is missing');
+        for (const step of tree.steps) {
+          const marked = await graph.workItems.setProgress(held.id, ACTOR, step.id, 'done');
+          if (!marked.ok) throw new Error(`cannot mark ${step.id} done`);
+        }
+
+        const exported = await exportDocument(source, imported.projectId);
+        expect(exported.workItems.find(({ name }) => name === leaf.name)).toMatchObject({
+          hold: 'on_hold',
+        });
+        const again = await classifyPlanDocument(exported);
+        expect(again.ok).toBe(true);
+        if (!again.ok) return;
+        const reimported = await importService(source).import(again.value, ACTOR, LEGACY_ACCESS);
+        if (!reimported.ok) throw new Error(`re-import refused at ${reimported.path}`);
+        const reread = await graph.workItems.tree(reimported.projectId);
+        if (reread === null || 'kind' in reread) throw new Error('re-imported project has no tree');
+        expect(reread.workItems.find(({ name }) => name === leaf.name)).toMatchObject({
+          status: 'done',
+          hold: 'on_hold',
+        });
       } finally {
         await source.close();
       }

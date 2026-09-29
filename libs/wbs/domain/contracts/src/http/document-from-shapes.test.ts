@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { documentFromShapes } from './document-from-shapes';
 import { defineEndpointShape } from './endpoint-shape';
+import { importProject } from './import-shapes';
 import { requestSchema, responseSchema } from './schema-shape';
 
 const batch = defineEndpointShape({
@@ -373,3 +374,11 @@ export function mediaTypeFixtures() {
   // @ts-expect-error Media declarations require a body schema.
   defineEndpointShape({ ...bodyless, bodyMedia: ['application/json'] });
 }
+
+test('emits an operation description only where the shape gives one', () => {
+  const document = documentFromShapes([batch, importProject]);
+  expect(document.paths['/api/projects/{id}/commands']?.['post']).not.toHaveProperty('description');
+  expect(document.paths['/api/projects/import']?.['post']?.description).toContain(
+    'From version 6 every work item must carry both `readiness`',
+  );
+});

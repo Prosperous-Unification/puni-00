@@ -78,6 +78,15 @@ describe('planSwap', () => {
     expect(plan.steps.indexOf('grant-alias')).toBeLessThan(plan.steps.indexOf('render-route'));
   });
 
+  it('backs up before migrating, and never after', () => {
+    const plan = planSwap('be', base);
+    expect(plan.steps.indexOf('stored-vocabularies')).toBeLessThan(plan.steps.indexOf('backup-db'));
+    expect(plan.steps.indexOf('backup-db')).toBe(plan.steps.indexOf('migrate') - 1);
+    for (const tier of ['gw', 'fe'] as const) {
+      expect(planSwap(tier, base).steps).not.toContain('backup-db');
+    }
+  });
+
   it('defers revoke-alias for be until after reload, on a real swap', () => {
     const plan = planSwap('be', base);
     expect(plan.steps.indexOf('reload')).toBeLessThan(plan.steps.indexOf('revoke-alias'));

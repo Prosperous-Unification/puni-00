@@ -74,7 +74,8 @@ export interface EndpointShape {
   bodyMedia?: readonly [BodyMedia, ...BodyMedia[]];
   responses: readonly (JsonResponse | EmptyResponse | TextResponse)[];
   refusals: readonly (RefusalResponse | ImportRefusalResponse | EmptyRefusalResponse)[];
-  document: { summary: string };
+  /** `description` is the OpenAPI operation's longer text, emitted only when given. */
+  document: { summary: string; description?: string };
 }
 
 /**

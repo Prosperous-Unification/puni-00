@@ -38,13 +38,39 @@
 #
 #   ssh h2puni 'cd /home/puni1/wbs-build && bin/assert-no-prod-release.sh /home/puni1/wbs/state'
 #
+# **The one override: `--override-with-ledger=<file>`.** A recorded release is
+# safe for the rename only when that release predates every table the rename
+# touches, which is true of exactly one ledger: the skeleton release whose
+# database applied only `20260426171432_talented_smiling_tiger`. The operator
+# dumps the live ledger (`SELECT name FROM __drizzle_migrations`, one name per
+# line) and names the file; the override is accepted only when that file is
+# readable and lists that migration and nothing else. It never excuses an
+# unreadable state directory or file. docs/runbook-prod-deploy.md
+# ("First product deploy") has the procedure.
+#
 # Proof: assert-no-prod-release.test.ts, `refuses a recorded colour`,
 # `refuses an unreadable state file`, `refuses a missing state directory`,
-# `passes on a never-deployed state`. See that file for the injected faults.
+# `passes on a never-deployed state`, and the `--override-with-ledger` cases.
+# See that file for the injected faults.
 set -euo pipefail
 
-STATE_DIR=${1:?usage: assert-no-prod-release.sh <state-dir>}
+STATE_DIR=${1:?usage: assert-no-prod-release.sh <state-dir> [--override-with-ledger=<ledger-dump>]}
 TIERS='be gw fe'
+SKELETON_MIGRATION='20260426171432_talented_smiling_tiger'
+
+OVERRIDE_LEDGER=''
+case "${2:-}" in
+  '') ;;
+  --override-with-ledger=?*) OVERRIDE_LEDGER=${2#--override-with-ledger=} ;;
+  *)
+    printf 'assert-no-prod-release: unknown argument %s; the only option is --override-with-ledger=<ledger-dump>.\n' "$2" >&2
+    exit 2
+    ;;
+esac
+if [ "$#" -gt 2 ]; then
+  printf 'assert-no-prod-release: too many arguments.\n' >&2
+  exit 2
+fi
 
 if [ ! -d "$STATE_DIR" ]; then
   printf 'assert-no-prod-release: %s is not a readable state directory, so whether a prod release is deployed could not be read.\n' "$STATE_DIR" >&2
@@ -57,6 +83,7 @@ if [ ! -r "$STATE_DIR" ] || [ ! -x "$STATE_DIR" ]; then
   exit 1
 fi
 
+recorded=''
 for tier in $TIERS; do
   state_file="$STATE_DIR/$tier.json"
   if [ ! -e "$state_file" ]; then
@@ -69,11 +96,35 @@ for tier in $TIERS; do
   fi
   printf 'assert-no-prod-release: %s records a deployed release, so the role -> step rename must not be applied.\n' "$state_file" >&2
   printf '  %s\n' "$(cat "$state_file")" >&2
+  recorded="$recorded $tier"
+done
+
+if [ -z "$recorded" ]; then
+  printf 'assert-no-prod-release: %s holds no release record for be, gw or fe -- nothing is deployed.\n' "$STATE_DIR"
+  exit 0
+fi
+
+if [ -z "$OVERRIDE_LEDGER" ]; then
   printf '  20260831120000_rename_role_to_step is not backward-compatible, and blue and green share one SQLite file during a swap.\n' >&2
   printf '  The change that is safe here is the expand/contract pair in openspec/changes/steps-schema-rename/design.md D2:\n' >&2
   printf '    expand  - rename, then a view per old name with INSTEAD OF triggers writing through to the new table;\n' >&2
   printf '    contract - a later release drops the views and triggers once no colour reads them.\n' >&2
+  printf '  If the deployed release is the pre-product skeleton, see --override-with-ledger in docs/runbook-prod-deploy.md.\n' >&2
   exit 1
-done
+fi
 
-printf 'assert-no-prod-release: %s holds no release record for be, gw or fe -- nothing is deployed.\n' "$STATE_DIR"
+if [ ! -f "$OVERRIDE_LEDGER" ] || [ ! -r "$OVERRIDE_LEDGER" ]; then
+  printf 'assert-no-prod-release: override ledger %s is missing or unreadable; refusing.\n' "$OVERRIDE_LEDGER" >&2
+  exit 1
+fi
+ledger_names=$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' "$OVERRIDE_LEDGER")
+if [ "$ledger_names" != "$SKELETON_MIGRATION" ]; then
+  printf 'assert-no-prod-release: override refused: %s must list exactly %s, the only ledger the rename cannot break.\n' "$OVERRIDE_LEDGER" "$SKELETON_MIGRATION" >&2
+  printf '  It lists:\n' >&2
+  sed 's/^/    /' "$OVERRIDE_LEDGER" >&2
+  exit 1
+fi
+
+printf 'assert-no-prod-release: OVERRIDE ACCEPTED for recorded tier(s):%s.\n' "$recorded"
+printf '  %s lists only %s: the deployed release predates every table the rename touches.\n' "$OVERRIDE_LEDGER" "$SKELETON_MIGRATION"
+printf '  Keep this output and the ledger dump with the deploy record.\n'

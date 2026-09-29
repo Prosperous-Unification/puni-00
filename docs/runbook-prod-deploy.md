@@ -80,6 +80,88 @@ exits non-zero and `commit` does not run. The error names the manual command,
 run it until it prints `step codes backfilled: <n>`, then rerun the deploy to record it
 (`backfillStepCodes` in `libs/wbs/adapters/store-sqlite/src/step-code-backfill.ts`).
 
+**Pre-migration backup.** A `be` swap runs `backup-db` between `stored-vocabularies` and
+`migrate`. The incoming container writes a `VACUUM INTO` copy to
+`/home/puni1/wbs/data/backups/wbs-pre-<sha>-<stamp>.db`, checks `integrity_check` and a nonempty
+migration ledger, and only then renames it into place (`snapshotDatabase` in
+`libs/wbs/adapters/store-sqlite/src/backup.ts`). If the backup fails, the swap aborts before
+anything is migrated. Nothing deletes old backups; prune them by hand.
+
+## First product deploy
+
+Prod has run the pre-product release `0afc7775` since 2026-08-03. Its database should hold only
+`20260426171432_talented_smiling_tiger`. These steps apply to the first deploy of the product
+over it. They cover what the swap cannot check for itself.
+
+**Environment files.** `startGreen` refuses a swap whose env files lack a key the release
+requires or hold a value its loader would reject: a non-integer `PORT`, an unknown `LOG_LEVEL`, a
+secret shorter than 32 characters, or a callback off `/api/auth/okta/callback`. It names each key,
+file and rule, never a value. Write values bare. A quoted value or one containing ` #` is refused,
+because Compose would strip the quotes or the comment. Nothing is written or started before the
+check (`assertTierEnvComplete` in `tools/tool-remote-scripts/src/lib/docker.ts`). Each file must
+hold:
+
+| File                                  | Keys                                                                                                      |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `/home/puni1/wbs/be-01.env`           | `PORT`, `LOG_LEVEL`, `GW_URL`, `DB_PATH`, `AUTH_MODE=oidc`                                                |
+| `/home/puni1/wbs/gw-01.env`           | `PORT`, `LOG_LEVEL`, `BE_URL`, `AUTH_MODE=oidc`                                                           |
+| `/home/puni1/wbs/.env`                | `INTERNAL_AUTH_SECRET`, `JWT_SIGNING_KEY_CURRENT` (at least 32 characters each)                           |
+| `/home/puni1/wbs/oidc.env` (mode 600) | `AUTH_ISSUER_DISCOVERY_URL`, `AUTH_CLIENT_ID`, `AUTH_CLIENT_SECRET`, `AUTH_REDIRECT_URI`, `AUTH_AUDIENCE` |
+
+`AUTH_MODE=local` is refused. The be-01 and gw-01 images set `NODE_ENV=production`, and
+`authModeOf` refuses local mode in production. OIDC is the only mode prod can boot. The swap
+merges `oidc.env` into be and gw after their app files and before the derived secrets file. It
+may hold only the five provider keys. `AUTH_REDIRECT_URI` must be
+`https://wbs.bulletpoints.club/api/auth/okta/callback`. With `NODE_ENV=production` the group
+prefix is `prod`, so the tenant's post-login Action must emit `prod:wbs:*` groups
+(`docs/auth-integration.md`). Password login stays on and password registration off, which are
+the release defaults. Choosing the tenant and client is an operator decision.
+
+**The no-prod-release gate.** `bin/assert-no-prod-release.sh /home/puni1/wbs/state` refuses once
+any tier is recorded. That is correct in general, and it is why the rename migration is safe to
+ship only over a skeleton database. Immediately before running the gate, dump the live ledger
+from a read-only open, one name per line
+(`SELECT name FROM __drizzle_migrations ORDER BY created_at`). An older dump says nothing about a
+deploy that has happened since. Then run:
+
+```sh
+bin/assert-no-prod-release.sh /home/puni1/wbs/state --override-with-ledger=<ledger-dump>
+```
+
+The override is accepted only when the dump lists exactly
+`20260426171432_talented_smiling_tiger`. It never excuses an unreadable state directory or file.
+If it refuses, stop: the rename is unsafe, and the expand/contract route in
+`openspec/changes/steps-schema-rename/design.md` D2 applies. Keep the accepted output and the
+dump with the deploy record.
+
+**Restore.** Before `reload`, a failed swap rolls back by itself. After that, restore the
+pre-migration backup the swap printed. Stop both be-01 colours first, then run the restore from a
+throwaway container of the new image:
+
+```sh
+docker run --rm -v /home/puni1/wbs/data:/data -e DB_PATH=/data/wbs.db \
+  --entrypoint bun <be-01 image> run src/restore-db-cli.ts /data/backups/<name>.db
+```
+
+The restore verifies the backup before replacing anything. It moves `wbs.db`, `-wal` and `-shm`
+aside as `.displaced-<stamp>` and never deletes them. Then restore `site.caddy`, `docker start`
+the old containers and `caddy reload`. Copy the backup off the host before deploying.
+
+**Smoke.** After the swap, smoke also checks the read paths. `/api/auth/me` without a credential
+must answer `{"user":null}`, and `/api/projects` without one must be 401. For signed-in reads,
+put `SMOKE_READ_USER_ID` and `SMOKE_READ_USERNAME` in `/home/puni1/wbs/smoke-read.env`
+(mode 600). They must name a dedicated, low-value account that owns nothing anyone needs. Smoke
+then mints a one-minute session with the deployed signing key and reads `/api/auth/me` and
+`/api/projects`. Without the file, those two checks print `SKIPPED`. Failures print the status
+and response keys, never the account or project values. Writes stay a manual smoke.
+
+The minted session is a password session. It passes only while `AUTH_PASSWORD_LOGIN` is not
+`false`: in OIDC mode, a token the OIDC verifier rejects falls through to the password check only
+while password sessions are on (`AuthService.authenticate`). With password login off, the
+signed-in checks fail with 401. Every signed-in request asks the OIDC verifier first, so an
+outage of the provider's discovery or JWKS endpoint shows as 500 on the signed-in checks. That is
+not an application fault.
+
 ## Typed dependency rollback
 
 **Code rollback with SS/FF rows.** The `be` swap compares the incoming binary's
@@ -166,4 +248,33 @@ gone or has become a parent:
 
 ```sh
 docker exec be-01-<colour> bun run src/work-item-status-facts-rollback-cli.ts restore /data/work-item-status-facts-<date>.json
+```
+
+## Space rollback
+
+Code rollback needs nothing: an older image has no spaces routes, and the `space` and
+`space_project` tables are inert to it. Rolling back past `20260929100000_add_spaces` refuses
+while any space exists, reading `CHECK constraint failed: spaces exist: …`, because dropping
+the tables would lose every space and its order. Run the procedure inside the incoming
+container after its writers have stopped, with the same `DB_PATH`. Save, then copy the file
+off the host:
+
+```sh
+docker exec be-01-<colour> bun run src/space-rollback-cli.ts save /data/spaces-<date>.json
+```
+
+Remove only after the save is secure. Remove refuses unless the file equals every stored space
+and member, every column included:
+
+```sh
+docker exec be-01-<colour> bun run src/space-rollback-cli.ts remove /data/spaces-<date>.json
+docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
+```
+
+After a later forward migration, restore. Restore refuses the whole set, naming the space, when
+a saved organization is gone, a saved project is no longer owned by its space's organization,
+the organization already holds a space of that name, or an author is no longer a user:
+
+```sh
+docker exec be-01-<colour> bun run src/space-rollback-cli.ts restore /data/spaces-<date>.json
 ```

@@ -151,6 +151,7 @@ describe('the signed-in region, routed', () => {
       'GET /api/organization/invitations': [() => answerJson(200, { invitations: [] })],
       'GET /api/organization/join-requests': [() => answerJson(200, { requests: [] })],
       'GET /api/organization/domains': [() => answerJson(200, { domains: [] })],
+      'GET /api/organization/members': [() => answerJson(200, { members: [] })],
     });
     regionAt('/organization');
 

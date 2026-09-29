@@ -7,15 +7,16 @@ import { workItemTree } from './work-item-response';
 /**
  * The plan document version this release writes.
  *
- * `5` extends typed dependencies to SS/FF; `4` added FS separately from
+ * `6` carries each leaf's readiness and hold (`add-work-item-statuses`); `5`
+ * extends typed dependencies to SS/FF; `4` added FS separately from
  * legacy `dependsOn`; `3` added step codes and `2` step allowances. The
  * classifier converts earlier versions explicitly.
  */
-export const PLAN_DOCUMENT_VERSION = 5;
+export const PLAN_DOCUMENT_VERSION = 6;
 
 const planHeader = type({
   format: "'wbs-plan'",
-  version: '5',
+  version: '6',
   exportedAt: 'string',
 });
 
@@ -136,6 +137,10 @@ const authoredWorkItem = type({
   deadline: 'string | null',
   factStart: 'string | null',
   factEnd: 'string | null',
+  // Opaque until the version is read: versions 1–5 carry neither, and version
+  // 6 must state both — see `classifyPlanDocument`.
+  'readiness?': 'unknown',
+  'hold?': 'unknown',
   // Proof: loosening this to unknown made the mounted document boundary accept
   // "high" at workItems[3].priority with 204 instead of 400 invalid_body.
   priority: 'number | null',
@@ -196,8 +201,16 @@ export type PlanDocumentRequest = (typeof writablePlanDocument)['infer'];
  * earlier version. Versions 1–3 carry an empty typed set after conversion;
  * version 4 converts its FS-only typed set explicitly.
  */
-export type PlanDocumentImport = Omit<PlanDocumentRequest, 'steps' | 'typedDependencies'> & {
+export type PlanDocumentImport = Omit<
+  PlanDocumentRequest,
+  'steps' | 'typedDependencies' | 'workItems'
+> & {
   typedDependencies: DocumentTypedDependency[];
+  /** Readiness and hold as the file states them from version 6, null before. */
+  workItems: (Omit<PlanDocumentRequest['workItems'][number], 'readiness' | 'hold'> & {
+    readiness: 'draft' | 'ready' | null;
+    hold: 'on_hold' | 'blocked' | null;
+  })[];
   steps: (Omit<PlanDocumentRequest['steps'][number], 'allowancePercent' | 'code'> & {
     allowancePercent: number;
     code: string | null;

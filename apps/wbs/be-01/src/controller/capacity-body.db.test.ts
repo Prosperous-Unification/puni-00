@@ -51,6 +51,7 @@ import {
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
+import { refusingSpaces } from '../testing/space-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
 const TEST_JWT_KEY = 'k'.repeat(32);
@@ -151,6 +152,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       emailVerification: refusingEmailVerification,
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,
+      spaces: refusingSpaces,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),

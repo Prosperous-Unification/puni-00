@@ -154,6 +154,18 @@ Undoing a move orders its writes as: clear the parent the row left, move the row
 Held rows keep their stored position when the plan is arranged; an arranged sibling may take
 the same position number, and ADR 0016's id tie-break orders the two.
 
+### Slice 5b — plan document v6
+
+| Check                                   | Fault injected                    | Test that observed it                                                                 | Observed                                                        |
+| --------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| hold vocabulary                         | an unknown hold read as `on_hold` | `refuses a version-6 hold or readiness outside its vocabulary or on a parent…`        | `ok: true` where `invalid_body` at `workItems[1].hold` was owed |
+| no statement on a parent                | parent check disabled             | same case                                                                             | `ok: true` where `workItems[0].hold` was owed                   |
+| the import writes the file's statements | both written as null              | `round-trips a version-6 readiness and hold, and reads a version-5 file with neither` | the imported row held neither                                   |
+
+### Plan document v6 review fixes (Fable review of #225)
+
+The import no longer refuses a hold on done work: `setProgress` keeps a hold, so a leaf held and then marked done exported `hold: "on_hold"` and its own file was refused. With the refusal restored, `re-imports its own export of a leaf held and then marked done` failed on `Expected: true, Received: false` (the re-classification refused the export). `setProgress` is unchanged.
+
 ## Not run
 
 - The h2puni host gate; the orchestrator runs it on the integration branch.

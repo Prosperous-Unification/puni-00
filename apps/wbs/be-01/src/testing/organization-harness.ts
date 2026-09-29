@@ -15,6 +15,7 @@ import {
   OrganizationRepository,
   readOrganizationActivation,
   scheduleInputHash,
+  SpaceRepository,
   SqliteDelegationUse,
   SqliteOrganizationAccess,
 } from '@wbs/store-sqlite';
@@ -234,6 +235,7 @@ export class OrganizationHarness {
       emailVerification: new EmailVerificationRepository(db, OPEN),
       invitations: new InvitationRepository(db, OPEN),
       joinRequests: new JoinRequestRepository(db, OPEN),
+      spaces: new SpaceRepository(db, OPEN),
       emailDelivery: {
         deliver: async (address, token) => {
           await mail.beforeDelivery?.();
@@ -341,6 +343,7 @@ export class OrganizationHarness {
       emailVerification: new EmailVerificationRepository(source.db, services.gate),
       invitations: new InvitationRepository(source.db, services.gate),
       joinRequests: new JoinRequestRepository(source.db, services.gate),
+      spaces: new SpaceRepository(source.db, services.gate),
       emailDelivery: {
         deliver: () => Promise.reject(new Error('composed harness mail sink refuses delivery')),
       },
