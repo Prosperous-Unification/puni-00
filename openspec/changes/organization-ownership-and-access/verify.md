@@ -1301,3 +1301,12 @@ Both faults were restored before commit.
 | Recipient mismatch has its own copy        | Answered `recipient_mismatch` with the invalid-code copy | `renders the recipient_mismatch acceptance refusal` failed: `expected <p role="alert"></p> to have property "textContent" with value 'This invitation was sent to a differen…'` |
 
 All faults were restored before commit.
+
+## Slice 39c — join-request decisions (task 4.6)
+
+| Check                          | Injected fault                                   | Observed failure                                                                                                                                                           |
+| ------------------------------ | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Approval sends the chosen role | Sent a fixed `member` role                       | `approves at the chosen role, then re-reads the list` failed: `expected { role: 'member' } to deeply equal { role: 'viewer' }`                                             |
+| Domain change has its own copy | Answered `domain_changed` with the resolved copy | `renders the domain_changed approval refusal` failed: `expected <p role="status"></p> to have property "textContent" with value 'The requester's email or the organizat…'` |
+
+Both faults were restored before commit. `drops every panel when another panel loses access` covers a loss reported by the join-request panel clearing the invitation rows.

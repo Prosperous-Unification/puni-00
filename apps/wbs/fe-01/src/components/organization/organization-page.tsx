@@ -3,6 +3,7 @@ import { type ReactNode, useState } from 'react';
 import { AppHeader } from '@/components/chrome/app-header';
 
 import { InvitationsPanel } from './invitations-panel';
+import { JoinRequestsPanel } from './join-requests-panel';
 import { type AccessLoss, lossCopy } from './organization-access';
 
 /**
@@ -33,7 +34,10 @@ export function OrganizationPage({
          * the invited address stayed on screen beside the no-access state.
          */}
         {loss === null ? (
-          <InvitationsPanel onAccessLost={setLoss} />
+          <>
+            <InvitationsPanel onAccessLost={setLoss} />
+            <JoinRequestsPanel onAccessLost={setLoss} />
+          </>
         ) : (
           <p role="alert">{lossCopy(loss)}</p>
         )}

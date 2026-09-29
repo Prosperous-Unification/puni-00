@@ -129,6 +129,7 @@ describe('the signed-in region, routed', () => {
   itDom('draws organization administration at /organization', async () => {
     stubServer({
       'GET /api/organization/invitations': [() => answerJson(200, { invitations: [] })],
+      'GET /api/organization/join-requests': [() => answerJson(200, { requests: [] })],
     });
     regionAt('/organization');
 

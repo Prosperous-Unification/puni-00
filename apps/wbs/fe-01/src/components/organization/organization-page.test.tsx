@@ -23,13 +23,21 @@ const offer = (id: string, email: string, fields: Record<string, unknown> = {}) 
   ...fields,
 });
 
+/** Stubs the page's requests, answering every panel not under test with an empty list. */
+function stubPage(routes: Parameters<typeof stubServer>[0]) {
+  return stubServer({
+    'GET /api/organization/join-requests': [() => answer(200, { requests: [] })],
+    ...routes,
+  });
+}
+
 function renderPage() {
   render(<OrganizationPage nav={<nav />} account={<span />} />);
 }
 
 describe('organization invitations', () => {
   it('renders loading, then the empty state', async () => {
-    stubServer({ 'GET /api/organization/invitations': [() => answer(200, { invitations: [] })] });
+    stubPage({ 'GET /api/organization/invitations': [() => answer(200, { invitations: [] })] });
     renderPage();
     expect(screen.getByText('Loading invitations…')).toBeDefined();
     expect(await screen.findByText('No invitations yet.')).toBeDefined();
@@ -37,7 +45,7 @@ describe('organization invitations', () => {
 
   it('names each standing and offers revoke only for a pending invitation', async () => {
     vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
-    stubServer({
+    stubPage({
       'GET /api/organization/invitations': [
         () =>
           answer(200, {
@@ -61,7 +69,7 @@ describe('organization invitations', () => {
   });
 
   it('sends an invitation and re-reads the list', async () => {
-    const sent = stubServer({
+    const sent = stubPage({
       'GET /api/organization/invitations': [
         () => answer(200, { invitations: [] }),
         () => answer(200, { invitations: [offer('a', 'ada@acme.test', { role: 'viewer' })] }),
@@ -98,7 +106,7 @@ describe('organization invitations', () => {
       'This sign-in is read-only here. Sign in to WBS again to make changes.',
     ],
   ])('renders the %s send refusal in place', async (error, status, copy) => {
-    stubServer({
+    stubPage({
       'GET /api/organization/invitations': [() => answer(200, { invitations: [] })],
       'POST /api/organization/invitations': [() => answer(status, { error })],
     });
@@ -112,7 +120,7 @@ describe('organization invitations', () => {
   });
 
   it('revokes, then renders a conflicting revoke in place', async () => {
-    stubServer({
+    stubPage({
       'GET /api/organization/invitations': [
         () =>
           answer(200, { invitations: [offer('a', 'ada@acme.test'), offer('b', 'bo@acme.test')] }),
@@ -137,7 +145,7 @@ describe('organization invitations', () => {
   });
 
   it('renders a forbidden list as the role refusal, not a crash', async () => {
-    stubServer({
+    stubPage({
       'GET /api/organization/invitations': [() => answer(403, { error: 'forbidden' })],
     });
     renderPage();
@@ -148,7 +156,7 @@ describe('organization invitations', () => {
   });
 
   it('renders a query failure', async () => {
-    stubServer({});
+    stubPage({});
     renderPage();
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
@@ -161,13 +169,13 @@ describe('organization invitations', () => {
     ['no_active_organization', 'No organization is selected for this session.'],
     ['onboarding_inactive', 'Organization administration is not active yet.'],
   ])('renders the %s list refusal as the page state', async (error, copy) => {
-    stubServer({ 'GET /api/organization/invitations': [() => answer(403, { error })] });
+    stubPage({ 'GET /api/organization/invitations': [() => answer(403, { error })] });
     renderPage();
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', copy);
   });
 
   it("clears the organization's rows when a refusal says access was lost", async () => {
-    stubServer({
+    stubPage({
       'GET /api/organization/invitations': [
         () => answer(200, { invitations: [offer('a', 'ada@acme.test')] }),
       ],
@@ -184,5 +192,21 @@ describe('organization invitations', () => {
     );
     expect(within(main).queryByText('ada@acme.test')).toBeNull();
     expect(within(main).queryByRole('heading', { name: 'Invitations' })).toBeNull();
+  });
+
+  it('drops every panel when another panel loses access', async () => {
+    stubServer({
+      'GET /api/organization/invitations': [
+        () => answer(200, { invitations: [offer('a', 'ada@acme.test')] }),
+      ],
+      'GET /api/organization/join-requests': [() => answer(403, { error: 'not_a_member' })],
+    });
+    renderPage();
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      'You no longer have access to this organization.',
+    );
+    expect(screen.queryByText('ada@acme.test')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Join requests' })).toBeNull();
   });
 });
