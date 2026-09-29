@@ -40,6 +40,7 @@ import {
 import { projectRow } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
+import { refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
@@ -141,6 +142,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       emailVerification: refusingEmailVerification,
       invitations: refusingInvitations,
       joinRequests: refusingJoinRequests,
+      spaces: refusingSpaces,
       emailDelivery: refusingTestEmailDelivery,
       onboarding: refusingOnboarding,
       loginThrottle: testLoginThrottle(),
