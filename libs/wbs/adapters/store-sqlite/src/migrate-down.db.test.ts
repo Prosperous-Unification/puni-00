@@ -660,6 +660,7 @@ describe('readMigrationFolders', () => {
       '20260928020000_add_email_verification',
       '20260928030000_add_delegation_use',
       '20260928040000_add_email_challenge',
+      '20260929100000_add_spaces',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -790,11 +791,13 @@ describe('rollbackTo, against a real database', () => {
         '20260928020000_add_email_verification',
         '20260928030000_add_delegation_use',
         '20260928040000_add_email_challenge',
+        '20260929100000_add_spaces',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20260929100000_add_spaces',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
@@ -931,6 +934,7 @@ describe('rollbackTo, against a real database', () => {
         '20260928020000_add_email_verification',
         '20260928030000_add_delegation_use',
         '20260928040000_add_email_challenge',
+        '20260929100000_add_spaces',
       ]);
     } finally {
       db.cleanup();
@@ -1001,6 +1005,7 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        '20260929100000_add_spaces',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
@@ -1103,6 +1108,7 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20260929100000_add_spaces',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
@@ -1190,6 +1196,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20260929100000_add_spaces',
         '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',

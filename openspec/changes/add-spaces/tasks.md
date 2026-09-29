@@ -5,19 +5,20 @@
 
 ## 1. Storage and the store
 
-- [ ] 1.1 Red: `space.db.test.ts` for the tables (cross-organization insert both ways, empty
+- [x] 1.1 Red: `space.db.test.ts` for the tables (cross-organization insert both ways, empty
       name, name per organization, project delete cascades, space delete changes no project)
       and the rollback (refused over a space, allowed when empty, ledger kept).
-- [ ] 1.2 Red: `spaceStoreConformance` (create, rename, remove, list, members in order, ties by
+- [x] 1.2 Red: `spaceStoreConformance` (create, rename, remove, list, members in order, ties by
       project id, add after, move, refusals `not_found`, `name_taken`, `already_in_space`,
       foreign project and foreign space) run against SQLite and memory.
-- [ ] 1.3 Red: `space-rollback.db.test.ts` (save, remove, rollback, migrate, restore; refuse a
+- [x] 1.3 Red: `space-rollback.db.test.ts` (save, remove, rollback, migrate, restore; refuse a
       stale save; refuse a restore over a gone project; malformed file) and the CLI.
-- [ ] 1.4 Green: migration, guarded `down.sql`, schema, `SpaceStore`, `SpaceRepository`,
+- [x] 1.4 Green: migration, guarded `down.sql`, schema, `SpaceStore`, `SpaceRepository`,
       `inMemorySpaces`, `space-rollback.ts`, `spaces-rollback-cli.ts`, runbook section.
-- [ ] 1.5 Negatives: composite reference dropped → the cross-organization insert succeeds;
+- [x] 1.5 Negatives: composite reference dropped → the cross-organization insert succeeds;
       guard removed → down succeeds over rows; cascade removed → project delete fails;
-      stale-save comparison weakened → remove deletes a newer space.
+      stale-save comparison weakened → remove deletes a changed space; ownership read skipped →
+      a thrown constraint error instead of `not_found`.
 
 ## 2. Resource and routes
 

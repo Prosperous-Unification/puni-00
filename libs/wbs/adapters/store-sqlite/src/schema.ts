@@ -3041,3 +3041,63 @@ export const organizationAudit = sqliteTable(
     index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
   ],
 );
+
+/**
+ * An organization's named, ordered lens over its projects; see
+ * `20260929100000_add_spaces` and ADR 0033. `(id, organization_id)` is unique
+ * so membership can reference the pair.
+ */
+export const space = sqliteTable(
+  'space',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    name: text('name').notNull(),
+    revision: integer('revision').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
+  },
+  (t) => [
+    uniqueIndex('space_organization_name').on(t.organizationId, t.name),
+    uniqueIndex('space_id_organization').on(t.id, t.organizationId),
+    check('space_name', sql`length(${t.name}) > 0`),
+  ],
+);
+
+/**
+ * One project's place in one space. Both composite references carry
+ * `organization_id`, so a pair across organizations has no parent; see
+ * `20260929100000_add_spaces`. Positions tie legally (ADR 0016).
+ */
+export const spaceProject = sqliteTable(
+  'space_project',
+  {
+    spaceId: text('space_id').notNull(),
+    projectId: text('project_id').notNull(),
+    organizationId: text('organization_id').notNull(),
+    position: integer('position').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.spaceId, t.projectId] }),
+    foreignKey({
+      columns: [t.spaceId, t.organizationId],
+      foreignColumns: [space.id, space.organizationId],
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.projectId, t.organizationId],
+      foreignColumns: [projectOrganization.resourceId, projectOrganization.organizationId],
+    }).onDelete('cascade'),
+    index('space_project_order').on(t.spaceId, t.position),
+    index('space_project_project').on(t.projectId, t.organizationId),
+  ],
+);

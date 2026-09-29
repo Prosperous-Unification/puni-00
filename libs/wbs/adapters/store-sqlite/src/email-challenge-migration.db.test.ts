@@ -16,7 +16,10 @@ test('challenge migration rolls back empty before activation and refuses retaine
   try {
     const path = join(directory, 'test.db');
     runMigrations(path, folder);
-    expect(rollbackTo(path, folder, prior)).toEqual(['20260928040000_add_email_challenge']);
+    expect(rollbackTo(path, folder, prior)).toEqual([
+      '20260929100000_add_spaces',
+      '20260928040000_add_email_challenge',
+    ]);
     runMigrations(path, folder);
     const db = openDatabase(path);
     try {

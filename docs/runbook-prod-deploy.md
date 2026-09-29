@@ -136,3 +136,31 @@ any endpoint no longer fits its project or work-item shape:
 ```sh
 docker exec be-01-<colour> bun run src/typed-dependency-rollback-cli.ts restore /data/typed-dependency-<date>.json
 ```
+
+## Space rollback
+
+Code rollback needs nothing: an older image has no spaces routes, and the `space` and
+`space_project` tables are inert to it. Rolling back past `20260929100000_add_spaces` refuses
+while any space exists, reading `CHECK constraint failed: spaces exist: …`, because dropping
+the tables would lose every space and its order. Run the procedure inside the incoming
+container after its writers have stopped, with the same `DB_PATH`. Save, then copy the file
+off the host:
+
+```sh
+docker exec be-01-<colour> bun run src/spaces-rollback-cli.ts save /data/spaces-<date>.json
+```
+
+Remove only after the save is secure. Remove refuses unless the file equals every stored space
+and member, every column included:
+
+```sh
+docker exec be-01-<colour> bun run src/spaces-rollback-cli.ts remove /data/spaces-<date>.json
+docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
+```
+
+After a later forward migration, restore. Restore refuses the whole set, naming it, when a
+saved organization is gone or a saved project is no longer owned by its space's organization:
+
+```sh
+docker exec be-01-<colour> bun run src/spaces-rollback-cli.ts restore /data/spaces-<date>.json
+```

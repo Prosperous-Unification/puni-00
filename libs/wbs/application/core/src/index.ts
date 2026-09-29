@@ -100,6 +100,7 @@ export type {
 } from './ports/saved-plan-store';
 export * from './ports/scheduler';
 export * from './ports/source';
+export * from './ports/space-store';
 export * from './ports/step-store';
 export * from './ports/stores';
 export * from './ports/subtree-store';
