@@ -1,7 +1,12 @@
 import { leafDeadlinesOf, leafFloorsOf, SOLVER_QUANTUM } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import { deadlineUnitsOf, ffStartWeightUnits, notBeforeUnitsOf } from './solver-units';
+import {
+  deadlineUnitsOf,
+  elsewhereUnitsOf,
+  ffStartWeightUnits,
+  notBeforeUnitsOf,
+} from './solver-units';
 
 describe('ffStartWeightUnits', () => {
   const slice = (days: number) => ({
@@ -79,5 +84,49 @@ describe('the @wbs/domain edge', () => {
 
     expect(notBeforeUnitsOf(floors, 'L1')).toBe(2 * SOLVER_QUANTUM);
     expect(deadlineUnitsOf(deadlines, 'L2')).toBe(10 * SOLVER_QUANTUM);
+  });
+});
+
+describe('elsewhereUnitsOf', () => {
+  const held = (start: number, end: number) => ({ start, end, projectId: 'p', workItemId: 'x' });
+
+  it('widens a booking to whole units, start down and end up', () => {
+    expect(elsewhereUnitsOf(new Map([['ana', [held(0.5, 1.01)]]]))).toEqual({ ana: [[24, 49]] });
+  });
+
+  it('reads a drifted whole unit as that unit', () => {
+    expect(elsewhereUnitsOf(new Map([['ana', [held(1, 2.0000000000000004)]]]))).toEqual({
+      ana: [[48, 96]],
+    });
+  });
+
+  it('clamps at unit zero and drops what ends there', () => {
+    expect(elsewhereUnitsOf(new Map([['ana', [held(-2, 0), held(-1, 1)]]]))).toEqual({
+      ana: [[0, 48]],
+    });
+    expect(elsewhereUnitsOf(new Map([['ana', [held(-2, -1)]]]))).toEqual({});
+  });
+
+  it('merges bookings the rounding made overlap, and keeps touching ones apart', () => {
+    expect(elsewhereUnitsOf(new Map([['ana', [held(0, 1.01), held(1.015, 2)]]]))).toEqual({
+      ana: [[0, 96]],
+    });
+    expect(elsewhereUnitsOf(new Map([['ana', [held(0, 1), held(1, 2)]]]))).toEqual({
+      ana: [
+        [0, 48],
+        [48, 96],
+      ],
+    });
+  });
+
+  it('emits persons in byte order and nothing for an absent map', () => {
+    const units = elsewhereUnitsOf(
+      new Map([
+        ['ben', [held(0, 1)]],
+        ['ana', [held(0, 1)]],
+      ]),
+    );
+    expect(Object.keys(units)).toEqual(['ana', 'ben']);
+    expect(elsewhereUnitsOf(undefined)).toEqual({});
   });
 });

@@ -82,6 +82,28 @@ const readableStarts = (slices: ReadonlyMap<string, ScheduledSlice>): Record<str
   Object.fromEntries([...slices].map(([at, slice]) => [readableKey(at), slice.earliestStart]));
 
 describe('materialiseOptimized', () => {
+  it('refuses offsets that put a person on a booking elsewhere', () => {
+    const booked = (offset: number) =>
+      materialiseOptimized(
+        [row('B', 0)],
+        noEdges,
+        [sliceOf('B', null, 1, { personId: 'ann' })],
+        new Map(),
+        new Map(),
+        'whole-item',
+        [],
+        { [sliceKey('B', null)]: offset },
+        new Map([['ann', [{ start: 1, end: 2, projectId: 'platform', workItemId: 'x1' }]]]),
+      );
+    // Half a day in overlaps the booking on [1, 2); the day before it touches
+    // it, and the day after it is the optimizer's own choice.
+    expect(() => booked(24)).toThrow(ScheduleInvalidOptimizedStartError);
+    const before = booked(0).slices.get(sliceKey('B', null));
+    expect([before?.earliestStart, before?.boundBy]).toEqual([0, 'projectStart']);
+    const after = booked(96).slices.get(sliceKey('B', null));
+    expect([after?.earliestStart, after?.boundBy]).toEqual([2, 'optimizer']);
+  });
+
   it('divides the offsets by the quantum and hands them to schedule() as pinned starts', () => {
     const placed = materialise({
       [key.one]: 0,

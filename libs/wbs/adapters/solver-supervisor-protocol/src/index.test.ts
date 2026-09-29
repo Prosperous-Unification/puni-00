@@ -98,13 +98,17 @@ describe('decodeSupervisorStartFrame', () => {
     expect(() => decode(frame({ childDeadlineAt: 10_000 }))).toThrow(/deadline/);
   });
 
-  it('accepts both solver wire versions a rolling deploy can send and refuses any other', () => {
+  it('accepts every solver wire version a rolling deploy can send and refuses any other', () => {
     expect(decode(frame({ request: { wireVersion: 1, objective: 'pri' } })).request).toEqual({
       wireVersion: 1,
       objective: 'pri',
     });
     expect(decode(frame()).request).toEqual({ wireVersion: 2, objective: 'pri' });
-    expect(() => decode(frame({ request: { wireVersion: 3, objective: 'pri' } }))).toThrow(
+    expect(decode(frame({ request: { wireVersion: 3, objective: 'pri' } })).request).toEqual({
+      wireVersion: 3,
+      objective: 'pri',
+    });
+    expect(() => decode(frame({ request: { wireVersion: 4, objective: 'pri' } }))).toThrow(
       /wireVersion/,
     );
   });

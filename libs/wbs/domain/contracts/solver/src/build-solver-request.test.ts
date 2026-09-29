@@ -89,6 +89,7 @@ const baselineOf = (plan: SolverRequestPlan) =>
     plan.poolSizes,
     plan.reach,
     [],
+    plan.elsewhere,
   );
 
 const spawnOf = (plan: SolverRequestPlan, over: Partial<SolverSpawn> = {}): SolverSpawn => ({
@@ -106,16 +107,27 @@ const requestOf = (plan: SolverRequestPlan, spawn: SolverSpawn = spawnOf(plan)) 
 };
 
 describe('buildSolverRequest', () => {
-  it('refuses a plan whose people are booked elsewhere, which wire 2 cannot carry', () => {
-    const plan = planOf({
+  it("carries each person's bookings elsewhere in units, and none for a plan nothing outranks", () => {
+    const booked = planOf({
       elsewhere: new Map([
-        ['ann', [{ start: 0, end: 5, projectId: 'platform', workItemId: 'x1' }]],
+        ['ann', [{ start: 0, end: 5.5, projectId: 'platform', workItemId: 'x1' }]],
       ]),
     });
-    expect(() => buildSolverRequest(plan, 'pri', spawnOf(planOf()))).toThrow(
-      /carries no bookings elsewhere/,
-    );
-    expect(requestOf(planOf({ elsewhere: new Map() }))).toBeDefined();
+    expect(requestOf(booked).elsewhere).toEqual({ ann: [[0, 264]] });
+    expect(requestOf(planOf()).elsewhere).toEqual({});
+  });
+
+  it('extends the horizon past the last booking elsewhere', () => {
+    const late = planOf({
+      elsewhere: new Map([
+        ['ann', [{ start: 50, end: 60, projectId: 'platform', workItemId: 'x1' }]],
+      ]),
+    });
+    const booked = requestOf(late);
+    const free = requestOf(planOf());
+    // The serial bound starts at the last booking's end (unit 2880) instead of
+    // the latest floor (P's day 3, unit 144).
+    expect(booked.horizonUnits).toBe(free.horizonUnits - 3 * 48 + 60 * 48);
   });
 
   it('fills every member the schema requires, and no other', () => {

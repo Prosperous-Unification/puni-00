@@ -2,6 +2,7 @@ import {
   type DependencyEdge,
   type DependencyReach,
   durationUnits,
+  type Elsewhere,
   expandToLeaves,
   groupSlicesByLeaf,
   indexTree,
@@ -17,8 +18,8 @@ import {
 } from '@wbs/domain';
 
 import { buildSolverEdges } from './build-solver-edges';
-import { notBeforeUnitsOf } from './solver-units';
-import type { SolverOffsetMap } from './wire-types';
+import { elsewhereUnitsOf, notBeforeUnitsOf } from './solver-units';
+import type { SolverElsewhere, SolverOffsetMap } from './wire-types';
 
 /**
  * Fast's placement re-run over rounded durations, in integer solver units.
@@ -95,7 +96,14 @@ export function quantisedFastBaseline(
   reach: DependencyReach,
   /** The typed dependencies; required, so the baseline cannot drop one the request carries. */
   typed: readonly TypedDependency[],
+  /**
+   * Bookings elsewhere in workdays; absent for a plan nothing outranks. The
+   * baseline is placed around the same unit intervals the request carries
+   * ({@link elsewhereUnitsOf}), so it is feasible against them.
+   */
+  elsewhere?: Elsewhere,
 ): SolverOffsetMap {
+  const away = elsewhereUnitsOf(elsewhere);
   const placed = schedule(
     rows,
     edges,
@@ -107,6 +115,11 @@ export function quantisedFastBaseline(
     // The common-path baseline is the unit-axis Fast placement.
     new Map(),
     typed,
+    undefined,
+    // Proof: `undefined` here made `places the baseline around the bookings
+    // the request carries` (`quantised-baseline.test.ts`) put Ann's slice on
+    // her booking; watched 2026-09-29.
+    onTheUnitAxisAway(away),
   );
 
   const offsets: Record<string, number> = {};
@@ -177,7 +190,9 @@ export function quantisedFastBaseline(
     .sort();
   const serial: Record<string, number> = {};
   const predecessorBounds = new Map<string, number>();
-  let cursor = 0;
+  // The serial hint starts after the last booking elsewhere: from there it
+  // is clear of every one, whoever holds them.
+  let cursor = Math.max(0, ...Object.values(away).flatMap((held) => held.map(([, end]) => end)));
   while (ready.length > 0) {
     const key = ready.shift();
     if (key === undefined) throw new Error('ready slice disappeared');
@@ -243,6 +258,25 @@ function onTheUnitAxis(slice: Slice): Slice {
     );
   }
   return { ...slice, days };
+}
+
+/**
+ * The request's unit intervals as an {@link Elsewhere} on the unit axis, for
+ * the rescaled placement. Merging made the holders unrecoverable, and the
+ * baseline reads starts only, so each interval names a placeholder holder.
+ */
+function onTheUnitAxisAway(away: SolverElsewhere): Elsewhere {
+  return new Map(
+    Object.entries(away).map(([personId, intervals]) => [
+      personId,
+      intervals.map(([start, end], at) => ({
+        start,
+        end,
+        projectId: 'elsewhere',
+        workItemId: `${personId}#${String(at)}`,
+      })),
+    ]),
+  );
 }
 
 /**

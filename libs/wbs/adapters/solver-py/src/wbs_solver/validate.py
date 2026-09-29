@@ -2,7 +2,7 @@
 
 THE SCHEMA IS NOT A COPY OF THE RULES, IT IS THE RULES
 ------------------------------------------------------
-`solver-wire.v2.json` is the single normative definition of both messages
+`solver-wire.v3.json` is the single normative definition of both messages
 (design.md "Solver wire contract — one versioned schema, four consumers"). This
 module is the third of that file's four consumers. It validates against the copy
 installed **beside** the package, because a wheel deployed into the be-01 image
@@ -76,7 +76,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
-SCHEMA_FILENAME = "solver-wire.v2.json"
+SCHEMA_FILENAME = "solver-wire.v3.json"
 SCHEMA_PATH = Path(__file__).resolve().parent / SCHEMA_FILENAME
 
 
@@ -170,6 +170,23 @@ def check_cross_field(request: dict[str, Any]) -> None:
                 f"{field} does not key on slices[].key "
                 f"(missing {missing!r}, unexpected {extra!r})"
             )
+
+    # Wire 3's bookings elsewhere: each person's list sorted, disjoint and
+    # holding time. The schema says whole non-negative units and a non-empty
+    # list; the order is the receiver's to check, since a fixed interval list
+    # CP-SAT is handed out of order is still a model, just not the one Bun
+    # re-validates against.
+    # Proof: this block removed made
+    # ElsewhereValidation.test_refuses_bookings_out_of_order_or_empty accept
+    # both requests (2026-09-29 observed failures).
+    for person, bookings in request["elsewhere"].items():
+        previous_end = 0
+        for booked_start, booked_end in bookings:
+            if booked_end <= booked_start or booked_start < previous_end:
+                raise RequestRejected(
+                    f"elsewhere[{person!r}] is not sorted, disjoint intervals that hold time"
+                )
+            previous_end = booked_end
 
     horizon = request["horizonUnits"]
     for field in ("baselineOffsets", "fastHint"):

@@ -46,7 +46,7 @@ if (!deadlined.ok) throw new Error('fixture deadline request refused');
 
 const response = (offset = 0, reportedOffset = offset): string =>
   `${JSON.stringify({
-    wireVersion: 2,
+    wireVersion: 3,
     status: 'feasible',
     offsets: { 'w-1\u0000dev': offset },
     objectiveValues: {
@@ -107,19 +107,19 @@ describe('evaluateSolverOutcome', () => {
     expect(
       evaluateSolverOutcome(INPUT, REQUEST, {
         kind: 'response',
-        stdout: '{"wireVersion":2,"status":"unknown"}\n',
+        stdout: '{"wireVersion":3,"status":"unknown"}\n',
       }),
     ).toEqual({ kind: 'failed', reason: 'no-solution' });
     expect(
       evaluateSolverOutcome(INPUT, REQUEST, {
         kind: 'response',
-        stdout: '{"wireVersion":2,"status":"infeasible"}\n',
+        stdout: '{"wireVersion":3,"status":"infeasible"}\n',
       }),
     ).toEqual({ kind: 'failed', reason: 'invalid-output' });
     expect(
       evaluateSolverOutcome(DEADLINED_INPUT, deadlined.request, {
         kind: 'response',
-        stdout: '{"wireVersion":2,"status":"infeasible"}\n',
+        stdout: '{"wireVersion":3,"status":"infeasible"}\n',
       }),
     ).toEqual({
       kind: 'plan-infeasible',
@@ -171,7 +171,7 @@ describe('evaluateSolverOutcome', () => {
     expect(
       evaluateSolverOutcome(DEADLINED_INPUT, withDeadline(1), {
         kind: 'response',
-        stdout: '{"wireVersion":2,"status":"infeasible"}\n',
+        stdout: '{"wireVersion":3,"status":"infeasible"}\n',
       }),
     ).toEqual({ kind: 'failed', reason: 'internal-error' });
 
@@ -191,7 +191,7 @@ describe('evaluateSolverOutcome', () => {
     expect(
       evaluateSolverOutcome(DEADLINED_INPUT, withDeadline(48), {
         kind: 'response',
-        stdout: '{"wireVersion":2,"status":"infeasible"}\n',
+        stdout: '{"wireVersion":3,"status":"infeasible"}\n',
       }).kind,
     ).toBe('plan-infeasible');
 
@@ -200,7 +200,7 @@ describe('evaluateSolverOutcome', () => {
     expect(
       evaluateSolverOutcome(DEADLINED_INPUT, withDeadline(1), {
         kind: 'response',
-        stdout: '{"wireVersion":2,"status":"unknown"}\n',
+        stdout: '{"wireVersion":3,"status":"unknown"}\n',
       }),
     ).toEqual({ kind: 'failed', reason: 'internal-error' });
   });

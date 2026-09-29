@@ -1,4 +1,13 @@
-import { durationOf, durationUnits, type Slice, SOLVER_QUANTUM } from '@wbs/domain';
+import {
+  durationOf,
+  durationUnits,
+  type Elsewhere,
+  type Slice,
+  SOLVER_QUANTUM,
+  withinDrift,
+} from '@wbs/domain';
+
+import type { SolverElsewhere } from './wire-types';
 
 /**
  * The FF start bound protects real finish order after integer placement.
@@ -87,4 +96,61 @@ export function deadlineUnitsOf(
 ): number | null {
   const day = deadlines.get(leafId);
   return day === undefined ? null : (day + 1) * SOLVER_QUANTUM;
+}
+
+/**
+ * One instant of a booking on the solver's axis, rounded the conservative way:
+ * a start down and an end up, so the unit interval always covers the booking.
+ * A value within {@link withinDrift} of a whole unit is that unit, so a
+ * booking ending on day 2 by way of `2.0000000000000004` does not take a
+ * spurious 97th unit.
+ */
+function unitOf(workdays: number, round: (value: number) => number): number {
+  const scaled = workdays * SOLVER_QUANTUM;
+  const whole = Math.round(scaled);
+  return withinDrift(scaled, whole) ? whole : round(scaled);
+}
+
+/**
+ * Each person's bookings elsewhere on the solver's axis, as wire 3 carries
+ * them (`#/$defs/request.properties.elsewhere`).
+ *
+ * **Conservative, never tighter than the booking**: each interval is widened
+ * to whole units (start floored, end ceiled), clamped at unit 0 — nothing is
+ * placed before it — and dropped when it ends there. Widening can make two
+ * bookings of one person overlap on the unit axis, so overlapping intervals are
+ * merged; touching ones stay apart, since occupancy is half-open. A placement
+ * clear of these units is therefore clear of the real bookings, which is what
+ * lets the materialiser place an optimized answer around the real bookings
+ * without a second, finer check.
+ *
+ * Persons are emitted in byte order, so one plan has one request.
+ *
+ * @throws when a unit is not a safe integer: the wire says so, and a booking
+ * past `2**53` units is a broken caller, never a plan.
+ */
+export function elsewhereUnitsOf(elsewhere: Elsewhere | undefined): SolverElsewhere {
+  const units: Record<string, [number, number][]> = {};
+  const people = [...(elsewhere ?? new Map<string, never[]>())].sort(([left], [right]) =>
+    left < right ? -1 : left > right ? 1 : 0,
+  );
+  for (const [personId, bookings] of people) {
+    const merged: [number, number][] = [];
+    for (const booking of bookings) {
+      const start = Math.max(0, unitOf(booking.start, Math.floor));
+      const end = unitOf(booking.end, Math.ceil);
+      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)) {
+        throw new Error(`booking elsewhere for ${personId} has no safe integer unit interval`);
+      }
+      if (end <= start) continue;
+      const last = merged.at(-1);
+      // Proof: merging only when strictly contained made `merges bookings the
+      // rounding made overlap` (`solver-units.test.ts`) emit two overlapping
+      // intervals; watched 2026-09-29.
+      if (last !== undefined && start < last[1]) last[1] = Math.max(last[1], end);
+      else merged.push([start, end]);
+    }
+    if (merged.length > 0) units[personId] = merged;
+  }
+  return units;
 }

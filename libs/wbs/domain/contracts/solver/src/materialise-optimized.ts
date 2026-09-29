@@ -1,6 +1,7 @@
 import {
   type DependencyEdge,
   type DependencyReach,
+  type Elsewhere,
   type PlannedRow,
   type PoolSizes,
   type Schedule,
@@ -98,6 +99,13 @@ export function materialiseOptimized(
   /** The typed dependencies the request carried; required for the baseline's reason. */
   typed: readonly TypedDependency[],
   offsets: SolverOffsetMap,
+  /**
+   * The bookings elsewhere the request carried, in workdays; absent for a plan
+   * nothing outranks. The optimized answer is materialised around the real
+   * bookings — the request's unit intervals cover them, so an answer clear of
+   * those is clear of these — and a pin inside one is refused.
+   */
+  elsewhere?: Elsewhere,
 ): Schedule {
   const pinnedStarts = new Map<string, number>();
   for (const [key, offset] of Object.entries(offsets)) {
@@ -128,6 +136,10 @@ export function materialiseOptimized(
     // function did not throw`; watched 2026-09-27.
     typed,
     pinnedStarts,
+    // Proof: `undefined` here made `refuses offsets that put a person on a
+    // booking elsewhere` (`materialise-optimized.test.ts`) materialise them;
+    // watched 2026-09-29.
+    elsewhere,
   );
 
   for (const key of pinnedStarts.keys()) {

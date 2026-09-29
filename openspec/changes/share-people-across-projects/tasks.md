@@ -46,17 +46,23 @@
 
 ## 5. Wire v3, solver-py 0.2.0
 
-- [ ] 5.0 Obligations from Fable's review of #250:
+- [x] 5.0 Obligations from Fable's review of #250:
   - Thread `elsewhere` (unit-axis scaled) through `materialise-optimized.ts`'s `schedule()` call
     and through `quantisedFastBaseline` (called in `solver-request-pair.ts`), so that the
     publication guard never compares a bookings-aware Fast baseline against a bookings-blind
-    optimized plan.
+    optimized plan. Done: both take the plan's bookings; `solver-exit-outcome.ts` and
+    `solver-request-pair.ts` pass them.
   - Check whether the `buildSolverRequest` refusal's `throw` is caught around
-    `optimization.feature.ts` (~369); prefer a preflight `{ ok: false }`.
-  - Lift the two slice-4 refusals once wire 3 carries bookings.
-- [ ] 5.1 Wire, model, and Bun re-validation.
-- [ ] 5.2 Negatives: fixed interval dropped in `model.py` → Bun refuses publication; 0.1.4 fed
-      v3 → a typed refusal; the ADR 0025 binding rebuilt.
+    `optimization.feature.ts` (~369); prefer a preflight `{ ok: false }`. Moot: wire 3 carries
+    bookings, so the refusal is gone; the builder's remaining throws are invariant violations,
+    and a booking that pushes the horizon is a preflight input, not a throw.
+  - Lift the two slice-4 refusals once wire 3 carries bookings. Done: the wire 2 refusal and the
+    pinned-start refusal; a pinned start on a booking now throws
+    `ScheduleInvalidOptimizedStartError`.
+- [x] 5.1 Wire, model, and Bun re-validation.
+- [x] 5.2 Negatives: fixed interval dropped in `model.py` → Bun refuses publication; 0.1.x fed
+      v3 → a typed refusal. The ADR 0025 binding is rebuilt by the dev deploy after merge and
+      observed there, not in this PR.
 
 ## 6. Chain, mode, guard, fan-out
 

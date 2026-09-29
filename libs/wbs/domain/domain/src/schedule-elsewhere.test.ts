@@ -11,6 +11,7 @@ import {
   type ElsewhereBooking,
   type PoolSizes,
   schedule,
+  ScheduleInvalidOptimizedStartError,
   type Slice,
   sliceKey,
 } from './schedule';
@@ -176,21 +177,48 @@ describe('a person booked elsewhere', () => {
     }
   });
 
-  it('refuses to materialise pinned starts around bookings elsewhere', () => {
-    expect(() =>
-      schedule(
-        [leaf('a', 0)],
-        [],
-        [work('a', 1, { personId: 'ana' })],
-        new Map(),
-        new Map(),
-        'whole-item',
-        new Map(),
-        [],
-        new Map([[sliceKey('a', null), 0]]),
-        new Map([['ana', [booking(0, 1)]]]),
-      ),
-    ).toThrow(/cannot yet be materialised around bookings elsewhere/);
+  const pinnedAround = (
+    pin: number,
+    typed: readonly TypedDependency[] = [],
+  ): ReturnType<typeof schedule> =>
+    schedule(
+      [leaf('a', 0), leaf('b', 1)],
+      [],
+      [work('a', 1), work('b', 2, { personId: 'ana' })],
+      new Map(),
+      new Map(),
+      'whole-item',
+      new Map(),
+      typed,
+      new Map([
+        [sliceKey('a', null), 0],
+        [sliceKey('b', null), pin],
+      ]),
+      new Map([['ana', [booking(1, 3), booking(5, 7, 'x2')]]]),
+    );
+  const ss: TypedDependency = {
+    id: 'd',
+    predecessor: { scope: 'whole', workItemId: 'a' },
+    successor: { scope: 'whole', workItemId: 'b' },
+    type: 'SS',
+  };
+
+  it('materialises a pinned start clear of the bookings, naming what bound it', () => {
+    const b = sliceOf(pinnedAround(3), 'b');
+    expect([b.earliestStart, b.boundBy, b.elsewhereHolder]).toEqual([
+      3,
+      'elsewhere',
+      { projectId: 'platform', workItemId: 'x1' },
+    ]);
+    expect(sliceOf(pinnedAround(7), 'b').boundBy).toBe('optimizer');
+    expect(sliceOf(pinnedAround(7, [ss]), 'b').earliestStart).toBe(7);
+  });
+
+  it('refuses a pinned start inside a booking elsewhere', () => {
+    // Before the booking floor at 3; after it, but into the booking at 5.
+    expect(() => pinnedAround(2)).toThrow(/before its elsewhere floor/);
+    expect(() => pinnedAround(4)).toThrow(/overlaps a booking elsewhere/);
+    expect(() => pinnedAround(4, [ss])).toThrow(ScheduleInvalidOptimizedStartError);
   });
 });
 

@@ -22,6 +22,7 @@ import { buildSolverEdges } from './build-solver-edges';
 import { buildSolverPools } from './build-solver-pools';
 import { buildSolverSlices } from './build-solver-slices';
 import { preflightSolverRequest, type SolverPreflightFailure } from './solver-preflight';
+import { elsewhereUnitsOf } from './solver-units';
 import { isValidStageBudgetSplit, STAGE_BUDGET_SPLIT } from './stage-budget';
 import {
   SOLVER_WIRE_VERSION,
@@ -58,9 +59,8 @@ export interface SolverRequestPlan {
   /** The typed dependencies, resolved into edges beside the legacy ones. */
   readonly typed: readonly TypedDependency[];
   /**
-   * Bookings elsewhere, as `ScheduleInput.elsewhere`. Wire 2 has no field
-   * for them, so a plan holding one is refused rather than solved as if its
-   * people were free (`share-people-across-projects` slice 5 adds wire 3).
+   * Bookings elsewhere, as `ScheduleInput.elsewhere`; carried on wire 3 as
+   * {@link elsewhereUnitsOf} converts them.
    */
   readonly elsewhere?: Elsewhere;
 }
@@ -170,16 +170,6 @@ export function buildSolverRequest(
   if (plan.slices.length === 0) {
     throw new Error('a canonical input with no slices spawns nothing and has no request');
   }
-  // Proof: this refusal removed made `refuses a plan whose people are booked
-  // elsewhere, which wire 2 cannot carry` (`build-solver-request.test.ts`)
-  // build a request placing Ann across her booking; watched 2026-09-29.
-  // A listed person always holds a booking (`checkElsewhere`), so a map with
-  // anyone in it is a plan wire 2 cannot carry.
-  if ((plan.elsewhere?.size ?? 0) > 0) {
-    throw new Error(
-      'solver wire 2 carries no bookings elsewhere; a shared-people plan needs wire 3',
-    );
-  }
 
   const index = indexTree(plan.rows);
   const { leafIds } = index;
@@ -228,7 +218,11 @@ export function buildSolverRequest(
 
   // Last, because it needs the projected slices, and it is what decides whether
   // a process starts at all. The missing-baseline direction throws inside it.
-  const preflight = preflightSolverRequest(slices, spawn.baselineOffsets, edges);
+  // Proof: `{}` here made `carries each person's bookings elsewhere in units`
+  // (`build-solver-request.test.ts`) send none, and the horizon case fall
+  // short of the booking; watched 2026-09-29.
+  const elsewhere = elsewhereUnitsOf(plan.elsewhere);
+  const preflight = preflightSolverRequest(slices, spawn.baselineOffsets, edges, elsewhere);
   if (!preflight.ok) return preflight;
 
   return {
@@ -255,6 +249,7 @@ export function buildSolverRequest(
       // keeps them apart so a later hint (a warm start from the previous cached
       // result, say) does not silently move the objective's origin.
       fastHint: spawn.baselineOffsets,
+      elsewhere,
     },
   };
 }

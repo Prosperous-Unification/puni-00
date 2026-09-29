@@ -35,7 +35,7 @@ const slice = (over: Partial<SolverSlice> & { key: string }): SolverSlice => ({
 });
 
 const request = (over: Partial<SolverRequest> = {}): SolverRequest => ({
-  wireVersion: 2,
+  wireVersion: 3,
   contractVersion: '7+0.1.0',
   solverVersion: '0.1.0',
   objective: 'pri',
@@ -48,6 +48,7 @@ const request = (over: Partial<SolverRequest> = {}): SolverRequest => ({
   pools: { team: 2 },
   baselineOffsets: { a: 0, b: 0 },
   fastHint: { a: 0, b: 0 },
+  elsewhere: {},
   ...over,
 });
 
@@ -79,7 +80,7 @@ const feasible = (
   offsets: Record<string, number>,
   over: Partial<SolverObjectiveValues> = {},
 ): SolverResponse => ({
-  wireVersion: 2,
+  wireVersion: 3,
   status: 'feasible',
   offsets,
   objectiveValues: valuesFor(offsets, over),
@@ -122,7 +123,7 @@ describe('revalidateSolverResult accepts', () => {
 
   it('a non-publishing response with nothing checked', () => {
     for (const status of ['infeasible', 'unknown'] as const) {
-      const result = revalidateSolverResult(request(), { wireVersion: 2, status });
+      const result = revalidateSolverResult(request(), { wireVersion: 3, status });
       // `published: false` is the point: the response is acceptable AND there is
       // no plan, and a caller that reads `ok` alone would publish nothing at all.
       expect(result).toEqual({ ok: true, published: false });
@@ -149,7 +150,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
     rejects(
       revalidateSolverResult(
         omitted,
-        { wireVersion: 2, status: 'unknown' },
+        { wireVersion: 3, status: 'unknown' },
         real,
         canonicalPair(real, 'SS'),
       ),
@@ -175,7 +176,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
     rejects(
       revalidateSolverResult(
         forged,
-        { wireVersion: 2, status: 'unknown' },
+        { wireVersion: 3, status: 'unknown' },
         real,
         canonicalPair(real, 'FF'),
       ),
@@ -210,7 +211,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       edges: [{ predecessorKey: 'a', successorKey: 'b', type: 'SF' as 'FS' }],
     });
     rejects(
-      revalidateSolverResult(unsupported, { wireVersion: 2, status: 'unknown' }),
+      revalidateSolverResult(unsupported, { wireVersion: 3, status: 'unknown' }),
       'malformed-request',
     );
   });
@@ -220,7 +221,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       edges: [{ predecessorKey: 'a', successorKey: 'b', type: 'SS', startWeightUnits: 1 } as never],
     });
     rejects(
-      revalidateSolverResult(misplaced, { wireVersion: 2, status: 'unknown' }),
+      revalidateSolverResult(misplaced, { wireVersion: 3, status: 'unknown' }),
       'malformed-request',
     );
   });
@@ -248,7 +249,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       fastHint: { a: 0 },
     });
     rejects(
-      revalidateSolverResult(malformed, { wireVersion: 2, status: 'unknown' }),
+      revalidateSolverResult(malformed, { wireVersion: 3, status: 'unknown' }),
       'malformed-request',
     );
   });
@@ -260,7 +261,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       fastHint: { 'opaque-a': 0 },
     });
     rejects(
-      revalidateSolverResult(malformed, { wireVersion: 2, status: 'unknown' }),
+      revalidateSolverResult(malformed, { wireVersion: 3, status: 'unknown' }),
       'malformed-request',
     );
   });
@@ -276,7 +277,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
         fastHint: { [key]: 0 },
       });
       rejects(
-        revalidateSolverResult(malformed, { wireVersion: 2, status: 'unknown' }),
+        revalidateSolverResult(malformed, { wireVersion: 3, status: 'unknown' }),
         'malformed-request',
       );
     }
@@ -291,7 +292,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       baselineOffsets: { 'opaque-a': 0, 'opaque-b': 10 },
       fastHint: { 'opaque-a': 0, 'opaque-b': 10 },
     });
-    expect(revalidateSolverResult(legal, { wireVersion: 2, status: 'unknown' })).toEqual({
+    expect(revalidateSolverResult(legal, { wireVersion: 3, status: 'unknown' })).toEqual({
       ok: true,
       published: false,
     });
@@ -313,7 +314,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       fastHint: { a: 0 },
     });
     for (const status of ['infeasible', 'unknown'] as const) {
-      rejects(revalidateSolverResult(malformed, { wireVersion: 2, status }), 'malformed-request');
+      rejects(revalidateSolverResult(malformed, { wireVersion: 3, status }), 'malformed-request');
     }
     rejects(revalidateSolverResult(malformed, feasible({ a: 1 })), 'malformed-request');
   });
@@ -332,7 +333,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
         baselineOffsets: { a: 0 },
         fastHint: { a: 0 },
       });
-      expect(revalidateSolverResult(legal, { wireVersion: 2, status: 'infeasible' })).toEqual({
+      expect(revalidateSolverResult(legal, { wireVersion: 3, status: 'infeasible' })).toEqual({
         ok: true,
         published: false,
       });
@@ -378,6 +379,39 @@ describe('revalidateSolverResult checks floors and edges', () => {
     // The hand-off instant belongs to the successor: occupancy is half-open, so
     // finish == start is met exactly and not a violation by one unit.
     expect(revalidateSolverResult(chained, feasible({ a: 0, b: 10 })).ok).toBe(true);
+  });
+});
+
+describe('revalidateSolverResult checks bookings elsewhere', () => {
+  const booked = request({
+    slices: [slice({ key: 'a', personId: 'ann' }), slice({ key: 'b' })],
+    elsewhere: { ann: [[10, 20]] },
+  });
+
+  it('refuses a person placed on a booking elsewhere', () => {
+    const result = revalidateSolverResult(booked, feasible({ a: 5, b: 0 }));
+    expect(result).toMatchObject({ ok: false, failure: 'assignee-double-booked' });
+    expect(result.ok ? '' : result.detail).toContain('booking elsewhere');
+  });
+
+  it('accepts one touching a booking on either side', () => {
+    expect(revalidateSolverResult(booked, feasible({ a: 0, b: 0 })).ok).toBe(true);
+    expect(revalidateSolverResult(booked, feasible({ a: 20, b: 0 })).ok).toBe(true);
+  });
+
+  it('refuses a request whose bookings are out of order, as malformed', () => {
+    const unordered = request({
+      elsewhere: {
+        ann: [
+          [30, 40],
+          [10, 20],
+        ],
+      },
+    });
+    expect(revalidateSolverResult(unordered, feasible({ a: 0, b: 0 }))).toMatchObject({
+      ok: false,
+      failure: 'malformed-request',
+    });
   });
 });
 
@@ -432,7 +466,7 @@ describe('revalidateSolverResult recomputes the objective', () => {
     movement: term(27),
   };
   const answer = (values: SolverObjectiveValues): SolverResponse => ({
-    wireVersion: 2,
+    wireVersion: 3,
     status: 'feasible',
     offsets: { a: 0, b: 20 },
     objectiveValues: values,
@@ -496,7 +530,7 @@ describe('revalidateSolverResult recomputes the objective', () => {
       fastHint: { a: 0 },
     });
     const response: SolverResponse = {
-      wireVersion: 2,
+      wireVersion: 3,
       status: 'feasible',
       offsets: { a: 2_147_483_646 },
       objectiveValues: {

@@ -161,7 +161,7 @@ export const SOLVER_EXIT_CODES = {
  *
  * `solveFailed` is `invalid-output`, and that mapping is a requirement rather
  * than a preference. A **later-stage** `INFEASIBLE` is the one solver outcome
- * with no encoding on the wire (`solver-wire.v2.json`, the response
+ * with no encoding on the wire (`solver-wire.v3.json`, the response
  * `$comment`), so the entrypoint "SHALL exit non-zero without emitting a
  * response, and the coordinator SHALL record that run as `invalid-output`"
  * (`openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/

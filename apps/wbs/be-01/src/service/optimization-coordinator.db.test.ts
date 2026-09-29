@@ -54,7 +54,7 @@ const INPUT: ScheduleInput = {
   deadlines: new Map(),
 };
 const FEASIBLE_RESPONSE = `${JSON.stringify({
-  wireVersion: 2,
+  wireVersion: 3,
   status: 'feasible',
   offsets: { 'w-1\u0000step-dev': 0 },
   objectiveValues: {

@@ -1867,6 +1867,19 @@ function placeSlices(
       window = profile.jointWindowFor(poolIds, width, duration, from);
       return window;
     });
+    // A pin later than every floor is the optimizer's own choice, and nothing
+    // above asked whether it lands inside a later booking. Fast never does:
+    // its start is the search's answer.
+    // Proof: this check removed made `refuses a pinned start inside a booking
+    // elsewhere` (`schedule-elsewhere.test.ts`) return a schedule; watched
+    // 2026-09-29.
+    if (
+      pinnedStarts !== undefined &&
+      booked !== undefined &&
+      !withinDrift(elsewhereWindow(booked, start, duration).start, start)
+    ) {
+      throw new ScheduleInvalidOptimizedStartError(node.key, 'overlaps a booking elsewhere');
+    }
 
     const { held, finish } = tileFinish(anchorOf[node.item], start, at, offsets);
     anchorOf[node.item] = held;
@@ -3165,20 +3178,15 @@ export function schedule(
    * always took. `schedule-elsewhere.test.ts` holds the whole golden corpus to
    * that, argument supplied and not.
    *
-   * @throws for a malformed map (see {@link checkElsewhere}), and for a
-   * non-empty map beside `pinnedStarts`: the optimized materialiser learns to
-   * work around bookings with solver wire 3 (slice 5), and until then an
-   * optimized answer placed around none of them is not one to publish.
+   * @throws for a malformed map (see {@link checkElsewhere}), and, beside
+   * `pinnedStarts`, {@link ScheduleInvalidOptimizedStartError} for a pinned
+   * start that sits inside one of its person's bookings by more than drift —
+   * an optimized answer that ignored a booking is not one to publish
+   * (solver wire 3, slice 5).
    */
   elsewhere: Elsewhere = new Map(),
 ): Schedule {
   checkElsewhere(elsewhere);
-  // Proof: this refusal removed made `refuses to materialise pinned starts
-  // around bookings elsewhere` (`schedule-elsewhere.test.ts`) return a
-  // schedule instead of throwing; watched 2026-09-29.
-  if (pinnedStarts !== undefined && elsewhere.size > 0) {
-    throw new Error('pinned starts cannot yet be materialised around bookings elsewhere');
-  }
   const index = indexTree(rows);
   const { leafIds } = index;
   const sliced = groupByWorkItem(leafIds, slices);

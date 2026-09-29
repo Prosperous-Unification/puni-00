@@ -99,9 +99,9 @@ def a_request(
         )
     offsets = dict(baseline) if baseline is not None else {key: 0 for key in keys}
     return {
-        "wireVersion": 2,
-        "contractVersion": "14+0.1.4",
-        "solverVersion": "0.1.4",
+        "wireVersion": 3,
+        "contractVersion": "15+0.2.0",
+        "solverVersion": "0.2.0",
         "objective": objective,
         "budgetMs": 30000,
         "stageBudgetSplit": [0.6, 0.25, 0.15],
@@ -115,6 +115,7 @@ def a_request(
         # that they are equal, so a test that made them differ would be testing
         # a request no builder can emit.
         "fastHint": dict(offsets),
+        "elsewhere": {},
     }
 
 
@@ -853,6 +854,32 @@ class BuiltModelShape(unittest.TestCase):
         self.assertEqual(sorted(built.starts), ["a", "b"])
         self.assertEqual(sorted(built.ends), ["a", "b"])
         self.assertEqual(sorted(built.terms), [MAKESPAN, MOVEMENT, PRIORITY])
+
+
+
+class ElsewhereClause(unittest.TestCase):
+    """Wire 3: a person's bookings elsewhere are fixed intervals in clause 5."""
+
+    def test_a_slice_is_placed_around_a_booking_elsewhere(self) -> None:
+        request = a_request([a_slice("a", duration=10, person="ana")], horizon=40)
+        request["elsewhere"] = {"ana": [[0, 20]]}
+        validate_against_schema(request, "request")
+        check_cross_field(request)
+        value, starts = minimise(request, MAKESPAN)
+        self.assertEqual(starts["a"], 20)
+        self.assertEqual(value, 30)
+
+    def test_a_slice_fits_in_a_gap_and_touching_holds_nothing(self) -> None:
+        request = a_request([a_slice("a", duration=10, person="ana")], horizon=60)
+        request["elsewhere"] = {"ana": [[0, 5], [15, 30]]}
+        _, starts = minimise(request, MAKESPAN)
+        self.assertEqual(starts["a"], 5)
+
+    def test_somebody_else_s_booking_constrains_nothing(self) -> None:
+        request = a_request([a_slice("a", duration=10, person="ana")], horizon=40)
+        request["elsewhere"] = {"ben": [[0, 20]]}
+        _, starts = minimise(request, MAKESPAN)
+        self.assertEqual(starts["a"], 0)
 
 
 if __name__ == "__main__":  # pragma: no cover

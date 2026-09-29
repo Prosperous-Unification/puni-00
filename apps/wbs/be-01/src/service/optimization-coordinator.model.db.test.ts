@@ -734,7 +734,7 @@ class ExitChild implements Command {
         this.disposition === 'failed'
           ? ''
           : JSON.stringify({
-              wireVersion: 2,
+              wireVersion: 3,
               status: 'feasible',
               offsets: { 'w-1\u0000step-dev': 0 },
               objectiveValues: {

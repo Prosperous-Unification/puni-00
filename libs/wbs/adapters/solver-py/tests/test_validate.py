@@ -553,6 +553,62 @@ class EdgeEndpoints(unittest.TestCase):
         self.assertIn("is not a slice key", str(caught.exception))
 
 
+class ElsewhereValidation(unittest.TestCase):
+    """Wire 3's `elsewhere`: whole units in the schema, order in the receiver."""
+
+    def test_accepts_sorted_disjoint_bookings_and_touching_ones(self) -> None:
+        request = valid_request()
+        request["elsewhere"] = {"ana": [[0, 10], [10, 20], [30, 31]]}
+        validate_against_schema(request, "request")
+        check_cross_field(request)
+
+    def test_refuses_bookings_out_of_order_or_empty(self) -> None:
+        for bookings in ([[10, 20], [0, 5]], [[0, 10], [5, 20]], [[5, 5]]):
+            with self.subTest(bookings=bookings):
+                request = valid_request()
+                request["elsewhere"] = {"ana": bookings}
+                validate_against_schema(request, "request")
+                with self.assertRaises(RequestRejected) as caught:
+                    check_cross_field(request)
+                self.assertIn("elsewhere", str(caught.exception))
+
+    def test_the_schema_refuses_a_person_with_no_booking_and_a_fraction(self) -> None:
+        for elsewhere in ({"ana": []}, {"ana": [[0, 1.5]]}, {"ana": [[-1, 2]]}, {"": [[0, 1]]}):
+            with self.subTest(elsewhere=elsewhere):
+                request = valid_request()
+                request["elsewhere"] = elsewhere
+                with self.assertRaises(RequestRejected):
+                    validate_against_schema(request, "request")
+
+
+class WireGenerations(unittest.TestCase):
+    """0.2.0 speaks wire 3 only, and a 0.1.4 build refuses wire 3."""
+
+    def test_a_wire_2_request_is_refused(self) -> None:
+        request = valid_request()
+        request["wireVersion"] = 2
+        del request["elsewhere"]
+        with self.assertRaises(RequestRejected) as caught:
+            validate_against_schema(request, "request")
+        self.assertIn("wireVersion", str(caught.exception))
+
+    def test_the_wire_2_schema_a_0_1_4_build_carries_refuses_a_wire_3_request(self) -> None:
+        """0.1.4 validated against `solver-wire.v2.json`; kept beside v3 for this."""
+        from jsonschema import Draft202012Validator
+
+        schema = json.loads(
+            (REPO_ROOT / "libs/wbs/domain/contracts/solver/solver-wire.v2.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        branch = Draft202012Validator(
+            {"$schema": schema["$schema"], "$ref": "#/$defs/request", "$defs": schema["$defs"]}
+        )
+        errors = [error.message for error in branch.iter_errors(valid_request())]
+        self.assertTrue(any("2 was expected" in error for error in errors), errors)
+        self.assertTrue(any("elsewhere" in error for error in errors), errors)
+
+
 class SchemaErrorsAreReportedTogether(unittest.TestCase):
     def test_every_error_is_named_not_just_the_first(self) -> None:
         request = valid_request()

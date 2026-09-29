@@ -1,6 +1,7 @@
 import {
   SOLVER_HORIZON_UNITS_MAX,
   type SolverEdge,
+  type SolverElsewhere,
   type SolverOffsetMap,
   type SolverSlice,
 } from './wire-types';
@@ -71,7 +72,7 @@ const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
  * builder computed.
  *
  * **It is the FINISH, not the horizon, and the difference is load-bearing.**
- * `horizonUnits` bounds a slice's *start* (`solver-wire.v2.json` clause 1, and
+ * `horizonUnits` bounds a slice's *start* (`solver-wire.v3.json` clause 1, and
  * `model.py` builds the start domain from it); PRIORITY is `Σ w(s) · finish(s)`
  * and a finish past the horizon is legal — the makespan's business, not an
  * error. So the true ceiling exceeds `Σ w(s) × horizonUnits` by exactly
@@ -103,8 +104,20 @@ export function preflightSolverRequest(
   slices: readonly SolverSlice[],
   baselineOffsets: SolverOffsetMap,
   edges: readonly SolverEdge[],
+  /**
+   * Bookings elsewhere, in units. The serial bound starts after the last of
+   * them: a serial placement from there is clear of every booking, which is
+   * what keeps `horizonUnits` an upper bound once people are shared.
+   */
+  elsewhere: SolverElsewhere = {},
 ): SolverPreflight {
   let latestFloor = 0n;
+  // Proof: this seed left out made `extends the horizon past the last
+  // booking elsewhere` (`build-solver-request.test.ts`) answer a horizon that
+  // ends inside the booking; watched 2026-09-29.
+  for (const bookings of Object.values(elsewhere)) {
+    for (const [, end] of bookings) if (BigInt(end) > latestFloor) latestFloor = BigInt(end);
+  }
   let totalDuration = 0n;
   let totalWeight = 0n;
   let weightedDuration = 0n;

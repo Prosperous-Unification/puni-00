@@ -132,7 +132,7 @@ describe('the quantised baseline as a solution the solver could publish', () => 
     );
     const built = buildSolverRequest(ffPlan, 'time', {
       baselineOffsets,
-      solverVersion: '0.1.4',
+      solverVersion: '0.2.0',
       budgetMs: 1_000,
     });
     if (!built.ok) throw new Error(built.detail);

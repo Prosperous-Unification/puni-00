@@ -38,7 +38,10 @@ Six clauses, in the re-validator's own order:
    pool a slice names, so a two-pool slice is counted at full width in both.
 5. **Assignees** — one `AddNoOverlap` per non-null `personId`
    (`assignee-double-booked`). A person is not a quantity: two slices naming one
-   person overlap or they do not, whatever their widths.
+   person overlap or they do not, whatever their widths. The person's bookings
+   elsewhere (wire 3's `elsewhere`) join the same constraint as fixed intervals,
+   so no slice of theirs is placed on one. Not dummy zero-weight slices, which
+   would leak into the makespan, priority and movement terms (ADR 0034).
 6. **Deadlines** — `end + int(workItemIsMilestone) <= deadlineUnits` when non-null.
    A whole work item made only of zero-duration slices occupies the unit in
    which it stands. A zero step beside positive work does not extend that work
@@ -81,7 +84,7 @@ from typing import Any, Mapping, Sequence
 
 from ortools.sat.python import cp_model
 
-# The three term names, spelled exactly as `solver-wire.v2.json`'s
+# The three term names, spelled exactly as `solver-wire.v3.json`'s
 # `objectiveValues` spells them. Lowercase is derived rather than chosen: the
 # schema's own `$comment` records that `MAKESPAN`/`PRIORITY`/`MOVEMENT` in
 # design.md are mathematical names and these are the JSON keys.
@@ -92,7 +95,7 @@ MOVEMENT = "movement"
 TERMS: tuple[str, str, str] = (MAKESPAN, PRIORITY, MOVEMENT)
 
 # The lexicographic order each objective minimises, from the request's
-# `objective` enum. `solver-wire.v2.json`: "pri minimises (PRIORITY, MAKESPAN,
+# `objective` enum. `solver-wire.v3.json`: "pri minimises (PRIORITY, MAKESPAN,
 # MOVEMENT) lexicographically; time minimises (MAKESPAN, PRIORITY, MOVEMENT)".
 # MOVEMENT is last in both, which is why it is a tie-breaker and never a driver.
 STAGE_ORDER: Mapping[str, tuple[str, str, str]] = {
@@ -235,6 +238,28 @@ def build_model(request: Mapping[str, Any]) -> BuiltModel:
         if person is None or key not in intervals:
             continue
         by_person.setdefault(str(person), []).append(intervals[key])
+    # A person's bookings elsewhere, fixed, beside their own slices. A booking
+    # of someone with no occupying slice here constrains nothing and is left
+    # out rather than added as a lone interval.
+    # Proof: this loop removed made
+    # ElsewhereClause.test_a_slice_is_placed_around_a_booking_elsewhere return
+    # the slice at unit 0, inside the booking; and the real `-m wbs_solver`
+    # answer to a one-slice request booked on [0, 40), fed to Bun's
+    # `revalidateSolverResult`, came back `assignee-double-booked` ("inside a
+    # booking elsewhere [0, 40)") where the intact model's answer, 40, is
+    # published; watched 2026-09-29.
+    for person, bookings in request["elsewhere"].items():
+        members = by_person.get(str(person))
+        if members is None:
+            continue
+        for index, (booked_start, booked_end) in enumerate(bookings):
+            members.append(
+                model.new_fixed_size_interval_var(
+                    int(booked_start),
+                    int(booked_end) - int(booked_start),
+                    f"elsewhere[{person}][{index}]",
+                )
+            )
     for members in by_person.values():
         if len(members) > 1:
             model.add_no_overlap(members)

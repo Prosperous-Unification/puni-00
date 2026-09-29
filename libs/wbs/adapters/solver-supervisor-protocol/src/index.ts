@@ -3,11 +3,14 @@ export const SUPERVISOR_PROTOCOL_VERSION = 1;
 
 /**
  * The solver wire versions a start frame may carry: v1 from a backend released
- * before SS/FF typed dependencies and v2 (`solver-wire.v2.json`) after. The host
- * supervisor outlives either backend colour during a blue/green swap, so it
- * admits both and leaves exact schema validation to the solver image.
+ * before SS/FF typed dependencies, v2 (`solver-wire.v2.json`) after, and v3
+ * (`solver-wire.v3.json`) once requests carry bookings elsewhere
+ * (`share-people-across-projects`). The host supervisor outlives either
+ * backend colour during a blue/green swap, so it admits every one of them and
+ * leaves exact schema validation to the solver image each colour pairs with
+ * (ADR 0025).
  */
-export const SOLVER_REQUEST_WIRE_VERSIONS: readonly unknown[] = [1, 2];
+export const SOLVER_REQUEST_WIRE_VERSIONS: readonly unknown[] = [1, 2, 3];
 
 export type SupervisorObjective = 'pri' | 'time';
 
@@ -149,10 +152,12 @@ export function decodeSupervisorStartFrame(
     context.maxMemoryLimitMb,
   );
   const request = asRecord(value['request'], 'request');
-  // Proof: restoring the v1-only comparison made `accepts both solver wire
-  // versions a rolling deploy can send and refuses any other` and three other
+  // Proof: restoring the v1-only comparison made `accepts every solver wire
+  // version a rolling deploy can send and refuses any other` and three other
   // cases fail on `request wireVersion is not 1` (6 pass / 4 fail); the CI
   // solver-image smoke failed the same way on a v2 request; watched 2026-09-28.
+  // Dropping 3 from the list made that case refuse a v3 frame; watched
+  // 2026-09-29.
   if (!SOLVER_REQUEST_WIRE_VERSIONS.includes(request['wireVersion'])) {
     throw defect(`request wireVersion ${JSON.stringify(request['wireVersion'])} is not supported`);
   }

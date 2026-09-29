@@ -541,6 +541,39 @@ export const revalidateSolverResult = (
     }
   }
 
+  // A person's bookings elsewhere are fixed intervals the solver was told
+  // about (wire 3); a slice on one is the same repair as a slice on another
+  // slice of theirs, so it is the same code, named in the detail.
+  // Proof: this loop removed made `refuses a person placed on a booking
+  // elsewhere` (`revalidate-solver-result.test.ts`) publish the schedule;
+  // watched 2026-09-29.
+  for (const [personId, bookings] of Object.entries(request.elsewhere)) {
+    let previousEnd = 0;
+    for (const [start, end] of bookings) {
+      if (
+        !isNonNegativeSafeInteger(start) ||
+        !isNonNegativeSafeInteger(end) ||
+        end <= start ||
+        start < previousEnd
+      ) {
+        return refuse(
+          'malformed-request',
+          `elsewhere for ${JSON.stringify(personId)} is not sorted, disjoint whole-unit intervals`,
+        );
+      }
+      previousEnd = end;
+      for (const placement of byPerson.get(personId) ?? []) {
+        if (placement.finish <= placement.start) continue;
+        if (placement.start < end && start < placement.finish) {
+          return refuse(
+            'assignee-double-booked',
+            `${JSON.stringify(personId)} is on ${JSON.stringify(placement.slice.key)} at unit ${String(placement.start)}, inside a booking elsewhere [${String(start)}, ${String(end)})`,
+          );
+        }
+      }
+    }
+  }
+
   // The objective arithmetic runs last, on a schedule already proved placeable:
   // a term recomputed over offsets that do not match the request's slices would
   // be arithmetic about a different plan.

@@ -41,7 +41,7 @@ const DEADLINED_INPUT: ScheduleInput = {
   deadlines: new Map([['w-1', 0]]),
 };
 const RESPONSE = `${JSON.stringify({
-  wireVersion: 2,
+  wireVersion: 3,
   status: 'feasible',
   offsets: { 'w-1\u0000step-dev': 0 },
   objectiveValues: {
@@ -51,7 +51,7 @@ const RESPONSE = `${JSON.stringify({
   },
 })}\n`;
 const INFEASIBLE_RESPONSE = `${JSON.stringify({
-  wireVersion: 2,
+  wireVersion: 3,
   status: 'infeasible',
 })}\n`;
 const dirs: string[] = [];

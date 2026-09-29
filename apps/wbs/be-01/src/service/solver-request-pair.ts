@@ -29,6 +29,9 @@ export function buildSolverRequestPair(
     input.poolSizes,
     input.reach,
     input.typed,
+    // The baseline stands where the request's bookings let it: MOVEMENT is
+    // measured from it and the hint starts there.
+    input.elsewhere,
   );
   const spawn = { baselineOffsets, solverVersion, budgetMs };
 

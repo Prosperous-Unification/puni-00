@@ -134,3 +134,38 @@ Fable's review of #250 unified "non-empty elsewhere": a listed person holds at l
 (which now calls `checkElsewhere` and no longer sorts bookings it has validated) and the wire 2
 builder. The FS pass's drift between the searched length and `tileFinish`'s finish is documented
 beside the search, not re-searched; the overlap property already applies the same tolerance.
+
+## Slice 5 — wire 3, solver 0.2.0
+
+On `batch-9/010-4-16-capacity-wire3`, stacked on the elsewhere branch. `solver-wire.v3.json` adds a
+required `elsewhere` (person → sorted, disjoint whole-unit intervals); `SOLVER_WIRE_VERSION` 3,
+solver-py `0.2.0`, the supervisor admits wires 1, 2 and 3. v1 and v2 schemas stay in the tree.
+`SCHEDULE_ALGORITHM_ID` stays `slice-leveling-v4`. Bookings convert conservatively to units: floor
+the start, ceil the end (drift-snapped), clamp at 0, and merge what the rounding made overlap.
+
+Fable's #250 obligations: `materialiseOptimized` and `quantisedFastBaseline` take the plan's
+bookings (`solver-exit-outcome.ts`, `solver-request-pair.ts`). The wire 2 refusal and the pinned
+refusal are gone; a pinned start on a booking throws `ScheduleInvalidOptimizedStartError`. The
+question whether the builder's refusal `throw` is caught became moot with the refusal: the only
+caller is `solver-request-pair.ts`, the builder's remaining throws are invariant violations, and
+a booking that pushes the horizon is a preflight input (the serial bound starts after the last
+booking), not a throw.
+
+| Check (file)                                        | Fault injected                            | Test that observed the failure                                                                          | Result                                                            |
+| --------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| unit conversion merge (`solver-units.ts`)           | merge only when contained (`end <= last`) | `merges bookings the rounding made overlap, and keeps touching ones apart`                              | two overlapping intervals emitted                                 |
+| horizon seed (`solver-preflight.ts`)                | the booking end never seeds the floor     | `extends the horizon past the last booking elsewhere`                                                   | horizon 480 where 3216 is due, short of the booking's end at 2880 |
+| builder (`build-solver-request.ts`)                 | `{}` in place of `elsewhereUnitsOf`       | `carries each person's bookings elsewhere in units…`; the horizon case                                  | no bookings sent; horizon short                                   |
+| baseline (`quantised-baseline.ts`)                  | `undefined` in place of the unit bookings | `places the baseline around the bookings the request carries`                                           | Ann's slice on her booking                                        |
+| materialise (`materialise-optimized.ts`)            | `undefined` in place of the bookings      | `refuses offsets that put a person on a booking elsewhere`                                              | offset 24 materialised                                            |
+| pinned start on a booking (`schedule.ts`)           | the check removed                         | `refuses a pinned start inside a booking elsewhere`                                                     | a schedule returned                                               |
+| re-validation (`revalidate-solver-result.ts`)       | the bookings loop iterates `{}`           | `refuses a person placed on a booking elsewhere`; `refuses a request whose bookings are out of order`   | published; malformed request accepted                             |
+| model clause 5 (`model.py`)                         | the fixed-interval loop removed           | `ElsewhereClause.test_a_slice_is_placed_around_a_booking_elsewhere` (and one more)                      | slice at unit 0                                                   |
+| same, across the seam                               | same                                      | real `-m wbs_solver` on a one-slice request booked on `[0, 40)`, answer fed to `revalidateSolverResult` | `assignee-double-booked`; intact model answers 40, published      |
+| request cross-field (`validate.py`)                 | the order check removed                   | `ElsewhereValidation` (3 subtests)                                                                      | unordered/overlapping/empty-length bookings admitted              |
+| supervisor wire list (`solver-supervisor-protocol`) | 3 dropped from the list                   | `accepts every solver wire version a rolling deploy can send and refuses any other`                     | v3 frame refused                                                  |
+| old solver fed v3 (`test_validate.py`)              | none (a generation check)                 | `WireGenerations`: the v2 schema refuses a v3 request; this solver refuses wire 2                       | typed `RequestRejected`                                           |
+
+Not observed here: the ADR 0025 binding rebuild; the dev deploy rebuilds it after merge and the
+supervisor already admits v3. The Python suite runs in a venv with the locked dependencies; the
+host's system `python3` has no `ortools`, so `nx run wbs-solver-py:test` fails there on imports.
