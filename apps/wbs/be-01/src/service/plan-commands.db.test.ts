@@ -17,6 +17,10 @@ import {
 import { PriorityBandService } from '@wbs/core/module/priority-band/priority-band.resource';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
+import {
+  WorkItemService,
+  type WorkItemServiceOptions,
+} from '@wbs/core/module/work-item/work-item.resource';
 import type { PlanCommand } from '@wbs/core/service/plan-command';
 import {
   DEFAULT_PRIORITY_BANDS,
@@ -55,7 +59,6 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import { WorkItemService, type WorkItemServiceOptions } from './work-item.service';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 

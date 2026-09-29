@@ -1,6 +1,7 @@
 import { clockOf } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { describe, expect, it, spyOn } from 'bun:test';
@@ -11,7 +12,6 @@ import type {
   OptimizationCoordinator,
   OptimizationRetryResult,
 } from '../service/optimization-coordinator';
-import { WorkItemService } from '../service/work-item.service';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';

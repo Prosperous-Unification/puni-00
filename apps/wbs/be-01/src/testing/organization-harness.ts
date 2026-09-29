@@ -7,6 +7,7 @@ import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
+import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { createLogger } from '@wbs/observability';
 import {
@@ -48,7 +49,6 @@ import { delegationVerifier } from '../runtime/delegation';
 import { delegationIssuer } from '../runtime/delegation-issuer';
 import { runDomainProofWorker } from '../runtime/domain-proof-worker';
 import { fastScheduler } from '../service/optimizer-wiring';
-import { WorkItemService } from '../service/work-item.service';
 import { buildServices } from '../services';
 import { TEST_JWT_KEY } from './auth-fixture';
 import { recordingBroadcaster } from './broadcast-fixture';

@@ -1,6 +1,8 @@
+import {
+  WorkItemService,
+  type WorkItemServiceOptions,
+} from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService, type AuthServiceOptions } from '@wbs/core/service/auth.service';
-
-import { WorkItemService, type WorkItemServiceOptions } from './work-item.service';
 
 export function constructWithoutClocks(
   workItemOptions: WorkItemServiceOptions,

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import type { UndoOutcome } from '@wbs/core/module/work-item/work-item.resource';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -32,7 +33,6 @@ import { personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import type { UndoOutcome } from './work-item.service';
 
 /**
  * Conditional undo, end to end, **against real SQLite**.

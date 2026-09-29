@@ -1,5 +1,6 @@
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { builtByNonOwner, MAX_ESTIMATE_DAYS, type Schedule, schedule } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
@@ -10,7 +11,6 @@ import type {
   OptimizedScheduleReader,
 } from '../service/optimized-schedule-reader';
 import { optimizerWiring } from '../service/optimizer-wiring';
-import { WorkItemService } from '../service/work-item.service';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';

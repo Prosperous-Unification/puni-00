@@ -1,4 +1,8 @@
 import { CREATOR_ADMISSION } from '@wbs/core';
+import {
+  WorkItemService as RefusingWorkItemService,
+  type WorkItemServiceOptions,
+} from '@wbs/core/module/work-item/work-item.resource';
 import { type Schedule, schedule, sliceKey, type SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { beforeEach, describe, expect, it } from 'bun:test';
@@ -10,10 +14,6 @@ import { inMemoryServices } from '../testing/harness';
 import { projectRow } from '../testing/project-fixture';
 import type { OptimizationVariantState, OptimizedScheduleAsk } from './optimized-schedule-reader';
 import { optimizerWiring } from './optimizer-wiring';
-import {
-  WorkItemService as RefusingWorkItemService,
-  type WorkItemServiceOptions,
-} from './work-item.service';
 
 /**
  * tasks.md 4.11's seam, from the plan read's side.

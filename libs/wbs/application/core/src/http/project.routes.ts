@@ -14,11 +14,11 @@ import type { CalendarMarkerService } from '../module/calendar-marker/calendar-m
 import type { DirectoryService } from '../module/directory/directory.resource';
 import { installPlanDocument } from '../module/plan-document/check';
 import type { ProjectService } from '../module/project/project.resource';
+import type { WorkItemService } from '../module/work-item/work-item.resource';
 import type { Clock } from '../ports/clock';
 import type { OrganizationAccess } from '../ports/organization-access';
 import type { Project } from '../ports/project-store';
 import type { OptimizationVariantState } from '../ports/scheduler';
-import type { WorkItemService } from '../service/work-item.service';
 import { bind, EMPTY, type HttpReply, type RequestFailure } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 

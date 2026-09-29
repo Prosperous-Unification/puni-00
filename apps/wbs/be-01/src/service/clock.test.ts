@@ -118,7 +118,7 @@ describe('one clock', () => {
     // renamed directory, a filter that dropped every file.
     const sources = serviceSources();
     expect(sources.length).toBeGreaterThan(20);
-    expect(sources.map((file) => file.name)).toContain('work-item.service.ts');
+    expect(sources.map((file) => file.name)).toContain('work-item.resource.ts');
     expect(sources.some((file) => file.text.includes('this.clock.stampFor('))).toBe(true);
     // Proof (2026-09-24): returning `[...FOLDERS]` from `serviceFolders` failed the
     // `coreCapacity` assertion below on Received: undefined (3 pass, 1 fail).
@@ -135,8 +135,8 @@ describe('one clock', () => {
       (file) =>
         file.path === 'libs/wbs/application/core/src/module/work-item/work-item.resource.ts',
     );
-    const beWorkItems = sources.find(
-      (file) => file.path === 'apps/wbs/be-01/src/service/work-item.service.ts',
+    const beWiring = sources.find(
+      (file) => file.path === 'apps/wbs/be-01/src/service/optimizer-wiring.ts',
     );
     const beOptimization = sources.find(
       (file) => file.path === 'apps/wbs/be-01/src/module/optimization/optimization.feature.ts',
@@ -149,8 +149,8 @@ describe('one clock', () => {
     // Proof: removing `export` from core's WorkItemService failed here on
     // Expected to contain "export class WorkItemService" (2026-09-09).
     expect(coreWorkItems?.text).toContain('export class WorkItemService');
-    expect(beWorkItems).toBeDefined();
-    expect(beWorkItems?.text).toContain("export * from '@wbs/core/service/work-item.service'");
+    expect(beWiring).toBeDefined();
+    expect(beWiring?.text).toContain('export function optimizerWiring(');
     // Proof (2026-09-24): returning `[...FOLDERS, ...modulesIn(MODULES)]` from `serviceFolders`
     // failed the `beOptimization` assertion below on Received: undefined (3 pass, 1 fail).
     expect(beOptimization).toBeDefined();
