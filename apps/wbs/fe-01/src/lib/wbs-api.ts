@@ -1801,7 +1801,7 @@ export interface ProjectApi {
     projectId: string,
     predecessor: TypedDependencyEndpoint,
     successor: TypedDependencyEndpoint,
-    type?: TypedDependencyType,
+    type: TypedDependencyType,
   ): Promise<void>;
   updateTypedDependency(
     projectId: string,
@@ -2816,7 +2816,7 @@ export function httpProjectApi(token: string): ProjectApi {
     async removeDependency(id, predecessorId) {
       await onRow(id, { kind: 'removeDependency', workItemId: id, predecessorId });
     },
-    async addTypedDependency(projectId, predecessor, successor, type = 'FS') {
+    async addTypedDependency(projectId, predecessor, successor, type) {
       await command(projectId, { kind: 'addTypedDependency', predecessor, successor, type });
     },
     async updateTypedDependency(projectId, dependencyId, predecessor, successor, type) {

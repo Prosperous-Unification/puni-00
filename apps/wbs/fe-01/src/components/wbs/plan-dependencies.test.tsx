@@ -160,6 +160,7 @@ async function typedOnlyRows() {
     'p1',
     { scope: 'whole', workItemId: predecessor.id },
     { scope: 'whole', workItemId: successor.id },
+    'FS',
   );
   render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
   await screen.findByRole('button', { name: /^Stop 020 waiting for 010/ });
@@ -315,6 +316,7 @@ describe('dependencies in the table', () => {
         'p1',
         { scope: 'whole', workItemId: source.id },
         { scope: 'whole', workItemId: target.id },
+        'FS',
       );
       render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
       const input = await screen.findByLabelText<HTMLInputElement>('Add a dependency to 020');
@@ -363,11 +365,13 @@ describe('dependencies in the table', () => {
       'p1',
       { scope: 'whole', workItemId: source.id },
       { scope: 'whole', workItemId: target.id },
+      'FS',
     );
     await api.addTypedDependency(
       'p1',
       { scope: 'node', stepNodeId: `sn1.${other.id}.${DEV.id}` },
       { scope: 'node', stepNodeId: `sn1.${target.id}.${QA.id}` },
+      'FS',
     );
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     const input = await screen.findByLabelText('Add a dependency to 020');
@@ -392,6 +396,7 @@ describe('dependencies in the table', () => {
       'p1',
       { scope: 'whole', workItemId: source.id },
       { scope: 'whole', workItemId: target.id },
+      'FS',
     );
     const original = (await api.tree('p1')).typedDependencies?.[0];
     if (original === undefined) throw new Error('Missing fixture dependency');
@@ -428,6 +433,7 @@ describe('dependencies in the table', () => {
         'p1',
         { scope: 'whole', workItemId: source.id },
         { scope: 'whole', workItemId: target.id },
+        'FS',
       );
       const readPlan = api.tree.bind(api);
       let predecessorDeleted = false;
@@ -572,6 +578,7 @@ describe('dependencies in the table', () => {
         'p1',
         { scope: 'node', stepNodeId: `sn1.${source.id}.${DEV.id}` },
         { scope: 'node', stepNodeId: `sn1.${target.id}.${DEV.id}` },
+        'FS',
       );
       render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
       await screen.findByLabelText('Add a dependency to 020');
@@ -600,6 +607,7 @@ describe('dependencies in the table', () => {
       'p1',
       { scope: 'whole', workItemId: source.id },
       { scope: 'whole', workItemId: target.id },
+      'FS',
     );
     const added = recordCalls(api, 'addTypedDependency');
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
@@ -734,11 +742,13 @@ describe('dependencies in the table', () => {
       'p1',
       { scope: 'whole', workItemId: predecessorId },
       { scope: 'whole', workItemId: successorId },
+      'FS',
     );
     await api.addTypedDependency(
       'p1',
       { scope: 'node', stepNodeId: `sn1.${predecessorId}.${DEV.id}` },
       { scope: 'node', stepNodeId: `sn1.${successorId}.${DEV.id}` },
+      'FS',
     );
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
     await screen.findByLabelText('Add a dependency to 020');

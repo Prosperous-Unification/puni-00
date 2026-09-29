@@ -3814,6 +3814,7 @@ describe('setting what a card waits for', () => {
       'p1',
       { scope: 'whole', workItemId: predecessor.id },
       { scope: 'whole', workItemId: successor.id },
+      'FS',
     );
     const removed = recordCalls(api, 'removeTypedDependency');
     widthIs(PHONE);
@@ -3850,11 +3851,13 @@ describe('setting what a card waits for', () => {
       'p1',
       { scope: 'whole', workItemId: first.id },
       { scope: 'whole', workItemId: target.id },
+      'FS',
     );
     await api.addTypedDependency(
       'p1',
       { scope: 'node', stepNodeId: `sn1.${second.id}.${DEV.id}` },
       { scope: 'node', stepNodeId: `sn1.${target.id}.${QA.id}` },
+      'FS',
     );
     widthIs(PHONE);
     render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
@@ -3878,6 +3881,7 @@ describe('setting what a card waits for', () => {
       'p1',
       { scope: 'node', stepNodeId: `sn1.${source.id}.${DEV.id}` },
       { scope: 'node', stepNodeId: `sn1.${target.id}.${DEV.id}` },
+      'FS',
     );
     const readTree = api.tree.bind(api);
     api.tree = async (projectId) => {
@@ -3908,6 +3912,7 @@ describe('setting what a card waits for', () => {
       'p1',
       { scope: 'whole', workItemId: source.id },
       { scope: 'whole', workItemId: target.id },
+      'FS',
     );
     const original = (await api.tree('p1')).typedDependencies?.[0];
     if (original === undefined) throw new Error('Missing fixture dependency');
@@ -4129,7 +4134,7 @@ describe('setting what a card waits for', () => {
         () => undefined,
         (configured) => {
           const realAdd = configured.addTypedDependency.bind(configured);
-          configured.addTypedDependency = (projectId, predecessor, successor) => {
+          configured.addTypedDependency = (projectId, predecessor, successor, type) => {
             calls.push(
               `add:${successor.scope === 'whole' ? successor.workItemId : ''}:${predecessor.scope === 'whole' ? predecessor.workItemId : ''}`,
             );
@@ -4137,7 +4142,7 @@ describe('setting what a card waits for', () => {
               release = () => {
                 resolve();
               };
-            }).then(() => realAdd(projectId, predecessor, successor));
+            }).then(() => realAdd(projectId, predecessor, successor, type));
           };
         },
       );

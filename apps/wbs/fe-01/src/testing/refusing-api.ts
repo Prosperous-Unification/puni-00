@@ -1399,7 +1399,7 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
 
   const addTypedDependencyAnswer = answers.addTypedDependency;
   if (addTypedDependencyAnswer !== undefined) {
-    checked.addTypedDependency = (projectId, predecessor, successor, type = 'FS') =>
+    checked.addTypedDependency = (projectId, predecessor, successor, type) =>
       throughProjectCommand(
         projectId,
         { kind: 'addTypedDependency', predecessor, successor, type },

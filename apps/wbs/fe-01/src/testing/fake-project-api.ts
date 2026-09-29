@@ -1092,7 +1092,7 @@ export function fakeProjectApi(): ProjectApi & {
       renumber();
       return Promise.resolve();
     },
-    addTypedDependency(_projectId, predecessor, successor, type = 'FS') {
+    addTypedDependency(_projectId, predecessor, successor, type) {
       typedDependencies.push({
         id: `dependency-${String(++nextDependencyId)}`,
         predecessor:

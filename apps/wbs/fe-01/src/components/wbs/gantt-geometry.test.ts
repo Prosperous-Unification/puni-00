@@ -1028,6 +1028,36 @@ describe('dependency arrows', () => {
     expect(unknownRoute?.at(-1)?.x).toBe(2);
   });
 
+  it('routes FF straight down into an unknown tick at the predecessor finish', () => {
+    // The unknown tick's placeholder [2, 4) sits under the direct arrival, and on
+    // adjacent rows the arrival band is the departure band. The route must not
+    // run out to the gutter and back along the same line.
+    const plan = planOf({
+      rows: [rowAt('A', 0, 2), rowAt('B', 2, 2)],
+      slices: [sliceAt('A-dev', 'A', 0, 2), sliceAt('B-dev', 'B', 2, 2, { estimated: false })],
+      typedDependencies: [
+        {
+          id: 'ff',
+          type: 'FF',
+          predecessor: { scope: 'whole', workItemId: 'A' },
+          successor: { scope: 'whole', workItemId: 'B' },
+        },
+      ],
+    });
+    const placed = placeOnWorkdays(layOutGantt(plan));
+    expect(placed.typedArrows[0]).toMatchObject({ fromX: 2, toX: 2 });
+    const route = routeArrow(
+      placed.typedArrows[0],
+      placed.bars,
+      { approach: 0.4, barInset: 0.18 },
+      { boundaryEntry: true },
+    );
+    expect(route).toEqual([
+      { x: 2, y: 0.5 },
+      { x: 2, y: 1.5 },
+    ]);
+  });
+
   it('routes FF into a second unknown step lane at its zero-time tick', () => {
     const plan = planOf({
       rows: [rowAt('A', 0, 2), rowAt('B', 2, 2)],

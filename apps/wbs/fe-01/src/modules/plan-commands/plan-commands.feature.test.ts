@@ -98,6 +98,7 @@ describe('the plan commands of one project', () => {
       commands.addTypedDependency(
         { scope: 'whole', workItemId: 'w1' },
         { scope: 'whole', workItemId: 'w2' },
+        'SS',
       ),
       commands.updateTypedDependency(
         'd1',
@@ -133,6 +134,7 @@ describe('the plan commands of one project', () => {
         'p1',
         { scope: 'whole', workItemId: 'w1' },
         { scope: 'whole', workItemId: 'w2' },
+        'SS',
       ],
       [
         'updateTypedDependency',

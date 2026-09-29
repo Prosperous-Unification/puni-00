@@ -1029,6 +1029,7 @@ describe('the browser writes through command batches (plan-commands)', () => {
             'p1',
             { scope: 'whole', workItemId: 'w1' },
             { scope: 'whole', workItemId: 'w2' },
+            'FS',
           ),
         'addTypedDependency',
       ],

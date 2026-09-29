@@ -1501,6 +1501,36 @@ const trimmed = (corners: ArrowPoint[]): ArrowPoint[] =>
       index === 0 || corner.x !== corners[index - 1].x || corner.y !== corners[index - 1].y,
   );
 
+/**
+ * `corners` with every corner that does not turn folded away: a corner on a
+ * straight line between its neighbours, and a spur that runs out along a line
+ * and back along the same one.
+ *
+ * Typed routes need it because their gutter candidates are built from fixed
+ * bands: when both endpoints share an x and the arrival band is the departure
+ * band (adjacent rows), the candidate runs to the gutter and retraces itself.
+ * Folding keeps only the segments the route actually covers, so a folded route
+ * never crosses a bar its unfolded candidate did not.
+ */
+const folded = (corners: ArrowPoint[]): ArrowPoint[] => {
+  const kept: ArrowPoint[] = [];
+  for (const corner of corners) {
+    const last = kept.at(-1);
+    if (last?.x === corner.x && last.y === corner.y) continue;
+    kept.push(corner);
+    while (kept.length >= 3) {
+      const [before, turn, after] = kept.slice(-3);
+      const straight =
+        (before.x === turn.x && turn.x === after.x) || (before.y === turn.y && turn.y === after.y);
+      if (!straight) break;
+      kept.splice(-2, 1);
+      const [start, end] = kept.slice(-2);
+      if (start.x === end.x && start.y === end.y) kept.pop();
+    }
+  }
+  return kept;
+};
+
 /** The plain elbow: out along the predecessor's row, down at `column`, in along the successor's. */
 const elbowThrough = (frame: ArrowFrame, column: number): ArrowPoint[] =>
   trimmed([
@@ -1626,7 +1656,10 @@ export function routeArrow(
       for (const arrival of arrivalBands) {
         const entries = [false, true];
         for (const boundaryEntry of entries) {
-          const route = trimmed([
+          // Proof: returning the unfolded candidate made `routes FF straight down
+          // into an unknown tick at the predecessor finish` receive the spur
+          // (2,0.91)→(4.4,0.91)→(2,0.91); watched 2026-09-29.
+          const route = folded([
             { x: frame.fromX, y: frame.fromY },
             { x: frame.fromX, y: departure },
             { x: gutter, y: departure },
