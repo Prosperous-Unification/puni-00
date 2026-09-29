@@ -18,11 +18,6 @@
       "rationale": "buildServices binds an optional OptimizedScheduleAdapter into the core Scheduler through optimizerWiring, while service fixtures reuse its Fast-only scheduler"
     },
     {
-      "path": "apps/wbs/be-01/src/service/priority-band.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/priority-band.service directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/project.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core/service/project.service directly"
@@ -150,11 +145,6 @@
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
       "rationale": "plan-commands.ts consumes its command type and batch-limit value, which carry no store, clock or runtime access"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/priority-band.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the priority-band module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/project.service.ts",
