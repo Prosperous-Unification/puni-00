@@ -62,6 +62,28 @@ _Avoid_: session token, internal service secret
 The single admission of a delegation's issuer and token identifier; a later request presenting that same delegation is a replay.
 _Avoid_: session, command idempotency key
 
+### Spaces
+
+**Space**:
+An organization-owned, named lens over an ordered set of that organization's projects. It owns nothing: removing a project from it, or deleting it, changes no project.
+_Avoid_: portfolio, program, folder, workspace
+
+**Space membership**:
+One project's place in one space: the pair and its position. A project may sit in many spaces.
+_Avoid_: link, assignment
+
+**All projects**:
+The virtual space every organization has, addressed as `all`; it has no row and its members are the caller's project list.
+_Avoid_: default space, root space
+
+**Project roll-up**:
+One project read as one row of a space — dates, total days, folded status and counts — derived on read from the tree the project page reads.
+_Avoid_: summary, project status (alone)
+
+**In progress now**:
+The leaf work items across a space whose folded status reads in progress.
+_Avoid_: active work, current tasks
+
 ### WBS
 
 **First visible row**: The first logical plan row whose laid-out box extends below a scrolling face's sticky heading. Its identity plus the fraction hidden by that heading describes the reader's vertical position independently of row height.
