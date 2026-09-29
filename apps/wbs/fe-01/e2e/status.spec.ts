@@ -415,7 +415,7 @@ test.describe('each status on the chart, in a browser (add-work-item-statuses)',
 });
 
 test.describe('status colours against the page, in a browser (add-work-item-statuses)', () => {
-  test('every status strip reaches 3:1, and the glyphs task 6.4 names reach 4.5:1', async ({
+  test('every status colour reaches 4.5:1, since each is glyph text as well as a strip', async ({
     page,
   }, testInfo) => {
     await seedALongRow(page);
@@ -473,16 +473,18 @@ test.describe('status colours against the page, in a browser (add-work-item-stat
       body: JSON.stringify(ratios, null, 2),
       contentType: 'application/json',
     });
+    // Every token is glyph text somewhere — the Status cell's glyph, and the
+    // bold lead word of a menu entry or a fact card — so every token owes
+    // 4.5:1, which also clears the strip's 3:1.
     // Proof: `--status-in-progress` put back to `oklch(0.72 0.15 72)` in
-    // `styles.css`, and this failed on `--status-in-progress as a strip`,
-    // `Received: 2.54`; watched in Chromium 2026-09-29. Measured in Chromium:
-    // draft 3.64, ready 3.78, blocked by proxy 5.05, on hold 4.46, blocked
-    // 4.77, done 3.68; in progress at L 0.56 computes to 4.77 (attached to every run).
+    // `styles.css`, and this failed on `--status-in-progress`, `Received:
+    // 2.54`; watched in Chromium 2026-09-29. With draft, ready, on hold and done
+    // at their earlier lightness (0.62, 0.6, 0.58, 0.6) it failed on
+    // `--status-draft as glyph text`, `Received: 3.64`; watched in Chromium
+    // 2026-09-29. The measured ratios are attached to every run.
     for (const [token, measured] of Object.entries(ratios)) {
       expect(measured, `${token} as a strip`).toBeGreaterThanOrEqual(3);
-    }
-    for (const token of ['--status-in-progress', '--status-blocked-by-proxy', '--status-blocked']) {
-      expect(ratios[token], `${token} as a glyph`).toBeGreaterThanOrEqual(4.5);
+      expect(measured, `${token} as glyph text`).toBeGreaterThanOrEqual(4.5);
     }
   });
 });
