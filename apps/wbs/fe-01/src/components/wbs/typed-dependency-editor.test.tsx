@@ -18,6 +18,189 @@ const predecessor = rows[0];
 const successor = rows[1];
 
 describe('typed dependency editor', () => {
+  it('refuses an unknown relationship in a read chip and an edit', () => {
+    const unknown = {
+      id: 'future',
+      type: 'SF',
+      predecessor: { scope: 'whole' as const, workItemId: 'a' },
+      successor: { scope: 'whole' as const, workItemId: 'b' },
+    };
+    expect(() => dependencyWords(unknown, rows, steps)).toThrow(
+      'Unknown dependency relationship SF',
+    );
+    expect(() =>
+      render(
+        <TypedDependencyEditor
+          predecessor={predecessor}
+          successor={successor}
+          rows={rows}
+          steps={steps}
+          dependency={unknown}
+          onCancel={vi.fn()}
+          onSave={vi.fn()}
+        />,
+      ),
+    ).toThrow('Unknown dependency relationship SF');
+  });
+  it.each([
+    ['SS', 'Start-to-start'],
+    ['FF', 'Finish-to-finish'],
+  ] as const)('spells %s in chips and accessible words', (type, fullName) => {
+    const words = dependencyWords(
+      {
+        id: 'typed',
+        type,
+        predecessor: { scope: 'node', workItemId: 'a', stepId: 'dev' },
+        successor: { scope: 'node', workItemId: 'b', stepId: 'dev' },
+      },
+      rows,
+      steps,
+    );
+    expect(words.chip).toBe(`010.dev ${type} → dev`);
+    expect(words.label).toContain('Dev step of 010 Strip');
+    expect(words.label).toContain('Dev step of 020 Paint');
+    expect(words.label).toContain(fullName);
+  });
+  it.each(['SS', 'FF'] as const)('selects %s and gives its lower-bound meaning', async (type) => {
+    const onSave = vi.fn().mockResolvedValue('landed');
+    render(
+      <TypedDependencyEditor
+        predecessor={predecessor}
+        successor={successor}
+        rows={rows}
+        steps={steps}
+        onCancel={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: type } });
+    expect(
+      screen.getByText(
+        type === 'SS'
+          ? /020 starts no earlier than 010 starts/
+          : /020 finishes no earlier than 010 finishes/,
+      ),
+    ).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith(
+        { scope: 'whole', workItemId: 'a' },
+        { scope: 'whole', workItemId: 'b' },
+        type,
+      );
+    });
+  });
+
+  it('names selected step endpoints in the lower-bound sentence', () => {
+    const uuidSteps = [
+      { id: '550e8400-e29b-41d4-a716-446655440000', name: 'Dev', allowancePercent: 0 },
+      { id: '550e8400-e29b-41d4-a716-446655440001', name: 'QA', allowancePercent: 0 },
+    ];
+    render(
+      <TypedDependencyEditor
+        predecessor={predecessor}
+        successor={successor}
+        rows={rows}
+        steps={uuidSteps}
+        preferredStepId={uuidSteps[1].id}
+        onCancel={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: 'SS' } });
+    expect(
+      screen.getByText('Start-to-start: 020.QA step starts no earlier than 010.QA step starts.'),
+    ).toBeDefined();
+    fireEvent.change(screen.getByLabelText('Predecessor'), { target: { value: uuidSteps[0].id } });
+    fireEvent.change(screen.getByLabelText('Relationship'), { target: { value: 'FF' } });
+    expect(
+      screen.getByText(
+        'Finish-to-finish: 020.QA step finishes no earlier than 010.Dev step finishes.',
+      ),
+    ).toBeDefined();
+  });
+
+  it('names every leaf under selected parent scopes in the lower-bound sentence', () => {
+    const branch = toTree([
+      workItemView({ id: 'p', number: '030', name: 'Parent' }),
+      workItemView({ id: 'c1', parentId: 'p', number: '030.1' }),
+      workItemView({ id: 'c2', parentId: 'p', number: '030.2' }),
+    ]);
+    const branchRows = [...branch, ...(branch[0]?.subRows ?? [])];
+    render(
+      <TypedDependencyEditor
+        predecessor={branch[0]}
+        successor={successor}
+        rows={[...branchRows, ...rows]}
+        steps={steps}
+        onCancel={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(
+        'Finish-to-start: 020 starts no earlier than every leaf under 030 finishes.',
+      ),
+    ).toBeDefined();
+    fireEvent.change(screen.getByLabelText('Predecessor'), { target: { value: 'dev' } });
+    expect(
+      screen.getByText(
+        'Finish-to-start: 020 starts no earlier than the Dev step of every leaf under 030 finishes.',
+      ),
+    ).toBeDefined();
+  });
+
+  it('names a selected descendant successor step', () => {
+    const branch = toTree([
+      workItemView({ id: 'p', number: '030', name: 'Parent' }),
+      workItemView({ id: 'c1', parentId: 'p', number: '030.1' }),
+    ]);
+    render(
+      <TypedDependencyEditor
+        predecessor={predecessor}
+        successor={branch[0]}
+        rows={[...rows, ...branch, ...(branch[0]?.subRows ?? [])]}
+        steps={steps}
+        onCancel={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('This work item'), { target: { value: 'qa' } });
+    expect(
+      screen.getByText(
+        'Finish-to-start: the QA step of every leaf under 030 starts no earlier than 010 finishes.',
+      ),
+    ).toBeDefined();
+  });
+
+  it.each(['SS', 'FF'] as const)('keeps %s when editing only an endpoint', async (type) => {
+    const onSave = vi.fn().mockResolvedValue('landed');
+    render(
+      <TypedDependencyEditor
+        predecessor={predecessor}
+        successor={successor}
+        rows={rows}
+        steps={steps}
+        dependency={{
+          id: 'd1',
+          type,
+          predecessor: { scope: 'whole', workItemId: 'a' },
+          successor: { scope: 'whole', workItemId: 'b' },
+        }}
+        onCancel={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('This work item'), { target: { value: 'qa' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith(
+        { scope: 'whole', workItemId: 'a' },
+        { scope: 'node', stepNodeId: 'sn1.b.qa' },
+        type,
+      );
+    });
+  });
   it('explains whole-parent expansion with the descendant leaf count', () => {
     const branch = toTree([
       workItemView({ id: 'p', number: '030', name: 'Parent' }),
@@ -50,6 +233,7 @@ describe('typed dependency editor', () => {
       expect(onSave).toHaveBeenCalledWith(
         { scope: 'node', stepNodeId: 'sn1.a.qa' },
         { scope: 'node', stepNodeId: 'sn1.b.qa' },
+        'FS',
       );
     });
   });

@@ -37,11 +37,18 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingJoinRequests,
+  refusingTestEmailDelivery,
+} from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
+  refusingDomains,
   refusingMemberships,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
@@ -119,6 +126,11 @@ beforeEach(() => {
     savedPlans: testSavedPlanService(),
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    domains: refusingDomains,
+    emailVerification: refusingEmailVerification,
+    invitations: refusingInvitations,
+    joinRequests: refusingJoinRequests,
+    emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     history: testHistoryService(),
     auth: new AuthService({
@@ -199,12 +211,12 @@ async function setup() {
     const body = (await response.json()) as { results: { id: string }[] };
     return body.results[0].id;
   };
-  const add = async (predecessor: object, successor: object) => {
+  const add = async (predecessor: object, successor: object, type: 'FS' | 'SS' | 'FF' = 'FS') => {
     const response = await command({
       kind: 'addTypedDependency',
       predecessor,
       successor,
-      type: 'FS',
+      type,
     });
     expect(response.status).toBe(200);
     const body = (await response.json()) as { results: { id: string }[] };
@@ -232,9 +244,9 @@ it('copies only internal typed relationships and replays them with stable ids', 
   const branch = await plan.create('D', parent);
   await plan.create('D1', branch);
   const outside = await plan.create('X');
-  const internalId = await plan.add(node(first, plan.devId), node(second, plan.qaId));
-  const wholeId = await plan.add(whole(first), whole(second));
-  const descendantId = await plan.add(descendant(branch, plan.devId), whole(second));
+  const internalId = await plan.add(node(first, plan.devId), node(second, plan.qaId), 'FF');
+  const wholeId = await plan.add(whole(first), whole(second), 'SS');
+  const descendantId = await plan.add(descendant(branch, plan.devId), whole(second), 'FF');
   const externalId = await plan.add(node(outside, plan.devId), whole(first));
   const outgoingId = await plan.add(whole(branch), whole(outside));
 
@@ -263,11 +275,12 @@ it('copies only internal typed relationships and replays them with stable ids', 
   const copied = tree.typedDependencies.find(
     (edge) => edge.predecessor.workItemId === firstCopy.id && edge.predecessor.scope === 'node',
   );
-  // Proof: 2026-09-27, retaining the source work-item id in a copied endpoint made this assertion fail (original C1 instead of C1 copy).
+  // Proof: retaining the source work-item id in the copied FF predecessor made
+  // this assertion fail: no relationship started at the C1 copy (2026-09-28).
   expect(copied).toMatchObject({
     predecessor: node(firstCopy.id, plan.devId),
     successor: node(secondCopy.id, plan.qaId),
-    type: 'FS',
+    type: 'FF',
   });
   expect(copied?.id).toBeDefined();
   // Proof: 2026-09-28, admitting the outside endpoints made duplication return 500.
@@ -281,10 +294,12 @@ it('copies only internal typed relationships and replays them with stable ids', 
   expect(copiedWhole).toMatchObject({
     predecessor: whole(firstCopy.id),
     successor: whole(secondCopy.id),
+    type: 'SS',
   });
   expect(copiedDescendant).toMatchObject({
     predecessor: descendant(branchCopy.id, plan.devId),
     successor: whole(secondCopy.id),
+    type: 'FF',
   });
   expect(
     tree.typedDependencies.filter((edge) => edge.successor.workItemId === outside),
@@ -323,18 +338,21 @@ it('copies only internal typed relationships and replays them with stable ids', 
     id: copied?.id,
     predecessor: node(firstCopy.id, plan.devId),
     successor: node(secondCopy.id, plan.qaId),
+    type: 'FF',
   });
   expect(
     (await typed.listByProject(plan.projectId)).find((edge) => edge.id === copiedWhole?.id),
   ).toMatchObject({
     predecessor: whole(firstCopy.id),
     successor: whole(secondCopy.id),
+    type: 'SS',
   });
   expect(
     (await typed.listByProject(plan.projectId)).find((edge) => edge.id === copiedDescendant?.id),
   ).toMatchObject({
     predecessor: descendant(branchCopy.id, plan.devId),
     successor: whole(secondCopy.id),
+    type: 'FF',
   });
   const redone = (await (
     await send(`/api/projects/${plan.projectId}/work-items`, plan.token)

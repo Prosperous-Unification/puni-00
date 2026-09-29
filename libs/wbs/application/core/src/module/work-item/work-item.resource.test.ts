@@ -570,6 +570,28 @@ describe('the plan waits for the people in it', () => {
     expect(tree?.waitingForPerson).toBe(1);
   });
 
+  it('frees a held assignee for the rest of their queue (add-work-item-statuses)', async () => {
+    const first = await add('Strip');
+    const second = await add('Sand');
+    await service.setEstimate(first, OWNER, stepId, flat(3));
+    await service.setEstimate(second, OWNER, stepId, flat(2));
+    await directory.assign(first, stepId, 'ada', WROTE);
+    await directory.assign(second, stepId, 'ada', WROTE);
+    expect((await service.setStatus(first, OWNER, 'on_hold')).ok).toBe(true);
+
+    const tree = await service.tree(projectId);
+
+    // Proof: the hold reduction bypassed in `canonicalScheduleParts` made this
+    // fail with the held row still scheduled (`toBeNull`), Ada's queue intact;
+    // watched 2026-09-29.
+    expect(tree?.workItems.find((w) => w.id === first)?.schedule).toBeNull();
+    expect(tree?.workItems.find((w) => w.id === second)?.schedule).toMatchObject({
+      earliestStart: 0,
+      earliestFinish: 2,
+    });
+    expect(tree?.waitingForPerson).toBe(0);
+  });
+
   it('starts the work somebody said matters most, end to end', async () => {
     // The whole path: a PATCH writes the priority, `tree` reads the rows, the
     // engine priorities its queue by them and the dates come back the other way

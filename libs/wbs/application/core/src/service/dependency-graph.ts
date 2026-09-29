@@ -106,6 +106,8 @@ export interface DependencyGraphChange {
   readonly reach?: DependencyReach;
   /** A step about to be removed: its column and every estimate on it go. */
   readonly withoutStepId?: string;
+  /** Proposed legacy links before a write, including the one being added. */
+  readonly legacy?: readonly StoredDependency[];
   readonly typed?: readonly TypedDependency[];
 }
 
@@ -164,7 +166,10 @@ export class DependencyGraphGuard {
       rows,
       steps: steps.filter((step) => step.id !== without),
       estimates: estimates.filter((estimate) => estimate.stepId !== without),
-      legacy,
+      // Proof: ignoring the proposed legacy set made `refuses a direct legacy
+      // write that closes a typed SS cycle` receive `{ ok: true, value: null }`
+      // instead of `cycle`; watched 2026-09-28.
+      legacy: change.legacy ?? legacy,
       typed,
       reach: change.reach ?? project.depReach,
     });

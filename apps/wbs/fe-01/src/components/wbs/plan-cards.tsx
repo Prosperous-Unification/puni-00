@@ -14,6 +14,7 @@ import type {
   PriorityBandView,
   StepView,
   TypedDependencyEndpoint,
+  TypedDependencyType,
   TypedDependencyView,
 } from '@/lib/wbs-api';
 
@@ -174,10 +175,12 @@ export interface PlanCardsProps {
     dependencyId: string,
     predecessor: TypedDependencyEndpoint,
     successor: TypedDependencyEndpoint,
+    type: TypedDependencyType,
   ) => Promise<CommitOutcome>;
   addTypedDependency?: (
     predecessor: TypedDependencyEndpoint,
     successor: TypedDependencyEndpoint,
+    type: TypedDependencyType,
   ) => Promise<CommitOutcome>;
   removeTypedDependency?: (dependencyId: string) => Promise<CommitOutcome>;
   /**
@@ -1966,10 +1969,12 @@ function CardDependsField({
     dependencyId: string,
     predecessor: TypedDependencyEndpoint,
     successor: TypedDependencyEndpoint,
+    type: TypedDependencyType,
   ) => Promise<CommitOutcome>;
   addTypedDependency?: (
     predecessor: TypedDependencyEndpoint,
     successor: TypedDependencyEndpoint,
+    type: TypedDependencyType,
   ) => Promise<CommitOutcome>;
   removeTypedDependency?: (dependencyId: string) => Promise<CommitOutcome>;
   options: (row: TreeRow, typed: string) => readonly PickerEntry[];
@@ -2128,6 +2133,7 @@ function CardDependsField({
                 if (removeTypedDependency === undefined || saveTypedDependency === undefined)
                   throw new Error('Missing typed dependency card commands');
                 const wholeWait =
+                  dependency.type === 'FS' &&
                   dependency.predecessor.scope === 'whole' &&
                   dependency.successor.scope === 'whole';
                 const predecessorNumber = endpointText(
@@ -2268,10 +2274,10 @@ function CardDependsField({
                   onCancel={() => {
                     setEditing(null);
                   }}
-                  onSave={(source, target) =>
+                  onSave={(source, target, type) =>
                     dependency === undefined
-                      ? addTypedDependency(source, target)
-                      : saveTypedDependency(dependency.id, source, target)
+                      ? addTypedDependency(source, target, type)
+                      : saveTypedDependency(dependency.id, source, target, type)
                   }
                   onRemove={
                     dependency === undefined

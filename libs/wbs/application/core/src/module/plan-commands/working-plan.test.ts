@@ -79,6 +79,33 @@ describe('the admitted working batch baseline', () => {
     }
   });
 
+  it('reads the committed SS type and endpoints after an FF edit', async () => {
+    const source = openMemorySource();
+    const plan = createWorkingPlan({ stores: source.stores }, 'project-a');
+    const stamp = { at: 1, by: OWNER };
+    const before = {
+      id: 'typed-edit',
+      projectId: 'project-a',
+      predecessor: { scope: 'whole' as const, workItemId: 'a' },
+      successor: { scope: 'whole' as const, workItemId: 'b' },
+      type: 'FF' as const,
+    };
+    const after = {
+      ...before,
+      successor: { scope: 'node' as const, workItemId: 'b', stepId: 'review' },
+      type: 'SS' as const,
+    };
+    try {
+      await plan.stores.typedDependencies.add(before, stamp);
+      expect(await plan.stores.typedDependencies.listByProject('project-a')).toEqual([before]);
+      await plan.stores.typedDependencies.update(after, stamp);
+      expect(await plan.stores.typedDependencies.listByProject('project-a')).toEqual([after]);
+    } finally {
+      plan.close();
+      await source.close();
+    }
+  });
+
   it('preserves the four mutation sequences through a working collection', async () => {
     const source = openMemorySource();
     const admitted: PlanTransactionalStores[] = [];

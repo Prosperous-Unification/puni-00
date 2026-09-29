@@ -111,6 +111,10 @@ Each fault was injected into the production code, the named test run, and the fi
 | the store writes a statement only on a leaf        | `NOT EXISTS (child)` condition dropped          | `refuses a readiness or hold on a row that has children, in the write itself`                 | `ok: true` with the parent holding `hold: "on_hold"`                             |
 | a move's inverse moves back first                  | statement inverses ordered before the move-back | `clears the readiness and hold of a leaf another row moves under, and one undo restores them` | `Expected: true, Received: false`: the undo was refused                          |
 
+### Hand-down ordering (Fable review of #207, I1)
+
+The new parent's statements are cleared before the child is inserted or the row moves in. A plan read injected right after the store's write proves it: with the clear moved back after the write, `no read sees a parent holding a statement while a first child is created` and `… while a row moves under a leaf` each failed on the injected read (`parent … holds a readiness or a hold`).
+
 ### Readiness swap guard (follow-up to #207)
 
 | Check                              | Fault injected                              | Test that observed it                                                             | Observed                          |
@@ -135,6 +139,16 @@ Each fault was injected into the production code, the named test run, and the fi
 | --------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | v3 bodies upgrade                 | `withNoStatusFacts` returning the body unchanged | `reads a version-3 body with nothing said about readiness or holds, and compares clean` | `schemaVersion: 3` and missing `readiness`/`hold` |
 | a saved plan leaves out held work | the reduction handed an empty held set           | `schedules a saved plan without its on-hold work, and captures readiness and hold`      | `Expected: 0, Received: 3`                        |
+
+### Slice 4 review fixes (Fable, 2026-09-29)
+
+| Check                                    | Fault injected                            | Test that observed it                                                           | Observed                             |
+| ---------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------ |
+| arrange by schedule skips held rows (C1) | full `rows` passed to `arrangeBySchedule` | `arranges a plan holding an on-hold leaf, and leaves the held row where it was` | `no scheduled start for work item …` |
+| a held assignee frees its person (M2)    | reduction bypassed                        | `frees a held assignee for the rest of their queue`                             | the held row still scheduled         |
+
+Held rows keep their stored position when the plan is arranged; an arranged sibling may take
+the same position number, and ADR 0016's id tie-break orders the two.
 
 ## Not run
 

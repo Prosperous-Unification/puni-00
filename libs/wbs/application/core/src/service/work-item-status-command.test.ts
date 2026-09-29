@@ -12,6 +12,7 @@ const DEV = 'step-dev';
 const QA = 'step-qa';
 
 let projects: ProjectStore;
+let harnessStores: ReturnType<typeof inMemoryServices>['stores'];
 let progress: StepProgressStore;
 let service: WorkItemService;
 let projectId: string;
@@ -61,6 +62,7 @@ beforeEach(async () => {
     },
   });
   ({ projects, progress } = harness.stores);
+  harnessStores = harness.stores;
   service = harness.service;
   projectId = await newProject(true);
 });
@@ -419,6 +421,43 @@ describe('review follow-ups', () => {
   });
 });
 
+describe('no read sees a parent holding a statement mid-write (Fable review, I1)', () => {
+  /** Runs a plan read right after the store's own write, inside the service's act. */
+  function readAfter(method: 'insert' | 'move'): { reads: string[] } {
+    const seen = { reads: [] as string[] };
+    const store = harnessStores.workItems;
+    const original = store[method].bind(store) as (...args: unknown[]) => Promise<unknown>;
+    (store as unknown as Record<string, unknown>)[method] = async (...args: unknown[]) => {
+      const written = await original(...args);
+      try {
+        await service.tree(projectId);
+        seen.reads.push('ok');
+      } catch (error) {
+        seen.reads.push(error instanceof Error ? error.message : String(error));
+      }
+      return written;
+    };
+    return seen;
+  }
+
+  it('no read sees a parent holding a statement while a first child is created', async () => {
+    const strip = await add('Strip');
+    await set(strip, 'on_hold');
+    const seen = readAfter('insert');
+    await add('Prime', strip);
+    expect(seen.reads).toEqual(['ok']);
+  });
+
+  it('no read sees a parent holding a statement while a row moves under a leaf', async () => {
+    const strip = await add('Strip');
+    const sand = await add('Sand');
+    await set(strip, 'blocked');
+    const seen = readAfter('move');
+    expect((await service.move(sand, OWNER, { parentId: strip, afterId: null })).ok).toBe(true);
+    expect(seen.reads).toEqual(['ok']);
+  });
+});
+
 describe('an on-hold leaf takes no part in the schedule', () => {
   async function scheduleOf(name: string) {
     const tree = await service.tree(projectId);
@@ -428,6 +467,21 @@ describe('an on-hold leaf takes no part in the schedule', () => {
     return { schedule: found.schedule, dates: found.dates, status: found.status };
   }
 
+  it('arranges a plan holding an on-hold leaf, and leaves the held row where it was', async () => {
+    const strip = await add('Strip');
+    const sand = await add('Sand');
+    const paint = await add('Paint');
+    await service.setEstimate(strip, OWNER, DEV, { optimistic: 1, realistic: 1, pessimistic: 1 });
+    await service.setEstimate(sand, OWNER, DEV, { optimistic: 2, realistic: 2, pessimistic: 2 });
+    await service.setEstimate(paint, OWNER, DEV, { optimistic: 3, realistic: 3, pessimistic: 3 });
+    await service.addDependency(strip, OWNER, sand);
+    await set(paint, 'on_hold');
+    const before = (await service.tree(projectId))?.workItems.find((row) => row.id === paint);
+
+    expect(await service.arrangeBySchedule(projectId, OWNER)).toEqual({ ok: true, value: null });
+    const after = (await service.tree(projectId))?.workItems.find((row) => row.id === paint);
+    expect(after?.position).toBe(before?.position);
+  });
   it('lets a successor start at day zero, and reports the held row with no schedule', async () => {
     const strip = await add('Strip');
     const sand = await add('Sand');

@@ -79,6 +79,25 @@ export const examples = sqliteTable('examples', {
 
 export type ExampleRow = typeof examples.$inferSelect;
 
+/** A password account's address proof; only its digest is stored. */
+export const emailChallenge = sqliteTable(
+  'email_challenge',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    email: text('email').notNull(),
+    tokenDigest: text('token_digest').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    deliveryState: text('delivery_state', { enum: ['pending', 'delivered', 'failed'] }).notNull(),
+    consumedAt: integer('consumed_at'),
+    revokedAt: integer('revoked_at'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (challenge) => [uniqueIndex('email_challenge_token_digest').on(challenge.tokenDigest)],
+);
+
 /**
  * `passwordHash` holds an argon2id digest from `Bun.password`, never a
  * password. `username` is unique at the database level rather than only in the
