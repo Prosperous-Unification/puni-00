@@ -50,6 +50,8 @@ export * from './marker-color';
 export * from './marker-name';
 export * from './not-before';
 export * from './on-time';
+// A person's bookings across projects on one workday axis: overlaps and weekly load.
+export * from './person-load';
 export * from './place-sibling';
 export * from './priority-band';
 // The dense rank the solver objective multiplies. Separate from
@@ -64,8 +66,10 @@ export * from './without-held-subtrees';
 // The one write gate every resource and feature asks: `canEditProject`. Domain
 // code rather than a Project-resource export, because a resource importing a
 // sibling resource for it is the sideways edge K6 forbids.
+export * from './in-progress-now';
 export * from './organization-access';
 export * from './project-ownership';
+export * from './project-roll-up';
 export * from './public-email-domain';
 // The value a Saved plan's input body is, and the pure fold that produces it.
 // Types and one pure function: the reads it is folded from live in be-01, and

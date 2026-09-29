@@ -127,6 +127,7 @@ export * from './service/import.service';
 export * from './service/login-throttle';
 export * from './service/numbered-work-item';
 export * from './service/optimizer-trigger-broadcaster';
+export * from './service/person-load.feature';
 export * from './service/plan-command';
 export * from './service/plan-commands';
 export * from './service/plan-document';

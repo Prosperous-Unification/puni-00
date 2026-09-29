@@ -31,7 +31,7 @@ describe('after activation', () => {
   let foreignSpace: string;
 
   beforeEach(async () => {
-    h = OrganizationHarness.open();
+    h = OrganizationHarness.openComposed();
     for (const username of ['ada', 'vic', 'grace']) await h.register(username);
     h.organization('org-a');
     h.organization('org-b');
@@ -155,6 +155,154 @@ describe('after activation', () => {
         rows: [{ project: { id: own } }],
       },
     });
+  });
+
+  it('rolls members up from the project read, and a command moves the next read', async () => {
+    const space = await createSpace('ada', 'Q3');
+    await h.call('ada', 'POST', `/api/spaces/${space}/projects`, { projectId: own });
+    const rollUp = async () =>
+      (
+        (await h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?projectIds=${own}`)).body as {
+          rollUps: Record<string, { kind: string; finalTotal: number; counts: { leaves: number } }>;
+        }
+      ).rollUps[own];
+    expect(await rollUp()).toMatchObject({
+      kind: 'rolled_up',
+      finalTotal: 0,
+      counts: { leaves: 0 },
+    });
+    const created = await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+      commands: [{ kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Root' }],
+    });
+    expect(created.status).toBe(200);
+    const rows = (await h.call('ada', 'GET', `/api/projects/${own}/work-items`)).body as {
+      workItems: { id: string }[];
+    };
+    const project = (await h.call('ada', 'GET', `/api/projects/${own}`)).body as {
+      steps: { id: string }[];
+    };
+    const row = rows.workItems.at(0);
+    const step = project.steps.at(0);
+    if (row === undefined || step === undefined) throw new Error('no row or step');
+    const workItemId = row.id;
+    const stepId = step.id;
+    expect(await rollUp()).toMatchObject({ finalTotal: 0, counts: { leaves: 1 } });
+    await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+      commands: [
+        {
+          kind: 'setEstimate',
+          workItemId,
+          stepId,
+          days: { optimistic: 1, realistic: 2, pessimistic: 3 },
+        },
+      ],
+    });
+    expect((await rollUp()).finalTotal).toBeGreaterThan(0);
+    expect(
+      (await h.call('vic', 'GET', `/api/spaces/${space}/roll-ups?projectIds=${own}`)).status,
+    ).toBe(200);
+  });
+
+  it('answers new dates after a start date change that publishes no event', async () => {
+    const space = await createSpace('ada', 'Q3');
+    await h.call('ada', 'POST', `/api/spaces/${space}/projects`, { projectId: own });
+    await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+      commands: [{ kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Root' }],
+    });
+    const rows = (await h.call('ada', 'GET', `/api/projects/${own}/work-items`)).body as {
+      workItems: { id: string }[];
+    };
+    const project = (await h.call('ada', 'GET', `/api/projects/${own}`)).body as {
+      steps: { id: string }[];
+    };
+    const row = rows.workItems.at(0);
+    const step = project.steps.at(0);
+    if (row === undefined || step === undefined) throw new Error('no row or step');
+    await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+      commands: [
+        {
+          kind: 'setEstimate',
+          workItemId: row.id,
+          stepId: step.id,
+          days: { optimistic: 2, realistic: 2, pessimistic: 2 },
+        },
+      ],
+    });
+    const datesOf = async () =>
+      (
+        (await h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?projectIds=${own}`)).body as {
+          rollUps: Record<string, { dates: { startsOn: string } | null }>;
+        }
+      ).rollUps[own].dates?.startsOn;
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { startDate: '2026-10-05' })).status,
+    ).toBe(200);
+    expect(await datesOf()).toBe('2026-10-05');
+    expect(
+      (await h.call('ada', 'PATCH', `/api/projects/${own}`, { startDate: '2026-11-02' })).status,
+    ).toBe(200);
+    // Proof, observed 2026-09-29: with the project revision left out of the
+    // roll-up cache key, this read answered the cached `2026-10-05`: a start
+    // date change advances the revision but publishes no event.
+    expect(await datesOf()).toBe('2026-11-02');
+  });
+
+  it('refuses 51 project ids with 400 and computes nothing', async () => {
+    const space = await createSpace('ada', 'Q3');
+    const ids = Array.from({ length: 51 }, (_, index) => `p${String(index)}`).join(',');
+    expect(
+      await h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?projectIds=${ids}`),
+    ).toMatchObject({ status: 400, body: { error: 'invalid_query' } });
+    expect(
+      await h.call('ada', 'GET', `/api/spaces/${space}/roll-ups?projectIds=${foreignProject}`),
+    ).toMatchObject({ status: 404, body: { error: 'not_found' } });
+  });
+
+  it('lists work in progress across the space and refuses a limit above 1000 with 400', async () => {
+    const space = await createSpace('ada', 'Q3');
+    await h.call('ada', 'POST', `/api/spaces/${space}/projects`, { projectId: own });
+    await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+      commands: [{ kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Root' }],
+    });
+    const rows = (await h.call('ada', 'GET', `/api/projects/${own}/work-items`)).body as {
+      workItems: { id: string }[];
+    };
+    const project = (await h.call('ada', 'GET', `/api/projects/${own}`)).body as {
+      steps: { id: string; name: string }[];
+    };
+    const row = rows.workItems.at(0);
+    const step = project.steps.at(0);
+    if (row === undefined || step === undefined) throw new Error('no row or step');
+    expect(await h.call('ada', 'GET', `/api/spaces/${space}/in-progress`)).toMatchObject({
+      status: 200,
+      body: { items: [], truncated: false, unavailable: [] },
+    });
+    expect(
+      (
+        await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+          commands: [{ kind: 'setStatus', workItemId: row.id, status: 'in_progress' }],
+        })
+      ).status,
+    ).toBe(200);
+    expect(await h.call('vic', 'GET', `/api/spaces/${space}/in-progress?limit=5`)).toMatchObject({
+      status: 200,
+      body: {
+        items: [{ projectId: own, workItemId: row.id, name: 'Root', step: { id: step.id } }],
+        truncated: false,
+      },
+    });
+    for (const limit of ['1001', '0', '000', 'x', '-5', '1.5']) {
+      expect({
+        limit,
+        answer: await h.call('ada', 'GET', `/api/spaces/${space}/in-progress?limit=${limit}`),
+      }).toMatchObject({ answer: { status: 400, body: { error: 'invalid_query' } } });
+    }
+    expect((await h.call('ada', 'GET', `/api/spaces/${space}/in-progress?limit=1000`)).status).toBe(
+      200,
+    );
+    expect((await h.call('ada', 'GET', `/api/spaces/${space}/in-progress?limit=010`)).status).toBe(
+      200,
+    );
   });
 
   it('refuses a taken name with 409 and a blank one with 422', async () => {
