@@ -504,6 +504,8 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
               workItemId: row.successor.workItemId,
               stepId: row.successor.stepId,
             },
+      // Proof: replacing the captured FF type with FS made the mounted saved-plan
+      // read after a live FF→FS edit fail: expected FF, received FS (2026-09-28).
       type: row.type,
     })),
     assignments: sorted(

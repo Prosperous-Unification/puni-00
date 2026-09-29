@@ -2371,6 +2371,32 @@ export class WorkItemService {
       // at 1 — see {@link NumberedWorkItem.revision}.
       revision: 0,
     };
+    const statementsHandedDown =
+      firstChildOf !== undefined && (firstChildOf.readiness !== null || firstChildOf.hold !== null)
+        ? {
+            forward: {
+              do: 'patch' as const,
+              workItemId: firstChildOf.id,
+              patch: { readiness: null, hold: null },
+            },
+            inverse: {
+              do: 'patch' as const,
+              workItemId: firstChildOf.id,
+              patch: { readiness: firstChildOf.readiness, hold: firstChildOf.hold },
+            },
+          }
+        : undefined;
+    // Cleared **before** the child is inserted, so no read between the two
+    // writes sees a parent holding a statement (Fable review, I1).
+    // Proof: this write skipped made `hands a leaf’s readiness and hold down
+    // to its first child…` fail on `parent … holds a readiness or a hold`;
+    // watched 2026-09-29. Moved after the insert, `no read sees a parent
+    // holding a statement while a first child is created` failed on the read
+    // taken between the two writes; watched 2026-09-29.
+    if (statementsHandedDown !== undefined) {
+      const handed = await this.apply(projectId, statementsHandedDown.forward, stamp);
+      if (!handed.ok) throw new Error(`cannot hand statements down: ${handed.detail}`);
+    }
     await this.opts.workItems.insert(workItem, placed.renumbered, stamp);
     // A work item that had an estimate and now has a child no longer holds one:
     // the estimate described the work, and the work is the child now. Moving it
@@ -2463,28 +2489,6 @@ export class WorkItemService {
     // Proof: the estimates' `moveAll` skipped, be-01's `hands the estimates
     // back up when it undoes the first child that took them` failed — the
     // path the row menu's Add child takes. Watched 2026-09-27.
-    const statementsHandedDown =
-      firstChildOf !== undefined && (firstChildOf.readiness !== null || firstChildOf.hold !== null)
-        ? {
-            forward: {
-              do: 'patch' as const,
-              workItemId: firstChildOf.id,
-              patch: { readiness: null, hold: null },
-            },
-            inverse: {
-              do: 'patch' as const,
-              workItemId: firstChildOf.id,
-              patch: { readiness: firstChildOf.readiness, hold: firstChildOf.hold },
-            },
-          }
-        : undefined;
-    if (statementsHandedDown !== undefined) {
-      // Proof: this write skipped made `hands a leaf’s readiness and hold down
-      // to its first child…` fail on `parent … holds a readiness or a hold`;
-      // watched 2026-09-29.
-      const handed = await this.apply(projectId, statementsHandedDown.forward, stamp);
-      if (!handed.ok) throw new Error(`cannot hand statements down: ${handed.detail}`);
-    }
     if (gainsFirstChild !== null) {
       await this.opts.estimates.moveAll(gainsFirstChild, workItem.id, stamp);
       await this.opts.actuals.moveAll(gainsFirstChild, workItem.id, stamp);
@@ -2582,8 +2586,8 @@ export class WorkItemService {
         do: 'remove_typed_dependency' as const,
         dependency: original,
       })),
-      forward,
       ...(statementsHandedDown === undefined ? [] : [statementsHandedDown.forward]),
+      forward,
       ...assignedHandedDown.map(({ workItemId, stepId }) => ({
         do: 'assign' as const,
         workItemId,
@@ -2932,6 +2936,17 @@ export class WorkItemService {
             },
           }
         : undefined;
+    // Cleared **before** the move, so no read between the two writes sees a
+    // parent holding a statement (Fable review, I1). Moved after the move,
+    // `no read sees a parent holding a statement while a row moves under a
+    // leaf` failed on the read taken between the two writes; watched 2026-09-29.
+    if (statementsCleared !== undefined) {
+      // Proof: this write skipped made `clears the readiness and hold of a leaf
+      // another row moves under…` fail on `parent … holds a readiness or a
+      // hold`; watched 2026-09-29.
+      const cleared = await this.apply(workItem.projectId, statementsCleared.forward, stamp);
+      if (!cleared.ok) throw new Error(`cannot clear the new parent: ${cleared.detail}`);
+    }
     await this.opts.workItems.move(id, input.parentId, placed.position, placed.renumbered, stamp);
     if (statementsHandedUp !== undefined) {
       // Proof: this write skipped made `gives the parent a moved last child
@@ -2939,13 +2954,6 @@ export class WorkItemService {
       // `ready` was owed; watched 2026-09-29.
       const handed = await this.apply(workItem.projectId, statementsHandedUp.forward, stamp);
       if (!handed.ok) throw new Error(`cannot hand statements up: ${handed.detail}`);
-    }
-    if (statementsCleared !== undefined) {
-      // Proof: this write skipped made `clears the readiness and hold of a leaf
-      // another row moves under…` fail on `parent … holds a readiness or a
-      // hold`; watched 2026-09-29.
-      const cleared = await this.apply(workItem.projectId, statementsCleared.forward, stamp);
-      if (!cleared.ok) throw new Error(`cannot clear the new parent: ${cleared.detail}`);
     }
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'move', `move ${quoteName(workItem.name)}`, {
@@ -2956,7 +2964,7 @@ export class WorkItemService {
           'after',
         ),
         statementsCleared?.forward,
-        'after',
+        'before',
       ),
       // Back where it was first, and only then the statements: the row it came
       // from is a leaf again only once it has moved back, and a statement
@@ -3710,7 +3718,15 @@ export class WorkItemService {
     }
     if (selected.awaitingSolve) return { ok: false, reason: 'schedule_not_ready' };
 
-    const arrangement = arrangeSiblingsBySchedule(rows, selected.schedule.workItems);
+    // Over the rows the schedule was computed from: an on-hold row has no
+    // scheduled start, so it is left where it is (`add-work-item-statuses`).
+    // Proof: the full `rows` passed here made `arranges a plan holding an
+    // on-hold leaf, and leaves the held row where it was` fail on `no
+    // scheduled start for work item …`; watched 2026-09-29.
+    const arrangement = arrangeSiblingsBySchedule(
+      canonical.input.rows,
+      selected.schedule.workItems,
+    );
     // Nothing to arrange. Not an error and not a write: the project already
     // reads in the order it is drawn in.
     if (arrangement.placements.length === 0) return { ok: true, value: null };
@@ -4630,9 +4646,9 @@ export class WorkItemService {
     existing: readonly StoredTypedDependency[],
     proposed: StoredTypedDependency,
   ): Promise<WorkItemRefusal | null> {
-    // Proof: widening this and both command entry checks to the read predicate
-    // made `refuses an SS write at the application boundary` accept SS with
-    // `{ ok: true, value: "item-7" }`; watched 2026-09-28.
+    // Proof: accepting every string in isWritableRelationshipType made `refuses an SF write
+    // at the application boundary` accept SF with `{ ok: true, value: "item-7" }`;
+    // watched 2026-09-28.
     if (!isWritableRelationshipType(proposed.type)) return 'unsupported_relationship_type';
     const leaves = new Map(
       rows.map((row) => [row.id, !rows.some((child) => child.parentId === row.id)]),
@@ -4669,7 +4685,12 @@ export class WorkItemService {
     return cycle === null ? null : cycle.kind === 'self_node' ? 'self_node' : 'cycle';
   }
 
-  /** Compares a journalled relationship with the current stored row. */
+  /**
+   * Compares a journalled relationship with the current stored row.
+   * Proof: bypassing the endpoint/type key comparison made `refuses undo when only a
+   * journalled relationship type changed outside history` receive 200 instead of 409;
+   * watched 2026-09-28.
+   */
   private sameTypedDependency(
     left: StoredTypedDependency | undefined,
     right: StoredTypedDependency,
@@ -4813,6 +4834,18 @@ export class WorkItemService {
     // is unrepresentable rather than separately guarded.
     const refusal = canDepend(rows, existing, predecessorId, id);
     if (refusal !== null) return { ok: false, reason: refusal };
+
+    // Proof: omitting the proposed legacy edge from the combined graph made
+    // `refuses a direct legacy write that closes a typed SS cycle` receive
+    // `{ ok: true, value: null }` instead of `cycle`; watched 2026-09-28.
+    const cycle = await this.graph.findCycle(workItem.projectId, {
+      legacy: [
+        ...existing,
+        { id: 'proposed', projectId: workItem.projectId, predecessorId, successorId: id },
+      ],
+    });
+    if (cycle !== null)
+      return { ok: false, reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' };
 
     const stamp = this.clock.stampFor(actorId);
     await this.opts.dependencies.add(
@@ -4997,6 +5030,8 @@ export class WorkItemService {
     // Proof: this check skipped made `refuses an undo that would close a
     // step-node cycle` fail on `Expected: 409, Received: 200`; watched
     // 2026-09-27.
+    // Proof: bypassing it with an SS relationship present made the same mounted
+    // undo test receive 200 instead of 409; watched 2026-09-28.
     const cycle = await this.graph.findCycle(projectId);
     if (cycle !== null) {
       await this.opts.journal.discard(entry.id);

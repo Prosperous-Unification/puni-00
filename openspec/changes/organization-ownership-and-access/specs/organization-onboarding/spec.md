@@ -72,6 +72,15 @@ After activation, `POST /api/auth/link/auth0` SHALL require an originating first
 - **WHEN** U confirms a fresh single-use challenge sent to its new address
 - **THEN** U keeps the same local ID and may continue onboarding with that verified address
 
+#### Scenario: Password challenge delivery and consumption
+
+- **GIVEN** activation is complete and U is signed in with a password-only account
+- **WHEN** U requests a normalized address challenge through an injected mail sink and confirms its 30-minute token
+- **THEN** WBS stores only the token digest, marks the challenge delivered before confirmation, consumes it once in an immediate transaction, and updates U's existing email and verification flag without changing U's ID
+- **AND** pending or failed delivery, expiry, revocation, wrong account, replay and address conflict refuse without verifying U; an inactive marker refuses both routes
+- **AND** until an internationalized-address policy matches the existing SQLite email uniqueness rule, the challenge routes refuse non-ASCII addresses with typed `400 invalid_body`
+- **AND** the production sink currently refuses delivery with typed `503 delivery_failed` until a reviewed delivery adapter is provided
+
 #### Scenario: Auth0 link collision
 
 - **GIVEN** a password-only account U and an Auth0 issuer/subject already mapped to V
@@ -88,6 +97,8 @@ After activation, `POST /api/auth/link/auth0` SHALL require an originating first
 
 An authorized administrator SHALL create a revocable invitation for one normalized verified recipient email, organization and permitted role with an expiry. Only the matching currently verified email SHALL accept it. Acceptance SHALL consume the invitation and create or retain one membership atomically; expiry, revocation, concurrent acceptance and replay MUST be refused. Admins SHALL only invite viewer or member; super-admins SHALL also invite admin. An invitation SHALL NOT directly grant super-admin.
 
+The active-organization GET/POST `/api/organization/invitations` and DELETE `/api/organization/invitations/:id` SHALL recheck administrator authority in their store transaction. An admin SHALL NOT revoke an admin offer. A foreign or missing invitation id SHALL have the same 404. POST `/api/onboarding/invitations/accept` SHALL require a session with write scope, read the current durable verified email, and answer 403 for a recipient mismatch or missing verification, 404 for an unknown token, and 409 for an expired, revoked or consumed offer. Acceptance SHALL retain an existing membership's role without upgrading it. Issuance SHALL use the injected mail port, store only a token digest, and answer 503 while delivery fails. All four routes SHALL refuse before activation; delegated callers SHALL receive 403.
+
 #### Scenario: Invitation replay
 
 - **GIVEN** an invitation has been accepted once
@@ -103,6 +114,14 @@ An authorized administrator SHALL create a revocable invitation for one normaliz
 ### Requirement: Join requests require administrator approval
 
 A verified-email user SHALL be able to submit at most one pending request to a matching verified organization. A current admin or super-admin SHALL approve it as viewer or member, or deny it, using the requester's current verified email and organization state. Approval SHALL issue one addressed invitation atomically; request submission, approval and denial SHALL grant no membership until the recipient accepts that invitation. Admin membership and super-admin grants SHALL require the super-admin invitation or role-change path.
+
+The active-organization GET `/api/organization/join-requests` SHALL list requests only to current administrators. POST `/:id/approve` SHALL accept only `viewer` or `member`, recheck the requester's durable verified address against the submitted address and the organization's exact currently verified domain in an immediate transaction, and resolve the request with one seven-day digest-only invitation. POST `/:id/deny` SHALL resolve a pending request without changing membership or invitation state. Both decisions SHALL recheck administrator authority in the committing transaction and answer identical `404 not_found` for foreign and absent ids, `409 request_resolved` for replay, and approval SHALL answer `409 domain_changed` for changed or unverified email or a suspended, released or mismatched claim. The injected mail port SHALL deliver an approval token; delivery failure SHALL answer `503 delivery_failed` and revoke that offer. It SHALL reopen the request if no replacement pending request exists. If the applicant submitted a replacement during delivery, that replacement SHALL remain pending and the original SHALL remain resolved with a revoked invitation. All three routes SHALL refuse before activation and delegated callers SHALL receive 403.
+
+#### Scenario: Replacement submitted during failed delivery
+
+- **GIVEN** approval is waiting for delivery and the applicant submits a new pending request
+- **WHEN** the injected delivery fails
+- **THEN** the invitation is revoked, the replacement remains pending, the original remains resolved, and approval answers `503 delivery_failed`
 
 #### Scenario: Approval after domain loss
 

@@ -6,6 +6,7 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { auditOnCreate } from './audit';
 import type { Gate } from './gate';
 import { readOrganizationActivation } from './organization-activation';
+import { loadPublicEmailPolicy } from './public-email-policy';
 import {
   organization,
   organizationDomainClaim,
@@ -182,7 +183,8 @@ function readVerifiedEmail(tx: Transaction, userId: string): OnboardingAnswer<Re
     .get();
   if (account === undefined) throw new Error(`signed-in user ${userId} is absent`);
   // Proof: 2026-09-28, ignoring verified=0 failed `requires durable verified
-  // email for creation` with a stored address that had no OIDC evidence.
+  // email for creation` and slice-29's password challenge test with a stored
+  // unverified address (2026-09-28).
   if (!account.verified || account.email === null)
     return { ok: false, refusal: 'email_verification_required' };
   const parts = account.email.split('@');
@@ -209,7 +211,7 @@ function membershipsOf(tx: Transaction, userId: string) {
 function claimedOwner(tx: Transaction, domain: string): { id: string; name: string } | null {
   // Proof: 2026-09-28, bypassing the policy failed `lets a public-email user
   // create without matching a claim` with a planted gmail.com claim.
-  if (!isClaimableDomain(domain)) return null;
+  if (!isClaimableDomain(domain, loadPublicEmailPolicy())) return null;
   return (
     tx
       .select({ id: organization.id, name: organization.name })

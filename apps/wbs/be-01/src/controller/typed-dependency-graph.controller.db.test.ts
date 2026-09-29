@@ -38,11 +38,18 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
+import {
+  refusingEmailVerification,
+  refusingInvitations,
+  refusingJoinRequests,
+  refusingTestEmailDelivery,
+} from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { refusingOnboarding } from '../testing/onboarding-fixture';
 import {
   legacyOrganizationAccess,
+  refusingDomains,
   refusingMemberships,
 } from '../testing/organization-access-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
@@ -141,6 +148,11 @@ beforeEach(() => {
     savedPlans: testSavedPlanService(),
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
+    domains: refusingDomains,
+    emailVerification: refusingEmailVerification,
+    invitations: refusingInvitations,
+    joinRequests: refusingJoinRequests,
+    emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     history: testHistoryService(),
     auth: new AuthService({
@@ -391,7 +403,7 @@ describe('graph-changing writes on a legacy-only project', () => {
 describe('graph-changing writes against typed dependencies', () => {
   it('refuses a legacy link that closes a step-node cycle and writes nothing', async () => {
     const at = await plan();
-    await seedTyped(at, node(at.a, at.qaId), node(at.b, at.qaId));
+    await seedTyped(at, node(at.a, at.qaId), node(at.b, at.qaId), 'SS');
 
     // Legacy B → A under whole-item leaves B.qa and enters A.dev, and A.dev
     // reaches A.qa, which the typed relationship joins to B.qa.
@@ -508,7 +520,7 @@ describe('graph-changing writes against typed dependencies', () => {
   it('refuses an undo that would close a step-node cycle', async () => {
     const at = await plan();
     await anchoredAtBDev(at);
-    await seedTyped(at, node(at.a, at.qaId), node(at.b, at.qaId));
+    await seedTyped(at, node(at.a, at.qaId), node(at.b, at.qaId), 'SS');
     const removed = await command(at.projectId, at.token, {
       kind: 'removeDependency',
       workItemId: at.a,

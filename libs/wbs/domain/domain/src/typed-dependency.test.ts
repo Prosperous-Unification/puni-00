@@ -75,12 +75,12 @@ describe('formatTypedDependencyKey', () => {
 });
 
 describe('isRelationshipType', () => {
-  it('recognizes all readable types while writes remain FS only', () => {
+  it('accepts all supported relationship types for reads and writes', () => {
     expect(['FS', 'SS', 'FF', 'fs'].map(isRelationshipType)).toEqual([true, true, true, false]);
     expect(['FS', 'SS', 'FF', 'fs'].map(isWritableRelationshipType)).toEqual([
       true,
-      false,
-      false,
+      true,
+      true,
       false,
     ]);
   });

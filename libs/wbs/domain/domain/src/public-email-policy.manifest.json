@@ -1,0 +1,7 @@
+{
+  "revision": "2026-09-28.1",
+  "asset": "public-email-policy.v1.json",
+  "license": "MIT",
+  "suffixPackage": "tldts@7.4.12",
+  "sha256": "cbc90046750c2ec3f716576d02d738e234ea0e188422cf5be8af2957ea958c38"
+}

@@ -509,7 +509,9 @@ export interface StepView {
   allowancePercent: number;
 }
 
-/** A scope chosen for one end of an authored FS relationship. */
+export type TypedDependencyType = 'FS' | 'SS' | 'FF';
+
+/** A scope chosen for one end of an authored relationship. */
 export type TypedDependencyEndpoint =
   | { scope: 'whole'; workItemId: string }
   | { scope: 'node'; stepNodeId: string }
@@ -1800,12 +1802,14 @@ export interface ProjectApi {
     projectId: string,
     predecessor: TypedDependencyEndpoint,
     successor: TypedDependencyEndpoint,
+    type: TypedDependencyType,
   ): Promise<void>;
   updateTypedDependency(
     projectId: string,
     dependencyId: string,
     predecessor: TypedDependencyEndpoint,
     successor: TypedDependencyEndpoint,
+    type: TypedDependencyType,
   ): Promise<void>;
   removeTypedDependency(projectId: string, dependencyId: string): Promise<void>;
 }
@@ -2813,16 +2817,17 @@ export function httpProjectApi(token: string): ProjectApi {
     async removeDependency(id, predecessorId) {
       await onRow(id, { kind: 'removeDependency', workItemId: id, predecessorId });
     },
-    async addTypedDependency(projectId, predecessor, successor) {
-      await command(projectId, { kind: 'addTypedDependency', predecessor, successor, type: 'FS' });
+    async addTypedDependency(projectId, predecessor, successor, type) {
+      await command(projectId, { kind: 'addTypedDependency', predecessor, successor, type });
     },
-    async updateTypedDependency(projectId, dependencyId, predecessor, successor) {
+    async updateTypedDependency(projectId, dependencyId, predecessor, successor, type) {
       await command(projectId, {
         kind: 'updateTypedDependency',
         dependencyId,
         predecessor,
         successor,
-        type: 'FS',
+        // Proof: hard-coding FS here made `sends SS when an endpoint-only edit keeps its type` fail with type FS instead of SS; watched 2026-09-28.
+        type,
       });
     },
     async removeTypedDependency(projectId, dependencyId) {

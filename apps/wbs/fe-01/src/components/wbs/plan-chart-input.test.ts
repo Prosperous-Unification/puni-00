@@ -9,12 +9,25 @@ it('refuses an unknown typed chart relationship', () => {
     chartTypedDependencies([
       {
         id: 'future',
-        type: 'SS',
+        type: 'SF',
         predecessor: { scope: 'whole', workItemId: 'A' },
         successor: { scope: 'whole', workItemId: 'B' },
       },
     ]),
   ).toThrow(GanttDataError);
+});
+
+it.each(['SS', 'FF'] as const)('reads a %s chart relationship', (type) => {
+  expect(
+    chartTypedDependencies([
+      {
+        id: 'typed',
+        type,
+        predecessor: { scope: 'whole', workItemId: 'A' },
+        successor: { scope: 'whole', workItemId: 'B' },
+      },
+    ]),
+  ).toMatchObject([{ type }]);
 });
 
 /** A Monday, so the weekend cases below have one to roll over. */
