@@ -114,17 +114,12 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
+          { "kind": "path", "path": "apps/wbs/be-01/src/app.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
           {
             "kind": "path",
-            "path": "libs/wbs/application/core/src/compose.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/index.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/service/capacity.service.ts"
+            "path": "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts"
           }
         ]
       }

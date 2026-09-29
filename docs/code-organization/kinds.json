@@ -2,11 +2,6 @@
   "reviewed": "2026-09-20",
   "entries": [
     {
-      "path": "apps/wbs/be-01/src/service/capacity.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/capacity.service directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/directory.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core/service/directory.service directly"
@@ -100,11 +95,6 @@
       "kind": "support",
       "disposition": "compatibility adapter for direct store-based AuthService construction; delete when callers install the authentication module",
       "rationale": "The sealed Authentication feature uses AccountResource, while direct callers still construct AuthService with UserStore and optional OidcIdentityStore."
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/capacity.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the capacity module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/clean-name.ts",

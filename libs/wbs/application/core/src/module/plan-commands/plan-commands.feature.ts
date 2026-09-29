@@ -22,7 +22,6 @@ import type { ProjectCrossReferenceKind, RecoveryAuditDetail } from '../../ports
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
 import type { Service, Tag, WorkItemType } from '../../ports/work-item-store';
-import type { CapacityService } from '../../service/capacity.service';
 import type {
   DirectoryOutcome,
   DirectoryRefusal,
@@ -40,6 +39,7 @@ import type {
   WorkItemOutcome,
   WorkItemService,
 } from '../../service/work-item.service';
+import type { CapacityService } from '../capacity/capacity.resource';
 import { applyCommand, bindCommands, CommandContext, CommandRefused } from './command-bindings';
 import { createWorkingPlan } from './working-plan.resource';
 

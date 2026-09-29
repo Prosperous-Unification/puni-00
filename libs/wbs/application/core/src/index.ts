@@ -74,6 +74,7 @@ export * from './ports/progress-store';
 export * from './ports/typed-dependency-store';
 // The neutral project-event port: `Broadcaster`, `ProjectEvent` and `subscriptionFor`.
 export * from './module/calendar-marker/calendar-marker.resource';
+export * from './module/capacity/capacity.resource';
 export * from './module/plan-commands/command-bindings';
 export * from './module/realtime/gateway-broadcaster';
 export * from './ports/email-delivery';
@@ -115,7 +116,6 @@ export type { WriteStamp } from './ports/write-stamp';
 export { DeadlineExceeded, delay, untilAborted, withinDeadline } from './runtime/deadline';
 export * from './service/assumed-assignee';
 export * from './service/auth.service';
-export * from './service/capacity.service';
 export * from './service/clean-name';
 export * from './service/compensating';
 export * from './service/dependency';
