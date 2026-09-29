@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 import { EmailVerification } from './email-verification';
+import { InvitationAcceptance } from './invitation-acceptance';
 
 const onboarding = browserClient([
   readOnboarding,
@@ -195,6 +196,7 @@ export function OnboardingScreen({
         </section>
       )}
       {message !== '' && <p role="alert">{message}</p>}
+      {state.state !== 'verification_required' && <InvitationAcceptance onAccepted={refresh} />}
     </main>
   );
 }

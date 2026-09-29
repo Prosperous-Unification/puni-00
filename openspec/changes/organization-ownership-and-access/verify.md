@@ -1291,3 +1291,13 @@ The earlier review's fault injections were restored, and its recorded focused ru
 | Lost delivery has its own copy   | Answered `delivery_failed` with the generic reload copy | `renders the delivery_failed challenge refusal on the address step` failed: `expected <p role="alert"></p> to have property "textContent" with value 'We could not send the code. Try again …'` |
 
 Both faults were restored before commit.
+
+## Slice 39b — invitations and the organization page (task 4.6)
+
+| Check                                      | Injected fault                                           | Observed failure                                                                                                                                                                |
+| ------------------------------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lost access clears the organization's rows | Rendered the panels whatever `loss` held                 | `clears the organization's rows when a refusal says access was lost` and the three `renders the … list refusal as the page state` cases failed (4 failed, 10 passed)            |
+| Acceptance re-reads onboarding             | Replaced `await onAccepted()` with a no-op               | `accepts an invitation and re-reads onboarding` failed (1 failed, 6 passed)                                                                                                     |
+| Recipient mismatch has its own copy        | Answered `recipient_mismatch` with the invalid-code copy | `renders the recipient_mismatch acceptance refusal` failed: `expected <p role="alert"></p> to have property "textContent" with value 'This invitation was sent to a differen…'` |
+
+All faults were restored before commit.

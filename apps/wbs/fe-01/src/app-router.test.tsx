@@ -1,6 +1,6 @@
 import { createMemoryHistory } from '@tanstack/react-router';
 import { cleanup, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectApi } from '@/lib/wbs-api';
 import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
@@ -9,6 +9,7 @@ import { installProjectRuntime } from '@/runtime/project-runtime';
 import { installSessionRuntime, type SessionRuntime } from '@/runtime/session-runtime';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { refusingApi } from '@/testing/refusing-api';
+import { answerJson, stubServer } from '@/testing/stub-server';
 
 import { AppRouter } from './app-router';
 
@@ -103,6 +104,7 @@ const projectShowing = () => screen.queryByRole('combobox', { name: 'Project' })
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
 });
 
 describe('the signed-in region, routed', () => {
@@ -122,6 +124,18 @@ describe('the signed-in region, routed', () => {
       expect(directoryShowing()).toBe(true);
     });
     expect(projectShowing()).toBe(false);
+  });
+
+  itDom('draws organization administration at /organization', async () => {
+    stubServer({
+      'GET /api/organization/invitations': [() => answerJson(200, { invitations: [] })],
+    });
+    regionAt('/organization');
+
+    expect(await screen.findByRole('heading', { name: 'Organization' })).toBeDefined();
+    expect(await screen.findByText('No invitations yet.')).toBeDefined();
+    expect(projectShowing()).toBe(false);
+    expect(directoryShowing()).toBe(false);
   });
 
   /**
