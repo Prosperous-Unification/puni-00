@@ -85,6 +85,9 @@ On the loaded run these timed out at their own budget. They were raised by the r
   (5.7 s idle).
 - `libs/wbs/adapters/store-sqlite`: terminal certification, 30 to 120 s (17.2 s idle; its
   loaded run took 58.1 s). The fresh-attempt case after a held lock: 9 to 30 s (4.0 s idle).
+  On 2026-09-29 (WBS 080.12) every case that starts a saved-plan lock holder went to 60 s
+  (`HOLDER_CASE_BUDGET_MS`): at load average 98 to 137 the holder's cold start alone took 19
+  to 34 s and overran 30 s.
 - `apps/twilight-structure/twilight-burokrat/cli`: 57 budgets in 13 files. Most went from 15 to 30 s
   or 20 to 45 s. The seven radical-modularity pilot cases went from 120 to 240 s. The slowest
   pilot case went from 180 to 420 s (132 s idle).
@@ -137,6 +140,7 @@ These tests failed on the loaded run, but not at a time budget. They need their 
 - tool-devsync `product lint policy discovery > refuses a policy that is not a function…`.
 - wbs-domain `schedules 600 slices in under 20ms`: a speed assertion.
 - wbs-store-sqlite: the median-ratio benchmark, and `refuses at once…` against its refusal
-  bound. Both are speed assertions.
+  bound. Both were speed assertions. WBS 080.12 fixed both: the benchmark now compares CPU time
+  and checks each sample's read counts, and the refusal is told apart from a wait by its outcome.
 - twilight-burokrat: `a competing recovery cannot clear publication while Git holds prepared ref
 locks` and two `review invocation provenance` cases. All three failed at about 3 s.

@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -19,28 +19,15 @@ import { SavedPlanRepository } from './saved-plan';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { savedPlan, workItem } from './schema';
 import { nodeDigest } from './testing/node-digest';
+import { HOLDER_CASE_BUDGET_MS, WriteLockHolder } from './testing/write-lock-holder';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
-const HOLDER = new URL(
-  '../../../../../apps/wbs/be-01/src/testing/saved-plan-lock-holder.ts',
-  import.meta.url,
-).pathname;
 
 const wrote: WriteStamp = { at: 1, by: 'owner' };
 
 const OPENED_AT = 1_756_000_123;
-
-/**
- * Long enough that the save's answer and the live edit both land inside it, and
- * short enough to stay well under bun's per-test budget. The live edit's own
- * connection carries the 5 s default `busy_timeout`, so it can outwait this
- * hold — which is the point: the save refuses at once, the edit waits its turn
- * behind the *other process*, and neither waits behind the other.
- */
-const HELD_FOR_MS = 1_200;
-const REFUSAL_BOUND_MS = 400;
 
 describe('SavedPlanService.save answers snapshot_busy without holding up an edit', () => {
   let dir: string;
@@ -110,7 +97,8 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
     reader = openConnection(path);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await WriteLockHolder.stopAll();
     reader.close();
     rmSync(dir, { recursive: true, force: true });
   });
@@ -131,29 +119,6 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
   const itemIds = async (): Promise<string[]> =>
     (await reader.db.select().from(workItem)).map((row) => row.id).sort();
 
-  /** Starts the other process's save and returns once it holds the write lock. */
-  const otherProcessHoldsTheLock = async (
-    planId: string,
-  ): Promise<{ readonly finished: Promise<number> }> => {
-    const readyPath = join(dir, `${planId}.held`);
-    const holder = Bun.spawn({
-      cmd: [process.execPath, HOLDER, path, 'p1', planId, String(HELD_FOR_MS), readyPath],
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    const finished = holder.exited;
-    const startedWaiting = Date.now();
-    while (!existsSync(readyPath)) {
-      if (Date.now() - startedWaiting > 10_000) {
-        throw new Error(
-          `the holder never took the lock: ${await new Response(holder.stderr).text()}`,
-        );
-      }
-      await Bun.sleep(5);
-    }
-    return { finished };
-  };
-
   /**
    * The whole refusal, end to end, and the promise that comes with it.
    *
@@ -163,35 +128,44 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
    * edit waits behind the **other process**, which is where the write lock
    * actually is; it never waits behind this save, because this save is not
    * holding anything to wait for.
+   *
+   * No stopwatch: the holder commits 2.5 s after `go`, inside the 5 s a waiting
+   * save would spend, so a save that queued behind it would answer `saved`.
    */
-  it('refuses at once and lets a live edit issued in the same window complete', async () => {
-    const { finished } = await otherProcessHoldsTheLock('sp-other');
+  it(
+    'refuses at once and lets a live edit issued in the same window complete',
+    async () => {
+      const holder = await WriteLockHolder.hold(path, 'sp-other');
 
-    const startedAttempt = Date.now();
-    const attempt = await service().save({
-      projectId: 'p1',
-      name: 'once more',
-      createdBy: 'Ada Lovelace',
-      createdById: null,
-    });
-    const tookMs = Date.now() - startedAttempt;
+      await holder.go();
+      const attempt = await service().save({
+        projectId: 'p1',
+        name: 'once more',
+        createdBy: 'Ada Lovelace',
+        createdById: null,
+      });
 
-    expect(attempt).toEqual({ outcome: 'snapshot_busy' });
-    expect(tookMs).toBeLessThan(REFUSAL_BOUND_MS);
-    // The other process was still inside its transaction when that answer
-    // arrived, so it was contention that produced it.
-    expect(await headerIds()).toEqual([]);
+      // Proof: with refuseToWaitForWriteLock removed from SavedPlanRepository.write
+      // the save waited out the holder and this received `{ outcome: 'saved' }`;
+      // watched 2026-09-29.
+      expect(attempt).toEqual({ outcome: 'snapshot_busy' });
+      // The other process was still inside its transaction when that answer
+      // arrived, so it was contention that produced it.
+      expect(await headerIds()).toEqual([]);
 
-    // Issued now, while the lock is still held elsewhere, on a connection
-    // carrying the ordinary 5 s `busy_timeout`. It waits for the holder and
-    // then lands — which is the spec's "a live edit issued during that window
-    // still completes".
-    await new WorkItemRepository(reader.db, OPEN).insert(item('wi-3', 30), [], wrote);
-    expect(await itemIds()).toEqual(['wi-1', 'wi-2', 'wi-3']);
+      // Issued as the holder is told to commit, on a connection carrying the
+      // ordinary 5 s `busy_timeout`. It waits for the holder and then lands —
+      // which is the spec's "a live edit issued during that window still
+      // completes".
+      await holder.release();
+      await new WorkItemRepository(reader.db, OPEN).insert(item('wi-3', 30), [], wrote);
+      expect(await itemIds()).toEqual(['wi-1', 'wi-2', 'wi-3']);
 
-    expect(await finished).toBe(0);
-    // And the refused save wrote nothing: the only record is the other
-    // process's.
-    expect(await headerIds()).toEqual(['sp-other']);
-  });
+      expect(await holder.finish()).toBe(0);
+      // And the refused save wrote nothing: the only record is the other
+      // process's.
+      expect(await headerIds()).toEqual(['sp-other']);
+    },
+    HOLDER_CASE_BUDGET_MS,
+  );
 });
