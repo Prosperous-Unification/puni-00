@@ -18,7 +18,8 @@
       malformed dates); mounted routes with organization refusals; route and MCP pins.
 - [x] 1.5 Green: domain helpers, `PersonLoad`, shapes, routes, app wiring, MCP pin.
 - [x] 1.6 Negatives: `seq` dropped from the memo key → a command then a read serves old
-      bookings; overlap strictness removed → touching bookings reported; readable filter
+      bookings; revision dropped from the memo key → a start-date or estimate-rule PATCH
+      after a warm read serves old bookings; overlap strictness removed → touching bookings reported; readable filter
       removed → a foreign project listed; window cap removed → a year answered.
 
 ## 2. Load fe
