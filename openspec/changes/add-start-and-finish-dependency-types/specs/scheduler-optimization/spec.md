@@ -23,6 +23,19 @@ The scheduler input hash SHALL distinguish typed endpoint/type relationships fro
 - **WHEN** either scheduler checks the edge
 - **THEN** the successor's real start and finish are equal and no visual placeholder time enters the constraint
 
+#### Scenario: External FS targets the second step
+
+- **GIVEN** a typed dependency targeting node `B.qa` rather than `B.dev`
+- **WHEN** Fast and CP-SAT schedule the plan
+- **THEN** B.QA waits for the selected predecessor finish
+- **AND** B.Dev may run earlier subject to its other constraints
+
+#### Scenario: Solver omits one expanded pair
+
+- **GIVEN** a parent relationship expands into several FS slice edges
+- **WHEN** a solver response violates one pair despite satisfying the others
+- **THEN** independent validation rejects it as invalid output
+
 ## ADDED Requirements
 
 ### Requirement: Fast replay and float support weighted relationships
