@@ -59,7 +59,8 @@ interface ImportRule {
  * `module/solver-supervisor/solver-supervisor-spawner.ts` failed it with exactly
  * `'../optimization/optimization.feature' reaches apps/wbs/be-01/src/module/optimization/optimization.feature.ts`
  * (0 pass, 1 fail). The former `service/optimization-coordinator.ts` shim, which this rule
- * also refused, was retired with its importers (2026-09-29).
+ * also refused, was retired with its importers; the same injected import failed the narrowed
+ * rule with the same single violation (2026-09-29, 0 pass, 1 fail).
  */
 const rules: readonly ImportRule[] = [
   // Proof (2026-09-27): an injected import through ../../repository/optimization-admission
