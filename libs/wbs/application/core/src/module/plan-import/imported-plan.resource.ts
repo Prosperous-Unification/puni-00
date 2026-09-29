@@ -56,7 +56,8 @@ export class ImportedPlanResource {
    *
    * Proof: looking the slug up deployment-wide made `keeps a slug only another
    * organization holds` in `import-export-organization.controller.db.test.ts`
-   * answer `left-off`; watched 2026-09-28.
+   * answer `left-off`; watched 2026-09-28, and again here on 2026-09-29 by
+   * taking the deployment-wide arm under scoped access (9 pass, 1 fail).
    */
   async isSolutionSlugHeld(slug: string, access: ResourceAccess): Promise<boolean> {
     const holder =
@@ -75,7 +76,7 @@ export class ImportedPlanResource {
    * Proof: creating the project unmapped under scoped access made `imports into
    * the organization, resolving names among its own entries` in
    * `import-export-organization.controller.db.test.ts` find no imported project
-   * in A's list; watched 2026-09-27.
+   * in A's list; watched 2026-09-27, and again here on 2026-09-29 (8 pass, 2 fail).
    */
   async createProject(
     project: NewProject,
@@ -132,7 +133,13 @@ export class ImportedPlanResource {
     await this.scope.stores.typedDependencies.add(row, stamp);
   }
 
-  /** Sets a created row's labels, answering the store's refusal rather than throwing. */
+  /**
+   * Sets a created row's labels, answering the store's refusal rather than throwing.
+   *
+   * Proof: answering `{ ok: true }` for a refused write made `rolls back visible
+   * admitted writes after a later store refused` in the memory import source
+   * contract fail (30 pass, 1 fail); watched 2026-09-29.
+   */
   async labelWorkItem(
     workItemId: string,
     labels: ImportedLabels,
@@ -149,7 +156,8 @@ export class ImportedPlanResource {
    *
    * Proof: telling every project made `tells only the organization's projects
    * that its directory changed` in `import-export-organization.controller.db.test.ts`
-   * find B's project told; watched 2026-09-27.
+   * find B's project told; watched 2026-09-27, and again here on 2026-09-29
+   * (9 pass, 1 fail).
    */
   async listToldProjectIds(actorId: string, access: ResourceAccess): Promise<string[]> {
     const told =

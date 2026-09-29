@@ -12,20 +12,11 @@ import type { ImportService, ImportServiceOptions } from './plan-import.feature'
  * `servicesOver` composes, which this module does not own and does not
  * duplicate.
  *
- * **`uow` carries existing K3 debt this extraction preserves rather than
- * fixes.** `ImportService.import` calls `scope.stores.projects.create`,
- * `scope.stores.priorityBands.replace`, `scope.stores.capacity.set` and
- * `scope.stores.subtrees.insertSubtree` directly inside its own
- * `UnitOfWork.run(scope)` callback — a feature-service reading and writing
- * repository store ports, not the Project/Priority band/Capacity/Work item
- * resource-services K3 requires it to depend on instead. Closing it needs
- * either those resource-services to expose an admitted-scope write surface
- * `ImportService` could call instead, or an explicit exception the kind
- * rules record, neither of which any accepted change supplies today. Task
- * 7.4 of `openspec/changes/adopt-di-composition/tasks.md` is where this
- * module's own K3 debt is tracked; this module claims no K3 compliance. Its
- * admitted initialization surface and both memory and SQLite source contracts
- * require a separate follow-up slice, so 040.10 defers this module.
+ * **No K3 debt.** `ImportService.import` reaches the repository only through
+ * the private `ImportedPlanResource` that `runImportAdmission` builds over
+ * the scope `uow` admits; the feature never holds that scope. WBS 040.11 closed
+ * this module's entry in `module-boundaries.test.ts`'s shrink-only debt ledger
+ * (task 7.8 of `openspec/changes/adopt-di-composition/tasks.md`).
  */
 export type PlanImportRequirements = ImportServiceOptions;
 

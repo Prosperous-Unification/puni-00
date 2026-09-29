@@ -461,5 +461,14 @@
       deferred because its admitted initialization surface and both memory and SQLite source
       contracts need a separate slice. The production-path negatives and commands are recorded
       in `verify.md`.
+- [x] 7.8 Close the remaining K3 debt of Plan import and Plan commands (WBS 040.11) and empty the
+      shrink-only ledger in `module-boundaries.test.ts`. Plan import writes through a private
+      `ImportedPlanResource` that `runImportAdmission` builds over the admitted scope. Plan commands
+      holds each admitted scope only as a private `AdmittedScope` resource (graph, Working plan,
+      organization admission, cross-reference kinds), and its Working plan parts carry the
+      `.resource.ts` suffix they always had in role. Entity values the features name move into
+      neutral `ports/*-values.ts` files behind store re-exports. Behaviour is unchanged: the memory
+      and SQLite import source contracts and the organization import and command database tests
+      pass unchanged. Proofs and commands are in `verify.md`.
 
 The label inference limit recorded in task 7 is closed by `di-bag-label-surface` (WBS `cc9361f6`): the check reads the scanned module's `moduleLabel` getter on di-bag 0.5.1. Historical task evidence remains dated.

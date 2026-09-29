@@ -52,7 +52,14 @@ export class AdmittedScope {
     return factory(this.scope, broadcast, admission);
   }
 
-  /** Opens one project's Working plan over this scope. */
+  /**
+   * Opens one project's Working plan over this scope.
+   *
+   * Proof: handing back this scope instead of the Working plan's stores failed
+   * 17 Plan commands module tests, among them `closes the admitted graph after
+   * success, refusal, and throw`; making `close` a no-op failed 3, among them
+   * `throws after its batch closes`; watched 2026-09-29.
+   */
   openWorkingPlan(projectId: string): OpenWorkingPlan {
     const plan = createWorkingPlan(this.scope, projectId);
     return {
@@ -66,6 +73,11 @@ export class AdmittedScope {
   /**
    * The kind of every reference that leaves the project or its organization,
    * in the order the source reports them.
+   *
+   * Proof: answering none made `fails closed on a project that already crosses
+   * its organization` and `fails closed on a project another project reaches
+   * into, changing neither` in `command-organization.controller.db.test.ts`
+   * fail (20 pass, 2 fail); watched 2026-09-29.
    */
   async listCrossReferenceKinds(
     projectId: string,
@@ -109,12 +121,13 @@ export class AdmittedScope {
     // Proof: skipping this refusal made `refuses a viewer every batch, undo
     // and redo` and `refuses a super-admin removed or demoted before the batch`
     // in `command-organization.controller.db.test.ts` answer 200; watched
-    // 2026-09-28.
+    // 2026-09-28, and again here on 2026-09-29 (19 pass, 3 fail).
     if (admitted === 'forbidden') return 'forbidden';
     const kinds = await this.listCrossReferenceKinds(projectId, organization.organizationId);
     // Proof: skipping this check made `fails closed on a project that already
     // crosses its organization` in `command-organization.controller.db.test.ts`
-    // answer 200 instead of 500; watched 2026-09-27.
+    // answer 200 instead of 500; watched 2026-09-27, and again here on
+    // 2026-09-29 (20 pass, 2 fail).
     if (kinds.length > 0) {
       throw new Error(
         `project "${projectId}" holds references outside its organization: ${[...new Set(kinds)].sort().join(', ')}`,
@@ -129,6 +142,11 @@ export class AdmittedScope {
  * rollback repair so it too receives the surviving state as an admitted scope.
  *
  * The raw scope never leaves this function and the scope's own methods.
+ *
+ * Proof: repairing through the rolled-back scope instead of `repair` made
+ * `discards a stale journal entry through the fresh repair scope`
+ * (`compose.test.ts`) and `settles staged writes, repairs through the surviving
+ * scope, and reads after commit publicly` fail (89 pass, 2 fail); watched 2026-09-29.
  */
 export function runAdmitted<T>(
   uow: UnitOfWork,

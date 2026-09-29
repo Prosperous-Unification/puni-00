@@ -257,6 +257,12 @@ test('closed feature modules do not reference repository ports and debt stays li
   // SavedPlanCaptureStore into saved-plan-schedule.ts failed (0 pass, 1 fail).
   // Proof: a real ReviewPortAlias in plan-history.feature.ts
   // reported that declaration (0 pass, 1 fail); removing it restored green.
+  // Proof (2026-09-29): with Plan import and Plan commands closed, an import()
+  // type of SubtreeCopy in plan-import.feature.ts, a work-item-store import in
+  // plan-commands.feature.ts, a Scope-typed parameter in admitted-write.ts and a
+  // cast reaching AdmittedScope's private scope in plan-commands.feature.ts each
+  // failed this assertion (0 pass, 1 fail each); adding plan-import back to
+  // `debt` reported `new debt is not allowed` (0 pass, 1 fail).
   expect(failed).toEqual([]);
 }, 120_000);
 

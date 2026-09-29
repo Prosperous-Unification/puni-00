@@ -2546,3 +2546,48 @@ sources` on `Received: undefined` (3 pass, 1 fail); prepending
   `nx run-many -t typecheck` for `wbs-core`, `wbs-be-01`, `tool-devsync`, `wbs-store-sqlite` and
   `wbs-contracts`, and `nx run-many -t lint` for those five plus `wbs-fe-01`, succeeded. Not run:
   `wbs-fe-01` typecheck and tests (one comment changed), the host gate.
+
+### Plan import and Plan commands K3 closure, task 7.8 (WBS 040.11) — 2026-09-29
+
+- Base `0e6befe47dd42d98015cf79442c851d6926edf92` (`batch-9/040-07-shims-2`), clean tree. With the
+  ledger emptied, the audit reported 90 violations in `plan-import.feature.ts`, 12 in
+  `prepare-import.ts` and 298 across Plan commands (`plan-commands.feature.ts` 87, the five
+  unsuffixed Working plan parts 202, `command-bindings.ts` 7, `admitted-write.ts` 2).
+- Change: Plan import's writes go through `ImportedPlanResource` (`imported-plan.resource.ts`), built
+  over the admitted scope by `runImportAdmission`; `ImportServiceOptions` keeps its shape. Plan
+  commands holds each scope as `AdmittedScope` (`admitted-scope.resource.ts`), which builds the batch
+  graph, opens the Working plan, answers `refuseOutsideScope` and the cross-reference kinds, and
+  translates the rollback repair. The Working plan's five parts are renamed `*.resource.ts`. The
+  entity values the features name move to `ports/{work-item,directory,dependency,command-journal}-values.ts`
+  and `ports/project-values.ts`, re-exported by their store ports. `allowedDebt` is empty.
+- Boundary-check negatives (`module-boundaries.test.ts`, each 0 pass, 1 fail, restored): an
+  `import()` type of `SubtreeCopy` in `plan-import.feature.ts`; `plan-commands.feature.ts` importing
+  from `work-item-store` again; a `Scope`-typed parameter in `admitted-write.ts`; a cast reaching
+  `AdmittedScope`'s private scope in `plan-commands.feature.ts`; `plan-import` added back to `debt`
+  (`new debt is not allowed`, `stale debt ledger`).
+- Production-path negatives, each restored:
+
+| Fault injected                                             | Observed failing test                                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Slug looked up deployment-wide under scoped access         | `keeps a slug only another organization holds` (9 pass, 1 fail)                       |
+| Project created unmapped under scoped access               | `imports into the organization, resolving names among its own entries` (8/2)          |
+| Every project told the directory changed                   | `tells only the organization's projects that its directory changed` (9/1)             |
+| Label refusal answered as success                          | memory contract `rolls back visible admitted writes after a later store refused`      |
+| `forbidden` admission ignored                              | `refuses a viewer every batch, undo and redo` and two recovery cases (19/3)           |
+| Fail-closed crossing check skipped                         | `fails closed on a project that already crosses its organization` and one more (20/2) |
+| Cross-reference kinds answered empty                       | the same two fail-closed cases (20/2)                                                 |
+| Repair run through the rolled-back scope                   | `discards a stale journal entry through the fresh repair scope` and one more (89/2)   |
+| Working plan never closed                                  | `throws after its batch closes` and two more (69/3)                                   |
+| Batch graph built over the raw scope, not the Working plan | 17 Plan commands module tests (55/17)                                                 |
+
+- After, with `CLAUDECODE` unset: `wbs-core` `bun test src --timeout=10000` 797 pass, 0 fail
+  (`module-boundaries.test.ts` 10/10); `wbs-store-memory` `bun test src` 146 pass; `wbs-store-sqlite`
+  `bun test --timeout=30000` 1191 pass; be-01 `bun test src --timeout=10000` 1592 pass, 1 skip,
+  0 fail; devsync `module-labels`, `service-kinds`, `typecheck-modules` and `workspace-targets`
+  51 pass; burokrat `pilot-policy.test.ts` and `kind-inventory.test.ts` 43 pass with
+  `TOOL_WIKI_TRUSTED_NODE_MODULES` set to the worktree's `node_modules` (without it, 12 fail on
+  `trusted TypeScript runtime modules are not configured`), `src/indexes` passing;
+  `nx run-many -t typecheck` for `wbs-core`, `wbs-be-01`, `wbs-store-sqlite`, `wbs-store-memory` and
+  `wbs-conformance` (with `typecheck:module`) and `nx run-many -t lint:fast` for the first four
+  succeeded; `openspec validate --all --json` 145 passed. Not run: `wbs-fe-01`, a full
+  `nx affected`, the host gate.
