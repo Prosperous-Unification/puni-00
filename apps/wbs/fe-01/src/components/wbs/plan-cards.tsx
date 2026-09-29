@@ -558,6 +558,14 @@ const cardSlackOf = (
   row: TreeRow,
   showDay: (days: number) => string,
 ): { text: string; critical: boolean; hint: string } => {
+  // An on-hold row has no schedule (`add-work-item-statuses`), so no slack.
+  if (row.schedule === null) {
+    return {
+      text: '—',
+      critical: false,
+      hint: 'On hold: this work takes no part in the schedule.',
+    };
+  }
   if (row.schedule.critical) {
     return {
       text: 'critical',

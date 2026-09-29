@@ -67,13 +67,24 @@
       Negatives: the vocabulary left out of the swap's list; the CLI's usage guard, the save's
       version check, the remove's comparison and the restore's leaf check each disabled.
 
-## 4. Engine reduction
+## 4. Engine reduction (ships with its fe-01 reader)
 
-- [ ] 4.1 Red: held assignee's queue, held predecessor, `schedule: null` and parent bracket;
-      golden corpora byte-identical.
-- [ ] 4.2 Green: `withoutHeldSubtrees` in `canonicalScheduleParts`; projection.
-- [ ] 4.3 Negatives: reduction bypassed → a held assignee still delays a successor; edge filter
-      removed → `leavesUnder` throws on a held id.
+- [x] 4.1 Red: `work-item-status-command.test.ts` "an on-hold leaf takes no part in the
+      schedule" (a successor starts at day zero, a held row reports `schedule: null` and
+      `dates: null`, blocked keeps its place, a parent's bracket spans its unheld leaves and is
+      null when all are held); fe-01 `gantt-geometry.test.ts` (no bracket, bar or arrow for a
+      row with no schedule).
+- [x] 4.2 Green: `withoutHeldSubtrees` in `canonicalScheduleParts` (the seam the tree read, the
+      solver request and the restart pump share); the read projects `schedule: null` and
+      `dates: null` for a removed row; the contract's `schedule` is `Scheduled | null`. fe-01
+      reads it: the Start, End and Slack cells, the card's slack, exports and the Gantt say
+      nothing for a held row (slice 7 draws the "On hold" word). Held means a stored `on_hold`
+      on a leaf, per CONTEXT.
+- [x] 4.3 Negatives: the reduction bypassed and the null projection replaced by the
+      placeholder each fail the day-zero case; the Gantt's null-schedule return removed throws
+      `Cannot read properties of null`. The domain proofs (edge filter, ancestor removal) are
+      slice 1's; no golden corpus holds a hold, so the reduction is the identity there
+      (`returns the input unchanged when nothing is held`).
 
 ## 5. Saved plans and plan document v6
 

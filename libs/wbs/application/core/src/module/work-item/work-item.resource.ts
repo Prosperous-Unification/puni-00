@@ -38,6 +38,7 @@ import {
   type StepPolicy,
   type StepState,
   UNKNOWN,
+  withoutHeldSubtrees,
   workdaysBetween,
   type WorkItemStatus,
 } from '@wbs/domain';
@@ -510,17 +511,29 @@ function canonicalScheduleParts(
               .map((row) => [row.id, row.deadline]),
           ),
         );
+  // On hold takes a leaf, and every ancestor all of whose leaves are held, out
+  // of the input before either engine reads it (ADR 0032). Blocked, readiness
+  // and blocked by proxy change nothing here.
+  // Proof: this reduction bypassed (an empty held set) made `lets a successor
+  // start at day zero, and reports the held row with no schedule` fail — the
+  // held row came back scheduled over days 0 to 5; watched 2026-09-29.
+  const heldLeafIds = new Set(
+    rows.filter((row) => row.hold === 'on_hold' && !hasChildren.has(row.id)).map((row) => row.id),
+  );
   return {
-    input: {
-      rows,
-      edges,
-      slices,
-      notBefore,
-      poolSizes,
-      reach: project.depReach,
-      deadlines,
-      typed,
-    },
+    input: withoutHeldSubtrees(
+      {
+        rows,
+        edges,
+        slices,
+        notBefore,
+        poolSizes,
+        reach: project.depReach,
+        deadlines,
+        typed,
+      },
+      heldLeafIds,
+    ),
     hasChildren,
     assigneesOf,
     rule,
@@ -2002,6 +2015,7 @@ export class WorkItemService {
       slotsOf,
     );
     const { assigneesOf, hasChildren, rule } = canonical;
+    const scheduledIds = new Set(canonical.input.rows.map((row) => row.id));
     // What each row is **charged**, per step: a leaf's own estimate uplifted by
     // its step's allowance and rounded, a parent's the sum of its descendants'
     // charged figures. Not `totals` put through the method — see `rollUpFinals`.
@@ -2213,12 +2227,15 @@ export class WorkItemService {
         // otherwise be reported as a dependency on a number nobody can see.
         dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => idsOnThisPlan.has(id)),
         ...assignmentFieldsOf(assigneesOf.get(row.id) ?? {}),
-        schedule: timing.get(row.id) ?? UNSCHEDULED,
-        dates: datesOf(
-          project.startDate,
-          timing.get(row.id) ?? UNSCHEDULED,
-          scheduleError !== null,
-        ),
+        // A row the hold reduction took out has no schedule and no dates: it
+        // takes no part in the plan, and a placeholder span would draw it.
+        // Proof: the placeholder kept here made `lets a successor start at day
+        // zero…` fail on a zero-length schedule where `null` was owed; watched
+        // 2026-09-29.
+        schedule: scheduledIds.has(row.id) ? (timing.get(row.id) ?? UNSCHEDULED) : null,
+        dates: scheduledIds.has(row.id)
+          ? datesOf(project.startDate, timing.get(row.id) ?? UNSCHEDULED, scheduleError !== null)
+          : null,
       }))
       // **Tree order, not the number string** (ADR 0023). The two agreed for as
       // long as a frozen work item could not move — `deriveNumbers` built

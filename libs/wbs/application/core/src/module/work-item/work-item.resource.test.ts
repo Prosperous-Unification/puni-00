@@ -582,7 +582,7 @@ describe('the plan waits for the people in it', () => {
     await directory.assign(second, stepId, 'ada', WROTE);
 
     const before = await service.tree(projectId);
-    expect(before?.workItems.find((w) => w.id === first)?.schedule.earliestStart).toBe(0);
+    expect(before?.workItems.find((w) => w.id === first)?.schedule?.earliestStart).toBe(0);
 
     await service.patch(second, OWNER, { priority: 1 });
     const after = await service.tree(projectId);
@@ -623,7 +623,7 @@ describe('the plan waits for the people in it', () => {
     // is what makes the second half of this say anything at all.
     await service.patch(other, OWNER, { priority: 2 });
     const after = await service.tree(projectId);
-    expect(after?.workItems.find((w) => w.id === other)?.schedule.earliestStart).toBe(0);
+    expect(after?.workItems.find((w) => w.id === other)?.schedule?.earliestStart).toBe(0);
 
     // And now the step outranks it — 1 against 2 — through its leaf, which is
     // the only thing in the queue.
@@ -634,7 +634,7 @@ describe('the plan waits for the people in it', () => {
       earliestStart: 0,
       earliestFinish: 3,
     });
-    expect(ranked?.workItems.find((w) => w.id === other)?.schedule.earliestStart).toBe(3);
+    expect(ranked?.workItems.find((w) => w.id === other)?.schedule?.earliestStart).toBe(3);
   });
 
   it('leaves them where they were when the two are different people', async () => {
@@ -647,7 +647,7 @@ describe('the plan waits for the people in it', () => {
 
     const tree = await service.tree(projectId);
 
-    expect(tree?.workItems.find((w) => w.id === second)?.schedule.earliestStart).toBe(0);
+    expect(tree?.workItems.find((w) => w.id === second)?.schedule?.earliestStart).toBe(0);
     expect(tree?.waitingForPerson).toBe(0);
   });
 
@@ -1410,6 +1410,7 @@ describe('the project’s dependency reach', () => {
     const tree = await service.tree(projectId);
     const row = tree?.workItems.find((each) => each.id === workItemId);
     if (row === undefined) throw new Error(`${workItemId} is not in the payload`);
+    if (row.schedule === null) throw new Error(`${workItemId} is unscheduled`);
     return row.schedule.earliestStart;
   }
 
@@ -1478,8 +1479,8 @@ describe('the project’s estimate method', () => {
     // disagree with the dates printed next to it.
     const { row } = await estimated('pessimistic');
 
-    expect(row?.schedule.earliestFinish).toBe(10);
-    expect(row?.schedule.duration).toBe(10);
+    expect(row?.schedule?.earliestFinish).toBe(10);
+    expect(row?.schedule?.duration).toBe(10);
   });
 
   it('leaves a step nobody estimated absent rather than zero', async () => {
@@ -1691,8 +1692,8 @@ describe('the project’s estimate arithmetic — weights, and the rounding per 
     const row = await rowOf(id, outcome.value.id);
 
     expect(row.finalTotal).toBe(2);
-    expect(row.schedule.duration).toBe(2);
-    expect(row.schedule.earliestFinish).toBe(2);
+    expect(row.schedule?.duration).toBe(2);
+    expect(row.schedule?.earliestFinish).toBe(2);
     // The Thursday and the Friday: one day for Dev, one for QA, where the
     // fractional arithmetic would have put both inside the Thursday.
     expect(row.dates).toEqual({ startsOn: '2026-08-06', endsOn: '2026-08-07' });
@@ -2201,7 +2202,7 @@ describe('what a not-before reason does not do', () => {
     const before = await service.tree(projectId);
     // The floor is the thing being held still, so it has to be holding
     // something first: `010` starts on its date rather than on day zero.
-    expect(before?.workItems.find((row) => row.name === 'Strip')?.schedule.earliestStart).toBe(
+    expect(before?.workItems.find((row) => row.name === 'Strip')?.schedule?.earliestStart).toBe(
       workdaysBetween('2026-08-06', '2026-09-01'),
     );
 

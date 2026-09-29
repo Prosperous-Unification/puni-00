@@ -64,7 +64,7 @@ const numberedWorkItem = type({
   dependsOn: 'string[]',
   finalDays: numbers,
   finalTotal: 'number',
-  schedule: scheduled,
+  schedule: scheduled.or('null'),
   dates: type({ startsOn: 'string', endsOn: 'string' }).or('null'),
   assignees: type({ '[string]': 'string' }),
   doesEveryStep: 'string | null',

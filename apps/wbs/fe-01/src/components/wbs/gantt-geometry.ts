@@ -336,7 +336,8 @@ export interface GanttRow {
   depth: number;
   /** True when this row's own slices are laid out as bars; false when it is spanned by a bracket. */
   leaf: boolean;
-  schedule: { earliestStart: number; earliestFinish: number };
+  /** Null for an on-hold row: no bar, no bracket, no arrow (`add-work-item-statuses`). */
+  schedule: { earliestStart: number; earliestFinish: number } | null;
   /** The workday its manual start date holds at, or null when it has none. */
   notBeforeOffset: number | null;
   /**
@@ -2095,6 +2096,8 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
     if (row.notBeforeOffset !== null) {
       notBeforeFlags.push({ rowIndex, offset: row.notBeforeOffset });
     }
+    // An on-hold row takes no part in the schedule: nothing to draw.
+    if (row.schedule === null) return;
     if (!row.leaf) {
       // The projection, taken whole: a parent's bracket is a span, and be-01
       // already computed it as one. Nothing here adds up what is underneath.
@@ -2354,6 +2357,8 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
       if (from !== undefined || to !== undefined) droppedLinks.dependencies += 1;
       continue;
     }
+    // No arrow from or to an on-hold row: it has no place in the schedule.
+    if (from.row.schedule === null || to.row.schedule === null) continue;
     const reached = reachedSpanOf(edge.predecessorId, edge.successorId);
     arrows.push({
       predecessorId: edge.predecessorId,

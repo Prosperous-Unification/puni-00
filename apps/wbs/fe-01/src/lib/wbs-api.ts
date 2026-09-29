@@ -500,7 +500,7 @@ export interface WorkItemView {
    * two independent children of 3 and 4 days are 7 days of work in a 4-day
    * branch. Both are true, and the table labels them so.
    */
-  schedule: ScheduleView;
+  schedule: ScheduleView | null;
 }
 
 export interface StepView {

@@ -607,6 +607,12 @@ afterEach(() => {
   widthIs(LAPTOP);
 });
 
+/** A fixture row's schedule, which every fixture row has; null would be an on-hold row. */
+const scheduled = (row: { schedule: ScheduleView | null }): ScheduleView => {
+  if (row.schedule === null) throw new Error('fixture row has no schedule');
+  return row.schedule;
+};
+
 describe('the plan-card ProjectApi fake', () => {
   it('round trips whole team sets and retains the legacy scalar arm', async () => {
     const api = fakeApi();
@@ -1993,7 +1999,7 @@ describe('what a card says about the schedule', () => {
     // same fields `wbs-table.tsx`'s Float column cell reads — a phone has no
     // second computation of what can slip.
     await aPlan((rows) => {
-      rows[0].schedule = { ...rows[0].schedule, float: 2.5, critical: false };
+      rows[0].schedule = { ...scheduled(rows[0]), float: 2.5, critical: false };
     });
 
     expect(slackOnCard()?.textContent).toBe('2.5d slack');
@@ -2005,7 +2011,7 @@ describe('what a card says about the schedule', () => {
 
   itDom('keeps the singular where a row can slip exactly one workday', async () => {
     await aPlan((rows) => {
-      rows[0].schedule = { ...rows[0].schedule, float: 1, critical: false };
+      rows[0].schedule = { ...scheduled(rows[0]), float: 1, critical: false };
     });
 
     expect(slackOnCard()?.getAttribute('data-fact')).toBe(
@@ -2018,7 +2024,7 @@ describe('what a card says about the schedule', () => {
     // card printing a bare `0` here would say the opposite of what the row
     // means.
     await aPlan((rows) => {
-      rows[0].schedule = { ...rows[0].schedule, float: 0, critical: true };
+      rows[0].schedule = { ...scheduled(rows[0]), float: 0, critical: true };
     });
 
     expect(slackOnCard()?.textContent).toBe('critical');

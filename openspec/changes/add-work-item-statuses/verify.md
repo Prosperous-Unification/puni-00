@@ -121,6 +121,14 @@ Each fault was injected into the production code, the named test run, and the fi
 | restore only on leaves             | leaf check disabled                         | `refuses the whole restore when a saved work item is gone or has become a parent` | `Received function did not throw` |
 | CLI usage                          | guard bypassed                              | `saves, removes and restores readiness and holds through the rollback CLI`        | `Expected: not 0`                 |
 
+## Slice 4 — engine reduction
+
+| Check                                  | Fault injected                                  | Test that observed it                                                                | Observed                                                              |
+| -------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| held work leaves the schedule input    | `withoutHeldSubtrees` handed an empty held set  | `lets a successor start at day zero, and reports the held row with no schedule`      | the held row came back scheduled over days 0 to 5                     |
+| a held row reports no schedule         | placeholder kept in the projection              | same case                                                                            | a zero-length schedule where `null` was owed                          |
+| the Gantt draws nothing for a held row | null-schedule return removed from `layOutGantt` | `draws no bracket for a parent with no schedule, and no arrow to or from a held row` | `TypeError: Cannot read properties of null (reading 'earliestStart')` |
+
 ## Not run
 
 - The h2puni host gate; the orchestrator runs it on the integration branch.

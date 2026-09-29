@@ -145,10 +145,14 @@ export function usePlanChartInput({
         // A leaf of the plan as drawn, which is a row with nothing under it —
         // the same question `getSubRows` answers for the table model.
         leaf: row.leaf,
-        schedule: {
-          earliestStart: row.source.schedule.earliestStart,
-          earliestFinish: row.source.schedule.earliestFinish,
-        },
+        // Null for an on-hold row, which the chart draws no bar or bracket for.
+        schedule:
+          row.source.schedule === null
+            ? null
+            : {
+                earliestStart: row.source.schedule.earliestStart,
+                earliestFinish: row.source.schedule.earliestFinish,
+              },
         notBeforeOffset: notBeforeOffsetOf(startDate, row.source.startNoEarlierThan),
         // Straight off the read, like the trio and the priority below: the fold
         // be-01 derived, and the two facts placed on the axis the way the

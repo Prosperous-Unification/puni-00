@@ -418,3 +418,51 @@ describe('review follow-ups', () => {
     expect(JSON.stringify(lastPreconditions)).toContain(branch);
   });
 });
+
+describe('an on-hold leaf takes no part in the schedule', () => {
+  async function scheduleOf(name: string) {
+    const tree = await service.tree(projectId);
+    if (tree === null) throw new Error('project vanished');
+    const found = tree.workItems.find((row) => row.name === name);
+    if (found === undefined) throw new Error(`no row ${name}`);
+    return { schedule: found.schedule, dates: found.dates, status: found.status };
+  }
+
+  it('lets a successor start at day zero, and reports the held row with no schedule', async () => {
+    const strip = await add('Strip');
+    const sand = await add('Sand');
+    await service.setEstimate(strip, OWNER, DEV, { optimistic: 5, realistic: 5, pessimistic: 5 });
+    await service.setEstimate(sand, OWNER, DEV, { optimistic: 2, realistic: 2, pessimistic: 2 });
+    expect((await service.addDependency(sand, OWNER, strip)).ok).toBe(true);
+    expect((await scheduleOf('Sand')).schedule?.earliestStart).toBe(5);
+
+    await set(strip, 'on_hold');
+
+    expect(await scheduleOf('Strip')).toMatchObject({ schedule: null, dates: null });
+    expect(await scheduleOf('Sand')).toMatchObject({ status: 'blocked_by_proxy' });
+    expect((await scheduleOf('Sand')).schedule?.earliestStart).toBe(0);
+  });
+
+  it('keeps a blocked leaf in the schedule where the forecast puts it', async () => {
+    const strip = await add('Strip');
+    const sand = await add('Sand');
+    await service.setEstimate(strip, OWNER, DEV, { optimistic: 5, realistic: 5, pessimistic: 5 });
+    await service.setEstimate(sand, OWNER, DEV, { optimistic: 2, realistic: 2, pessimistic: 2 });
+    await service.addDependency(sand, OWNER, strip);
+    await set(strip, 'blocked');
+    expect((await scheduleOf('Strip')).schedule?.earliestStart).toBe(0);
+    expect((await scheduleOf('Sand')).schedule?.earliestStart).toBe(5);
+  });
+
+  it('brackets a parent by its unheld leaves, and gives a wholly held parent none', async () => {
+    const branch = await add('Branch');
+    const strip = await add('Strip', branch);
+    const sand = await add('Sand', branch);
+    await service.setEstimate(strip, OWNER, DEV, { optimistic: 3, realistic: 3, pessimistic: 3 });
+    await service.setEstimate(sand, OWNER, DEV, { optimistic: 7, realistic: 7, pessimistic: 7 });
+    await set(sand, 'on_hold');
+    expect((await scheduleOf('Branch')).schedule?.earliestFinish).toBe(3);
+    await set(strip, 'on_hold');
+    expect(await scheduleOf('Branch')).toMatchObject({ schedule: null, dates: null });
+  });
+});

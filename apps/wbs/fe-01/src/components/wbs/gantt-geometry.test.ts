@@ -378,6 +378,29 @@ describe('bars', () => {
   });
 });
 
+describe('an on-hold row (add-work-item-statuses)', () => {
+  it('draws no bracket for a parent with no schedule, and no arrow to or from a held row', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('branch', 0, 0, { leaf: false, schedule: null }),
+          rowAt('strip', 0, 0, { depth: 1, schedule: null }),
+          rowAt('sand', 0, 2),
+        ],
+        slices: [sliceAt('sand-dev', 'sand', 0, 2)],
+        dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+      }),
+    );
+
+    // Proof: the null-schedule return removed from the layout made this fail
+    // on `Cannot read properties of null (reading 'earliestStart')`; watched
+    // 2026-09-29.
+    expect(chart.brackets).toEqual([]);
+    expect(chart.arrows).toEqual([]);
+    expect(chart.bars.map((bar) => bar.rowIndex)).toEqual([2]);
+  });
+});
+
 describe('summary brackets', () => {
   /** A parent whose two children run 0→3 and 2→6: a 6-day branch of 7 days' work. */
   const staggeredChildren = (): GanttPlan =>

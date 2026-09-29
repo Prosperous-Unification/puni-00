@@ -535,6 +535,7 @@ describe("the materialiser's annotations, through the plan read", () => {
     // `long` keeps a late finish at or after its early finish. Under the
     // dropped filter it does not.
     const longRow = rowFor(tree, long).schedule;
+    if (longRow === null) throw new Error('the long row is unscheduled');
     expect(longRow.latestFinish).toBeGreaterThanOrEqual(longRow.earliestFinish);
   });
 
