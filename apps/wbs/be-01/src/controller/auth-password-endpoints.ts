@@ -1,9 +1,9 @@
 import { loginPassword, readPasswordSession, registerPassword } from '@wbs/contracts';
+import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
+import { type AuthService, TOKEN_TTL_SECONDS } from '@wbs/core/service/auth.service';
 
 import { bind, type RequestFailure } from '../http/endpoint';
 import { credentialFromHeaders } from '../middleware/authenticated';
-import { type AuthService, TOKEN_TTL_SECONDS } from '../service/auth.service';
-import type { LoginThrottle } from '../service/login-throttle';
 
 /** Password switches from the OIDC composition; absence selects local password mode. */
 export interface PasswordOidcOptions {

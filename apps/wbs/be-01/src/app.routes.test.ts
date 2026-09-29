@@ -9,6 +9,7 @@ import {
   startAuth0Link,
   startOidcLogin,
 } from '@wbs/contracts';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
 import { describe, expect, it, spyOn } from 'bun:test';
@@ -16,7 +17,6 @@ import { describe, expect, it, spyOn } from 'bun:test';
 import type { AppOptions } from './app';
 import { buildApp, mountedEndpoints } from './app';
 import { bunPasswordHasher, joseTokenCodec } from './runtime/bun-runtime';
-import { AuthService } from './service/auth.service';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from './testing/auth-fixture';
 import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
 import { testCapacityService } from './testing/capacity-fixture';

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { CREATOR_ADMISSION, type DomainResolver } from '@wbs/core';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { createLogger } from '@wbs/observability';
 import {
   DomainClaimRepository,
@@ -42,7 +43,6 @@ import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { delegationVerifier } from '../runtime/delegation';
 import { delegationIssuer } from '../runtime/delegation-issuer';
 import { runDomainProofWorker } from '../runtime/domain-proof-worker';
-import { AuthService } from '../service/auth.service';
 import { CalendarMarkerService } from '../service/calendar-marker.service';
 import { DirectoryService } from '../service/directory.service';
 import { fastScheduler } from '../service/optimizer-wiring';

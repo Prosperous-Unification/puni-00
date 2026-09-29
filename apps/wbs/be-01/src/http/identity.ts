@@ -1,3 +1,4 @@
+import type { AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
 import { decodeJwt, errors } from 'jose';
 
 import {
@@ -7,7 +8,6 @@ import {
 } from '../middleware/authenticated';
 import { bearerContextCredential } from '../runtime/bearer-context';
 import { declaresDelegation, type DelegationVerifier } from '../runtime/delegation';
-import type { AuthenticatedUser, AuthService } from '../service/auth.service';
 import type { IdentityResolver } from './endpoint';
 
 /**

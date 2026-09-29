@@ -122,6 +122,7 @@ export * from './service/dependency';
 export * from './service/directory.service';
 export * from './service/directory-usage';
 // Compatibility export: Plan history's symbols keep their barrel names.
+export * from './module/authentication/login-throttle';
 export * from './module/bounded-replay-sweep/bounded-replay-sweep.feature';
 export * from './module/bounded-replay-sweep/retention-job';
 export * from './module/bounded-replay-sweep/retention-timer';
@@ -137,7 +138,6 @@ export * from './module/realtime/replay-buffer';
 export * from './module/realtime/replay-orchestrator';
 export * from './module/saved-plans/save-plan';
 export * from './module/saved-plans/saved-plan-integrity';
-export * from './service/login-throttle';
 export * from './service/numbered-work-item';
 export * from './service/optimizer-trigger-broadcaster';
 export * from './service/person-load.feature';

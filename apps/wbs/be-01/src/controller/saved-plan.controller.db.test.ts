@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { AnnouncementCollector } from '@wbs/core';
 import { UnknownSavedPlanBodyVersionError } from '@wbs/core/module/saved-plans/saved-plan-integrity';
+import { type AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
 import { defaultSavedPlanName } from '@wbs/core/service/saved-plan-default-name';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn, test } from 'bun:test';
@@ -18,7 +19,6 @@ import { StepRepository } from '../repository/step';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { type AuthenticatedUser, AuthService } from '../service/auth.service';
 import { ProjectService } from '../service/project.service';
 import { testApp } from '../testing/app-fixture';
 import { TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';

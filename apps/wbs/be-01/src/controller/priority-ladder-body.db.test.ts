@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { CREATOR_ADMISSION } from '@wbs/core';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -14,7 +15,6 @@ import { PriorityBandRepository } from '../repository/priority-band';
 import { ProjectRepository } from '../repository/project';
 import { UserRepository } from '../repository/user';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { AuthService } from '../service/auth.service';
 import { PriorityBandService } from '../service/priority-band.service';
 import { ProjectService } from '../service/project.service';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';

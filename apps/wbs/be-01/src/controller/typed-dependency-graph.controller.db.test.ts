@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import type { UnitOfWork } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import type { DependencyEndpoint, RelationshipType } from '@wbs/domain';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
@@ -26,7 +27,6 @@ import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { AuthService } from '../service/auth.service';
 import { DirectoryService } from '../service/directory.service';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { ProjectService } from '../service/project.service';

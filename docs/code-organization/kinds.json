@@ -2,11 +2,6 @@
   "reviewed": "2026-09-20",
   "entries": [
     {
-      "path": "apps/wbs/be-01/src/service/auth.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/auth.service directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/calendar-marker.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core/service/calendar-marker.service directly"
@@ -20,11 +15,6 @@
       "path": "apps/wbs/be-01/src/service/directory.service.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core/service/directory.service directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/login-throttle.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/login-throttle directly"
     },
     {
       "path": "apps/wbs/be-01/src/service/optimization-coordinator.ts",
@@ -172,11 +162,6 @@
       "kind": "support",
       "disposition": "organization domain lifecycle; move into an organization-domains module when one exists",
       "rationale": "be-01's dormant domain-proof worker calls checkDomainProofs to run one bounded TXT lookup per due retained claim through the DomainProofChecks port; it holds no store or timer of its own"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/login-throttle.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the authentication module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/numbered-work-item.ts",

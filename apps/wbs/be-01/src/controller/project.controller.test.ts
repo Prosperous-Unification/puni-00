@@ -1,11 +1,11 @@
 import { clockOf } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { AuthService } from '../service/auth.service';
 import type {
   OptimizationCoordinator,
   OptimizationRetryResult,
