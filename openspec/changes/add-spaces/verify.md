@@ -135,12 +135,17 @@ success toast across the table remount` at 5.4 s and passed alone and on a full 
 `app-router.test.tsx`, `app.test.tsx` and `delivery-boundaries.test.ts` 31 pass. be-01
 `space-organization.controller.db.test.ts` 12 pass with `writable`.
 
-| Check                           | Fault injected                                         | Test that observed it                                          | Observed                                       |
-| ------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------- | ---------------------------------------------- |
-| viewer sees no handles          | handles drawn whatever `writable` says                 | `shows a viewer no handle, and a member the handles`           | the `Remove p1 from this space` button present |
-| viewer sees no create           | create form drawn whatever `writable` says             | `offers a viewer no create, rename or delete`                  | the `New space` input present                  |
-| `writable` follows the role     | the read route answering `writable` without `mayWrite` | `refuses a viewer every space write and lets the viewer read`  | the viewer's read `writable: true`             |
-| unknown deep link opens nothing | the broken-link branch removed                         | `shows the empty state for a link to a project it cannot open` | `expected 'Rewire the shed' to be ''`          |
-| rows keep figures (review)      | every row reset to loading on refresh                  | `keeps the old figures until the new chunk answers`            | the wait for the row's figures timed out       |
-| add picker failure (review)     | the project-list failure ignored                       | `says when the projects to add could not be read`              | no alert                                       |
-| one read in flight (review)     | the in-flight check removed                            | `starts no second read while one is in flight`                 | two reads                                      |
+After the second review: `space-page.test.tsx` 9 pass and `single-flight.test.ts` 3 pass (node
+config); the mount, the polls and each write's re-read share one read through `singleFlight`.
+
+| Check                           | Fault injected                                         | Test that observed it                                          | Observed                                         |
+| ------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------- | ------------------------------------------------ |
+| viewer sees no handles          | handles drawn whatever `writable` says                 | `shows a viewer no handle, and a member the handles`           | the `Remove p1 from this space` button present   |
+| viewer sees no create           | create form drawn whatever `writable` says             | `offers a viewer no create, rename or delete`                  | the `New space` input present                    |
+| `writable` follows the role     | the read route answering `writable` without `mayWrite` | `refuses a viewer every space write and lets the viewer read`  | the viewer's read `writable: true`               |
+| unknown deep link opens nothing | the broken-link branch removed                         | `shows the empty state for a link to a project it cannot open` | `expected 'Rewire the shed' to be ''`            |
+| rows keep figures (review)      | every row reset to loading on refresh                  | `keeps the old figures until the new chunk answers`            | `expected 'p1Loading…' to contain 'In progress'` |
+| add picker failure (review)     | the project-list failure ignored                       | `says when the projects to add could not be read`              | no alert                                         |
+| one read in flight (review)     | the in-flight check removed                            | `starts no second read while one is in flight`                 | two reads                                        |
+| every read joins (review 2)     | `join` starting a read whatever is in flight           | `joins the read in flight`                                     | `expected 2 to be 1`                             |
+| a write reads fresh (review 2)  | `fresh` joining the read in flight                     | `queues one fresh read behind the read in flight`              | `expected 1 to be 2`                             |
