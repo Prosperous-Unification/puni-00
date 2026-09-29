@@ -21,7 +21,9 @@ import { invitationRoutes } from '@wbs/core/http/invitation.routes';
 import { joinRequestRoutes } from '@wbs/core/http/join-request.routes';
 import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
+import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
 import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
+import { PersonLoad } from '@wbs/core/service/person-load';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
 
@@ -318,6 +320,15 @@ export function mountedEndpoints(
       opts.writes,
     ),
     ...directoryRoutes(opts.directory, opts.organizations),
+    // One per mounted app, so its memo lives as long as the process serving it.
+    ...personLoadRoutes(
+      new PersonLoad({
+        projects: opts.projects,
+        workItems: opts.workItems,
+        directory: opts.directory,
+      }),
+      opts.organizations,
+    ),
     ...historyRoutes(opts.history, opts.projects, opts.organizations),
     ...solutionRoutes(opts.projects, opts.organizations),
     // Proof: omitting this spread made the production import reachability test receive 404.

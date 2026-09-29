@@ -50,6 +50,8 @@ export * from './marker-color';
 export * from './marker-name';
 export * from './not-before';
 export * from './on-time';
+// A person's bookings across projects on one workday axis: overlaps and weekly load.
+export * from './person-load';
 export * from './place-sibling';
 export * from './priority-band';
 // The dense rank the solver objective multiplies. Separate from

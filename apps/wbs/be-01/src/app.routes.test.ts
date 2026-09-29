@@ -189,6 +189,8 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
 };
 const REQUEST_QUERIES: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>> = {
   getApiAuthOktaCallback: { state: 'route-probe', error: 'access_denied' },
+  getApiPeopleByPersonIdLoad: { from: '2026-10-05', to: '2026-10-09' },
+  getApiPeopleLoad: { from: '2026-10-05', to: '2026-10-09' },
   getApiProjectsByIdExport: { format: 'json' },
   'getApiProjectsByIdSaved-plansCompare': { left: 'current', right: 'current' },
   'getApiProjectsByIdStep-references': { reference: '010.dev', revision: 'ar1:route-probe' },
@@ -225,6 +227,8 @@ const SIGNED_IN_OPERATIONS = [
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
   'getApiPeople',
+  'getApiPeopleByPersonIdLoad',
+  'getApiPeopleLoad',
   'getApiProjects',
   'getApiProjectsById',
   'getApiProjectsByIdCalendar-markers',
@@ -333,6 +337,8 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
   'getApiPeople',
+  'getApiPeopleByPersonIdLoad',
+  'getApiPeopleLoad',
   'getApiProjects',
   'getApiProjectsById',
   'getApiProjectsByIdCalendar-markers',

@@ -19,6 +19,7 @@ export * from './http/invitation-shapes';
 export * from './http/join-request-shapes';
 export * from './http/onboarding-shapes';
 export * from './http/organization-shapes';
+export * from './http/person-load-shapes';
 export * from './http/plan-document-shapes';
 export * from './http/project-response';
 export * from './http/project-shapes';
