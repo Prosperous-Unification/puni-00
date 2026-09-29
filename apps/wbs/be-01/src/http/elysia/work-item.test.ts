@@ -336,6 +336,7 @@ test('mounted tree validates core fields, deadline and slice lateness while pres
   if (tree === null) throw new Error('Tree fixture missing');
   const row = tree.workItems.at(0);
   if (row === undefined) throw new Error('Tree fixture row missing');
+  if (row.schedule === null) throw new Error('Tree fixture row unscheduled');
   const slice = {
     ...row.schedule,
     id: 'slice',

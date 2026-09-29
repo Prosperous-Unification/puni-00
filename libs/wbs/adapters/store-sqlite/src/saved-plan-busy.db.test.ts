@@ -64,6 +64,8 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
     deadline: null,
     factStart: null,
     factEnd: null,
+    readiness: null,
+    hold: null,
     revision: 0,
   });
 

@@ -303,6 +303,10 @@ function answerBatch(
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'too_large':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    case 'readiness_after_progress':
+    case 'cannot_hold_done':
+    case 'no_steps':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'too_many_commands':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'project_required':

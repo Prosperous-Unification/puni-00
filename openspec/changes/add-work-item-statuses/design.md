@@ -53,7 +53,7 @@ Fast, the solver request builder and saved-plan schedules share.
 As the ADR and spec state: two nullable CHECKed columns, vocabularies in
 `stored-vocabularies.ts`; `setStatus` widened with a verbatim journal inverse; read shape adds
 `readiness`, `hold`, `schedule: Scheduled | null`; plan document v6 and saved-plan schema 4 with
-`[3, withNoHolds]` in `PLAN_INPUT_UPGRADES`; rollback CLI `work-item-hold-rollback-cli.ts
+`[3, withNoStatusFacts]` in `PLAN_INPUT_UPGRADES`; rollback CLI `work-item-status-facts-rollback-cli.ts
 save|remove|restore`; the swap's `relationship-types` step generalises to a stored-vocabularies
 step reading `supported-vocabularies-cli.ts`.
 
@@ -64,3 +64,16 @@ status is set by one act for every settable status": a parent starts one leaf an
 its hold, a done leaf reopens its last step, and a project with no steps refuses `409
 no_steps` for `in_progress` and, new in slice 3, for `done`. On a parent reading done, the
 parent's own fact end (filled by today's `setStatus done`) is cleared with its first leaf's.
+
+## Decided after the slice 3 review (Fable, 2026-09-29)
+
+- **A parent never holds a statement, enforced at the write (option A).**
+  - `apply`'s `patch` arm refuses a non-null readiness or hold on a row that has children. A stale undo or redo is therefore refused, not replayed.
+  - `WorkItemRepository.patch` writes a statement only under `NOT EXISTS (child)` in the same `UPDATE`, and answers `has_children`. A live `setStatus` racing a first child cannot produce the state either.
+  - The plan read keeps throwing on a parent with a statement.
+- **A move's inverse moves back first, then restores the statements.** The row a moved row came from is a leaf again only after the move-back.
+- **Readiness joins the swap guard.** The swap compares readiness as it compares holds, through a `readiness-kinds-cli.ts` beside `hold-kinds-cli.ts`. The rollback save file carries both columns, so a code rollback with readiness stored saves and removes it first. `down.sql` still guards holds only; readiness is dropped as fact dates are.
+- **Accepted as is:**
+  - The post-stop recheck refuses only after routing has moved (#179's limitation, shared by every stored vocabulary).
+  - Holding a parent takes the hold off its done leaves.
+- **Delivery.** Slices 3 and 6 need not ship together. Slice 4 ships with the fe-01 reader of `schedule: null`.

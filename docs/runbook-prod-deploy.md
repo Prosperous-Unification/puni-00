@@ -137,6 +137,37 @@ any endpoint no longer fits its project or work-item shape:
 docker exec be-01-<colour> bun run src/typed-dependency-rollback-cli.ts restore /data/typed-dependency-<date>.json
 ```
 
+## Work item status facts rollback
+
+**Code rollback with stored readiness or holds.** The `be` swap's `stored-vocabularies`
+step compares the readinesses and hold kinds the incoming binary reads
+(`readiness-kinds-cli.ts`, `hold-kinds-cli.ts`) with the values stored in `work_item`,
+before migration and again after stopping the outgoing colour, as it does for relationship
+types. An older image without those CLIs reads none, so any stored value refuses it and the
+error lists each value and its count. Such an image would schedule held work as if nothing
+were held, or give a ready leaf a child the status read then refuses (ADR 0032). Redeploy a
+release that reads them, or save and remove the statements with the commands below and
+rerun the deploy.
+
+Rolling back past `20260928200000_add_work_item_status_facts` refuses while any hold is
+stored; the refusal reads `CHECK constraint failed: work item holds exist: …`. Readiness is
+dropped without a guard, as fact dates are. Run the commands inside the incoming container
+with the same `DB_PATH`, after writers have stopped.
+
+```sh
+docker exec be-01-<colour> bun run src/work-item-status-facts-rollback-cli.ts save /data/work-item-status-facts-<date>.json
+docker exec be-01-<colour> bun run src/work-item-status-facts-rollback-cli.ts remove /data/work-item-status-facts-<date>.json
+docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
+```
+
+`remove` refuses unless the saved statements match the table exactly. After a later forward
+migration or redeploy, restore them; restore refuses the whole set if a saved work item is
+gone or has become a parent:
+
+```sh
+docker exec be-01-<colour> bun run src/work-item-status-facts-rollback-cli.ts restore /data/work-item-status-facts-<date>.json
+```
+
 ## Space rollback
 
 Code rollback needs nothing: an older image has no spaces routes, and the `space` and

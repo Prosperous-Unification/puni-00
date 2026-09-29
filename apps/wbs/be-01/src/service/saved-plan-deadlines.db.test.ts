@@ -146,6 +146,8 @@ describe('a captured plan and its deadlines', () => {
           deadline,
           factStart: null,
           factEnd: null,
+          readiness: null,
+          hold: null,
           revision: 0,
         },
         [],

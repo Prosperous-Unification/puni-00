@@ -527,8 +527,15 @@ describe('a priority ladder moves no date', () => {
           deadline,
           factStart,
           factEnd,
+          readiness,
+          hold,
           ...row
         }) => {
+          // Lifted by `add-work-item-statuses` and asserted null for the fact
+          // dates' reason: the oracle predates both columns and nothing in the
+          // replayed plans says a readiness or a hold.
+          expect(readiness).toBeNull();
+          expect(hold).toBeNull();
           // Lifted by `work-item-deadline` 6.1, which made the column readable,
           // and asserted **null** for `tagIds`' reason: the oracle predates the
           // column, nothing in sixteen replayed plans sets one, and a null on

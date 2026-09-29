@@ -241,6 +241,8 @@ describe('diffPlans — 7.2, the presentation categories', () => {
       ['freeze', 'workItems[0].frozenNumber'],
       ['service-assignment', 'workItems[0].serviceTeamId'],
       ['start-no-earlier-than', 'workItems[0].startNoEarlierThan'],
+      ['progress', 'workItems[0].readiness'],
+      ['progress', 'workItems[0].hold'],
       ['uncertainty', 'stepValues[0].optimistic'],
       ['estimates', 'stepValues[0].derived'],
       ['actuals', 'stepValues[0].actual'],

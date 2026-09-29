@@ -131,6 +131,12 @@ export type CommandRefusalCode =
   | 'work_item_takes_one_type'
   | 'not_before_reason_needs_a_date'
   | 'deadline_before_project_start'
+  /** `setStatus` `ready` or `draft` once a step has spoken (`add-work-item-statuses`). */
+  | 'readiness_after_progress'
+  /** `setStatus` `on_hold` or `blocked` on a row reading done. */
+  | 'cannot_hold_done'
+  /** `setStatus` `in_progress` or `done` in a project with no steps. */
+  | 'no_steps'
   | 'invalid_kind'
   | 'nothing_to_change'
   | 'taken'

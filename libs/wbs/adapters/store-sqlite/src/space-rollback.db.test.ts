@@ -13,7 +13,7 @@ import { SpaceRepository } from './space';
 import { removeSavedSpaces, restoreSpaces, saveSpaces } from './space-rollback';
 import { MIGRATIONS_FOLDER as FOLDER, openSpaceDatabase } from './testing/space-database';
 
-const BEFORE_SPACES = '20260928040000_add_email_challenge';
+const BEFORE_SPACES = '20260928200000_add_work_item_status_facts';
 const wrote: WriteStamp = { at: 1, by: 'ada' };
 
 describe('space rollback save, remove and restore', () => {

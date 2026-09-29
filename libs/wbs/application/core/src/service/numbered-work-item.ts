@@ -1,4 +1,4 @@
-import type { IsoDate, ProgressStatus, Scheduled, StepState } from '@wbs/domain';
+import type { IsoDate, Scheduled, StepState, WorkItemStatus } from '@wbs/domain';
 
 import type { LabelledWorkItem } from '../ports/work-item-store';
 
@@ -65,7 +65,7 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    * one that matters most, one step finished and another silent. See
    * `rollUpWorkItemStatuses`.
    */
-  status: ProgressStatus;
+  status: WorkItemStatus;
   /**
    * The figures that are not days: **metric first, then step**, its own if it is
    * a leaf and the sum of its descendants' if it is not.
@@ -115,8 +115,11 @@ export interface NumberedWorkItem extends LabelledWorkItem {
    * `estimates` above is **effort** and this is **span**, and for a parent they
    * are different numbers: two independent children of 3 and 4 days are 7 days
    * of work inside a 4-day branch. Both are true and neither substitutes.
+   *
+   * Null for a row the hold reduction took out of the plan: an on-hold leaf, or
+   * a parent all of whose leaves are on hold (ADR 0032).
    */
-  schedule: Scheduled;
+  schedule: Scheduled | null;
   /**
    * When this happens on a calendar, or null while the project has no start
    * date.

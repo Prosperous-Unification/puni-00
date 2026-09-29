@@ -15,3 +15,9 @@ A working plan SHALL include legacy and typed dependencies distinctly after each
 - **GIVEN** an SS or FF edit that would close a slice cycle
 - **WHEN** validation refuses the command
 - **THEN** a retained read sees the preceding dependency set
+
+#### Scenario: A typed edit is visible to a later batch command
+
+- **GIVEN** an admitted batch with a typed dependency edit
+- **WHEN** a later command reads the working plan
+- **THEN** it sees the committed relationship state and endpoint label

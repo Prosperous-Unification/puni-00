@@ -180,6 +180,8 @@ describe('canonicalisePlanInput round trip', () => {
           serviceId: null,
           startNoEarlierThan: null,
           startNoEarlierThanReason: null,
+          readiness: null,
+          hold: null,
         })),
         steps: [{ id: 's1', code: 'build', name: 'Build', position: 10, allowancePercent: 0 }],
         stepValues: ids.map((id) => ({
