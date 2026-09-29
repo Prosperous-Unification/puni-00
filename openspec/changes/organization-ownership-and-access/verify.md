@@ -1343,3 +1343,14 @@ The invitation code input now sets `autoComplete="off"`. Both faults were restor
 | The last super-admin has its own copy   | Answered `last_super_admin` with the role copy | `renders the last_super_admin change refusal` failed: received `Your role cannot make this change.`                                      |
 
 All faults were restored before commit.
+
+### Slice 39e review fixes (Fable, 2026-09-29)
+
+Before this fix, a delegated `read write` token for a super-admin could administer memberships: PATCH answered 200 and DELETE answered 204. Both writes now refuse delegated callers with `insufficient_scope`, as every other administration route does.
+
+| Check                               | Injected fault                       | Observed failure                                                                      |
+| ----------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------- |
+| Delegated role change is refused    | Bypassed the PATCH delegation guard  | `refuses delegated member administration even for a super-admin`: received status 200 |
+| Delegated member removal is refused | Bypassed the DELETE delegation guard | the same test: received status 204                                                    |
+
+`refuses a removed administrator` now pins `not_a_member`. The MCP README says that the membership tools answer MCP clients 403. Both faults were restored before commit.
