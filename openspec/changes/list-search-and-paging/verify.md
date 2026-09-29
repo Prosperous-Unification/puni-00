@@ -32,6 +32,14 @@ Negatives, each watched failing on 2026-09-29 and recorded as a `Proof:` comment
 | route answers 200 for a refused query      | `refuses every value outside the grammar with 400` (mounted)        | 200 for `limit=0`             |
 | foreign-shaped cursor walked from the top  | same                                                                | 200 for `{ v: 1, after }`     |
 
+## Review fixes (Fable, 2026-09-29)
+
+The spec now states both ways a project walk is not a snapshot, and `project-page.test.ts`
+shows each: `a project not yet answered that is edited mid-walk is missed` and `a project
+whose instant went down is answered again` (9 pass, 0 fail). Space rows declare
+`updatedAt?` (`space-organization.controller.db.test.ts` 12 pass). The
+`work_item(project_id, updated_at)` index is a recorded follow-up (design.md, Cursors).
+
 ## Commands
 
 | Slice | Command                                                                                                                                                                                                                                    | Result             |
