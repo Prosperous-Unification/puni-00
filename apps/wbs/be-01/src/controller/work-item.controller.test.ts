@@ -36,6 +36,7 @@ import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { inMemoryProjects, memoryProjectTables } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
+import { refusingSpaces } from '../testing/space-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
@@ -92,6 +93,7 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
     emailVerification: refusingEmailVerification,
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
+    spaces: refusingSpaces,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),

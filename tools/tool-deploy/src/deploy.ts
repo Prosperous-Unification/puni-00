@@ -406,14 +406,21 @@ export function buildSmokeCommand(
   if (be !== undefined) {
     overrides.push(`-e SMOKE_BE_URL=${tierUrl('be', TIER_HEALTH_PATH.be, be, layout)}`);
     overrides.push(`-e SMOKE_INTERNAL_URL=${tierUrl('be', '/internal/forward', be, layout)}`);
+    overrides.push(`-e SMOKE_API_URL=${tierUrl('be', '', be, layout)}`);
   }
   if (gw !== undefined)
     overrides.push(`-e SMOKE_GW_URL=${tierUrl('gw', TIER_HEALTH_PATH.gw, gw, layout)}`);
   if (fe !== undefined)
     overrides.push(`-e SMOKE_FE_URL=${tierUrl('fe', TIER_HEALTH_PATH.fe, fe, layout)}`);
+  // The signed-in read account is optional and operator-authored on the host
+  // (tool-smoke's `resolveReadIdentity`). Absent, the reads print SKIPPED;
+  // present but unreadable, `docker run` refuses it and smoke fails.
+  const readAccount = `${layout.root}/smoke-read.env`;
   return (
     `cd ${layout.root} && docker run --rm --network ${layout.network} ` +
-    `--env-file ${layout.root}/gw-01.secrets.env ${overrides.join(' ')} ` +
+    `--env-file ${layout.root}/gw-01.secrets.env ` +
+    `$(test -e ${readAccount} && printf -- '--env-file %s' ${readAccount}) ` +
+    `${overrides.join(' ')} ` +
     `-e SITE_ADDRESS=${layout.siteAddress} ` +
     `-v ${layout.root}/bin/smoke.js:/smoke.js:ro oven/bun:1.3.14-alpine bun run /smoke.js`
   );

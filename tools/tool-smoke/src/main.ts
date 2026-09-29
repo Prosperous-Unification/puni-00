@@ -17,14 +17,15 @@
 // name (see health.ts's and ws-ping.ts's own doc comments for why a public
 // check could only ever fail).
 //
-// Runs both suites to completion regardless of whether the first one
+// Runs every suite to completion regardless of whether an earlier one
 // failed — partial diagnostic output is strictly better than none — and
-// exits non-zero if either failed. Design decision 10: a smoke failure must
+// exits non-zero if any failed. Design decision 10: a smoke failure must
 // report loudly and exit non-zero, but must NOT trigger an automatic
 // rollback (an automatic rollback on a flaky smoke check is worse than a
 // human looking at a report) — so this file only ever reports and exits; it
 // has no rollback machinery of its own, and `tool-deploy` calls it strictly
 // after every tier has already committed its swap.
+import { runAuthReadSuite } from './auth-read';
 import { runHealthSuite } from './health';
 import { runWsSuite } from './ws-ping';
 
@@ -48,8 +49,10 @@ async function runSuite(name: string, run: () => Promise<boolean>): Promise<bool
 async function main(): Promise<void> {
   const healthOk = await runSuite('health', runHealthSuite);
   const wsOk = await runSuite('ws', runWsSuite);
-  console.log(`[smoke] ${healthOk && wsOk ? 'ok' : 'FAIL'}`);
-  if (!healthOk || !wsOk) process.exit(1);
+  const readOk = await runSuite('read', runAuthReadSuite);
+  const ok = healthOk && wsOk && readOk;
+  console.log(`[smoke] ${ok ? 'ok' : 'FAIL'}`);
+  if (!ok) process.exit(1);
 }
 
 if (import.meta.main) {

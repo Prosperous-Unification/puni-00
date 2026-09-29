@@ -14,14 +14,18 @@ import type {
   OrganizationAccess,
   ReplayOrchestrator,
   SavedPlanService,
+  SpaceStore,
 } from '@wbs/core';
+import { clockOf } from '@wbs/core';
 import { domainRoutes } from '@wbs/core/http/domain.routes';
 import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
 import { invitationRoutes } from '@wbs/core/http/invitation.routes';
 import { joinRequestRoutes } from '@wbs/core/http/join-request.routes';
 import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
+import { spaceRoutes } from '@wbs/core/http/space.routes';
 import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
+import { SpaceResource } from '@wbs/core/service/space.resource';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
 
@@ -155,6 +159,11 @@ export interface AppOptions {
    */
   calendarMarkers: CalendarMarkerService;
   /**
+   * Organization spaces (`add-spaces`). Required, like `organizations`: a
+   * process built without it would answer 404 on every space route.
+   */
+  spaces: SpaceStore;
+  /**
    * Shared secret gw-01 presents on /internal/*. Required — a default here
    * would silently diverge from the value gw-01 loads from the environment,
    * failing every forward with a 401 that only shows up in a real deployment.
@@ -265,6 +274,9 @@ export function mountedEndpoints(
   // graph before they write, so each runs as one unit of work: a write landing
   // between the check and the write could otherwise leave a cycle.
   const admitted = admittedWrites(opts.writes);
+  // Spaces stamp their writes; the app's clock is time alone, so ids are
+  // random UUIDs as `services.ts` issues them.
+  const spaceClock = clockOf({ now: () => opts.clock.now(), newId: () => crypto.randomUUID() });
   return [
     // Proof: omitting health and metrics separately made app.routes.test.ts
     // expect 40 local bindings and receive 39 for each injected fault.
@@ -340,6 +352,10 @@ export function mountedEndpoints(
     ),
     ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),
     ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
+    ...spaceRoutes(
+      new SpaceResource({ spaces: opts.spaces, projects: opts.projects, clock: spaceClock }),
+      opts.organizations,
+    ),
     ...savedPlanRoutes(
       opts.savedPlans,
       opts.projects,

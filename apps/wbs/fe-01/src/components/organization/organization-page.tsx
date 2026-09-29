@@ -5,6 +5,7 @@ import { AppHeader } from '@/components/chrome/app-header';
 import { DomainsPanel } from './domains-panel';
 import { InvitationsPanel } from './invitations-panel';
 import { JoinRequestsPanel } from './join-requests-panel';
+import { MembersPanel } from './members-panel';
 import { type AccessLoss, lossCopy } from './organization-access';
 
 /**
@@ -36,6 +37,7 @@ export function OrganizationPage({
          */}
         {loss === null ? (
           <>
+            <MembersPanel onAccessLost={setLoss} />
             <InvitationsPanel onAccessLost={setLoss} />
             <JoinRequestsPanel onAccessLost={setLoss} />
             <DomainsPanel onAccessLost={setLoss} />

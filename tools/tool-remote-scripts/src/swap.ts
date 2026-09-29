@@ -24,6 +24,9 @@ import {
   assertDigestPinnedRef,
   assertOidcEnvAllowed,
   assertTierEnvAllowed,
+  assertTierEnvComplete,
+  backupDbCommand,
+  backupSnapshotPath,
   composeUpArgs,
   containerName,
   CURRENT_ENV,
@@ -479,21 +482,34 @@ export async function startGreen(
   deps: StartGreenDeps = START_GREEN_DEPS,
 ): Promise<void> {
   const appEnvPath = tierEnvFiles(tier)[0];
-  assertTierEnvAllowed(tier, await deps.readText(appEnvPath));
+  const appEnvText = await deps.readText(appEnvPath);
+  assertTierEnvAllowed(tier, appEnvText);
 
   // Proof: the three `startGreen env preflight` cases observe only the app
   // and OIDC reads when that file is absent, unreadable, or carries PORT.
   // Moving this below the phase/Compose calls makes their event assertions red.
+  let oidcEnvText: string | null = null;
   if (deps.oidcEnvPath !== null && (tier === 'be' || tier === 'gw')) {
-    assertOidcEnvAllowed(await deps.readText(deps.oidcEnvPath));
+    oidcEnvText = await deps.readText(deps.oidcEnvPath);
+    assertOidcEnvAllowed(oidcEnvText);
   }
+  const sharedEnvText = tierHasSecrets(tier) ? await deps.readText(SHARED_ENV_PATH) : null;
+  // Proof: skipping this call made all seven refusals in `startGreen
+  // required-key preflight` fail (67 pass, 7 fail, 2026-09-29): with GW_URL,
+  // JWT_SIGNING_KEY_CURRENT or AUTH_AUDIENCE absent, or AUTH_MODE=local, the
+  // swap wrote the phase and ran Compose instead of refusing.
+  assertTierEnvComplete(
+    tier,
+    { appEnvText, sharedEnvText, oidcEnvText },
+    { ...CURRENT_ENV, oidcEnvPath: deps.oidcEnvPath },
+  );
 
   await deps.writePhaseFile(phasePath, 'preparing');
   // Re-derive on every start, including an empty allowed set, so a stale
   // secrets file cannot outlive deletion from the shared source. Mode 0600
   // applies to the temp file at birth; there is no world-readable interval.
-  if (tierHasSecrets(tier)) {
-    const secrets = deriveTierSecrets(tier, await deps.readText(SHARED_ENV_PATH));
+  if (sharedEnvText !== null) {
+    const secrets = deriveTierSecrets(tier, sharedEnvText);
     await deps.writeAtomicFile(tierSecretsFile(tier), secrets, 0o600);
   }
   const context = tierComposeContext(tier, to, image);
@@ -512,6 +528,7 @@ export async function startGreen(
 const ABORTABLE_STEPS: ReadonlySet<SwapStep> = new Set<SwapStep>([
   'start-green',
   'stored-vocabularies',
+  'backup-db',
   'migrate',
   'health-gate',
   'grant-alias',
@@ -692,6 +709,32 @@ async function assertSupportedVocabularies(
   }
 }
 
+/**
+ * Reads `backup-db-cli.ts`'s one JSON line at the Docker output boundary and
+ * returns the snapshot path it reports.
+ *
+ * @throws When the output is not that JSON, or reports a different path or no
+ * migrations: a backup the swap cannot account for is no backup.
+ */
+export function parseBackupReport(output: string, expectedPath: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(output);
+  } catch (cause) {
+    throw new Error(`backup-db reported malformed output: ${output.slice(0, 200)}`, { cause });
+  }
+  const path: unknown =
+    parsed !== null && typeof parsed === 'object' ? Reflect.get(parsed, 'path') : undefined;
+  const migrations: unknown =
+    parsed !== null && typeof parsed === 'object' ? Reflect.get(parsed, 'migrations') : undefined;
+  if (path !== expectedPath || !Array.isArray(migrations) || migrations.length === 0) {
+    throw new Error(
+      `backup-db did not report a verified snapshot at ${expectedPath}: ${output.slice(0, 200)}`,
+    );
+  }
+  return expectedPath;
+}
+
 export async function execute(
   plan: SwapPlan,
   image: string,
@@ -860,6 +903,20 @@ export async function execute(
 
         case 'stored-vocabularies': {
           await assertSupportedVocabularies(greenName, io.sh, false);
+          break;
+        }
+
+        case 'backup-db': {
+          // Before the migrate step changes the schema blue is serving from:
+          // a failure aborts with nothing migrated. The snapshot is the
+          // rollback once blue has stopped or a down script cannot be trusted;
+          // docs/runbook-prod-deploy.md#first-product-deploy restores it.
+          const snapshotPath = backupSnapshotPath(sha, new Date());
+          const reported = parseBackupReport(
+            await io.sh(backupDbCommand(greenName, snapshotPath)),
+            snapshotPath,
+          );
+          console.log(`[swap-${tier}] backed up to ${reported} (host: ${ROOT}/data/backups)`);
           break;
         }
 
