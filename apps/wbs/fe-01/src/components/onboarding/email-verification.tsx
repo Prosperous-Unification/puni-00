@@ -3,6 +3,8 @@ import { useState } from 'react';
 
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
+import { Auth0Link } from './auth0-link';
+
 const challenges = browserClient([createEmailChallenge, confirmEmailChallenge]);
 
 type Step = { kind: 'address' } | { kind: 'code'; email: string; expiresAt: number };
@@ -149,6 +151,7 @@ export function EmailVerification({
         </form>
       )}
       {message !== '' && <p role="alert">{message}</p>}
+      <Auth0Link />
     </section>
   );
 }

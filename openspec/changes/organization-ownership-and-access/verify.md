@@ -1343,3 +1343,17 @@ The invitation code input now sets `autoComplete="off"`. Both faults were restor
 | The last super-admin has its own copy   | Answered `last_super_admin` with the role copy | `renders the last_super_admin change refusal` failed: received `Your role cannot make this change.`                                      |
 
 All faults were restored before commit.
+
+## Slice 39f — Auth0 link recovery (task 4.6)
+
+| Check                                     | Injected fault                                                                      | Observed failure                                                                                                                              |
+| ----------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| No open redirect from the callback        | Answered the malformed-parameter branch with the provider's `error` as the location | `redirects every failure to the fixed outcome path without echoing the request`: expected `/?auth_link=refused`, received `https://evil.test` |
+| Failure outcomes clear the link cookie    | Cleared the cookie only for `linked`                                                | `clears the link cookie on every callback outcome`: received no set-cookie                                                                    |
+| A polluted query clears the link cookie   | Dropped the clear from the query-failure classifier                                 | `clears the link cookie on every callback outcome`: received no set-cookie                                                                    |
+| A non-GET callback clears the link cookie | Dropped the clear from the method admission                                         | `clears the link cookie on every callback outcome`: received no set-cookie                                                                    |
+| fe-01 refuses a non-https location        | Accepted any location but `ftp:`                                                    | `refuses a non-https authorization location without leaving the page` failed                                                                  |
+| Exhausted attempts have their own copy    | Answered 429 with the wrong-password copy                                           | `renders the 429 credential refusal`: received `That password is not correct.`                                                                |
+| The outcome parameter is stripped         | Skipped `clearLinkOutcome()`                                                        | the three `renders … and strips the parameter` cases kept `?auth_link=` (3 failed)                                                            |
+
+All faults were restored before commit. The existing mounted link tests now assert outcomes through `outcomeOf`, which also requires the fixed-path shape and the cookie clear on every callback they make.

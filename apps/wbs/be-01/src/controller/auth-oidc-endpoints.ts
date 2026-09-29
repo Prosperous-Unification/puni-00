@@ -98,14 +98,71 @@ function callbackFailure(
   return { ok: false, status: 400, body: { error: failure.code } };
 }
 
+/** The link browser binding, cleared by every link callback outcome. */
+const LINK_COOKIE = '__Host-wbs_link';
+const clearLink = (): Header => cookie(LINK_COOKIE, '', 0);
+
+/**
+ * The fixed outcomes a link callback reports to fe-01 as `?auth_link=`.
+ * Nothing from the request (state, error, error_description) is echoed.
+ */
+type LinkOutcome = 'linked' | 'refused' | 'inactive' | 'collision' | 'unavailable' | 'failed';
+const LINK_OUTCOME_FOR_OIDC_FAILURE: Record<OidcFailureKind, LinkOutcome> = {
+  defect: 'failed',
+  indeterminate: 'unavailable',
+  refused: 'refused',
+  unavailable: 'unavailable',
+};
+
+/**
+ * A 302 to the fixed relative app path carrying `outcome`, clearing the link
+ * binding cookie.
+ *
+ * Proof: 2026-09-29, echoing the provider's `error` into the location failed
+ * `redirects every failure to the fixed outcome path without echoing the
+ * request`; dropping the cookie clear on failures failed `clears the link
+ * cookie on every callback outcome`.
+ */
+function linkOutcome(outcome: LinkOutcome) {
+  return {
+    ok: true,
+    status: 302,
+    body: EMPTY,
+    headers: [clearLink(), ['location', `/?auth_link=${outcome}`]],
+  } as const;
+}
+
+/**
+ * A non-GET link callback is refused, and the binding cookie cleared with it.
+ *
+ * Proof: 2026-09-29, dropping the clear here failed `clears the link cookie on
+ * every callback outcome` at the HEAD request (no set-cookie).
+ */
+function linkCallbackAdmission(request: RequestMetadata) {
+  return request.method === 'GET'
+    ? null
+    : ({
+        ok: false,
+        status: 405,
+        body: { error: 'method_not_allowed' },
+        headers: [['allow', 'GET'], clearLink()],
+      } as const);
+}
+
 /** The link callback shares the singleton query rule without consuming proof on pollution. */
 function linkCallbackFailure(
   failure: RequestFailure,
 ): Extract<HttpReply<typeof completeAuth0Link>, { ok: false }> {
   // Proof: 2026-09-28, omitting this classifier made `rejects duplicate callback state without spending the link proof` answer invalid_query instead of duplicate_parameter.
+  // Proof: 2026-09-29, dropping the cookie clear failed `clears the link cookie on every callback outcome` at the polluted query.
   if (failure.part === 'query' && failure.duplicate !== undefined)
-    return { ok: false, status: 400, body: { error: 'duplicate_parameter' } };
-  return { ok: false, status: 400, body: { error: failure.code } };
+    return {
+      ok: false,
+      status: 400,
+      body: { error: 'duplicate_parameter' },
+      headers: [clearLink()],
+    };
+  return { ok: false, status: 400, body: { error: failure.code }, headers: [clearLink()] };
 }
 /**
  * Browser OIDC bindings. Composition registers these only when OIDC options exist.
@@ -403,7 +460,7 @@ export function authOidcEndpoints(
       return { ok: true, status: 204, body: EMPTY, headers: clearSession() };
     }),
     bind(startAuth0Link, async ({ body, request }) => {
-      // Proof: 2026-09-28, skipping this marker check made `refuses link start before activation` redirect to Auth0.
+      // Proof: 2026-09-28, skipping this marker check made `refuses link start before activation` answer an Auth0 location.
       if (!(await auth.isLinkActive()))
         return { ok: false, status: 403, body: { error: 'onboarding_inactive' } };
       const session = cookieValue(request.headers.get('cookie') ?? undefined, '__Host-wbs_access');
@@ -414,7 +471,7 @@ export function authOidcEndpoints(
       const throttleIp = clientIpOf(request.headers);
       // This route exists only behind OIDC, so a missing edge IP is refused as
       // login refuses it rather than pooled into one shared throttle bucket.
-      // Proof: 2026-09-28, defaulting to 'local-direct' again made `refuses a link start without an edge client address before throttle admission` receive 302 instead of 400.
+      // Proof: 2026-09-28, defaulting to 'local-direct' again made `refuses a link start without an edge client address before throttle admission` start the link (then a 302, now a 200) instead of 400.
       if (throttleIp === null) return { ok: false, status: 400, body: { error: 'invalid_client' } };
       // Proof: 2026-09-28, bypassing reserve made `admits at most five held fresh-password verifications and releases capacity` observe six verifiers.
       const release = passwordThrottle.reserve(account.username, throttleIp);
@@ -447,19 +504,16 @@ export function authOidcEndpoints(
       });
       return {
         ok: true,
-        status: 302,
-        body: EMPTY,
-        headers: [
-          cookie('__Host-wbs_link', binding, OIDC_BINDING_TTL_SECONDS),
-          ['location', location.href],
-        ],
+        status: 200,
+        body: { location: location.href },
+        headers: [cookie(LINK_COOKIE, binding, OIDC_BINDING_TTL_SECONDS)],
       };
     }),
     bind(
       completeAuth0Link,
       async ({ request }) => {
         const sent = request.url.searchParams;
-        const binding = cookieValue(request.headers.get('cookie') ?? undefined, '__Host-wbs_link');
+        const binding = cookieValue(request.headers.get('cookie') ?? undefined, LINK_COOKIE);
         const session = cookieValue(
           request.headers.get('cookie') ?? undefined,
           '__Host-wbs_access',
@@ -471,17 +525,17 @@ export function authOidcEndpoints(
           sent.has('error') ||
           OTHER_RESPONSE_MODE_PARAMS.some((name) => sent.has(name))
         )
-          return { ok: false, status: 400, body: EMPTY };
-        // Proof: 2026-09-28, classifying an absent binding as malformed made `returns bodyless 401 for absent link cookie and 400 for malformed provider parameters` receive 400.
-        if (binding === null || session === null) return { ok: false, status: 401, body: EMPTY };
+          return linkOutcome('refused');
+        // Since 2026-09-29 an absent binding and malformed provider parameters share the `refused` outcome, so the 2026-09-28 proof that told them apart no longer applies.
+        if (binding === null || session === null) return linkOutcome('refused');
         const proof = links.consume(binding, state, session);
-        // Proof: 2026-09-28, retaining the consumed transaction made `refuses a replayed link callback` answer 302 twice.
-        if (proof === null) return { ok: false, status: 401, body: EMPTY };
+        // Proof: 2026-09-28, retaining the consumed transaction made `refuses a replayed link callback` link twice (then two 302s; now two `linked` outcomes).
+        if (proof === null) return linkOutcome('refused');
         const user = await auth.passwordSessionUser(session);
-        // Proof: 2026-09-28, skipping this recheck made `refuses a link whose originating account lost its password credential` answer 500 instead of 401.
-        if (user?.id !== proof.userId) return { ok: false, status: 401, body: EMPTY };
+        // Proof: 2026-09-28, skipping this recheck made `refuses a link whose originating account lost its password credential` answer 500 instead of the refusal (then 401; now `refused`).
+        if (user?.id !== proof.userId) return linkOutcome('refused');
         // Proof: 2026-09-28, bypassing this per-callback marker read made `refuses a callback after activation is lost before contacting Auth0` contact the provider once.
-        if (!(await auth.isLinkActive())) return { ok: false, status: 403, body: EMPTY };
+        if (!(await auth.isLinkActive())) return linkOutcome('inactive');
         const callbackUrl = new URL(linkRedirectUri);
         callbackUrl.search = request.url.search;
         let tokens;
@@ -492,11 +546,11 @@ export function authOidcEndpoints(
             { nonce: proof.nonce, state, verifier: proof.verifier },
           );
         } catch (error) {
-          if (isOidcCallbackRefused(error)) return { ok: false, status: 400, body: EMPTY };
+          if (isOidcCallbackRefused(error)) return linkOutcome('refused');
           const failure = classifyOidcFailure(error);
-          return { ok: false, status: STATUS_FOR_OIDC_FAILURE[failure.kind], body: EMPTY };
+          return linkOutcome(LINK_OUTCOME_FOR_OIDC_FAILURE[failure.kind]);
         }
-        if (tokens.idTokenClaims === undefined) return { ok: false, status: 401, body: EMPTY };
+        if (tokens.idTokenClaims === undefined) return linkOutcome('refused');
         let identity;
         try {
           identity = oidcIdentityFromClaims(tokens.idTokenClaims, {
@@ -504,21 +558,16 @@ export function authOidcEndpoints(
             groupsClaim: options.groupsClaim,
           });
         } catch {
-          return { ok: false, status: 401, body: EMPTY };
+          return linkOutcome('refused');
         }
         const linked = await auth.linkOidcIdentity(user.id, identity);
-        if (linked.kind === 'inactive') return { ok: false, status: 403, body: EMPTY };
+        if (linked.kind === 'inactive') return linkOutcome('inactive');
         if (linked.kind === 'identity_collision' || linked.kind === 'email_collision')
-          return { ok: false, status: 409, body: EMPTY };
-        if (linked.kind !== 'linked') return { ok: false, status: 401, body: EMPTY };
-        return {
-          ok: true,
-          status: 302,
-          body: EMPTY,
-          headers: [cookie('__Host-wbs_link', '', 0), ['location', '/?auth_link=linked']],
-        };
+          return linkOutcome('collision');
+        if (linked.kind !== 'linked') return linkOutcome('refused');
+        return linkOutcome('linked');
       },
-      { prevalidate: callbackAdmission, classifyRequestFailure: linkCallbackFailure },
+      { prevalidate: linkCallbackAdmission, classifyRequestFailure: linkCallbackFailure },
     ),
   ] as const;
 }
