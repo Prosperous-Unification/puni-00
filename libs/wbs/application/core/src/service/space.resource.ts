@@ -626,10 +626,18 @@ export class SpaceResource {
   private async writableOwner(
     access: ResourceAccess,
   ): Promise<Owner | { ok: false; refusal: 'forbidden' }> {
-    if (access.kind === 'scoped' && !canWriteInOrganization(access.scope.role)) {
-      return { ok: false, refusal: 'forbidden' };
-    }
+    if (!this.mayWrite(access)) return { ok: false, refusal: 'forbidden' };
     return this.ownerOf(access);
+  }
+
+  /**
+   * Whether the caller may create, rename or delete spaces and edit their
+   * membership: every role but viewer, and legacy access as it may write
+   * projects. The routes answer it as `writable` so fe-01 shows no handle a
+   * write would refuse; the writes still check it themselves.
+   */
+  mayWrite(access: ResourceAccess): boolean {
+    return access.kind === 'legacy' || canWriteInOrganization(access.scope.role);
   }
 
   private async readableIds(actorId: string, access: ResourceAccess): Promise<Set<string>> {

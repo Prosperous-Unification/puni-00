@@ -62,14 +62,22 @@ const virtualSpace = {
   schema: responseSchema(type({ error: "'virtual_space'" })),
 } as const;
 
-/** The organization's named spaces by name then id; All projects is never listed. */
+/**
+ * The organization's named spaces by name then id; All projects is never
+ * listed. `writable` says whether the caller may create, rename, delete and
+ * edit membership, so a client offers no control a write would refuse.
+ */
 export const listSpaces = defineEndpointShape({
   method: 'GET',
   path: '/api/spaces',
   operationId: 'getApiSpaces',
   policies: readPolicies,
   responses: [
-    { kind: 'json', status: 200, schema: responseSchema(type({ spaces: space.array() })) },
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(type({ spaces: space.array(), writable: 'boolean' })),
+    },
   ],
   refusals: common,
   document: { summary: 'List the spaces of the active organization.' },
@@ -95,6 +103,8 @@ export const createSpace = defineEndpointShape({
 /**
  * A space and its readable projects in membership order, each as
  * `GET /api/projects` carries it. `all` answers the caller's project list.
+ * `writable` says whether the caller may edit this space's membership; it is
+ * false for `all`, which no write addresses.
  */
 export const readSpace = defineEndpointShape({
   method: 'GET',
@@ -109,6 +119,7 @@ export const readSpace = defineEndpointShape({
       schema: responseSchema(
         type({
           space,
+          writable: 'boolean',
           rows: type({
             project: project.and({ ownerName: 'string', lastOpenedAt: 'number | null' }),
             position: 'number',

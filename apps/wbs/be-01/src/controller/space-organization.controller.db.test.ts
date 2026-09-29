@@ -99,9 +99,18 @@ describe('after activation', () => {
         answer: { status: 403, body: { error: 'forbidden' } },
       });
     }
+    // Proof, observed 2026-09-29: with the read route answering `writable`
+    // without `mayWrite`, the viewer's read failed here (Expected - 1,
+    // Received + 31: `writable: true`).
     expect(await h.call('vic', 'GET', `/api/spaces/${space}`)).toMatchObject({
       status: 200,
-      body: { rows: [{ project: { id: own } }] },
+      body: { rows: [{ project: { id: own } }], writable: false },
+    });
+    expect(await h.call('vic', 'GET', '/api/spaces')).toMatchObject({
+      body: { writable: false },
+    });
+    expect(await h.call('ada', 'GET', `/api/spaces/${space}`)).toMatchObject({
+      body: { writable: true },
     });
   });
 
@@ -118,7 +127,10 @@ describe('after activation', () => {
         answer: { status: 404, body: { error: 'not_found' } },
       });
     }
-    expect((await h.call('ada', 'GET', '/api/spaces')).body).toEqual({ spaces: [] });
+    expect((await h.call('ada', 'GET', '/api/spaces')).body).toEqual({
+      spaces: [],
+      writable: true,
+    });
     expect(await h.call('grace', 'GET', `/api/spaces/${foreignSpace}`)).toMatchObject({
       status: 200,
       body: { space: { name: 'Theirs', revision: 0 } },
@@ -153,6 +165,7 @@ describe('after activation', () => {
       body: {
         space: { id: 'all', virtual: true, projectCount: 1 },
         rows: [{ project: { id: own } }],
+        writable: false,
       },
     });
   });
