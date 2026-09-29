@@ -64,3 +64,44 @@ export const removeMember = defineEndpointShape({
   refusals,
   document: { summary: 'Remove a member from the active organization.' },
 });
+
+/**
+ * Lists the members of the caller's active organization for an administrator.
+ * Only admin and super-admin may read it (the invitation gate); a member or
+ * viewer is refused `forbidden`, and a delegated caller `insufficient_scope`.
+ * Answered only after organization activation.
+ */
+export const listMembers = defineEndpointShape({
+  method: 'GET',
+  path: '/api/organization/members',
+  operationId: 'getApiOrganizationMembers',
+  policies: [{ kind: 'identity', require: 'signed-in' }],
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(
+        type({
+          members: type({
+            userId: 'string',
+            username: 'string',
+            email: 'string | null',
+            role,
+            createdAt: 'number',
+          }).array(),
+        }),
+      ),
+    },
+  ],
+  refusals: [
+    { status: 400, schema: responseSchema(type({ error: "'invalid_query' | 'invalid_body'" })) },
+    { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
+    {
+      status: 403,
+      schema: responseSchema(type({ error: "'insufficient_scope' | 'onboarding_inactive'" })),
+    },
+    organizationRefusal,
+    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  ],
+  document: { summary: 'List members of the active organization.' },
+});
