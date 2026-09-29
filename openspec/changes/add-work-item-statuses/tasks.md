@@ -98,11 +98,12 @@
       reduction handed an empty held set.
 - [x] 5.4 Plan document v6, on stage B's v5 (main `802432df`): `PLAN_DOCUMENT_VERSION` 6; the
       export carries each row's `readiness` and `hold`; import reads versions 1–5 with both
-      null and refuses, from version 6, a value outside each vocabulary, a missing field, a
-      statement on a parent and a hold on a row every step of which says done
-      (`invalid_body` at the field). Negatives: each of the vocabulary, parent and done checks
-      disabled; the import writing both as null. The spreadsheet export already carries the
-      status word.
+      null and refuses, from version 6, a value outside each vocabulary, a missing field and a
+      statement on a parent (`invalid_body` at the field). A hold on done work is accepted
+      (Fable review of #225: `setProgress` keeps a hold, so refusing it refused the plan's own
+      export). Negatives: each of the vocabulary and parent checks disabled; the import writing
+      both as null; the done refusal restored against the held-then-done round trip. The
+      spreadsheet export already carries the status word.
 
 ## 6. fe-01 table (ships in the same integration round as slice 3)
 

@@ -367,26 +367,30 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       return { ok: false, code: 'invalid_body', path: `steps[${String(at)}].code` };
     steps.push({ ...step, allowancePercent: step.allowancePercent, code });
   }
-  const workItems = statusFactsOf(version, checked.value.workItems, checked.value.steps);
+  const workItems = statusFactsOf(version, checked.value.workItems);
   if (!Array.isArray(workItems)) return workItems;
   return { ok: true, value: { ...checked.value, steps, typedDependencies, workItems } };
 }
 
 /**
  * Each row's readiness and hold as the file states them: from version 6 every
- * row names both, each null or a member of its vocabulary, never on a parent
- * and a hold never on a row every step of which says done; before version 6
- * both read as nothing said (`add-work-item-statuses`).
+ * row names both, each null or a member of its vocabulary and never on a
+ * parent; before version 6 both read as nothing said (`add-work-item-statuses`).
+ *
+ * A hold on a row whose work is done is accepted: marking progress never
+ * clears a hold, the status read folds done over it, and the file carries what
+ * the store holds, so refusing it would refuse the plan's own export.
  *
  * Proof: the vocabulary check removed made `refuses a version-6 hold or
  * readiness outside its vocabulary…` accept `hold: 'paused'`; the parent check
- * removed accepted a hold on the parent; the done check removed accepted a
- * hold on done work; watched 2026-09-29.
+ * removed accepted a hold on the parent; watched 2026-09-29. A hold refused on
+ * done work made `re-imports its own export of a leaf held and then marked
+ * done` fail on `Expected: true, Received: false`; watched 2026-09-29 (Fable
+ * review of #225).
  */
 function statusFactsOf(
   version: number,
   rows: PlanDocumentRequest['workItems'],
-  steps: PlanDocumentRequest['steps'],
 ): PlanDocumentImport['workItems'] | Extract<PlanDocumentClassification, { ok: false }> {
   if (version < 6) return rows.map((row) => ({ ...row, readiness: null, hold: null }));
   const parents = new Set(rows.map((row) => row.parentId));
@@ -403,9 +407,6 @@ function statusFactsOf(
     if (parents.has(row.id) && (readiness !== null || hold !== null)) {
       return { ok: false, code: 'invalid_body', path: path(hold === null ? 'readiness' : 'hold') };
     }
-    const done =
-      steps.length > 0 && steps.every((step) => Reflect.get(row.progress, step.id) === 'done');
-    if (done && hold !== null) return { ok: false, code: 'invalid_body', path: path('hold') };
     imported.push({ ...row, readiness, hold });
   }
   return imported;

@@ -637,7 +637,7 @@ test('version 6 carries each row’s readiness and hold, and earlier versions re
 });
 
 /** Proof: see `classifyPlanDocument`. */
-test('refuses a version-6 hold or readiness outside its vocabulary, on a parent, or a hold on done work', async () => {
+test('refuses a version-6 hold or readiness outside its vocabulary or on a parent, and accepts a hold on done work', async () => {
   const exported = structuredClone(await exportDocument());
   const [only] = exported.workItems;
   // A child under the fixture's one row, so the file holds a parent and a leaf.
@@ -673,11 +673,7 @@ test('refuses a version-6 hold or readiness outside its vocabulary, on a parent,
   const doneRow = heldDone.workItems[leafAt];
   doneRow.progress = Object.fromEntries(heldDone.steps.map((step) => [step.id, 'done']));
   Reflect.set(doneRow, 'hold', 'on_hold');
-  expect(await classifyPlanDocument(heldDone)).toEqual({
-    ok: false,
-    code: 'invalid_body',
-    path: `workItems[${String(leafAt)}].hold`,
-  });
+  expect((await classifyPlanDocument(heldDone)).ok).toBe(true);
 
   const missing = structuredClone(exported);
   Reflect.deleteProperty(missing.workItems[leafAt] ?? {}, 'hold');
