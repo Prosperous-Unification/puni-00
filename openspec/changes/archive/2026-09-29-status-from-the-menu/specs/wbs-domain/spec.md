@@ -54,6 +54,25 @@ before the act, and SHALL leave the facts of every other row untouched. The fill
 clears SHALL be part of the same journal entry as the statements, so one undo takes them away
 or puts them back together.
 
+#### Scenario: a typed fact end survives the mark
+
+- **GIVEN** a leaf whose fact end reads `2026-09-10`
+- **WHEN** it is marked `done` with `on: '2026-09-12'`
+- **THEN** its fact end still reads `2026-09-10`
+
+#### Scenario: be-01 supplies the day when the client does not
+
+- **GIVEN** a clock whose act stamps `2026-09-12T23:30:00Z`
+- **WHEN** a leaf with no fact end is marked `done` with no `on`
+- **THEN** its fact end reads `2026-09-12`
+
+#### Scenario: the reader's day wins over the server's
+
+- **GIVEN** a browser whose local day is `2026-09-13` while UTC is still `2026-09-12`, and a
+  leaf with no fact end whose forecast ends on or after `2026-09-13`
+- **WHEN** the Status cell marks it done and the completion prompt is confirmed as offered
+- **THEN** the command carries `on: '2026-09-13'` and the fact end reads `2026-09-13`
+
 #### Scenario: the start is filled where empty and kept where typed
 
 - **GIVEN** two leaves, one with no fact start and one with `2026-09-02`
