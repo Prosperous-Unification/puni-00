@@ -63,9 +63,16 @@
 
 ## 4. In progress now
 
-- [ ] 4.1 Red, 4.2 Green.
-- [ ] 4.3 Negatives: hold check removed → a held leaf with an in-progress step is listed;
-      `limit` removed → 1,001 items answered.
+- [x] 4.1 Red: `inProgressLeavesOf` and `sortInProgress` examples; the resource (order across
+      members, limit and `truncated`, hidden members, unavailable engines); the mounted route
+      (`setStatus in_progress` listed for a viewer, limits `1001`, `0` and `x` refused).
+- [x] 4.2 Green: `@wbs/domain` `in-progress-now.ts`; `SpaceResource.inProgress`, whose leaves
+      are cached beside the roll-up from the same tree read; `GET /api/spaces/:id/in-progress`;
+      MCP pin 64. The optional `step_progress` prefilter is not built: the shared cache already
+      spares a repeated tree read.
+- [x] 4.3 Negatives: status check replaced by a step check → a held and a blocked leaf listed;
+      the cut removed → 1,001 items for a limit of 1,000; the readable filter removed → the
+      hidden member is read (and throws); the limit maximum removed → `limit=1001` answers 200.
 
 ## 5. fe rows
 

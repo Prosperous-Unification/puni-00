@@ -87,7 +87,7 @@ test('reads a space of 30 projects and their roll-ups within the budget', async 
   expect(cold.value.status).toBe(200);
   // One tree per project cold, none warm: the cache is what the warm bound
   // relies on, and a second read per project would double the cold cost.
-  // Proof, observed 2026-09-29: with cache hits ignored in `rollUpOf`, the warm
+  // Proof, observed 2026-09-29: with cache hits ignored in `rolledOf`, the warm
   // read received 20 calls instead of 0.
   expect(treeReads).toHaveBeenCalledTimes(CHUNK);
   treeReads.mockClear();

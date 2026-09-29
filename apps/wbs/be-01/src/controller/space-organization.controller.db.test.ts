@@ -258,6 +258,50 @@ describe('after activation', () => {
     ).toMatchObject({ status: 404, body: { error: 'not_found' } });
   });
 
+  it('lists work in progress across the space and refuses a limit above 1000 with 400', async () => {
+    const space = await createSpace('ada', 'Q3');
+    await h.call('ada', 'POST', `/api/spaces/${space}/projects`, { projectId: own });
+    await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+      commands: [{ kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Root' }],
+    });
+    const rows = (await h.call('ada', 'GET', `/api/projects/${own}/work-items`)).body as {
+      workItems: { id: string }[];
+    };
+    const project = (await h.call('ada', 'GET', `/api/projects/${own}`)).body as {
+      steps: { id: string; name: string }[];
+    };
+    const row = rows.workItems.at(0);
+    const step = project.steps.at(0);
+    if (row === undefined || step === undefined) throw new Error('no row or step');
+    expect(await h.call('ada', 'GET', `/api/spaces/${space}/in-progress`)).toMatchObject({
+      status: 200,
+      body: { items: [], truncated: false, unavailable: [] },
+    });
+    expect(
+      (
+        await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+          commands: [{ kind: 'setStatus', workItemId: row.id, status: 'in_progress' }],
+        })
+      ).status,
+    ).toBe(200);
+    expect(await h.call('vic', 'GET', `/api/spaces/${space}/in-progress?limit=5`)).toMatchObject({
+      status: 200,
+      body: {
+        items: [{ projectId: own, workItemId: row.id, name: 'Root', step: { id: step.id } }],
+        truncated: false,
+      },
+    });
+    for (const limit of ['1001', '0', 'x']) {
+      expect({
+        limit,
+        answer: await h.call('ada', 'GET', `/api/spaces/${space}/in-progress?limit=${limit}`),
+      }).toMatchObject({ answer: { status: 400, body: { error: 'invalid_query' } } });
+    }
+    expect((await h.call('ada', 'GET', `/api/spaces/${space}/in-progress?limit=1000`)).status).toBe(
+      200,
+    );
+  });
+
   it('refuses a taken name with 409 and a blank one with 422', async () => {
     await createSpace('ada', 'Q3');
     expect(await h.call('ada', 'POST', '/api/spaces', { name: 'Q3' })).toMatchObject({

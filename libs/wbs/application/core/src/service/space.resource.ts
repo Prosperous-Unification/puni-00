@@ -1,10 +1,13 @@
 import {
   canWriteInOrganization,
+  type InProgressLeaf,
+  inProgressLeavesOf,
   POSITION_STEP,
   type ProjectRollUp,
   ROLLUP_DTO_VERSION,
   rollUpProject,
   SCHEDULER_CONTRACT_VERSION,
+  sortInProgress,
 } from '@wbs/domain';
 
 import type { ProjectService } from '../module/project/project.resource';
@@ -48,6 +51,13 @@ export interface SpaceSummary {
   createdAt: number | null;
 }
 
+/** One leaf in progress in a space, with its project and that project's place. */
+export interface InProgressItem extends InProgressLeaf {
+  projectId: string;
+  projectName: string;
+  position: number;
+}
+
 /** One readable project in its place. */
 export interface SpaceRow {
   project: ProjectWithAccess;
@@ -77,6 +87,9 @@ export interface UnavailableRollUp {
   kind: 'unavailable';
 }
 
+/** An in-progress read's default and largest `limit` (spec `in-progress-now`). */
+export const IN_PROGRESS_LIMIT = { default: 200, max: 1_000 } as const;
+
 /** The most roll-ups one request may ask for (spec `space-read`). */
 export const ROLL_UPS_PER_REQUEST = 50;
 
@@ -88,8 +101,14 @@ export const ROLL_UPS_PER_REQUEST = 50;
  * the writing process. Another process's write (blue/green overlap) or a
  * missed publication converges within {@link RollUpCache.ttlMs}.
  */
+/** What one tree read yields for a space: its roll-up and its leaves in progress. */
+export interface RolledProject {
+  rollUp: ProjectRollUp;
+  inProgress: InProgressLeaf[];
+}
+
 export class RollUpCache {
-  private readonly held = new Map<string, { rollUp: ProjectRollUp; storedAt: number }>();
+  private readonly held = new Map<string, { rolled: RolledProject; storedAt: number }>();
 
   constructor(
     private readonly clock: Pick<Clock, 'now'>,
@@ -107,7 +126,7 @@ export class RollUpCache {
     return `${projectId}:${String(seq)}:${String(revision)}:${String(SCHEDULER_CONTRACT_VERSION)}:${String(ROLLUP_DTO_VERSION)}`;
   }
 
-  get(key: string): ProjectRollUp | undefined {
+  get(key: string): RolledProject | undefined {
     const entry = this.held.get(key);
     if (entry === undefined) return undefined;
     // Proof, observed 2026-09-29: with this expiry skipped, `expires a roll-up
@@ -119,12 +138,12 @@ export class RollUpCache {
     }
     this.held.delete(key);
     this.held.set(key, entry);
-    return entry.rollUp;
+    return entry.rolled;
   }
 
-  set(key: string, rollUp: ProjectRollUp): void {
+  set(key: string, rolled: RolledProject): void {
     this.held.delete(key);
-    this.held.set(key, { rollUp, storedAt: this.clock.now() });
+    this.held.set(key, { rolled, storedAt: this.clock.now() });
     for (const oldest of this.held.keys()) {
       if (this.held.size <= this.capacity) break;
       this.held.delete(oldest);
@@ -284,9 +303,9 @@ export class SpaceResource {
       const revision = revisions.get(projectId);
       // Checked readable above; absent here would be the list changing mid-call.
       if (revision === undefined) return { ok: false, refusal: 'not_found' };
-      const rolled = await this.rollUpOf(projectId, revision, access);
+      const rolled = await this.rolledOf(projectId, revision, access);
       if (rolled === null) return { ok: false, refusal: 'not_found' };
-      rollUps[projectId] = rolled;
+      rollUps[projectId] = 'kind' in rolled ? rolled : rolled.rollUp;
     }
     return { ok: true, value: rollUps };
   }
@@ -300,11 +319,11 @@ export class SpaceResource {
    * across organizations written after the entry was cached) and for at most
    * the 60 s TTL; the next miss reads the tree and fails closed.
    */
-  private async rollUpOf(
+  private async rolledOf(
     projectId: string,
     revision: number,
     access: ResourceAccess,
-  ): Promise<ProjectRollUp | UnavailableRollUp | null> {
+  ): Promise<RolledProject | UnavailableRollUp | null> {
     const seq = await this.opts.sequences.latestSeq(projectId);
     // Proof, observed 2026-09-29: with the sequence left out of this key,
     // `answers a command's new total on the next read, and serves an unchanged
@@ -336,10 +355,87 @@ export class SpaceResource {
       projectRevision: tree.projectRevision,
       seq: tree.seq,
     });
+    const rolled: RolledProject = {
+      rollUp,
+      inProgress: inProgressLeavesOf({
+        workItems: tree.workItems,
+        slices: tree.slices,
+        steps: tree.steps,
+        assignedPeople: tree.assignedPeople,
+      }),
+    };
     // Keyed by the sequence and revision the tree itself read, which are the
     // ones its rows are current at.
-    this.opts.rollUpCache.set(RollUpCache.keyOf(projectId, tree.seq, tree.projectRevision), rollUp);
-    return rollUp;
+    this.opts.rollUpCache.set(RollUpCache.keyOf(projectId, tree.seq, tree.projectRevision), rolled);
+    return rolled;
+  }
+
+  /**
+   * The leaves in progress across the readable members of a space (`all`:
+   * every project the caller can open), ordered by end date with undated last,
+   * then space position, then number, and cut to `limit`
+   * (spec `in-progress-now`). A project whose engine is unavailable
+   * contributes nothing; `unavailable` names those projects.
+   */
+  async inProgress(
+    actorId: string,
+    access: ResourceAccess,
+    spaceId: string,
+    limit: number,
+  ): Promise<
+    SpaceAnswer<
+      { items: InProgressItem[]; truncated: boolean; unavailable: string[] },
+      'organization_required' | 'not_found'
+    >
+  > {
+    const projects = await this.opts.projects.listWithin(actorId, access);
+    const readable = new Map(projects.map((project) => [project.id, project]));
+    let placed: { projectId: string; position: number }[];
+    if (spaceId === ALL_PROJECTS) {
+      placed = projects.map(({ id }, index) => ({
+        projectId: id,
+        position: (index + 1) * POSITION_STEP,
+      }));
+    } else {
+      const owner = await this.ownerOf(access);
+      if (!owner.ok) return owner;
+      const members = await this.opts.spaces.membersOf(owner.organizationId, spaceId);
+      if (members === null) return { ok: false, refusal: 'not_found' };
+      // The leak rule: a member the caller cannot open contributes nothing.
+      // Proof, observed 2026-09-29: with this filter removed, `takes nothing
+      // from a member the caller cannot open, and names unavailable engines`
+      // in `space.resource.test.ts` threw on the hidden member instead.
+      placed = members.filter(({ projectId }) => readable.has(projectId));
+    }
+    const items: InProgressItem[] = [];
+    const unavailable: string[] = [];
+    for (const { projectId, position } of placed) {
+      const project = readable.get(projectId);
+      // `placed` holds only readable projects, so this is a broken invariant.
+      if (project === undefined) throw new Error(`placed project ${projectId} is not readable`);
+      const rolled = await this.rolledOf(projectId, project.revision, access);
+      // Deleted since the list was read: nothing of it is in progress.
+      if (rolled === null) continue;
+      if ('kind' in rolled) {
+        unavailable.push(projectId);
+        continue;
+      }
+      for (const leaf of rolled.inProgress) {
+        items.push({ ...leaf, projectId, projectName: project.name, position });
+      }
+    }
+    const ordered = sortInProgress(items, ({ dates }) => dates?.endsOn ?? null);
+    // Proof, observed 2026-09-29: with this cut removed, `cuts the list at
+    // the limit and says it was cut` in `space.resource.test.ts` received
+    // 1,001 items instead of 1,000.
+    return {
+      ok: true,
+      value: {
+        items: ordered.slice(0, limit),
+        truncated: ordered.length > limit,
+        unavailable,
+      },
+    };
   }
 
   async rename(
