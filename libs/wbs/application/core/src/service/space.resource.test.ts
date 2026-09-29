@@ -5,7 +5,7 @@ import { describe, expect, it } from 'bun:test';
 import { LEGACY_ACCESS, type ResourceAccess } from '../ports/organization-access';
 import type { ProjectWithAccess } from '../ports/project-store';
 import { testClock } from '../testing/clock-fixture';
-import { ALL_PROJECTS, SpaceService } from './space.service';
+import { ALL_PROJECTS, SpaceResource } from './space.resource';
 
 const scoped = (role: 'member' | 'viewer', organizationId = 'org-a'): ResourceAccess => ({
   kind: 'scoped',
@@ -32,7 +32,7 @@ function open(visible: readonly string[], legacy: string | null = null) {
     ['b1', 'org-b'],
   ]);
   const spaces = inMemorySpaces(owners, legacy);
-  const service = new SpaceService({
+  const service = new SpaceResource({
     spaces,
     clock: testClock,
     projects: {
@@ -45,7 +45,7 @@ function open(visible: readonly string[], legacy: string | null = null) {
 }
 
 async function spaceWith(
-  service: SpaceService,
+  service: SpaceResource,
   access: ResourceAccess,
   projectIds: readonly string[],
 ): Promise<string> {
@@ -60,11 +60,11 @@ async function spaceWith(
   return created.value.id;
 }
 
-describe('SpaceService', () => {
+describe('SpaceResource', () => {
   it('omits a project the caller cannot open from the rows and the count', async () => {
     const everyone = open(['a1', 'a2', 'a3']);
     const id = await spaceWith(everyone.service, MEMBER, ['a1', 'a2', 'a3']);
-    const hiding = new SpaceService({
+    const hiding = new SpaceResource({
       spaces: everyone.spaces,
       clock: testClock,
       projects: {

@@ -45,7 +45,7 @@ export interface SpaceRow {
   position: number;
 }
 
-export interface SpaceServiceOptions {
+export interface SpaceResourceOptions {
   spaces: SpaceStore;
   /**
    * The project routes' own predicate: `listWithin` is what `GET
@@ -65,15 +65,15 @@ type Owner = { ok: true; organizationId: string } | { ok: false; refusal: 'organ
  *
  * **The leak rule.** A project the caller cannot open is omitted from every
  * answer: no row, no count, no placeholder. Membership is filtered through
- * {@link SpaceServiceOptions.projects}, never read raw into a reply.
+ * {@link SpaceResourceOptions.projects}, never read raw into a reply.
  *
  * The owner is the scope's organization, or under legacy access the one marked
  * legacy; with none, every named-space request answers
  * `organization_required` while `all` still reads. Writes to `all` answer
  * `virtual_space` under any access. Viewers read and never write.
  */
-export class SpaceService {
-  constructor(private readonly opts: SpaceServiceOptions) {}
+export class SpaceResource {
+  constructor(private readonly opts: SpaceResourceOptions) {}
 
   async list(
     actorId: string,
@@ -159,7 +159,7 @@ export class SpaceService {
       const project = readable.get(projectId);
       // Proof, observed 2026-09-29: with this filter removed (a row for every
       // member), `omits a project the caller cannot open from the rows and the
-      // count` in `space.service.test.ts` received a third row.
+      // count` in `space.resource.test.ts` received a third row.
       if (project !== undefined) rows.push({ project, position });
     }
     return { ok: true, value: { space: summaryOf(space, rows.length), rows } };
@@ -236,7 +236,7 @@ export class SpaceService {
     if (!owner.ok) return owner;
     // Proof, observed 2026-09-29: with this read bypassed, `answers a project
     // the caller cannot open as not_found, adding nothing` in
-    // `space.service.test.ts` received the store's position instead. Over
+    // `space.resource.test.ts` received the store's position instead. Over
     // SQLite today the store's ownership read refuses a foreign project too;
     // this is the gate a future read restriction on projects relies on.
     if ((await this.opts.projects.readWithin(projectId, access)) === null) {
@@ -318,7 +318,7 @@ export class SpaceService {
    * `refuses a viewer every space write and lets the viewer read` in
    * `space-organization.controller.db.test.ts` received 201 instead of 403 for
    * the viewer's create, and `refuses a viewer every write` in
-   * `space.service.test.ts` received the writes' answers instead of `forbidden`.
+   * `space.resource.test.ts` received the writes' answers instead of `forbidden`.
    */
   private async writableOwner(
     access: ResourceAccess,

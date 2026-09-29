@@ -58,12 +58,12 @@ Each fault was injected into the production file, the named test run, and the fi
 ## Slice 2 — routes and the leak rule
 
 Written on `batch-9/010-4-15-spaces-routes`, stacked on the storage branch. Eight endpoint shapes
-(`space-shapes.ts`), `SpaceService`, `spaceRoutes`, `SpaceStore.legacyOrganizationId`, boot and
+(`space-shapes.ts`), `SpaceResource`, `spaceRoutes`, `SpaceStore.legacyOrganizationId`, boot and
 harness wiring, and four new refusal words (`organization_required`, `name_taken`,
 `already_in_space`, `virtual_space`). Every app composition outside the harness takes the inert
 `refusingSpaces`; the production-route reachability test takes an empty memory store.
 
-`space.service.test.ts` 8 pass; `space-organization.controller.db.test.ts` 8 pass;
+`space.resource.test.ts` 8 pass; `space-organization.controller.db.test.ts` 8 pass;
 `app.routes.test.ts` 6 pass; mcp-01 `generated-document.test.ts` 6 pass with 62 pinned tools.
 
 | Check                     | Fault injected                                       | Test that observed it                                                      | Observed                                       |

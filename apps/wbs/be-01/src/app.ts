@@ -25,7 +25,7 @@ import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
 import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
-import { SpaceService } from '@wbs/core/service/space.service';
+import { SpaceResource } from '@wbs/core/service/space.resource';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
 
@@ -353,7 +353,7 @@ export function mountedEndpoints(
     ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),
     ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
     ...spaceRoutes(
-      new SpaceService({ spaces: opts.spaces, projects: opts.projects, clock: spaceClock }),
+      new SpaceResource({ spaces: opts.spaces, projects: opts.projects, clock: spaceClock }),
       opts.organizations,
     ),
     ...savedPlanRoutes(

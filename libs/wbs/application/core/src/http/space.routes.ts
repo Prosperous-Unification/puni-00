@@ -10,7 +10,7 @@ import {
 } from '@wbs/contracts';
 
 import type { OrganizationAccess } from '../ports/organization-access';
-import type { SpaceRefusal, SpaceService } from '../service/space.service';
+import type { SpaceRefusal, SpaceResource } from '../service/space.resource';
 import { bind, EMPTY } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 
@@ -33,7 +33,7 @@ const refused = <R extends SpaceRefusal>(refusal: R): (typeof REFUSED)[R] => REF
  * access before anything else; the service owns the owner, role, virtual-space
  * and leak rules. Membership edits are not plan commands: no journal, no undo.
  */
-export function spaceRoutes(spaces: SpaceService, organizations: OrganizationAccess) {
+export function spaceRoutes(spaces: SpaceResource, organizations: OrganizationAccess) {
   return [
     bind(listSpaces, async ({ principal }) => {
       const resolved = await organizations.resolve(principal);
