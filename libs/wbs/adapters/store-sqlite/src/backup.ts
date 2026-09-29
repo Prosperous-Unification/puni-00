@@ -1,5 +1,15 @@
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import {
+  closeSync,
+  copyFileSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+} from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
 import { sql } from 'drizzle-orm';
@@ -24,6 +34,27 @@ export interface DatabaseRestore {
 
 function sha256Of(path: string): string {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
+}
+
+/** Forces a file's or directory's contents to stable storage; a failure throws. */
+function syncPath(path: string): void {
+  const fd = openSync(path, 'r');
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/**
+ * Renames `partialPath` onto `finalPath` durably: the file's bytes are synced
+ * before the rename can publish them, and the directory after it, so a power
+ * loss cannot leave `finalPath` naming a file whose pages never reached disk.
+ */
+function publishDurably(partialPath: string, finalPath: string): void {
+  syncPath(partialPath);
+  renameSync(partialPath, finalPath);
+  syncPath(dirname(finalPath));
 }
 
 /**
@@ -91,7 +122,7 @@ export function snapshotDatabase(sourcePath: string, snapshotPath: string): Data
   // a copy without a migration ledger` in backup.db.test.ts publish the copy
   // (4 pass, 2 fail, 2026-09-29).
   const verified = verifySnapshot(partialPath);
-  renameSync(partialPath, snapshotPath);
+  publishDurably(partialPath, snapshotPath);
   return { ...verified, path: snapshotPath };
 }
 
@@ -133,6 +164,6 @@ export function restoreDatabase(
     renameSync(path, aside);
     displaced.push(aside);
   }
-  renameSync(partialPath, dbPath);
+  publishDurably(partialPath, dbPath);
   return { snapshot, displaced };
 }

@@ -353,6 +353,70 @@ function envValuesOf(envText: string): Map<string, string> {
   return values;
 }
 
+const LOG_LEVELS: ReadonlySet<string> = new Set([
+  'trace',
+  'debug',
+  'info',
+  'warn',
+  'error',
+  'fatal',
+]);
+
+const atLeast32 = (value: string): string | null =>
+  value.length >= 32 ? null : 'must be at least 32 characters';
+const positiveInteger = (value: string): string | null =>
+  /^\d+$/.test(value) && Number(value) > 0 ? null : 'must be a positive integer';
+
+/**
+ * The value shapes the be-01 and gw-01 loaders enforce, as a reason or null.
+ * Written out here rather than imported: the swap bundle runs on the host and
+ * a tool may not import an app (`apps/wbs/<app>/src/config.ts` has no library
+ * alias). `assertTierEnvComplete against the release configuration` in
+ * docker.test.ts holds each rule to the real loaders: a value refused here is
+ * refused there, and a set admitted here boots there.
+ */
+const VALUE_RULES: Readonly<Partial<Record<string, (value: string) => string | null>>> = {
+  PORT: (value) => (/^\d+$/.test(value) ? null : 'must be an integer'),
+  LOG_LEVEL: (value) =>
+    LOG_LEVELS.has(value) ? null : `must be one of ${[...LOG_LEVELS].join('|')}`,
+  INTERNAL_AUTH_SECRET: atLeast32,
+  JWT_SIGNING_KEY_CURRENT: atLeast32,
+  JWT_SIGNING_KEY_PREVIOUS: atLeast32,
+  SOLVER_BUDGET_MS: positiveInteger,
+  SOLVER_SEARCH_WORKERS: positiveInteger,
+  SOLVER_MEMORY_LIMIT_MB: positiveInteger,
+  AUTH_REDIRECT_URI: (value) => {
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      return 'must be an absolute URL';
+    }
+    const ok =
+      (url.protocol === 'https:' || url.protocol === 'http:') &&
+      url.username === '' &&
+      url.password === '' &&
+      url.pathname === '/api/auth/okta/callback' &&
+      url.search === '' &&
+      url.hash === '';
+    return ok ? null : 'must be an HTTP URL ending in /api/auth/okta/callback';
+  },
+};
+
+/**
+ * Why Compose would not hand a value to the container byte for byte, or null.
+ * Compose strips surrounding quotes and an unquoted ` #` comment, and neither
+ * the swap nor its preflight parses either, so `KEY=""` would look nonempty
+ * here and arrive empty. Such values are refused rather than reinterpreted.
+ */
+function composeRewriteOf(value: string): string | null {
+  if (value.startsWith('"') || value.startsWith("'")) {
+    return 'is quoted; write it bare, because Compose strips the quotes';
+  }
+  if (/\s#/.test(value)) return 'contains " #", which Compose strips as a comment';
+  return null;
+}
+
 /**
  * Throws, naming every missing key and the file that must carry it (never a
  * value), when a tier's env files lack a key its release requires or name an
@@ -362,6 +426,9 @@ function envValuesOf(envText: string): Map<string, string> {
  *
  * An empty value counts as missing: `defineConfig`, `authModeOf` and
  * `oidcRouteOptionsFromEnv` each reject `KEY=` as they reject an absent key.
+ * A present value must also have the shape its loader demands
+ * ({@link VALUE_RULES}) and reach the container unchanged by Compose
+ * ({@link composeRewriteOf}); each such refusal names key, file and rule.
  * `AUTH_MODE=local` is refused because the be-01 and gw-01 images set
  * `NODE_ENV=production`, no env file may override it (`APP_ENV_ALLOWED_KEYS`),
  * and `authModeOf` refuses local mode in production.
@@ -377,11 +444,20 @@ export function assertTierEnvComplete(
   const appPath = `${layout.root}/${APP_NAME[tier]}.env`;
   const app = envValuesOf(sources.appEnvText);
   const missing: string[] = [];
+  const malformed: string[] = [];
   const collectMissing = (keys: readonly string[], text: string, path: string): void => {
     const values = envValuesOf(text);
     for (const key of keys) {
       const value = values.get(key);
       if (value === undefined || value === '') missing.push(`${key} (${path})`);
+    }
+    for (const [key, value] of values) {
+      if (value === '') continue;
+      // Proof: skipping this line's rules made five cases fail (169 pass,
+      // 5 fail, 2026-09-29): the 20-character signing key, the quoted `""`,
+      // PORT=32o0, LOG_LEVEL=verbose and both release-coherence shape cases.
+      const reason = composeRewriteOf(value) ?? VALUE_RULES[key]?.(value) ?? null;
+      if (reason !== null) malformed.push(`${key} (${path}) ${reason}`);
     }
   };
   collectMissing(APP_ENV_REQUIRED_KEYS[tier], sources.appEnvText, appPath);
@@ -415,10 +491,14 @@ export function assertTierEnvComplete(
   } else if (mode !== undefined && mode !== '') {
     throw new Error(`${appPath} sets AUTH_MODE=${mode}; the release accepts only oidc`);
   }
-  if (missing.length > 0) {
+  if (missing.length > 0 || malformed.length > 0) {
+    const parts = [
+      missing.length > 0 ? `missing key(s) its release requires: ${missing.join(', ')}` : '',
+      malformed.length > 0 ? `malformed value(s): ${malformed.join('; ')}` : '',
+    ].filter((part) => part !== '');
     throw new Error(
-      `tier "${tier}" is missing key(s) its release requires: ${missing.join(', ')}. ` +
-        'Add them before deploying; the release would otherwise fail its health gate after migrating.',
+      `tier "${tier}" has ${parts.join('; and ')}. Fix them before deploying; the release ` +
+        'would otherwise fail its health gate after migrating.',
     );
   }
 }

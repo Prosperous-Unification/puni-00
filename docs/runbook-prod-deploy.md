@@ -94,8 +94,12 @@ Prod has run the pre-product release `0afc7775` since 2026-08-03. Its database s
 over it. They cover what the swap cannot check for itself.
 
 **Environment files.** `startGreen` refuses a swap whose env files lack a key the release
-requires, naming each key and its file. Nothing is written or started before the check
-(`assertTierEnvComplete` in `tools/tool-remote-scripts/src/lib/docker.ts`). Each file must hold:
+requires or hold a value its loader would reject: a non-integer `PORT`, an unknown `LOG_LEVEL`, a
+secret shorter than 32 characters, or a callback off `/api/auth/okta/callback`. It names each key,
+file and rule, never a value. Write values bare. A quoted value or one containing ` #` is refused,
+because Compose would strip the quotes or the comment. Nothing is written or started before the
+check (`assertTierEnvComplete` in `tools/tool-remote-scripts/src/lib/docker.ts`). Each file must
+hold:
 
 | File                                  | Keys                                                                                                      |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
@@ -115,8 +119,10 @@ the release defaults. Choosing the tenant and client is an operator decision.
 
 **The no-prod-release gate.** `bin/assert-no-prod-release.sh /home/puni1/wbs/state` refuses once
 any tier is recorded. That is correct in general, and it is why the rename migration is safe to
-ship only over a skeleton database. Dump the live ledger from a read-only open, one name per line
-(`SELECT name FROM __drizzle_migrations ORDER BY created_at`), then run:
+ship only over a skeleton database. Immediately before running the gate, dump the live ledger
+from a read-only open, one name per line
+(`SELECT name FROM __drizzle_migrations ORDER BY created_at`). An older dump says nothing about a
+deploy that has happened since. Then run:
 
 ```sh
 bin/assert-no-prod-release.sh /home/puni1/wbs/state --override-with-ledger=<ledger-dump>
@@ -143,10 +149,18 @@ the old containers and `caddy reload`. Copy the backup off the host before deplo
 
 **Smoke.** After the swap, smoke also checks the read paths. `/api/auth/me` without a credential
 must answer `{"user":null}`, and `/api/projects` without one must be 401. For signed-in reads,
-put `SMOKE_READ_USER_ID` and `SMOKE_READ_USERNAME` for an existing account in
-`/home/puni1/wbs/smoke-read.env` (mode 600). Smoke then mints a one-minute session with the
-deployed signing key and reads `/api/auth/me` and `/api/projects`. Without the file, those two
-checks print `SKIPPED`. Writes stay a manual smoke.
+put `SMOKE_READ_USER_ID` and `SMOKE_READ_USERNAME` in `/home/puni1/wbs/smoke-read.env`
+(mode 600). They must name a dedicated, low-value account that owns nothing anyone needs. Smoke
+then mints a one-minute session with the deployed signing key and reads `/api/auth/me` and
+`/api/projects`. Without the file, those two checks print `SKIPPED`. Failures print the status
+and response keys, never the account or project values. Writes stay a manual smoke.
+
+The minted session is a password session. It passes only while `AUTH_PASSWORD_LOGIN` is not
+`false`: in OIDC mode, a token the OIDC verifier rejects falls through to the password check only
+while password sessions are on (`AuthService.authenticate`). With password login off, the
+signed-in checks fail with 401. Every signed-in request asks the OIDC verifier first, so an
+outage of the provider's discovery or JWKS endpoint shows as 500 on the signed-in checks. That is
+not an application fault.
 
 ## Typed dependency rollback
 

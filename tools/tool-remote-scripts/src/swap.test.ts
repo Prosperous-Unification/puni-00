@@ -430,7 +430,7 @@ describe('startGreen required-key preflight', () => {
     gw: 'PORT=3200\nLOG_LEVEL=info\nBE_URL=http://be-01.internal:3100\nAUTH_MODE=oidc\n',
   } as const;
   const SHARED_ENV =
-    'INTERNAL_AUTH_SECRET=shared-internal-secret-value\nJWT_SIGNING_KEY_CURRENT=signing-key-value\n';
+    'INTERNAL_AUTH_SECRET=shared-internal-secret-value-of-32-chars\nJWT_SIGNING_KEY_CURRENT=signing-key-value-at-least-32-characters\n';
 
   async function runStartGreen(
     tier: 'be' | 'gw',
@@ -503,11 +503,11 @@ describe('startGreen required-key preflight', () => {
   it('refuses a shared env without the signing key, naming every missing key and no value', async () => {
     const { events, message } = await runStartGreen('gw', {
       app: APP_ENV.gw.replace('LOG_LEVEL=info\n', ''),
-      shared: 'INTERNAL_AUTH_SECRET=shared-internal-secret-value\n',
+      shared: 'INTERNAL_AUTH_SECRET=shared-internal-secret-value-of-32-chars\n',
     });
     expect(message).toContain('LOG_LEVEL (/home/puni1/wbs/gw-01.env)');
     expect(message).toContain('JWT_SIGNING_KEY_CURRENT (/home/puni1/wbs/.env)');
-    expect(message).not.toContain('shared-internal-secret-value');
+    expect(message).not.toContain('shared-internal-secret-value-of-32-chars');
     expect(events).toEqual(READS_ONLY);
   });
 
@@ -517,6 +517,39 @@ describe('startGreen required-key preflight', () => {
     });
     expect(message).toContain(`AUTH_AUDIENCE (${OIDC_ENV_PATH})`);
     expect(message).not.toContain('client-secret-value');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses a 20-character signing key without printing it', async () => {
+    const { events, message } = await runStartGreen('be', {
+      shared: SHARED_ENV.replace(
+        'signing-key-value-at-least-32-characters',
+        'august-key-20-chars!',
+      ),
+    });
+    expect(message).toContain(
+      'JWT_SIGNING_KEY_CURRENT (/home/puni1/wbs/.env) must be at least 32 characters',
+    );
+    expect(message).not.toContain('august-key-20-chars!');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses a quoted empty secret that Compose would deliver empty', async () => {
+    const { events, message } = await runStartGreen('gw', {
+      shared: SHARED_ENV.replace('signing-key-value-at-least-32-characters', '""'),
+    });
+    expect(message).toContain('JWT_SIGNING_KEY_CURRENT (/home/puni1/wbs/.env) is quoted');
+    expect(events).toEqual(READS_ONLY);
+  });
+
+  it('refuses a non-integer PORT and an unknown LOG_LEVEL', async () => {
+    const { events, message } = await runStartGreen('gw', {
+      app: APP_ENV.gw
+        .replace('PORT=3200', 'PORT=32o0')
+        .replace('LOG_LEVEL=info', 'LOG_LEVEL=verbose'),
+    });
+    expect(message).toContain('PORT (/home/puni1/wbs/gw-01.env) must be an integer');
+    expect(message).toContain('LOG_LEVEL (/home/puni1/wbs/gw-01.env) must be one of');
     expect(events).toEqual(READS_ONLY);
   });
 
@@ -800,7 +833,7 @@ it('startGreen admits merged backend config and writes the supervisor directory 
             ? 'PORT=3100\nLOG_LEVEL=error\nGW_URL=http://gw\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAPP_ORIGIN=https://operator.example\nSOLVER_BUDGET_MS=120000\nSOLVER_SEARCH_WORKERS=2\nSOLVER_MEMORY_LIMIT_MB=512\n'
             : path === '/fixture/oidc.env'
               ? COMPLETE_OIDC_ENV
-              : 'INTERNAL_AUTH_SECRET=s\nJWT_SIGNING_KEY_CURRENT=k\n',
+              : `INTERNAL_AUTH_SECRET=${'s'.repeat(32)}\nJWT_SIGNING_KEY_CURRENT=${'k'.repeat(32)}\n`,
         ),
       writePhaseFile: () => Promise.resolve(),
       writeAtomicFile: (path, content) => {

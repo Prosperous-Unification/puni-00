@@ -71,6 +71,35 @@ describe('snapshotDatabase and restoreDatabase', () => {
     expect(existsSync(`${dbPath}.displaced-20260929T000000Z`)).toBe(true);
   });
 
+  // Proof: leaving `-wal` out of restoreDatabase's displaced set made this
+  // case fail (6 pass, 1 fail, 2026-09-29): the stale WAL stayed beside the
+  // restored database instead of being moved aside.
+  it('moves a live WAL and shared-memory file aside so SQLite cannot replay them', () => {
+    const dir = scratch();
+    const dbPath = skeletonDatabase(dir);
+    const snapshotPath = join(dir, 'snapshot.db');
+    snapshotDatabase(dbPath, snapshotPath);
+
+    // A writer that died without checkpointing: its WAL holds the 'after' row.
+    const writer = openConnection(dbPath);
+    writer.db.run(sql.raw("INSERT INTO backup_marker (v) VALUES ('after')"));
+    const walCopy = readFileSync(`${dbPath}-wal`);
+    const shmCopy = readFileSync(`${dbPath}-shm`);
+    writer.close();
+    writeFileSync(`${dbPath}-wal`, walCopy);
+    writeFileSync(`${dbPath}-shm`, shmCopy);
+    expect(walCopy.byteLength).toBeGreaterThan(0);
+
+    const restore = restoreDatabase(snapshotPath, dbPath, 'wal');
+
+    expect(restore.displaced).toEqual([
+      `${dbPath}.displaced-wal`,
+      `${dbPath}-wal.displaced-wal`,
+      `${dbPath}-shm.displaced-wal`,
+    ]);
+    expect(markers(dbPath)).toEqual(['before']);
+  });
+
   it('refuses to overwrite an existing snapshot', () => {
     const dir = scratch();
     const dbPath = skeletonDatabase(dir);

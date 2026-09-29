@@ -100,8 +100,19 @@ async function fetchJson(
   }
 }
 
+/**
+ * A failure's status and response shape, never its values: a `/api/auth/me`
+ * body names the account and a project list names projects, and smoke output
+ * lands in deploy logs. Only an `error` code string is kept, since be-01's
+ * refusals carry nothing else.
+ */
 function responseSummary(status: number, body: unknown): string {
-  return `HTTP ${String(status)} ${JSON.stringify(body).slice(0, 200)}`;
+  if (body === null || typeof body !== 'object') {
+    return `HTTP ${String(status)} (${typeof body} body)`;
+  }
+  const error: unknown = Reflect.get(body, 'error');
+  const code = typeof error === 'string' ? ` error=${error.slice(0, 40)}` : '';
+  return `HTTP ${String(status)} keys=${Object.keys(body).join(',')}${code}`;
 }
 
 /**

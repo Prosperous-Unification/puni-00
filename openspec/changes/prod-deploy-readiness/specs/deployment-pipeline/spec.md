@@ -2,13 +2,19 @@
 
 ### Requirement: The swap refuses an incomplete environment before any side effect
 
-The swap SHALL refuse to start the incoming colour when its tier's env files lack a key the release requires or hold an empty value for one. It SHALL also refuse an auth mode the image cannot boot. Each refusal SHALL name every missing key and the file that must carry it, never a value, and SHALL occur before the phase marker, Compose file or container changes. The prod layout SHALL carry an operator-authored OIDC file to be and gw, limited to the provider allowlist.
+The swap SHALL refuse to start the incoming colour when its tier's env files lack a key the release requires, hold an empty value for one, hold a value the release's loader rejects, or hold a value Compose would rewrite. It SHALL also refuse an auth mode the image cannot boot. Each refusal SHALL name every missing key and the file that must carry it, never a value, and SHALL occur before the phase marker, Compose file or container changes. The prod layout SHALL carry an operator-authored OIDC file to be and gw, limited to the provider allowlist.
 
 #### Scenario: A missing key is named before anything starts
 
 - **GIVEN** a be env file without `GW_URL`
 - **WHEN** the swap starts the incoming colour
 - **THEN** it refuses, naming `GW_URL` and the be env file, and writes no phase and runs no Compose
+
+#### Scenario: A value the loader rejects is refused before anything starts
+
+- **GIVEN** a shared env file whose `JWT_SIGNING_KEY_CURRENT` has 20 characters, or is written `""`
+- **WHEN** the swap starts the incoming colour
+- **THEN** it refuses, naming the key, its file and the rule but not the value
 
 #### Scenario: Local auth mode is refused for the production image
 

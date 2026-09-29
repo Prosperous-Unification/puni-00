@@ -59,6 +59,19 @@ describe('runReadChecks', () => {
     expect(checks[2]).toMatchObject({ name: 'signed-in /api/auth/me', kind: 'fail' });
   });
 
+  // Proof: restoring the JSON body in responseSummary made this case fail
+  // on the printed username (9 pass, 1 fail, 2026-09-29).
+  it('never prints the account a failing response names', async () => {
+    const checks = await runReadChecks(
+      'http://be',
+      ACCOUNT,
+      fakeBe({ meUser: { id: 'someone-else', username: 'private-username' } }),
+    );
+    const failure = checks[2];
+    expect(failure).toMatchObject({ kind: 'fail', detail: 'HTTP 200 keys=user' });
+    expect(JSON.stringify(checks)).not.toContain('private-username');
+  });
+
   it('reports the signed-in reads as skipped, never ok, when no account is configured', async () => {
     const checks = await runReadChecks(
       'http://be',

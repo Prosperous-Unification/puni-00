@@ -35,6 +35,22 @@ restored. The restored file was compared with `cmp` or rerun green.
 | smoke signed-in account match       | id comparison replaced by a type check               | 8 pass, 1 fail                                                     |
 | optional read-account env file      | always passed to `docker run`                        | `deploy.test.ts` 68 pass, 1 fail on the absent file                |
 
+## Review round 1 (Fable I1, M2–M5, M7)
+
+| Check                            | Injected fault                                    | Observed                                                                       |
+| -------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------ |
+| value shapes and Compose quoting | the `composeRewriteOf`/`VALUE_RULES` line skipped | 169 pass, 5 fail: 20-char key, `""`, `PORT=32o0`, `LOG_LEVEL=verbose` admitted |
+| live WAL moved aside on restore  | `-wal` left out of the displaced set              | `backup.db.test.ts` 6 pass, 1 fail                                             |
+| smoke failure output redacted    | JSON body restored in `responseSummary`           | `auth-read.test.ts` 9 pass, 1 fail on the printed username                     |
+
+The fsync of the partial file and its directory (M4) is not observable in a unit test. It is
+exercised on every snapshot and restore path, but no test proves that it reaches the disk.
+
+The shape rules are written in `docker.ts` rather than imported: a tool cannot import an app's
+`config.ts`, which has no library alias, and `swap.js` runs on the host. The coherence cases hold
+each rule to the real loaders. Every value they refuse is also refused by `loadConfig` or
+`oidcRouteOptionsFromEnv` under `NODE_ENV=production`.
+
 The release-coherence cases in `docker.test.ts` boot be-01 (`loadConfig` and
 `oidcRouteOptionsFromEnv`) and gw-01 (`loadConfig`) under `NODE_ENV=production`. The preflight
 admits a set only when both boot. Removing any key it demands makes both the preflight and the

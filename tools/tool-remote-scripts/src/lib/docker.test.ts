@@ -867,6 +867,29 @@ describe('assertTierEnvComplete against the release configuration', () => {
       }
     });
 
+    it(`refuses only value shapes the ${tier} release also refuses`, () => {
+      const cases: Record<string, string> = {
+        PORT: '32o0',
+        LOG_LEVEL: 'verbose',
+        INTERNAL_AUTH_SECRET: 's'.repeat(31),
+        JWT_SIGNING_KEY_CURRENT: 'k'.repeat(20),
+        // gw reads only the callback's origin, but the carrier it shares with
+        // be must hold be's mounted callback route, so only be is asked here.
+        ...(tier === 'be' ? { AUTH_REDIRECT_URI: 'https://wbs.example.test/other' } : {}),
+      };
+      for (const [key, value] of Object.entries(cases)) {
+        const env = { ...complete(tier), [key]: value };
+        expect({ key, message: preflightMessage(tier, env) }).toEqual({
+          key,
+          message: expect.stringContaining(`${key} (`) as string,
+        });
+        expect({ key, exitCode: bootRelease(tier, env).exitCode }).not.toEqual({
+          key,
+          exitCode: 0,
+        });
+      }
+    });
+
     it(`refuses AUTH_MODE=local, which the ${tier} release refuses under NODE_ENV=production`, () => {
       const env = { ...complete(tier), AUTH_MODE: 'local' };
       expect(preflightMessage(tier, env)).toContain('AUTH_MODE=local, which the');
