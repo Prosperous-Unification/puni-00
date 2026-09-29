@@ -8,14 +8,14 @@ import {
   readSpaceRollUps,
   removeSpaceProject,
 } from '@wbs/contracts';
-import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
 import { STATUS_GLYPH, STATUS_LABEL } from '@/components/wbs/status-cell';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 import { spaceRefusal } from './space-access';
-import { useSpacesPolling } from './spaces-page';
+import { useSpacesPolling } from './use-spaces-polling';
 
 const client = browserClient([
   readSpace,
@@ -66,6 +66,11 @@ export function SpacePage({
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [rollUps, setRollUps] = useState<Readonly<Record<string, RollUpState>>>({});
   const [candidates, setCandidates] = useState<readonly ProjectEntry[]>([]);
+  /** Why the add picker could not be filled, or null when it could. */
+  const [candidatesProblem, setCandidatesProblem] = useState<string | null>(null);
+  /** The control to give the keyboard back to once a write's re-read has drawn. */
+  const focusAfterWrite = useRef<string | null>(null);
+  const heading = useRef<HTMLHeadingElement | null>(null);
   const [chosen, setChosen] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -74,7 +79,14 @@ export function SpacePage({
   const loadRollUps = useCallback(
     async (rows: readonly Row[]) => {
       const ids = rows.map(({ project }) => project.id);
-      setRollUps(Object.fromEntries(ids.map((id) => [id, { kind: 'loading' } as const])));
+      // A row keeps the figures it showed until its chunk answers: a poll, a
+      // focus or a write redraws no row as loading. Only a new row starts so.
+      // Proof, observed 2026-09-29: with every row reset to loading here,
+      // `keeps the old figures until the new chunk answers` in
+      // `space-page.test.tsx` failed: its wait for the row's figures timed out.
+      setRollUps((current) =>
+        Object.fromEntries(ids.map((id) => [id, current[id] ?? ({ kind: 'loading' } as const)])),
+      );
       for (let at = 0; at < ids.length; at += ROLL_UP_CHUNK) {
         const chunk = ids.slice(at, at + ROLL_UP_CHUNK);
         const reply = await client['getApiSpacesByIdRoll-ups']({
@@ -104,8 +116,19 @@ export function SpacePage({
         if (reply.body.writable) {
           const listed = await client.getApiProjects({});
           const members = new Set(reply.body.rows.map(({ project }) => project.id));
+          // Proof, observed 2026-09-29: with the failure arm ignored (the old
+          // candidates kept silently), `says when the projects to add could
+          // not be read` in `space-page.test.tsx` found no alert.
           if (listed.kind === 'success') {
             setCandidates(listed.body.projects.filter(({ id }) => !members.has(id)));
+            setCandidatesProblem(null);
+          } else {
+            setCandidates([]);
+            setCandidatesProblem(
+              listed.kind === 'failure'
+                ? `Your projects could not be read to add one: ${failureMessage(listed.failure)}`
+                : 'Your projects could not be read to add one. Reload and try again.',
+            );
           }
         }
         await loadRollUps(reply.body.rows);
@@ -128,14 +151,33 @@ export function SpacePage({
     }
   }, [spaceId, loadRollUps]);
 
-  const refreshSafely = useCallback(() => {
-    void refresh().catch((cause: unknown) => {
-      setFault(new Error('Unexpected space read failure', { cause }));
-    });
-  }, [refresh]);
+  const refreshSafely = useCallback(
+    () =>
+      refresh().catch((cause: unknown) => {
+        setFault(new Error('Unexpected space read failure', { cause }));
+      }),
+    [refresh],
+  );
 
-  useEffect(refreshSafely, [refreshSafely]);
+  useEffect(() => {
+    void refreshSafely();
+  }, [refreshSafely]);
   useSpacesPolling(refreshSafely);
+
+  /**
+   * Gives the keyboard back after a write's re-read: to the control named, if
+   * it is still there and enabled, else to the page heading. A disabled
+   * button would otherwise drop focus to the body.
+   */
+  useEffect(() => {
+    if (sending || focusAfterWrite.current === null) return;
+    const label = focusAfterWrite.current;
+    focusAfterWrite.current = null;
+    const control = [...document.querySelectorAll<HTMLButtonElement>('button[aria-label]')].find(
+      (button) => button.getAttribute('aria-label') === label && !button.disabled,
+    );
+    (control ?? heading.current)?.focus();
+  }, [sending, view]);
 
   if (fault !== null) throw fault;
 
@@ -188,7 +230,9 @@ export function SpacePage({
         <p className="mb-2">
           <Link to="/spaces">All spaces</Link>
         </p>
-        <h1 className="mb-6 text-2xl font-semibold">{title}</h1>
+        <h1 ref={heading} tabIndex={-1} className="mb-6 text-2xl font-semibold">
+          {title}
+        </h1>
         {view.kind === 'loading' && <p>Loading space…</p>}
         {(view.kind === 'failure' || view.kind === 'refused') && <p role="alert">{view.message}</p>}
         {view.kind === 'ready' && view.read.rows.length === 0 && (
@@ -223,6 +267,7 @@ export function SpacePage({
                               index === 0
                                 ? null
                                 : () => {
+                                    focusAfterWrite.current = `Move ${row.project.name} up`;
                                     const anchor = view.read.rows[index - 2]?.project.id ?? null;
                                     void write(
                                       () =>
@@ -237,6 +282,7 @@ export function SpacePage({
                               index === view.read.rows.length - 1
                                 ? null
                                 : () => {
+                                    focusAfterWrite.current = `Move ${row.project.name} down`;
                                     const anchor = view.read.rows[index + 1]?.project.id ?? null;
                                     void write(
                                       () =>
@@ -248,6 +294,8 @@ export function SpacePage({
                                     );
                                   },
                             onRemove: () => {
+                              // The row is gone after the re-read: the heading.
+                              focusAfterWrite.current = '';
                               void write(
                                 () =>
                                   client.deleteApiSpacesByIdProjectsByProjectId({
@@ -264,6 +312,11 @@ export function SpacePage({
               </tbody>
             </table>
           </div>
+        )}
+        {view.kind === 'ready' && view.read.writable && candidatesProblem !== null && (
+          <p role="alert" className="mt-6">
+            {candidatesProblem}
+          </p>
         )}
         {view.kind === 'ready' && view.read.writable && candidates.length > 0 && (
           <form
@@ -341,31 +394,33 @@ function ProjectRow({
       </th>
       <RollUpCells rollUp={rollUp} />
       {handles !== null && (
-        <td className="flex gap-1">
-          <button
-            type="button"
-            disabled={handles.sending || handles.onUp === null}
-            aria-label={`Move ${project.name} up`}
-            onClick={() => handles.onUp?.()}
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            disabled={handles.sending || handles.onDown === null}
-            aria-label={`Move ${project.name} down`}
-            onClick={() => handles.onDown?.()}
-          >
-            ↓
-          </button>
-          <button
-            type="button"
-            disabled={handles.sending}
-            aria-label={`Remove ${project.name} from this space`}
-            onClick={handles.onRemove}
-          >
-            Remove
-          </button>
+        <td>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              disabled={handles.sending || handles.onUp === null}
+              aria-label={`Move ${project.name} up`}
+              onClick={() => handles.onUp?.()}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              disabled={handles.sending || handles.onDown === null}
+              aria-label={`Move ${project.name} down`}
+              onClick={() => handles.onDown?.()}
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              disabled={handles.sending}
+              aria-label={`Remove ${project.name} from this space`}
+              onClick={handles.onRemove}
+            >
+              Remove
+            </button>
+          </div>
         </td>
       )}
     </tr>

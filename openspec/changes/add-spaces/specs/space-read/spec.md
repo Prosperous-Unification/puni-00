@@ -81,8 +81,8 @@ fallback.
 caller can open, and answer `{ rollUps: { [projectId]: rollUp } }`. A process cache SHALL key a
 roll-up by project id, the project's event sequence, the project's revision, the reader's
 access (legacy, or the scoped organization), the scheduler
-contract version and the roll-up version, and SHALL expire an entry after 60 seconds. A roll-up
-SHALL never be staler than 60 seconds, and SHALL not be stale at all after a write this process
+contract version and the roll-up version, and SHALL expire an entry after 5 minutes. A roll-up
+SHALL never be staler than 5 minutes, and SHALL not be stale at all after a write this process
 committed, whether or not that write published an event: a project settings change such as a
 start date advances the revision without an event.
 

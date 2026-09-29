@@ -830,6 +830,8 @@ export function ProjectPage({
     rememberLastProject(readServices(), id);
     setSelected(id);
     setSearch(null);
+    // A choice answers whatever the page last said, such as a broken link.
+    setError(null);
     pickerBox.current?.blur();
   };
 

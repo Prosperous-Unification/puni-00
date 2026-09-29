@@ -92,6 +92,13 @@
       remove button; create form drawn whatever `writable` says → the viewer sees the new-space
       field; the read route answering `writable` without the role → the viewer's read says
       true; the broken-link branch removed → an unknown `?project=` opens the remembered project.
+- [x] 5.3 Review fixes (Fable): a refresh keeps each row's figures until its chunk answers
+      (reset → the wait for figures times out); a failed project list for the add picker is an
+      alert (failure ignored → no alert); the roll-up cache TTL is 5 min, above the 60 s poll
+      (design D4); polling listens to focus and `visibilitychange` and skips a read already in
+      flight (check removed → two reads), in its own module; the keyboard returns to the moved
+      button or the heading; choosing a project clears the page alert; the handle cell wraps a
+      flex box instead of being one.
 - Deviations: reorder is by move-up and move-down buttons, not drag (keyboard-reachable, and a
   drag would add a gesture library to a table of a few dozen rows); a project row links with a
   plain `href` to `/?project=<id>` rather than a typed router search param, since the plan page

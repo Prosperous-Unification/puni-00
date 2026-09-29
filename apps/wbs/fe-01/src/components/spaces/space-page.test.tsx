@@ -203,4 +203,78 @@ describe('a space', () => {
       vi.useRealTimers();
     }
   });
+
+  it('keeps the old figures until the new chunk answers', async () => {
+    let answerSecond: (response: Response) => void = () => undefined;
+    stubServer({
+      'GET /api/spaces/s': [() => answer(200, read(['p1'], false))],
+      'GET /api/spaces/s/roll-ups': [
+        () => answer(200, { rollUps: { p1: rolledUp(11) } }),
+        () => answer(200, { rollUps: { p1: rolledUp(12) } }),
+      ],
+    });
+    routed(<SpacePage spaceId="s" nav={null} account={null} />);
+    const row = async () =>
+      within(await screen.findByRole('table', { name: 'Projects' })).getByRole('row', {
+        name: /p1/,
+      });
+    await waitFor(async () => {
+      expect((await row()).textContent).toContain('In progress');
+    });
+    // A focus re-reads; until its chunk answers, the row keeps its figures.
+    const fetched = vi.mocked(fetch);
+    const slow = new Promise<Response>((resolve) => {
+      answerSecond = resolve;
+    });
+    fetched.mockImplementationOnce(() => Promise.resolve(answer(200, read(['p1'], false))));
+    fetched.mockImplementationOnce(() => slow);
+    window.dispatchEvent(new Event('focus'));
+    await waitFor(() => {
+      expect(fetched.mock.calls.length).toBeGreaterThanOrEqual(4);
+    });
+    expect((await row()).textContent).toContain('In progress');
+    expect((await row()).textContent).not.toContain('Loading…');
+    answerSecond(answer(200, { rollUps: { p1: rolledUp(12) } }));
+    await waitFor(async () => {
+      expect((await row()).textContent).toContain('12');
+    });
+  });
+
+  it('says when the projects to add could not be read', async () => {
+    stubServer({
+      'GET /api/spaces/s': [() => answer(200, read(['p1'], true))],
+      'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
+      'GET /api/projects': [() => answer(500, { error: 'boom' })],
+    });
+    routed(<SpacePage spaceId="s" nav={null} account={null} />);
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Your projects could not be read to add one',
+    );
+    expect(screen.queryByLabelText('Add a project')).toBeNull();
+  });
+
+  it('keeps the keyboard on the moved row, and on the heading after a remove', async () => {
+    stubServer({
+      'GET /api/spaces/s': [
+        () => answer(200, read(['p1', 'p2', 'p3'], true)),
+        () => answer(200, read(['p1', 'p3', 'p2'], true)),
+        () => answer(200, read(['p1', 'p3'], true)),
+      ],
+      'GET /api/spaces/s/roll-ups': [() => answer(200, { rollUps: {} })],
+      'GET /api/projects': [() => answer(200, { projects: [] })],
+      'POST /api/spaces/s/projects/p3/move': [() => answer(200, { position: 15 })],
+      'DELETE /api/spaces/s/projects/p2': [() => answerEmpty(204)],
+    });
+    routed(<SpacePage spaceId="s" nav={null} account={null} />);
+    const up = await screen.findByRole('button', { name: 'Move p3 up' });
+    up.focus();
+    fireEvent.click(up);
+    await waitFor(() => {
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('Move p3 up');
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Remove p2 from this space' }));
+    await waitFor(() => {
+      expect(document.activeElement?.tagName).toBe('H1');
+    });
+  });
 });
