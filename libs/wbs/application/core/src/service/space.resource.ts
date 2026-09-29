@@ -116,7 +116,9 @@ export class RollUpCache {
   constructor(
     private readonly clock: Pick<Clock, 'now'>,
     private readonly capacity = 2_000,
-    readonly ttlMs = 60_000,
+    // Well above fe-01's 60 s poll, so a poll serves the cache and a write
+    // (sequence or revision) is what recomputes; see design D4.
+    readonly ttlMs = 300_000,
   ) {}
 
   /**
@@ -330,7 +332,7 @@ export class SpaceResource {
    * call, above. So a hit can miss a reference across organizations written
    * after the entry was cached (corrupt state, which no route writes), and a
    * change the cache key does not carry, such as a person renamed in the
-   * directory (no event, no project revision). Both last at most the 60 s TTL;
+   * directory (no event, no project revision). Both last at most the 5 min TTL;
    * the next miss reads the tree afresh and fails closed.
    */
   private async rolledOf(

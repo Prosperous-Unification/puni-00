@@ -12,6 +12,7 @@ import { AppHeader } from '@/components/chrome/app-header';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 import { spaceRefusal } from './space-access';
+import { useSpacesPolling } from './use-spaces-polling';
 
 const spaces = browserClient([listSpaces, createSpace, renameSpace, removeSpace]);
 
@@ -21,29 +22,6 @@ type View =
   | { kind: 'failure'; message: string }
   | { kind: 'refused'; message: string }
   | { kind: 'ready'; spaces: readonly Space[]; writable: boolean };
-
-/** How often a visible page re-reads what others may have changed (design memo §7). */
-export const SPACES_REFRESH_MS = 60_000;
-
-/**
- * Re-reads on focus and every {@link SPACES_REFRESH_MS} while the tab is
- * visible: no socket carries space changes, so polling is the freshness.
- */
-export function useSpacesPolling(refresh: () => void): void {
-  useEffect(() => {
-    const onFocus = () => {
-      refresh();
-    };
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') refresh();
-    }, SPACES_REFRESH_MS);
-    window.addEventListener('focus', onFocus);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener('focus', onFocus);
-    };
-  }, [refresh]);
-}
 
 /**
  * The organization's spaces, at `/spaces`: All projects first, then every
@@ -88,13 +66,17 @@ export function SpacesPage({
     }
   }, []);
 
-  const refreshSafely = useCallback(() => {
-    void refresh().catch((cause: unknown) => {
-      setFault(new Error('Unexpected space list failure', { cause }));
-    });
-  }, [refresh]);
+  const refreshSafely = useCallback(
+    () =>
+      refresh().catch((cause: unknown) => {
+        setFault(new Error('Unexpected space list failure', { cause }));
+      }),
+    [refresh],
+  );
 
-  useEffect(refreshSafely, [refreshSafely]);
+  useEffect(() => {
+    void refreshSafely();
+  }, [refreshSafely]);
   useSpacesPolling(refreshSafely);
 
   if (fault !== null) throw fault;

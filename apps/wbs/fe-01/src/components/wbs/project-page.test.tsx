@@ -1426,6 +1426,8 @@ describe('a project link, /?project=<id>', () => {
     );
     expect(picker().value).toBe('');
     expect(window.location.search).toBe('');
+    await selectProject('p2');
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });
 

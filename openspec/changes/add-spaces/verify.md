@@ -141,6 +141,9 @@ success toast across the table remount` at 5.4 s and passed alone and on a full 
 | viewer sees no create           | create form drawn whatever `writable` says             | `offers a viewer no create, rename or delete`                  | the `New space` input present                  |
 | `writable` follows the role     | the read route answering `writable` without `mayWrite` | `refuses a viewer every space write and lets the viewer read`  | the viewer's read `writable: true`             |
 | unknown deep link opens nothing | the broken-link branch removed                         | `shows the empty state for a link to a project it cannot open` | `expected 'Rewire the shed' to be ''`          |
+| rows keep figures (review)      | every row reset to loading on refresh                  | `keeps the old figures until the new chunk answers`            | the wait for the row's figures timed out       |
+| add picker failure (review)     | the project-list failure ignored                       | `says when the projects to add could not be read`              | no alert                                       |
+| one read in flight (review)     | the in-flight check removed                            | `starts no second read while one is in flight`                 | two reads                                      |
 
 ## Slice 6 — fe in progress now and Gantt
 

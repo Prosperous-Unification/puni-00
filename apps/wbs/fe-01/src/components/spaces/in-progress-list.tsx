@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 import { spaceRefusal } from './space-access';
-import { useSpacesPolling } from './spaces-page';
+import { useSpacesPolling } from './use-spaces-polling';
 
 const client = browserClient([readSpaceInProgress]);
 
@@ -50,13 +50,17 @@ export function InProgressList({
     }
   }, [spaceId]);
 
-  const refreshSafely = useCallback(() => {
-    void refresh().catch((cause: unknown) => {
-      setFault(new Error('Unexpected in-progress read failure', { cause }));
-    });
-  }, [refresh]);
+  const refreshSafely = useCallback(
+    () =>
+      refresh().catch((cause: unknown) => {
+        setFault(new Error('Unexpected in-progress read failure', { cause }));
+      }),
+    [refresh],
+  );
 
-  useEffect(refreshSafely, [refreshSafely]);
+  useEffect(() => {
+    void refreshSafely();
+  }, [refreshSafely]);
   useSpacesPolling(refreshSafely);
 
   if (fault !== null) throw fault;
