@@ -84,6 +84,27 @@ _Avoid_: summary, project status (alone)
 The leaf work items across a space whose folded status reads in progress.
 _Avoid_: active work, current tasks
 
+### List reads
+
+**Page**:
+A bounded run of a list read in that list's order, at most `limit` long, answered with the
+cursor that continues it. Its entries are the rows the caller may read, filtered first.
+_Avoid_: batch, chunk, offset
+
+**Cursor**:
+The opaque token a page answers as `nextCursor` to continue the same list after its last
+entry; it names a sort key, never a position count. `null` means the list is exhausted.
+_Avoid_: offset, page token, bookmark
+
+**Update instant**:
+When a project or work item last changed, from its stamped `updated_at`; for a project also
+its work items' stamps and its plan events. `null` for rows written before those stamps.
+_Avoid_: modified date, last edit
+
+**Field group**:
+A named set of work-item fields a work-item page adds to the outline only when asked for.
+_Avoid_: projection, include, expand
+
 ### WBS
 
 **First visible row**: The first logical plan row whose laid-out box extends below a scrolling face's sticky heading. Its identity plus the fraction hidden by that heading describes the reader's vertical position independently of row height.
