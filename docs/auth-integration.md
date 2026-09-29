@@ -189,6 +189,11 @@ first-login linking. Real dev credentials live only in
 Okta values are retained only in `oidc-dev.env.okta.bak` until the trial expires
 on 2026-09-22; delete that backup after the expiry.
 
+Prod's swap reads its provider settings from `/home/puni1/wbs/oidc.env` (mode
+600), with the same five-key allowlist. No prod tenant or client is configured
+yet. The keys, the `prod:` group prefix and the deploy-time checks are in
+`docs/runbook-prod-deploy.md#first-product-deploy`.
+
 As of 2026-08-24, discovery and the real Auth0 Universal Login page are verified.
 Credentialed callback acceptance (`/api/auth/me`, WebSocket, MCP, and the emitted
 editor scope) remains pending TASK-110's password-login path.
