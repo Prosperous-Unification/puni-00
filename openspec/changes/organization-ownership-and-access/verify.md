@@ -1280,3 +1280,14 @@ The earlier review's fault injections were restored, and its recorded focused ru
 | Concurrent rotation verify became a 500       | Mounted `answers stale when a concurrent verify completes the rotation during DNS lookup` held two verifies at the DNS barrier after one rotate and first answered `[200, 500]`: the commit guard required both previous-proof fields for any rotation snapshot. | The commit guard throws only on a split previous-proof pair; both fields null falls through to the snapshot comparison, which answers stale 409. |
 | Split previous-proof pair lacked a negative   | With CHECK constraints disabled only to force `previous_proof_valid_until = NULL` during DNS lookup, removing the split-pair clause made mounted `throws when a rotation overlap pair splits during DNS lookup` answer stale 409 rather than 500.                | The new clause is covered by that test.                                                                                                          |
 | Capture Proof was covered by the commit guard | Removing the capture timestamp validation still answered 500 in `throws when a suspended claim lacks retained timestamps at capture`, because the commit guard threw. With the new zero-lookup assertion the same removal failed with 1 DNS lookup observed.     | The test counts DNS lookups; the capture Proof comment names that observation.                                                                   |
+
+## Slice 39a — password email verification screens (task 4.6)
+
+`EmailVerification` renders inside onboarding's `verification_required` state. Component tests drive the real `browserClient` through a stubbed `fetch`.
+
+| Check                            | Injected fault                                          | Observed failure                                                                                                                                                                                |
+| -------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Confirmation re-reads onboarding | Replaced `await onVerified()` with a no-op              | `sends a challenge, confirms the code and re-reads onboarding` failed: the create form never appeared (1 failed, 9 passed)                                                                      |
+| Lost delivery has its own copy   | Answered `delivery_failed` with the generic reload copy | `renders the delivery_failed challenge refusal on the address step` failed: `expected <p role="alert"></p> to have property "textContent" with value 'We could not send the code. Try again …'` |
+
+Both faults were restored before commit.

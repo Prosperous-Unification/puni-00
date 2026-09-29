@@ -8,6 +8,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
+import { EmailVerification } from './email-verification';
+
 const onboarding = browserClient([
   readOnboarding,
   createOnboardingOrganization,
@@ -145,9 +147,7 @@ export function OnboardingScreen({
       <button type="button" onClick={onSignOut}>
         Sign out
       </button>
-      {state.state === 'verification_required' && (
-        <p>Verify your email address with your identity provider to continue.</p>
-      )}
+      {state.state === 'verification_required' && <EmailVerification onVerified={refresh} />}
       {state.state === 'selection_required' && (
         <section>
           <p>Your memberships are ready for organization selection.</p>
