@@ -375,9 +375,19 @@ test('registers every module in the pilot under that identifier', async () => {
   expect(unregistered).toEqual([]);
 });
 
-test('names in kinds.json only the module that owns every export of the shim', async () => {
+/** What {@link shimRowMismatches} found: the rows naming a module, and every row it refuses. */
+interface ShimRowAudit {
+  readonly named: number;
+  readonly mismatches: readonly string[];
+}
+
+/**
+ * Check every `kinds.json` row that mentions a shim: a row naming a module must name the sealed
+ * module whose files export every value the shim exports, and any other shim row must use a
+ * be-01 forwarding form whose named core service file exists.
+ */
+async function shimRowMismatches(entries: readonly JsonRecord[]): Promise<ShimRowAudit> {
   const modules = await discoverModuleDirectories();
-  const entries = await recordsOf('docs/code-organization/kinds.json', 'entries');
   const mismatches: string[] = [];
   let named = 0;
   for (const entry of entries) {
@@ -436,9 +446,46 @@ test('names in kinds.json only the module that owns every export of the shim', a
       mismatches.push(`${path}: re-exports what ${module.directory} does not export`);
     }
   }
+  return { named, mismatches };
+}
 
-  // Proof (2026-09-24): a pattern expecting `modules directly` matched no row and failed the
-  // same test here with `Expected: > 0`, `Received: 0` (4 pass, 1 fail).
-  expect(named).toBeGreaterThan(0);
-  expect(mismatches).toEqual([]);
+test('names in kinds.json only the module that owns every export of the shim', async () => {
+  const entries = await recordsOf('docs/code-organization/kinds.json', 'entries');
+  // Every re-export shim row was retired with its importers on 2026-09-29, so the real ledger may
+  // name no module at all; the case below keeps the check reading rows that do.
+  expect((await shimRowMismatches(entries)).mismatches).toEqual([]);
+});
+
+test('checks each shim row form against the files it names', async () => {
+  const core = 'libs/wbs/application/core/src';
+  const capacity = `${core}/module/capacity/capacity.resource.ts`;
+  const namesCapacity =
+    're-export shim; delete when importers use @wbs/core or the capacity module directly';
+  // Proof (2026-09-24): a pattern expecting `modules directly` matched no row of the then-live
+  // ledger and failed the former real-ledger assertion with `Expected: > 0`, `Received: 0`.
+  // Proof (2026-09-29): the same `modules directly` fault in {@link SHIM_OWNER} failed this case
+  // with `named` 0 against 2 and both module-naming rows refused as matching no known form
+  // (5 pass, 1 fail).
+  const audit = await shimRowMismatches([
+    { path: capacity, disposition: namesCapacity },
+    { path: `${core}/service/assumed-assignee.ts`, disposition: namesCapacity },
+    { path: `${core}/service/clean-name.ts`, disposition: 'Re-export shim of clean-name' },
+    {
+      path: 'apps/wbs/be-01/src/service/absent.ts',
+      disposition: 're-export shim; delete when importers use @wbs/core/service/absent directly',
+    },
+    {
+      path: `${core}/service/roll-up.ts`,
+      disposition: 'pure domain code; move to the domain library',
+    },
+  ]);
+
+  expect(audit).toEqual({
+    named: 2,
+    mismatches: [
+      `${core}/service/assumed-assignee.ts: re-exports what ${core}/module/capacity does not export`,
+      `${core}/service/clean-name.ts: re-export shim disposition matches no known form`,
+      'apps/wbs/be-01/src/service/absent.ts: forwards to a core service that does not exist: absent',
+    ],
+  });
 });
