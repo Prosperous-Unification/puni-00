@@ -3,11 +3,17 @@
 ### Requirement: Fast works around elsewhere intervals
 
 `schedule()` SHALL accept `elsewhere`, a map from person id to sorted, disjoint intervals in
-the project's own workday offsets. No slice of a person SHALL be placed across one of that
-person's elsewhere intervals. A slice whose start was set by one SHALL read `boundBy:
-'elsewhere'`, naming the holding project and work item. The number of work items holding such a
-slice SHALL be reported as `waitingElsewhere`. With an empty map, placement SHALL be
-byte-identical to the placement without the parameter.
+the project's own workday offsets, each naming its holding project and work item, and SHALL
+refuse a malformed map (an interval that is not finite, holds no time, or overlaps or precedes
+the one before it). No slice of a person SHALL be placed across one of that person's intervals;
+an interval that only touches a slice holds nothing. A slice whose start was set by one SHALL
+read `boundBy: 'elsewhere'` and carry `elsewhereHolder`, present exactly then. A tie with a
+plan's own floor SHALL name the plan's floor; a pool that pushed last SHALL be named
+`capacity` with its blocking set. `waitingElsewhere` SHALL count the work items holding such a
+slice, and SHALL be present exactly when the map is non-empty. With an empty or absent map,
+placement and output SHALL be byte-identical to the placement without the parameter, in the FS
+and the weighted (SS/FF) paths alike. Until solver wire 3, a non-empty map SHALL be refused
+beside pinned (optimized) starts and by the solver request builder.
 
 #### Scenario: a foreign interval
 
@@ -19,6 +25,12 @@ byte-identical to the placement without the parameter.
 
 - **WHEN** any corpus plan is scheduled with an empty `elsewhere` map
 - **THEN** its schedule equals the schedule computed without the parameter, byte for byte
+
+#### Scenario: a pool that pushes last
+
+- **GIVEN** Ana away on `[0, 2)` and her team's only slot held until day 4
+- **WHEN** her one-day slice is scheduled
+- **THEN** it starts on day 4 with `boundBy: 'capacity'` and the holder of the slot named
 
 ### Requirement: CP-SAT works around elsewhere intervals
 

@@ -137,6 +137,10 @@ export function guardRealPublication(
     input.reach,
     input.deadlines,
     input.typed,
+    undefined,
+    // The baseline the optimized answer is scored against is the Fast plan the
+    // reader would otherwise see, bookings elsewhere included.
+    input.elsewhere,
   );
 
   const optimizedValues = scoreReal(optimized, weightOf, baselineStartOf);

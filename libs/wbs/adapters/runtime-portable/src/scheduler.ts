@@ -6,7 +6,10 @@ import type {
   ScheduleAsk,
   Scheduler,
 } from '@wbs/core';
-import { SOLVER_OBJECTIVES } from '@wbs/domain';
+import { type Elsewhere, SOLVER_OBJECTIVES } from '@wbs/domain';
+
+/** A canonical input with no bookings elsewhere states none. */
+const NOWHERE: Elsewhere = new Map();
 
 /** Builds the synchronous scheduler view over installed runtime adapters. */
 export function createScheduler(
@@ -42,6 +45,9 @@ function readSchedule(
     ask.input.deadlines,
     // The eighth: typed dependencies, resolved beside the legacy edges.
     ask.input.typed,
+    // Proof: `NOWHERE` here made `hands the bookings elsewhere to Fast`
+    // (`scheduler.test.ts`) see an empty map; watched 2026-09-29.
+    ask.input.elsewhere ?? NOWHERE,
   );
   if (optimized === undefined) {
     return { kind: 'scheduled', fast: fastSchedule, optimization: null };

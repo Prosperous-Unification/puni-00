@@ -20,13 +20,13 @@ describe('the composite the wire carries and the cache key stores', () => {
     // side — so the literal here is a second net rather than a duplicate.
     // Proof: restoring `SCHEDULER_CONTRACT_VERSION = 7` failed here with
     // `Expected: true / Received: false`; watched 2026-09-07.
-    expect(contractVersionOf('0.1.1').startsWith('14+')).toBe(true);
+    expect(contractVersionOf('0.1.1').startsWith('15+')).toBe(true);
   });
 
   it('never invents a solver version, however empty the one it is handed', () => {
     // Watched red: default `solverVersion` to a placeholder and this comes back
-    // `'14+0.0.0'` — a cache key naming a solver that did not run, which is
+    // `'15+0.0.0'` — a cache key naming a solver that did not run, which is
     // exactly the row a release must not read.
-    expect(contractVersionOf('')).toBe('14+');
+    expect(contractVersionOf('')).toBe('15+');
   });
 });

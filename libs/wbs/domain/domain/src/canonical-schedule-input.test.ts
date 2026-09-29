@@ -751,3 +751,69 @@ describe('typed dependencies in the canonical input', () => {
     );
   });
 });
+
+describe('bookings elsewhere in the canonical input', () => {
+  const plan = (elsewhere?: ScheduleInput['elsewhere']): ScheduleInput => ({
+    ...BASE,
+    ...(elsewhere === undefined ? {} : { elsewhere }),
+  });
+  const held = (start: number, end: number, workItemId = 'x1') => ({
+    start,
+    end,
+    projectId: 'platform',
+    workItemId,
+  });
+  const run10 = (input: ScheduleInput): unknown =>
+    serializeSchedule(
+      schedule(
+        input.rows,
+        input.edges,
+        input.slices,
+        input.notBefore,
+        input.poolSizes,
+        input.reach,
+        input.deadlines,
+        input.typed,
+        undefined,
+        input.elsewhere,
+      ),
+    );
+
+  it('keeps the hash a plan had before bookings existed when it holds none', () => {
+    const before = canonicalScheduleInput(BASE);
+    expect(canonicalScheduleInput(plan(new Map()))).toBe(before);
+    expect(canonicalScheduleInput(plan(new Map([['ana', []]])))).toBe(before);
+    expect(before).not.toContain('elsewhere');
+  });
+
+  it('hashes a booking elsewhere, its interval and its holder', () => {
+    const hashes = [
+      plan(),
+      plan(new Map([['ana', [held(0, 2)]]])),
+      plan(new Map([['ana', [held(0, 3)]]])),
+      plan(new Map([['ana', [held(0, 2, 'x2')]]])),
+      plan(new Map([['ben', [held(0, 2)]]])),
+    ].map(canonicalScheduleInput);
+    expect(new Set(hashes).size).toBe(5);
+  });
+
+  it('moves a placement when a booking of the plan’s own person moves', () => {
+    const person = { ...BASE, slices: BASE.slices.map((slice) => ({ ...slice, personId: 'ana' })) };
+    const early = { ...person, elsewhere: new Map([['ana', [held(0, 1)]]]) };
+    const late = { ...person, elsewhere: new Map([['ana', [held(0, 4)]]]) };
+    expect(canonicalScheduleInput(early)).not.toBe(canonicalScheduleInput(late));
+    expect(run10(early)).not.toEqual(run10(late));
+  });
+
+  it('orders persons and their bookings, so arrival order does not move the hash', () => {
+    const forward = new Map([
+      ['ana', [held(0, 1), held(2, 3)]],
+      ['ben', [held(5, 6)]],
+    ]);
+    const backward = new Map([
+      ['ben', [held(5, 6)]],
+      ['ana', [held(2, 3), held(0, 1)]],
+    ]);
+    expect(canonicalScheduleInput(plan(forward))).toBe(canonicalScheduleInput(plan(backward)));
+  });
+});

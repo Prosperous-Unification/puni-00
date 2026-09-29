@@ -39,8 +39,8 @@
 
 ## 4. Domain
 
-- [ ] 4.1 `elsewhere` in `schedule()`, the floor, the hash, contract 15 and DTO 3.
-- [ ] 4.2 Negatives: interval search bypassed on the FS path → a slice overlaps a foreign
+- [x] 4.1 `elsewhere` in `schedule()`, the floor, the hash, contract 15 and DTO 3.
+- [x] 4.2 Negatives: interval search bypassed on the FS path → a slice overlaps a foreign
       interval; `elsewhere` left out of the hash → a moved booking serves the cached optimized
       result; empty-map corpora stay byte-identical.
 

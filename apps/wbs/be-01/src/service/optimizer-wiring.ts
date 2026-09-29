@@ -1,4 +1,9 @@
-import type { OptimizedScheduleAdapter, OptimizerAvailability, Scheduler } from '@wbs/core';
+import type {
+  FastScheduler,
+  OptimizedScheduleAdapter,
+  OptimizerAvailability,
+  Scheduler,
+} from '@wbs/core';
 import { schedule } from '@wbs/domain';
 import { createScheduler } from '@wbs/runtime-portable';
 
@@ -17,8 +22,36 @@ export interface OptimizerWiring {
   readonly available: OptimizerAvailability;
 }
 
+/**
+ * `schedule()` in {@link FastScheduler}'s shape: every canonical field, and no
+ * pinned starts, which only the optimized materialiser supplies.
+ */
+const fast: FastScheduler = (
+  rows,
+  edges,
+  slices,
+  notBefore,
+  poolSizes,
+  reach,
+  deadlines,
+  typed,
+  elsewhere,
+) =>
+  schedule(
+    rows,
+    edges,
+    slices,
+    notBefore,
+    poolSizes,
+    reach,
+    deadlines,
+    typed,
+    undefined,
+    elsewhere,
+  );
+
 /** Fast-only scheduler for isolated service fixtures. */
-export const fastScheduler = createScheduler(schedule);
+export const fastScheduler = createScheduler(fast);
 
 /**
  * One reader in, both halves of the optimizer's wiring out.
@@ -41,7 +74,7 @@ export const fastScheduler = createScheduler(schedule);
  * what this knows; there is nothing else for the predicate to consult.
  */
 export function optimizerWiring(optimized: OptimizedScheduleAdapter | undefined): OptimizerWiring {
-  const scheduler = optimized === undefined ? fastScheduler : createScheduler(schedule, optimized);
+  const scheduler = optimized === undefined ? fastScheduler : createScheduler(fast, optimized);
   return { scheduler, available: () => scheduler.supports('optimized') };
 }
 export type { OptimizerAvailability } from '@wbs/core';

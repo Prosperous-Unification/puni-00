@@ -159,6 +159,7 @@ describe('createScheduler', () => {
         INPUT.reach,
         INPUT.deadlines,
         INPUT.typed,
+        new Map(),
       ],
       [
         INPUT.rows,
@@ -169,6 +170,7 @@ describe('createScheduler', () => {
         INPUT.reach,
         INPUT.deadlines,
         INPUT.typed,
+        new Map(),
       ],
       [
         INPUT.rows,
@@ -179,6 +181,7 @@ describe('createScheduler', () => {
         INPUT.reach,
         INPUT.deadlines,
         INPUT.typed,
+        new Map(),
       ],
     ]);
     expect(liveAsks).toEqual([
@@ -188,6 +191,19 @@ describe('createScheduler', () => {
     expect(capturedAsks).toEqual([
       { projectId: 'project', input: INPUT, objective: 'time', enabled: true },
     ]);
+  });
+
+  it('hands the bookings elsewhere to Fast', () => {
+    const elsewhere = new Map([
+      ['ana', [{ start: 0, end: 2, projectId: 'platform', workItemId: 'x1' }]],
+    ]);
+    const seen: unknown[] = [];
+    const scheduler = createScheduler((...args) => {
+      seen.push(args[8]);
+      return FAST;
+    });
+    scheduler.read(ask({ input: { ...INPUT, elsewhere } }));
+    expect(seen).toEqual([elsewhere]);
   });
 
   const states: OptimizationVariantState[] = [

@@ -1,5 +1,5 @@
 {
-  "contractVersion": 14,
+  "contractVersion": 15,
   "cases": {
     "chain-of-three": {
       "slices": [
