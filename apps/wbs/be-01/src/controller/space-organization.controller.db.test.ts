@@ -304,13 +304,16 @@ describe('after activation', () => {
         truncated: false,
       },
     });
-    for (const limit of ['1001', '0', 'x']) {
+    for (const limit of ['1001', '0', '000', 'x', '-5', '1.5']) {
       expect({
         limit,
         answer: await h.call('ada', 'GET', `/api/spaces/${space}/in-progress?limit=${limit}`),
       }).toMatchObject({ answer: { status: 400, body: { error: 'invalid_query' } } });
     }
     expect((await h.call('ada', 'GET', `/api/spaces/${space}/in-progress?limit=1000`)).status).toBe(
+      200,
+    );
+    expect((await h.call('ada', 'GET', `/api/spaces/${space}/in-progress?limit=010`)).status).toBe(
       200,
     );
   });

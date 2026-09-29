@@ -74,6 +74,12 @@
       the cut removed → 1,001 items for a limit of 1,000; the readable filter removed → the
       hidden member is read (and throws); the limit maximum removed → `limit=1001` answers 200.
 
+- [x] 4.4 Review fix (Fable, Important): the cache key carries the reader's access, since a
+      scoped tree read renames assignees to the organization's own names. Negative: access left
+      out → a scoped reader receives the legacy name `Root Kat`. Minors: project id is the last
+      sort key (removed → tied items keep input order); `unavailable` omits a hidden member;
+      `limit` accepts leading zeros (`010`); the cache counts entries, not leaves.
+
 ## 5. fe rows
 
 - [ ] 5.1 `/spaces`, `/spaces/:id`, reorder, add and remove, deep link, states.

@@ -302,7 +302,7 @@ describe('SpaceResource roll-ups', () => {
       ]),
     );
     const trees = {
-      treeWithin: (projectId: string) => {
+      treeWithin: (projectId: string, access: ResourceAccess) => {
         treeReads += 1;
         if (unavailable.has(projectId)) {
           return Promise.resolve({
@@ -340,7 +340,9 @@ describe('SpaceResource roll-ups', () => {
           ],
           slices: [],
           steps: [{ id: 's1', name: 'Dev' }],
-          assignedPeople: [{ id: 'kat', name: 'Kat' }],
+          // As `treeWithin` does: legacy reads carry the root directory's
+          // names, scoped reads the organization's own.
+          assignedPeople: [{ id: 'kat', name: access.kind === 'legacy' ? 'Root Kat' : 'Kat' }],
           scheduleError: null,
           waitingForPerson: 0,
           waitingForCapacity: 0,
@@ -514,6 +516,27 @@ describe('SpaceResource roll-ups', () => {
     expect(await fresh.service.inProgress('ada', MEMBER, fresh.id, 200)).toMatchObject({
       ok: true,
       value: { items: [], unavailable: ['a1'] },
+    });
+  });
+
+  it("keeps a legacy read's assignee names from a scoped reader", async () => {
+    const { service, leaves } = await rolling();
+    leaves.set('a1', [['1', '2026-10-05']]);
+    const namesOf = async (access: ResourceAccess) => {
+      const answer = await service.inProgress('ada', access, ALL_PROJECTS, 200);
+      if (!answer.ok) throw new Error(answer.refusal);
+      return answer.value.items.flatMap(({ assignees }) => assignees.map(({ name }) => name));
+    };
+    expect(await namesOf(LEGACY_ACCESS)).toEqual(['Root Kat']);
+    expect(await namesOf(MEMBER)).toEqual(['Kat']);
+  });
+
+  it('names no unavailable engine of a member the caller cannot open', async () => {
+    const { service, id, unavailable } = await rolling(['a1']);
+    unavailable.add('a2');
+    expect(await service.inProgress('ada', MEMBER, id, 200)).toMatchObject({
+      ok: true,
+      value: { unavailable: [] },
     });
   });
 });

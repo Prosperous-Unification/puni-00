@@ -88,9 +88,11 @@ function compareNumbers(left: string, right: string): number {
 
 /**
  * Orders items by end date ascending with undated last, then space position,
- * then number: the order the spec gives "in progress now".
+ * then number: the order the spec gives "in progress now". Project id breaks
+ * the one remaining tie (two projects at one position in `all`, or tied space
+ * positions, ADR 0016), so two reads of unchanged rows agree.
  */
-export function sortInProgress<T extends { position: number; number: string }>(
+export function sortInProgress<T extends { position: number; number: string; projectId: string }>(
   items: readonly T[],
   endsOn: (item: T) => IsoDate | null,
 ): T[] {
@@ -102,6 +104,10 @@ export function sortInProgress<T extends { position: number; number: string }>(
       if (r === null) return -1;
       return l < r ? -1 : 1;
     }
-    return left.position - right.position || compareNumbers(left.number, right.number);
+    return (
+      left.position - right.position ||
+      compareNumbers(left.number, right.number) ||
+      (left.projectId < right.projectId ? -1 : left.projectId > right.projectId ? 1 : 0)
+    );
   });
 }
