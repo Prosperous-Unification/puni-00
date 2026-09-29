@@ -110,7 +110,13 @@ export const readSpace = defineEndpointShape({
         type({
           space,
           rows: type({
-            project: project.and({ ownerName: 'string', lastOpenedAt: 'number | null' }),
+            // `updatedAt` is `GET /api/projects`' update instant (`list-reads`);
+            // optional so an older be-01 mid-swap still parses.
+            project: project.and({
+              ownerName: 'string',
+              lastOpenedAt: 'number | null',
+              'updatedAt?': 'number | null',
+            }),
             position: 'number',
           }).array(),
         }),

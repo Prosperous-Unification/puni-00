@@ -72,9 +72,19 @@ A project's **update instant** SHALL be the greatest of its own `updated_at`, th
 and `null` when all are `NULL`. Calendar marker edits do not move it.
 
 The cursor SHALL carry the sort key `[updatedAt, id]` of the last entry answered, and the
-next page SHALL be the entries whose key sorts strictly after it. A project updated
-between two reads SHALL NOT be answered again on a later page of the same walk. `q` and
-`updatedSince` are filters and SHALL NOT change the key.
+next page SHALL be the entries whose key sorts strictly after it. `q` and `updatedSince`
+are filters and SHALL NOT change the key. A walk is not a snapshot; between two reads:
+
+- a project already answered that is updated moves ahead of the cursor and SHALL NOT be
+  answered again;
+- a project not yet answered that is updated also moves ahead of the cursor, and is
+  missed for the rest of that walk;
+- a project's instant can go down: when its newest term was a plan event the retention
+  sweep has since pruned (`PLAN_EVENT_RETENTION_DAYS`), it falls back to an older term,
+  and a project already answered can then sort after the cursor and be answered again.
+
+A caller that needs every project exactly once restarts the walk, or reads the
+parameterless list.
 
 `nextCursor` SHALL be `null` exactly when no readable entry sorts after the last one
 answered under the same filters.
@@ -102,6 +112,13 @@ answered under the same filters.
 - **GIVEN** a project updated at 1000, one at 999, and one with no update instant
 - **WHEN** `GET /api/projects?updatedSince=1000` is read
 - **THEN** only the project updated at 1000 is answered
+
+#### Scenario: a project not yet answered is edited mid-walk
+
+- **GIVEN** projects updated at 3, 2 and 1, and a walk with `limit=1` that has answered the
+  first
+- **WHEN** the project updated at 1 is edited before the next read
+- **THEN** the walk answers the project updated at 2 and ends, never answering the edited one
 
 #### Scenario: search by name
 
