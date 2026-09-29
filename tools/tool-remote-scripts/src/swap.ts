@@ -25,6 +25,8 @@ import {
   assertOidcEnvAllowed,
   assertTierEnvAllowed,
   assertTierEnvComplete,
+  backupDbCommand,
+  backupSnapshotPath,
   composeUpArgs,
   containerName,
   CURRENT_ENV,
@@ -524,6 +526,7 @@ export async function startGreen(
 const ABORTABLE_STEPS: ReadonlySet<SwapStep> = new Set<SwapStep>([
   'start-green',
   'stored-vocabularies',
+  'backup-db',
   'migrate',
   'health-gate',
   'grant-alias',
@@ -683,6 +686,32 @@ async function assertSupportedVocabularies(
   for (const vocabulary of STORED_VOCABULARIES) {
     await assertSupported(vocabulary, container, shCommand, afterStop);
   }
+}
+
+/**
+ * Reads `backup-db-cli.ts`'s one JSON line at the Docker output boundary and
+ * returns the snapshot path it reports.
+ *
+ * @throws When the output is not that JSON, or reports a different path or no
+ * migrations: a backup the swap cannot account for is no backup.
+ */
+export function parseBackupReport(output: string, expectedPath: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(output);
+  } catch (cause) {
+    throw new Error(`backup-db reported malformed output: ${output.slice(0, 200)}`, { cause });
+  }
+  const path: unknown =
+    parsed !== null && typeof parsed === 'object' ? Reflect.get(parsed, 'path') : undefined;
+  const migrations: unknown =
+    parsed !== null && typeof parsed === 'object' ? Reflect.get(parsed, 'migrations') : undefined;
+  if (path !== expectedPath || !Array.isArray(migrations) || migrations.length === 0) {
+    throw new Error(
+      `backup-db did not report a verified snapshot at ${expectedPath}: ${output.slice(0, 200)}`,
+    );
+  }
+  return expectedPath;
 }
 
 export async function execute(
@@ -853,6 +882,20 @@ export async function execute(
 
         case 'stored-vocabularies': {
           await assertSupportedVocabularies(greenName, io.sh, false);
+          break;
+        }
+
+        case 'backup-db': {
+          // Before the migrate step changes the schema blue is serving from:
+          // a failure aborts with nothing migrated. The snapshot is the
+          // rollback once blue has stopped or a down script cannot be trusted;
+          // docs/runbook-prod-deploy.md#first-product-deploy restores it.
+          const snapshotPath = backupSnapshotPath(sha, new Date());
+          const reported = parseBackupReport(
+            await io.sh(backupDbCommand(greenName, snapshotPath)),
+            snapshotPath,
+          );
+          console.log(`[swap-${tier}] backed up to ${reported} (host: ${ROOT}/data/backups)`);
           break;
         }
 

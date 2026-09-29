@@ -1011,6 +1011,89 @@ describe('execute, relationship type rollback guard', () => {
   });
 });
 
+describe('execute, pre-migration backup', () => {
+  async function runBackup(backup: (path: string) => Promise<string>) {
+    const ran: string[][] = [];
+    const phases: string[] = [];
+    const io: SwapExecutionIo = {
+      sh: (args) => {
+        ran.push(args);
+        if (args.includes('src/backup-db-cli.ts')) return backup(args.at(-1) ?? '');
+        if (args[0] === 'stop') return Promise.resolve('');
+        if (args.includes('src/migrate-status-cli.ts')) return Promise.resolve('none');
+        if (args.includes('src/migrate-cli.ts')) return Promise.resolve('migrated');
+        throw new Error(`unexpected Docker command: ${args.join(' ')}`);
+      },
+      readPhase: () => Promise.resolve('committed'),
+      writePhase: (_path, phase) => {
+        phases.push(phase);
+        return Promise.resolve();
+      },
+      writeAtomic: () => Promise.reject(new Error('routing must not change')),
+    };
+    let caught: unknown;
+    try {
+      await execute(
+        { tier: 'be', from: 'blue', to: 'green', steps: ['backup-db', 'migrate'] },
+        'registry/be-01@sha256:abc',
+        'deadbeef',
+        io,
+      );
+    } catch (error) {
+      caught = error;
+    }
+    return { ran, phases, caught };
+  }
+
+  const migrated = (ran: string[][]) => ran.some((args) => args.includes('src/migrate-cli.ts'));
+
+  it('snapshots the database from green before migrating', async () => {
+    const attempt = await runBackup((path) =>
+      Promise.resolve(JSON.stringify({ path, sha256: 'x', bytes: 1, migrations: ['m'] })),
+    );
+    expect(attempt.caught).toBeUndefined();
+    const backup = attempt.ran.findIndex((args) => args.includes('src/backup-db-cli.ts'));
+    expect(attempt.ran[backup].slice(0, 5)).toEqual([
+      'exec',
+      'be-01-green',
+      'bun',
+      'run',
+      'src/backup-db-cli.ts',
+    ]);
+    expect(attempt.ran[backup][5]).toMatch(/^\/data\/backups\/wbs-pre-deadbeef-\d{8}T\d{9}Z\.db$/);
+    expect(backup).toBeLessThan(
+      attempt.ran.findIndex((args) => args.includes('src/migrate-cli.ts')),
+    );
+  });
+
+  // Proof: removing 'backup-db' from ABORTABLE_STEPS made this case fail
+  // (76 pass, 1 fail): the failure threw bare, so green was never stopped
+  // (2026-09-29).
+  it('aborts without migrating when the backup fails, and stops green', async () => {
+    const attempt = await runBackup(() => Promise.reject(new Error('disk full')));
+    expect(attempt.caught).toHaveProperty('message', expect.stringContaining('disk full'));
+    expect(migrated(attempt.ran)).toBe(false);
+    expect(attempt.ran.at(-1)).toEqual(['stop', 'be-01-green']);
+    expect(attempt.phases).toEqual(['committed']);
+  });
+
+  it('aborts when the backup reports a different path or no migrations', async () => {
+    for (const output of [
+      JSON.stringify({ path: '/data/elsewhere.db', migrations: ['m'] }),
+      'not json',
+    ]) {
+      const attempt = await runBackup(() => Promise.resolve(output));
+      expect(attempt.caught).toHaveProperty('message', expect.stringContaining('backup-db'));
+      expect(migrated(attempt.ran)).toBe(false);
+    }
+    const empty = await runBackup((path) =>
+      Promise.resolve(JSON.stringify({ path, migrations: [] })),
+    );
+    expect(empty.caught).toHaveProperty('message', expect.stringContaining('verified snapshot'));
+    expect(migrated(empty.ran)).toBe(false);
+  });
+});
+
 describe('execute, after routing has moved', () => {
   it('refuses a hold written after the first check once blue stops, without committing', async () => {
     const ran: string[][] = [];

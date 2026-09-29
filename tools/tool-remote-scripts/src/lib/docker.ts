@@ -660,6 +660,22 @@ export function revokeAliasCommands(from: Color): string[][] {
 }
 
 /**
+ * Where the `backup-db` step writes its snapshot, as the incoming container
+ * sees the data volume (`volumesBlock` mounts `<root>/data` at `/data`). The
+ * stamp keeps a rerun of the same release from colliding with an earlier
+ * backup, which `snapshotDatabase` would refuse to overwrite.
+ */
+export function backupSnapshotPath(sha: string, now: Date): string {
+  const stamp = now.toISOString().replaceAll(/[-:.]/g, '');
+  return `/data/backups/wbs-pre-${sha}-${stamp}.db`;
+}
+
+/** Takes the pre-migration backup from inside the incoming container. */
+export function backupDbCommand(container: string, snapshotPath: string): string[] {
+  return ['exec', container, 'bun', 'run', 'src/backup-db-cli.ts', snapshotPath];
+}
+
+/**
  * Reads which migrations are already applied, from inside the container that
  * is about to apply more. Run immediately before the migrate step: its output
  * is the only thing that tells an abort how far back to unwind.
