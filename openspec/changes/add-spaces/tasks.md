@@ -82,9 +82,21 @@
 
 ## 5. fe rows
 
-- [ ] 5.1 `/spaces`, `/spaces/:id`, reorder, add and remove, deep link, states.
-- [ ] 5.2 Negatives: role gate removed → a viewer sees handles; unknown deep-link id → empty
-      state, not a crash.
+- [x] 5.1 `/spaces` (All projects first, create, rename, delete), `/spaces/$spaceId` (rows,
+      roll-ups in chunks of 20, move up and down, remove, add from the caller's projects),
+      `Spaces` in the page nav, `/?project=<id>` for any link, the loading, empty, failure and
+      `organization_required` states, refetch on focus, after own writes and every 60 s while
+      visible. be-01 answers `writable` on the list and the space read so fe-01 draws no control
+      a write would refuse.
+- [x] 5.2 Negatives: handles drawn whatever `writable` says → the viewer's table holds the
+      remove button; create form drawn whatever `writable` says → the viewer sees the new-space
+      field; the read route answering `writable` without the role → the viewer's read says
+      true; the broken-link branch removed → an unknown `?project=` opens the remembered project.
+- Deviations: reorder is by move-up and move-down buttons, not drag (keyboard-reachable, and a
+  drag would add a gesture library to a table of a few dozen rows); a project row links with a
+  plain `href` to `/?project=<id>` rather than a typed router search param, since the plan page
+  reads its link from the address; a broken link says so in a page alert, not a toast, because
+  toasts are drawn by the table and a link that opens nothing leaves no table.
 
 ## 6. fe in progress now and Gantt
 

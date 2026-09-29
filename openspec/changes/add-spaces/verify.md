@@ -125,3 +125,19 @@ Written on `batch-9/010-4-15-spaces-in-progress`, stacked on the roll-ups branch
 | the limit is bounded                  | the maximum check removed from `limitOf`        | `lists work in progress across the space and refuses a limit above 1000 with 400`   | `status: 200` for `limit=1001`            |
 | cache keyed by reader access (review) | the access left out of `RollUpCache.keyOf`      | `keeps a legacy read's assignee names from a scoped reader`                         | `Received: "Root Kat"`, not `Kat`         |
 | last sort key (review)                | the project id tie-break removed                | `orders by end date with undated last, then space position, then number`            | `tie-q` before `tie-a`                    |
+
+## Slice 5 — fe rows
+
+Written on `batch-9/010-4-15-spaces-fe-rows`, stacked on the in-progress branch. Vitest:
+`space-page.test.tsx` 6 pass, `spaces-page.test.tsx` 4 pass (three runs each clean),
+`project-page.test.tsx` 78 pass (one run failed `refreshes the picker catalogue and keeps one
+success toast across the table remount` at 5.4 s and passed alone and on a full rerun),
+`app-router.test.tsx`, `app.test.tsx` and `delivery-boundaries.test.ts` 31 pass. be-01
+`space-organization.controller.db.test.ts` 12 pass with `writable`.
+
+| Check                           | Fault injected                                         | Test that observed it                                          | Observed                                       |
+| ------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------- | ---------------------------------------------- |
+| viewer sees no handles          | handles drawn whatever `writable` says                 | `shows a viewer no handle, and a member the handles`           | the `Remove p1 from this space` button present |
+| viewer sees no create           | create form drawn whatever `writable` says             | `offers a viewer no create, rename or delete`                  | the `New space` input present                  |
+| `writable` follows the role     | the read route answering `writable` without `mayWrite` | `refuses a viewer every space write and lets the viewer read`  | the viewer's read `writable: true`             |
+| unknown deep link opens nothing | the broken-link branch removed                         | `shows the empty state for a link to a project it cannot open` | `expected 'Rewire the shed' to be ''`          |

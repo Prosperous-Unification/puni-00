@@ -1403,6 +1403,32 @@ describe('the saved-plan shelf is on the project page', () => {
   });
 });
 
+describe('a project link, /?project=<id>', () => {
+  afterEach(() => {
+    window.history.replaceState(window.history.state, '', '/');
+  });
+
+  itDom('opens the project it names, over the remembered one', async () => {
+    localStorage.setItem('wbs.project', 'p1');
+    window.history.replaceState(window.history.state, '', '/?project=p2');
+    pageWith(fakeProjects(TWO));
+    await waitFor(() => {
+      expect(picker().value).toBe('Paint the fence');
+    });
+  });
+
+  itDom('shows the empty state for a link to a project it cannot open', async () => {
+    localStorage.setItem('wbs.project', 'p1');
+    window.history.replaceState(window.history.state, '', '/?project=unknown');
+    pageWith(fakeProjects(TWO));
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Project link names a project you cannot open.',
+    );
+    expect(picker().value).toBe('');
+    expect(window.location.search).toBe('');
+  });
+});
+
 describe('the chosen project survives a refresh', () => {
   itDom('selects the remembered project on the next load, with no click', async () => {
     pageWith(fakeProjects(TWO));

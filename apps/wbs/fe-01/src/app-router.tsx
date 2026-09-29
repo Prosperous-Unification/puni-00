@@ -11,6 +11,8 @@ import { lazy, type ReactNode, Suspense, useMemo, useState } from 'react';
 import { PageNav } from '@/components/chrome/page-nav';
 import { OrganizationPage } from '@/components/organization/organization-page';
 import type { Roster } from '@/components/presence/presence-panel';
+import { SpacePage } from '@/components/spaces/space-page';
+import { SpacesPage } from '@/components/spaces/spaces-page';
 import { ProjectPage } from '@/components/wbs/project-page';
 import type { SessionRuntime } from '@/runtime/session-runtime';
 
@@ -121,7 +123,34 @@ const organizationRoute = createRoute({
   },
 });
 
-const routeTree = rootRoute.addChildren([projectRoute, directoryRoute, organizationRoute]);
+/** The organization's spaces, at `/spaces` (`add-spaces`). */
+const spacesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/spaces',
+  component: function SpacesRoute() {
+    const { account, nav } = spacesRoute.useRouteContext();
+    return <SpacesPage nav={nav} account={account} />;
+  },
+});
+
+/** One space, at `/spaces/$spaceId`; `all` is the virtual All projects. */
+const spaceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/spaces/$spaceId',
+  component: function SpaceRoute() {
+    const { account, nav } = spaceRoute.useRouteContext();
+    const { spaceId } = spaceRoute.useParams();
+    return <SpacePage key={spaceId} spaceId={spaceId} nav={nav} account={account} />;
+  },
+});
+
+const routeTree = rootRoute.addChildren([
+  projectRoute,
+  directoryRoute,
+  organizationRoute,
+  spacesRoute,
+  spaceRoute,
+]);
 
 /**
  * The router for the signed-in region, built in code rather than generated.

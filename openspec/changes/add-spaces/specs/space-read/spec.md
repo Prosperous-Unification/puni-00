@@ -3,7 +3,8 @@
 ### Requirement: The space list and the virtual All projects
 
 `GET /api/spaces` SHALL answer `{ spaces: [{ id, name, projectCount, revision, createdById,
-createdAt }] }` for the caller's organization, ordered by name in code-point order, ties by
+createdAt }], writable }` for the caller's organization, `writable` saying whether the caller may
+create, rename, delete and edit membership (every role but viewer), ordered by name in code-point order, ties by
 id, where `projectCount` counts only members the caller can open. All projects SHALL NOT be
 listed; it is addressed as `all`, has no row, and its rows SHALL be `GET /api/projects` in
 the caller's recency order. Every write addressed to `all` SHALL answer `409 virtual_space`
@@ -35,8 +36,8 @@ unchanged. No write to another space or to a project SHALL change it.
 
 ### Requirement: A space read lists rows before roll-ups
 
-`GET /api/spaces/:id` SHALL answer `{ space, rows: [{ project, position }] }` in membership
-order, each `project` carrying what `GET /api/projects` carries for it, in one read with no
+`GET /api/spaces/:id` SHALL answer `{ space, rows: [{ project, position }], writable }` in
+membership order, `writable` false for `all` and for a viewer, each `project` carrying what `GET /api/projects` carries for it, in one read with no
 roll-up. Envelopes SHALL be objects with named arrays so cursors can be added later.
 
 #### Scenario: a space of three
@@ -121,9 +122,10 @@ fe-01 SHALL offer `/spaces` (All projects first, then the organization's spaces)
 `/spaces/:spaceId` (`all` allowed) with a projects table, in progress now and a read-only
 Gantt of one bar per project over its `dates`, an undated project drawing a labelled blank.
 Each row SHALL render `loading`, then its roll-up or `unavailable`. Loading, empty, query
-failure and `organization_required` SHALL be rendered states. Viewers SHALL see no reorder or
-remove handles. A project SHALL be deep-linked as `/?project=<id>`; an unknown id SHALL render
-the empty state. fe-01 SHALL refetch on focus, after its own writes and every 60 seconds while
+failure and `organization_required` SHALL be rendered states. Only a read answering `writable`
+SHALL draw the create, rename, delete, reorder, remove and add controls. A project SHALL be
+deep-linked as `/?project=<id>`; an id the caller cannot open SHALL render the empty state with
+an alert naming the broken link, and SHALL NOT open another project. fe-01 SHALL refetch on focus, after its own writes and every 60 seconds while
 visible, and SHALL NOT subscribe to project sockets for a space.
 
 #### Scenario: a viewer opens a space
