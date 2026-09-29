@@ -37,6 +37,7 @@ import {
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { inMemoryProjects, testProjectService } from './testing/project-fixture';
+import { refusingProjectRanks } from './testing/project-rank-fixture';
 import { testReplay } from './testing/replay-fixture';
 import { testSavedPlanService } from './testing/saved-plan-fixture';
 import { testStepService } from './testing/step-fixture';
@@ -52,6 +53,7 @@ function options(): AppOptions {
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: inMemorySpaces(new Map()),
+    projectRanks: refusingProjectRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: {
       discover: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
@@ -189,6 +191,7 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   patchApiSpacesById: { name: 'Renamed route probe' },
   postApiSpacesByIdProjects: { projectId: ROUTE_ID },
   postApiSpacesByIdProjectsByProjectIdMove: {},
+  postApiOrganizationProjectsByIdRank: {},
   'patchApiSaved-plansById': { name: 'Renamed snapshot' },
   postInternalForward: { message: { kind: 'route-probe' }, trace_id: 'route-probe' },
   postInternalResume: { resume_points: { subscription: -1 }, trace_id: 'route-probe' },
@@ -234,6 +237,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
   'getApiOrganizationMembers',
+  'getApiOrganizationProject-rank',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
@@ -283,6 +287,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiOrganizationInvitations',
   'postApiOrganizationJoinRequestsByIdApprove',
   'postApiOrganizationJoinRequestsByIdDeny',
+  'postApiOrganizationProjectsByIdRank',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -335,6 +340,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiOrganizationDomainsByIdRotate',
   'postApiOrganizationDomainsByIdVerify',
   'postApiOrganizationDomainsChallenges',
+  'postApiOrganizationProjectsByIdRank',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -361,6 +367,7 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
   'getApiOrganizationMembers',
+  'getApiOrganizationProject-rank',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',

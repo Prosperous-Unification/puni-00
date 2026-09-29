@@ -53,6 +53,7 @@ import {
 } from './onboarding-shapes';
 import { changeMemberRole, listMembers, removeMember } from './organization-shapes';
 import { readOrganizationLoad, readPersonLoad } from './person-load-shapes';
+import { moveProjectRank, readProjectRank } from './project-rank-shapes';
 import {
   createProject,
   exportProject,
@@ -140,6 +141,8 @@ export const httpShapes = [
   listExternalSystems,
   readOrganizationLoad,
   readPersonLoad,
+  readProjectRank,
+  moveProjectRank,
   readHistory,
   readSolution,
   createProject,
