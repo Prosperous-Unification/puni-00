@@ -2,12 +2,12 @@ import { inMemoryEventLog } from '@wbs/store-memory/replay-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { EventLogService } from '../module/event-log/event-log.resource';
+import { GatewayBroadcaster } from '../module/realtime/gateway-broadcaster';
+import { ReplayBuffer } from '../module/realtime/replay-buffer';
+import { ReplayOrchestrator } from '../module/realtime/replay-orchestrator';
 import { clockOf } from '../ports/clock';
 import { type ProjectEvent, subscriptionFor } from '../ports/project-event';
 import type { PushTransport } from '../ports/push-transport';
-import { GatewayBroadcaster } from './gateway-broadcaster';
-import { ReplayBuffer } from './replay-buffer';
-import { ReplayOrchestrator } from './replay-orchestrator';
 
 const EVENT: ProjectEvent = { type: 'tree_replaced', workItems: [] };
 

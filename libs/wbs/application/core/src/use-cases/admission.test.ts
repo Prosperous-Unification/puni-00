@@ -7,11 +7,11 @@ import { describe, expect, test } from 'bun:test';
 
 import { EventLogService } from '../module/event-log/event-log.resource';
 import { PlanEventService } from '../module/plan-event/plan-event.resource';
+import { replay } from '../module/realtime/realtime.feature';
 import { LEGACY_ACCESS } from '../ports/organization-access';
 import { PlanCommandRunner } from '../service/plan-commands';
 import { inMemoryServices } from '../testing/harness';
 import { batchServices, testWrites } from '../testing/writes-fixture';
-import { replay } from './replay';
 import { retentionSweep } from './retention-sweep';
 import { runCommandBatch, runCommandBatchAfter } from './run-command-batch';
 import { savePlan } from './save-plan';

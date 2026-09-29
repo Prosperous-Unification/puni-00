@@ -309,23 +309,8 @@
         "kind": "declared",
         "memberships": [
           { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
-          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/service/gateway-broadcaster.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/service/replay-buffer.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/service/replay-orchestrator.ts"
-          },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/use-cases/replay.ts"
-          }
+          { "kind": "path", "path": "libs/wbs/application/core/src/http/internal.routes.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" }
         ]
       }
     },
