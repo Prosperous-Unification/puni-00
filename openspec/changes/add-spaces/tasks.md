@@ -50,9 +50,11 @@
       `foldStatuses` swapped for an `agree` fold → an all-held project reads `in_progress`;
       readable filter removed → a hidden project's roll-up is answered; TTL expiry skipped → a
       stale total past 60 s; the 50-id limit removed → 404 instead of 400.
-- [ ] 3.4 **Open, design authority:** the cold budget. A chunk of 20 cold measured 4,961 ms
-      (about 250 ms per 300-row tree, not the memo's 50 ms); the warm chunk (11–14 ms) and the
-      space read (3–4 ms) meet theirs. The cold figure is printed, not asserted, until decided.
+- [x] 3.4 The cold budget (Fable's profile): 4,607 of 4,961 ms was `findCrossReferences` in the
+      access gate scanning `work_item` and `dependency`, not the tree (about 16 ms per 300
+      rows). Fixed in #235 off main (both incoming arms now probe indexes, with an
+      `EXPLAIN QUERY PLAN` proof), merged here. Chunks stay at 20; a cold chunk of 20 now
+      measures 484 ms and is asserted ≤ 1,000 ms × slack.
 
 ## 4. In progress now
 

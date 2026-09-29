@@ -14,7 +14,7 @@ import { OrganizationHarness } from '../testing/organization-harness';
 const PROJECTS = 30;
 const ROWS = 300;
 const SLACK = process.env['CI'] === 'true' ? 4 : 3;
-const BUDGET_MS = { warmChunk: 100, spaceRead: 30 };
+const BUDGET_MS = { warmChunk: 100, coldChunk: 1_000, spaceRead: 30 };
 
 let h: OrganizationHarness;
 let space: string;
@@ -92,10 +92,8 @@ test('reads a space of 30 projects and their roll-ups within the budget', async 
     `space read ${read.ms.toFixed(1)} ms; cold chunk of 20 ${cold.ms.toFixed(1)} ms; warm chunk of 20 ${warm.ms.toFixed(1)} ms; slack ${String(SLACK)}`,
   );
   expect(read.ms).toBeLessThan(BUDGET_MS.spaceRead * SLACK);
+  // Proof, observed 2026-09-29: before the `findCrossReferences` index fix
+  // (#235) this chunk measured 4,961 ms, over three times this bound.
+  expect(cold.ms).toBeLessThan(BUDGET_MS.coldChunk * SLACK);
   expect(warm.ms).toBeLessThan(BUDGET_MS.warmChunk * SLACK);
-  // The cold budget is not asserted: measured 2026-09-29 at 4,961 ms for a
-  // chunk of 20 (about 250 ms per 300-row tree, not the memo's 50 ms), over
-  // three times the 1.5 s target even with slack. Which way to meet it is an
-  // open design decision recorded in verify.md; the figure is printed above.
-  expect(cold.ms).toBeGreaterThan(0);
 }, 120_000);
