@@ -26,7 +26,9 @@ is born organization-aware.
 The audit columns are the repository's `auditOnCreate` and `auditOnUpdate` (enforced by
 `audit.test.ts`), and on new tables `created_at` and `created_by` are `NOT NULL`. So the
 memo's `created_by_id` is `created_by`, and its membership `added_at` is `created_at`: one
-column per fact. `revision` counts every write to the space or its membership.
+column per fact. `revision` starts at 0 and rises by 1 on each successful rename, add, remove
+and move (spec `space-read`); `listIn` orders by `(name, id)` under SQLite's binary collation,
+which is code-point order.
 
 ## D2 — Port and adapters
 
@@ -42,7 +44,7 @@ the resource's (slice 2). Answers are typed outcomes (`not_found`, `name_taken`,
 ## D3 — Rollback
 
 `down.sql` uses `project_solution`'s temporary CHECK table: refuse while any `space` row
-exists, then drop. `spaces-rollback-cli.ts save|remove|restore <file>` over
+exists, then drop. `space-rollback-cli.ts save|remove|restore <file>` over
 `space-rollback.ts` in `@wbs/store-sqlite`, the `typed-dependency-rollback` shape: a versioned
 file validated at the CLI boundary, `remove` refusing a save that no longer matches, `restore`
 all or none. The runbook section is `docs/runbook-prod-deploy.md#space-rollback`. Code

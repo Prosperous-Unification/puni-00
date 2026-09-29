@@ -3,21 +3,35 @@
 ### Requirement: The space list and the virtual All projects
 
 `GET /api/spaces` SHALL answer `{ spaces: [{ id, name, projectCount, revision, createdById,
-createdAt }] }` for the caller's organization, where `projectCount` counts only members the
-caller can open. All projects SHALL NOT be listed; it is addressed as `all`, has no row, and
-its rows SHALL be `GET /api/projects` in the caller's recency order. Every membership write to
-`all` SHALL answer `409 virtual_space`.
+createdAt }] }` for the caller's organization, ordered by name in code-point order, ties by
+id, where `projectCount` counts only members the caller can open. All projects SHALL NOT be
+listed; it is addressed as `all`, has no row, and its rows SHALL be `GET /api/projects` in
+the caller's recency order. Every write addressed to `all` SHALL answer `409 virtual_space`
+and write nothing: `PATCH /api/spaces/all`, `DELETE /api/spaces/all`, and every membership
+add, remove and move under `/api/spaces/all/projects`.
 
-#### Scenario: an organization with one space
+#### Scenario: an organization with two spaces
 
-- **GIVEN** organization A holds space `Q3` with two members
+- **GIVEN** organization A holds spaces `Q3` with two members and `Launch` with none
 - **WHEN** a member of A lists spaces
-- **THEN** the answer holds exactly `Q3` with `projectCount` 2
+- **THEN** the answer holds exactly `Launch` then `Q3`, with `projectCount` 0 and 2
 
-#### Scenario: adding to All projects
+#### Scenario: writing to All projects
 
-- **WHEN** a member posts a project to `/api/spaces/all/projects`
-- **THEN** the answer is `409 virtual_space` and nothing is written
+- **WHEN** a member renames or deletes `all`, or adds, removes or moves a project under it
+- **THEN** each answer is `409 virtual_space` and nothing is written
+
+### Requirement: A space's revision counts its writes
+
+A space SHALL be created at `revision` 0. Each successful rename, membership add, membership
+remove and membership move SHALL raise it by exactly 1; a refused write SHALL leave it
+unchanged. No write to another space or to a project SHALL change it.
+
+#### Scenario: a sequence of writes
+
+- **GIVEN** a new space at revision 0
+- **WHEN** it is renamed, gains two projects, has one moved, then a duplicate add is refused
+- **THEN** its revision is 4
 
 ### Requirement: A space read lists rows before roll-ups
 
