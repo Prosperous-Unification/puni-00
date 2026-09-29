@@ -107,6 +107,8 @@ function rowFrom(row: LabelledWorkItem, overrides: Partial<WorkItem>): WorkItem 
     deadline: row.deadline,
     factStart: row.factStart,
     factEnd: row.factEnd,
+    readiness: row.readiness,
+    hold: row.hold,
     priority: row.priority,
     serviceTeamId: row.serviceTeamId,
     serviceId: row.serviceId,

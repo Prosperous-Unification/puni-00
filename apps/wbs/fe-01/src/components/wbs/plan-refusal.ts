@@ -392,6 +392,9 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'in_use':
     case 'calendar_range':
     case 'deadline_before_project_start':
+    case 'readiness_after_progress':
+    case 'cannot_hold_done':
+    case 'no_steps':
     case 'no_active_organization':
     case 'not_a_member':
     case 'allowancePercent_must_be_0_to_1000_with_two_decimals':

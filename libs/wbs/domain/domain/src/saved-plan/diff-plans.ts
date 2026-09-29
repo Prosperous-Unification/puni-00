@@ -165,6 +165,9 @@ const FIELD_CATEGORIES: Readonly<
     serviceId: 'service-assignment',
     startNoEarlierThan: 'start-no-earlier-than',
     startNoEarlierThanReason: 'start-no-earlier-than',
+    // A planner's statement about where the work stands, beside the steps'.
+    readiness: 'progress',
+    hold: 'progress',
   },
   steps: { name: 'renamed', position: 'reordered', allowancePercent: 'estimates' },
   stepValues: {

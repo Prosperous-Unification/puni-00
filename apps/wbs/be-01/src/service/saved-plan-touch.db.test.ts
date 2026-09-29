@@ -66,6 +66,8 @@ describe('renaming and deleting a saved plan', () => {
     deadline: null,
     factStart: null,
     factEnd: null,
+    readiness: null,
+    hold: null,
     revision: 0,
   });
 

@@ -23,6 +23,13 @@ export function createFloatColumn() {
           </span>
         );
       }
+      if (row.original.schedule === null) {
+        return (
+          <span data-float data-fact="On hold: this work takes no part in the schedule.">
+            —
+          </span>
+        );
+      }
       if (row.original.schedule.critical) {
         return (
           <span

@@ -1,15 +1,28 @@
-import { type ProgressStatus, SETTABLE_STATUSES, type SettableStatus } from '@wbs/domain/progress';
+import type { SettableStatus, WorkItemStatus } from '@wbs/domain/progress';
 import { type KeyboardEvent, useEffect, useState } from 'react';
 
 import { STATUS_HINT } from './column-hints';
 import { PickerList } from './creatable-picker';
 
 /** The word each status reads as, in the cell and on its list. */
-export const STATUS_LABEL: Readonly<Record<ProgressStatus, string>> = {
+export const STATUS_LABEL: Readonly<Record<WorkItemStatus, string>> = {
   unknown: 'Unknown',
+  draft: 'Draft',
+  ready: 'Ready',
   in_progress: 'In progress',
+  blocked_by_proxy: 'Blocked by proxy',
+  on_hold: 'On hold',
+  blocked: 'Blocked',
   done: 'Done',
 };
+
+/**
+ * The statuses the cell's list and the row menus offer until the status menu
+ * of `add-work-item-statuses` (its slice 6) lands: the two this face already
+ * knows how to set. The API accepts all seven settable statuses; offering one
+ * here before its prompt and filter exist would send it without either.
+ */
+export const OFFERED_STATUSES = ['unknown', 'done'] as const satisfies readonly SettableStatus[];
 
 /**
  * The glyph each status is drawn as, in the cell and on the column heading.
@@ -22,16 +35,27 @@ export const STATUS_LABEL: Readonly<Record<ProgressStatus, string>> = {
  * fact card, two boxes for one word (Dany, 2026-09-13: "remove the system grey
  * hint"), and a combobox takes no `aria-description` per `jsx-a11y`.
  */
-export const STATUS_GLYPH: Readonly<Record<ProgressStatus, string>> = {
+export const STATUS_GLYPH: Readonly<Record<WorkItemStatus, string>> = {
   unknown: '○',
+  draft: '◌',
+  ready: '◎',
   in_progress: '◐',
+  blocked_by_proxy: '⊘',
+  on_hold: '‖',
+  blocked: '⊘',
   done: '✓',
 };
 
 /** The colour each status is said in — the strip's, the tint's and this cell's. */
-const STATUS_COLOR: Readonly<Record<ProgressStatus, string>> = {
+const STATUS_COLOR: Readonly<Record<WorkItemStatus, string>> = {
   unknown: 'var(--muted-foreground)',
+  // Provisional until slice 6 gives each status its palette token.
+  draft: 'var(--muted-foreground)',
+  ready: 'var(--muted-foreground)',
   in_progress: 'var(--status-in-progress)',
+  blocked_by_proxy: 'var(--muted-foreground)',
+  on_hold: 'var(--muted-foreground)',
+  blocked: 'var(--destructive)',
   done: 'var(--status-done)',
 };
 
@@ -43,8 +67,13 @@ const STATUS_COLOR: Readonly<Record<ProgressStatus, string>> = {
  * 2026-09-13: "hint pop-up must show the full name of the status or even write
  * status: unknown".
  */
-const STATUS_WORDS: Readonly<Record<ProgressStatus, string>> = {
+const STATUS_WORDS: Readonly<Record<WorkItemStatus, string>> = {
   unknown: `Status: ${STATUS_LABEL.unknown}. Nobody has said where this work has got to.`,
+  draft: `Status: ${STATUS_LABEL.draft}. Somebody has said this work is not yet defined well enough to start.`,
+  ready: `Status: ${STATUS_LABEL.ready}. Somebody has said this work is ready to start.`,
+  blocked_by_proxy: `Status: ${STATUS_LABEL.blocked_by_proxy}. Work it depends on is on hold or blocked.`,
+  on_hold: `Status: ${STATUS_LABEL.on_hold}. This work is parked and takes no part in the schedule.`,
+  blocked: `Status: ${STATUS_LABEL.blocked}. This work is stopped by something outside the plan; it keeps its place in the schedule.`,
   in_progress: `Status: ${STATUS_LABEL.in_progress}. Its steps disagree — one has finished, or one has said nothing — so the row is part-way through. Set it per step, or choose Done for all of it.`,
   done: `Status: ${STATUS_LABEL.done}. Every step of this work item says finished. The chart draws it over its fact span, the row is tinted, and its name is struck through.`,
 };
@@ -53,7 +82,7 @@ export interface StatusCellProps {
   cellKey: string;
   rowNumber: string;
   rowId: string;
-  status: ProgressStatus;
+  status: WorkItemStatus;
   choose: (status: SettableStatus) => void;
   onGridKey: (event: KeyboardEvent<HTMLInputElement>) => void;
   /**
@@ -184,7 +213,7 @@ export function StatusCell({
         <PickerList
           id={listId}
           label={`Status for ${rowNumber}`}
-          options={SETTABLE_STATUSES.map((offered) => ({
+          options={OFFERED_STATUSES.map((offered) => ({
             key: `${listId}-${offered}`,
             label: STATUS_LABEL[offered],
             selected: offered === status,

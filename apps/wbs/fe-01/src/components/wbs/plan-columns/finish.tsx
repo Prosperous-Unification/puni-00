@@ -9,13 +9,14 @@ export function createFinishColumn() {
       const { finish, hasSchedule } = row.original.readings;
       // Both facts in one `title`, because a cell has one: the day in full,
       // and — where the figure is a guess — what the marker beside it means.
-      const said = [finish.iso, row.original.schedule.estimated ? null : 'No estimate yet']
+      const unestimated = row.original.schedule !== null && !row.original.schedule.estimated;
+      const said = [finish.iso, unestimated ? 'No estimate yet' : null]
         .filter((part) => part !== null)
         .join(' — ');
       return (
         <span data-finish data-fact={said === '' ? undefined : said}>
           {finish.text}
-          {hasSchedule && !row.original.schedule.estimated ? ' ?' : ''}
+          {hasSchedule && unestimated ? ' ?' : ''}
         </span>
       );
     },

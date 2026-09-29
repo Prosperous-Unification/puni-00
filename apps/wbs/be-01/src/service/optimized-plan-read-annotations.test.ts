@@ -156,6 +156,8 @@ async function leaf(
       deadline: null,
       factStart: null,
       factEnd: null,
+      readiness: null,
+      hold: null,
       serviceTeamId,
       serviceId: null,
       maxParallel: 1,
@@ -533,6 +535,7 @@ describe("the materialiser's annotations, through the plan read", () => {
     // `long` keeps a late finish at or after its early finish. Under the
     // dropped filter it does not.
     const longRow = rowFor(tree, long).schedule;
+    if (longRow === null) throw new Error('the long row is unscheduled');
     expect(longRow.latestFinish).toBeGreaterThanOrEqual(longRow.earliestFinish);
   });
 

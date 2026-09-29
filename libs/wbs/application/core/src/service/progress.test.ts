@@ -1,4 +1,4 @@
-import type { ProgressStatus } from '@wbs/domain';
+import type { WorkItemStatus } from '@wbs/domain';
 import { inMemoryCommandJournal } from '@wbs/store-memory/command-journal-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
@@ -105,7 +105,7 @@ async function shown(): Promise<Map<string, Record<string, string>>> {
 }
 
 /** The derived item state by work item name — the field nothing stores. */
-async function states(): Promise<Map<string, ProgressStatus>> {
+async function states(): Promise<Map<string, WorkItemStatus>> {
   const tree = await service.tree(projectId);
   if (tree === null) throw new Error('project vanished');
   return new Map(tree.workItems.map((w) => [w.name, w.status]));

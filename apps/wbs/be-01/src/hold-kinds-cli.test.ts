@@ -8,5 +8,5 @@ it('prints the hold kinds this binary reads as JSON', async () => {
   });
   const output = await new Response(command.stdout).text();
   expect(await command.exited).toBe(0);
-  expect(JSON.parse(output)).toEqual([]);
+  expect(JSON.parse(output)).toEqual(['on_hold', 'blocked']);
 });

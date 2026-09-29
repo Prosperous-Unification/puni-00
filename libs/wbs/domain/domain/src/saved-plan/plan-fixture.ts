@@ -52,6 +52,8 @@ export const planFixtureRows: PlanInputRows = {
       serviceId: null,
       startNoEarlierThan: null,
       startNoEarlierThanReason: null,
+      readiness: null,
+      hold: null,
     },
     {
       id: 'w1',
@@ -69,6 +71,8 @@ export const planFixtureRows: PlanInputRows = {
       serviceId: 'svc-1',
       startNoEarlierThan: '2026-09-14',
       startNoEarlierThanReason: 'inspection booked',
+      readiness: 'ready',
+      hold: 'blocked',
     },
   ],
   steps: [

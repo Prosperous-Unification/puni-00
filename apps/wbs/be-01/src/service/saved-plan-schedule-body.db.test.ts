@@ -119,6 +119,8 @@ describe('the stored schedule body', () => {
           deadline: null,
           factStart: null,
           factEnd: null,
+          readiness: null,
+          hold: null,
           revision: 0,
         },
         [],

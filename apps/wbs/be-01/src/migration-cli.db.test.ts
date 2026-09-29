@@ -67,6 +67,10 @@ describe('migration deploy entrypoints', () => {
         'typed-dependency-rollback-cli.ts',
         ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/typed-dependency-rollback'"],
       ],
+      [
+        'work-item-status-facts-rollback-cli.ts',
+        ["from '@wbs/store-sqlite/db'", "from '@wbs/store-sqlite/work-item-status-facts-rollback'"],
+      ],
     ]);
     for (const [file, imports] of expectedImports) {
       const source = readFileSync(join(APP_ROOT, 'src', file), 'utf8');
@@ -159,6 +163,74 @@ describe('migration deploy entrypoints', () => {
     const failed = await runCli('backfill-step-codes-cli.ts', join(root, 'empty.db'));
     expect(failed.exitCode).not.toBe(0);
     expect(failed.stderr).toContain('no such table: step');
+  }, 60_000);
+
+  it('saves, removes and restores readiness and holds through the rollback CLI', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-hold-cli-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    const savedPath = join(root, 'holds.json');
+    runMigrations(dbPath, MIGRATIONS);
+    const sqlite = openDatabase(dbPath);
+    try {
+      sqlite.run(
+        "INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','owner','x',1)",
+      );
+      sqlite.run(
+        "INSERT INTO project (id,name,owner_id,restricted,estimate_method,revision,created_at) VALUES ('p','Project','u',0,'pert',0,1)",
+      );
+      sqlite.run(
+        "INSERT INTO work_item (id,project_id,position,name,revision,hold) VALUES ('a','p',1,'A',0,'on_hold')",
+      );
+    } finally {
+      sqlite.close();
+    }
+    expect(
+      await runCli('work-item-status-facts-rollback-cli.ts', dbPath, 'save', savedPath),
+    ).toEqual({
+      exitCode: 0,
+      stdout: 'work item status facts saved: 1\n',
+      stderr: '',
+    });
+    expect(
+      await runCli('work-item-status-facts-rollback-cli.ts', dbPath, 'remove', savedPath),
+    ).toEqual({
+      exitCode: 0,
+      stdout: 'work item status facts removed: 1\n',
+      stderr: '',
+    });
+    expect(
+      await runCli('work-item-status-facts-rollback-cli.ts', dbPath, 'restore', savedPath),
+    ).toEqual({
+      exitCode: 0,
+      stdout: 'work item status facts restored: 1\n',
+      stderr: '',
+    });
+    const restored = openDatabase(dbPath);
+    try {
+      expect(
+        restored
+          .query<{ hold: string | null }, []>("SELECT hold FROM work_item WHERE id = 'a'")
+          .get(),
+      ).toEqual({ hold: 'on_hold' });
+    } finally {
+      restored.close();
+    }
+    const invalid = await runCli(
+      'work-item-status-facts-rollback-cli.ts',
+      dbPath,
+      'erase',
+      savedPath,
+    );
+    expect(invalid.exitCode).not.toBe(0);
+    expect(invalid.stderr).toContain('usage:');
+    const missingArgument = await runCli(
+      'work-item-status-facts-rollback-cli.ts',
+      dbPath,
+      'restore',
+    );
+    expect(missingArgument.exitCode).not.toBe(0);
+    expect(missingArgument.stderr).toContain('usage:');
   }, 60_000);
 
   it('saves, removes and restores typed rows through the rollback CLI', async () => {

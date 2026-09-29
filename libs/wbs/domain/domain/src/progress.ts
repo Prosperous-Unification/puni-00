@@ -98,11 +98,20 @@ export const STEP_STATES: readonly StepState[] = ['in_progress', 'done'];
 export const UNKNOWN = 'unknown';
 
 /**
- * The two statuses a row's Status cell offers, in the order it offers them.
- * `in_progress` is not among them: it is a step's statement and arises on a row
- * only from the fold — see {@link agree}.
+ * The seven statuses `setStatus` accepts, in the order the row menu offers
+ * them. `blocked_by_proxy` is not among them: the dependency graph says it,
+ * never a person. `in_progress` writes the first silent step's statement,
+ * since a row's progress is still the steps' (`add-work-item-statuses`).
  */
-export const SETTABLE_STATUSES = ['unknown', 'done'] as const;
+export const SETTABLE_STATUSES = [
+  'draft',
+  'ready',
+  'in_progress',
+  'on_hold',
+  'blocked',
+  'done',
+  'unknown',
+] as const;
 export type SettableStatus = (typeof SETTABLE_STATUSES)[number];
 
 /** Whether a value off the wire is one of the two states a step may be put in. */
@@ -126,9 +135,15 @@ export function isHold(value: unknown): value is Hold {
   return typeof value === 'string' && (HOLDS as readonly string[]).includes(value);
 }
 
-/** Whether a value off the wire is a status a row's cell may set. */
+/**
+ * Whether a value off the wire is a status a row may be set to.
+ *
+ * Proof: `blocked_by_proxy` admitted here made `admits the seven statuses a
+ * row may be set to…` fail on `Expected: false, Received: true`; watched
+ * 2026-09-29.
+ */
 export function isSettableStatus(value: unknown): value is SettableStatus {
-  return value === 'unknown' || value === 'done';
+  return typeof value === 'string' && (SETTABLE_STATUSES as readonly string[]).includes(value);
 }
 
 /**

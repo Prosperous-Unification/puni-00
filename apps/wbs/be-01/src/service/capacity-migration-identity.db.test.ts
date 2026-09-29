@@ -334,8 +334,15 @@ describe('every plan schedules identically across the migration', () => {
             deadline,
             factStart,
             factEnd,
+            readiness,
+            hold,
             ...row
           }) => {
+            // Lifted by `add-work-item-statuses` and asserted null for the fact
+            // dates' reason: the oracle predates both columns and nothing in the
+            // replayed plans says a readiness or a hold.
+            expect(readiness).toBeNull();
+            expect(hold).toBeNull();
             // The arity claim, and the only place it is made: the set the join
             // answered is exactly the singleton of the label the oracle recorded.
             //

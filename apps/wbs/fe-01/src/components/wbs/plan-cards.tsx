@@ -1,4 +1,3 @@
-import { SETTABLE_STATUSES } from '@wbs/domain/progress';
 import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import {
@@ -40,7 +39,7 @@ import { composeNameCell } from './name-notes';
 import { priorityBandStyleOf } from './priority-band-style';
 import { ReferenceSetSheet } from './reference-set-field';
 import { type PrintedDay, shortIsoDate } from './short-date';
-import { STATUS_LABEL } from './status-cell';
+import { OFFERED_STATUSES, STATUS_LABEL } from './status-cell';
 import { cardIndentFor } from './table-frame';
 import { dependencyWords, endpointText, TypedDependencyEditor } from './typed-dependency-editor';
 import type { TreeRow } from './wbs-rows';
@@ -467,7 +466,7 @@ const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuActi
   // The same list the table's ⋯ offers (`plan-columns/actions.tsx`), in the
   // same order: the status entries, Add child, Move under…, Duplicate, Unfreeze where it applies, and
   // Delete last in the destructive tint.
-  ...SETTABLE_STATUSES.filter((status) => status !== row.status).map((status) => ({
+  ...OFFERED_STATUSES.filter((status) => status !== row.status).map((status) => ({
     id: `set-${status}`,
     label: `Set status to ${STATUS_LABEL[status]}`,
     lead: { word: STATUS_LABEL[status], ...(status === 'done' ? { tone: 'done' as const } : {}) },
@@ -562,6 +561,14 @@ const cardSlackOf = (
   row: TreeRow,
   showDay: (days: number) => string,
 ): { text: string; critical: boolean; hint: string } => {
+  // An on-hold row has no schedule (`add-work-item-statuses`), so no slack.
+  if (row.schedule === null) {
+    return {
+      text: '—',
+      critical: false,
+      hint: 'On hold: this work takes no part in the schedule.',
+    };
+  }
   if (row.schedule.critical) {
     return {
       text: 'critical',

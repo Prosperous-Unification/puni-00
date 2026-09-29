@@ -84,6 +84,8 @@ test('checks deadline and slice lateness while retaining additive nested respons
     deadline: '2026-09-07',
     factStart: null,
     factEnd: '2026-09-12',
+    readiness: null,
+    hold: 'blocked',
     priority: null,
     serviceTeamId: null,
     serviceId: null,

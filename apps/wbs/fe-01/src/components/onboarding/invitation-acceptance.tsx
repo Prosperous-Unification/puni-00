@@ -64,6 +64,7 @@ export function InvitationAcceptance({
           setCode(event.target.value);
         }}
         required
+        autoComplete="off"
       />
       <button type="submit" disabled={sending}>
         Accept invitation
