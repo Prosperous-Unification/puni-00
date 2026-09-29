@@ -4,6 +4,7 @@ import {
   allowancePercentOf,
   findTypedEndpointDefect,
   formatTypedDependencyKey,
+  type Hold,
   isHexTriple,
   isIsoDate,
   isMarkerName,
@@ -17,6 +18,7 @@ import {
   MOST_PEOPLE_AT_ONCE,
   PertWeights,
   priorityLadderProblem,
+  type Readiness,
   type StepState,
   suggestStepCodes,
   type ThreePointEstimate as Estimate,
@@ -119,6 +121,8 @@ export interface PreparedWorkItem {
   deadline: string | null;
   factStart: string | null;
   factEnd: string | null;
+  readiness: Readiness | null;
+  hold: Hold | null;
   priority: number | null;
   serviceTeamFileId: string | null;
   serviceFileId: string | null;
@@ -313,8 +317,8 @@ function rowShape(row: DocumentRow): WorkItem {
     deadline: row.deadline,
     factStart: row.factStart,
     factEnd: row.factEnd,
-    readiness: null,
-    hold: null,
+    readiness: row.readiness,
+    hold: row.hold,
     priority: row.priority,
     serviceTeamId: row.serviceTeamId,
     serviceId: row.serviceId,
@@ -341,6 +345,8 @@ function preparedRow(
     deadline: row.deadline,
     factStart: row.factStart,
     factEnd: row.factEnd,
+    readiness: row.readiness,
+    hold: row.hold,
     priority: row.priority,
     serviceTeamFileId: row.serviceTeamId,
     serviceFileId: row.serviceId,

@@ -129,7 +129,7 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
     ...tree,
     project: PROJECT,
     stepNodes: [],
-    document: { format: 'wbs-plan', version: 5, exportedAt: '2026-09-14T08:30:00.000Z' },
+    document: { format: 'wbs-plan', version: 6, exportedAt: '2026-09-14T08:30:00.000Z' },
     typedDependencies: [],
     settings: {
       name: PROJECT.name,
@@ -187,7 +187,7 @@ describe('plan JSON transfer', () => {
     expect(new Headers(call?.[1]?.headers).get('x-wbs-token')).toBe('token');
   });
 
-  it('downloads a version-5 JSON representation containing a typed dependency', async () => {
+  it('downloads a version-6 JSON representation containing a typed dependency', async () => {
     const document = PLAN_DOCUMENT(['first', 'second']);
     document['typedDependencies'] = [
       {

@@ -262,7 +262,7 @@ test('JSON export is a versioned plan document and settings says what project sa
   expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
   expect(exported.document).toEqual({
     format: 'wbs-plan',
-    version: 5,
+    version: 6,
     exportedAt: '2026-09-13T12:30:00.000Z',
   });
   expect(exported.settings).toEqual({
@@ -331,7 +331,7 @@ test('malformed priority names workItems[3].priority', async () => {
 
 test('unknown version precedes version-specific validation', async () => {
   const future = structuredClone(await exportDocument());
-  Reflect.set(future.document, 'version', 6);
+  Reflect.set(future.document, 'version', 7);
   const row = future.workItems[0];
   future.workItems = Array.from({ length: 4 }, () => structuredClone(row));
   Reflect.set(future.workItems[3] ?? {}, 'priority', 'high');
@@ -398,7 +398,7 @@ test('version 5 refuses a missing relationship type', async () => {
   });
 });
 
-test('version 5 export keeps SS and FF types from the trusted tree', async () => {
+test('version 6 export keeps SS and FF types from the trusted tree', async () => {
   const tree = structuredClone(TREE);
   tree.typedDependencies = [
     {
@@ -418,7 +418,7 @@ test('version 5 export keeps SS and FF types from the trusted tree', async () =>
   expect(exported).toMatchObject({
     ok: true,
     value: {
-      document: { version: 5 },
+      document: { version: 6 },
       typedDependencies: [
         { id: 'start-link', type: 'SS' },
         { id: 'finish-link', type: 'FF' },
@@ -605,4 +605,81 @@ test('spells each leaf’s step nodes beside their IDs', async () => {
   const classified = await classifyPlanDocument(exported);
   if (!classified.ok) throw new Error(`current file refused at ${classified.path}`);
   expect(classified.value).not.toHaveProperty('stepNodes');
+});
+
+test('version 6 carries each row’s readiness and hold, and earlier versions read as nothing said', async () => {
+  const exported = structuredClone(await exportDocument());
+  expect(exported.document.version).toBe(6);
+  const row = exported.workItems.find(
+    (each) => !exported.workItems.some((c) => c.parentId === each.id),
+  );
+  if (row === undefined) throw new Error('fixture has no leaf');
+  Reflect.set(row, 'readiness', 'ready');
+  Reflect.set(row, 'hold', 'blocked');
+
+  const current = await classifyPlanDocument(exported);
+  if (!current.ok) throw new Error(`current file refused at ${current.path}`);
+  expect(current.value.workItems.find((each) => each.id === row.id)).toMatchObject({
+    readiness: 'ready',
+    hold: 'blocked',
+  });
+
+  for (const version of [4, 5]) {
+    const older = structuredClone(exported);
+    Reflect.set(older.document, 'version', version);
+    if (version === 4) older.typedDependencies = [];
+    const classified = await classifyPlanDocument(older);
+    if (!classified.ok) throw new Error(`version ${String(version)} refused at ${classified.path}`);
+    expect(
+      classified.value.workItems.every((each) => each.readiness === null && each.hold === null),
+    ).toBe(true);
+  }
+});
+
+/** Proof: see `classifyPlanDocument`. */
+test('refuses a version-6 hold or readiness outside its vocabulary or on a parent, and accepts a hold on done work', async () => {
+  const exported = structuredClone(await exportDocument());
+  const [only] = exported.workItems;
+  // A child under the fixture's one row, so the file holds a parent and a leaf.
+  exported.workItems.push({ ...structuredClone(only), id: 'row-child', parentId: only.id });
+  const parentAt = 0;
+  const leafAt = exported.workItems.length - 1;
+
+  const paused = structuredClone(exported);
+  Reflect.set(paused.workItems[leafAt] ?? {}, 'hold', 'paused');
+  expect(await classifyPlanDocument(paused)).toEqual({
+    ok: false,
+    code: 'invalid_body',
+    path: `workItems[${String(leafAt)}].hold`,
+  });
+
+  const unready = structuredClone(exported);
+  Reflect.set(unready.workItems[leafAt] ?? {}, 'readiness', 'soon');
+  expect(await classifyPlanDocument(unready)).toEqual({
+    ok: false,
+    code: 'invalid_body',
+    path: `workItems[${String(leafAt)}].readiness`,
+  });
+
+  const onParent = structuredClone(exported);
+  Reflect.set(onParent.workItems[parentAt] ?? {}, 'hold', 'on_hold');
+  expect(await classifyPlanDocument(onParent)).toEqual({
+    ok: false,
+    code: 'invalid_body',
+    path: `workItems[${String(parentAt)}].hold`,
+  });
+
+  const heldDone = structuredClone(exported);
+  const doneRow = heldDone.workItems[leafAt];
+  doneRow.progress = Object.fromEntries(heldDone.steps.map((step) => [step.id, 'done']));
+  Reflect.set(doneRow, 'hold', 'on_hold');
+  expect((await classifyPlanDocument(heldDone)).ok).toBe(true);
+
+  const missing = structuredClone(exported);
+  Reflect.deleteProperty(missing.workItems[leafAt] ?? {}, 'hold');
+  expect(await classifyPlanDocument(missing)).toEqual({
+    ok: false,
+    code: 'invalid_body',
+    path: `workItems[${String(leafAt)}].hold`,
+  });
 });

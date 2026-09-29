@@ -13,6 +13,7 @@ export interface Observed {
 export type SwapStep =
   | 'start-green'
   | 'stored-vocabularies'
+  | 'backup-db'
   | 'migrate'
   | 'health-gate'
   | 'grant-alias'
@@ -53,8 +54,13 @@ export function planSwap(tier: Tier, observed: Observed): SwapPlan {
 
   const steps: SwapStep[] = ['start-green'];
   // Migrations run as a discrete step before green takes traffic, so a failure
-  // aborts with the old colour untouched and un-migrated.
-  if (tier === 'be') steps.push('stored-vocabularies', 'migrate');
+  // aborts with the old colour untouched and un-migrated. The backup comes
+  // first: it is the only rollback once a migration's down script cannot be
+  // trusted or blue has already stopped.
+  // Proof: leaving 'backup-db' out of this list made `backs up before
+  // migrating, and never after` in reconcile.test.ts fail (15 pass, 1 fail,
+  // 2026-09-29).
+  if (tier === 'be') steps.push('stored-vocabularies', 'backup-db', 'migrate');
   steps.push('health-gate');
   // gw-01 reads BE_URL once at startup, so a be swap moves a stable network
   // alias (be-01.internal) rather than reconfiguring gw. Granting it to the

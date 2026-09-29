@@ -330,6 +330,56 @@ describe('OrganizationRepository.administer', () => {
   });
 });
 
+describe('OrganizationRepository.listMembers', () => {
+  /** org-a: u-a super-admin, u-b admin, u-c member; org-b: u-c member. */
+  async function seeded(): Promise<OrganizationRepository> {
+    const organizations = new OrganizationRepository(connection.db, OPEN);
+    await organizations.createForUnaffiliatedUser({ id: 'org-a', name: 'A' }, 'u-a', stamp('u-a'));
+    await organizations.addMember('org-a', 'u-b', 'admin', stamp('u-a'));
+    await organizations.addMember('org-a', 'u-c', 'member', stamp('u-a'));
+    connection.db.run(
+      sql`INSERT INTO organization (id, name, legacy, created_at) VALUES ('org-b', 'B', 0, 1)`,
+    );
+    connection.db.run(
+      sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-b', 'u-c', 'member', 1)`,
+    );
+    return organizations;
+  }
+
+  const activate = () =>
+    connection.db.run(
+      sql`UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1`,
+    );
+
+  it('refuses before activation', async () => {
+    const organizations = await seeded();
+    expect(await organizations.listMembers('org-a', 'u-a')).toEqual({
+      ok: false,
+      refusal: 'onboarding_inactive',
+    });
+  });
+
+  it('lists only the given organization to an admin, and refuses a member', async () => {
+    const organizations = await seeded();
+    activate();
+    const listed = await organizations.listMembers('org-a', 'u-b');
+    if (!listed.ok) throw new Error(`refused: ${listed.refusal}`);
+    expect(listed.members.map((member) => [member.userId, member.role]).sort()).toEqual([
+      ['u-a', 'super_admin'],
+      ['u-b', 'admin'],
+      ['u-c', 'member'],
+    ]);
+    expect(await organizations.listMembers('org-b', 'u-b')).toEqual({
+      ok: false,
+      refusal: 'forbidden',
+    });
+    expect(await organizations.listMembers('org-a', 'u-c')).toEqual({
+      ok: false,
+      refusal: 'forbidden',
+    });
+  });
+});
+
 describe('DomainClaimRepository', () => {
   it('types pending snapshots with a required expiry and rotation snapshots with a previous deadline', () => {
     type PendingWithoutExpiry = {

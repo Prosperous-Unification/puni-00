@@ -1329,3 +1329,54 @@ All faults were restored before commit.
 | A shown TXT record leaves with its status     | Kept the shown record whatever the list said  | `clears the shown TXT record once its claim leaves pending` failed: the record region stayed on screen                          |
 
 The invitation code input now sets `autoComplete="off"`. Both faults were restored before commit.
+
+## Slice 39e — member list (task 4.6)
+
+| Check                                   | Injected fault                                 | Observed failure                                                                                                                         |
+| --------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Only admin and super-admin list members | Store admitted any current member              | `refuses a member and a viewer the member list` failed (4 pass, 1 fail)                                                                  |
+| The list is scoped to the organization  | Dropped the store's organization predicate     | `lists the active organization to an admin and a super-admin` and `lists only the active organization's members` failed (3 pass, 2 fail) |
+| The store rechecks activation           | Skipped the activation read                    | `OrganizationRepository.listMembers > refuses before activation` failed                                                                  |
+| Delegated callers are refused           | Removed the route's delegation guard           | `refuses delegated onboarding discovery and writes` failed                                                                               |
+| The role change sends the chosen role   | Sent the listed role                           | `changes a role to the chosen one and re-reads the list` failed: `expected { role: 'viewer' } to deeply equal { role: 'member' }`        |
+| Removal needs the in-page confirmation  | Removed on the first click                     | `removes only after confirmation` failed: `expected true to be false`                                                                    |
+| The last super-admin has its own copy   | Answered `last_super_admin` with the role copy | `renders the last_super_admin change refusal` failed: received `Your role cannot make this change.`                                      |
+
+All faults were restored before commit.
+
+### Slice 39e review fixes (Fable, 2026-09-29)
+
+Before this fix, a delegated `read write` token for a super-admin could administer memberships: PATCH answered 200 and DELETE answered 204. Both writes now refuse delegated callers with `insufficient_scope`, as every other administration route does.
+
+| Check                               | Injected fault                       | Observed failure                                                                      |
+| ----------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------- |
+| Delegated role change is refused    | Bypassed the PATCH delegation guard  | `refuses delegated member administration even for a super-admin`: received status 200 |
+| Delegated member removal is refused | Bypassed the DELETE delegation guard | the same test: received status 204                                                    |
+
+`refuses a removed administrator` now pins `not_a_member`. The MCP README says that the membership tools answer MCP clients 403. Both faults were restored before commit.
+
+## Slice 39f — Auth0 link recovery (task 4.6)
+
+| Check                                     | Injected fault                                                                      | Observed failure                                                                                                                              |
+| ----------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| No open redirect from the callback        | Answered the malformed-parameter branch with the provider's `error` as the location | `redirects every failure to the fixed outcome path without echoing the request`: expected `/?auth_link=refused`, received `https://evil.test` |
+| Failure outcomes clear the link cookie    | Cleared the cookie only for `linked`                                                | `clears the link cookie on every callback outcome`: received no set-cookie                                                                    |
+| A polluted query clears the link cookie   | Dropped the clear from the query-failure classifier                                 | `clears the link cookie on every callback outcome`: received no set-cookie                                                                    |
+| A non-GET callback clears the link cookie | Dropped the clear from the method admission                                         | `clears the link cookie on every callback outcome`: received no set-cookie                                                                    |
+| fe-01 refuses a non-https location        | Accepted any location but `ftp:`                                                    | `refuses a non-https authorization location without leaving the page` failed                                                                  |
+| Exhausted attempts have their own copy    | Answered 429 with the wrong-password copy                                           | `renders the 429 credential refusal`: received `That password is not correct.`                                                                |
+| The outcome parameter is stripped         | Skipped `clearLinkOutcome()`                                                        | the three `renders … and strips the parameter` cases kept `?auth_link=` (3 failed)                                                            |
+
+All faults were restored before commit. The existing mounted link tests now assert outcomes through `outcomeOf`, which also requires the fixed-path shape and the cookie clear on every callback they make.
+
+### Slice 39f review fixes (Fable, 2026-09-29)
+
+Before this fix, a forged cross-site GET to the link callback (forged state, malformed parameters, a polluted query or HEAD) cleared `__Host-wbs_link`, so the victim's honest callback was then refused. The cookie now clears only on consumption, on an absent binding and on `linked`.
+
+| Check                                            | Injected fault                                            | Observed failure                                                                                                                                                                       |
+| ------------------------------------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A state that matches no binding keeps the cookie | Answered `proof === null` with the clearing `linkOutcome` | `keeps the link cookie through a forged callback so the honest one still links` and `clears the link cookie once a callback consumes or lacks it` failed: received the Max-Age=0 clear |
+| Malformed provider parameters keep the cookie    | Answered them with the clearing `linkOutcome`             | `keeps the link cookie through a forged callback so the honest one still links` failed: received the clear                                                                             |
+| Consumed failures still clear the cookie         | Cleared only on `linked`                                  | 5 failed, including the inactive and three collision cases through `outcomeOf`, and the absent-binding assertion: received no set-cookie                                               |
+
+The honest callback in the forged-callback test sends the cookie the way a browser would and links. A throw after `links.consume` is left as the app's 500, as the comment on the callback handler explains, rather than caught into `?auth_link=failed`. All faults were restored before commit.

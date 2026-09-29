@@ -400,10 +400,12 @@ export class ImportService {
           deadline: row.deadline,
           factStart: row.factStart,
           factEnd: row.factEnd,
-          // Plan document v6 carries both (slice 5); until then an import says
-          // nothing about readiness or holds.
-          readiness: null,
-          hold: null,
+          // Plan document v6 carries both; earlier versions read as null.
+          // Proof: both written as null here made `round-trips a version-6
+          // readiness and hold…` fail with the imported row holding neither;
+          // watched 2026-09-29.
+          readiness: row.readiness,
+          hold: row.hold,
           priority: row.priority,
           serviceTeamId:
             row.serviceTeamFileId === null
