@@ -208,6 +208,59 @@ describe('one person', () => {
     expect(endOf(after)).not.toBe(endOf(before));
   });
 
+  it('follows a start date moved after a warm read', async () => {
+    await personLoad('ada');
+    await expectOk(
+      await h.call('ada', 'PATCH', `/api/projects/${platform}`, { startDate: '2026-10-12' }),
+    );
+    const body = (await personLoad('ada')).body as PersonLoadBody;
+    const booking = body.projects.find((project) => project.projectId === platform)?.bookings.at(0);
+    expect({ startsOn: booking?.startsOn, endsOn: booking?.endsOn }).toEqual(
+      await rowDates(platform),
+    );
+    expect(booking?.startsOn).toBe('2026-10-12');
+  });
+
+  it('follows a start date cleared after a warm read', async () => {
+    await personLoad('ada');
+    await expectOk(await h.call('ada', 'PATCH', `/api/projects/${platform}`, { startDate: null }));
+    const body = (await personLoad('ada')).body as PersonLoadBody;
+    expect(body.projects.map((project) => project.projectId)).toEqual([billing]);
+    expect(body.undated).toEqual([{ projectId: platform, name: 'Platform' }]);
+  });
+
+  it('follows an estimate rule changed after a warm read', async () => {
+    // An uneven triple first, so switching the method changes the slice's length.
+    const tree = await h.call('ada', 'GET', `/api/projects/${platform}/work-items`);
+    const leaf = (tree.body as { workItems: { id: string }[] }).workItems.at(0);
+    const read = await h.call('ada', 'GET', `/api/projects/${platform}`);
+    const step = (read.body as { steps: { id: string }[] }).steps.at(0);
+    if (leaf === undefined || step === undefined) throw new Error('the plan lost its leaf');
+    await expectOk(
+      await h.call('ada', 'POST', `/api/projects/${platform}/commands`, {
+        commands: [
+          {
+            kind: 'setEstimate',
+            workItemId: leaf.id,
+            stepId: step.id,
+            days: { optimistic: 1, realistic: 3, pessimistic: 11 },
+          },
+        ],
+      }),
+    );
+    const before = (await personLoad('ada')).body as PersonLoadBody;
+    await expectOk(
+      await h.call('ada', 'PATCH', `/api/projects/${platform}`, {
+        estimateMethod: 'pessimistic',
+      }),
+    );
+    const after = (await personLoad('ada')).body as PersonLoadBody;
+    const endOf = (body: PersonLoadBody) =>
+      body.projects.find((project) => project.projectId === platform)?.bookings.at(0)?.endsOn;
+    expect(endOf(after)).toBe((await rowDates(platform)).endsOn);
+    expect(endOf(after)).not.toBe(endOf(before));
+  });
+
   it('refuses a year-long window, an inverted one and an impossible date', async () => {
     for (const query of [
       'from=2026-01-01&to=2026-12-31',

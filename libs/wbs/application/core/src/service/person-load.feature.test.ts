@@ -37,7 +37,12 @@ function loadOver(trees: Partial<Record<string, () => TreeRead>>): {
   reads: string[];
 } {
   const reads: string[] = [];
-  const projects = Object.keys(trees).map((id, index) => ({ id, name: id, createdAt: index }));
+  const projects = Object.keys(trees).map((id, index) => ({
+    id,
+    name: id,
+    createdAt: index,
+    revision: 1,
+  }));
   const options = {
     projects: { listWithin: () => Promise.resolve(projects) },
     workItems: {

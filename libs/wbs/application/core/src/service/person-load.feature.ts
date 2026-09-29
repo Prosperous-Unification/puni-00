@@ -140,7 +140,10 @@ export interface PersonLoadOptions {
  */
 export class PersonLoad {
   /** Per-process readings keyed by access and project; see {@link reading}. */
-  private readonly memo = new Map<string, { seq: number; reading: ProjectReading }>();
+  private readonly memo = new Map<
+    string,
+    { revision: number; seq: number; reading: ProjectReading }
+  >();
   private readonly memoSize: number;
 
   constructor(private readonly opts: PersonLoadOptions) {
@@ -248,7 +251,7 @@ export class PersonLoad {
     );
     const read: { project: NamedProject; reading: ProjectReading }[] = [];
     for (const project of ordered) {
-      const reading = await this.reading(project.id, access);
+      const reading = await this.reading(project.id, project.revision, access);
       if (reading !== null)
         read.push({ project: { projectId: project.id, name: project.name }, reading });
     }
@@ -256,36 +259,54 @@ export class PersonLoad {
   }
 
   /**
-   * The project's reading, from the memo when the project's event sequence
-   * has not moved since it was computed.
+   * The project's reading, from the memo when neither the project row's
+   * `revision` nor its event sequence has moved since it was computed.
    *
-   * Keyed on the sequence because every announced change that can move a date
-   * or a name advances it — commands, directory and capacity changes, settings,
-   * and `schedule_optimized` when a solve lands and the displayed engine
-   * changes. Keyed on the access too: a scoped read fails closed on rows that
-   * cross the organization where a legacy read does not, so the two must never
-   * share an answer. Correctness never rests on a hit: a miss re-reads.
+   * Both, because they cover different writes. `revision` commits with every
+   * edit to the project row — start date, PERT weights, reach, estimate method
+   * and rounding — and a project PATCH announces an event only for the three
+   * optimizer settings. `seq` advances when a plan edit, a directory or
+   * capacity change, or a `schedule_optimized` result is announced after its
+   * commit, and none of those moves the project row. `revision` is the one the
+   * caller's project list has just read, so it is never older than this
+   * request. Keyed on the access too: a scoped read fails closed on rows that
+   * cross the organization where a legacy read does not, so the two never share
+   * an answer. Correctness never rests on a hit: a miss re-reads.
    *
    * Proof: the sequence comparison removed (any stored reading served) made
    * `shows a lengthened booking after a command` in
    * `person-load.controller.db.test.ts` read the old `endsOn`; watched
    * 2026-09-29.
    */
-  private async reading(projectId: string, access: ResourceAccess): Promise<ProjectReading | null> {
+  private async reading(
+    projectId: string,
+    revision: number,
+    access: ResourceAccess,
+  ): Promise<ProjectReading | null> {
     const key = `${access.kind === 'scoped' ? `org:${access.scope.organizationId}` : 'legacy'}\u0000${projectId}`;
     const seq = await this.opts.workItems.latestSeq(projectId);
     const held = this.memo.get(key);
-    if (held?.seq === seq) {
+    // Proof: the revision comparison removed made `follows a start date moved
+    // after a warm read`, `… cleared …` and `follows an estimate rule changed
+    // after a warm read` in `person-load.controller.db.test.ts` serve the
+    // pre-PATCH booking; watched 2026-09-29.
+    if (held?.seq === seq && held.revision === revision) {
+      // A hit skips `treeWithin`'s crossing-row check, which ran when this
+      // reading was computed. Not an access decision: the project list above
+      // re-ran the caller's access on this request, and a crossing row is
+      // corrupt state no write creates without moving `seq` or `revision`.
       this.memo.delete(key);
       this.memo.set(key, held);
       return held.reading;
     }
     const tree = await this.opts.workItems.treeWithin(projectId, access);
     if (tree === null) return null;
+    // Never memoized: it holds no bookings worth keeping, and a memo entry
+    // would outlive the reason it was refused.
     if ('kind' in tree) return { kind: 'engine_unavailable' };
     const reading = readingOf(projectId, tree);
     this.memo.delete(key);
-    this.memo.set(key, { seq: tree.seq, reading });
+    this.memo.set(key, { revision, seq: tree.seq, reading });
     while (this.memo.size > this.memoSize) {
       const oldest = this.memo.keys().next();
       if (oldest.done === true) break;
