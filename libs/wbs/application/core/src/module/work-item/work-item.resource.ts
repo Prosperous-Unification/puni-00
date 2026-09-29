@@ -2354,6 +2354,32 @@ export class WorkItemService {
       // at 1 — see {@link NumberedWorkItem.revision}.
       revision: 0,
     };
+    const statementsHandedDown =
+      firstChildOf !== undefined && (firstChildOf.readiness !== null || firstChildOf.hold !== null)
+        ? {
+            forward: {
+              do: 'patch' as const,
+              workItemId: firstChildOf.id,
+              patch: { readiness: null, hold: null },
+            },
+            inverse: {
+              do: 'patch' as const,
+              workItemId: firstChildOf.id,
+              patch: { readiness: firstChildOf.readiness, hold: firstChildOf.hold },
+            },
+          }
+        : undefined;
+    // Cleared **before** the child is inserted, so no read between the two
+    // writes sees a parent holding a statement (Fable review, I1).
+    // Proof: this write skipped made `hands a leaf’s readiness and hold down
+    // to its first child…` fail on `parent … holds a readiness or a hold`;
+    // watched 2026-09-29. Moved after the insert, `no read sees a parent
+    // holding a statement while a first child is created` failed on the read
+    // taken between the two writes; watched 2026-09-29.
+    if (statementsHandedDown !== undefined) {
+      const handed = await this.apply(projectId, statementsHandedDown.forward, stamp);
+      if (!handed.ok) throw new Error(`cannot hand statements down: ${handed.detail}`);
+    }
     await this.opts.workItems.insert(workItem, placed.renumbered, stamp);
     // A work item that had an estimate and now has a child no longer holds one:
     // the estimate described the work, and the work is the child now. Moving it
@@ -2446,28 +2472,6 @@ export class WorkItemService {
     // Proof: the estimates' `moveAll` skipped, be-01's `hands the estimates
     // back up when it undoes the first child that took them` failed — the
     // path the row menu's Add child takes. Watched 2026-09-27.
-    const statementsHandedDown =
-      firstChildOf !== undefined && (firstChildOf.readiness !== null || firstChildOf.hold !== null)
-        ? {
-            forward: {
-              do: 'patch' as const,
-              workItemId: firstChildOf.id,
-              patch: { readiness: null, hold: null },
-            },
-            inverse: {
-              do: 'patch' as const,
-              workItemId: firstChildOf.id,
-              patch: { readiness: firstChildOf.readiness, hold: firstChildOf.hold },
-            },
-          }
-        : undefined;
-    if (statementsHandedDown !== undefined) {
-      // Proof: this write skipped made `hands a leaf’s readiness and hold down
-      // to its first child…` fail on `parent … holds a readiness or a hold`;
-      // watched 2026-09-29.
-      const handed = await this.apply(projectId, statementsHandedDown.forward, stamp);
-      if (!handed.ok) throw new Error(`cannot hand statements down: ${handed.detail}`);
-    }
     if (gainsFirstChild !== null) {
       await this.opts.estimates.moveAll(gainsFirstChild, workItem.id, stamp);
       await this.opts.actuals.moveAll(gainsFirstChild, workItem.id, stamp);
@@ -2565,8 +2569,8 @@ export class WorkItemService {
         do: 'remove_typed_dependency' as const,
         dependency: original,
       })),
-      forward,
       ...(statementsHandedDown === undefined ? [] : [statementsHandedDown.forward]),
+      forward,
       ...assignedHandedDown.map(({ workItemId, stepId }) => ({
         do: 'assign' as const,
         workItemId,
@@ -2915,6 +2919,17 @@ export class WorkItemService {
             },
           }
         : undefined;
+    // Cleared **before** the move, so no read between the two writes sees a
+    // parent holding a statement (Fable review, I1). Moved after the move,
+    // `no read sees a parent holding a statement while a row moves under a
+    // leaf` failed on the read taken between the two writes; watched 2026-09-29.
+    if (statementsCleared !== undefined) {
+      // Proof: this write skipped made `clears the readiness and hold of a leaf
+      // another row moves under…` fail on `parent … holds a readiness or a
+      // hold`; watched 2026-09-29.
+      const cleared = await this.apply(workItem.projectId, statementsCleared.forward, stamp);
+      if (!cleared.ok) throw new Error(`cannot clear the new parent: ${cleared.detail}`);
+    }
     await this.opts.workItems.move(id, input.parentId, placed.position, placed.renumbered, stamp);
     if (statementsHandedUp !== undefined) {
       // Proof: this write skipped made `gives the parent a moved last child
@@ -2922,13 +2937,6 @@ export class WorkItemService {
       // `ready` was owed; watched 2026-09-29.
       const handed = await this.apply(workItem.projectId, statementsHandedUp.forward, stamp);
       if (!handed.ok) throw new Error(`cannot hand statements up: ${handed.detail}`);
-    }
-    if (statementsCleared !== undefined) {
-      // Proof: this write skipped made `clears the readiness and hold of a leaf
-      // another row moves under…` fail on `parent … holds a readiness or a
-      // hold`; watched 2026-09-29.
-      const cleared = await this.apply(workItem.projectId, statementsCleared.forward, stamp);
-      if (!cleared.ok) throw new Error(`cannot clear the new parent: ${cleared.detail}`);
     }
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'move', `move ${quoteName(workItem.name)}`, {
@@ -2939,7 +2947,7 @@ export class WorkItemService {
           'after',
         ),
         statementsCleared?.forward,
-        'after',
+        'before',
       ),
       // Back where it was first, and only then the statements: the row it came
       // from is a leaf again only once it has moved back, and a statement

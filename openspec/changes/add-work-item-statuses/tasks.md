@@ -70,7 +70,7 @@
 ## 5. Saved plans and plan document v6
 
 - [ ] 5.1 Red: v3 → v4 upgrade equality, diff reports, v6 round trip, v1–v5 import, refusals.
-- [ ] 5.2 Green: schema 4 with `[3, withNoHolds]`, plan document v6, spreadsheet status word.
+- [ ] 5.2 Green: schema 4 with `[3, withNoStatusFacts]`, plan document v6, spreadsheet status word.
 - [ ] 5.3 Negatives: upgrade returns the body unchanged → cross-version equality fails; import
       vocabulary guard removed → `hold: 'paused'` accepted.
 
