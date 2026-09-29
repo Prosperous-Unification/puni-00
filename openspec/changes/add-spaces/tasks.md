@@ -108,8 +108,10 @@
 ## 6. fe in progress now and Gantt
 
 - [x] 6.1 On `/spaces/$spaceId`: a read-only timeline, one bar per project over its roll-up's
-      dates and a labelled blank for an undated project (or one whose figures have not arrived),
-      and "In progress now" (project, number, name, step, end, lateness, people; the cut and the
-      unavailable schedules said), refreshed with the page.
-- [x] 6.2 Negative: the null-dates filter in `spaceGanttLanesOf` removed → the undated project
-      is read as dated and the lanes throw a `TypeError` instead of drawing a blank.
+      dates and a blank saying why for every other project (no dates, loading, schedule
+      unavailable, figures not loaded), and "In progress now" (project, number, name, step, end,
+      lateness, people; the cut and the unavailable schedules said), read in the page's own
+      refresh so a poll, a focus and every write refresh it with the rows.
+- [x] 6.2 Negatives: the dated filter in `spaceGanttLanesOf` removed → the lanes crash with
+      `not an ISO date: undefined` instead of drawing blanks; the in-progress read made
+      mount-only → `refreshes in progress now after a remove` never sees the empty list.

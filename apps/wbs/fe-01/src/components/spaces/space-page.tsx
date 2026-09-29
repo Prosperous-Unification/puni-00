@@ -14,10 +14,10 @@ import { AppHeader } from '@/components/chrome/app-header';
 import { STATUS_GLYPH, STATUS_LABEL } from '@/components/wbs/status-cell';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
-import { InProgressList } from './in-progress-list';
+import { InProgressList, type InProgressState, readInProgress } from './in-progress-list';
 import { singleFlight } from './single-flight';
 import { spaceRefusal } from './space-access';
-import { spaceGanttLanesOf } from './space-gantt';
+import { type SpaceGanttInput, spaceGanttLanesOf } from './space-gantt';
 import { useSpacesPolling } from './use-spaces-polling';
 
 const client = browserClient([
@@ -70,6 +70,8 @@ export function SpacePage({
 }): React.JSX.Element {
   const [view, setView] = useState<View>({ kind: 'loading' });
   const [rollUps, setRollUps] = useState<Readonly<Record<string, RollUpState>>>({});
+  /** "In progress now", kept between reads so a refresh never blanks it. */
+  const [inProgress, setInProgress] = useState<InProgressState>({ kind: 'loading' });
   const [candidates, setCandidates] = useState<readonly ProjectEntry[]>([]);
   /** Why the add picker could not be filled, or null when it could. */
   const [candidatesProblem, setCandidatesProblem] = useState<string | null>(null);
@@ -137,7 +139,16 @@ export function SpacePage({
             );
           }
         }
-        await loadRollUps(reply.body.rows);
+        // In progress is read with the rows, so a write that adds or removes a
+        // project refreshes both.
+        // Proof, observed 2026-09-29: with this read moved to a mount-only
+        // effect, `refreshes in progress now after a remove` in
+        // `space-page.test.tsx` never found `Nothing is in progress in this
+        // space.`: the removed project's leaf stayed listed.
+        await Promise.all([
+          loadRollUps(reply.body.rows),
+          readInProgress(spaceId).then(setInProgress),
+        ]);
         return;
       }
       case 'failure':
@@ -335,7 +346,7 @@ export function SpacePage({
         )}
         {view.kind === 'ready' && (
           <InProgressList
-            spaceId={spaceId}
+            state={inProgress}
             projectNames={new Map(view.read.rows.map(({ project }) => [project.id, project.name]))}
           />
         )}
@@ -482,10 +493,26 @@ function RollUpCells({ rollUp }: { rollUp: RollUpState }): React.JSX.Element {
   }
 }
 
+/** What the Gantt draws for one row's roll-up: its dates, or why it has none. */
+function scheduleOf(rollUp: RollUpState): SpaceGanttInput['schedule'] {
+  switch (rollUp.kind) {
+    case 'loading':
+      return 'loading';
+    case 'failed':
+      return 'failed';
+    case 'unavailable':
+      return 'unavailable';
+    case 'rolled_up':
+      return rollUp.dates ?? 'undated';
+    default:
+      return unreachable(rollUp);
+  }
+}
+
 /**
  * The space's read-only Gantt: one bar per project over its roll-up's dates,
- * and a labelled blank for a project with none (or whose figures have not
- * arrived yet).
+ * and a blank saying why for a project undated, loading, unavailable or
+ * whose figures failed.
  */
 function SpaceGantt({
   rows,
@@ -495,15 +522,12 @@ function SpaceGantt({
   rollUps: Readonly<Record<string, RollUpState>>;
 }): React.JSX.Element {
   const lanes = spaceGanttLanesOf(
-    rows.map(({ project }) => {
+    rows.map(({ project }) => ({
+      projectId: project.id,
+      name: project.name,
       // A row whose chunk has not landed has no entry yet: it reads as loading.
-      const rollUp = rollUps[project.id] ?? { kind: 'loading' };
-      return {
-        projectId: project.id,
-        name: project.name,
-        dates: rollUp.kind === 'rolled_up' ? rollUp.dates : null,
-      };
-    }),
+      schedule: scheduleOf(rollUps[project.id] ?? { kind: 'loading' }),
+    })),
   );
   return (
     <section aria-labelledby="space-gantt-heading" className="mt-8">

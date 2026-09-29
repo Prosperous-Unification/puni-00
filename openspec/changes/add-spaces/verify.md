@@ -149,3 +149,19 @@ config); the mount, the polls and each write's re-read share one read through `s
 | one read in flight (review)     | the in-flight check removed                            | `starts no second read while one is in flight`                 | two reads                                        |
 | every read joins (review 2)     | `join` starting a read whatever is in flight           | `joins the read in flight`                                     | `expected 2 to be 1`                             |
 | a write reads fresh (review 2)  | `fresh` joining the read in flight                     | `queues one fresh read behind the read in flight`              | `expected 1 to be 2`                             |
+
+## Slice 6 — fe in progress now and Gantt
+
+Written on `batch-9/010-4-15-spaces-fe-gantt`, stacked on the fe-rows branch. After the second
+review the page reads "In progress now" in its own `refresh`, beside the roll-ups, so a poll, a
+focus and every write refresh both through one `singleFlight` read; the list only draws. A lane
+without a bar says why: no dates, loading, schedule unavailable, or figures that could not be
+loaded. Vitest, one file at a time: `space-gantt.test.ts` 3 pass (node config),
+`in-progress-list.test.tsx` 3 pass, `space-page.test.tsx` 10 pass (timeline: one bar for the dated
+row, the blank `p2: schedule unavailable` for the unavailable one).
+
+| Check                             | Fault injected                                            | Test that observed it                                                               | Observed                                                             |
+| --------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| a lane without dates draws no bar | the dated filter in `spaceGanttLanesOf` removed           | `labels each undated, loading, unavailable and failed project, and draws it no bar` | crashed with `not an ISO date: undefined` (a crash, not a drawn bar) |
+| in progress follows writes        | the in-progress read made mount-only                      | `refreshes in progress now after a remove`                                          | `Nothing is in progress in this space.` never appeared               |
+| rows keep figures (re-observed)   | every row reset to loading on refresh, on the merged page | `keeps the old figures until the new chunk answers`                                 | `expected 'p1Loading…' to contain 'In progress'`                     |

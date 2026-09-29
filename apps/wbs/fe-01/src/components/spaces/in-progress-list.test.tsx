@@ -3,14 +3,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { answerJson as answer, stubServer } from '@/testing/stub-server';
 
-import { InProgressList } from './in-progress-list';
+import { InProgressList, readInProgress } from './in-progress-list';
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
 
-const item = (overrides: Record<string, unknown>) => ({
+const leaf = (overrides: Record<string, unknown>) => ({
   projectId: 'p1',
   projectName: 'Shed',
   position: 10,
@@ -29,53 +29,49 @@ const names = new Map([
   ['p2', 'Fence'],
 ]);
 
+/** Reads the list through the stubbed route, then draws what the read answered. */
+async function renderRead(answered: () => Response) {
+  stubServer({ 'GET /api/spaces/s/in-progress': [answered] });
+  render(<InProgressList state={await readInProgress('s')} projectNames={names} />);
+}
+
 describe('in progress now', () => {
   it('lists each leaf with its project, step, end, lateness and people', async () => {
-    stubServer({
-      'GET /api/spaces/s/in-progress': [
-        () =>
-          answer(200, {
-            items: [item({}), item({ workItemId: 'w2', number: '2', name: 'Paint', lateBy: 3 })],
-            truncated: false,
-            unavailable: [],
-          }),
-      ],
-    });
-    render(<InProgressList spaceId="s" projectNames={names} />);
-    const list = await screen.findByRole('list', { name: 'Work in progress' });
+    await renderRead(() =>
+      answer(200, {
+        items: [
+          leaf({}),
+          leaf({ workItemId: 'w2', number: '2', name: 'Paint', lateBy: 3 }),
+          leaf({ workItemId: 'w3', number: '3', name: 'Seal', lateBy: 1, step: null }),
+        ],
+        truncated: false,
+        unavailable: [],
+      }),
+    );
+    const list = screen.getByRole('list', { name: 'Work in progress' });
     expect([...list.querySelectorAll('li')].map((li) => li.textContent)).toEqual([
       'Shed 1.2 Wire the lights · Dev · ends 2026-10-09 · Kat',
       'Shed 2 Paint · Dev · ends 2026-10-09 · 3 days late · Kat',
+      'Shed 3 Seal · ends 2026-10-09 · 1 day late · Kat',
     ]);
   });
 
   it('says the list was cut and names unavailable schedules', async () => {
-    stubServer({
-      'GET /api/spaces/s/in-progress': [
-        () => answer(200, { items: [item({})], truncated: true, unavailable: ['p2'] }),
-      ],
-    });
-    render(<InProgressList spaceId="s" projectNames={names} />);
-    expect(await screen.findByText('Showing the first 1.')).toBeDefined();
+    await renderRead(() =>
+      answer(200, { items: [leaf({})], truncated: true, unavailable: ['p2'] }),
+    );
+    expect(screen.getByText('Showing the first 1.')).toBeDefined();
     expect(screen.getByText('Schedule unavailable for Fence.')).toBeDefined();
   });
 
   it('renders the loading, empty and failure states', async () => {
-    stubServer({
-      'GET /api/spaces/s/in-progress': [
-        () => answer(200, { items: [], truncated: false, unavailable: [] }),
-      ],
-    });
-    render(<InProgressList spaceId="s" projectNames={names} />);
-    expect(await screen.findByText('Loading work in progress…')).toBeDefined();
-    expect(await screen.findByText('Nothing is in progress in this space.')).toBeDefined();
+    render(<InProgressList state={{ kind: 'loading' }} projectNames={names} />);
+    expect(screen.getByText('Loading work in progress…')).toBeDefined();
     cleanup();
-    stubServer({
-      'GET /api/spaces/s/in-progress': [() => answer(404, { error: 'not_found' })],
-    });
-    render(<InProgressList spaceId="s" projectNames={names} />);
-    expect((await screen.findByRole('alert')).textContent).toBe(
-      'That space or project no longer exists.',
-    );
+    await renderRead(() => answer(200, { items: [], truncated: false, unavailable: [] }));
+    expect(screen.getByText('Nothing is in progress in this space.')).toBeDefined();
+    cleanup();
+    await renderRead(() => answer(404, { error: 'not_found' }));
+    expect(screen.getByRole('alert').textContent).toBe('That space or project no longer exists.');
   });
 });
