@@ -595,12 +595,20 @@ export class ProjectRepository implements ProjectStore {
         JOIN work_item AS w ON w.id = l.work_item_id JOIN step AS st ON st.id = l.step_id
         WHERE st.project_id = ${p} AND w.project_id IS NOT ${p}`,
       ),
+      // Both incoming arms probe indexes from this project's own work items:
+      // `work_item_siblings` (per other project) for a child, `dependency_pair`
+      // and `dependency_by_successor` for an edge. The joins they replace
+      // scanned all of `work_item` and `dependency` on every scoped read.
+      // Proof: see `searches every arm through an index and scans no table` in
+      // `project.db.test.ts`, which lists `SCAN w` or `SCAN d` with either
+      // arm restored (observed 2026-09-29).
       sql`SELECT 'incoming_parent' AS kind, w.id AS id FROM work_item AS w
-        JOIN work_item AS parent ON parent.id = w.parent_id
-        WHERE parent.project_id = ${p} AND w.project_id IS NOT ${p}`,
+        WHERE w.project_id IN (SELECT id FROM project WHERE id IS NOT ${p})
+          AND w.parent_id IN (SELECT id FROM work_item WHERE project_id = ${p})`,
       sql`SELECT 'incoming_dependency' AS kind, d.id AS id FROM dependency AS d
-        JOIN work_item AS pre ON pre.id = d.predecessor_id JOIN work_item AS suc ON suc.id = d.successor_id
-        WHERE d.project_id IS NOT ${p} AND (pre.project_id = ${p} OR suc.project_id = ${p})`,
+        WHERE d.project_id IS NOT ${p}
+          AND (d.predecessor_id IN (SELECT id FROM work_item WHERE project_id = ${p})
+            OR d.successor_id IN (SELECT id FROM work_item WHERE project_id = ${p}))`,
     ];
     // Typed, not parsed: every `kind` is one of the literals written in the arms
     // above, and `PROJECT_CROSS_REFERENCE_KINDS` is their closed list.
