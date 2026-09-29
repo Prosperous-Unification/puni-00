@@ -126,6 +126,26 @@ describe('the signed-in region, routed', () => {
     expect(projectShowing()).toBe(false);
   });
 
+  itDom('draws a person’s load at /people/:personId/load, reading that person', async () => {
+    const sent = stubServer({
+      'GET /api/people/pe-a/load': [
+        () =>
+          answerJson(200, {
+            person: { id: 'pe-a', name: 'Ana' },
+            projects: [],
+            overlaps: [],
+            undated: [],
+            unavailable: [],
+          }),
+      ],
+    });
+    regionAt('/people/pe-a/load');
+
+    expect(await screen.findByText('Nothing booked in these weeks.')).toBeDefined();
+    expect(sent.map((call) => call.route)).toContain('GET /api/people/pe-a/load');
+    expect(projectShowing()).toBe(false);
+  });
+
   itDom('draws organization administration at /organization', async () => {
     stubServer({
       'GET /api/organization/invitations': [() => answerJson(200, { invitations: [] })],

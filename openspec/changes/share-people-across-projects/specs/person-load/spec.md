@@ -153,3 +153,26 @@ reflect that edit. A reading whose engine is unavailable SHALL never be memoized
 - **WHEN** P's PERT weights, dependency reach, estimate method or estimate rounding are patched
   so that her slice's length changes, and her load is read again
 - **THEN** the second read shows the booking the plan's own read shows
+
+### Requirement: The load page draws what be-01 answered
+
+fe-01 SHALL serve `/people/:personId/load`, reading the eight weeks from the Monday of the
+viewer's current week. It SHALL draw one lane per project on a shared workday axis. It SHALL
+hatch a booking only when be-01 names it in an overlap, and never infer an overlap from whole-day
+dates. It SHALL render loading, empty, query-failure, absent-person, undated and unavailable
+states. A response the shared contract refuses, such as an unknown unavailable reason, SHALL
+render the query-failure state. The directory SHALL show each person's booked and overlapping
+workdays over the same window, linked to their load page.
+
+#### Scenario: a hand-off inside one day
+
+- **GIVEN** a booking ending on 2026-10-07 and another starting on 2026-10-07, with no overlap
+  named
+- **WHEN** the load page draws them
+- **THEN** neither bar is hatched
+
+#### Scenario: an unknown reason
+
+- **GIVEN** be-01 answers an unavailable project with a reason the contract does not name
+- **WHEN** the load page reads it
+- **THEN** it shows the query-failure alert and names no project

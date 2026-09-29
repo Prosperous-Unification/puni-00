@@ -43,3 +43,17 @@ fault was reverted (2026-09-29).
 
 The memo proof runs on the production composition (`OrganizationHarness.openComposed`), where
 commands advance the real event sequence.
+
+## Slice 2 — load page
+
+On `batch-9/010-4-16-capacity-load-page`, stacked on the load-view branch.
+
+| Command                                                                                                    | Result          |
+| ---------------------------------------------------------------------------------------------------------- | --------------- |
+| `TZ=UTC bunx vitest run src/components/people src/app-router.test.tsx src/components/directory` (in fe-01) | 64 pass, 0 fail |
+| `bunx nx run wbs-fe-01:typecheck`                                                                          | succeeded       |
+
+| Check (file)                                                | Fault injected                                                     | Test that observed the failure                                                      | Result                                      |
+| ----------------------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------- |
+| overlap hatching (`fe-01/.../person-load-page.tsx`, `Lane`) | hatch by whole-day date intersection instead of overlap membership | `does not hatch a hand-off inside one day`                                          | `['true', 'true']` for `['false', 'false']` |
+| closed reason list (`contracts/.../person-load-shapes.ts`)  | `reason` widened to `'string'`                                     | `shows the query failure for a reason the contract does not name, not a blank lane` | no alert found                              |
