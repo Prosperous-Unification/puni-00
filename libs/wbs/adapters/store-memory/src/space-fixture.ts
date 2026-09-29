@@ -8,10 +8,14 @@ import { placeAfter } from '@wbs/domain';
  * `owners` maps each project id to its owning organization, as
  * `project_organization` holds it; a project missing from it is owned by no
  * organization and answers `not_found`, which is the composite reference's
- * refusal in SQLite. What it does not model is a project deleted underneath a
+ * refusal in SQLite. `legacyOrganizationId` is the organization marked
+ * legacy, or null for none. What it does not model is a project deleted underneath a
  * membership: this fixture holds no projects to delete.
  */
-export function inMemorySpaces(owners: ReadonlyMap<string, string>): SpaceStore {
+export function inMemorySpaces(
+  owners: ReadonlyMap<string, string>,
+  legacyOrganizationId: string | null = null,
+): SpaceStore {
   const spaces = new Map<string, Space>();
   const members = new Map<string, SpaceMember[]>();
 
@@ -59,6 +63,9 @@ export function inMemorySpaces(owners: ReadonlyMap<string, string>): SpaceStore 
   };
 
   return {
+    legacyOrganizationId() {
+      return Promise.resolve(legacyOrganizationId);
+    },
     listIn(organizationId) {
       return Promise.resolve(
         [...spaces.values()]

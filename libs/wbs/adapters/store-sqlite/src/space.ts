@@ -12,7 +12,7 @@ import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
-import { projectOrganization, space, spaceProject } from './schema';
+import { organization, projectOrganization, space, spaceProject } from './schema';
 
 type Transaction = Parameters<Parameters<Drizzle['transaction']>[0]>[0];
 type Reader = Pick<Drizzle, 'select'>;
@@ -28,6 +28,11 @@ const SPACE_COLUMNS = {
   createdAt: space.createdAt,
 } as const;
 
+/**
+ * Proof, observed 2026-09-29: with the organization condition dropped,
+ * `answers another organization's space as absent to every route` in
+ * `space-organization.controller.db.test.ts` received 200 instead of 404.
+ */
 const inOrganization = (organizationId: string, spaceId: string) =>
   and(eq(space.id, spaceId), eq(space.organizationId, organizationId));
 
@@ -112,6 +117,16 @@ export class SpaceRepository implements SpaceStore {
     private readonly db: Drizzle,
     private readonly gate: Gate,
   ) {}
+
+  legacyOrganizationId(): Promise<string | null> {
+    return Promise.resolve(
+      this.db
+        .select({ id: organization.id })
+        .from(organization)
+        .where(eq(organization.legacy, true))
+        .get()?.id ?? null,
+    );
+  }
 
   listIn(organizationId: string): Promise<Space[]> {
     return Promise.resolve(

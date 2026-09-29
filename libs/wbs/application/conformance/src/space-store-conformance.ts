@@ -11,6 +11,8 @@ export interface SpaceStoreFixture {
   organizations: { a: string; b: string };
   projects: { a: readonly [string, string, string, string]; b: string };
   stamp: WriteStamp;
+  /** The organization the source holds as legacy, or null for none. */
+  legacy: string | null;
 }
 
 /**
@@ -31,6 +33,11 @@ export function spaceStoreConformance(open: () => SpaceStoreFixture): void {
     if (!written.ok) throw new Error(`could not create ${name}: ${written.reason}`);
     return written.space;
   };
+
+  it('answers the legacy organization, or null when none is marked', async () => {
+    const fixture = open();
+    expect(await fixture.store.legacyOrganizationId()).toBe(fixture.legacy);
+  });
 
   it('creates, lists by name, renames and removes a space within its organization', async () => {
     const fixture = open();

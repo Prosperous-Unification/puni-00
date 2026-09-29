@@ -2,8 +2,9 @@
 
 ### Requirement: A space is an organization's named, ordered set of its projects
 
-A space SHALL belong to exactly one organization and carry a non-empty name unique within that
-organization. Its membership SHALL be the pairs `(space, project)`, each with a position; a
+A space SHALL belong to exactly one organization and carry a name unique within that
+organization. A name SHALL be stored trimmed of surrounding whitespace and SHALL hold 1 to 120
+code points after trimming; any other name SHALL be refused `422 malformed` with field `name`. Its membership SHALL be the pairs `(space, project)`, each with a position; a
 project MAY sit in many spaces and at most once in each. Membership rows SHALL be ordered by
 `position`, ties resolved by project id. Positions SHALL leave gaps of `POSITION_STEP` and carry
 no uniqueness.
@@ -20,6 +21,12 @@ no uniqueness.
 - **WHEN** A creates or renames another space to `Q3`
 - **THEN** the write is refused `name_taken` and nothing changes, while organization B may
   create its own `Q3`
+
+#### Scenario: a blank or over-long name
+
+- **WHEN** a space is created or renamed to `"   "`, or to 121 code points
+- **THEN** the answer is `422 malformed` with field `name` and nothing is written, while
+  `"  Q3 "` is stored as `Q3`
 
 #### Scenario: a tie in position
 

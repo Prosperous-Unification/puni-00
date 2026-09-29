@@ -22,11 +22,15 @@
 
 ## 2. Resource and routes
 
-- [ ] 2.1 Red: contracts, CRUD, membership, move, `virtual_space`, `organization_required`,
+- [x] 2.1 Red: contracts, CRUD, membership, move, `virtual_space`, `organization_required`,
       viewer `403`, foreign `404`, MCP tools.
-- [ ] 2.2 Green: `SpaceResource`, routes, boot wiring, contracts, MCP pin.
-- [ ] 2.3 Negatives: viewer policy removed → 200 not 403; `findProjectWithin` bypassed → a
-      foreign add answers 409 not 404; organization filter removed → a foreign space reads 200.
+- [x] 2.2 Green: `SpaceService` (in `service/`, as the join-request and invitation routes keep
+      their logic outside a DI module), routes, boot wiring, contracts, MCP pin 54 → 62.
+- [x] 2.3 Negatives: role check removed → the viewer's create answers 201 not 403; project
+      read bypassed → a project the caller cannot open is added (service level: over SQLite the
+      store's ownership read also refuses a foreign project, so the controller cannot see the
+      bypass); organization condition removed → a foreign space reads 200 not 404; readable
+      filter removed → a hidden member gets a row.
 
 ## 3. Roll-ups
 

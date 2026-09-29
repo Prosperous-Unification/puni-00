@@ -159,7 +159,15 @@ describe('spaces', () => {
       organizations: { a: 'org-a', b: 'org-b' },
       projects: { a: ['a1', 'a2', 'a3', 'a4'], b: 'b1' },
       stamp: wrote,
+      legacy: null,
     }));
+
+    it('answers the organization marked legacy', async () => {
+      raw((db) => db.run("UPDATE organization SET legacy = 1 WHERE id = 'org-b'"));
+      expect(await new SpaceRepository(openDrizzle(path), OPEN).legacyOrganizationId()).toBe(
+        'org-b',
+      );
+    });
 
     it('answers a foreign project the organization does not own as not_found at the store', async () => {
       const store = new SpaceRepository(openDrizzle(path), OPEN);

@@ -145,6 +145,7 @@ export * from './service/saved-plan-integrity';
 export * from './service/saved-plan-quota';
 export * from './service/saved-plan-schedule';
 export * from './service/saved-plan-schedule-body';
+export * from './service/space.service';
 export * from './service/step.service';
 export * from './service/work-item.service';
 export * from './service/working-plan';

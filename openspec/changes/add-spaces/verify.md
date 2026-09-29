@@ -55,5 +55,21 @@ Each fault was injected into the production file, the named test run, and the fi
 | restore names a name clash (M6)        | clash read skipped                                     | `refuses the whole restore, naming it, over a name now taken`                   | drizzle's `Failed query: insert into "space"`                               |
 | restore names a missing author (M6)    | `isUser` answering true                                | `refuses the whole restore, naming it, when an author is no longer a user`      | drizzle's `Failed query: insert into "space"`                               |
 
-The leak rule (space-authorization) lands with the resource in slice 2; the store knows no
-access by design.
+## Slice 2 — routes and the leak rule
+
+Written on `batch-9/010-4-15-spaces-routes`, stacked on the storage branch. Eight endpoint shapes
+(`space-shapes.ts`), `SpaceService`, `spaceRoutes`, `SpaceStore.legacyOrganizationId`, boot and
+harness wiring, and four new refusal words (`organization_required`, `name_taken`,
+`already_in_space`, `virtual_space`). Every app composition outside the harness takes the inert
+`refusingSpaces`; the production-route reachability test takes an empty memory store.
+
+`space.service.test.ts` 8 pass; `space-organization.controller.db.test.ts` 8 pass;
+`app.routes.test.ts` 6 pass; mcp-01 `generated-document.test.ts` 6 pass with 62 pinned tools.
+
+| Check                     | Fault injected                                       | Test that observed it                                                      | Observed                                       |
+| ------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------- |
+| viewer refused writes     | `writableOwner`'s role check skipped                 | `refuses a viewer every space write and lets the viewer read` (controller) | `status: 201` for the viewer's create, not 403 |
+| same, service level       | same                                                 | `refuses a viewer every write and lets the viewer read`                    | `Expected - 2 / Received + 10`                 |
+| foreign space is absent   | organization condition dropped from `inOrganization` | `answers another organization's space as absent to every route`            | `status: 200`, not 404                         |
+| leak rule: rows and count | readable filter removed in `read`                    | `omits a project the caller cannot open from the rows and the count`       | a third row                                    |
+| leak rule: add            | `readWithin` gate bypassed in `addProject`           | `answers a project the caller cannot open as not_found, adding nothing`    | the store's position instead of `not_found`    |

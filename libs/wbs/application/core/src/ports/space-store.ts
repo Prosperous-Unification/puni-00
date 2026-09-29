@@ -54,6 +54,12 @@ export type MembershipWritten =
  * is a fault: an unknown organization, or storage failing.
  */
 export interface SpaceStore {
+  /**
+   * The organization marked legacy, which owns every named space under legacy
+   * access (design memo §2, spec `space-authorization`); null when none
+   * exists, which the resource answers `409 organization_required`.
+   */
+  legacyOrganizationId(): Promise<string | null>;
   /** The organization's spaces, ordered by `(name, id)`. */
   listIn(organizationId: string): Promise<Space[]>;
   findIn(organizationId: string, spaceId: string): Promise<Space | null>;
