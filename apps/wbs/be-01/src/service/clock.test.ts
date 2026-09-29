@@ -6,8 +6,7 @@ import { describe, expect, it } from 'bun:test';
 
 /**
  * Both service locations during extraction. Core owns the moved services;
- * be-01 retains compatibility reexports and the publication services that have
- * not moved yet.
+ * be-01 retains the services that have not moved yet.
  */
 const FOLDERS = ['apps/wbs/be-01/src/service', 'libs/wbs/application/core/src/service'];
 /**

@@ -443,15 +443,14 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
+          { "kind": "path", "path": "apps/wbs/be-01/src/app.ts" },
+          { "kind": "path", "path": "apps/wbs/be-01/src/dev/local-solver-spawner.ts" },
           { "kind": "path", "path": "apps/wbs/be-01/src/module/solver-supervisor/contract.ts" },
           { "kind": "path", "path": "apps/wbs/be-01/src/module/solver-supervisor/module.ts" },
           {
             "kind": "path",
             "path": "apps/wbs/be-01/src/module/solver-supervisor/solver-supervisor-spawner.ts"
           },
-          { "kind": "path", "path": "apps/wbs/be-01/src/service/optimization-coordinator.ts" },
-          { "kind": "path", "path": "apps/wbs/be-01/src/service/optimized-schedule-reader.ts" },
-          { "kind": "path", "path": "apps/wbs/be-01/src/service/solver-child-lifecycle.ts" },
           { "kind": "path", "path": "apps/wbs/be-01/src/services.ts" }
         ]
       }
@@ -471,9 +470,9 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
+          { "kind": "path", "path": "apps/wbs/be-01/src/dev/local-solver-spawner.ts" },
           { "kind": "path", "path": "apps/wbs/be-01/src/dev/main.ts" },
-          { "kind": "path", "path": "apps/wbs/be-01/src/main.ts" },
-          { "kind": "path", "path": "apps/wbs/be-01/src/service/solver-launcher-process.ts" }
+          { "kind": "path", "path": "apps/wbs/be-01/src/main.ts" }
         ]
       }
     },
@@ -492,8 +491,9 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
-          { "kind": "path", "path": "apps/wbs/be-01/src/main.ts" },
-          { "kind": "path", "path": "apps/wbs/be-01/src/service/solver-supervisor-client.ts" }
+          { "kind": "path", "path": "apps/wbs/be-01/scripts/solver-supervisor-image-client.ts" },
+          { "kind": "path", "path": "apps/wbs/be-01/scripts/solver-supervisor-orphan-client.ts" },
+          { "kind": "path", "path": "apps/wbs/be-01/src/main.ts" }
         ]
       }
     },

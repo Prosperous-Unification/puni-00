@@ -6,6 +6,7 @@ import { sliceKey, SOLVER_QUANTUM } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
+import type { OptimizedScheduleAsk } from '../module/optimization/optimized-schedule-reader';
 import type {
   CapacityStore,
   DirectoryStore,
@@ -18,7 +19,6 @@ import { AvailableWorkItemService as WorkItemService } from '../testing/availabl
 import { testClock } from '../testing/clock-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { projectRow } from '../testing/project-fixture';
-import type { OptimizedScheduleAsk } from './optimized-schedule-reader';
 import { optimizerWiring } from './optimizer-wiring';
 
 /**

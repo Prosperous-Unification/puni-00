@@ -30,8 +30,8 @@ import type {
   ReservedSolverChild,
   ReservedSpawner,
   ReservedSpawnRequest,
-} from '../service/optimization-coordinator';
-import { spawnSolverLauncher } from '../service/solver-launcher-process';
+} from '../module/optimization/contract';
+import { spawnSolverLauncher } from '../module/solver-launcher/solver-launcher.repository';
 
 /** What this profile actually guarantees, in the shape a caller can print. */
 export interface LocalSolverCapabilities {

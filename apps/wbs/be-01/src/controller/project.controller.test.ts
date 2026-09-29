@@ -7,11 +7,11 @@ import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
-import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import type {
   OptimizationCoordinator,
   OptimizationRetryResult,
-} from '../service/optimization-coordinator';
+} from '../module/optimization/optimization.feature';
+import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';

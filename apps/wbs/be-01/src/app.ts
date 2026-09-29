@@ -16,6 +16,7 @@ import type {
   SavedPlanService,
   SpaceStore,
 } from '@wbs/core';
+import type { Scope, UnitOfWork } from '@wbs/core';
 import { clockOf } from '@wbs/core';
 import { domainRoutes } from '@wbs/core/http/domain.routes';
 import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
@@ -61,13 +62,12 @@ import { mountEndpoints } from './http/elysia/mount';
 import { createUnexpectedFailureReporter } from './http/elysia/unexpected-failure';
 import type { BoundEndpoint } from './http/endpoint';
 import { identityResolver } from './http/identity';
+import type { OptimizationCoordinator } from './module/optimization/optimization.feature';
 import { openApiPlugin } from './openapi/openapi-plugin';
 import type { DatabaseHealth } from './repository/health-probe';
 import { type IssueBearerContext, REFUSE_BEARER_CONTEXT } from './runtime/bearer-context';
 import { nodeDigest } from './runtime/bun-runtime';
 import { type DelegationVerifier, REFUSE_DELEGATIONS } from './runtime/delegation';
-import type { OptimizationCoordinator } from './service/optimization-coordinator';
-import type { Scope, UnitOfWork } from './service/unit-of-work';
 import type { WritingServices } from './services';
 
 export interface AppOptions {

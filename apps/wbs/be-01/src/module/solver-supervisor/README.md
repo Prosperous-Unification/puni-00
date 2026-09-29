@@ -1,6 +1,6 @@
 # Solver supervisor
 
-<!-- module-index {"schemaVersion":1,"moduleId":"module.backend.solver-supervisor","memberships":[{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"solver-supervisor-spawner.test.ts"},{"kind":"path","path":"solver-supervisor-spawner.ts"},{"kind":"path","path":"solver-supervisor.repository.test.ts"},{"kind":"path","path":"solver-supervisor.repository.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.be-01.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every reader this packet verified by reading main.ts and the compatibility shim."},{"section":"invariants","reason":"The one-attempt-per-connection, verdict-before-kill and bounded-reply invariants are documented on connectSolverSupervisor; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/be-01/src/main.ts"},{"kind":"path","path":"apps/wbs/be-01/src/service/solver-supervisor-client.ts"}],"knowledgeLimit":"Only the production entrypoint and the compatibility shim are declared; the two Supervisor diagnostic scripts under apps/wbs/be-01/scripts reach this module through the shim and are not tracked here."}} -->
+<!-- module-index {"schemaVersion":1,"moduleId":"module.backend.solver-supervisor","memberships":[{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"solver-supervisor-spawner.test.ts"},{"kind":"path","path":"solver-supervisor-spawner.ts"},{"kind":"path","path":"solver-supervisor.repository.test.ts"},{"kind":"path","path":"solver-supervisor.repository.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.be-01.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every reader this packet verified by reading main.ts and the compatibility shim."},{"section":"invariants","reason":"The one-attempt-per-connection, verdict-before-kill and bounded-reply invariants are documented on connectSolverSupervisor; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/be-01/scripts/solver-supervisor-image-client.ts"},{"kind":"path","path":"apps/wbs/be-01/scripts/solver-supervisor-orphan-client.ts"},{"kind":"path","path":"apps/wbs/be-01/src/main.ts"}],"knowledgeLimit":"The production entrypoint and the two Supervisor diagnostic scripts under apps/wbs/be-01/scripts are declared."}} -->
 
 The host Solver supervisor's client as a sealed DI Bag repository module under `apps/wbs/be-01`:
 `module.ts` seals the graph, `check.ts` is the only place that builds a bag, and `contract.ts`
@@ -24,8 +24,8 @@ Optimization feature, its private support or the coordinator's compatibility pat
 ## Consumers
 
 `apps/wbs/be-01/src/main.ts` installs the module and hands its launcher port to the Optimization
-coordinator; `apps/wbs/be-01/src/service/solver-supervisor-client.ts` keeps the former path for the
-two Supervisor diagnostic scripts under `apps/wbs/be-01/scripts/`.
+coordinator; the two Supervisor diagnostic scripts under `apps/wbs/be-01/scripts/` import
+`connectSolverSupervisor` from `solver-supervisor.repository.ts` directly.
 
 ## Wiki registration
 

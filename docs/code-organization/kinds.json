@@ -2,35 +2,10 @@
   "reviewed": "2026-09-20",
   "entries": [
     {
-      "path": "apps/wbs/be-01/src/service/optimization-coordinator.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use the optimization module directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/optimized-schedule-reader.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use the optimization module directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/optimizer-wiring.ts",
       "kind": "support",
       "disposition": "composition wiring; move to the backend composition root",
       "rationale": "buildServices binds an optional OptimizedScheduleAdapter into the core Scheduler through optimizerWiring, while service fixtures reuse its Fast-only scheduler"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/roll-up.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/roll-up directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/smoke.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/smoke.service directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/solver-child-lifecycle.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use the optimization module directly"
     },
     {
       "path": "apps/wbs/be-01/src/service/solver-exit-outcome.ts",
@@ -39,25 +14,10 @@
       "rationale": "OptimizationCoordinator calls evaluateSolverOutcome as a pure transformation of ScheduleInput, a solver request and a captured process outcome with no store, clock, socket or process access"
     },
     {
-      "path": "apps/wbs/be-01/src/service/solver-launcher-process.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use the solver-launcher module directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/solver-request-pair.ts",
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
       "rationale": "OptimizationCoordinator calls it to derive two solver requests from one ScheduleInput and quantised baseline without reading a store, clock, socket or process"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/solver-supervisor-client.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use the solver-supervisor module directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/unit-of-work.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/assumed-assignee.ts",

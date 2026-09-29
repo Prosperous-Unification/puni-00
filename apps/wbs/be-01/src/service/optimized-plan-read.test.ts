@@ -7,12 +7,15 @@ import { type Schedule, schedule, sliceKey, type SolverObjectiveName } from '@wb
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
+import type {
+  OptimizationVariantState,
+  OptimizedScheduleAsk,
+} from '../module/optimization/optimized-schedule-reader';
 import type { ProjectPatch, ProjectStore, WorkItemStore, WriteStamp } from '../repository';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { testClock } from '../testing/clock-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { projectRow } from '../testing/project-fixture';
-import type { OptimizationVariantState, OptimizedScheduleAsk } from './optimized-schedule-reader';
 import { optimizerWiring } from './optimizer-wiring';
 
 /**

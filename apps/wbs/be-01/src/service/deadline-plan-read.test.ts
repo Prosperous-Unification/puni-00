@@ -2,12 +2,15 @@ import { CREATOR_ADMISSION } from '@wbs/core';
 import type { WorkItemServiceOptions } from '@wbs/core/module/work-item/work-item.resource';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
+import type {
+  OptimizedScheduleAsk,
+  OptimizedScheduleRead,
+} from '../module/optimization/optimized-schedule-reader';
 import type { DirectoryStore, ProjectStore, WriteStamp } from '../repository';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { testClock } from '../testing/clock-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { projectRow, testProjectService } from '../testing/project-fixture';
-import type { OptimizedScheduleAsk, OptimizedScheduleRead } from './optimized-schedule-reader';
 import { optimizerWiring } from './optimizer-wiring';
 
 /**

@@ -9,7 +9,7 @@ import { buildApp } from '../app';
 import type {
   OptimizationVariantState,
   OptimizedScheduleReader,
-} from '../service/optimized-schedule-reader';
+} from '../module/optimization/optimized-schedule-reader';
 import { optimizerWiring } from '../service/optimizer-wiring';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
