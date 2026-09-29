@@ -247,13 +247,21 @@ describe('the OIDC callback after activation', () => {
     return new URL(location).searchParams.get('state');
   }
 
-  /** The `?auth_link=` outcome of a callback, which is always a 302 to the fixed app path. */
+  /**
+   * The `?auth_link=` outcome of a callback, which is always a 302 to the fixed
+   * app path. Every outcome but `refused` is reached only after consumption,
+   * so it must clear the binding cookie; `refused` may precede consumption.
+   */
   function outcomeOf(callback: Response): string | null {
     expect(callback.status).toBe(302);
     const location = callback.headers.get('location') ?? '';
     expect(location).toMatch(/^\/\?auth_link=[a-z]+$/);
-    expect(callback.headers.get('set-cookie')).toContain('__Host-wbs_link=; ');
-    return new URL(location, 'https://dev.wbs.test').searchParams.get('auth_link');
+    const outcome = new URL(location, 'https://dev.wbs.test').searchParams.get('auth_link');
+    if (outcome !== 'refused')
+      expect(callback.headers.get('set-cookie')).toBe(
+        '__Host-wbs_link=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0',
+      );
+    return outcome;
   }
 
   async function linkCallback(app: ReturnType<typeof buildApp>, start: Response, token: string) {
@@ -657,7 +665,35 @@ describe('the OIDC callback after activation', () => {
     expect(exchanges).toBe(0);
   });
 
-  it('clears the link cookie on every callback outcome', async () => {
+  it('clears the link cookie once a callback consumes or lacks it', async () => {
+    activate();
+    const app = mounted();
+    const registration = await auth.register('password_user', 'fresh-password');
+    if (!registration.ok) throw new Error('test registration refused');
+    const cleared = '__Host-wbs_link=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0';
+    const absent = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/link/auth0/callback?code=c&state=s', {
+        headers: { cookie: `__Host-wbs_access=${registration.value.token}` },
+      }),
+    );
+    expect(absent.headers.get('set-cookie')).toBe(cleared);
+    const replayed = await startLink(app, registration.value.token, 'fresh-password');
+    expect(outcomeOf(await linkCallback(app, replayed, registration.value.token))).toBe('linked');
+    const linkCookie = replayed.headers.get('set-cookie')?.split(';')[0];
+    if (linkCookie === undefined) throw new Error('link cookie missing');
+    const state = await linkState(replayed);
+    const again = await app.handle(
+      new Request(`https://dev.wbs.test/api/auth/link/auth0/callback?code=c&state=${state ?? ''}`, {
+        headers: { cookie: `__Host-wbs_access=${registration.value.token}; ${linkCookie}` },
+      }),
+    );
+    // Consumed on the first callback, so the replay matches nothing and keeps
+    // whatever cookie the browser still holds.
+    expect(again.headers.get('location')).toBe('/?auth_link=refused');
+    expect(again.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('keeps the link cookie through a forged callback so the honest one still links', async () => {
     activate();
     const app = mounted();
     const registration = await auth.register('password_user', 'fresh-password');
@@ -665,30 +701,38 @@ describe('the OIDC callback after activation', () => {
     const start = await startLink(app, registration.value.token, 'fresh-password');
     const linkCookie = start.headers.get('set-cookie')?.split(';')[0];
     if (linkCookie === undefined) throw new Error('link cookie missing');
-    const cleared = '__Host-wbs_link=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0';
-    const forged = await app.handle(
-      new Request('https://dev.wbs.test/api/auth/link/auth0/callback?code=c&state=forged', {
-        headers: { cookie: `__Host-wbs_access=${registration.value.token}; ${linkCookie}` },
-      }),
-    );
-    expect(forged.headers.get('set-cookie')).toBe(cleared);
-    const polluted = await app.handle(
-      new Request('https://dev.wbs.test/api/auth/link/auth0/callback?code=c&state=a&state=b', {
-        headers: { cookie: `__Host-wbs_access=${registration.value.token}; ${linkCookie}` },
-      }),
-    );
-    expect(polluted.status).toBe(400);
-    expect(polluted.headers.get('set-cookie')).toBe(cleared);
+    const browser = `__Host-wbs_access=${registration.value.token}; ${linkCookie}`;
+    for (const forged of [
+      '?code=c&state=forged',
+      '?state=forged&error=access_denied',
+      '?code=c',
+      '?code=c&state=a&state=b',
+    ]) {
+      const answer = await app.handle(
+        new Request(`https://dev.wbs.test/api/auth/link/auth0/callback${forged}`, {
+          headers: { cookie: browser },
+        }),
+      );
+      expect(answer.headers.get('set-cookie')).toBeNull();
+    }
     const headed = await app.handle(
       new Request('https://dev.wbs.test/api/auth/link/auth0/callback?code=c&state=a', {
         method: 'HEAD',
-        headers: { cookie: `__Host-wbs_access=${registration.value.token}; ${linkCookie}` },
+        headers: { cookie: browser },
       }),
     );
     expect(headed.status).toBe(405);
-    expect(headed.headers.get('set-cookie')).toBe(cleared);
-    const linked = await linkCallback(app, start, registration.value.token);
-    expect(linked.headers.get('set-cookie')).toBe(cleared);
+    expect(headed.headers.get('set-cookie')).toBeNull();
+    const state = await linkState(start);
+    const honest = await app.handle(
+      new Request(`https://dev.wbs.test/api/auth/link/auth0/callback?code=c&state=${state ?? ''}`, {
+        headers: { cookie: browser },
+      }),
+    );
+    expect(outcomeOf(honest)).toBe('linked');
+    expect(all('SELECT user_id FROM external_identity')).toEqual([
+      { user_id: registration.value.user.id },
+    ]);
   });
 
   it('refuses an Auth0 identity with no verified email', async () => {

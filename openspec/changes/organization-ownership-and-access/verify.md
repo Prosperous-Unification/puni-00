@@ -1368,3 +1368,15 @@ Before this fix, a delegated `read write` token for a super-admin could administ
 | The outcome parameter is stripped         | Skipped `clearLinkOutcome()`                                                        | the three `renders … and strips the parameter` cases kept `?auth_link=` (3 failed)                                                            |
 
 All faults were restored before commit. The existing mounted link tests now assert outcomes through `outcomeOf`, which also requires the fixed-path shape and the cookie clear on every callback they make.
+
+### Slice 39f review fixes (Fable, 2026-09-29)
+
+Before this fix, a forged cross-site GET to the link callback (forged state, malformed parameters, a polluted query or HEAD) cleared `__Host-wbs_link`, so the victim's honest callback was then refused. The cookie now clears only on consumption, on an absent binding and on `linked`.
+
+| Check                                            | Injected fault                                            | Observed failure                                                                                                                                                                       |
+| ------------------------------------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A state that matches no binding keeps the cookie | Answered `proof === null` with the clearing `linkOutcome` | `keeps the link cookie through a forged callback so the honest one still links` and `clears the link cookie once a callback consumes or lacks it` failed: received the Max-Age=0 clear |
+| Malformed provider parameters keep the cookie    | Answered them with the clearing `linkOutcome`             | `keeps the link cookie through a forged callback so the honest one still links` failed: received the clear                                                                             |
+| Consumed failures still clear the cookie         | Cleared only on `linked`                                  | 5 failed, including the inactive and three collision cases through `outcomeOf`, and the absent-binding assertion: received no set-cookie                                               |
+
+The honest callback in the forged-callback test sends the cookie the way a browser would and links. A throw after `links.consume` is left as the app's 500, as the comment on the callback handler explains, rather than caught into `?auth_link=failed`. All faults were restored before commit.

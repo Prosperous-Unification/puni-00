@@ -98,7 +98,11 @@ function callbackFailure(
   return { ok: false, status: 400, body: { error: failure.code } };
 }
 
-/** The link browser binding, cleared by every link callback outcome. */
+/**
+ * The link browser binding. It is cleared once a callback consumes it, when
+ * it is absent, and on `linked`; a callback that consumed nothing leaves it,
+ * so a forged cross-site callback cannot burn an in-flight link.
+ */
 const LINK_COOKIE = '__Host-wbs_link';
 const clearLink = (): Header => cookie(LINK_COOKIE, '', 0);
 
@@ -116,12 +120,13 @@ const LINK_OUTCOME_FOR_OIDC_FAILURE: Record<OidcFailureKind, LinkOutcome> = {
 
 /**
  * A 302 to the fixed relative app path carrying `outcome`, clearing the link
- * binding cookie.
+ * binding cookie: the answer for every callback from consumption onward.
  *
  * Proof: 2026-09-29, echoing the provider's `error` into the location failed
  * `redirects every failure to the fixed outcome path without echoing the
- * request`; dropping the cookie clear on failures failed `clears the link
- * cookie on every callback outcome`.
+ * request`; clearing only on `linked` failed `clears the link cookie once a
+ * callback consumes or lacks it` and the four consumed-refusal tests
+ * (inactive and the three collisions) with no set-cookie.
  */
 function linkOutcome(outcome: LinkOutcome) {
   return {
@@ -133,11 +138,24 @@ function linkOutcome(outcome: LinkOutcome) {
 }
 
 /**
- * A non-GET link callback is refused, and the binding cookie cleared with it.
+ * `refused` for a callback that consumed nothing (malformed provider
+ * parameters or a state that matches no binding), leaving the binding cookie
+ * for the honest callback still to come.
  *
- * Proof: 2026-09-29, dropping the clear here failed `clears the link cookie on
- * every callback outcome` at the HEAD request (no set-cookie).
+ * Proof: 2026-09-29, answering these with {@link linkOutcome} failed `keeps
+ * the link cookie through a forged callback so the honest one still links`
+ * (set-cookie cleared the binding).
  */
+function unconsumedLinkRefusal() {
+  return {
+    ok: true,
+    status: 302,
+    body: EMPTY,
+    headers: [['location', '/?auth_link=refused']],
+  } as const;
+}
+
+/** A non-GET link callback is refused before anything is consumed; the binding stays. */
 function linkCallbackAdmission(request: RequestMetadata) {
   return request.method === 'GET'
     ? null
@@ -145,7 +163,7 @@ function linkCallbackAdmission(request: RequestMetadata) {
         ok: false,
         status: 405,
         body: { error: 'method_not_allowed' },
-        headers: [['allow', 'GET'], clearLink()],
+        headers: [['allow', 'GET']],
       } as const);
 }
 
@@ -154,15 +172,9 @@ function linkCallbackFailure(
   failure: RequestFailure,
 ): Extract<HttpReply<typeof completeAuth0Link>, { ok: false }> {
   // Proof: 2026-09-28, omitting this classifier made `rejects duplicate callback state without spending the link proof` answer invalid_query instead of duplicate_parameter.
-  // Proof: 2026-09-29, dropping the cookie clear failed `clears the link cookie on every callback outcome` at the polluted query.
   if (failure.part === 'query' && failure.duplicate !== undefined)
-    return {
-      ok: false,
-      status: 400,
-      body: { error: 'duplicate_parameter' },
-      headers: [clearLink()],
-    };
-  return { ok: false, status: 400, body: { error: failure.code }, headers: [clearLink()] };
+    return { ok: false, status: 400, body: { error: 'duplicate_parameter' } };
+  return { ok: false, status: 400, body: { error: failure.code } };
 }
 /**
  * Browser OIDC bindings. Composition registers these only when OIDC options exist.
@@ -511,6 +523,16 @@ export function authOidcEndpoints(
     }),
     bind(
       completeAuth0Link,
+      /*
+       * A throw after `links.consume` (password-session lookup, the activation
+       * read, the identity write) is left to propagate as the app's 500 rather
+       * than caught into `?auth_link=failed`: the failure policy reserves
+       * catching for modeled recovery, and `options.logger` is optional here,
+       * so a caught throw could vanish unlogged. What it leaves is bounded: the
+       * binding is already spent server-side, so the stale cookie names
+       * nothing, expires within OIDC_BINDING_TTL_SECONDS and is replaced by the
+       * next link start.
+       */
       async ({ request }) => {
         const sent = request.url.searchParams;
         const binding = cookieValue(request.headers.get('cookie') ?? undefined, LINK_COOKIE);
@@ -525,12 +547,12 @@ export function authOidcEndpoints(
           sent.has('error') ||
           OTHER_RESPONSE_MODE_PARAMS.some((name) => sent.has(name))
         )
-          return linkOutcome('refused');
+          return unconsumedLinkRefusal();
         // Since 2026-09-29 an absent binding and malformed provider parameters share the `refused` outcome, so the 2026-09-28 proof that told them apart no longer applies.
         if (binding === null || session === null) return linkOutcome('refused');
         const proof = links.consume(binding, state, session);
         // Proof: 2026-09-28, retaining the consumed transaction made `refuses a replayed link callback` link twice (then two 302s; now two `linked` outcomes).
-        if (proof === null) return linkOutcome('refused');
+        if (proof === null) return unconsumedLinkRefusal();
         const user = await auth.passwordSessionUser(session);
         // Proof: 2026-09-28, skipping this recheck made `refuses a link whose originating account lost its password credential` answer 500 instead of the refusal (then 401; now `refused`).
         if (user?.id !== proof.userId) return linkOutcome('refused');
