@@ -273,7 +273,6 @@ function planWire(projectId: string, plan: PlanRead) {
       serviceId: null,
       // be-01 always sends both; the face reads the folded status only.
       readiness: null,
-      hold: null,
       actuals: {},
       progress: {},
       measures: {},

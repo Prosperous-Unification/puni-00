@@ -574,6 +574,15 @@ export interface GanttPlan {
    */
   tree: readonly GanttTreeRow[];
   /**
+   * Every leaf whose stored hold is `on_hold`, shown or not
+   * ({@link heldLeafIdsOf}). be-01 takes such a leaf out of the schedule
+   * whatever it reads, done included, so it has no slice in the payload: a
+   * branch's arrow leaves from the leaves still scheduled, and an authored
+   * endpoint on a held leaf draws nothing rather than reading as a broken
+   * payload (`add-work-item-statuses`).
+   */
+  heldLeafIds: ReadonlySet<string>;
+  /**
    * Whether a filter is why {@link GanttPlan.rows} is the length it is.
    *
    * A list of rows cannot say why it is short, and the panel must not guess:
@@ -2365,7 +2374,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
     });
   }
 
-  const leavesUnder = leavesUnderOf(plan.tree);
+  const leavesUnder = leavesUnderOf(plan.tree, plan.heldLeafIds);
 
   /**
    * The predecessor's anchor span, **selected** from the payload's slices and
@@ -2748,7 +2757,7 @@ export function startFloorByRow(
     else own.push(slice);
   }
 
-  const leavesUnder = leavesUnderOf(plan.tree);
+  const leavesUnder = leavesUnderOf(plan.tree, plan.heldLeafIds);
   const predecessorsOf = new Map<string, string[]>();
   for (const edge of plan.dependencies) {
     const own = predecessorsOf.get(edge.successorId);
@@ -2934,7 +2943,10 @@ function latestReachedAmong(
  * answer to "which slice does this edge leave from" — the exact fault the
  * `dep-waits-on-first-role` rule was written once to prevent.
  */
-function leavesUnderOf(tree: readonly GanttTreeRow[]): ReadonlyMap<string, string[]> {
+function leavesUnderOf(
+  tree: readonly GanttTreeRow[],
+  held: ReadonlySet<string>,
+): ReadonlyMap<string, string[]> {
   const childrenOf = new Map<string, GanttTreeRow[]>();
   for (const treeRow of tree) {
     if (treeRow.parentId === null) continue;
@@ -2947,7 +2959,16 @@ function leavesUnderOf(tree: readonly GanttTreeRow[]): ReadonlyMap<string, strin
     const already = found.get(id);
     if (already !== undefined) return already;
     const children = childrenOf.get(id);
-    const leaves = children === undefined ? [id] : children.flatMap((child) => walk(child.id));
+    // A held leaf is out of the schedule and has no slice to leave from; a
+    // branch's arrow leaves from the leaves still in it.
+    // Proof: this filter removed, and `leaves an arrow from a branch holding a
+    // held leaf from the leaf still scheduled` threw `GanttDataError:
+    // dependency branch → paint: strip has no slice in this payload`; watched
+    // 2026-09-29, which is what main did to every such chart.
+    const leaves =
+      children === undefined
+        ? [id]
+        : children.flatMap((child) => walk(child.id)).filter((leaf) => !held.has(leaf));
     found.set(id, leaves);
     return leaves;
   };

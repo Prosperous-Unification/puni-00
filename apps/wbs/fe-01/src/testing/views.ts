@@ -43,6 +43,7 @@ export function workItemView(overrides: Partial<WorkItemView> = {}): WorkItemVie
     factStart: null,
     factEnd: null,
     status: 'unknown',
+    hold: null,
     priority: null,
     maxParallel: 1,
     teamIds: [],

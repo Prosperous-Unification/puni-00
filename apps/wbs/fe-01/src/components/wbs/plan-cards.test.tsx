@@ -323,6 +323,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
           factStart: null,
           factEnd: null,
           status: 'unknown',
+          hold: null,
           serviceTeamId: null,
           teamIds: [],
           assignees: {},

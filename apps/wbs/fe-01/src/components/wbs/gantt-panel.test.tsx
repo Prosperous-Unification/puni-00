@@ -3611,6 +3611,7 @@ function rowOf(parts: {
     factStart: null,
     factEnd: null,
     status: 'unknown',
+    hold: null,
     serviceTeamId: null,
     teamIds: [],
     assignees: {},
