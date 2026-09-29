@@ -23,7 +23,7 @@ import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
 import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
-import { PersonLoad } from '@wbs/core/service/person-load';
+import { PersonLoad } from '@wbs/core/service/person-load.feature';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
 

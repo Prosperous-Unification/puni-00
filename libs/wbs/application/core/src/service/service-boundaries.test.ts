@@ -22,7 +22,6 @@ const services = [
   'login-throttle',
   'numbered-work-item',
   'optimizer-trigger-broadcaster',
-  'person-load',
   'plan-command',
   'plan-commands',
   'priority-band.service',

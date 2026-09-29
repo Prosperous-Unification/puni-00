@@ -1,7 +1,7 @@
 import { readOrganizationLoad, readPersonLoad } from '@wbs/contracts';
 
 import type { OrganizationAccess } from '../ports/organization-access';
-import { loadWindowOf, type PersonLoad } from '../service/person-load';
+import { loadWindowOf, type PersonLoad } from '../service/person-load.feature';
 import { bind, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 

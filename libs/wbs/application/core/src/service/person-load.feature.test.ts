@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import { LEGACY_ACCESS } from '../ports/organization-access';
-import { loadWindowOf, PersonLoad, type PersonLoadOptions } from './person-load';
+import { loadWindowOf, PersonLoad, type PersonLoadOptions } from './person-load.feature';
 
 type TreeRead = Awaited<ReturnType<PersonLoadOptions['workItems']['treeWithin']>>;
 
@@ -88,7 +88,7 @@ describe('PersonLoad', () => {
         ...(datedTree('ben', 2, 'fast') as object),
         scheduleError: 'cycle',
         slices: [],
-      }) as TreeRead;
+      }) as unknown as TreeRead;
     const { load } = loadOver({ cycle });
     expect((await load.readPerson('ana', WINDOW, 'u', LEGACY_ACCESS))?.unavailable).toEqual([]);
     expect((await load.readOrganization(WINDOW, 'u', LEGACY_ACCESS)).unavailable).toEqual([

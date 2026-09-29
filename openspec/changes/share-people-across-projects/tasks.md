@@ -6,17 +6,18 @@
 
 ## 1. Load backend
 
-- [ ] 1.1 Red: `workdayOrdinalOf` and `dateOfWorkdayOrdinal` round-trip, and agree with
+- [x] 1.1 Red: `workdayOrdinalOf` and `dateOfWorkdayOrdinal` round-trip, and agree with
       `addWorkdays`.
-- [ ] 1.2 Red: `overlapsOf` (touching, chain, three at once) and `weeklyLoadOf` (union,
+- [x] 1.2 Red: `overlapsOf` (touching, chain, three at once) and `weeklyLoadOf` (union,
       clipping, fractions).
-- [ ] 1.3 Red: the `PersonLoad` service over a real database: two projects and one overlap,
-      undated, a cycle, the displayed engine, a foreign project omitted, a foreign person 404,
-      and the memo refreshed after a command.
-- [ ] 1.4 Red: contracts for both endpoints; window validation (a year, an inverted window,
+- [x] 1.3 Red: `PersonLoad` over stubbed trees (the displayed engine, `engine_unavailable`,
+      a cycle, memo reuse) and mounted over real SQLite (two projects and one overlap, touching
+      bookings, undated, restricted, a foreign project omitted, a foreign person 404, the memo
+      refreshed after a command).
+- [x] 1.4 Red: contracts for both endpoints; window validation (a year, an inverted window,
       malformed dates); mounted routes with organization refusals; route and MCP pins.
-- [ ] 1.5 Green: domain helpers, `PersonLoad`, shapes, routes, app wiring, MCP pin.
-- [ ] 1.6 Negatives: `seq` dropped from the memo key → a command then a read serves old
+- [x] 1.5 Green: domain helpers, `PersonLoad`, shapes, routes, app wiring, MCP pin.
+- [x] 1.6 Negatives: `seq` dropped from the memo key → a command then a read serves old
       bookings; overlap strictness removed → touching bookings reported; readable filter
       removed → a foreign project listed; window cap removed → a year answered.
 
