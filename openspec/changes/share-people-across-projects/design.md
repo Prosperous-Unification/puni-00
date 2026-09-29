@@ -19,15 +19,23 @@ ordinal counts workdays from a fixed Monday and is closed-form, so any date maps
 back with the plan's own `firstWorkdayOf` and `lastWorkdayOf`, so a load bar and the plan's row
 never disagree. Undated projects and plans with a schedule error book nothing.
 
-## D3. The memo is keyed on the event sequence
+## D3. The memo is keyed on the project revision and the event sequence
 
 `PersonLoad` memoizes each project's bookings per process, keyed by access (the organization, or
-legacy) and project, and holding the tree's `seq`. A read first asks `latestSeq`. When it
-equals the memo's `seq`, the bookings are reused; otherwise the tree is read again. Every write
-that can move a date publishes a project event, which advances `seq`: commands, directory
-changes, capacity, settings, and `schedule_optimized` when a solve lands. The memo is bounded
-(LRU), and correctness never depends on it. Blue and green each hold their own memo. Under
-`shared` (slice 6) the key gains `basisHash`, the hash of the bookings that fed the project.
+legacy) and project, and holding the project row's `revision` and the tree's `seq`. The two
+cover different writes:
+
+- `revision` commits with every project-row edit: start date, PERT weights, dependency reach,
+  estimate method, estimate rounding and the optimizer settings. A settings PATCH publishes an
+  event only for the three optimizer fields, so `seq` alone would miss the rest.
+- `seq` advances when a plan edit (a command batch), a directory or capacity change, or a
+  `schedule_optimized` result is announced after its commit.
+
+A read takes `revision` from the project list it has just read, and asks `latestSeq`. When both
+equal the memo's values, the bookings are reused; otherwise the tree is read again. Readings
+whose engine is unavailable are never memoized. The memo is bounded (LRU), and correctness never
+depends on it. Blue and green each hold their own memo. Under `shared` (slice 6), the key gains
+`basisHash`, the hash of the bookings that fed the project.
 
 ## D4. The leak rule
 

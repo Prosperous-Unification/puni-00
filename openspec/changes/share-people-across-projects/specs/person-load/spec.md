@@ -121,13 +121,35 @@ are readable by members (restriction gates writes), so they are listed.
 
 ### Requirement: Bookings follow edits without a stale read
 
-A process MAY memoize each project's bookings. The memo key SHALL include the project's event
-sequence as read before its tree. Under `shared`, it SHALL also include the hash of the bookings
-that fed the project. A read that begins after an edit has been announced SHALL reflect that
-edit.
+A process MAY memoize each project's bookings. The memo key SHALL include the project row's
+revision, which commits with every edit to the project row, and the project's event sequence,
+which advances when a plan edit, directory change, capacity change or optimized result is
+announced after its commit. Under `shared`, the key SHALL also include the hash of the bookings
+that fed the project. A read that begins after an edit to the project row has committed SHALL
+reflect that edit. A read that begins after a plan edit has committed and been announced SHALL
+reflect that edit. A reading whose engine is unavailable SHALL never be memoized.
 
 #### Scenario: an estimate changes
 
 - **GIVEN** Ana's load has been read once
 - **WHEN** a command lengthens her slice in P, and her load is read again
 - **THEN** the second read shows the longer booking
+
+#### Scenario: the start date moves
+
+- **GIVEN** Ana's load has been read once, with P starting on 2026-10-05
+- **WHEN** P's start date is patched to 2026-10-12, and her load is read again
+- **THEN** her booking in P starts on 2026-10-12
+
+#### Scenario: the start date is cleared
+
+- **GIVEN** Ana's load has been read once
+- **WHEN** P's start date is patched to null, and her load is read again
+- **THEN** P is listed as undated and books nothing
+
+#### Scenario: an estimate rule changes
+
+- **GIVEN** Ana's load has been read once
+- **WHEN** P's PERT weights, dependency reach, estimate method or estimate rounding are patched
+  so that her slice's length changes, and her load is read again
+- **THEN** the second read shows the booking the plan's own read shows
