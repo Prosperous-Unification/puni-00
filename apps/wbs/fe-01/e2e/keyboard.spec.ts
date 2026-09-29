@@ -499,13 +499,12 @@ test.describe('the command chords, in a browser', () => {
     await seedRows(page, `e2e-keys-${String(Date.now())}-${String(account)}`, 2);
 
     await page.getByRole('button', { name: 'Actions for 010' }).click();
-    // The status entry heads the menu since `status-from-the-menu`, then Add
-    // child and Move under…; Duplicate is three steps down, and it is the item
-    // whose plain Enter this case proves.
-    await expect(page.getByRole('menuitem', { name: 'Set status to Done' })).toBeFocused();
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('ArrowDown');
+    // The six status entries head the menu for a silent row since
+    // `add-work-item-statuses` (Draft … Done), then Add child and Move under…;
+    // Duplicate is eight steps down, and it is the item whose plain Enter this
+    // case proves.
+    await expect(page.getByRole('menuitem', { name: 'Set status to Draft' })).toBeFocused();
+    for (let step = 0; step < 8; step += 1) await page.keyboard.press('ArrowDown');
     const duplicate = page.getByRole('menuitem', { name: 'Duplicate' });
     await expect(duplicate).toBeFocused();
 
