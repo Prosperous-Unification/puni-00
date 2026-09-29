@@ -24,7 +24,8 @@ export interface ProjectRankStore {
   /**
    * Places `projectId` directly after `afterProjectId`, or first when that is
    * null, and answers the new order. Every project of the organization is
-   * ranked afterwards, in the order the move left them. `not_found`, writing
+   * ranked afterwards, in the order the move left them. A project placed after
+   * itself is a no-op answering the current order. `not_found`, writing
    * nothing, when either project is not the organization's.
    */
   moveAfter(

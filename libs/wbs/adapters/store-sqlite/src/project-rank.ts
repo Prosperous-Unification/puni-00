@@ -82,6 +82,8 @@ export class ProjectRankRepository implements ProjectRankStore {
             const held = heldIn(tx, organizationId);
             const moving = held.find((each) => each.projectId === projectId);
             if (moving === undefined) return { ok: false, reason: 'not_found' };
+            // A project placed after itself stays where it is: a no-op that
+            // answers the current order, writing nothing.
             if (afterProjectId === projectId) return { ok: true, order: ranksOf(held) };
             const rest = held.filter((each) => each.projectId !== projectId);
             const after =

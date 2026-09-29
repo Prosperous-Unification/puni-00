@@ -25,7 +25,8 @@ remove its rank.
 
 `POST /api/organization/projects/:id/rank {afterProjectId}` SHALL place the project directly
 after `afterProjectId`, or first when that is absent or null, and answer `200` with the new order.
-Every project of the organization SHALL be ranked afterwards, in that order. Only an admin or
+Every project of the organization SHALL be ranked afterwards, in that order. Naming the project
+itself as `afterProjectId` SHALL change nothing and answer `200` with the current order. Only an admin or
 super-admin SHALL be allowed; a member or viewer SHALL be answered `403 forbidden`. A foreign or
 absent project, on either side of the move, SHALL answer `404 not_found`. A rank move SHALL NOT
 be journalled and SHALL have no undo. Under legacy access, the route SHALL answer `409

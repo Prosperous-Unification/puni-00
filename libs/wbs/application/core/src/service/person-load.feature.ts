@@ -239,6 +239,12 @@ export class PersonLoad {
    * under legacy access, which has no organization, in creation order then id —
    * each with its reading and its 1-based rank.
    *
+   * The rank is renumbered over the caller's listed projects, not copied from
+   * the organization's order. Today the two agree, because every current
+   * member lists every project of the organization; were a read restriction
+   * ever to hide one, copying the organization's numbers would leave a gap
+   * that tells the reader a project exists they cannot see.
+   *
    * A project listed and then deleted before its tree is read is gone, not
    * unreadable, and is left out like any project the list no longer holds. One
    * created between the list and the rank read follows every ranked one, as an

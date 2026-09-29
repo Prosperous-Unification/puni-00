@@ -73,6 +73,11 @@ export class ProjectRankResource {
    * The order, named by the caller's project list and limited to it. The two
    * read the same organization, so today they hold the same projects; a
    * project the list does not hold is left out rather than named.
+   *
+   * The ranks are passed through as the store numbered them, which is only
+   * sound while nothing is left out. A future visibility filter that drops a
+   * project here must renumber what remains: a gap in the ranks would reveal
+   * that a hidden project sits there.
    */
   private async named(
     order: readonly RankedProject[],

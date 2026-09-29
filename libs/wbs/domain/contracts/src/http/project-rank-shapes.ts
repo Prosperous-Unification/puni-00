@@ -40,7 +40,8 @@ export const readProjectRank = defineEndpointShape({
 
 /**
  * Moves a project directly after `afterProjectId`, or first when it is absent
- * or null; admins and super-admins only. Not a plan command: no journal, no
+ * or null; admins and super-admins only. Naming the project itself as
+ * `afterProjectId` is a no-op answering 200 with the current order. Not a plan command: no journal, no
  * undo. A rank moves other people's dates once people are shared (ADR 0034).
  */
 export const moveProjectRank = defineEndpointShape({

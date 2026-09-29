@@ -77,6 +77,18 @@ describe('the project rank', () => {
     expect(ids(await store().orderIn('org-a'))).toEqual(['a3', 'a2', 'a4', 'a1']);
   });
 
+  it('treats a project placed after itself as a no-op, writing nothing', async () => {
+    expect(await store().moveAfter('org-a', 'a2', 'a2', wrote)).toEqual({
+      ok: true,
+      order: ids(await store().orderIn('org-a')).map((projectId, index) => ({
+        projectId,
+        rank: index + 1,
+        ranked: false,
+      })),
+    });
+    expect(ranks()).toEqual([]);
+  });
+
   it('puts a project created after the first move at the end, unranked', async () => {
     await store().moveAfter('org-a', 'a4', null, wrote);
     sql("DELETE FROM project_rank WHERE project_id = 'a2'");
