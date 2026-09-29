@@ -139,18 +139,20 @@
       "externalConsumers": {
         "kind": "declared",
         "memberships": [
+          { "kind": "path", "path": "apps/wbs/be-01/src/app.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/compose.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/http/directory.routes.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/http/project.routes.ts" },
+          { "kind": "path", "path": "libs/wbs/application/core/src/index.ts" },
           {
             "kind": "path",
-            "path": "libs/wbs/application/core/src/compose.ts"
+            "path": "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts"
           },
           {
             "kind": "path",
-            "path": "libs/wbs/application/core/src/index.ts"
+            "path": "libs/wbs/application/core/src/module/plan-import/plan-import.feature.ts"
           },
-          {
-            "kind": "path",
-            "path": "libs/wbs/application/core/src/service/directory.service.ts"
-          }
+          { "kind": "path", "path": "libs/wbs/application/core/src/service/person-load.feature.ts" }
         ]
       }
     },

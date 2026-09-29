@@ -6,6 +6,7 @@ import type { Broadcaster } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
+import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import {
   type AppliedCommand,
   type BatchOutcome,
@@ -50,7 +51,6 @@ import { buildStores } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
-import { DirectoryService } from './directory.service';
 import { fastScheduler } from './optimizer-wiring';
 import { PriorityBandService } from './priority-band.service';
 import { ProjectService } from './project.service';

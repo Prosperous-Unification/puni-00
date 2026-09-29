@@ -2,11 +2,6 @@
   "reviewed": "2026-09-20",
   "entries": [
     {
-      "path": "apps/wbs/be-01/src/service/directory.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/directory.service directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/optimization-coordinator.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use the optimization module directly"
@@ -131,11 +126,6 @@
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
       "rationale": "directory.service.ts calls its pure removal-effect projections over DirectoryUsageRows and labelled work items for the glossary's directory usage, with no store or clock"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/directory.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the directory module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/domain-proof.service.ts",

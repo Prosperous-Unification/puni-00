@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { DirectoryStore, Person, Step, WorkItem, WriteStamp } from '../repository';
@@ -20,7 +21,6 @@ import { testClock } from '../testing/clock-fixture';
 import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { directoryWith } from '../testing/directory-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
-import { DirectoryService } from './directory.service';
 import { ProjectService } from './project.service';
 
 /**

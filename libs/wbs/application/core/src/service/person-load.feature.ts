@@ -15,8 +15,8 @@ import {
   type WorkdaySpan,
 } from '@wbs/domain';
 
+import type { DirectoryService } from '../module/directory/directory.resource';
 import type { ResourceAccess } from '../ports/organization-access';
-import type { DirectoryService } from './directory.service';
 import type { ProjectService } from './project.service';
 import type { WorkItemService } from './work-item.service';
 

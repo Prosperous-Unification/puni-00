@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
+import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -25,7 +26,6 @@ import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { DirectoryService } from '../service/directory.service';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { ProjectService } from '../service/project.service';
 import { StepService } from '../service/step.service';
