@@ -73,6 +73,34 @@ describe('pageProjects', () => {
   });
 });
 
+describe('a walk is not a snapshot', () => {
+  test('a project not yet answered that is edited mid-walk is missed', () => {
+    const first = pageProjects([project('p3', 3), project('p2', 2), project('p1', 1)], {
+      ...everything,
+      limit: 1,
+    });
+    if (first.nextCursor === null) throw new Error('expected a second page');
+    const after = projectKeyOf(decodeCursor(first.nextCursor));
+    const edited = [project('p3', 3), project('p2', 2), project('p1', 9)];
+    const second = pageProjects(edited, { ...everything, limit: 1, after });
+    // The walk ends at p2: p1 moved ahead of the cursor and is never answered.
+    expect(second.projects.map((entry) => entry.id)).toEqual(['p2']);
+    expect(second.nextCursor).toBeNull();
+  });
+
+  test('a project whose instant went down is answered again', () => {
+    const first = pageProjects([project('p3', 3), project('p2', 2)], { ...everything, limit: 1 });
+    if (first.nextCursor === null) throw new Error('expected a second page');
+    // p3's newest plan event was pruned; its instant fell back to 1.
+    const second = pageProjects([project('p3', 1), project('p2', 2)], {
+      ...everything,
+      limit: 2,
+      after: projectKeyOf(decodeCursor(first.nextCursor)),
+    });
+    expect(second.projects.map((entry) => entry.id)).toEqual(['p2', 'p3']);
+  });
+});
+
 describe('projectKeyOf', () => {
   test('reads the key it issued', () => {
     expect(projectKeyOf(decodeCursor(encodeCursor({ v: 1, k: [null, 'p'] })))).toEqual([null, 'p']);
