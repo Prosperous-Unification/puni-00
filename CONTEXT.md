@@ -1218,6 +1218,39 @@ The next authorization consumes it and asks the provider for `prompt=login`, so 
 provider account is not silently reused.
 _Avoid_: logout cookie, retry flag, browser binding
 
+### Shared capacity
+
+**Booking**:
+One placed slice of a project's displayed schedule as its person sees it: the project, work
+item, step, start and end, in absolute workdays with fractions kept. Derived on read from the
+engine the project displays, never stored.
+_Avoid_: reservation, allocation
+
+**Load**:
+A person's bookings across every project of the organization the reader can open.
+_Avoid_: utilisation, workload (alone)
+
+**Overlap**:
+Where two bookings of one person intersect by more than a touching endpoint. A project's own
+scheduler never overlaps a person with themself, so an overlap spans projects, and exists only
+while the organization's people are isolated.
+_Avoid_: conflict, double-booking (in code)
+
+**Project rank**:
+The organization's total order over its projects; a higher project books a shared person
+first. Ranked projects by position, then every unranked one by creation.
+_Avoid_: project priority
+
+**Elsewhere**:
+The bookings a project's scheduler works around: those of the people it names, made by the
+projects that outrank it. Named as the `elsewhere` floor on a slice that waited for one.
+_Avoid_: foreign load
+
+**Shared people**:
+An organization's capacity mode, `isolated` (each project schedules its people alone, the
+default) or `shared` (a project works around its people's bookings elsewhere).
+_Avoid_: global capacity, cross-project mode
+
 ### Architecture
 
 **Radical Modularity**:
