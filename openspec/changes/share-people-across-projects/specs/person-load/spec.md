@@ -79,8 +79,9 @@ the person, because that cannot be known without its schedule.
 organization directory in directory order. Each person SHALL carry one entry per week that
 intersects the window: the week's Monday, `booked` (the workdays of that week inside the
 window that the union of the person's bookings covers) and `overlapping` (the workdays of that
-week inside the window that their overlaps cover), with fractions kept. It SHALL carry the same
-`undated` and `unavailable` project lists, without a person filter.
+week inside the window that their overlaps cover), with fractions kept. It SHALL list the
+readable undated and unschedulable projects that assign anyone, and every `engine_unavailable`
+project.
 
 #### Scenario: a double-booked week
 
@@ -122,7 +123,8 @@ are readable by members (restriction gates writes), so they are listed.
 
 A process MAY memoize each project's bookings. The memo key SHALL include the project's event
 sequence as read before its tree. Under `shared`, it SHALL also include the hash of the bookings
-that fed the project. A read after any committed edit SHALL reflect that edit.
+that fed the project. A read that begins after an edit has been announced SHALL reflect that
+edit.
 
 #### Scenario: an estimate changes
 
