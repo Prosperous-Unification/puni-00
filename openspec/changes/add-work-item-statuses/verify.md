@@ -217,6 +217,19 @@ stored hold (`heldLeafIdsOf`), so a held leaf later marked done is covered.
 | an authored endpoint on a held leaf draws nothing | held-leaf filter removed from the typed resolver (main) | `draws no authored arrow to or from a held leaf…`                                       | `GanttDataError: missing chart slices for strip`                                |
 | held means the stored hold                        | keyed on `status === 'on_hold'`                         | `names every leaf whose stored hold is on hold, a held leaf later marked done included` | `expected [] to deeply equal [ 'strip' ]`                                       |
 
+### Task 6.4 — status for assistive tech and contrast
+
+| Check                                                              | Fault injected                            | Test that observed it                        | Observed                                            |
+| ------------------------------------------------------------------ | ----------------------------------------- | -------------------------------------------- | --------------------------------------------------- |
+| blocked by proxy has its own glyph                                 | glyph set back to `⊘`                     | `gives every status its own glyph…`          | `expected 7 to be 8`                                |
+| the Status cell says its word                                      | `aria-describedby` dropped                | `says its status word to assistive tech…`    | empty accessible description                        |
+| the strip says its word with the Status column hidden              | drag handle's `aria-describedby` dropped  | `puts a row on hold at once…`                | empty description on `Reorder 010`                  |
+| status colours reach 3:1, and in progress, blocked and proxy 4.5:1 | in progress back to `oklch(0.72 0.15 72)` | `every status strip reaches 3:1…` (Chromium) | `--status-in-progress as a strip`, `Received: 2.54` |
+
+Measured in Chromium against `--background`: draft 3.64, ready 3.78, blocked by proxy 5.05,
+on hold 4.46, blocked 4.77, done 3.68; in progress at L 0.56 computes to 4.77. Draft, ready,
+on hold and done stay under 4.5:1 as glyph text (production note).
+
 ## Not run
 
 - The h2puni host gate; the orchestrator runs it on the integration branch.

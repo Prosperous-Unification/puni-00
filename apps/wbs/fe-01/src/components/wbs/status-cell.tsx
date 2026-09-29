@@ -56,11 +56,22 @@ export const STATUS_GLYPH: Readonly<Record<WorkItemStatus, string>> = {
   draft: '◌',
   ready: '◎',
   in_progress: '◐',
-  blocked_by_proxy: '⊘',
+  // Its own glyph and not blocked's `⊘`: a row waiting on held work is not
+  // itself stopped, and the two read apart without their colours
+  // (`add-work-item-statuses`, task 6.4).
+  // Proof: this set back to `⊘`, and `gives every status its own glyph…`
+  // failed on `expected 7 to be 8`; watched 2026-09-29.
+  blocked_by_proxy: '⊖',
   on_hold: '‖',
   blocked: '⊘',
   done: '✓',
 };
+
+/**
+ * The status as a screen reader is told it — `Status: On hold` — wherever a
+ * glyph or a strip colour says it on screen (`add-work-item-statuses`, task 6.4).
+ */
+export const statusWords = (status: WorkItemStatus): string => `Status: ${STATUS_LABEL[status]}`;
 
 /**
  * What each status says about the row, for the cell's project fact.
@@ -155,6 +166,7 @@ export function StatusCell({
     onOpenChange(open);
   }, [onOpenChange, open]);
   const listId = `status-options-${rowId}`;
+  const wordId = `status-word-${rowId}`;
   return (
     <span
       style={{ position: 'relative', display: 'block', minWidth: 0 }}
@@ -169,6 +181,13 @@ export function StatusCell({
         // reading 0 where a button reads null. Watched 2026-09-13.
         type="button"
         aria-label={`Status of ${rowNumber}`}
+        // The word the glyph stands for, said to assistive tech: the fact card
+        // is a hover surface and says nothing to a screen reader. A combobox
+        // takes no `aria-description` under `jsx-a11y`, so the word is an
+        // sr-only span this points at (`add-work-item-statuses`, task 6.4).
+        // Proof: this dropped, and `says its status word to assistive tech…`
+        // failed on an empty description; watched 2026-09-29.
+        aria-describedby={wordId}
         role="combobox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
@@ -214,6 +233,9 @@ export function StatusCell({
           onGridKey(event);
         }}
       />
+      <span id={wordId} className="sr-only">
+        {statusWords(status)}
+      </span>
       {open && (
         <PickerList
           id={listId}

@@ -134,10 +134,11 @@
    * muted — muted in chroma and not lightness, since it is read off the graph
    * rather than said about the row. At L 0.55 it holds 5.07:1 against the page
    * white, past 3:1 for a strip and 4.5:1 for the Status glyph (Fable review of
-   * #234; at 0.72 it was 2.57:1).
+   * #234; at 0.72 it was 2.57:1). In progress is L 0.56, 4.77:1, held by
+   * the browser gate in `e2e/status.spec.ts`; at 0.72 it was 2.54:1 (task 6.4).
    */
   --status-done: oklch(0.6 0.16 148);
-  --status-in-progress: oklch(0.72 0.15 72);
+  --status-in-progress: oklch(0.56 0.13 72);
   --status-draft: oklch(0.62 0.05 255);
   --status-ready: oklch(0.6 0.11 215);
   --status-on-hold: oklch(0.58 0.1 300);

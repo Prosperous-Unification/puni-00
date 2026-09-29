@@ -114,7 +114,7 @@
 - [x] 6.3 Negatives: menu filter removed → a held row offers its own hold; unknown status word →
       query-failure state, not a blank glyph.
 
-- [ ] 6.4 Design follow-up (Fable review of #234): blocked and blocked by proxy share the `⊘`
+- [x] 6.4 Design follow-up (Fable review of #234): blocked and blocked by proxy share the `⊘`
       glyph and the status word is exposed only in the hover card. Give blocked by proxy its own
       glyph and expose the word to assistive tech (`aria-description` or an sr-only span). Revisit
       in-progress contrast, 2.55:1 against white (pre-existing).

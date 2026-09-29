@@ -413,3 +413,76 @@ test.describe('each status on the chart, in a browser (add-work-item-statuses)',
     });
   });
 });
+
+test.describe('status colours against the page, in a browser (add-work-item-statuses)', () => {
+  test('every status strip reaches 3:1, and the glyphs task 6.4 names reach 4.5:1', async ({
+    page,
+  }, testInfo) => {
+    await seedALongRow(page);
+    // The browser's own reading of each token, through a canvas so an `oklch()`
+    // colour comes back as the sRGB pixel it paints, then WCAG's relative
+    // luminance against the page background.
+    const ratios = await page.evaluate(() => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (context === null) throw new Error('no 2d canvas in this browser');
+      const pixel = (css: string): [number, number, number] => {
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = css;
+        context.fillRect(0, 0, 1, 1);
+        const [r = 0, g = 0, b = 0] = context.getImageData(0, 0, 1, 1).data;
+        return [r, g, b];
+      };
+      const resolved = (token: string): string => {
+        const probe = document.createElement('span');
+        probe.style.color = `var(${token})`;
+        document.body.append(probe);
+        const colour = getComputedStyle(probe).color;
+        probe.remove();
+        return colour;
+      };
+      const channel = (value: number): number => {
+        const c = value / 255;
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      };
+      const luminance = ([r, g, b]: [number, number, number]): number =>
+        0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+      // The page's own ground token: the body's computed background is
+      // transparent, and a transparent pixel reads as black.
+      const ground = luminance(pixel(resolved('--background')));
+      const ratio = (token: string): number => {
+        const ink = luminance(pixel(resolved(token)));
+        return (Math.max(ink, ground) + 0.05) / (Math.min(ink, ground) + 0.05);
+      };
+      const measured = Object.fromEntries(
+        [
+          '--status-draft',
+          '--status-ready',
+          '--status-in-progress',
+          '--status-blocked-by-proxy',
+          '--status-on-hold',
+          '--status-blocked',
+          '--status-done',
+        ].map((token) => [token, Math.round(ratio(token) * 100) / 100]),
+      );
+      return measured;
+    });
+    await testInfo.attach('status colour contrast', {
+      body: JSON.stringify(ratios, null, 2),
+      contentType: 'application/json',
+    });
+    // Proof: `--status-in-progress` put back to `oklch(0.72 0.15 72)` in
+    // `styles.css`, and this failed on `--status-in-progress as a strip`,
+    // `Received: 2.54`; watched in Chromium 2026-09-29. Measured in Chromium:
+    // draft 3.64, ready 3.78, blocked by proxy 5.05, on hold 4.46, blocked
+    // 4.77, done 3.68; in progress at L 0.56 computes to 4.77 (attached to every run).
+    for (const [token, measured] of Object.entries(ratios)) {
+      expect(measured, `${token} as a strip`).toBeGreaterThanOrEqual(3);
+    }
+    for (const token of ['--status-in-progress', '--status-blocked-by-proxy', '--status-blocked']) {
+      expect(ratios[token], `${token} as a glyph`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});

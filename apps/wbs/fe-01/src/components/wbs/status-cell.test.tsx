@@ -52,11 +52,40 @@ describe('the Status cell (add-work-item-statuses)', () => {
       ['◌', 'var(--status-draft)', 'Draft'],
       ['◎', 'var(--status-ready)', 'Ready'],
       ['◐', 'var(--status-in-progress)', 'In progress'],
-      ['⊘', 'var(--status-blocked-by-proxy)', 'Blocked by proxy'],
+      ['⊖', 'var(--status-blocked-by-proxy)', 'Blocked by proxy'],
       ['‖', 'var(--status-on-hold)', 'On hold'],
       ['⊘', 'var(--status-blocked)', 'Blocked'],
       ['✓', 'var(--status-done)', 'Done'],
     ]);
+  });
+
+  itDom('gives every status its own glyph, so blocked by proxy never reads as blocked', () => {
+    const glyphs = (
+      [
+        'unknown',
+        'draft',
+        'ready',
+        'in_progress',
+        'blocked_by_proxy',
+        'on_hold',
+        'blocked',
+        'done',
+      ] as const
+    ).map((status) => {
+      const { box } = cell(status);
+      const glyph = box.value;
+      cleanup();
+      return glyph;
+    });
+    expect(new Set(glyphs).size).toBe(glyphs.length);
+  });
+
+  itDom('says its status word to assistive tech, not only in the hover card', () => {
+    const { box } = cell('blocked_by_proxy');
+    // Proof: the `aria-describedby` dropped from the box, and this failed on
+    // an empty description; watched 2026-09-29.
+    expect(box).toHaveAccessibleDescription('Status: Blocked by proxy');
+    expect(box).toHaveAccessibleName('Status of 010');
   });
 
   itDom('lists exactly the statuses it is offered, and hands the one taken back', () => {

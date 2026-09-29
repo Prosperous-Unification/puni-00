@@ -534,6 +534,14 @@ describe('the row actions menu', () => {
       await waitFor(() => {
         expect(document.querySelector('tr[data-row-status="on_hold"]')).not.toBeNull();
       });
+      // The strip's word, for a reader who cannot see its colour — in the default
+      // table, where the Status column is hidden.
+      // Proof: the `aria-describedby` dropped from the drag handle, and this
+      // failed on an empty description; watched 2026-09-29.
+      expect(screen.queryByLabelText('Status of 010')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Reorder 010' })).toHaveAccessibleDescription(
+        'Status: On hold',
+      );
       openRowMenu('010');
       expect(
         screen
