@@ -456,6 +456,19 @@ describe('no read sees a parent holding a statement mid-write (Fable review, I1)
     expect((await service.move(sand, OWNER, { parentId: strip, afterId: null })).ok).toBe(true);
     expect(seen.reads).toEqual(['ok']);
   });
+
+  it('no read sees a parent holding a statement while a move that emptied it is undone', async () => {
+    const branch = await add('Branch');
+    const strip = await add('Strip', branch);
+    await set(strip, 'on_hold');
+    expect((await service.move(strip, OWNER, { parentId: null, afterId: null })).ok).toBe(true);
+    expect(await rowOf('Branch')).toMatchObject({ hold: 'on_hold' });
+    const seen = readAfter('move');
+    expect((await service.undo(projectId, OWNER)).ok).toBe(true);
+    expect(seen.reads).toEqual(['ok']);
+    expect(await rowOf('Branch')).toMatchObject({ hold: null });
+    expect(await rowOf('Strip')).toMatchObject({ hold: 'on_hold' });
+  });
 });
 
 describe('an on-hold leaf takes no part in the schedule', () => {
