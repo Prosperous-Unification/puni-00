@@ -91,6 +91,16 @@ export interface PublicationDecision {
  * would decide this predicate. That ordering rule lives in the scorer; this
  * function's part of the bargain is to call it twice and compare nothing else.
  *
+ * ## Bookings elsewhere bias the comparison toward Fast
+ *
+ * Fast places around the real, fractional bookings; the solver sees them
+ * widened to whole units (`elsewhereUnitsOf`: start floored, end ceiled). A
+ * booking that does not sit on unit boundaries therefore costs the optimizer
+ * up to a unit per edge that it does not cost Fast, and Fast can win the floor
+ * row where, with exact bookings, the optimizer would have tied or won. The
+ * bias is one-sided: it never publishes a worse optimized plan, only withholds
+ * one. Whole-day bookings land on unit boundaries and are exact.
+ *
  * ## What the caller still owes
  *
  * The mapping onto `publication`, and 4.12b's storage rules for a floor row:

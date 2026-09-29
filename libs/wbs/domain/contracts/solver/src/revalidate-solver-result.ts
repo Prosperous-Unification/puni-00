@@ -437,6 +437,32 @@ export const revalidateSolverResult = (
     }
   }
 
+  // Bookings elsewhere are request structure, proved before the status is
+  // read for the same reason `deadlineUnits` is: CP-SAT answers `infeasible`
+  // to a request whose bookings overlap, and that answer must not be stored as
+  // a `plan-infeasible` certificate about a request that does not mean anything.
+  // Proof: the status dispatch copied above this loop made `refuses malformed
+  // bookings elsewhere on EVERY response status`
+  // (`revalidate-solver-result.test.ts`) observe `ok: true` where a refusal was
+  // expected, 52/1; watched 2026-09-29.
+  for (const [personId, bookings] of Object.entries(request.elsewhere)) {
+    let previousEnd = 0;
+    for (const [start, end] of bookings) {
+      if (
+        !isNonNegativeSafeInteger(start) ||
+        !isNonNegativeSafeInteger(end) ||
+        end <= start ||
+        start < previousEnd
+      ) {
+        return refuse(
+          'malformed-request',
+          `elsewhere for ${JSON.stringify(personId)} is not sorted, disjoint whole-unit intervals`,
+        );
+      }
+      previousEnd = end;
+    }
+  }
+
   // A non-publishing response carries no schedule, so there is nothing to
   // re-validate and `published: false` says so out loud.
   if (response.status !== 'feasible') return { ok: true, published: false };
@@ -547,21 +573,9 @@ export const revalidateSolverResult = (
   // Proof: this loop removed made `refuses a person placed on a booking
   // elsewhere` (`revalidate-solver-result.test.ts`) publish the schedule;
   // watched 2026-09-29.
+  // Their shape was proved above the status dispatch.
   for (const [personId, bookings] of Object.entries(request.elsewhere)) {
-    let previousEnd = 0;
     for (const [start, end] of bookings) {
-      if (
-        !isNonNegativeSafeInteger(start) ||
-        !isNonNegativeSafeInteger(end) ||
-        end <= start ||
-        start < previousEnd
-      ) {
-        return refuse(
-          'malformed-request',
-          `elsewhere for ${JSON.stringify(personId)} is not sorted, disjoint whole-unit intervals`,
-        );
-      }
-      previousEnd = end;
       for (const placement of byPerson.get(personId) ?? []) {
         if (placement.finish <= placement.start) continue;
         if (placement.start < end && start < placement.finish) {

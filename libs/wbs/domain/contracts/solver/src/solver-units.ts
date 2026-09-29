@@ -101,9 +101,12 @@ export function deadlineUnitsOf(
 /**
  * One instant of a booking on the solver's axis, rounded the conservative way:
  * a start down and an end up, so the unit interval always covers the booking.
- * A value within {@link withinDrift} of a whole unit is that unit, so a
- * booking ending on day 2 by way of `2.0000000000000004` does not take a
- * spurious 97th unit.
+ * The snap is {@link withinDrift} applied to the SCALED value, so its window is
+ * `DRIFT` units, which is `DRIFT / SOLVER_QUANTUM` workdays and narrower than
+ * `quantise`'s workday-space snap. It absorbs float noise from the scaling,
+ * such as a day-2 end arriving as `2.0000000000000004` and scaling to
+ * `96.00000000000002`, and nothing coarser: a booking that really ends a
+ * fraction of a unit past a boundary still takes the next unit.
  */
 function unitOf(workdays: number, round: (value: number) => number): number {
   const scaled = workdays * SOLVER_QUANTUM;

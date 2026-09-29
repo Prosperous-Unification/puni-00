@@ -160,12 +160,37 @@ booking), not a throw.
 | materialise (`materialise-optimized.ts`)            | `undefined` in place of the bookings      | `refuses offsets that put a person on a booking elsewhere`                                              | offset 24 materialised                                            |
 | pinned start on a booking (`schedule.ts`)           | the check removed                         | `refuses a pinned start inside a booking elsewhere`                                                     | a schedule returned                                               |
 | re-validation (`revalidate-solver-result.ts`)       | the bookings loop iterates `{}`           | `refuses a person placed on a booking elsewhere`; `refuses a request whose bookings are out of order`   | published; malformed request accepted                             |
+| bookings shape on every status (same file)          | the status dispatch copied above the loop | `refuses malformed bookings elsewhere on EVERY response status`                                         | `ok: true` on `infeasible`/`unknown`, 52/1                        |
 | model clause 5 (`model.py`)                         | the fixed-interval loop removed           | `ElsewhereClause.test_a_slice_is_placed_around_a_booking_elsewhere` (and one more)                      | slice at unit 0                                                   |
 | same, across the seam                               | same                                      | real `-m wbs_solver` on a one-slice request booked on `[0, 40)`, answer fed to `revalidateSolverResult` | `assignee-double-booked`; intact model answers 40, published      |
 | request cross-field (`validate.py`)                 | the order check removed                   | `ElsewhereValidation` (3 subtests)                                                                      | unordered/overlapping/empty-length bookings admitted              |
 | supervisor wire list (`solver-supervisor-protocol`) | 3 dropped from the list                   | `accepts every solver wire version a rolling deploy can send and refuses any other`                     | v3 frame refused                                                  |
 | old solver fed v3 (`test_validate.py`)              | none (a generation check)                 | `WireGenerations`: the v2 schema refuses a v3 request; this solver refuses wire 2                       | typed `RequestRejected`                                           |
 
-Not observed here: the ADR 0025 binding rebuild; the dev deploy rebuilds it after merge and the
-supervisor already admits v3. The Python suite runs in a venv with the locked dependencies; the
-host's system `python3` has no `ortools`, so `nx run wbs-solver-py:test` fails there on imports.
+Not observed here: the ADR 0025 binding rebuild, and whether the host's installed supervisor
+admits v3. The code on this branch admits wires 1-3; the running supervisor is whatever the host last
+installed, and the dev deploy after merge is where that is observed. The Python suite runs in a venv
+with the locked dependencies; the host's system `python3` has no `ortools`, so
+`nx run wbs-solver-py:test` fails there on imports.
+
+Fable's review of slice 5 (approved, no Critical or Important findings) added:
+
+- **Bookings shape before the status dispatch.** `revalidateSolverResult` checked `elsewhere` only on
+  a `feasible` response, so CP-SAT's honest `infeasible` about a malformed request could be stored as
+  a `plan-infeasible` certificate. The shape check now runs with the other request checks, before
+  the dispatch (row above); the placement check stays after it.
+- **Fast bias on fractional bookings.** The optimizer sees bookings widened to whole units and Fast
+  sees them exact, so on a booking off unit boundaries Fast can win the floor row where the optimizer
+  would otherwise tie or win. It only withholds an optimized plan, never publishes a worse one.
+  Whole-day bookings are exact. Stated on `guardRealPublication`.
+- **Horizon inflation.** The preflight's serial bound starts after the last booking of any person,
+  so one far-future booking widens `horizonUnits` and the priority bound. Sound, not tight. Stated
+  on `preflightSolverRequest`; tightening it is a follow-up.
+- **Drift wording.** `unitOf`'s snap is `withinDrift` on the scaled value: `DRIFT` units, which is
+  `DRIFT / SOLVER_QUANTUM` workdays, not `quantise`'s workday-space window. JSDoc reworded.
+- **Follow-up, not done here:** `libs/wbs/adapters/solver-supervisor-protocol` is not in
+  `SOLVER_COMPATIBILITY_PATHS` (`tools/tool-devsync/src/solver-preparation.ts`). That list keys the
+  solver image identity, while the supervisor is installed on the host, so whether a protocol path
+  belongs there is a deploy-safety decision. This slice changes the protocol and the solver together,
+  so the solver path already forces the rebuild. A future protocol-only bump would not reinstall the
+  supervisor.

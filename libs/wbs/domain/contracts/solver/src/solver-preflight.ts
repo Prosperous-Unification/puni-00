@@ -108,6 +108,12 @@ export function preflightSolverRequest(
    * Bookings elsewhere, in units. The serial bound starts after the last of
    * them: a serial placement from there is clear of every booking, which is
    * what keeps `horizonUnits` an upper bound once people are shared.
+   *
+   * The cost is a loose bound: one far-future booking, even of a person no
+   * slice names, pushes the horizon past its end, which widens the CP-SAT
+   * domain and the priority bound the overflow check multiplies by. Sound, not
+   * tight; tightening it (only persons the slices name, or a per-person bound)
+   * is a follow-up, not a correctness gap.
    */
   elsewhere: SolverElsewhere = {},
 ): SolverPreflight {

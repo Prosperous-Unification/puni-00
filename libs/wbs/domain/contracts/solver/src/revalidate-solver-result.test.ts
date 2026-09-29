@@ -413,6 +413,34 @@ describe('revalidateSolverResult checks bookings elsewhere', () => {
       failure: 'malformed-request',
     });
   });
+
+  /**
+   * Fable's review of slice 5: the shape check sat below the non-feasible
+   * return, so CP-SAT's honest `infeasible` about overlapping bookings would be
+   * stored as a `plan-infeasible` certificate. Each malformed shape is refused
+   * on every status; the well-formed neighbour still passes unpublished.
+   */
+  it('refuses malformed bookings elsewhere on EVERY response status', () => {
+    const shapes: readonly (readonly [number, number])[][] = [
+      [
+        [10, 30],
+        [20, 40],
+      ],
+      [[10, 10]],
+      [[-1, 10]],
+      [[0.5, 10]],
+    ];
+    for (const bookings of shapes) {
+      const malformed = request({ elsewhere: { ann: bookings } });
+      for (const status of ['infeasible', 'unknown'] as const) {
+        rejects(revalidateSolverResult(malformed, { wireVersion: 3, status }), 'malformed-request');
+      }
+    }
+    expect(revalidateSolverResult(booked, { wireVersion: 3, status: 'infeasible' })).toEqual({
+      ok: true,
+      published: false,
+    });
+  });
 });
 
 describe('revalidateSolverResult checks capacity', () => {
