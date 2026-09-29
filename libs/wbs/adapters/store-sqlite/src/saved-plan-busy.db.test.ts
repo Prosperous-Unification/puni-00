@@ -153,13 +153,16 @@ describe('SavedPlanService.save answers snapshot_busy without holding up an edit
       // arrived, so it was contention that produced it.
       expect(await headerIds()).toEqual([]);
 
-      // Issued as the holder is told to commit, on a connection carrying the
-      // ordinary 5 s `busy_timeout`. It waits for the holder and then lands —
-      // which is the spec's "a live edit issued during that window still
-      // completes".
-      await holder.release();
+      // Issued while the holder still holds the lock, on a connection carrying
+      // the ordinary 5 s `busy_timeout`, and nothing here tells the holder to
+      // commit: `go`'s countdown does, inside that 5 s. So the edit waits for
+      // the holder and then lands, which is the spec's "a live edit issued
+      // during that window still completes". Releasing first would let the
+      // holder commit before the edit began and skip the wait under load.
       await new WorkItemRepository(reader.db, OPEN).insert(item('wi-3', 30), [], wrote);
       expect(await itemIds()).toEqual(['wi-1', 'wi-2', 'wi-3']);
+      // The edit could only land after the holder committed.
+      expect(await headerIds()).toEqual(['sp-other']);
 
       expect(await holder.finish()).toBe(0);
       // And the refused save wrote nothing: the only record is the other
