@@ -30,6 +30,14 @@ test('generated project command tool exposes addTypedDependency with endpoints',
     expect(add?.required).toContain(field);
   expect(add?.properties.predecessor).toBeDefined();
   expect(add?.properties.successor).toBeDefined();
+  for (const kind of ['addTypedDependency', 'updateTypedDependency']) {
+    const typed = commands.items.anyOf.find((arm) => arm.properties.kind.const === kind);
+    expect((typed?.properties as { type?: { enum?: string[] } }).type?.enum).toEqual([
+      'FF',
+      'FS',
+      'SS',
+    ]);
+  }
 });
 
 test('required exclusion drift remains a failure when operational routes are absent', () => {
@@ -47,12 +55,17 @@ test('pins every generated MCP operation name independently of the registry', ()
       .map((tool) => tool.name)
       .sort(),
   ).toEqual([
+    'deleteApiOrganizationDomainsById',
+    'deleteApiOrganizationInvitationsById',
     'deleteApiOrganizationMembersByUserId',
     'deleteApiProjectsByIdCalendar-markersByMarkerId',
     'deleteApiProjectsByIdStepsByStepId',
     'deleteApiSaved-plansById',
     'getApiExternal-systems',
     'getApiOnboarding',
+    'getApiOrganizationDomains',
+    'getApiOrganizationInvitations',
+    'getApiOrganizationJoinRequests',
     'getApiPeople',
     'getApiProjects',
     'getApiProjectsById',
@@ -75,8 +88,17 @@ test('pins every generated MCP operation name independently of the registry', ()
     'patchApiProjectsByIdStepsByStepId',
     'patchApiSaved-plansById',
     'postApiDirectoryCommands',
+    'postApiOnboardingEmailChallenges',
+    'postApiOnboardingEmailChallengesConfirm',
+    'postApiOnboardingInvitationsAccept',
     'postApiOnboardingJoinRequests',
     'postApiOnboardingOrganizations',
+    'postApiOrganizationDomainsByIdRotate',
+    'postApiOrganizationDomainsByIdVerify',
+    'postApiOrganizationDomainsChallenges',
+    'postApiOrganizationInvitations',
+    'postApiOrganizationJoinRequestsByIdApprove',
+    'postApiOrganizationJoinRequestsByIdDeny',
     'postApiProjects',
     'postApiProjectsByIdCalendar-markers',
     'postApiProjectsByIdCommands',

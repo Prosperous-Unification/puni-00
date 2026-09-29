@@ -625,7 +625,7 @@ describe('Tab moves between the fields, from every cell', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('button', {
-          name: 'Stop 030 waiting for 010',
+          name: /^Stop 030 waiting for 010/,
         }),
       ).toBeDefined();
     });
@@ -2218,7 +2218,7 @@ describe('the command chords', () => {
     await letTheLoopRun();
 
     expect(event.defaultPrevented).toBe(true);
-    expect(screen.queryByLabelText('Stop 020 waiting for 010')).toBeNull();
+    expect(screen.queryByLabelText(/^Stop 020 waiting for 010/)).toBeNull();
     // Nothing about the list moved either: same search, same highlight.
     expect(box).toHaveValue('010');
     expect(box.getAttribute('aria-activedescendant')).toBe(highlighted);

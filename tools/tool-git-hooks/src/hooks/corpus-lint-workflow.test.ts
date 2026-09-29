@@ -12,14 +12,14 @@ interface WorkflowStep {
 }
 
 /**
- * `jobs` names `gate` rather than being a `Record`, because an index signature
+ * `jobs` names `gate_workspace` rather than being a `Record`, because an index signature
  * types every lookup as present and `no-unnecessary-condition` then rejects the
  * `?.` that a missing job actually needs. `on` is absent here on purpose — see
  * {@link triggersOf}.
  */
 interface Workflow {
   concurrency?: { group?: string; 'cancel-in-progress'?: string };
-  jobs?: { gate?: { steps?: WorkflowStep[] } };
+  jobs?: { gate_workspace?: { steps?: WorkflowStep[] } };
 }
 
 const workflowPath = join(
@@ -50,8 +50,10 @@ const triggersOf = (workflow: Workflow): string[] => {
 };
 
 const corpusLintStep = (workflow: Workflow): WorkflowStep => {
-  const step = workflow.jobs?.gate?.steps?.find(({ name }) => name === 'Corpus version lint');
-  expect(step, 'the gate job has no `Corpus version lint` step').toBeDefined();
+  const step = workflow.jobs?.gate_workspace?.steps?.find(
+    ({ name }) => name === 'Corpus version lint',
+  );
+  expect(step, 'the gate_workspace job has no `Corpus version lint` step').toBeDefined();
   return step ?? {};
 };
 

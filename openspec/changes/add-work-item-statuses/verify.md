@@ -111,6 +111,10 @@ Each fault was injected into the production code, the named test run, and the fi
 | the store writes a statement only on a leaf        | `NOT EXISTS (child)` condition dropped          | `refuses a readiness or hold on a row that has children, in the write itself`                 | `ok: true` with the parent holding `hold: "on_hold"`                             |
 | a move's inverse moves back first                  | statement inverses ordered before the move-back | `clears the readiness and hold of a leaf another row moves under, and one undo restores them` | `Expected: true, Received: false`: the undo was refused                          |
 
+### Hand-down ordering (Fable review of #207, I1)
+
+The new parent's statements are cleared before the child is inserted or the row moves in. A plan read injected right after the store's write proves it: with the clear moved back after the write, `no read sees a parent holding a statement while a first child is created` and `… while a row moves under a leaf` each failed on the injected read (`parent … holds a readiness or a hold`).
+
 ### Readiness swap guard (follow-up to #207)
 
 | Check                              | Fault injected                              | Test that observed it                                                             | Observed                          |

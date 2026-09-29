@@ -500,7 +500,9 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
             ))}
             {typedDependencies.map((dependency) => {
               const wholeWait =
-                dependency.predecessor.scope === 'whole' && dependency.successor.scope === 'whole';
+                dependency.type === 'FS' &&
+                dependency.predecessor.scope === 'whole' &&
+                dependency.successor.scope === 'whole';
               const predecessorNumber = endpointText(
                 dependency.predecessor,
                 dependencyRows,
@@ -518,12 +520,8 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   key={dependency.id}
                   type="button"
                   className={`${REFERENCE_SET_CHIP_CLASS} border-0`}
-                  aria-label={
-                    wholeWait
-                      ? `Stop ${row.original.number} waiting for ${predecessorNumber}`
-                      : `Edit dependency: ${words.label}. Enter to edit. Delete to remove. Escape to return to dependency search.`
-                  }
-                  title={wholeWait ? `FS dependency. Enter to edit.` : undefined}
+                  aria-label={`${wholeWait ? `Stop ${row.original.number} waiting for ${predecessorNumber}. ` : 'Edit dependency: '}${words.label}. Enter to edit. Delete to remove. Escape to return to dependency search.`}
+                  title={`${words.label}. Enter to edit.`}
                   aria-keyshortcuts="Enter Delete"
                   data-typed-dependency-chip=""
                   data-reference-chip={wholeWait ? dependency.predecessor.workItemId : undefined}
@@ -1067,16 +1065,21 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     predecessor.id,
                   )}
                   onCancel={close}
-                  onSave={(source: TypedDependencyEndpoint, target: TypedDependencyEndpoint) =>
+                  onSave={(
+                    source: TypedDependencyEndpoint,
+                    target: TypedDependencyEndpoint,
+                    type,
+                  ) =>
                     live.current
                       .run((write) =>
                         write.perform(['tree'], () =>
                           dependency === undefined
-                            ? live.current.commands.addTypedDependency(source, target)
+                            ? live.current.commands.addTypedDependency(source, target, type)
                             : live.current.commands.updateTypedDependency(
                                 dependency.id,
                                 source,
                                 target,
+                                type,
                               ),
                         ),
                       )

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import type { PlannedRow } from './derive-numbers';
 import { relaxWeightedStarts, schedule, type Slice, sliceKey } from './schedule';
+import { SOLVER_QUANTUM } from './solver-quantum';
 import type { RelationshipType, TypedDependency } from './typed-dependency';
 
 const row = (id: string, position: number): PlannedRow => ({
@@ -312,9 +313,25 @@ describe('weighted Fast relationships', () => {
     expect(part(fast, 'B').earliestStart).toBe(3);
     expect(part(fast, 'B').capacityTeamId).toBe('beta');
     const pins = new Map([...fast.slices].map(([key, slice]) => [key, slice.earliestStart]));
-    expect(
-      schedule(rows, [], slices, new Map(), sizes, 'whole-item', new Map(), typed, pins),
-    ).toEqual(fast);
+    const replay = schedule(
+      rows,
+      [],
+      slices,
+      new Map(),
+      sizes,
+      'whole-item',
+      new Map(),
+      typed,
+      pins,
+    );
+    // The replay also asks each pin's pools whether it may start there, which
+    // Fast never asks; that work is counted, so only the counter differs. It
+    // is one joint search per slice from the pin, never earlier than the floor
+    // search Fast also runs over the same ledger, so at most doubling it. A
+    // rerun reports only its own round's counter; discarded rounds' are dropped.
+    expect(replay.eventsVisited).toBeGreaterThan(fast.eventsVisited);
+    expect(replay.eventsVisited).toBeLessThanOrEqual(2 * fast.eventsVisited);
+    expect({ ...replay, eventsVisited: fast.eventsVisited }).toEqual(fast);
   });
 
   it('rejects a pinned person overlap even when an earlier gap is free', () => {
@@ -436,6 +453,81 @@ describe('weighted Fast relationships', () => {
     );
     expect(plan.slices.get(sliceKey('A', 'last'))?.earliestStart).toBeGreaterThanOrEqual(
       part(plan, 'B').earliestFinish,
+    );
+  });
+});
+
+describe('solver-shaped weighted pins', () => {
+  const units = (count: number) => count / SOLVER_QUANTUM;
+  const rows = [row('A', 10), row('B', 20), row('C', 30), row('D', 40)];
+  // C→D SS forces the weighted path; A→B is the edge under test.
+  const replay = (
+    type: RelationshipType,
+    days: [number, number],
+    starts: [number, number],
+    other: RelationshipType = 'SS',
+  ) =>
+    schedule(
+      rows,
+      [],
+      [work('A', days[0]), work('B', days[1]), work('C', 1), work('D', 1)],
+      new Map(),
+      new Map(),
+      'whole-item',
+      new Map(),
+      [link('A', 'B', type), link('C', 'D', other)],
+      new Map([
+        [sliceKey('A', null), starts[0]],
+        [sliceKey('B', null), starts[1]],
+        [sliceKey('C', null), 0],
+        [sliceKey('D', null), 1],
+      ]),
+    );
+
+  it('accepts 7/48 + 0.25 against a pin at 19/48 across FS', () => {
+    const plan = replay('FS', [0.25, 1], [units(7), units(19)]);
+    expect(units(7) + 0.25).toBe(0.39583333333333337);
+    expect(part(plan, 'B').earliestStart).toBe(part(plan, 'A').earliestFinish);
+    const allFinishStart = replay('FS', [0.25, 1], [units(7), units(19)], 'FS');
+    expect(part(plan, 'B').earliestStart).toBe(part(allFinishStart, 'B').earliestStart);
+  });
+
+  it('accepts every tight FS and FF pin on the solver axis', () => {
+    const refused: string[] = [];
+    for (let before = 1; before <= 60; before += 1) {
+      for (let at = 0; at < 96; at += 1) {
+        const cases: [RelationshipType, number, number, RelationshipType][] = [
+          ['FS', 48, at + before, 'SS'],
+          ['FS', 48, at + before, 'FS'],
+          ['FF', 12, at + before - 12, 'SS'],
+        ];
+        for (const [type, after, pin, other] of cases) {
+          if (pin < 0) continue;
+          const label = `${type}+${other} ${String(before)}@${String(at)}`;
+          try {
+            const plan = replay(
+              type,
+              [units(before), units(after)],
+              [units(at), units(pin)],
+              other,
+            );
+            const boundary = part(plan, 'A').earliestFinish;
+            const observed =
+              type === 'FF' ? part(plan, 'B').earliestFinish : part(plan, 'B').earliestStart;
+            if (observed < boundary) refused.push(`${label}: early ${String(observed)}`);
+          } catch (error) {
+            refused.push(`${label}: ${String(error)}`);
+          }
+        }
+      }
+    }
+    expect(refused).toEqual([]);
+  });
+
+  it.each(['FS', 'FF'] as const)('still refuses a %s pin one solver unit early', (type) => {
+    const pin = type === 'FS' ? units(7 + 12 - 1) : units(7 + 12 - 12 - 1);
+    expect(() => replay(type, [0.25, units(12)], [units(7), pin])).toThrow(
+      `violates ${type} materialized boundary`,
     );
   });
 });

@@ -62,6 +62,7 @@ export { type Clock, clockOf } from './ports/clock';
 export * from './ports/command-journal-store';
 export * from './ports/dependency-store';
 export * from './ports/directory-store';
+export * from './ports/domain-challenges';
 export * from './ports/edit-admission';
 export * from './ports/estimate-store';
 export type { EventLogStore, RecordedEvent } from './ports/event-log-store';
@@ -72,6 +73,10 @@ export * from './ports/priority-band-store';
 export * from './ports/progress-store';
 export * from './ports/typed-dependency-store';
 // The neutral project-event port: `Broadcaster`, `ProjectEvent` and `subscriptionFor`.
+export * from './ports/email-delivery';
+export * from './ports/email-verification';
+export * from './ports/invitation';
+export * from './ports/join-request';
 export * from './ports/membership-administration';
 export * from './ports/onboarding';
 export * from './ports/organization-access';

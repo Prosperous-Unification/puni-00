@@ -12,6 +12,7 @@ const DEV = 'step-dev';
 const QA = 'step-qa';
 
 let projects: ProjectStore;
+let harnessStores: ReturnType<typeof inMemoryServices>['stores'];
 let progress: StepProgressStore;
 let service: WorkItemService;
 let projectId: string;
@@ -61,6 +62,7 @@ beforeEach(async () => {
     },
   });
   ({ projects, progress } = harness.stores);
+  harnessStores = harness.stores;
   service = harness.service;
   projectId = await newProject(true);
 });
@@ -416,5 +418,42 @@ describe('review follow-ups', () => {
     // The parent the statements went to is one the undo checks, so somebody
     // else's later edit to it makes the undo stale rather than overwritten.
     expect(JSON.stringify(lastPreconditions)).toContain(branch);
+  });
+});
+
+describe('no read sees a parent holding a statement mid-write (Fable review, I1)', () => {
+  /** Runs a plan read right after the store's own write, inside the service's act. */
+  function readAfter(method: 'insert' | 'move'): { reads: string[] } {
+    const seen = { reads: [] as string[] };
+    const store = harnessStores.workItems;
+    const original = store[method].bind(store) as (...args: unknown[]) => Promise<unknown>;
+    (store as unknown as Record<string, unknown>)[method] = async (...args: unknown[]) => {
+      const written = await original(...args);
+      try {
+        await service.tree(projectId);
+        seen.reads.push('ok');
+      } catch (error) {
+        seen.reads.push(error instanceof Error ? error.message : String(error));
+      }
+      return written;
+    };
+    return seen;
+  }
+
+  it('no read sees a parent holding a statement while a first child is created', async () => {
+    const strip = await add('Strip');
+    await set(strip, 'on_hold');
+    const seen = readAfter('insert');
+    await add('Prime', strip);
+    expect(seen.reads).toEqual(['ok']);
+  });
+
+  it('no read sees a parent holding a statement while a row moves under a leaf', async () => {
+    const strip = await add('Strip');
+    const sand = await add('Sand');
+    await set(strip, 'blocked');
+    const seen = readAfter('move');
+    expect((await service.move(sand, OWNER, { parentId: strip, afterId: null })).ok).toBe(true);
+    expect(seen.reads).toEqual(['ok']);
   });
 });

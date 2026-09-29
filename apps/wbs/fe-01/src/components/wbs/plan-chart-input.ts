@@ -35,9 +35,9 @@ export function chartTypedDependencies(
     // relationship` stop throwing. Replacing GanttDataError with Error made
     // `contains an unsupported chart relationship inside the chart fault
     // boundary` show the generic fault. Watched 2026-09-28.
-    if (dependency.type !== 'FS')
+    if (dependency.type !== 'FS' && dependency.type !== 'SS' && dependency.type !== 'FF')
       throw new GanttDataError(`unsupported chart dependency ${dependency.type}`);
-    return { ...dependency, type: 'FS' };
+    return { ...dependency, type: dependency.type };
   });
 }
 

@@ -631,13 +631,15 @@ export interface TypedChartEndpoint {
 
 export interface TypedChartDependency {
   id: string;
-  type: 'FS';
+  type: 'FS' | 'SS' | 'FF';
   predecessor: TypedChartEndpoint;
   successor: TypedChartEndpoint;
 }
 
-/** One expanded or grouped authored FS connector. */
+/** One expanded or grouped authored connector. */
 export interface TypedGanttArrow extends GanttDependencyArrow {
+  type: TypedChartDependency['type'];
+  toFinish: number;
   relationshipId: string;
   relationshipIds: string[];
   /** Every authored pair in this connector; highlight membership is independent of its first anchor. */
@@ -1131,8 +1133,10 @@ export interface PlacedBracket {
   to: number;
 }
 
-/** A dependency as it is drawn: the predecessor's right edge, and the successor's left one. */
+/** A dependency as it is drawn at the scheduled boundary selected by its relationship. */
 export interface PlacedArrow {
+  /** Explicit relationship, when this is an authored connector. */
+  type?: TypedChartDependency['type'];
   predecessorId: string;
   successorId: string;
   fromRowIndex: number;
@@ -1207,6 +1211,7 @@ export interface PlacedGantt {
       | 'count'
       | 'proxy'
       | 'scope'
+      | 'type'
     >)[];
   internalDependencies: { rowId: string; count: number }[];
   personLinks: PlacedPersonLink[];
@@ -1268,9 +1273,11 @@ function placeGantt(chart: GanttGeometry, startOf: ReadOffset, endOf: ReadOffset
     predecessorId: arrow.predecessorId,
     successorId: arrow.successorId,
     fromRowIndex: arrow.fromRowIndex,
-    fromX: stopOf(arrow.fromStart, arrow.fromFinish),
+    fromX:
+      arrow.type === 'SS' ? startOf(arrow.fromStart) : stopOf(arrow.fromStart, arrow.fromFinish),
     toRowIndex: arrow.toRowIndex,
-    toX: startOf(arrow.toStart),
+    toX: arrow.type === 'FF' ? stopOf(arrow.toStart, arrow.toFinish) : startOf(arrow.toStart),
+    type: arrow.type,
     fromY: laneMiddle(arrow.predecessorSliceId),
     toY: laneMiddle(arrow.successorSliceId),
     relationshipId: arrow.relationshipId,
@@ -1494,6 +1501,41 @@ const trimmed = (corners: ArrowPoint[]): ArrowPoint[] =>
       index === 0 || corner.x !== corners[index - 1].x || corner.y !== corners[index - 1].y,
   );
 
+/**
+ * `corners` with every corner that does not turn folded away: a corner on a
+ * straight line between its neighbours, and a spur that runs out along a line
+ * and back along the same one.
+ *
+ * Typed routes need it because their gutter candidates are built from fixed
+ * bands: when both endpoints share an x and the arrival band is the departure
+ * band (adjacent rows), the candidate runs to the gutter and retraces itself.
+ * Folding keeps only the segments the route actually covers, so a folded route
+ * never crosses a bar its unfolded candidate did not.
+ *
+ * The final run keeps its direction unless the endpoint lies strictly between
+ * its two predecessors on one line. A typed candidate cannot do that: its last
+ * vertical leg runs from a band beside the source row to the middle of another
+ * row, never back past its own start.
+ */
+const folded = (corners: ArrowPoint[]): ArrowPoint[] => {
+  const kept: ArrowPoint[] = [];
+  for (const corner of corners) {
+    const last = kept.at(-1);
+    if (last?.x === corner.x && last.y === corner.y) continue;
+    kept.push(corner);
+    while (kept.length >= 3) {
+      const [before, turn, after] = kept.slice(-3);
+      const straight =
+        (before.x === turn.x && turn.x === after.x) || (before.y === turn.y && turn.y === after.y);
+      if (!straight) break;
+      kept.splice(-2, 1);
+      const [start, end] = kept.slice(-2);
+      if (start.x === end.x && start.y === end.y) kept.pop();
+    }
+  }
+  return kept;
+};
+
 /** The plain elbow: out along the predecessor's row, down at `column`, in along the successor's. */
 const elbowThrough = (frame: ArrowFrame, column: number): ArrowPoint[] =>
   trimmed([
@@ -1602,6 +1644,43 @@ export function routeArrow(
       (corner, index) =>
         index === 0 || obstacles.every((rect) => !runCrossesBar(route[index - 1], corner, rect)),
     );
+
+  if (arrow.type === 'SS' || arrow.type === 'FF') {
+    // Proof: returning the FS elbow made `routes SS left of both starts and FF right of both finishes` fail because SS had no point left of its starts; watched 2026-09-28.
+    const edges = obstacles.flatMap((rect) => [rect.left, rect.right]);
+    const gutter =
+      arrow.type === 'SS'
+        ? Math.min(arrow.fromX, arrow.toX, ...edges) - clearance.approach
+        : Math.max(arrow.fromX, arrow.toX, ...edges) + clearance.approach;
+    const oppositeBand = (rowIndex: number, band: number): number =>
+      rowIndex +
+      (band < rowIndex + ROW_MIDDLE ? 1 - clearance.barInset / 2 : clearance.barInset / 2);
+    const departureBands = [frame.bandFrom, oppositeBand(arrow.fromRowIndex, frame.bandFrom)];
+    const arrivalBands = [frame.bandTo, oppositeBand(arrow.toRowIndex, frame.bandTo)];
+    for (const departure of departureBands) {
+      for (const arrival of arrivalBands) {
+        const entries = [false, true];
+        for (const boundaryEntry of entries) {
+          // Proof: returning the unfolded candidate made `routes FF straight down
+          // into an unknown tick at the predecessor finish` receive the spur
+          // (2,0.91)→(4.4,0.91)→(2,0.91); watched 2026-09-29.
+          const route = folded([
+            { x: frame.fromX, y: frame.fromY },
+            { x: frame.fromX, y: departure },
+            { x: gutter, y: departure },
+            { x: gutter, y: boundaryEntry ? arrival : frame.toY },
+            ...(boundaryEntry ? [{ x: frame.toX, y: arrival }] : []),
+            { x: frame.toX, y: frame.toY },
+          ]);
+          // Proof: bypassing this collision check made four geometry cases fail,
+          // including `routes FF into an unknown QA tick below an overlapping
+          // Dev placeholder` crossing B-qa; watched 2026-09-28.
+          if (isClear(route)) return route;
+        }
+      }
+    }
+    return null;
+  }
 
   // Left of everything on these rows, and never right of the canvas's own left
   // edge: the column the fallback below is guaranteed on.
