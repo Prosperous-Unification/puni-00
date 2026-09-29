@@ -466,6 +466,9 @@ test('checks each shim row form against the files it names', async () => {
   // Proof (2026-09-29): the same `modules directly` fault in {@link SHIM_OWNER} failed this case
   // with `named` 0 against 2 and both module-naming rows refused as matching no known form
   // (5 pass, 1 fail).
+  // Proof (2026-09-29): pointing {@link CORE_SERVICES} at a missing `src/services` failed this case
+  // with the `present.ts` row refused as forwarding to a core service that does not exist:
+  // auth.service (5 pass, 1 fail).
   const audit = await shimRowMismatches([
     { path: capacity, disposition: namesCapacity },
     { path: `${core}/service/assumed-assignee.ts`, disposition: namesCapacity },
@@ -473,6 +476,11 @@ test('checks each shim row form against the files it names', async () => {
     {
       path: 'apps/wbs/be-01/src/service/absent.ts',
       disposition: 're-export shim; delete when importers use @wbs/core/service/absent directly',
+    },
+    {
+      path: 'apps/wbs/be-01/src/service/present.ts',
+      disposition:
+        're-export shim; delete when importers use @wbs/core/service/auth.service directly',
     },
     {
       path: `${core}/service/roll-up.ts`,
