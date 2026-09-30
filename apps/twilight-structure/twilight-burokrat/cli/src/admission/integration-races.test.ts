@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -381,25 +382,56 @@ async function waitForPath(
   }
 }
 
-/** Gives a released child five seconds to exit, then kills and reports the stuck process. */
+/** Kills the isolated process group, including Git and its reference-transaction hook. */
+function killChildGroup(child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>): void {
+  try {
+    process.kill(-child.pid, 'SIGKILL');
+  } catch (cause) {
+    if (cause instanceof Error && 'code' in cause && cause.code === 'ESRCH') return;
+    throw new Error(`cannot kill subprocess group ${String(child.pid)}`, { cause });
+  }
+}
+
+/** Bounds both child exit and inherited output pipes; kills its group if either stays open. */
 async function exitAfterRelease(
   child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>,
   role: string,
-): Promise<number> {
+  stdout: Promise<string>,
+  stderr: Promise<string>,
+): Promise<{ code: number; output: string; error: string }> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<undefined>((resolve) => {
     timer = setTimeout(() => {
       resolve(undefined);
     }, 5_000);
   });
-  const code = await Promise.race([child.exited, timeout]);
+  const settled = Promise.all([child.exited, stdout, stderr]);
+  const response = await Promise.race([settled, timeout]);
   if (timer !== undefined) clearTimeout(timer);
-  if (code !== undefined) return code;
-  child.kill();
-  const killedCode = await child.exited;
+  if (response !== undefined) {
+    const [code, output, error] = response;
+    return { code, output, error };
+  }
+  killChildGroup(child);
+  const killed = await Promise.race([settled, Bun.sleep(5_000).then(() => undefined)]);
   throw new Error(
-    `${role} did not exit after publication release; killed with ${String(killedCode)}`,
+    `${role} did not drain after publication release; group killed ${String(killed?.[0])}`,
   );
+}
+
+/** Waits for the real prepared Git hook to disappear after group termination. */
+async function waitForProcessGone(pid: number): Promise<void> {
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(pid, 0);
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ESRCH') return;
+      throw new Error(`cannot inspect Git hook ${String(pid)}`, { cause });
+    }
+    await Bun.sleep(10);
+  }
+  throw new Error(`Git reference hook ${String(pid)} survived subprocess cleanup`);
 }
 
 test('a child marker may arrive after the old two-second readiness ceiling', async () => {
@@ -1277,11 +1309,15 @@ test('a rejecting Git publication hook preserves the exact reservation and throw
   subject.store.close();
 });
 
-for (const recoveryExitsEarly of [false, true]) {
+for (const scenario of ['normal', 'early-recovery', 'release-failure'] as const) {
+  const recoveryExitsEarly = scenario === 'early-recovery';
+  const releaseFails = scenario === 'release-failure';
   test(
-    recoveryExitsEarly
-      ? 'a failed recovery releases the publisher holding prepared Git ref locks'
-      : 'a competing recovery cannot clear publication while Git holds prepared ref locks',
+    releaseFails
+      ? 'a failed release terminates the prepared Git reference hook'
+      : recoveryExitsEarly
+        ? 'a failed recovery releases the publisher holding prepared Git ref locks'
+        : 'a competing recovery cannot clear publication while Git holds prepared ref locks',
     async () => {
       const subject = fixture();
       const one = subject.submission('one', 'src/one.ts', 'export const one = 2;\n');
@@ -1308,6 +1344,7 @@ for (const recoveryExitsEarly of [false, true]) {
 
       const readyPath = join(subject.repository, '.publication-prepared');
       const releasePath = join(subject.repository, '.publication-release');
+      const hookPidPath = join(subject.repository, '.publication-hook-pid');
       const secondStartedPath = join(subject.repository, '.second-started');
       const secondDonePath = join(subject.repository, '.second-done');
       const hookDirectory = join(subject.repository, '.git', 'fixture-hooks');
@@ -1315,7 +1352,7 @@ for (const recoveryExitsEarly of [false, true]) {
       mkdirSync(hookDirectory);
       writeFileSync(
         hookPath,
-        `#!/bin/sh\nif [ "$1" = "prepared" ]; then\n  : > ${JSON.stringify(
+        `#!/bin/sh\nif [ "$1" = "prepared" ]; then\n  echo $$ > ${JSON.stringify(hookPidPath)}\n  : > ${JSON.stringify(
           readyPath,
         )}\n  while [ ! -e ${JSON.stringify(releasePath)} ]; do sleep 0.01; done\nfi\n`,
       );
@@ -1406,19 +1443,28 @@ try {
       const first = Bun.spawn(
         [process.execPath, childPath, 'publish', subject.repository, payloadPath],
         {
+          detached: true,
           stderr: 'pipe',
           stdout: 'pipe',
         },
       );
       let second: Bun.Subprocess<'ignore', 'pipe', 'pipe'> | undefined;
+      const firstStdout = new Response(first.stdout).text();
+      const firstStderr = new Response(first.stderr).text();
+      let secondStdout: Promise<string> | undefined;
+      let secondStderr: Promise<string> | undefined;
       let raceFailure: unknown;
       const cleanupFailures: Error[] = [];
       let firstExitCode: number | undefined;
       let secondExitCode: number | undefined;
+      let hookPid: number | undefined;
       try {
-        const firstStdout = new Response(first.stdout).text();
-        const firstStderr = new Response(first.stderr).text();
         await waitForPath(readyPath, first, firstStderr);
+        hookPid = Number(readFileSync(hookPidPath, 'utf8').trim());
+        if (releaseFails) {
+          process.kill(hookPid, 0);
+          throw new Error('injected publication release failure');
+        }
         const recovery = Bun.spawn(
           [
             process.execPath,
@@ -1430,42 +1476,40 @@ try {
             secondDonePath,
             ...(recoveryExitsEarly ? ['exit-before-marker'] : []),
           ],
-          { stderr: 'pipe', stdout: 'pipe' },
+          { detached: true, stderr: 'pipe', stdout: 'pipe' },
         );
         second = recovery;
-        const secondStdout = new Response(recovery.stdout).text();
-        const secondStderr = new Response(recovery.stderr).text();
+        const recoveryStdout = new Response(recovery.stdout).text();
+        const recoveryStderr = new Response(recovery.stderr).text();
+        secondStdout = recoveryStdout;
+        secondStderr = recoveryStderr;
         if (recoveryExitsEarly) {
           const earlyExit = await captureRejection(() =>
-            waitForPath(secondStartedPath, recovery, secondStderr),
+            waitForPath(secondStartedPath, recovery, recoveryStderr),
           );
           expect(earlyExit.message).toMatch(
             /fixture child exited 17 before .*\.second-started appeared/,
           );
         } else {
-          await waitForPath(secondStartedPath, recovery, secondStderr);
+          await waitForPath(secondStartedPath, recovery, recoveryStderr);
           await Bun.sleep(100);
           const secondWasSerialized = !existsSync(secondDonePath);
           writeFileSync(releasePath, 'release');
-          const [firstExit, secondExit, firstOutput, secondOutput, firstError, secondError] =
-            await Promise.all([
-              exitAfterRelease(first, 'publisher'),
-              exitAfterRelease(recovery, 'recovery'),
-              firstStdout,
-              secondStdout,
-              firstStderr,
-              secondStderr,
-            ]);
+          const [publisher, recovered] = await Promise.all([
+            exitAfterRelease(first, 'publisher', firstStdout, firstStderr),
+            exitAfterRelease(recovery, 'recovery', recoveryStdout, recoveryStderr),
+          ]);
 
-          expect({ firstError, firstExit, secondError, secondExit }).toEqual({
-            firstError: '',
-            firstExit: 0,
-            secondError: '',
-            secondExit: 0,
+          expect({
+            publisher: { code: publisher.code, error: publisher.error },
+            recovered: { code: recovered.code, error: recovered.error },
+          }).toEqual({
+            publisher: { code: 0, error: '' },
+            recovered: { code: 0, error: '' },
           });
           expect(secondWasSerialized).toBe(true);
-          expect(JSON.parse(firstOutput)).toMatchObject({ commit, status: 'integrated' });
-          expect(JSON.parse(secondOutput)).toMatchObject({ commit, status: 'integrated' });
+          expect(JSON.parse(publisher.output)).toMatchObject({ commit, status: 'integrated' });
+          expect(JSON.parse(recovered.output)).toMatchObject({ commit, status: 'integrated' });
           expect(git(subject.repository, ['rev-parse', 'refs/heads/main'])).toBe(commit);
           expect(git(subject.repository, ['rev-parse', reserved.markerRef])).toBe(commit);
           const reopened = openAuthorityStore(subject.repository, { clock: { read: () => 1_000 } });
@@ -1478,27 +1522,73 @@ try {
       } finally {
         // A failed readiness wait must still release the first child's real Git
         // prepared-ref hook. Removing this release strands the publisher.
-        try {
-          writeFileSync(releasePath, 'release');
-        } catch (cause) {
-          cleanupFailures.push(new Error('cannot release prepared publication hook', { cause }));
-          first.kill();
-          second?.kill();
+        let releaseFailure: unknown = releaseFails
+          ? new Error('injected publication release failure')
+          : undefined;
+        if (!releaseFails) {
+          try {
+            writeFileSync(releasePath, 'release');
+          } catch (cause) {
+            releaseFailure = cause;
+          }
+        }
+        if (releaseFailure !== undefined) {
+          cleanupFailures.push(
+            new Error('cannot release prepared publication hook', { cause: releaseFailure }),
+          );
+          for (const child of [first, second]) {
+            if (child === undefined) continue;
+            try {
+              killChildGroup(child);
+            } catch (killCause) {
+              cleanupFailures.push(
+                new Error('cannot kill publication group', { cause: killCause }),
+              );
+            }
+          }
         }
         const exits = await Promise.allSettled([
-          exitAfterRelease(first, 'publisher'),
-          second === undefined ? Promise.resolve(undefined) : exitAfterRelease(second, 'recovery'),
+          exitAfterRelease(first, 'publisher', firstStdout, firstStderr),
+          second === undefined
+            ? Promise.resolve(undefined)
+            : exitAfterRelease(
+                second,
+                'recovery',
+                secondStdout ?? new Response(second.stdout).text(),
+                secondStderr ?? new Response(second.stderr).text(),
+              ),
         ]);
         const firstExit = exits[0];
         const secondExit = exits[1];
-        if (firstExit.status === 'fulfilled') firstExitCode = firstExit.value;
-        if (secondExit.status === 'fulfilled') secondExitCode = secondExit.value;
+        if (firstExit.status === 'fulfilled') firstExitCode = firstExit.value.code;
+        if (secondExit.status === 'fulfilled') secondExitCode = secondExit.value?.code;
         if (firstExit.status === 'rejected') {
           cleanupFailures.push(new Error('cannot reap publisher', { cause: firstExit.reason }));
         }
         if (secondExit.status === 'rejected') {
           cleanupFailures.push(new Error('cannot reap recovery', { cause: secondExit.reason }));
         }
+      }
+      if (releaseFails) {
+        // Proof: a prepared Git hook remains live when its Bun parent alone
+        // receives SIGTERM; the isolated group kill removes the hook itself.
+        if (hookPid === undefined) throw new Error('prepared Git hook PID was not recorded');
+        try {
+          await waitForProcessGone(hookPid);
+        } finally {
+          // The watched single-process-kill mutation leaves the hook alive;
+          // release it even when the negative assertion fails.
+          writeFileSync(releasePath, 'release');
+        }
+        if (!(raceFailure instanceof Error)) {
+          throw new Error('release fault did not reach the race');
+        }
+        expect(raceFailure.message).toBe('injected publication release failure');
+        expect(cleanupFailures.map((failure) => failure.message)).toEqual([
+          'cannot release prepared publication hook',
+        ]);
+        expect(firstExitCode).not.toBe(0);
+        return;
       }
       if (raceFailure !== undefined) {
         cleanupFailures.unshift(new Error('publication race failed', { cause: raceFailure }));
