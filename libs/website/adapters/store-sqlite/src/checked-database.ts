@@ -18,6 +18,9 @@ interface SchemaRow {
   sql: string | null;
 }
 
+/** Bounded wait for another process's SQLite write lock (blue/green share one file); SQLite then throws SQLITE_BUSY. */
+export const busyTimeoutMilliseconds = 5000;
+
 const migrationTable =
   'CREATE TABLE IF NOT EXISTS schema_migration (name TEXT PRIMARY KEY, checksum TEXT NOT NULL)';
 const schemaQuery =

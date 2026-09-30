@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import type { ChatTurn, ProposalStatus, SubmissionView } from '@website/contracts';
 import { Database } from 'bun:sqlite';
 
+import { busyTimeoutMilliseconds } from './checked-database';
 import { websiteMigrations } from './migration-catalogue';
 import {
   anchorRequestContent,
@@ -124,6 +125,8 @@ export class WebsiteStore {
     mkdirSync(dirname(path), { recursive: true });
     this.database = new Database(path, { create: true });
     this.database.run('PRAGMA foreign_keys = ON');
+    // Proof: without this timeout, the startup-under-a-write-lock test failed with "database is locked".
+    this.database.run(`PRAGMA busy_timeout = ${String(busyTimeoutMilliseconds)}`);
     this.database.run(
       'CREATE TABLE IF NOT EXISTS schema_migration (name TEXT PRIMARY KEY, checksum TEXT NOT NULL)',
     );
@@ -207,6 +210,7 @@ export class WebsiteStore {
           : this.reserveProviderCall(accountId, requestId, reservedMicroUsd, now);
       if (reservedMicroUsd !== null && providerCallId === null) return { kind: 'budget' };
       const id = crypto.randomUUID();
+      anchorRequestContent(this.database, requestId, message, now);
       this.database
         .query(
           'INSERT INTO chat_operation (id, account_id, request_id, idempotency_key, body_hash, message, initial, state, provider_call_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -223,7 +227,6 @@ export class WebsiteStore {
           providerCallId,
           now,
         );
-      if (message.trim() !== '') anchorRequestContent(this.database, requestId, now);
       return { kind: 'started', id };
     })();
   }
@@ -731,18 +734,18 @@ export class WebsiteStore {
       .get(accountId);
   }
 
-  /** A nonempty brief is first content for a blank request and anchors its deadline at `now`. */
+  /** A nonblank brief is first content for a blank request and anchors its deadline at `now`. */
   updateAccountBrief(accountId: string, brief: string, now: number): boolean {
     return this.database.transaction(() => {
       const active = this.findAccountRequest(accountId);
       if (!active) return false;
+      anchorRequestContent(this.database, active.id, brief, now);
       const write = this.database
         .query(
           'UPDATE software_request SET brief = ? WHERE id = ? AND submitted_at IS NULL AND inactive_at IS NULL',
         )
         .run(brief, active.id);
-      if (write.changes !== 1) return false;
-      if (brief.trim() !== '') anchorRequestContent(this.database, active.id, now);
+      if (write.changes !== 1) throw new Error('Active request brief update was not atomic');
       return true;
     })();
   }
@@ -818,12 +821,12 @@ export class WebsiteStore {
 
   saveConcept(requestId: string, body: string, now: number): void {
     this.database.transaction(() => {
-      const saved = this.database
+      anchorRequestContent(this.database, requestId, body, now);
+      this.database
         .query(
           'INSERT OR IGNORE INTO request_concept_preview (request_id, body, created_at) VALUES (?, ?, ?)',
         )
         .run(requestId, body, now);
-      if (saved.changes === 1) anchorRequestContent(this.database, requestId, now);
     })();
   }
 
@@ -848,11 +851,13 @@ export class WebsiteStore {
     content: string,
     now: number,
   ): void {
-    this.database
-      .query(
-        'INSERT INTO chat_turn (id, account_id, request_id, role, content, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      )
-      .run(crypto.randomUUID(), accountId, requestId, role, content, now);
-    if (content.trim() !== '') anchorRequestContent(this.database, requestId, now);
+    this.database.transaction(() => {
+      anchorRequestContent(this.database, requestId, content, now);
+      this.database
+        .query(
+          'INSERT INTO chat_turn (id, account_id, request_id, role, content, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        )
+        .run(crypto.randomUUID(), accountId, requestId, role, content, now);
+    })();
   }
 }

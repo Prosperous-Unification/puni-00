@@ -1,6 +1,10 @@
 import { Database } from 'bun:sqlite';
 
-import { existingDatabasePath, validateDatabase } from './checked-database';
+import {
+  busyTimeoutMilliseconds,
+  existingDatabasePath,
+  validateDatabase,
+} from './checked-database';
 
 /** The two typed identities that own a retention deadline; see the website CONTEXT glossary. */
 export type RetentionSubjectKind = 'software_request' | 'proposal_submission';
@@ -69,17 +73,35 @@ interface SubmissionLineageRow {
 }
 
 const purpose = 'Request retention';
+
+/**
+ * The one definition of nonblank request content, shared by write-time anchoring, backfill and
+ * the report: text that is not empty after trimming ASCII whitespace.
+ */
+function nonblank(expression: string): string {
+  // Proof: plain trim() counted the "\n\t \r" brief as content in the blank-writes test.
+  return `(trim(${expression}, char(9, 10, 11, 12, 13, 32)) <> '')`;
+}
+
+const turnContent = nonblank('content');
+const operationContent = `(${nonblank('message')} OR ${nonblank("coalesce(reply, '')")})`;
+const previewContent = nonblank('body');
 const requestHasContent = `(
-  trim(request.description) <> '' OR trim(request.brief) <> ''
-  OR EXISTS (SELECT 1 FROM chat_turn WHERE request_id = request.id)
-  OR EXISTS (SELECT 1 FROM chat_operation WHERE request_id = request.id)
-  OR EXISTS (SELECT 1 FROM request_concept_preview WHERE request_id = request.id)
+  ${nonblank('request.description')} OR ${nonblank('request.brief')}
+  OR EXISTS (SELECT 1 FROM chat_turn WHERE request_id = request.id AND ${turnContent})
+  OR EXISTS (SELECT 1 FROM chat_operation WHERE request_id = request.id AND ${operationContent})
+  OR EXISTS (SELECT 1 FROM request_concept_preview WHERE request_id = request.id AND ${previewContent})
   OR EXISTS (SELECT 1 FROM proposal_submission WHERE draft_id = request.draft_id))`;
 const requestEarliestContent = `(
   SELECT min(created_at) FROM (
-    SELECT created_at FROM chat_turn WHERE request_id = request.id
-    UNION ALL SELECT created_at FROM chat_operation WHERE request_id = request.id
-    UNION ALL SELECT created_at FROM request_concept_preview WHERE request_id = request.id))`;
+    SELECT created_at FROM chat_turn WHERE request_id = request.id AND ${turnContent}
+    UNION ALL SELECT created_at FROM chat_operation WHERE request_id = request.id AND ${operationContent}
+    UNION ALL SELECT created_at FROM request_concept_preview WHERE request_id = request.id AND ${previewContent}))`;
+const pendingWithContent = `
+  UPDATE retention_subject SET resolution = 'ambiguous', ambiguity = 'unanchored_content'
+  WHERE subject_kind = 'software_request' AND resolution = 'pending_content'
+    AND EXISTS (SELECT 1 FROM software_request AS request
+      WHERE request.id = retention_subject.subject_id AND ${requestHasContent})`;
 const untrackedRequests = `
   SELECT request.id, request.draft_id, draft.created_at AS draft_created_at,
     ${requestHasContent} AS has_content,
@@ -133,9 +155,9 @@ const uncoveredSubmissionCount = `
 const survivingContentBound = {
   software_request: `
     SELECT min(created_at) AS bound FROM (
-      SELECT created_at FROM chat_turn WHERE request_id = ?1
-      UNION ALL SELECT created_at FROM chat_operation WHERE request_id = ?1
-      UNION ALL SELECT created_at FROM request_concept_preview WHERE request_id = ?1
+      SELECT created_at FROM chat_turn WHERE request_id = ?1 AND ${turnContent}
+      UNION ALL SELECT created_at FROM chat_operation WHERE request_id = ?1 AND ${operationContent}
+      UNION ALL SELECT created_at FROM request_concept_preview WHERE request_id = ?1 AND ${previewContent}
       UNION ALL SELECT draft.created_at FROM software_request AS request
         JOIN intake_draft AS draft ON draft.id = request.draft_id WHERE request.id = ?1
       UNION ALL SELECT submission.created_at FROM software_request AS request
@@ -201,15 +223,38 @@ export function insertRetentionSubject(
 }
 
 /**
- * Anchors a blank software request on its first nonempty content write. Only a
- * `pending_content` subject changes, so later edits and a concurrent writer that commits second
- * keep the first anchor. A request with no subject row was created by an older API process; it
- * stays uncovered in the report rather than receiving a guessed anchor here.
+ * Anchors a blank software request on its first nonblank content write. Call it inside the
+ * write's transaction, **before** storing `text`. Only a `pending_content` subject changes, so
+ * later edits and a concurrent writer that commits second keep the first anchor. If the request
+ * already holds content, an older API process wrote it without an anchor; the subject becomes
+ * `ambiguous` for operator resolution instead of receiving this later, guessed time. A request
+ * with no subject row stays uncovered in the report until the next startup backfill.
  */
-export function anchorRequestContent(database: Database, requestId: string, now: number): void {
+export function anchorRequestContent(
+  database: Database,
+  requestId: string,
+  text: string,
+  now: number,
+): void {
+  const state = database
+    .query<{ prior: number; incoming: number }, [string, string]>(
+      `SELECT ${requestHasContent} AS prior, ${nonblank('?2')} AS incoming FROM software_request AS request WHERE request.id = ?1`,
+    )
+    .get(requestId, text);
+  if (!state) throw new Error('Retention anchor names a missing software request');
+  // Proof: skipping this prior-content check anchored every older-API content kind at the later new write.
+  if (state.prior === 1) {
+    database
+      .query(
+        "UPDATE retention_subject SET resolution = 'ambiguous', ambiguity = 'unanchored_content' WHERE subject_kind = 'software_request' AND subject_id = ? AND resolution = 'pending_content'",
+      )
+      .run(requestId);
+    return;
+  }
+  if (state.incoming !== 1) return;
   database
     .query(
-      // Proof: dropping the pending_content predicate failed the later-edits and concurrent-writer tests with "retention anchor is immutable".
+      // Proof: dropping the pending_content predicate failed the later-edits test (brief cleared, then rewritten) with "retention anchor is immutable".
       "UPDATE retention_subject SET resolution = 'anchored', anchor_at = ?, deadline_at = ?, anchor_source = 'first_write' WHERE subject_kind = 'software_request' AND subject_id = ? AND resolution = 'pending_content'",
     )
     .run(now, addUtcMonths(now, retentionMonths), requestId);
@@ -234,24 +279,30 @@ function classifyRequest(row: RequestLineageRow): RetentionState {
 
 /**
  * Records a subject for every software request and standalone proposal submission that lacks
- * one, anchoring only from a linked draft's creation time. Existing subjects are never updated,
- * so repeated runs are idempotent. Migration 004's copied `created_at` and its empty
- * placeholders are never treated as first-content evidence.
+ * one, anchoring only from a linked draft's creation time, and moves a `pending_content` subject
+ * that an older API process filled without an anchor to `ambiguous`. Anchored and ambiguous
+ * subjects are never updated, so repeated runs are idempotent. Migration 004's copied
+ * `created_at` and its empty placeholders are never treated as first-content evidence. Runs as an
+ * immediate transaction so the connection's busy timeout applies to the write lock.
  */
 export function backfillRetentionSubjects(database: Database): void {
-  database.transaction(() => {
-    for (const row of database.query<RequestLineageRow, []>(untrackedRequests).all())
-      insertRetentionSubject(database, 'software_request', row.id, classifyRequest(row));
-    for (const row of database.query<SubmissionLineageRow, []>(untrackedSubmissions).all())
-      insertRetentionSubject(
-        database,
-        'proposal_submission',
-        row.id,
-        row.legacy_account_link === 1
-          ? { resolution: 'ambiguous', ambiguity: 'overlapping_lineage' }
-          : { resolution: 'anchored', anchorAt: row.draft_created_at, source: 'draft' },
-      );
-  })();
+  database
+    .transaction(() => {
+      // Proof: removing this update left the startup test's filled pending subject pending.
+      database.run(pendingWithContent);
+      for (const row of database.query<RequestLineageRow, []>(untrackedRequests).all())
+        insertRetentionSubject(database, 'software_request', row.id, classifyRequest(row));
+      for (const row of database.query<SubmissionLineageRow, []>(untrackedSubmissions).all())
+        insertRetentionSubject(
+          database,
+          'proposal_submission',
+          row.id,
+          row.legacy_account_link === 1
+            ? { resolution: 'ambiguous', ambiguity: 'overlapping_lineage' }
+            : { resolution: 'anchored', anchorAt: row.draft_created_at, source: 'draft' },
+        );
+    })
+    .immediate();
 }
 
 function count(database: Database, sql: string): number {
@@ -376,11 +427,14 @@ export function resolveRetentionAnchor(
     throw new Error('Anchor must be UTC epoch milliseconds');
   if (resolution.anchorAt > now) throw new Error('Anchor cannot be later than now');
   const path = existingDatabasePath(databasePath, true, purpose);
+  // Integrity and migration replay are slow; validating first keeps the write lock short.
+  // Proof: validating inside BEGIN IMMEDIATE made the validate-before-lock test wait out the busy timeout and fail "database is locked".
+  withReadonlyDatabase(path, () => undefined);
   const database = new Database(path, { readwrite: true });
   try {
+    database.run(`PRAGMA busy_timeout = ${String(busyTimeoutMilliseconds)}`);
     database.run('BEGIN IMMEDIATE');
     try {
-      validateDatabase(database, purpose);
       const bound = database
         .query<{ bound: number | null }, [string]>(survivingContentBound[resolution.kind])
         .get(resolution.subjectId);

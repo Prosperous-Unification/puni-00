@@ -17,9 +17,10 @@ CREATE TABLE retention_subject (
   CHECK((anchor_source IS 'operator') = (evidence_reference IS NOT NULL AND resolved_by IS NOT NULL AND resolved_at IS NOT NULL))
 );
 CREATE INDEX retention_subject_deadline ON retention_subject(resolution, deadline_at);
--- Proof: without this trigger, the schema-refuses-to-move test updated an anchored subject.
+-- Proof: without this trigger, the schema-refuses-to-move test updated an anchored subject; without the
+-- evidence, resolver and resolution-time columns, the rewrite-an-operator-resolution test changed them.
 CREATE TRIGGER retention_subject_anchor_immutable
-BEFORE UPDATE OF subject_kind, subject_id, anchor_at, deadline_at, anchor_source ON retention_subject
+BEFORE UPDATE OF subject_kind, subject_id, resolution, ambiguity, anchor_at, deadline_at, anchor_source, evidence_reference, resolved_by, resolved_at ON retention_subject
 WHEN OLD.anchor_at IS NOT NULL
 BEGIN
   SELECT RAISE(ABORT, 'retention anchor is immutable');

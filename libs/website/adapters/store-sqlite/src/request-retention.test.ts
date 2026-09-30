@@ -212,6 +212,8 @@ test('a blank account request anchors on its first nonempty write and later edit
       'pending_content',
     );
     expect(store.updateAccountBrief(account.id, 'first content', leapDay)).toBe(true);
+    // Clearing the brief leaves no prior content, so only the pending guard keeps the anchor.
+    expect(store.updateAccountBrief(account.id, '', leapDay + 500)).toBe(true);
     expect(store.updateAccountBrief(account.id, 'edited later', leapDay + 1000)).toBe(true);
     store.addTurn(account.id, request.id, 'user', 'later chat', leapDay + 2000);
     store.saveConcept(request.id, '{"screens":[]}', leapDay + 3000);
@@ -641,5 +643,247 @@ test('resolving every ambiguous subject lets activation coverage pass without de
       deletion: 'disabled',
     });
     expect(contentFingerprint(databasePath)).toBe(before);
+  });
+});
+
+const olderApiWrites = {
+  brief: "UPDATE software_request SET brief = 'secret older brief' WHERE id = ?1",
+  description: "UPDATE software_request SET description = 'secret older description' WHERE id = ?1",
+  chatTurn:
+    "INSERT INTO chat_turn (id, account_id, request_id, role, content, created_at) VALUES ('older-turn', ?2, ?1, 'user', 'secret older turn', 100)",
+  chatOperation:
+    "INSERT INTO chat_operation (id, account_id, request_id, idempotency_key, body_hash, message, initial, state, created_at) VALUES ('older-operation', ?2, ?1, 'older-key', 'older-hash', 'secret older message', 1, 'completed', 100)",
+  conceptPreview:
+    "INSERT INTO request_concept_preview (request_id, body, created_at) VALUES (?1, 'secret older preview', 100)",
+} as const;
+
+/** Creates a new-API blank request, then writes content the way a still-serving 005 API does. */
+function pendingRequestWithOlderContent(
+  databasePath: string,
+  write: string,
+  keepOpen: (store: WebsiteStore, accountId: string, requestId: string) => void = () => undefined,
+): string {
+  const store = new WebsiteStore(databasePath);
+  try {
+    const account = store.createProspect('owner@example.test', 10);
+    store.ensureBlankRequest(account.id, 20);
+    const request = store.findAccountRequest(account.id);
+    if (!request) throw new Error('Missing account request');
+    const older = new Database(databasePath);
+    try {
+      if (write.includes('?2')) older.query(write).run(request.id, account.id);
+      else older.query(write).run(request.id);
+    } finally {
+      older.close();
+    }
+    keepOpen(store, account.id, request.id);
+    return request.id;
+  } finally {
+    store.close();
+  }
+}
+
+for (const [kind, write] of Object.entries(olderApiWrites)) {
+  test(`an older API ${kind} write on a pending subject becomes ambiguous, never a late anchor`, () => {
+    fixture((databasePath) => {
+      // The new process keeps serving and writes next, with no startup in between.
+      const requestId = pendingRequestWithOlderContent(
+        databasePath,
+        write,
+        (store, accountId, id) => {
+          store.addTurn(accountId, id, 'user', 'new content', 5000);
+        },
+      );
+      expect(subject(databasePath, 'software_request', requestId)).toMatchObject({
+        resolution: 'ambiguous',
+        ambiguity: 'unanchored_content',
+        anchor_at: null,
+      });
+      expect(() => assertRetentionCoverage(databasePath, 6000)).toThrow(
+        '1 ambiguous software request',
+      );
+      resolveRetentionAnchor(
+        databasePath,
+        {
+          kind: 'software_request',
+          subjectId: requestId,
+          anchorAt: 50,
+          evidenceReference: 'ops-ticket:7',
+          actor: 'operator-1',
+        },
+        6000,
+      );
+      expect(assertRetentionCoverage(databasePath, 6000).activation).toBe('ready');
+    });
+    fixture((databasePath) => {
+      const requestId = pendingRequestWithOlderContent(databasePath, write);
+      new WebsiteStore(databasePath).close();
+      expect(subject(databasePath, 'software_request', requestId)).toMatchObject({
+        resolution: 'ambiguous',
+        ambiguity: 'unanchored_content',
+      });
+    });
+  });
+}
+
+test('a new write refuses to anchor a pending subject that already holds older content', () => {
+  fixture((databasePath) => {
+    const store = new WebsiteStore(databasePath);
+    const account = store.createProspect('owner@example.test', 10);
+    store.ensureBlankRequest(account.id, 20);
+    const request = store.findAccountRequest(account.id);
+    if (!request) throw new Error('Missing account request');
+    // The older API writes while this new process keeps serving, so no startup runs in between.
+    const older = new Database(databasePath);
+    try {
+      older.query(olderApiWrites.chatTurn).run(request.id, account.id);
+    } finally {
+      older.close();
+    }
+    expect(store.updateAccountBrief(account.id, 'new brief', 5000)).toBe(true);
+    store.close();
+    expect(subject(databasePath, 'software_request', request.id)).toMatchObject({
+      resolution: 'ambiguous',
+      ambiguity: 'unanchored_content',
+      anchor_at: null,
+    });
+  });
+});
+
+test('startup moves a pending subject holding older content to ambiguous', () => {
+  fixture((databasePath) => {
+    const requestId = pendingRequestWithOlderContent(databasePath, olderApiWrites.brief);
+    expect(inspectRequestRetention(databasePath, 30).softwareRequest.unanchoredContent).toBe(1);
+    new WebsiteStore(databasePath).close();
+    expect(subject(databasePath, 'software_request', requestId)).toMatchObject({
+      resolution: 'ambiguous',
+      ambiguity: 'unanchored_content',
+    });
+    expect(inspectRequestRetention(databasePath, 30).softwareRequest).toMatchObject({
+      ambiguous: 1,
+      unanchoredContent: 0,
+      pendingContent: 0,
+    });
+  });
+});
+
+test('blank writes neither anchor a subject nor count as content', () => {
+  fixture((databasePath) => {
+    const store = new WebsiteStore(databasePath);
+    const account = store.createProspect('owner@example.test', 10);
+    store.ensureBlankRequest(account.id, 20);
+    const request = store.findAccountRequest(account.id);
+    if (!request) throw new Error('Missing account request');
+    expect(store.updateAccountBrief(account.id, '\n\t \r', 30)).toBe(true);
+    store.addTurn(account.id, request.id, 'assistant', '', 40);
+    store.addTurn(account.id, request.id, 'user', ' \n', 50);
+    store.close();
+    expect(subject(databasePath, 'software_request', request.id)?.resolution).toBe(
+      'pending_content',
+    );
+    expect(assertRetentionCoverage(databasePath, 60).softwareRequest).toMatchObject({
+      pendingContent: 1,
+      unanchoredContent: 0,
+    });
+    new WebsiteStore(databasePath).close();
+    expect(subject(databasePath, 'software_request', request.id)?.resolution).toBe(
+      'pending_content',
+    );
+  });
+});
+
+test('startup waits for a concurrent write lock instead of failing busy', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'puni-retention-busy-'));
+  const databasePath = join(directory, 'website.sqlite');
+  try {
+    new WebsiteStore(databasePath).close();
+    const starterPath = join(directory, 'starter.ts');
+    writeFileSync(
+      starterPath,
+      `import { WebsiteStore } from ${JSON.stringify(join(import.meta.dir, 'store.ts'))};
+new WebsiteStore(Bun.argv[2] ?? '').close();
+`,
+    );
+    const holder = new Database(databasePath);
+    holder.run('BEGIN IMMEDIATE');
+    const starter = Bun.spawn(['bun', starterPath, databasePath], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    await Bun.sleep(700);
+    holder.run('COMMIT');
+    holder.close();
+    const exitCode = await starter.exited;
+    const error = await new Response(starter.stderr).text();
+    expect({ exitCode, error }).toEqual({ exitCode: 0, error: '' });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('resolution validates the database before taking the write lock', () => {
+  fixture((databasePath) => {
+    historicDatabase(databasePath);
+    new WebsiteStore(databasePath).close();
+    const edited = new Database(databasePath);
+    edited.run("UPDATE schema_migration SET checksum = 'edited' WHERE name = '005_chat_operation'");
+    edited.close();
+    const holder = new Database(databasePath);
+    holder.run('BEGIN IMMEDIATE');
+    try {
+      const started = Date.now();
+      expect(() =>
+        resolveRetentionAnchor(
+          databasePath,
+          {
+            kind: 'software_request',
+            subjectId: 'early-draft',
+            anchorAt: 100,
+            evidenceReference: 'ops-ticket:1',
+            actor: 'operator-1',
+          },
+          20_000,
+        ),
+      ).toThrow('unexpected or edited migration');
+      expect(Date.now() - started).toBeLessThan(2000);
+    } finally {
+      holder.run('ROLLBACK');
+      holder.close();
+    }
+  });
+});
+
+test('the schema refuses to rewrite an operator resolution', () => {
+  fixture((databasePath) => {
+    historicDatabase(databasePath);
+    new WebsiteStore(databasePath).close();
+    resolveRetentionAnchor(
+      databasePath,
+      {
+        kind: 'software_request',
+        subjectId: 'early-draft',
+        anchorAt: 100,
+        evidenceReference: 'ops-ticket:1',
+        actor: 'operator-1',
+      },
+      20_000,
+    );
+    const database = new Database(databasePath);
+    try {
+      for (const assignment of [
+        "evidence_reference = 'ops-ticket:2'",
+        "resolved_by = 'operator-2'",
+        'resolved_at = 1',
+        "resolution = 'ambiguous'",
+        "ambiguity = 'overlapping_lineage'",
+      ])
+        expect(() =>
+          database.run(
+            `UPDATE retention_subject SET ${assignment} WHERE subject_id = 'early-draft'`,
+          ),
+        ).toThrow('retention anchor is immutable');
+    } finally {
+      database.close();
+    }
   });
 });
