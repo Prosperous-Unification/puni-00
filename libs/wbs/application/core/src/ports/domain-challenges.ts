@@ -12,27 +12,17 @@ export interface DomainClaimSummary {
 }
 
 /** An authorized claim snapshot captured before an external DNS lookup. */
-interface DomainVerificationBase {
+export interface DomainVerificationSnapshot {
+  readonly kind: 'initial' | 'rotation';
   readonly id: string;
   readonly domain: string;
   readonly challengeDigest: string;
+  /** Null only for a retained ownership proof, which does not expire as an initial challenge. */
+  readonly challengeExpiresAt: number | null;
+  readonly phase: 'pending' | 'rotation' | 'recovery';
+  readonly previousProofDigest: string | null;
+  readonly previousProofValidUntil: number | null;
 }
-
-/** Phase determines which captured proof fields exist at commit. */
-export type DomainVerificationSnapshot = DomainVerificationBase &
-  (
-    | { readonly phase: 'pending'; readonly challengeExpiresAt: number }
-    | {
-        readonly phase: 'rotation';
-        readonly previousProofDigest: string;
-        readonly previousProofValidUntil: number;
-      }
-    | {
-        readonly phase: 'recovery';
-        readonly previousProofDigest: string | null;
-        readonly previousProofValidUntil: number | null;
-      }
-  );
 
 /** Authoritative TXT records, one DNS TXT record per string; failure throws. */
 export interface DomainResolver {

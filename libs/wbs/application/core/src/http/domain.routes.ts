@@ -142,7 +142,11 @@ export function domainRoutes(
         // Proof: 2026-09-28, applying the old-proof overlap deadline to a
         // replacement made mounted `confirms a replacement proof after the
         // old-proof overlap ends` answer 409 instead of verifying the new TXT.
-        if (claim.phase === 'pending' && claim.challengeExpiresAt <= now)
+        if (
+          claim.phase === 'pending' &&
+          claim.challengeExpiresAt !== null &&
+          claim.challengeExpiresAt <= now
+        )
           return { ok: false, status: 409, body: { error: 'stale' } };
         // Proof: 2026-09-28, raising this bound to 50 seconds made mounted
         // `refuses malformed and timed-out resolver answers` observe 50,000

@@ -14,24 +14,6 @@ export interface AccountResourceOptions {
 export class AccountResource {
   constructor(private readonly opts: AccountResourceOptions) {}
 
-  /** Link flow is unavailable in fixtures without a durable activation marker. */
-  async isLinkActive(): Promise<boolean> {
-    if (this.opts.identities?.isLinkActive === undefined)
-      throw new Error('explicit OIDC link store is not configured');
-    return this.opts.identities.isLinkActive();
-  }
-
-  /** Commit a verified pair to a password user; the store rechecks activation and ownership. */
-  async linkPasswordIdentity(userId: string, identity: OidcIdentity) {
-    if (this.opts.identities?.linkPasswordIdentity === undefined)
-      throw new Error('explicit OIDC link store is not configured');
-    return this.opts.identities.linkPasswordIdentity(
-      userId,
-      identity,
-      this.opts.clock.stampFor(userId),
-    );
-  }
-
   /** Mint and stamp an account after the caller has hashed its password. */
   createAccount(username: string, passwordHash: string): Promise<User | null> {
     const id = this.opts.clock.newId();

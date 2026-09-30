@@ -243,12 +243,6 @@
       "disposition": "re-export shim; delete when importers use @wbs/core or the directory module directly"
     },
     {
-      "path": "libs/wbs/application/core/src/service/domain-proof.service.ts",
-      "kind": "support",
-      "disposition": "organization domain lifecycle; move into an organization-domains module when one exists",
-      "rationale": "be-01's dormant domain-proof worker calls checkDomainProofs to run one bounded TXT lookup per due retained claim through the DomainProofChecks port; it holds no store or timer of its own"
-    },
-    {
       "path": "libs/wbs/application/core/src/service/gateway-broadcaster.ts",
       "kind": "support",
       "disposition": "re-export shim; delete when importers use @wbs/core or the realtime module directly"
