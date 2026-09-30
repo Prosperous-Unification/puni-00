@@ -79,15 +79,26 @@ function buildPlan(): { rows: PlannedRow[]; edges: DependencyEdge[]; slices: Sli
   return { rows, edges, slices };
 }
 
-/** Whole milliseconds are too coarse for a 20ms budget; `Bun.nanoseconds` is not. */
+/** Measures the pass's CPU work without charging time the host schedules elsewhere. */
 const millisecondsFor = (run: () => void): number => {
-  const started = Bun.nanoseconds();
+  const started = process.cpuUsage();
   run();
-  return (Bun.nanoseconds() - started) / 1e6;
+  const used = process.cpuUsage(started);
+  return (used.user + used.system) / 1_000;
 };
 
 describe('the leveled pass, at the size of a real plan', () => {
   const plan = buildPlan();
+
+  it('measures CPU work without charging a descheduled interval', () => {
+    // Proof: with Bun.nanoseconds the 30 ms sleep measured 30.118 ms and
+    // failed this case; process CPU measured the sleeping interval below 20 ms.
+    expect(
+      millisecondsFor(() => {
+        Bun.sleepSync(30);
+      }),
+    ).toBeLessThan(20);
+  });
 
   it('is the plan it claims to be, so the budget below measures something', () => {
     // A benchmark over a fixture that turned out to be ten rows and no people
@@ -129,9 +140,10 @@ describe('the leveled pass, at the size of a real plan', () => {
 
   it('schedules 600 slices in under 20ms', () => {
     // The best of five runs after a warm one: the pass is deterministic, so the
-    // spread is the machine's — a shared CI runner descheduling mid-measurement
-    // is not a regression in the algorithm, and a flaky gate is a gate people
-    // learn to ignore.
+    // spread is the machine's. Process CPU time excludes an interval when a
+    // shared CI runner deschedules this process, preserving the 20ms work bound.
+    // The historical CI figures below used elapsed time; they calibrated the
+    // unchanged bound, but are not direct CPU-time observations.
     //
     // 20ms is CI's number, re-derived 2026-08-21 from the runners rather than
     // from a laptop. The five figures below are printed on every run, so 66
@@ -173,6 +185,8 @@ describe('the leveled pass, at the size of a real plan', () => {
     );
 
     console.log(JSON.stringify(runs));
+    // Proof: a 25 ms CPU spin inserted at the start of schedule made these
+    // samples 30.171–37.988 ms and failed this unchanged 20 ms assertion.
     expect(Math.min(...runs)).toBeLessThan(20);
   });
 });
