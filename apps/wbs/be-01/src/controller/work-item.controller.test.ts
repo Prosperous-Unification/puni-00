@@ -1,5 +1,4 @@
 import { CREATOR_ADMISSION } from '@wbs/core';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { builtByNonOwner, MAX_ESTIMATE_DAYS, type Schedule, schedule } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
@@ -40,7 +39,6 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
   const capacity = testCapacityService();
   const priorityBands = testPriorityBandService();
   const projects = new ProjectService({
-    dependencyGraph: new DependencyGraphGuard(plan.stores),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),

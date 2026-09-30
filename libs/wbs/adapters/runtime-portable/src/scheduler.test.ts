@@ -21,16 +21,6 @@ const INPUT: ScheduleInput = {
   notBefore: new Map([['leaf', 4]]),
   poolSizes: new Map([['team', 2]]),
   reach: 'whole-item',
-  // Non-empty, so a Fast call that dropped the eighth argument is told apart
-  // from one that passed an empty list.
-  typed: [
-    {
-      id: 'r1',
-      predecessor: { scope: 'whole', workItemId: 'before' },
-      successor: { scope: 'whole', workItemId: 'leaf' },
-      type: 'FS',
-    },
-  ],
   deadlines: new Map([['leaf', 9]]),
 };
 
@@ -158,7 +148,6 @@ describe('createScheduler', () => {
         INPUT.poolSizes,
         INPUT.reach,
         INPUT.deadlines,
-        INPUT.typed,
       ],
       [
         INPUT.rows,
@@ -168,7 +157,6 @@ describe('createScheduler', () => {
         INPUT.poolSizes,
         INPUT.reach,
         INPUT.deadlines,
-        INPUT.typed,
       ],
       [
         INPUT.rows,
@@ -178,7 +166,6 @@ describe('createScheduler', () => {
         INPUT.poolSizes,
         INPUT.reach,
         INPUT.deadlines,
-        INPUT.typed,
       ],
     ]);
     expect(liveAsks).toEqual([

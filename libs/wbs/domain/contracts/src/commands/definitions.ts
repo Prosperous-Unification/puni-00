@@ -42,13 +42,6 @@ const predecessor = {
   'predecessorId?': 'string',
   'predecessorRef?': 'string',
 } as const;
-const dependencyEndpoint = type({
-  scope: "'whole' | 'node' | 'descendant-step'",
-  'workItemId?': 'string',
-  'workItemRef?': 'string',
-  'stepId?': 'string',
-  'stepNodeId?': 'string',
-});
 const team = { 'teamId?': 'string', 'teamRef?': 'string' } as const;
 const person = { 'personId?': 'string', 'personRef?': 'string' } as const;
 const tag = { 'tagId?': 'string', 'tagRef?': 'string' } as const;
@@ -196,34 +189,6 @@ export const commandDefinitions = {
     schema: type({ kind: "'removeDependency'", ...predecessor }),
     scope: 'project',
     description: 'Stop a work item waiting for another.',
-  }),
-  addTypedDependency: defineCommand('addTypedDependency', {
-    schema: type({
-      kind: "'addTypedDependency'",
-      predecessor: dependencyEndpoint,
-      successor: dependencyEndpoint,
-      type: 'string',
-    }),
-    scope: 'project',
-    description:
-      'Add a typed dependency. Use FS for finish-to-start; each endpoint is whole work item, leaf step node, or one step across all descendant leaves. Returns a stable relationship id.',
-  }),
-  updateTypedDependency: defineCommand('updateTypedDependency', {
-    schema: type({
-      kind: "'updateTypedDependency'",
-      dependencyId: 'string',
-      predecessor: dependencyEndpoint,
-      successor: dependencyEndpoint,
-      type: 'string',
-    }),
-    scope: 'project',
-    description:
-      'Change both endpoints and type of a typed relationship by its stable dependencyId; FS is supported.',
-  }),
-  removeTypedDependency: defineCommand('removeTypedDependency', {
-    schema: type({ kind: "'removeTypedDependency'", dependencyId: 'string' }),
-    scope: 'project',
-    description: 'Remove a typed relationship by dependencyId.',
   }),
   arrangeBySchedule: defineCommand('arrangeBySchedule', {
     schema: type({ kind: "'arrangeBySchedule'" }),
