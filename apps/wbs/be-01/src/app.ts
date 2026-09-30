@@ -9,7 +9,6 @@ import type {
   SavedPlanService,
 } from '@wbs/core';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
-import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
 
@@ -224,10 +223,6 @@ export function mountedEndpoints(
     uow: opts.writes.uow,
     announcements: opts.writes.announcements,
   });
-  // A project reach change and a step removal read the combined dependency
-  // graph before they write, so each runs as one unit of work: a write landing
-  // between the check and the write could otherwise leave a cycle.
-  const admitted = admittedWrites(opts.writes);
   return [
     // Proof: omitting health and metrics separately made app.routes.test.ts
     // expect 40 local bindings and receive 39 for each injected fault.
@@ -251,30 +246,14 @@ export function mountedEndpoints(
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
-    ...stepRoutes(
-      {
-        addWithin: (...args) => opts.steps.addWithin(...args),
-        findWithin: (...args) => opts.steps.findWithin(...args),
-        renameWithin: (...args) => opts.steps.renameWithin(...args),
-        removeWithin: admitted.removeStepWithin,
-      },
-      commands,
-      opts.organizations,
-    ),
+    ...stepRoutes(opts.steps, commands, opts.organizations),
     ...directoryRoutes(opts.directory, opts.organizations),
     ...historyRoutes(opts.history, opts.projects, opts.organizations),
     ...solutionRoutes(opts.projects, opts.organizations),
     // Proof: omitting this spread made the production import reachability test receive 404.
     ...importRoutes(opts.writes.imports, opts.organizations),
     ...projectRoutes(
-      {
-        authorizeEdit: (...args) => opts.projects.authorizeEdit(...args),
-        createWithin: (...args) => opts.projects.createWithin(...args),
-        listWithin: (...args) => opts.projects.listWithin(...args),
-        openWithin: (...args) => opts.projects.openWithin(...args),
-        readWithin: (...args) => opts.projects.readWithin(...args),
-        updateWithin: admitted.updateProjectWithin,
-      },
+      opts.projects,
       opts.organizations,
       opts.workItems,
       opts.directory,

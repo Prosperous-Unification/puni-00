@@ -1,8 +1,6 @@
-import { inMemoryStores } from '@wbs/store-memory/in-memory-source';
 import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
-import { DependencyGraphGuard } from '../service/dependency-graph';
 import { ProjectService } from '../service/project.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
@@ -40,12 +38,7 @@ test('direct solution binding reads the exact slug and complete project with ord
   ];
   await store.create(project, steps, { at: 1, by: 'owner' });
   const [endpoint] = solutionRoutes(
-    new ProjectService({
-      dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects: store }),
-      clock: testClock,
-      projects: store,
-      broadcast: recordingBroadcaster(),
-    }),
+    new ProjectService({ clock: testClock, projects: store, broadcast: recordingBroadcaster() }),
     legacyOrganizationAccess,
   );
   expect(await endpoint.handle(input)).toEqual({ ok: true, status: 200, body: { project, steps } });
@@ -64,12 +57,7 @@ test('direct solution binding preserves unknown project and step store failures'
     { at: 1, by: 'owner' },
   );
   const [endpoint] = solutionRoutes(
-    new ProjectService({
-      dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects: store }),
-      clock: testClock,
-      projects: store,
-      broadcast: recordingBroadcaster(),
-    }),
+    new ProjectService({ clock: testClock, projects: store, broadcast: recordingBroadcaster() }),
     legacyOrganizationAccess,
   );
   for (const method of ['findBySolutionSlug', 'stepsOf'] as const) {

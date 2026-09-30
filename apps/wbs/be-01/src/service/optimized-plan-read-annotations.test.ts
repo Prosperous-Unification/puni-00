@@ -273,7 +273,6 @@ async function servedBy(moved: Readonly<Record<string, number>>) {
     input.notBefore,
     input.poolSizes,
     input.reach,
-    [],
     {
       ...quantisedFastBaseline(
         input.rows,
@@ -282,7 +281,6 @@ async function servedBy(moved: Readonly<Record<string, number>>) {
         input.notBefore,
         input.poolSizes,
         input.reach,
-        [],
       ),
       ...moved,
     },

@@ -130,7 +130,6 @@ describe('the order Fast hands the backward pass', () => {
       new Map(),
       // Fast's own starts, so the only thing that can differ is the ORDER the
       // backward pass was handed.
-      [],
       new Map([
         [sliceKey('z', DEV), 0],
         [sliceKey('a', DEV), 0],

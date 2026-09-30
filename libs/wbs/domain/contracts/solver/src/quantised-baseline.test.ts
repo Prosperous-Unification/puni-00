@@ -4,7 +4,6 @@ import {
   type DependencyEdge,
   indexTree,
   leafFloorsOf,
-  leavesUnderOf,
   type PlannedRow,
   schedule,
   type Slice,
@@ -74,7 +73,6 @@ const infeasibilities = (
   leafIds: readonly string[],
   edges: readonly DependencyEdge[],
   leaf: LeafConstraintMaps,
-  leavesUnder: (id: string) => readonly string[],
 ): string[] => {
   const wire = buildSolverSlices(slices, leaf);
   const slicesOf = (leafId: string): readonly Slice[] =>
@@ -98,10 +96,7 @@ const infeasibilities = (
     }
   }
   const durationOf = new Map(wire.map((slice) => [slice.key, slice.durationUnits]));
-  for (const edge of buildSolverEdges(leafIds, slicesOf, edges, 'whole-item', {
-    dependencies: [],
-    leavesUnder,
-  })) {
+  for (const edge of buildSolverEdges(leafIds, slicesOf, edges, 'whole-item')) {
     const finish = at(edge.predecessorKey) + (durationOf.get(edge.predecessorKey) ?? 0);
     if (at(edge.successorKey) < finish) {
       found.push(
@@ -137,47 +132,23 @@ describe('quantisedFastBaseline', () => {
     expect(realFinish).toBeCloseTo(28.8, 10);
     expect(Number.isInteger(realFinish)).toBe(false);
 
-    const offsets = quantisedFastBaseline(
-      rows,
-      edges,
-      slices,
-      new Map(),
-      new Map(),
-      'whole-item',
-      [],
-    );
+    const offsets = quantisedFastBaseline(rows, edges, slices, new Map(), new Map(), 'whole-item');
     expect(readable(offsets)).toEqual({ 'A/one': 0, 'A/two': 10, 'A/three': 20 });
   });
 
   it('hands MOVEMENT and the hint whole units on that fixture', () => {
     const { rows, edges, slices } = fiveWide;
-    const offsets = quantisedFastBaseline(
-      rows,
-      edges,
-      slices,
-      new Map(),
-      new Map(),
-      'whole-item',
-      [],
-    );
+    const offsets = quantisedFastBaseline(rows, edges, slices, new Map(), new Map(), 'whole-item');
 
     // MOVEMENT is `Σ |start(s) − baselineOffsets[s]|` over integer starts, so it
     // is defined as an integer exactly when every baseline offset is one.
     for (const start of Object.values(offsets)) expect(Number.isSafeInteger(start)).toBe(true);
-    expect(infeasibilities(offsets, slices, ['A'], edges, noConstraints, (id) => [id])).toEqual([]);
+    expect(infeasibilities(offsets, slices, ['A'], edges, noConstraints)).toEqual([]);
   });
 
   it('is the same key set the request projects, one offset per slice', () => {
     const { rows, edges, slices } = fiveWide;
-    const offsets = quantisedFastBaseline(
-      rows,
-      edges,
-      slices,
-      new Map(),
-      new Map(),
-      'whole-item',
-      [],
-    );
+    const offsets = quantisedFastBaseline(rows, edges, slices, new Map(), new Map(), 'whole-item');
     expect(Object.keys(offsets).sort()).toEqual(
       buildSolverSlices(slices, noConstraints)
         .map((slice) => slice.key)
@@ -201,7 +172,6 @@ describe('quantisedFastBaseline', () => {
       new Map(),
       new Map([['team', 1]]),
       'whole-item',
-      [],
     );
     expect(readable(offsets)).toEqual({ 'A/': 0, 'B/': SOLVER_QUANTUM });
   });
@@ -216,7 +186,7 @@ describe('quantisedFastBaseline', () => {
     ];
     // `C` waits for `A` (one day) and for kat (two days); the later wins.
     expect(
-      readable(quantisedFastBaseline(rows, edges, slices, new Map(), new Map(), 'whole-item', [])),
+      readable(quantisedFastBaseline(rows, edges, slices, new Map(), new Map(), 'whole-item')),
     ).toEqual({ 'A/': 0, 'B/': 0, 'C/': 2 * SOLVER_QUANTUM });
   });
 
@@ -226,21 +196,14 @@ describe('quantisedFastBaseline', () => {
     // Declared on the PARENT, so the answer is `leafFloorsOf`'s walk and not a
     // lookup: day 2 begins at unit 96.
     const notBefore = new Map([['parent', 2]]);
-    const offsets = quantisedFastBaseline(rows, [], slices, notBefore, new Map(), 'whole-item', []);
+    const offsets = quantisedFastBaseline(rows, [], slices, notBefore, new Map(), 'whole-item');
     expect(readable(offsets)).toEqual({ 'leaf/': 2 * SOLVER_QUANTUM });
 
     // And it is the floor the wire carries, not merely a floor.
     const floors = leafFloorsOf(notBefore, indexTree(rows));
-    expect(
-      infeasibilities(
-        offsets,
-        slices,
-        ['leaf'],
-        [],
-        { ...noConstraints, floors },
-        leavesUnderOf(indexTree(rows)),
-      ),
-    ).toEqual([]);
+    expect(infeasibilities(offsets, slices, ['leaf'], [], { ...noConstraints, floors })).toEqual(
+      [],
+    );
   });
 
   it('keeps a width outside 48 divisors exact rather than drifting on it', () => {
@@ -253,7 +216,7 @@ describe('quantisedFastBaseline', () => {
       sliceOf('A', 'two', 1, { width: 5 }),
     ];
     expect(
-      readable(quantisedFastBaseline(rows, [], slices, new Map(), new Map(), 'whole-item', [])),
+      readable(quantisedFastBaseline(rows, [], slices, new Map(), new Map(), 'whole-item')),
     ).toEqual({ 'A/one': 0, 'A/two': 104 });
   });
 
@@ -264,7 +227,7 @@ describe('quantisedFastBaseline', () => {
     // is a guess. Refused here, where the slice can still be named.
     const slices = [sliceOf('A', null, 2 ** 52, { width: 1000 })];
     expect(() =>
-      quantisedFastBaseline(rows, [], slices, new Map(), new Map(), 'whole-item', []),
+      quantisedFastBaseline(rows, [], slices, new Map(), new Map(), 'whole-item'),
     ).toThrow(/no exact duration on the unit axis/);
   });
 });
@@ -300,15 +263,7 @@ const golden = JSON.parse(
 describe('the quantised baseline the golden request carries', () => {
   it('is what quantisedFastBaseline produces from the plan behind it', () => {
     const { rows, edges, slices } = fiveWide;
-    const offsets = quantisedFastBaseline(
-      rows,
-      edges,
-      slices,
-      new Map(),
-      new Map(),
-      'whole-item',
-      [],
-    );
+    const offsets = quantisedFastBaseline(rows, edges, slices, new Map(), new Map(), 'whole-item');
     expect(offsets).toEqual(golden.baselineOffsets);
     // Never real Fast's, which is the whole of 2.11: 9.600000000000001 is what
     // this entry would hold if the baseline were converted instead of re-run.
@@ -320,12 +275,7 @@ describe('the quantised baseline the golden request carries', () => {
     const slicesOf = (leafId: string): readonly Slice[] =>
       slices.filter((slice) => slice.workItemId === leafId);
     expect(buildSolverSlices(slices, noConstraints)).toEqual(golden.slices);
-    expect(
-      buildSolverEdges(['A'], slicesOf, [], 'whole-item', {
-        dependencies: [],
-        leavesUnder: (id) => [id],
-      }),
-    ).toEqual(golden.edges);
+    expect(buildSolverEdges(['A'], slicesOf, [], 'whole-item')).toEqual(golden.edges);
   });
 
   it('is shaped like the request the schema defines, member for member', () => {

@@ -101,7 +101,7 @@ def a_request(
     offsets = dict(baseline) if baseline is not None else {key: 0 for key in keys}
     return {
         "wireVersion": 1,
-        "contractVersion": "13+0.1.3",
+        "contractVersion": "12+0.1.3",
         "solverVersion": "0.1.3",
         "objective": objective,
         "budgetMs": 30000,
