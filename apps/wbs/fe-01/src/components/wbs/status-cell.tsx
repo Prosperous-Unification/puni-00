@@ -1,8 +1,10 @@
 import type { SettableStatus, WorkItemStatus } from '@wbs/domain/progress';
 import { type KeyboardEvent, useEffect, useState } from 'react';
 
+import type { MenuAction } from './actions-menu';
 import { STATUS_HINT } from './column-hints';
 import { PickerList } from './creatable-picker';
+import { STATUS_TOKEN } from './status-palette';
 
 /** The word each status reads as, in the cell and on its list. */
 export const STATUS_LABEL: Readonly<Record<WorkItemStatus, string>> = {
@@ -17,12 +19,26 @@ export const STATUS_LABEL: Readonly<Record<WorkItemStatus, string>> = {
 };
 
 /**
- * The statuses the cell's list and the row menus offer until the status menu
- * of `add-work-item-statuses` (its slice 6) lands: the two this face already
- * knows how to set. The API accepts all seven settable statuses; offering one
- * here before its prompt and filter exist would send it without either.
+ * The `Set status to <word>` entries a row menu opens with, one per offered
+ * status, in the order given ({@link statusOffersOf} decides which). Shared by
+ * the table's ⋯ and a card's, so a phone and a laptop read one menu.
  */
-export const OFFERED_STATUSES = ['unknown', 'done'] as const satisfies readonly SettableStatus[];
+export function statusActions(
+  offers: readonly SettableStatus[],
+  choose: (status: SettableStatus) => void,
+): MenuAction[] {
+  return offers.map((status) => ({
+    id: `set-${status}`,
+    label: `Set status to ${STATUS_LABEL[status]}`,
+    lead: {
+      word: STATUS_LABEL[status],
+      ...(status === 'done' ? { tone: 'done' as const } : {}),
+    },
+    run: () => {
+      choose(status);
+    },
+  }));
+}
 
 /**
  * The glyph each status is drawn as, in the cell and on the column heading.
@@ -40,24 +56,22 @@ export const STATUS_GLYPH: Readonly<Record<WorkItemStatus, string>> = {
   draft: '◌',
   ready: '◎',
   in_progress: '◐',
-  blocked_by_proxy: '⊘',
+  // Its own glyph and not blocked's `⊘`: a row waiting on held work is not
+  // itself stopped, and the two read apart without their colours
+  // (`add-work-item-statuses`, task 6.4).
+  // Proof: this set back to `⊘`, and `gives every status its own glyph…`
+  // failed on `expected 7 to be 8`; watched 2026-09-29.
+  blocked_by_proxy: '⊖',
   on_hold: '‖',
   blocked: '⊘',
   done: '✓',
 };
 
-/** The colour each status is said in — the strip's, the tint's and this cell's. */
-const STATUS_COLOR: Readonly<Record<WorkItemStatus, string>> = {
-  unknown: 'var(--muted-foreground)',
-  // Provisional until slice 6 gives each status its palette token.
-  draft: 'var(--muted-foreground)',
-  ready: 'var(--muted-foreground)',
-  in_progress: 'var(--status-in-progress)',
-  blocked_by_proxy: 'var(--muted-foreground)',
-  on_hold: 'var(--muted-foreground)',
-  blocked: 'var(--destructive)',
-  done: 'var(--status-done)',
-};
+/**
+ * The status as a screen reader is told it — `Status: On hold` — wherever a
+ * glyph or a strip colour says it on screen (`add-work-item-statuses`, task 6.4).
+ */
+export const statusWords = (status: WorkItemStatus): string => `Status: ${STATUS_LABEL[status]}`;
 
 /**
  * What each status says about the row, for the cell's project fact.
@@ -83,6 +97,8 @@ export interface StatusCellProps {
   rowNumber: string;
   rowId: string;
   status: WorkItemStatus;
+  /** The statuses the list offers, in order ({@link statusOffersOf}): never the one the row reads. */
+  offers: readonly SettableStatus[];
   choose: (status: SettableStatus) => void;
   onGridKey: (event: KeyboardEvent<HTMLInputElement>) => void;
   /**
@@ -120,10 +136,9 @@ export interface StatusCellProps {
  *
  * The priority cell's shape without its typing: there is nothing to type here,
  * so the box is a closed combobox that opens its list on a click or a plain
- * Enter and takes a line with a click or the list's own keys. `In progress` is
- * shown when the fold says so and is **not** on the list — it is a step's
- * statement and a row reads it only off the fold (`SETTABLE_STATUSES` in
- * `@wbs/domain`).
+ * Enter and takes a line with a click or the list's own keys. The list is the
+ * row menu's own ({@link StatusCellProps.offers}): never the status the row
+ * reads, never `Blocked by proxy`, which is read off the graph and not set.
  *
  * The box is an `<input type="button">`. An input, and not `readOnly`, for the
  * deadline cell's reason: `editableGrid` walks `[data-cell]:not([readonly])`,
@@ -141,6 +156,7 @@ export function StatusCell({
   rowNumber,
   rowId,
   status,
+  offers,
   choose,
   onGridKey,
   onOpenChange,
@@ -150,6 +166,7 @@ export function StatusCell({
     onOpenChange(open);
   }, [onOpenChange, open]);
   const listId = `status-options-${rowId}`;
+  const wordId = `status-word-${rowId}`;
   return (
     <span
       style={{ position: 'relative', display: 'block', minWidth: 0 }}
@@ -164,6 +181,13 @@ export function StatusCell({
         // reading 0 where a button reads null. Watched 2026-09-13.
         type="button"
         aria-label={`Status of ${rowNumber}`}
+        // The word the glyph stands for, said to assistive tech: the fact card
+        // is a hover surface and says nothing to a screen reader. A combobox
+        // takes no `aria-description` under `jsx-a11y`, so the word is an
+        // sr-only span this points at (`add-work-item-statuses`, task 6.4).
+        // Proof: this dropped, and `says its status word to assistive tech…`
+        // failed on an empty description; watched 2026-09-29.
+        aria-describedby={wordId}
         role="combobox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
@@ -184,7 +208,7 @@ export function StatusCell({
           cursor: 'pointer',
           textAlign: 'center',
           padding: 0,
-          color: STATUS_COLOR[status],
+          color: STATUS_TOKEN[status] ?? 'var(--muted-foreground)',
         }}
         value={STATUS_GLYPH[status]}
         onClick={() => {
@@ -209,17 +233,20 @@ export function StatusCell({
           onGridKey(event);
         }}
       />
+      <span id={wordId} className="sr-only">
+        {statusWords(status)}
+      </span>
       {open && (
         <PickerList
           id={listId}
           label={`Status for ${rowNumber}`}
-          options={OFFERED_STATUSES.map((offered) => ({
+          options={offers.map((offered) => ({
             key: `${listId}-${offered}`,
             label: STATUS_LABEL[offered],
-            selected: offered === status,
+            selected: false,
             take: () => {
               setOpen(false);
-              if (offered !== status) choose(offered);
+              choose(offered);
             },
           }))}
         />

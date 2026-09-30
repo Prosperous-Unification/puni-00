@@ -26,7 +26,7 @@ import { createDepLights } from './dep-light-store';
 import { GanttFaultBoundary } from './gantt-fault';
 import { MONDAY_START, planOf, pointedAtRow, rowAt, sliceAt } from './gantt-fixtures';
 import type { GanttPlan } from './gantt-geometry';
-import { DONE_BAR_STROKE, layOutGantt } from './gantt-geometry';
+import { BLOCKED_STROKE, DONE_BAR_STROKE, layOutGantt } from './gantt-geometry';
 import { inkOn, PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR } from './gantt-geometry';
 import {
   appliedGanttHeight,
@@ -3611,7 +3611,9 @@ function rowOf(parts: {
     factStart: null,
     factEnd: null,
     status: 'unknown',
+    readiness: null,
     hold: null,
+    progress: {},
     serviceTeamId: null,
     teamIds: [],
     assignees: {},
@@ -9827,5 +9829,96 @@ describe('a done bar', () => {
       'Done — drawn over what happened, not over the estimate',
     );
     expect(document.querySelectorAll('[data-gantt-bar]')).toHaveLength(1);
+  });
+});
+
+describe('each status on the chart (add-work-item-statuses)', () => {
+  /** `strip` held, `sand` waiting on it, `paint` blocked, and `prime` after `paint`. */
+  const statusPlan = (): GanttPlan =>
+    planOf({
+      rows: [
+        rowAt('strip', 0, 0, { status: 'on_hold', held: true, schedule: null }),
+        rowAt('sand', 0, 3, {
+          status: 'blocked_by_proxy',
+          stoppedBy: ['strip - strip (On hold)'],
+        }),
+        rowAt('paint', 3, 5, { status: 'blocked' }),
+        rowAt('prime', 5, 7),
+      ],
+      slices: [
+        sliceAt('sand-dev', 'sand', 0, 3),
+        sliceAt('paint-dev', 'paint', 3, 5),
+        sliceAt('prime-dev', 'prime', 5, 7),
+      ],
+      dependencies: [
+        { predecessorId: 'strip', successorId: 'sand' },
+        { predecessorId: 'sand', successorId: 'paint' },
+        { predecessorId: 'paint', successorId: 'prime' },
+      ],
+      heldLeafIds: new Set(['strip']),
+    });
+
+  const drawStatuses = (): void => {
+    render(
+      <GanttPanel
+        plan={statusPlan()}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+  };
+
+  const barOf = (sliceId: string): Element => {
+    const bar = document.querySelector(`[data-gantt-bar="${sliceId}"]`);
+    if (bar === null) throw new Error(`${sliceId} has no bar on the chart`);
+    return bar;
+  };
+
+  itDom('says On hold in a held row and draws it no bar', () => {
+    drawStatuses();
+    expect(document.querySelector('[data-gantt-held="strip"]')?.textContent).toBe('On hold');
+    expect(document.querySelectorAll('[data-gantt-held]')).toHaveLength(1);
+    expect(
+      [...document.querySelectorAll('[data-gantt-bar]')].map((bar) =>
+        bar.getAttribute('data-gantt-bar'),
+      ),
+    ).toEqual(['sand-dev', 'paint-dev', 'prime-dev']);
+  });
+
+  itDom('names the held predecessor on a hatched bar', () => {
+    drawStatuses();
+    const sand = barOf('sand-dev');
+    expect(sand.getAttribute('data-blocked-by-proxy')).toBe('true');
+    expect(document.querySelector('[data-gantt-bar-hatch="sand-dev"]')).not.toBeNull();
+    expect(document.querySelectorAll('[data-gantt-bar-hatch]')).toHaveLength(1);
+    expect(sand.getAttribute('aria-label') ?? '').toContain(
+      'Blocked by proxy — waiting on strip - strip (On hold)',
+    );
+  });
+
+  itDom('outlines a blocked bar in the blocked red, and draws its arrows in it', () => {
+    drawStatuses();
+    const paint = barOf('paint-dev');
+    // Proof: the `bar.stop === 'blocked'` arm dropped from the rect's `stroke`,
+    // and this failed on `expected [ 'true', '#94a3b8' ] to deeply equal [
+    // 'true', '#dc2626' ]`; watched 2026-09-29.
+    expect([paint.getAttribute('data-blocked'), paint.getAttribute('stroke')]).toEqual([
+      'true',
+      BLOCKED_STROKE,
+    ]);
+    expect(barOf('prime-dev').getAttribute('data-blocked')).toBeNull();
+    askForTheDetail();
+    const arrows = [...document.querySelectorAll<SVGPathElement>('path[data-gantt-arrow]')].map(
+      (arrow) => [arrow.getAttribute('data-gantt-arrow'), arrow.style.stroke],
+    );
+    expect(arrows).toEqual([
+      ['sand->paint', ''],
+      ['paint->prime', 'rgb(220, 38, 38)'],
+    ]);
   });
 });

@@ -35,6 +35,7 @@ import type { DepLights } from './dep-light-store';
 import { useGanttDetail } from './gantt-detail';
 import {
   BAR_INSET,
+  BLOCKED_STROKE,
   CAPACITY_LINK_COLOR,
   DONE_BAR_STROKE,
   droppedLinkWords,
@@ -872,12 +873,19 @@ const DONE_BAR_CLASSES = '[fill-opacity:0.75] [stroke-width:2]';
  * `vector-effect="non-scaling-stroke"`, so 2 is 2 CSS pixels at any zoom of a
  * user space measured in workdays.
  */
-function barClasses(critical: boolean, estimated: boolean, done = false): string {
+function barClasses(critical: boolean, estimated: boolean, done = false, blocked = false): string {
   return [
     // A done bar's ring is the green outline ({@link DONE_BAR_STROKE}) and not
     // the critical ring: finished work is not on anybody's critical path any
-    // more, and two rings on one bar would say two things in one stroke.
-    critical && !done ? 'stroke-foreground [stroke-width:2]' : '',
+    // more, and two rings on one bar would say two things in one stroke. A
+    // blocked bar's ring is the blocked red ({@link BLOCKED_STROKE}) for the
+    // same reason: the class would paint over the `stroke` attribute.
+    // Proof: `!blocked` dropped, and the browser gate `a held row says On
+    // hold…` read the blocked bar's stroke as `oklch(0.129 0.042 264.695)`,
+    // the foreground, where `rgb(220, 38, 38)` was owed; watched in Chromium
+    // 2026-09-29 (jsdom read only the attribute and passed).
+    critical && !done && !blocked ? 'stroke-foreground [stroke-width:2]' : '',
+    blocked ? '[stroke-width:2]' : '',
     estimated ? '' : ASSUMED_BAR_CLASSES,
     done ? DONE_BAR_CLASSES : '',
   ]
@@ -1852,6 +1860,25 @@ function trioWords(trio: EstimateTrio | null): string {
  * @param today the reader's own today, which is the year {@link shortIsoDate}
  * measures its omission against.
  */
+/** The id of the blocked-by-proxy hatch pattern in the chart's `<defs>`. */
+const PROXY_HATCH_ID = 'gantt-blocked-by-proxy-hatch';
+/** How far apart the hatch's diagonals are, in CSS pixels. */
+const PROXY_HATCH_PX = 6;
+
+/** What stops a bar's work, in words, or null on a bar nothing stops ({@link GanttBar.stop}). */
+function stopWords(bar: GanttBar): string | null {
+  switch (bar.stop) {
+    case null:
+      return null;
+    case 'blocked':
+      return 'Blocked — stopped by something outside the plan';
+    case 'blocked_by_proxy':
+      return bar.stoppedBy.length === 0
+        ? 'Blocked by proxy — work it depends on is on hold or blocked'
+        : `Blocked by proxy — waiting on ${bar.stoppedBy.join('; ')}`;
+  }
+}
+
 export function barFacts(
   bar: GanttBar,
   startDate: IsoDate | null,
@@ -1893,6 +1920,13 @@ export function barFacts(
     tagWords(bar.tags),
     `${spanWords(startDate, bar.start, bar.finish, today)} · ${durationWords(bar)}`,
     bar.done ? 'Done — drawn over what happened, not over the estimate' : null,
+    // What stops the work, off the row's status (`add-work-item-statuses`): a
+    // blocked-by-proxy bar names the predecessors in the way, so the reader
+    // learns which held or blocked row to go and ask about.
+    // Proof: the proxy arm returned null, and `names the held predecessor on a
+    // hatched bar` failed on `expected 'sand - sand. Dev · Unassigned. …' to
+    // contain 'Blocked by proxy — waiting on strip -…'`; watched 2026-09-29.
+    stopWords(bar),
     // A line of its own rather than a word tucked into the duration: the bar is
     // drawn a width nobody gave it and the schedule spends none of it, and the
     // sentence that says so has to be as findable as the dates above it. See
@@ -4772,15 +4806,25 @@ function GanttChart({
               <g key={id}>
                 <path
                   data-gantt-arrow={id}
+                  // Leaving a blocked bar, the arrow is drawn in the blocked
+                  // red: what waits on it waits on something outside the plan
+                  // (`add-work-item-statuses`).
+                  {...(arrow.blocked ? { 'data-blocked': 'true' } : {})}
                   d={route.elbow}
                   className="stroke-foreground fill-none [stroke-width:1.5]"
+                  style={arrow.blocked ? { stroke: BLOCKED_STROKE } : undefined}
                   vectorEffect="non-scaling-stroke"
                 />
                 {/*
                       No `vector-effect` and no stroke: the head is filled, so
                       nothing about it is a stroke width to hold steady.
                     */}
-                <path data-gantt-arrow-head={id} d={route.head} className="fill-foreground" />
+                <path
+                  data-gantt-arrow-head={id}
+                  d={route.head}
+                  className="fill-foreground"
+                  style={arrow.blocked ? { fill: BLOCKED_STROKE } : undefined}
+                />
               </g>
             );
           })}
@@ -4800,6 +4844,11 @@ function GanttChart({
                   data-gantt-arrow={markId}
                   data-gantt-typed-arrow={arrow.relationshipId}
                   data-gantt-proxy={arrow.proxy ? 'true' : undefined}
+                  // Leaving a blocked bar, in the blocked red, as a stored
+                  // arrow is (`add-work-item-statuses`). A style and not a
+                  // class, so it wins over the foreground stroke class.
+                  {...(arrow.blocked ? { 'data-blocked': 'true' } : {})}
+                  style={arrow.blocked ? { stroke: BLOCKED_STROKE } : undefined}
                   data-dependency-lit={
                     activeTypedId !== null && arrow.relationshipIds.includes(activeTypedId)
                       ? 'true'
@@ -4864,6 +4913,7 @@ function GanttChart({
                   data-gantt-arrow-head={markId}
                   d={route.head}
                   className="fill-foreground/70"
+                  style={arrow.blocked ? { fill: BLOCKED_STROKE } : undefined}
                 />
                 {activeTypedId !== null && arrow.relationshipIds.includes(activeTypedId) && (
                   <text
@@ -5033,6 +5083,11 @@ function GanttChart({
             // cell, and has to tell it from a slice first. Never beside
             // `data-assumed` — a done bar is not a guess.
             {...(bar.done ? { 'data-done': 'true' } : {})}
+            // What stops the work (`add-work-item-statuses`): the browser gate
+            // and the tests select on these, the outline and the hatch below
+            // are what a reader sees.
+            {...(bar.stop === 'blocked' ? { 'data-blocked': 'true' } : {})}
+            {...(bar.stop === 'blocked_by_proxy' ? { 'data-blocked-by-proxy': 'true' } : {})}
             x={x}
             // The **drawn** span in calendar days — the end reading of
             // the drawn finish less the start reading of the start, so a
@@ -5060,9 +5115,19 @@ function GanttChart({
             // A done bar wears the status green as its outline instead
             // (`status-polish`; Dany: "add smth like a green outline to the
             // gantt chart slices").
-            stroke={bar.done ? DONE_BAR_STROKE : bar.critical ? undefined : bar.personColor}
+            // A blocked bar wears the blocked red as its outline, the done
+            // bar's green's way (`add-work-item-statuses`).
+            stroke={
+              bar.done
+                ? DONE_BAR_STROKE
+                : bar.stop === 'blocked'
+                  ? BLOCKED_STROKE
+                  : bar.critical
+                    ? undefined
+                    : bar.personColor
+            }
             className={cn(
-              barClasses(bar.critical, bar.estimated, bar.done),
+              barClasses(bar.critical, bar.estimated, bar.done, bar.stop === 'blocked'),
               'data-[dependency-lit=true]:stroke-foreground data-[dependency-lit=true]:[stroke-width:2]',
             )}
             vectorEffect="non-scaling-stroke"
@@ -5223,6 +5288,28 @@ function GanttChart({
               a bar too narrow to hold it, where the fill and the aria-label
               still say done.
             */}
+        {/*
+              The hatch over a blocked-by-proxy bar: the bar keeps its person's
+              colour, and diagonal strokes in the blocked red say that work it
+              depends on is on hold or blocked (`add-work-item-statuses`). Over
+              the bar and `pointer-events: none`, the done tick's way.
+            */}
+        {drawnBars.flatMap(({ bar, x, width }) =>
+          bar.stop === 'blocked_by_proxy'
+            ? [
+                <rect
+                  key={`${bar.sliceId}-hatch`}
+                  data-gantt-bar-hatch={bar.sliceId}
+                  x={x}
+                  width={width}
+                  y={bar.rowIndex + BAR_INSET + (bar.lane * BAR_HEIGHT) / bar.lanes}
+                  height={BAR_HEIGHT / bar.lanes}
+                  fill={`url(#${PROXY_HATCH_ID})`}
+                  pointerEvents="none"
+                />,
+              ]
+            : [],
+        )}
         {drawnBars.flatMap(({ bar, x, width }) => {
           if (!bar.done || width * dayPx < DONE_MARK_PX + 6) return [];
           // `DONE_MARK_PX` user units across are that many pixels, and the 12
@@ -5332,6 +5419,38 @@ function GanttChart({
    * row re-renders no Gantt mark` failed on `expected 2 to be +0` at the
    * words' counter. Watched 2026-09-01.
    */
+  /**
+   * `On hold` in each held row, where its bar would have been: a held row takes
+   * no part in the schedule and has no bar, and a row with nothing in it reads
+   * as work nobody has estimated (`add-work-item-statuses`). Muted, at the
+   * plan's first day, and `pointer-events: none` like the bar labels.
+   *
+   * Proof: the filter on `held` inverted, and `says On hold in a held row and
+   * draws it no bar` failed on `expected undefined to be 'On hold'`; watched
+   * 2026-09-29.
+   */
+  const heldWords = useMemo(
+    () =>
+      chart.labels
+        .filter((label) => label.held)
+        .map((label) => (
+          <span
+            key={`${label.id}-held`}
+            data-gantt-held={label.id}
+            className="text-muted-foreground pointer-events-none absolute text-[10px] whitespace-nowrap italic"
+            style={{
+              left: CHART_PAD_PX + LABEL_PAD_LEFT_PX,
+              top: (label.rowIndex + BAR_INSET) * ROW_PX,
+              height: BAR_HEIGHT * ROW_PX,
+              lineHeight: `${String(BAR_HEIGHT * ROW_PX)}px`,
+            }}
+          >
+            On hold
+          </span>
+        )),
+    [chart.labels],
+  );
+
   const barWords = useMemo(
     () => (
       <>
@@ -6000,6 +6119,27 @@ function GanttChart({
                   onPointRow(null, 'pointer');
                 }}
               >
+                <defs>
+                  {/*
+                    The blocked-by-proxy hatch: one diagonal per tile, a tile
+                    {@link PROXY_HATCH_PX} pixels square at any zoom — the user
+                    space is workdays across and rows down, so the tile is sized
+                    in each unit separately (`add-work-item-statuses`).
+                  */}
+                  <pattern
+                    id={PROXY_HATCH_ID}
+                    patternUnits="userSpaceOnUse"
+                    width={PROXY_HATCH_PX / dayPx}
+                    height={PROXY_HATCH_PX / ROW_PX}
+                  >
+                    <path
+                      d={`M0 ${String(PROXY_HATCH_PX / ROW_PX)} L${String(PROXY_HATCH_PX / dayPx)} 0`}
+                      stroke={BLOCKED_STROKE}
+                      strokeWidth={1.5}
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  </pattern>
+                </defs>
                 {marksUnderLight}
 
                 {/*
@@ -6036,6 +6176,7 @@ function GanttChart({
               </svg>
 
               {barWords}
+              {heldWords}
             </div>
           </div>
         </div>

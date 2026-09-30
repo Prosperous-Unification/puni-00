@@ -271,10 +271,7 @@ function planWire(projectId: string, plan: PlanRead) {
       projectId,
       position,
       serviceId: null,
-      // be-01 always sends both; the face reads the folded status only.
-      readiness: null,
       actuals: {},
-      progress: {},
       measures: {},
       ...row,
       // Proof: nullish fallback turned tagIds: null into []; the focused tree test

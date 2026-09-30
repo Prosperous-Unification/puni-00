@@ -2,13 +2,15 @@
 
 ### Requirement: In progress now is the status fold across a space
 
-`GET /api/spaces/:id/in-progress?limit=` SHALL answer `{ items, truncated }`: the leaves of the
-readable member projects whose folded status is `in_progress`, each with `projectId`,
-`projectName`, `workItemId`, `number`, `name`, `dates`, `lateBy` (the maximum over its slices),
-`assignees` and the step in progress. Items SHALL be ordered by end date ascending with undated
-last, then space position, then number. `limit` SHALL default to 200 and refuse above 1000;
-`truncated` SHALL say whether items were cut. A project with no `step_progress` row MAY skip
-the tree read; the answer SHALL never come from `step_progress` alone.
+`GET /api/spaces/:id/in-progress?limit=` SHALL answer `{ items, truncated, unavailable }`: the
+leaves of the readable member projects whose folded status is `in_progress`, each with
+`projectId`, `projectName`, `workItemId`, `number`, `name`, `dates`, `lateBy` (the maximum over
+its slices), `assignees` and the step in progress. Items SHALL be ordered by end date ascending
+with undated last, then space position, then number. `limit` SHALL default to 200; a limit that
+is not a whole number from 1 to 1000 SHALL answer `400`. `truncated` SHALL say whether items
+were cut. `unavailable` SHALL name the readable members whose scheduler engine is unavailable,
+which contribute no item. A project with no `step_progress` row MAY skip the tree read; the
+answer SHALL never come from `step_progress` alone.
 
 #### Scenario: a held leaf with an in-progress step
 

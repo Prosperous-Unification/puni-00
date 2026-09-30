@@ -77,3 +77,11 @@ parent's own fact end (filled by today's `setStatus done`) is cleared with its f
   - The post-stop recheck refuses only after routing has moved (#179's limitation, shared by every stored vocabulary).
   - Holding a parent takes the hold off its done leaves.
 - **Delivery.** Slices 3 and 6 need not ship together. Slice 4 ships with the fe-01 reader of `schedule: null`.
+
+## Decided at the slice 6 review (Fable, 2026-09-29)
+
+- **The row's own status takes precedence over "would change nothing".** A row is never offered
+  the status it reads, even where the write would still change something beneath it: a parent
+  reading `on_hold` is not offered On hold although one of its leaves is `blocked`. Accepted.
+- **Blocked by proxy is muted in chroma, not lightness.** Its light token is L 0.55, 5.07:1
+  against white; L 0.72 was 2.57:1.

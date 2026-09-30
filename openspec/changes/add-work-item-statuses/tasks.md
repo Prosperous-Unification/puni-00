@@ -107,13 +107,25 @@
 
 ## 6. fe-01 table (ships in the same integration round as slice 3)
 
-- [ ] 6.1 Red: labels, strip, cell, menu, prompt, depends card; `e2e/status.spec.ts`.
-- [ ] 6.2 Green.
-- [ ] 6.3 Negatives: menu filter removed → a held row offers its own hold; unknown status word →
+- [x] 6.1 Red: labels, strip, cell, menu, prompt, depends card; `e2e/status.spec.ts`.
+- [x] 6.2 Green: `statusOffersOf` (table menu, card menu and Status cell alike), `chooseStatus`
+      (Done and In progress through the completion prompt, the rest at once), palette tokens
+      per status (`STATUS_TOKEN`), the three `setStatus` refusals worded.
+- [x] 6.3 Negatives: menu filter removed → a held row offers its own hold; unknown status word →
       query-failure state, not a blank glyph.
+
+- [x] 6.4 Design follow-up (Fable review of #234): blocked and blocked by proxy share the `⊘`
+      glyph and the status word is exposed only in the hover card. Give blocked by proxy its own
+      glyph and expose the word to assistive tech (`aria-description` or an sr-only span). Revisit
+      in-progress contrast, 2.55:1 against white (pre-existing).
 
 ## 7. fe-01 Gantt
 
-- [ ] 7.1 Red: no bar for held, blocked outline, proxy hatch, arrows, bracket; pixel shards.
-- [ ] 7.2 Green.
-- [ ] 7.3 Negative: held filter removed → a held leaf draws a bar.
+- [x] 7.1 Red: no bar for held, blocked outline, proxy hatch, arrows, bracket; pixel shards
+      (`e2e/status.spec.ts`, `each status on the chart, in a browser`).
+- [x] 7.2 Green: `On hold` in a held row; `data-blocked` and the blocked red outline;
+      `data-blocked-by-proxy`, the hatch and the card naming the predecessors in the way (stored
+      and authored); arrows leaving a blocked bar in the blocked red; a held leaf is no end of an
+      arrow, stored or authored, instead of reading as a broken payload.
+- [x] 7.3 Negative: held filter removed → the held row loses its `On hold` word (a held leaf
+      has no slice, so slice 4's `schedule === null` skip is what keeps it barless).

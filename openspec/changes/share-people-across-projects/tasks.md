@@ -24,10 +24,10 @@
 
 ## 2. Load fe
 
-- [ ] 2.1 `/people/:id/load`: one lane per project, overlaps hatched, loading, empty,
+- [x] 2.1 `/people/:id/load`: one lane per project, overlaps hatched, loading, empty,
       query-failure, undated and unavailable states; a booked/overlapping column in the
       directory.
-- [ ] 2.2 Negatives: unknown `reason` → query-failure state, not a blank lane; overlap filter
+- [x] 2.2 Negatives: unknown `reason` → query-failure state, not a blank lane; overlap filter
       removed → a touching pair hatched.
 
 ## 3. Rank

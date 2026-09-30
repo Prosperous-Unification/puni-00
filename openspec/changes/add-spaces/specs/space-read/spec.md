@@ -78,7 +78,8 @@ fallback.
 
 `GET /api/spaces/:id/roll-ups?projectIds=…` SHALL accept at most 50 ids, each a member the
 caller can open, and answer `{ rollUps: { [projectId]: rollUp } }`. A process cache SHALL key a
-roll-up by project id, the project's event sequence, the project's revision, the scheduler
+roll-up by project id, the project's event sequence, the project's revision, the reader's
+access (legacy, or the scoped organization), the scheduler
 contract version and the roll-up version, and SHALL expire an entry after 60 seconds. A roll-up
 SHALL never be staler than 60 seconds, and SHALL not be stale at all after a write this process
 committed, whether or not that write published an event: a project settings change such as a

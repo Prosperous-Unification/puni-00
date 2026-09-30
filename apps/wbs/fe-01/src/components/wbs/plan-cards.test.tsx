@@ -54,7 +54,18 @@ import { isoToday } from './gantt-panel';
 import { refusedDraftFor, unsent } from './live-editing';
 import { type CardRowActionHandlers, PlanCards } from './plan-cards';
 import { shortIsoDate } from './short-date';
+import { statusOffersOf } from './status-offers';
 import type { TreeRow } from './wbs-rows';
+
+/** A silent row's status entries on the ⋯ menu, in the menu order. */
+const SILENT_ROW_STATUSES = [
+  'Set status to Draft',
+  'Set status to Ready',
+  'Set status to In progress',
+  'Set status to On hold',
+  'Set status to Blocked',
+  'Set status to Done',
+];
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -323,7 +334,9 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
           factStart: null,
           factEnd: null,
           status: 'unknown',
+          readiness: null,
           hold: null,
+          progress: {},
           serviceTeamId: null,
           teamIds: [],
           assignees: {},
@@ -2446,14 +2459,14 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
       const items = screen.getAllByRole('menuitem');
       expect(items.map((item) => item.textContent)).toEqual([
-        'Set status to Done',
+        ...SILENT_ROW_STATUSES,
         'Add child',
         'Move under…',
         'Duplicate',
         'Unfreeze',
         'Delete',
       ]);
-      expect(items[5]).toHaveAttribute(
+      expect(items.at(-1)).toHaveAttribute(
         'data-fact',
         'Frozen — unfreeze this row before deleting it',
       );
@@ -2519,6 +2532,7 @@ function aTreeRow(overrides: Partial<TreeRow> = {}): TreeRow {
       readiness: null,
       hold: null,
       status: 'unknown',
+      progress: {},
       priority: null,
       maxParallel: 1,
       teamIds: [],
@@ -2678,8 +2692,8 @@ const doNothingActions = (): CardRowActionHandlers => ({
   moveUnder: () => undefined,
   unfreeze: () => undefined,
   remove: () => undefined,
-  markDone: () => undefined,
-  setUnknown: () => undefined,
+  chooseStatus: () => undefined,
+  statusOffers: (row) => statusOffersOf(row, true),
 });
 
 describe('the ⋯ row-actions menu on a card', () => {
@@ -2694,7 +2708,7 @@ describe('the ⋯ row-actions menu on a card', () => {
     renderCards([aTreeRow()], doNothingActions());
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
-      'Set status to Done',
+      ...SILENT_ROW_STATUSES,
       'Add child',
       'Move under…',
       'Duplicate',
@@ -2702,20 +2716,46 @@ describe('the ⋯ row-actions menu on a card', () => {
     ]);
   });
 
+  itDom('offers a held row every status but its own hold, as the table does', () => {
+    const chosen: string[] = [];
+    renderCards([aTreeRow({ status: 'on_hold', hold: 'on_hold' })], {
+      ...doNothingActions(),
+      chooseStatus: (_rowId, status) => {
+        chosen.push(status);
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
+    const statuses = screen
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent)
+      .filter((label) => label.startsWith('Set status'));
+    expect(statuses).toEqual([
+      'Set status to Draft',
+      'Set status to Ready',
+      'Set status to In progress',
+      'Set status to Blocked',
+      'Set status to Done',
+      'Set status to Unknown',
+    ]);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Set status to Blocked' }));
+    expect(chosen).toEqual(['blocked']);
+  });
+
   itDom('adds Unfreeze, and refuses Delete with the table’s own sentence, on a frozen row', () => {
     renderCards([aTreeRow({ frozenNumber: '010' })], doNothingActions());
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
     const items = screen.getAllByRole('menuitem');
     expect(items.map((item) => item.textContent)).toEqual([
-      'Set status to Done',
+      ...SILENT_ROW_STATUSES,
       'Add child',
       'Move under…',
       'Duplicate',
       'Unfreeze',
       'Delete',
     ]);
-    expect(items[5]).toHaveAttribute('data-fact', 'Frozen — unfreeze this row before deleting it');
-    expect(items[5]).toHaveAttribute('aria-disabled', 'true');
+    const remove = items.at(-1);
+    expect(remove).toHaveAttribute('data-fact', 'Frozen — unfreeze this row before deleting it');
+    expect(remove).toHaveAttribute('aria-disabled', 'true');
   });
 
   itDom('does not delete a frozen row through the menu — the refusal actually refuses', () => {
