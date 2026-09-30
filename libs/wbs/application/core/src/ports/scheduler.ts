@@ -9,7 +9,6 @@ import type {
   Slice,
   SolverFailureReason,
   SolverObjectiveName,
-  TypedDependency,
 } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
@@ -88,7 +87,7 @@ export type ScheduleRead =
       readonly optimization: OptimizedScheduleRead | null;
     };
 
-/** Synchronous Fast scheduling over the canonical input's eight fields. */
+/** Synchronous Fast scheduling over the canonical input's seven fields. */
 export type FastScheduler = (
   rows: readonly PlannedRow[],
   edges: readonly DependencyEdge[],
@@ -97,7 +96,6 @@ export type FastScheduler = (
   poolSizes: PoolSizes,
   reach: DependencyReach,
   deadlines: ReadonlyMap<string, number>,
-  typed: readonly TypedDependency[],
 ) => Schedule;
 
 /** Installed scheduling capabilities and their non-waiting read. */

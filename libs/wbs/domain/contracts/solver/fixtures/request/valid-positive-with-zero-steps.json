@@ -7,7 +7,7 @@
     "work\u0000trailing": 96
   },
   "budgetMs": 30000,
-  "contractVersion": "13+0.1.3",
+  "contractVersion": "12+0.1.3",
   "edges": [
     { "predecessorKey": "work\u0000leading", "successorKey": "work\u0000dev" },
     { "predecessorKey": "work\u0000dev", "successorKey": "work\u0000interior" },

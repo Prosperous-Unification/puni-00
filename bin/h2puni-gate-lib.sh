@@ -177,26 +177,11 @@ gate_with_pinned_head() {
   # deletes work nobody asked us to delete, and this runs unattended. The gate
   # gates a COMMIT; anything else in the tree is a caller error with a name
   # printed next to it. Raised by the peer review of 75408058 (TASK-328).
-  #
-  # The tree is also the Docker build context, and solver-image-smoke reads it as
-  # the host uid through root-owned image files, so every tracked path must stay
-  # readable by other users. The payload fixes its own umask, which covers every
-  # path a checkout rewrites, and exits 66 naming tracked paths still closed to
-  # other users, which only an out-of-gate checkout can leave behind. The repair
-  # is opt-in, `H2PUNI_GATE_REPAIR_MODES=1`, so it runs under this same lock on
-  # the pinned tree and widens only tracked regular files and directories. See
-  # openspec/changes/gate-readable-checkout.
-  # Proof: h2puni-gate.test.sh case 37 failed with the umask line removed; case 38
-  # exited 0 over a 0600 file with the file scan removed and over a 0700
-  # directory with the directory scan removed; case 39 exited 0 and ran the steps
-  # when a failing file scan was folded into one substitution with the directory
-  # scan; case 40 exited 66 with the repair branch removed.
   with_heavy_lock "$lock_path" -- bash -c '
     set -euo pipefail
     repo=$1
     pinned=$2
     shift 2
-    umask 022
     original_commit=$(git -C "$repo" rev-parse HEAD)
     original_ref=
     if branch_ref=$(git -C "$repo" symbolic-ref --quiet HEAD); then
@@ -247,9 +232,13 @@ gate_with_pinned_head() {
     }
     # Proof: h2puni-gate.test.sh rejects branch and detached candidates and observes both
     # exact checkout shapes restored; deleting the saved branch makes recovery exit 74 loudly.
-    # No pipe here, and no apostrophes either: see the two notes above this
-    # call, both of which are load-bearing and both of which were watched.
-    list_bounded() {
+    trap restore_rejected_checkout EXIT
+    git -C "$repo" checkout --detach --quiet "$pinned"
+    dirty=$(git -C "$repo" status --porcelain --untracked-files=normal)
+    if [[ -n $dirty ]]; then
+      printf "h2puni gate: %s is dirty after checking out %s; refusing to report a verdict about bytes that commit does not contain:\n" "$repo" "$pinned" >&2
+      # No pipe here, and no apostrophes either: see the two notes above this
+      # call, both of which are load-bearing and both of which were watched.
       shown=0
       while IFS= read -r line; do
         printf "  %s\n" "$line" >&2
@@ -258,43 +247,13 @@ gate_with_pinned_head() {
           break
         fi
       done <<EOF
-$1
+$dirty
 EOF
-      total=$(printf "%s\n" "$1" | wc -l)
+      total=$(printf "%s\n" "$dirty" | wc -l)
       if [[ $total -gt $shown ]]; then
         printf "  … and %s more\n" "$((total - shown))" >&2
       fi
-    }
-    trap restore_rejected_checkout EXIT
-    git -C "$repo" checkout --detach --quiet "$pinned"
-    dirty=$(git -C "$repo" status --porcelain --untracked-files=normal)
-    if [[ -n $dirty ]]; then
-      printf "h2puni gate: %s is dirty after checking out %s; refusing to report a verdict about bytes that commit does not contain:\n" "$repo" "$pinned" >&2
-      list_bounded "$dirty"
       exit 65
-    fi
-    if [[ ${H2PUNI_GATE_REPAIR_MODES:-} == 1 ]]; then
-      (
-        cd "$repo"
-        git ls-tree -r -t -z --name-only HEAD |
-          xargs -0 -r sh -c "find -P \"\$@\" -maxdepth 0 \( -type f -o -type d \) -exec chmod go+rX {} +" repair-modes
-      )
-    fi
-    unreadable_files=$(
-      cd "$repo"
-      git ls-tree -r -z --name-only HEAD |
-        xargs -0 -r sh -c "find -P \"\$@\" -maxdepth 0 -type f ! -perm -0004 -print" find-unreadable-files
-    )
-    closed_directories=$(
-      cd "$repo"
-      git ls-tree -r -d -z --name-only HEAD |
-        xargs -0 -r sh -c "find -P \"\$@\" -maxdepth 0 -type d ! -perm -0005 -print" find-closed-directories
-    )
-    if [[ -n $unreadable_files || -n $closed_directories ]]; then
-      printf "h2puni gate: %s has tracked paths other users cannot read after checking out %s; containers that run as the host uid would not see them. Rerun as H2PUNI_GATE_REPAIR_MODES=1 bin/h2puni-gate.sh %s to widen them under the lock:\n" "$repo" "$pinned" "$pinned" >&2
-      if [[ -n $unreadable_files ]]; then list_bounded "$unreadable_files"; fi
-      if [[ -n $closed_directories ]]; then list_bounded "$closed_directories"; fi
-      exit 66
     fi
     printf "h2puni gate: running on %s\n" "$(git -C "$repo" rev-parse HEAD)" >&2
     cd "$repo"

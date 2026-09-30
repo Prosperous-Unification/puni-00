@@ -19,7 +19,6 @@ export const fastScheduler: Scheduler = {
         ask.input.poolSizes,
         ask.input.reach,
         ask.input.deadlines,
-        ask.input.typed,
       ),
       optimization: null,
     };

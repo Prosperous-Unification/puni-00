@@ -12,7 +12,6 @@ import type { ProjectStore } from '../../ports/project-store';
 import type { Step, StepStore, StepUsageRows } from '../../ports/step-store';
 import { type AssumedAssigneeFlip, assumedAssigneeFlips } from '../../service/assumed-assignee';
 import { cleanName } from '../../service/clean-name';
-import type { DependencyGraphGuard } from '../../service/dependency-graph';
 
 export interface StepServiceOptions {
   projects: ProjectStore;
@@ -26,22 +25,6 @@ export interface StepServiceOptions {
   broadcast: Broadcaster;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock: Clock;
-  /**
-   * The typed dependencies naming a step, and the combined step-node graph a
-   * removal is checked against. Required: removing a step moves every whole
-   * endpoint and legacy anchor on it, and one removed under a typed endpoint
-   * would leave a relationship naming nothing.
-   *
-   * Adding a step asks nothing of it. A new step is appended last to every
-   * leaf and no endpoint can name it yet, so the only edge into each new node
-   * is the workflow edge from that leaf's old last node. Every edge that left
-   * the old last node — a whole predecessor, a legacy link reached there —
-   * now leaves the new node instead, one workflow edge later, so contracting
-   * the new node onto the old last one gives back the graph before the add: a
-   * cycle after it was a cycle before it. A stepless project's first step
-   * replaces each leaf's boundary node one for one, which changes no edge.
-   */
-  dependencyGraph: Pick<DependencyGraphGuard, 'findCycle' | 'findStepReferences'>;
 }
 
 /** Why a step could not be added or renamed. All four are states, not faults. */
@@ -110,16 +93,7 @@ export interface StepInUse {
 export type RemoveStepOutcome =
   | { ok: true }
   | { ok: false; reason: 'not_found' | 'forbidden' }
-  | { ok: false; reason: 'in_use'; inUse: StepInUse }
-  /**
-   * A typed dependency names this step through a node or descendant-step
-   * endpoint. Refused whatever `cascade` says: the relationship has to be
-   * removed or reassigned first, and a cascade that deleted it would be a
-   * relationship somebody drew disappearing as a side effect.
-   */
-  | { ok: false; reason: 'referenced_by_dependency'; dependencyIds: string[] }
-  /** Removing it would move a dynamic legacy anchor into a step-node cycle. */
-  | { ok: false; reason: 'dependency_cycle' };
+  | { ok: false; reason: 'in_use'; inUse: StepInUse };
 
 /**
  * One usage reading as the refusal reports it: the step's own rows counted, and
@@ -299,21 +273,6 @@ export class StepService {
     if (!gate.ok)
       return { ok: false, reason: gate.reason === 'forbidden' ? 'forbidden' : 'not_found' };
 
-    // Proof: this refusal skipped made the mounted `refuses removing a step a
-    // typed dependency names` fail on `Expected: 409, Received: 500` — the
-    // step's foreign key refused the delete underneath; watched 2026-09-27.
-    const dependencyIds = await this.opts.dependencyGraph.findStepReferences(projectId, stepId);
-    if (dependencyIds.length > 0) {
-      return { ok: false, reason: 'referenced_by_dependency', dependencyIds };
-    }
-    // Proof: this check skipped made the mounted `refuses removing a step that
-    // moves a legacy anchor into a cycle` fail on `Expected: 409, Received:
-    // 204`; watched 2026-09-27.
-    if (
-      (await this.opts.dependencyGraph.findCycle(projectId, { withoutStepId: stepId })) !== null
-    ) {
-      return { ok: false, reason: 'dependency_cycle' };
-    }
     if (!cascade) {
       const seen = inUseFrom(await this.opts.steps.usageOf(projectId, stepId), stepId);
       if (stepIsInUse(seen)) {
