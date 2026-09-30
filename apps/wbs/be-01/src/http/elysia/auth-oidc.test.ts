@@ -4,7 +4,6 @@ import { expect, spyOn, test } from 'bun:test';
 import { authOidcEndpoints } from '../../controller/auth-oidc-endpoints';
 import type { OidcRouteOptions } from '../../controller/oidc-options';
 import { testAuthService } from '../../testing/auth-fixture';
-import { testLoginThrottle } from '../../testing/login-throttle-fixture';
 import { mountEndpoints } from './mount';
 
 const origin = 'https://app.test';
@@ -72,7 +71,7 @@ function fixture() {
     passwordHash: null,
     createdAt: 1,
   });
-  const app = mountEndpoints(authOidcEndpoints(auth, options, testLoginThrottle()), {
+  const app = mountEndpoints(authOidcEndpoints(auth, options), {
     appOrigin: origin,
     reportUnexpectedFailure: () => undefined,
     resolveIdentity: () => {

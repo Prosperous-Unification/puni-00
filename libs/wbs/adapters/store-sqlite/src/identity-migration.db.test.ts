@@ -132,7 +132,6 @@ function tempDb(): { path: string; cleanup: () => void } {
 function beforeIdentity(dbPath: string): void {
   runMigrations(dbPath, FOLDER);
   expect(rollbackTo(dbPath, FOLDER, PERSON_KIND)).toEqual([
-    '20260928040000_add_email_challenge',
     '20260928030000_add_delegation_use',
     '20260928020000_add_email_verification',
     '20260928010000_add_project_solution',
@@ -246,7 +245,6 @@ describe('the OIDC identity migration', () => {
       beforeIdentity(db.path);
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
-        '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
         '20260928010000_add_project_solution',
@@ -325,7 +323,6 @@ describe('the OIDC identity migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PERSON_KIND)).toEqual([
-        '20260928040000_add_email_challenge',
         '20260928030000_add_delegation_use',
         '20260928020000_add_email_verification',
         '20260928010000_add_project_solution',
