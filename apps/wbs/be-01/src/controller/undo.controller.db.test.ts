@@ -2,7 +2,6 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -32,7 +31,6 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import {
@@ -92,14 +90,8 @@ beforeEach(() => {
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
     calendarMarkers: testCalendarMarkerService(),
-    projects: new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(db, projects),
-      clock: testClock,
-      projects,
-      broadcast: recordingBroadcaster(),
-    }),
+    projects: new ProjectService({ clock: testClock, projects, broadcast: recordingBroadcaster() }),
     steps: new StepService({
-      dependencyGraph: sqliteDependencyGraph(db, projects),
       clock: testClock,
       projects,
       steps: new StepRepository(db, OPEN),
@@ -115,7 +107,6 @@ beforeEach(() => {
       measures,
       progress: progressStore,
       dependencies,
-      typedDependencies: new TypedDependencyRepository(db, OPEN),
       directory,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),

@@ -88,7 +88,6 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
     case 'bad_start_date':
     case 'bad_pert_weights':
     case 'optimizer_unavailable':
-    case 'dependency_cycle':
     case 'no_active_organization':
     case 'not_a_member':
       return refusal.error;
@@ -239,8 +238,6 @@ function stepRemoveCode(refusal: RefusalOf<'deleteApiProjectsByIdStepsByStepId'>
     case 'not_found':
     case 'invalid_body':
     case 'in_use':
-    case 'referenced_by_dependency':
-    case 'dependency_cycle':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -272,9 +269,6 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'conflicting_step_address':
     case 'invalid_step_node_id':
     case 'unknown_step_node_encoding':
-    case 'invalid_typed_endpoint':
-    case 'type_must_be_text':
-    case 'dependencyId_must_be_text':
     case 'cannot_send_both_teamIds_and_serviceTeamId':
     case 'unknown_kind':
     case 'unknown_strategy':
@@ -361,7 +355,6 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'forbidden':
     case 'not_found':
     case 'unknown_step':
-    case 'unknown_dependency':
     case 'unknown_metric':
     case 'unknown_person':
     case 'unknown_team':
@@ -375,12 +368,6 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'engine_unavailable':
     case 'rolled_up':
     case 'ancestor':
-    case 'self_node':
-    case 'not_a_parent':
-    case 'node_on_parent':
-    case 'descendant_step_on_leaf':
-    case 'duplicate_dependency':
-    case 'unsupported_relationship_type':
     case 'too_large':
     case 'taken':
     case 'in_use':

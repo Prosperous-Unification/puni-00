@@ -32,9 +32,6 @@ export type ParserRefusalCode =
   | 'conflicting_step_address'
   | 'invalid_step_node_id'
   | 'unknown_step_node_encoding'
-  | 'invalid_typed_endpoint'
-  | 'type_must_be_text'
-  | 'dependencyId_must_be_text'
   | 'cannot_send_both_teamIds_and_serviceTeamId'
   | 'unknown_kind'
   | 'unknown_strategy'
@@ -110,14 +107,6 @@ export type CommandRefusalCode =
   | 'rolled_up'
   | 'has_children'
   | 'ancestor'
-  /** A typed dependency resolving a step node onto itself. */
-  | 'self_node'
-  | 'not_a_parent'
-  | 'node_on_parent'
-  | 'descendant_step_on_leaf'
-  | 'unknown_dependency'
-  | 'duplicate_dependency'
-  | 'unsupported_relationship_type'
   | 'too_large'
   | 'unknown_step'
   | 'unknown_metric'
@@ -218,13 +207,11 @@ export type CommandRefusalDetail = {
     // Proof: making projectDayZero optional caused TS2578 in the deadline refusal type fixture.
     (C extends 'deadline_before_project_start'
       ? { workItemId: string; projectDayZero: string }
-      : C extends 'node_on_parent' | 'descendant_step_on_leaf'
-        ? { dependencyIds: string[] }
-        : C extends 'in_use'
-          ? { usage: DirectoryUsage }
-          : C extends 'taken'
-            ? { name?: string }
-            : Record<never, never>);
+      : C extends 'in_use'
+        ? { usage: DirectoryUsage }
+        : C extends 'taken'
+          ? { name?: string }
+          : Record<never, never>);
 };
 
 type BareRefusalCode =
@@ -272,10 +259,7 @@ type BareRefusalCode =
   | 'alias_mismatch'
   // A membership change that would leave the organization without a
   // super-admin (task 3.7).
-  | 'last_super_admin'
-  // A project reach change or a step removal that would close a step-node
-  // dependency cycle. Outside a batch, so it carries no command position.
-  | 'dependency_cycle';
+  | 'last_super_admin';
 
 type SharedCommandCode = 'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use';
 
@@ -301,8 +285,6 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     name_required: undefined | CommandContext;
     taken: undefined | { field?: 'markerId' } | CommandRefusalDetail['taken'];
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
-    /** The typed dependencies naming a step that a removal would take away. */
-    referenced_by_dependency: { dependencyIds: string[] };
     nothing_to_undo: { detail: string | null };
     stale_undo: { detail: string | null };
     stale_address_revision: { addressRevision: string };

@@ -89,10 +89,7 @@ describe('the organization audit', () => {
   });
 
   it('rolls back while nothing is recorded', () => {
-    expect(rollbackTo(path, FOLDER, FREEZE)).toEqual([
-      '20260927220000_add_organization_audit',
-      '20260927213000_add_typed_dependency',
-    ]);
+    expect(rollbackTo(path, FOLDER, FREEZE)).toEqual(['20260927220000_add_organization_audit']);
   });
 
   const member = (userId: string, role: string) =>

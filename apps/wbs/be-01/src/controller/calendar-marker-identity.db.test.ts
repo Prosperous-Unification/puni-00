@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { clockOf } from '@wbs/core';
-import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -34,7 +33,6 @@ import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
@@ -146,14 +144,8 @@ describe('the schedule identity guarantee', () => {
     const projects = new ProjectRepository(db, OPEN);
 
     const writing = {
-      projects: new ProjectService({
-        dependencyGraph: sqliteDependencyGraph(db, projects),
-        clock: testClock,
-        projects,
-        broadcast,
-      }),
+      projects: new ProjectService({ clock: testClock, projects, broadcast }),
       steps: new StepService({
-        dependencyGraph: sqliteDependencyGraph(db, projects),
         clock: testClock,
         projects,
         steps: new StepRepository(db, OPEN),
@@ -169,7 +161,6 @@ describe('the schedule identity guarantee', () => {
         measures: new StepMeasureRepository(db, OPEN),
         progress: new StepProgressRepository(db, OPEN),
         dependencies: new DependencyRepository(db, OPEN),
-        typedDependencies: new TypedDependencyRepository(db, OPEN),
         directory: new DirectoryRepository(db, OPEN),
         capacity: inMemoryCapacity(),
         priorityBands: inMemoryPriorityBands(),
@@ -349,8 +340,6 @@ describe('the schedule identity guarantee', () => {
       'ask.input.poolSizes',
       'ask.input.reach',
       'ask.input.deadlines',
-      // The eighth since typed dependencies (WBS 010.4.6).
-      'ask.input.typed',
     ]);
 
     // (b) The engine itself. Both halves matter: an import of the marker module

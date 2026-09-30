@@ -12,9 +12,7 @@
  * **Bump it for any change to:** Fast semantics, whether an unknown length
  * takes schedule time, what a slice's days are charged at (`12`: a project
  * step's allowance, applied before rounding —
- * `add-project-step-estimate-allowances`), which step nodes a dependency joins
- * (`13`: typed finish-to-start dependencies resolved beside the legacy links —
- * `add-step-finish-start-dependencies`),
+ * `add-project-step-estimate-allowances`),
  * `snapWorkdays`, dependency reach, numbering semantics, resource tie-breaks,
  * the canonicalizer, {@link SOLVER_QUANTUM}, or the duration rule. The bump is
  * what evicts every pre-existing cached result; there is no migration of stored
@@ -124,7 +122,7 @@
  * reddens until the number moves. On a direct push the lint reports after the
  * commit has landed, which is detection and not prevention.
  */
-export const SCHEDULER_CONTRACT_VERSION = 13;
+export const SCHEDULER_CONTRACT_VERSION = 12;
 
 /**
  * The composite the **wire** carries and the **cache key** stores, from one

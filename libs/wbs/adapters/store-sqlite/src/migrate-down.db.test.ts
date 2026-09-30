@@ -316,7 +316,6 @@ const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
  * {@link ORGANIZATION_BRIDGE} and reversed before it.
  */
 const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
-const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -654,7 +653,6 @@ describe('readMigrationFolders', () => {
       ORGANIZATION_ACTIVATION,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_FROZEN,
-      TYPED_DEPENDENCY,
       '20260927220000_add_organization_audit',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
@@ -780,7 +778,6 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_FROZEN,
-        TYPED_DEPENDENCY,
         '20260927220000_add_organization_audit',
       ]);
 
@@ -788,7 +785,6 @@ describe('rollbackTo, against a real database', () => {
 
       expect(reversed).toEqual([
         '20260927220000_add_organization_audit',
-        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -913,7 +909,6 @@ describe('rollbackTo, against a real database', () => {
         ORGANIZATION_ACTIVATION,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_FROZEN,
-        TYPED_DEPENDENCY,
         '20260927220000_add_organization_audit',
       ]);
     } finally {
@@ -986,7 +981,6 @@ describe('rollbackTo, against a real database', () => {
 
       expect(reversed).toEqual([
         '20260927220000_add_organization_audit',
-        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -1084,7 +1078,6 @@ describe('rollbackTo, against a real database', () => {
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
         '20260927220000_add_organization_audit',
-        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,
@@ -1167,7 +1160,6 @@ describe('rollbackTo, against a real database', () => {
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
         '20260927220000_add_organization_audit',
-        TYPED_DEPENDENCY,
         ORGANIZATION_FROZEN,
         ORGANIZATION_BRIDGE,
         ORGANIZATION_ACTIVATION,

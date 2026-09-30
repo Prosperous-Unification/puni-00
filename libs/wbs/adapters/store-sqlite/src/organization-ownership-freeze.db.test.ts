@@ -12,8 +12,6 @@ import { rollbackTo } from './migrate-down';
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
 const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
-/** Stamped after the freeze, so a rollback to the bridge reverses it first. */
-const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 /** Each side table with its root table and the root row seeded for it. */
 const SIDES = [
@@ -133,7 +131,6 @@ it('rolls back to the bridge and reapplies', () => {
   db.close();
   expect(rollbackTo(path, FOLDER, ORGANIZATION_BRIDGE)).toEqual([
     '20260927220000_add_organization_audit',
-    TYPED_DEPENDENCY,
     ORGANIZATION_FROZEN,
   ]);
   db = openDatabase(path);

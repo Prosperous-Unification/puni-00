@@ -86,7 +86,6 @@ const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
  * {@link ORGANIZATION_BRIDGE} and reversed before it.
  */
 const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
-const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 let dir: string;
 let path: string;
@@ -180,7 +179,6 @@ describe('saved_plan.created_by_id', () => {
 
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
       '20260927220000_add_organization_audit',
-      TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
@@ -279,7 +277,6 @@ describe('saved_plan.created_by_id', () => {
   it('leaves a row written before the column reading null', () => {
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
       '20260927220000_add_organization_audit',
-      TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,

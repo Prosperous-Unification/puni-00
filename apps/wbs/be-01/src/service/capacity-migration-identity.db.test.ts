@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { DEFAULT_PRIORITY_BANDS, suggestStepCode } from '@wbs/domain';
-import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
@@ -259,9 +258,7 @@ describe('every plan schedules identically across the migration', () => {
         }
         return null;
       };
-      const { depReach, pertWeights, estimateRounding, typedDependencies, ...treeWithoutReach } =
-        tree;
-      expect(typedDependencies).toEqual([]);
+      const { depReach, pertWeights, estimateRounding, ...treeWithoutReach } = tree;
       // The weights and the rounding are lifted for `depReach`'s reason exactly
       // — the oracle predates both fields — and asserted rather than dropped so
       // that a replay which stopped setting them would fail here instead of
@@ -581,7 +578,6 @@ describe('every plan schedules identically across the migration', () => {
       measures,
       progress,
       dependencies,
-      typedDependencies: inMemoryTypedDependencies(),
       directory,
       capacity: inMemoryCapacity({
         [plan.projectId]: Object.fromEntries(seeded.get(plan.projectId) ?? []),

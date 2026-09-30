@@ -11,28 +11,6 @@ const estimate: CompensatingCommand = {
 };
 const edge: CompensatingCommand = { do: 'add_dependency', successorId: 'w2', predecessorId: 'w1' };
 
-it('reads typed compensating commands and names both touched endpoints and the successor', () => {
-  const before = {
-    id: 'd',
-    projectId: 'p',
-    predecessor: { scope: 'whole' as const, workItemId: 'a' },
-    successor: { scope: 'whole' as const, workItemId: 'b' },
-    type: 'FS' as const,
-  };
-  const after = { ...before, predecessor: { scope: 'whole' as const, workItemId: 'c' } };
-  const commands: CompensatingCommand[] = [
-    { do: 'add_typed_dependency', dependency: before },
-    { do: 'remove_typed_dependency', dependency: before },
-    { do: 'update_typed_dependency', from: before, to: after },
-  ];
-  for (const command of commands) expect(readCommand(command)).toEqual(command);
-  expect(touchedBy(commands[0])).toEqual(['a', 'b']);
-  expect(touchedBy(commands[1])).toEqual(['a', 'b']);
-  expect(touchedBy(commands[2])).toEqual(['a', 'b', 'c']);
-  for (const command of commands)
-    expect(subjectOf(command)).toEqual({ workItemId: 'b', stepId: null });
-});
-
 describe('a batch as one compensating command', () => {
   it('touches what its steps touch, each once', () => {
     // The batch's preconditions are the revisions of every entity any step
