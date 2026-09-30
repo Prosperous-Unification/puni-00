@@ -12,15 +12,14 @@ an ordered list of typed commands (create, patch, move, estimate, dependency,
 capacity, directory entries…) applied all or none, recorded as **one undo**, and
 answering the id each `ref` became. A later command names what an earlier one
 created by its ref. The directory has no project, so its edits alone have
-`postApiDirectoryCommands`. 53 tools in all: the reads, the two batches,
+`postApiDirectoryCommands`. 44 tools in all: the reads, the two batches,
 undo, redo, the project and step routes, the export, the import, the six saved-plan
 routes — the five that create, list, read, rename and delete a snapshot, plus
 `getApiProjectsByIdSaved-plansCompare`, which answers what changed between two
 of them — the four calendar-marker routes that list, add, edit and delete a
 dated annotation on a project's axis, and the two membership routes that promote, demote or
-remove a member of the active organization, three invitation administration routes, three join-request administration routes, the organization domain-claim routes,
-and six onboarding routes, which refuse every delegated caller and so answer an
-MCP client with 403. The marker writes are not batched with the
+remove a member of the active organization, and the three onboarding routes, which refuse
+every delegated caller and so answer an MCP client with 403. The marker writes are not batched with the
 rest: a marker is not a plan edit, so no `commands` command creates one. One call
 also retries a failed or corrupt optimized variant; Retry is a project lifecycle
 action with no plan-command equivalent. Step edits may address a node with

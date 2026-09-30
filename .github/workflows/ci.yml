@@ -223,16 +223,13 @@ permissions:
 jobs:
   gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
     # The original 20-minute box expired after the ordinary Nx phase and during Tool Wiki.
     # Forty-five minutes then expired too: run 35337661318 (2026-09-18, every project affected and
     # the packed package suite in scope) spent 44m48s through the solver image smoke and was
     # canceled in the heavy-work lock test. Sixty minutes is a finite allowance above that
     # measurement. Evidence: openspec/changes/agent-scalable-llm-wiki/verify.md,
-    # "CI gate budget repair after 6234d1c1". Sixty then expired too: run 36410497860 (main
-    # 94ce7928, 2026-09-28) spent 57m46s in the Nx step alone, and run 36416401675 was canceled
-    # at 60m in `Gate head pinning` after every earlier step passed. Ninety leaves a third above
-    # that measurement.
+    # "CI gate budget repair after 6234d1c1".
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
       # nx falls back to a different file scope rather than failing. Since

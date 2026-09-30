@@ -1,12 +1,10 @@
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import {
-  completeAuth0Link,
   completeOidcLogin,
   httpShapes,
   logoutOidcSession,
   refreshOidcSession,
   type RequestPolicy,
-  startAuth0Link,
   startOidcLogin,
 } from '@wbs/contracts';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
@@ -21,12 +19,6 @@ import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
 import { testCapacityService } from './testing/capacity-fixture';
 import { testClock } from './testing/clock-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
-import {
-  refusingEmailVerification,
-  refusingInvitations,
-  refusingJoinRequests,
-  refusingTestEmailDelivery,
-} from './testing/email-verification-fixture';
 import { testHistoryService } from './testing/history-fixture';
 import { testLoginThrottle } from './testing/login-throttle-fixture';
 import {
@@ -47,10 +39,6 @@ function options(): AppOptions {
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     domains: refusingDomains,
-    emailVerification: refusingEmailVerification,
-    invitations: refusingInvitations,
-    joinRequests: refusingJoinRequests,
-    emailDelivery: refusingTestEmailDelivery,
     onboarding: {
       discover: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
       createOrganization: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
@@ -133,24 +121,15 @@ const INTERNAL_SECRET = 'x'.repeat(32);
 const OIDC_SHAPES = new Set<(typeof httpShapes)[number]>([
   startOidcLogin,
   completeOidcLogin,
-  startAuth0Link,
-  completeAuth0Link,
   refreshOidcSession,
   logoutOidcSession,
 ]);
 const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
-  postApiAuthContext: { organizationId: ROUTE_ID },
-  postApiAuthLinkAuth0: { password: 'valid-password' },
   postApiAuthRegister: { username: 'route-probe', password: 'valid-password' },
   postApiAuthLogin: { username: 'route-probe', password: 'valid-password' },
   postApiOnboardingOrganizations: { name: 'Reachable organization' },
   postApiOnboardingJoinRequests: { organizationId: ROUTE_ID },
   postApiOrganizationDomainsChallenges: { domain: 'example.org' },
-  postApiOnboardingEmailChallenges: { email: 'test@example.org' },
-  postApiOnboardingEmailChallengesConfirm: { email: 'test@example.org', token: 'invalid' },
-  postApiOrganizationInvitations: { email: 'test@example.org', role: 'viewer' },
-  postApiOrganizationJoinRequestsByIdApprove: { role: 'viewer' },
-  postApiOnboardingInvitationsAccept: { token: 'invalid' },
   postApiSmokeEcho: { text: 'reachable' },
   postApiProjectsByIdSteps: { name: 'Reachable step' },
   patchApiProjectsByIdStepsByStepId: { name: 'Renamed step' },
@@ -204,15 +183,12 @@ const REQUEST_BOUNDARY_ERRORS = new Set([
   'insufficient_scope',
 ]);
 const PUBLIC_OPERATIONS = [
-  'getApiAuthLinkAuth0Callback',
   'getApiAuthLogin',
   'getApiAuthMe',
   'getApiAuthOktaCallback',
   'getHealth',
   'getMetrics',
   'postApiAuthLogin',
-  'postApiAuthContext',
-  'postApiAuthLinkAuth0',
   'postApiAuthLogout',
   'postApiAuthRefresh',
   'postApiAuthRegister',
@@ -222,8 +198,6 @@ const SIGNED_IN_OPERATIONS = [
   'getApiExternal-systems',
   'getApiOnboarding',
   'getApiOrganizationDomains',
-  'getApiOrganizationInvitations',
-  'getApiOrganizationJoinRequests',
   'getApiPeople',
   'getApiProjects',
   'getApiProjectsById',
@@ -241,7 +215,6 @@ const SIGNED_IN_OPERATIONS = [
 ] as const;
 const READ_SCOPE_OPERATIONS = ['getApiProjectsByIdExport', 'getPlansBy-solutionBySlug'] as const;
 const WRITE_SCOPE_OPERATIONS = [
-  'deleteApiOrganizationInvitationsById',
   'deleteApiOrganizationMembersByUserId',
   'deleteApiProjectsByIdCalendar-markersByMarkerId',
   'deleteApiProjectsByIdStepsByStepId',
@@ -252,17 +225,11 @@ const WRITE_SCOPE_OPERATIONS = [
   'patchApiProjectsByIdStepsByStepId',
   'patchApiSaved-plansById',
   'postApiDirectoryCommands',
-  'postApiOnboardingEmailChallenges',
-  'postApiOnboardingEmailChallengesConfirm',
-  'postApiOnboardingInvitationsAccept',
   'postApiOnboardingJoinRequests',
   'postApiOnboardingOrganizations',
   'postApiOrganizationDomainsByIdRotate',
   'postApiOrganizationDomainsByIdVerify',
   'postApiOrganizationDomainsChallenges',
-  'postApiOrganizationInvitations',
-  'postApiOrganizationJoinRequestsByIdApprove',
-  'postApiOrganizationJoinRequestsByIdDeny',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -277,17 +244,10 @@ const WRITE_SCOPE_OPERATIONS = [
 const INTERNAL_OPERATIONS = ['postInternalForward', 'postInternalResume'] as const;
 const GATEWAY_OPERATIONS = ['postInternalGatewayProjectAccess'] as const;
 const ALWAYS_ORIGIN_OPERATIONS = [
-  'deleteApiOrganizationInvitationsById',
   'postApiAuthLogin',
   'postApiAuthRegister',
-  'postApiOnboardingEmailChallenges',
-  'postApiOnboardingEmailChallengesConfirm',
-  'postApiOnboardingInvitationsAccept',
   'postApiOnboardingJoinRequests',
   'postApiOnboardingOrganizations',
-  'postApiOrganizationInvitations',
-  'postApiOrganizationJoinRequestsByIdApprove',
-  'postApiOrganizationJoinRequestsByIdDeny',
 ] as const;
 const COOKIE_ORIGIN_OPERATIONS = [
   'deleteApiOrganizationMembersByUserId',
@@ -300,8 +260,6 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'patchApiProjectsByIdCalendar-markersByMarkerId',
   'patchApiProjectsByIdStepsByStepId',
   'patchApiSaved-plansById',
-  'postApiAuthContext',
-  'postApiAuthLinkAuth0',
   'postApiAuthLogout',
   'postApiAuthRefresh',
   'postApiDirectoryCommands',
@@ -321,15 +279,12 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiSmokeEcho',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
-  'getApiAuthLinkAuth0Callback',
   'getApiAuthLogin',
   'getApiAuthMe',
   'getApiAuthOktaCallback',
   'getApiExternal-systems',
   'getApiOnboarding',
   'getApiOrganizationDomains',
-  'getApiOrganizationInvitations',
-  'getApiOrganizationJoinRequests',
   'getApiPeople',
   'getApiProjects',
   'getApiProjectsById',

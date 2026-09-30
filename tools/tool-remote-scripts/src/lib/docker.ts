@@ -541,41 +541,6 @@ export function migrateStatusCommand(container: string): string[] {
   return ['exec', container, 'bun', 'run', 'src/migrate-status-cli.ts'];
 }
 
-/**
- * Reads incoming types. Only an absent CLI under a readable source directory means FS-only.
- * Proof: replacing the directory check with an unconditional FS fallback made
- * `does not treat a missing source directory as an older release` fail on
- * `Expected: 74, Received: 0`.
- */
-export function relationshipTypesCommand(container: string): string[] {
-  return [
-    'exec',
-    container,
-    'sh',
-    '-c',
-    'if test -f src/relationship-types-cli.ts; then bun run src/relationship-types-cli.ts; elif test -e src/relationship-types-cli.ts; then exit 73; elif test -d src && test -r src && test -x src; then printf \'["FS"]\\n\'; else exit 74; fi',
-  ];
-}
-
-/** Reads distinct stored types through the shared DB_PATH without importing release code. */
-export function storedRelationshipTypesCommand(container: string): string[] {
-  return [
-    'exec',
-    container,
-    'bun',
-    '-e',
-    `import { Database } from 'bun:sqlite';
-const path = process.env.DB_PATH;
-if (!path) throw new Error('DB_PATH must be set');
-const db = new Database(path, { readonly: true });
-try {
-  const exists = db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='typed_dependency'").get();
-  const rows = exists === null ? [] : db.query('SELECT type, count(*) AS count FROM typed_dependency GROUP BY type').all();
-  console.log(JSON.stringify(rows));
-} finally { db.close(); }`,
-  ];
-}
-
 /** Applies pending migrations through the path shipped in the backend image. */
 export function migrateCommand(container: string): string[] {
   return ['exec', container, 'bun', 'run', 'src/migrate-cli.ts'];
