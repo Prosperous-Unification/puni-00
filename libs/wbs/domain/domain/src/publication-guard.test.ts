@@ -47,7 +47,6 @@ const inputOf = (
   poolSizes: new Map(),
   reach: 'whole-item',
   deadlines,
-  typed: [],
 });
 
 const NO_MOVEMENT = () => 0;
@@ -91,7 +90,6 @@ describe('(i) the width-5 case: quantisation costs more than the search won', ()
       new Map(),
       'whole-item',
       new Map(),
-      [],
       quantisedOptimum,
     );
 
@@ -128,7 +126,6 @@ describe('(i) the width-5 case: quantisation costs more than the search won', ()
         new Map(),
         'whole-item',
         new Map(),
-        [],
         quantisedOptimum,
       ),
       'makespan',
@@ -177,7 +174,6 @@ describe('(ii) an equal primary carrying a strictly better secondary', () => {
       new Map(),
       'whole-item',
       new Map(),
-      [],
       smithOrder,
     );
 
@@ -211,7 +207,6 @@ describe('(ii) an equal primary carrying a strictly better secondary', () => {
       new Map(),
       'whole-item',
       new Map(),
-      [],
       smithOrder,
     );
 

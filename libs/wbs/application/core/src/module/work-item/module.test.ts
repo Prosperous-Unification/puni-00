@@ -37,7 +37,6 @@ async function seeded() {
       capacity: stores.capacity,
       priorityBands: stores.priorityBands,
       dependencies: stores.dependencies,
-      typedDependencies: stores.typedDependencies,
       subtrees: stores.subtrees,
       journal: stores.journal,
       broadcast,
@@ -66,9 +65,6 @@ const hostRequirements = () => {
     }),
     capacityStore: DiBag.createProvider(() => stores.capacity, { factoryReturnKind: 'sync-value' }),
     priorityBandStore: DiBag.createProvider(() => stores.priorityBands, {
-      factoryReturnKind: 'sync-value',
-    }),
-    typedDependencyStore: DiBag.createProvider(() => stores.typedDependencies, {
       factoryReturnKind: 'sync-value',
     }),
     dependencyStore: DiBag.createProvider(() => stores.dependencies, {

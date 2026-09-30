@@ -13,7 +13,6 @@ import { ProjectService } from '@wbs/core';
 import { StepService } from '@wbs/core';
 import { WorkItemService } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
@@ -38,7 +37,6 @@ import { sqliteUnitOfWork } from './sqlite-unit-of-work';
 import { StepRepository } from './step';
 import { StepMeasureRepository } from './step-measure';
 import { StepProgressRepository } from './step-progress';
-import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
 import { SubtreeRepository, WorkItemRepository } from './work-item';
 
@@ -146,7 +144,6 @@ beforeEach(async () => {
     capacity: capacityStore,
     priorityBands: bandStore,
     dependencies: new DependencyRepository(db, OPEN),
-    typedDependencies: new TypedDependencyRepository(db, OPEN),
     subtrees: new SubtreeRepository(db, OPEN),
     journal: new CommandJournalRepository(db, OPEN),
     broadcast,
@@ -181,19 +178,11 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
     projects: new ProjectService({
-      dependencyGraph: new DependencyGraphGuard({
-        ...buildStores(db, OPEN),
-        projects: projectStore,
-      }),
       clock: testClock,
       projects: projectStore,
       broadcast: selectedBroadcast,
     }),
     steps: new StepService({
-      dependencyGraph: new DependencyGraphGuard({
-        ...buildStores(db, OPEN),
-        projects: projectStore,
-      }),
       clock: testClock,
       projects: projectStore,
       steps: stepStore,
@@ -215,7 +204,6 @@ beforeEach(async () => {
   // The route's own service, built exactly as `buildServices` builds it: the
   // step store on the process connection, and no knowledge of the batch at all.
   steps = new StepService({
-    dependencyGraph: new DependencyGraphGuard({ ...buildStores(db, OPEN), projects: projectStore }),
     clock: testClock,
     projects: projectStore,
     steps: stepStore,
@@ -223,7 +211,6 @@ beforeEach(async () => {
   });
 
   const created = await new ProjectService({
-    dependencyGraph: new DependencyGraphGuard({ ...buildStores(db, OPEN), projects: projectStore }),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
