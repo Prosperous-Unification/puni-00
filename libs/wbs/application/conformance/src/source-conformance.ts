@@ -12,7 +12,6 @@ import { eventLogRegistrations } from './stores/event-log';
 import { journalRegistrations } from './stores/journal';
 import { measureRegistrations } from './stores/measures';
 import { planEventRegistrations } from './stores/plan-events';
-import { typedDependencyRegistrations } from './stores/typed-dependencies';
 export { DEPENDENCY_SURVIVOR_IDS } from './stores/dependencies';
 import { progressRegistrations } from './stores/progress';
 export { PROGRESS_SENTINEL_STEP_ID } from './stores/progress';
@@ -42,9 +41,6 @@ export interface ExistingStoreOpeners {
   readonly actuals: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['actuals']>>;
   readonly measures: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['measures']>>;
   readonly progress: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['progress']>>;
-  readonly typedDependencies: (
-    caseId: CaseId,
-  ) => Promise<CaseFixture<TransactionalStores['typedDependencies']>>;
   readonly dependencies: (
     caseId: CaseId,
   ) => Promise<CaseFixture<TransactionalStores['dependencies']>>;
@@ -78,7 +74,6 @@ export function existingStoreRegistrations(
     ...measureRegistrations(openers.measures),
     ...progressRegistrations(openers.progress),
     ...dependencyRegistrations(openers.dependencies),
-    ...typedDependencyRegistrations(openers.typedDependencies),
     ...directoryRegistrations(openers.directory),
     ...eventLogRegistrations(openers.eventLog),
     ...planEventRegistrations(openers.planEvents),
