@@ -44,6 +44,11 @@ async function waitForChildLine(
     reader.releaseLock();
   }
   if (printed !== `${expected}\n`) {
+    // A complete wrong line may come from a child that remains alive. Report it
+    // now; only a closed stream needs its exit code and stderr for context.
+    if (printed.includes('\n')) {
+      throw new Error(`child printed ${JSON.stringify(printed)} instead of ${expected}`);
+    }
     const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
     throw new Error(
       `child printed ${JSON.stringify(printed)} instead of ${expected}; exit ${String(exitCode)}; stderr: ${stderr}`,
@@ -381,6 +386,28 @@ describe('assertEngineContract', () => {
 });
 
 describe('runEngineLifecycle', () => {
+  it('reports a wrong readiness line while the child is still alive', async () => {
+    const child = Bun.spawn(
+      ['bun', '-e', "process.stdout.write('wrong\\n'); setInterval(() => undefined, 1_000);"],
+      { stdout: 'pipe', stderr: 'pipe' },
+    );
+    const readiness = waitForChildLine(child, 'ready').then(
+      () => ({ kind: 'accepted' as const }),
+      (failure: unknown) => ({ kind: 'refused' as const, failure }),
+    );
+    try {
+      const response = await Promise.race([readiness, Bun.sleep(500).then(() => null)]);
+      expect(response).not.toBeNull();
+      expect(response).toMatchObject({ kind: 'refused' });
+      if (response?.kind === 'refused') {
+        expect(String(response.failure)).toContain('printed "wrong\\n" instead of ready');
+      }
+    } finally {
+      child.kill();
+      await child.exited;
+    }
+  });
+
   function control(stopError?: Error): { control: EngineControl; calls: string[] } {
     const calls: string[] = [];
     return {
