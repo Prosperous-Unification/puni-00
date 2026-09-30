@@ -1,8 +1,8 @@
 ## 1. Gate rollout and code rollback
 
-- [x] 1.1 Red: production swap refuses FS-only code when SS/FF rows exist; compatible readers accept the rows.
-- [ ] 1.2 Deploy compatible readers before writes and add the code rollback guard with a manual recovery command. Verify Stage A's migration pair supports SS/FF or ship an additive pair. (Guard, recovery procedure, and migration-pair review complete; compatible-reader deployment remains before Stage B writes.)
-- [x] 1.3 Negative proof: bypass the code guard; watch the production swap refusal fail, restore, add adjacent `Proof:`.
+- [ ] 1.1 Red: production swap refuses FS-only code when SS/FF rows exist; compatible readers accept the rows.
+- [ ] 1.2 Deploy compatible readers before writes and add the code rollback guard with a manual recovery command. Verify Stage A's migration pair supports SS/FF or ship an additive pair.
+- [ ] 1.3 Negative proof: bypass the code guard; watch the production swap refusal fail, restore, add adjacent `Proof:`.
 
 ## 2. Validate SS/FF graph semantics
 

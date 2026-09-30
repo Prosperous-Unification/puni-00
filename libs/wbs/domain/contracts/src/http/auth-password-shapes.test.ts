@@ -1,11 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import {
-  issueBearerContext,
-  loginPassword,
-  readPasswordSession,
-  registerPassword,
-} from './auth-password-shapes';
+import { loginPassword, readPasswordSession, registerPassword } from './auth-password-shapes';
 import { documentFromShapes } from './document-from-shapes';
 import { validateSchema } from './schema-shape';
 
@@ -65,22 +60,4 @@ test('declares an explicit anonymous session while rejecting malformed success b
   expect(
     (await validateSchema(success, { user: { id: 'account', username: 'ada' } })).issues,
   ).toBeDefined();
-});
-
-test('context exchange fixes its audience and models credential and authority refusals', async () => {
-  expect(issueBearerContext.policies).toEqual([
-    { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
-  ]);
-  expect(
-    (await validateSchema(issueBearerContext.body, { organizationId: 'org-a' })).issues,
-  ).toBeUndefined();
-  expect(
-    (
-      await validateSchema(issueBearerContext.body, {
-        organizationId: 'org-a',
-        audience: 'wbs-be-01/via-mcp-01',
-      })
-    ).issues,
-  ).toBeDefined();
-  expect(issueBearerContext.refusals.map(({ status }) => status)).toEqual([400, 401, 403, 403]);
 });

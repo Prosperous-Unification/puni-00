@@ -1,38 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import {
-  InMemoryOidcLinkStore,
-  InMemoryOidcTransactionStore,
-  InMemoryTokenStore,
-} from './oidc-store';
-
-describe('InMemoryOidcLinkStore', () => {
-  const proof = (userId: string) => ({
-    userId,
-    session: `session-${userId}`,
-    state: 'state',
-    nonce: 'nonce',
-    verifier: 'verifier',
-  });
-
-  it('expires proofs and bounds the retained starts', () => {
-    let now = 1_000;
-    const store = new InMemoryOidcLinkStore(() => now, 2);
-    store.save('first', proof('first'));
-    store.save('second', proof('second'));
-    store.save('third', proof('third'));
-    expect(store.consume('first', 'state', 'session-first')).toBeNull();
-    expect(store.consume('second', 'state', 'session-second')).toMatchObject({ userId: 'second' });
-    now += 300_000;
-    expect(store.consume('third', 'state', 'session-third')).toBeNull();
-  });
-
-  it('refuses a nonpositive link retention limit', () => {
-    expect(() => new InMemoryOidcLinkStore(() => 1_000, 0)).toThrow(
-      'link transaction limit must be positive',
-    );
-  });
-});
+import { InMemoryOidcTransactionStore, InMemoryTokenStore } from './oidc-store';
 
 function transactionRecords(store: InMemoryOidcTransactionStore): Map<string, unknown> {
   // Tests inspect the concrete in-memory boundary to prove what it retains.

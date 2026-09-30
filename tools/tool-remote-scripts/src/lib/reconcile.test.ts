@@ -69,10 +69,6 @@ describe('planSwap', () => {
 
   it('includes migrate and grant-alias for be, in that order, before routing', () => {
     const plan = planSwap('be', base);
-    expect(plan.steps.indexOf('relationship-types')).toBeGreaterThan(
-      plan.steps.indexOf('start-green'),
-    );
-    expect(plan.steps.indexOf('relationship-types')).toBeLessThan(plan.steps.indexOf('migrate'));
     expect(plan.steps).toContain('migrate');
     expect(plan.steps.indexOf('migrate')).toBeLessThan(plan.steps.indexOf('health-gate'));
     expect(plan.steps.indexOf('grant-alias')).toBeLessThan(plan.steps.indexOf('render-route'));
@@ -109,12 +105,7 @@ describe('planSwap', () => {
 
   it('backfills step codes for be once the old colour has stopped, before committing', () => {
     const steps = planSwap('be', base).steps;
-    expect(steps.slice(-4)).toEqual([
-      'stop-blue',
-      'relationship-types-after-stop',
-      'backfill-step-codes',
-      'commit',
-    ]);
+    expect(steps.slice(-3)).toEqual(['stop-blue', 'backfill-step-codes', 'commit']);
   });
 
   it('backfills step codes for be on a first-ever deploy too — the file may predate it', () => {
@@ -125,7 +116,6 @@ describe('planSwap', () => {
       phase: null,
     }).steps;
     expect(steps.slice(-2)).toEqual(['backfill-step-codes', 'commit']);
-    expect(steps).not.toContain('relationship-types-after-stop');
   });
 
   it('never backfills step codes for gw or fe', () => {

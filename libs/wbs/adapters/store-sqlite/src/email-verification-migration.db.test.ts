@@ -49,7 +49,6 @@ describe('email verification migration', () => {
 
   it('rolls down before activation without evidence', () => {
     expect(rollbackTo(path, FOLDER, PREVIOUS)).toEqual([
-      '20260928040000_add_email_challenge',
       '20260928030000_add_delegation_use',
       '20260928020000_add_email_verification',
     ]);
