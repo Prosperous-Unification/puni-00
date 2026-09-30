@@ -4,8 +4,8 @@ import type { StepService, StepServiceOptions } from './step.resource';
  * What a host must supply to install {@link stepModule}.
  *
  * Exactly {@link StepServiceOptions}, unchanged by the move: the project and
- * step stores of the one scope being installed over, the broadcaster, the
- * clock and the dependency graph guard. `servicesOver` supplies the stores of each admitted scope, so one
+ * step stores of the one scope being installed over, the broadcaster and the
+ * clock. `servicesOver` supplies the stores of each admitted scope, so one
  * installation never outlives the scope it was built over.
  *
  * **No K6 debt; K4 support and K2 debt disclosed.** Step is a resource: it

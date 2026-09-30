@@ -16,11 +16,6 @@ const CONFLICTS = new Set([
   'frozen',
   'rolled_up',
   'ancestor',
-  'self_node',
-  'not_a_parent',
-  'duplicate_dependency',
-  'dependency_cycle',
-  'referenced_by_dependency',
   'too_large',
   'taken',
   'in_use',
@@ -50,11 +45,7 @@ const CONFLICTS = new Set([
  * that may pass on its own, and the same body sent an hour later is refused
  * identically unless somebody moves the project.
  */
-const UNPROCESSABLE = new Set([
-  'calendar_range',
-  'deadline_before_project_start',
-  'unsupported_relationship_type',
-]);
+const UNPROCESSABLE = new Set(['calendar_range', 'deadline_before_project_start']);
 
 /**
  * The status a refusal code is answered with, given what **this** route says

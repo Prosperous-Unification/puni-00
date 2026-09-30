@@ -17,9 +17,8 @@ import type { SavedPlanResource } from './saved-plan.resource';
 /**
  * The dates a captured plan has, computed from the captured values alone.
  *
- * Captured arguments to `schedule()` are derived here from {@link PlanInputReads};
- * typed dependencies come from that same snapshot. There is no store, connection,
- * or second read. That is the
+ * Every argument `schedule()` takes is derived here from {@link PlanInputReads}
+ * and from nothing else: no store, no connection, no second read. That is the
  * whole point of slice 3 and the reason {@link PlanInputReads} is kept apart
  * from `PlanInputRows` — a scheduling pass is the most expensive thing this
  * feature does, and running it inside the capture's read transaction would hold
@@ -110,12 +109,10 @@ export function scheduleInputOfCaptured(reads: PlanInputReads): ScheduleInput {
     poolSizes: reads.capacity,
     reach: reads.project.depReach,
     deadlines,
-    // Proof: dropping the captured list made `schedules a captured node relationship into a later successor step` observe B.s2 at day 1 instead of 3 (2026-09-27).
-    typed: reads.typedDependencies,
   };
 }
 
-/** Schedules the canonical input derived from detached capture reads. */
+/** Schedules the canonical seven-field input derived from detached capture reads. */
 export function schedulePlanInput(reads: PlanInputReads): Schedule {
   const input = scheduleInputOfCaptured(reads);
   return schedule(
@@ -126,7 +123,6 @@ export function schedulePlanInput(reads: PlanInputReads): Schedule {
     input.poolSizes,
     input.reach,
     input.deadlines,
-    input.typed,
   );
 }
 
