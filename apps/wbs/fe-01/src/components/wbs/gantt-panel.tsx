@@ -5523,6 +5523,15 @@ function GanttChart({
     [dayPx, drawnBars],
   );
 
+  /**
+   * Remount the SVG when a marker changes. Chromium can retain stale pixels at
+   * an overlapping bar edge after inserting a rule into an otherwise unchanged
+   * SVG; rebuilding the SVG repaints that edge at the same scale.
+   * Proof: without this key, the unchanged-scale marker-save browser case failed
+   * 5/5 times at 28px (20 stale pixels, maxDelta 40, columns 122-124).
+   */
+  const markerPaintKey = JSON.stringify(markers.map(({ id, date, color }) => [id, date, color]));
+
   const chartAndItsControls = (
     <>
       {detailShown && undrawnCount > 0 && (
@@ -6092,6 +6101,7 @@ function GanttChart({
           */}
             <div className="relative">
               <svg
+                key={markerPaintKey}
                 ref={chartSvgRef}
                 data-gantt-chart
                 // The contract, in three attributes: the user space is days by
