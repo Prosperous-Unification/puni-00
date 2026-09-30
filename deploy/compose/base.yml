@@ -22,6 +22,11 @@ networks:
   aivn-dev-net:
     name: aivn-dev-net
     external: true
+  # PUNI owns its services, while this shared network outlives either Compose
+  # project. Provision it once before starting PUNI or recreating Caddy.
+  puni-net:
+    name: puni-net
+    external: true
 
 volumes:
   # Non-negotiable: without this, Caddy re-requests certificates on every
@@ -39,7 +44,7 @@ services:
     # publishes a host port (design decision 1). Adding a network here
     # recreates this container — a few seconds of ingress downtime for every
     # site it serves, so it is a deliberate, scheduled step, not a side effect.
-    networks: [wbs-net, wbs-dev-net, aivn-dev-net]
+    networks: [wbs-net, wbs-dev-net, aivn-dev-net, puni-net]
     ports:
       - '80:80'
       - '443:443'

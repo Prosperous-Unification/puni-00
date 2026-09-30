@@ -65,3 +65,27 @@ The public PR gate SHALL retain a finite runtime allowance that lets the full pr
 
 - **WHEN** the full Nx gate, packed package suite, solver image smoke, and heavy-lock checks consume about one hour
 - **THEN** the CI job continues to gate head pinning, secrets scan, migration lint, and OpenSpec validation instead of cancelling those checks at the former timeout
+
+### Requirement: Persistent PUNI edge network
+
+The managed base Compose SHALL attach Caddy to an externally provisioned `puni-net` so PUNI site, app, and API containers can be routed by container DNS from their separate Compose project. The network SHALL be created explicitly once outside either Compose project and SHALL remain available when either project is removed.
+
+#### Scenario: Network is absent
+
+- **WHEN** the managed base Compose starts before `puni-net` has been provisioned
+- **THEN** Compose refuses to start instead of creating a project-owned replacement
+
+#### Scenario: Network is provisioned
+
+- **WHEN** `puni-net` exists before the managed base and website projects start
+- **THEN** Caddy and the website containers join the same network and resolve each other by container DNS
+- **AND** removing either Compose project leaves `puni-net` intact
+
+### Requirement: Public app brand
+
+The website app SHALL present the company name as PUNI in its document title and description, visible header and footer, and accessible home-link name.
+
+#### Scenario: Visitor opens the app
+
+- **WHEN** a visitor opens the app or operator route
+- **THEN** its metadata and shared page frame use PUNI as the company name

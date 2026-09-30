@@ -11,3 +11,5 @@
 - [x] Move the byte-identical initial SQL pair under `migrations/001_initial`, update runtime/build paths, and prove old database reopen plus built-package assets.
 - [x] Extend the finite public CI job budget after the full matrix passed but the one-hour limit skipped later safety checks; keep every stage in place.
 - [ ] Re-run affected checks and CodeQL on the new public PR head, prove trusted content classification and complete CI admission, then update the private pinned snapshot.
+- [ ] Prove managed Compose refuses a missing PUNI edge network, then declare the network external and attach Caddy; document one-time provisioning and prove routing plus network survival after disposable stack removal.
+- [x] Correct the public app's company name to PUNI in metadata and shared page frame; run the app's focused lint, typecheck, build, and formatting checks.
