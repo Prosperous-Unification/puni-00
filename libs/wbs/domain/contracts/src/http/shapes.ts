@@ -1,17 +1,10 @@
 import {
-  completeAuth0Link,
   completeOidcLogin,
   logoutOidcSession,
   refreshOidcSession,
-  startAuth0Link,
   startOidcLogin,
 } from './auth-oidc-shapes';
-import {
-  issueBearerContext,
-  loginPassword,
-  readPasswordSession,
-  registerPassword,
-} from './auth-password-shapes';
+import { loginPassword, readPasswordSession, registerPassword } from './auth-password-shapes';
 import {
   createCalendarMarker,
   listCalendarMarkers,
@@ -32,15 +25,6 @@ import { importProject } from './import-shapes';
 import { health, metrics } from './infrastructure-shapes';
 import { forwardInternal, gatewayProjectAccess, resumeInternal } from './internal-http-shapes';
 import {
-  acceptInvitation,
-  createInvitation,
-  listInvitations,
-  revokeInvitation,
-} from './invitation-shapes';
-import { approveJoinRequest, denyJoinRequest, listJoinRequests } from './join-request-shapes';
-import {
-  confirmEmailChallenge,
-  createEmailChallenge,
   createOnboardingOrganization,
   readOnboarding,
   submitOnboardingJoinRequest,
@@ -82,11 +66,8 @@ export const httpShapes = [
   registerPassword,
   loginPassword,
   readPasswordSession,
-  issueBearerContext,
   startOidcLogin,
   completeOidcLogin,
-  startAuth0Link,
-  completeAuth0Link,
   refreshOidcSession,
   logoutOidcSession,
   smokeEcho,
@@ -98,18 +79,9 @@ export const httpShapes = [
   listOrganizationDomains,
   createDomainChallenge,
   verifyDomainClaim,
-  listInvitations,
-  createInvitation,
-  revokeInvitation,
-  acceptInvitation,
-  listJoinRequests,
-  approveJoinRequest,
-  denyJoinRequest,
   readOnboarding,
   createOnboardingOrganization,
   submitOnboardingJoinRequest,
-  createEmailChallenge,
-  confirmEmailChallenge,
   listTeams,
   listPeople,
   listTags,

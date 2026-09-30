@@ -1821,9 +1821,7 @@ await import(${JSON.stringify(productionSnapshotter)});
     // `Expected: 45 · Received: 20` after CI canceled required Tool Wiki work at 20m11s.
     // Proof: the 45-minute value failed here on `Expected: 60 · Received: 45` after run
     // 35337661318 was canceled at 45m with every project affected and the packed suite in scope.
-    // Proof: the 60-minute value failed here on `Expected: 90 · Received: 60` after run
-    // 36416401675 was canceled at 60m in `Gate head pinning`.
-    expect(Number(gate[1])).toBe(90);
+    expect(Number(gate[1])).toBe(60);
   });
 
   test('committed entrypoint certifies the exact external-trust fixture', () => {
