@@ -8,7 +8,6 @@ import {
   ScheduleInvalidOptimizedStartError,
   type Slice,
   SOLVER_QUANTUM,
-  type TypedDependency,
 } from '@wbs/domain';
 
 import type { SolverOffsetMap } from './wire-types';
@@ -95,8 +94,6 @@ export function materialiseOptimized(
   notBefore: ReadonlyMap<string, number>,
   poolSizes: PoolSizes,
   reach: DependencyReach,
-  /** The typed dependencies the request carried; required for the baseline's reason. */
-  typed: readonly TypedDependency[],
   offsets: SolverOffsetMap,
 ): Schedule {
   const pinnedStarts = new Map<string, number>();
@@ -123,10 +120,6 @@ export function materialiseOptimized(
     poolSizes,
     reach,
     new Map(),
-    // Proof: `[]` here in place of `typed` made `refuses offsets that violate
-    // one expanded pair, independently of the wire` fail on `Received
-    // function did not throw`; watched 2026-09-27.
-    typed,
     pinnedStarts,
   );
 

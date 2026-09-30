@@ -21,7 +21,6 @@ import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broa
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
@@ -108,7 +107,6 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
     });
     const writing = {
       projects: new ProjectService({
-        dependencyGraph: sqliteDependencyGraph(db, projectStore),
         clock: testClock,
         projects: projectStore,
         broadcast: recordingBroadcaster(),

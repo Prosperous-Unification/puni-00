@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { CREATOR_ADMISSION } from '@wbs/core';
-import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { JournalEntry, LabelledWorkItem, Step, WorkItem, WriteStamp } from '../repository';
@@ -26,7 +25,6 @@ import { AvailableWorkItemService as WorkItemService } from '../testing/availabl
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
@@ -116,7 +114,6 @@ beforeEach(async () => {
   );
 
   projects = new ProjectService({
-    dependencyGraph: sqliteDependencyGraph(db, projectStore),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
@@ -135,7 +132,6 @@ beforeEach(async () => {
     capacity: inMemoryCapacity(),
     priorityBands: inMemoryPriorityBands(),
     dependencies: dependencyStore,
-    typedDependencies: new TypedDependencyRepository(db, OPEN),
     subtrees: new SubtreeRepository(db, OPEN),
     journal: journalStore,
     broadcast: recordingBroadcaster(),
