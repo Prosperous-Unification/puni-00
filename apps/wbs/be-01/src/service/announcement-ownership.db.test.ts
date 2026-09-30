@@ -4,7 +4,6 @@ import { join } from 'node:path';
 
 import type { Broadcaster, ProjectEvent } from '@wbs/core';
 import { clockOf } from '@wbs/core';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDrizzle } from '../repository/db';
@@ -102,7 +101,6 @@ beforeEach(async () => {
     { at: 1, by: ownerId },
   );
   const created = await new ProjectService({
-    dependencyGraph: new DependencyGraphGuard(stores),
     clock: testClock,
     projects: stores.projects,
     broadcast,
