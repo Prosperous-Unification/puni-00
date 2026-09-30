@@ -7,5 +7,5 @@ export default defineConfig({
   root: fileURLToPath(new URL('.', import.meta.url)),
   plugins: [react()],
   server: { port: 4201, host: 'localhost' },
-  build: { outDir: 'dist', emptyOutDir: true },
+  build: { outDir: 'dist', emptyOutDir: true, license: { fileName: 'licenses.md' } },
 });

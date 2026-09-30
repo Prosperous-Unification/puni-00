@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { ApiFailure, apiOrigin, requestJson } from './api';
-import { type Concept, parseConcept } from './concept';
-import { ConceptPreview } from './concept-preview';
+import { ApiFailure, requestJson } from './api';
+import { BuildErrorBoundary, BuildPage } from './build-page';
 const siteOrigin = import.meta.env['VITE_SITE_ORIGIN'] ?? 'http://localhost:4321';
 import './style.css';
 
@@ -524,349 +523,22 @@ function OperatorPage() {
   );
 }
 
-interface Session {
-  mode: 'demo' | 'oidc';
-  configured: boolean;
-  account: { email: string } | null;
-  csrfToken?: string;
-  draft?: { description: string; brief: string } | null;
-}
-interface ChatTurn {
-  role: 'user' | 'assistant';
-  content: string;
-}
-interface ChatHistory {
-  turns: ChatTurn[];
-  remainingTurns: number;
-}
-
-function StudioPage() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [email, setEmail] = useState('');
-  const [composer, setComposer] = useState('');
-  const [turns, setTurns] = useState<ChatTurn[]>([]);
-  const [remainingTurns, setRemainingTurns] = useState(0);
-  const [concept, setConcept] = useState<Concept | null>(null);
-  const [revisionFeedback, setRevisionFeedback] = useState('');
-  const [message, setMessage] = useState('');
-  const [pending, setPending] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    Promise.all([
-      requestJson<Session>('/session'),
-      requestJson<Draft>('/draft').catch((error: unknown) => {
-        if (error instanceof ApiFailure && error.status === 401) return null;
-        throw error;
-      }),
-    ])
-      .then(([account, draft]) => {
-        setSession(account);
-        if (draft) setComposer(draft.description);
-        if (account.draft?.description) setComposer(account.draft.description);
-        if (account.account) {
-          void loadChat();
-          void loadConcept();
-        }
-      })
-      .catch((error: unknown) => {
-        setMessage(failureMessage(error));
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, []);
-
-  async function loadChat(): Promise<void> {
-    try {
-      const history = await requestJson<ChatHistory>('/chat');
-      setTurns(history.turns);
-      if (history.turns.length > 0) setComposer('');
-      setRemainingTurns(history.remainingTurns);
-    } catch (error) {
-      setMessage(failureMessage(error));
-    }
-  }
-
-  async function loadConcept(): Promise<void> {
-    try {
-      setConcept(parseConcept(await requestJson<unknown>('/concept')));
-    } catch (error) {
-      if (!(error instanceof ApiFailure && error.status === 404)) setMessage(failureMessage(error));
-    }
-  }
-
-  async function signInDemo(event: React.SubmitEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    setPending(true);
-    setMessage('');
-    try {
-      const account = await requestJson<Session>('/session/demo', {
-        method: 'POST',
-        body: JSON.stringify({ email }),
-      });
-      setSession(account);
-      if (account.draft?.description) setComposer(account.draft.description);
-      await loadChat();
-      await loadConcept();
-    } catch (error) {
-      setMessage(failureMessage(error));
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function sendMessage(event: React.SubmitEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    const outgoing = composer.trim();
-    if (!outgoing || pending) return;
-    setPending(true);
-    setMessage('');
-    try {
-      const answer = await requestJson<{
-        reply: string;
-        remainingTurns: number;
-        provider: 'demo' | 'openrouter';
-      }>('/chat', {
-        method: 'POST',
-        headers: { 'X-Puni-CSRF': session?.csrfToken ?? '' },
-        body: JSON.stringify({ message: outgoing }),
-      });
-      setTurns((existing) => [
-        ...existing,
-        { role: 'user', content: outgoing },
-        { role: 'assistant', content: answer.reply },
-      ]);
-      setRemainingTurns(answer.remainingTurns);
-      setComposer('');
-      if (answer.provider === 'demo')
-        setMessage('This response came from the local demo provider. It is not OpenRouter.');
-    } catch (error) {
-      setMessage(failureMessage(error));
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function generateConcept(): Promise<void> {
-    setPending(true);
-    setMessage('');
-    try {
-      const preview = await requestJson<unknown>('/concept', {
-        method: 'POST',
-        headers: { 'X-Puni-CSRF': session?.csrfToken ?? '' },
-        body: JSON.stringify({}),
-      });
-      setConcept(parseConcept(preview));
-    } catch (error) {
-      setMessage(failureMessage(error));
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function reviseConcept(event: React.SubmitEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    setPending(true);
-    setMessage('');
-    try {
-      const revised = await requestJson<unknown>('/concept/revision', {
-        method: 'POST',
-        headers: { 'X-Puni-CSRF': session?.csrfToken ?? '' },
-        body: JSON.stringify({ feedback: revisionFeedback }),
-      });
-      setConcept(parseConcept(revised));
-      setRevisionFeedback('');
-    } catch (error) {
-      setMessage(failureMessage(error));
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return (
-    <div className="page-shell">
-      <Header />
-      <main className="studio-layout" id="main">
-        <p className="eyebrow">PRIVATE EXPLORATION</p>
-        <h1>Explore your idea.</h1>
-        <p>
-          Clarify the work, then ask a person for a proposal. Your original description is ready in
-          the composer and is sent only when you press Send.
-        </p>
-        {loading && <p role="status">Checking account and provider availability…</p>}
-        {!loading && session && !session.configured && (
-          <div className="future-panel">
-            <span className="tag">Unavailable here</span>
-            <h2>AI scoping needs setup.</h2>
-            <p>
-              Identity or inference has not been configured. Your manual brief remains available.
-            </p>
-            <a className="button" href="/manual">
-              Continue your brief <span aria-hidden>→</span>
-            </a>
-          </div>
-        )}
-        {!loading && session?.configured && !session.account && session.mode === 'demo' && (
-          <div className="future-panel">
-            <span className="tag">Local demonstration</span>
-            <h2>Try a demo account.</h2>
-            <p>This local account is for testing the journey. It does not verify your identity.</p>
-            <form onSubmit={(event) => void signInDemo(event)}>
-              <label htmlFor="demo-email">Demo email</label>
-              <input
-                id="demo-email"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(event) => {
-                  setEmail(event.target.value);
-                }}
-                required
-              />
-              <button className="button" disabled={pending}>
-                Enter local demo
-              </button>
-            </form>
-          </div>
-        )}
-        {!loading && session?.configured && !session.account && session.mode === 'oidc' && (
-          <div className="future-panel">
-            <span className="tag">Account required</span>
-            <h2>Sign in to continue.</h2>
-            <p>Your manual brief is still available while account sign-in is configured.</p>
-            <a className="button" href={`${apiOrigin}/session/oidc/start`}>
-              Sign in with PUNI <span aria-hidden>→</span>
-            </a>
-            <p className="small">
-              <a href="/manual">Continue your manual brief</a>
-            </p>
-          </div>
-        )}
-        {session?.account && (
-          <div className="studio-workspace">
-            <div className="studio-head">
-              <div>
-                <span className="tag">
-                  {session.mode === 'demo' ? 'Local demo identity' : 'PUNI account'}
-                </span>
-                <p className="small">{session.account.email}</p>
-              </div>
-              <span className="allowance">{remainingTurns} turns left</span>
-            </div>
-            <div className="chat-log" aria-live="polite">
-              {turns.length === 0 && (
-                <p className="chat-empty">
-                  Start with the request you brought over, or ask about users, workflows and a
-                  useful first release.
-                </p>
-              )}
-              {turns.map((turn, index) => (
-                <div className={`chat-turn ${turn.role}`} key={`${String(index)}-${turn.role}`}>
-                  <span>{turn.role === 'user' ? 'YOU' : 'PUNI EXPLORATION'}</span>
-                  <p>{turn.content}</p>
-                </div>
-              ))}
-            </div>
-            <form onSubmit={(event) => void sendMessage(event)}>
-              <label htmlFor="chat-message">Your message</label>
-              <textarea
-                id="chat-message"
-                rows={5}
-                maxLength={4000}
-                value={composer}
-                onChange={(event) => {
-                  setComposer(event.target.value);
-                }}
-                placeholder="Describe the people, workflow, or first feature you have in mind."
-                required
-              />
-              <div className="form-meta">
-                <span>Press Send to begin. AI cannot agree to price or delivery.</span>
-                <span>{composer.length}/4000</span>
-              </div>
-              <button
-                className="button"
-                disabled={pending || remainingTurns === 0 || !composer.trim()}
-              >
-                {pending ? 'Working…' : 'Send message'} <span aria-hidden>↗</span>
-              </button>
-            </form>
-            <div className="concept-tools">
-              <h2>Interface concept</h2>
-              <p>
-                Generate a bounded interactive concept from your request. It is illustrative and any
-                sign-in shown is simulated.
-              </p>
-              {!concept && (
-                <button
-                  className="text-button"
-                  disabled={pending}
-                  onClick={() => void generateConcept()}
-                >
-                  Create concept preview
-                </button>
-              )}
-              {concept && (
-                <>
-                  <ConceptPreview concept={concept} />
-                  {concept.revision === 0 && (
-                    <form className="revision-form" onSubmit={(event) => void reviseConcept(event)}>
-                      <label htmlFor="revision-feedback">What would you change?</label>
-                      <input
-                        id="revision-feedback"
-                        maxLength={300}
-                        value={revisionFeedback}
-                        onChange={(event) => {
-                          setRevisionFeedback(event.target.value);
-                        }}
-                        required
-                        placeholder="For example, make the staff view more prominent"
-                      />
-                      <button
-                        className="text-button"
-                        disabled={pending || !revisionFeedback.trim()}
-                      >
-                        Request one revision
-                      </button>
-                    </form>
-                  )}
-                </>
-              )}
-            </div>
-            <div className="future-panel">
-              <h2>Ready for human review?</h2>
-              <p>You can submit your brief now, whether or not you use every turn or a preview.</p>
-              <a className="button" href="/manual">
-                Request a proposal <span aria-hidden>→</span>
-              </a>
-            </div>
-          </div>
-        )}
-        {message && (
-          <p className="feedback" role="status">
-            {message}
-          </p>
-        )}
-      </main>
-      <Footer />
-    </div>
-  );
-}
-
 function Header() {
   return (
     <header className="site-header">
       <a className="brand" href={`${siteOrigin}/`} aria-label="PUNI home">
-        <span className="brand-mark" aria-hidden="true">
-          P
+        <span>
+          PUNI
+          <span className="brand-dot" aria-hidden="true">
+            ●
+          </span>
         </span>
-        <span>PUNI</span>
       </a>
       <nav aria-label="Primary">
-        <a href={`${siteOrigin}/services/`}>Services</a>
-        <a href={`${siteOrigin}/blog/`}>Journal</a>
-        <a href="/manual">Your request</a>
+        <a href={`${siteOrigin}/`}>[1] Home</a>
+        <a href="/">[2] Build</a>
+        <a href={`${siteOrigin}/services/`}>[3] Services</a>
+        <a href={`${siteOrigin}/blog/`}>[4] Blog</a>
       </nav>
     </header>
   );
@@ -885,9 +557,11 @@ if (!root) throw new Error('Missing app root');
 createRoot(root).render(
   window.location.pathname.startsWith('/operator') ? (
     <OperatorPage />
-  ) : window.location.pathname.startsWith('/studio') ? (
-    <StudioPage />
-  ) : (
+  ) : window.location.pathname.startsWith('/manual') ? (
     <ManualPage />
+  ) : (
+    <BuildErrorBoundary>
+      <BuildPage Header={Header} Footer={Footer} />
+    </BuildErrorBoundary>
   ),
 );

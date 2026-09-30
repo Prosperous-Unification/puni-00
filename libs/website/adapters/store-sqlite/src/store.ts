@@ -54,6 +54,28 @@ interface TurnRow {
   created_at: number;
 }
 
+interface ChatOperationRow {
+  id: string;
+  body_hash: string;
+  state: 'inflight' | 'completed' | 'unknown';
+  reply: string | null;
+  provider_call_id: string | null;
+}
+
+export type ChatAdmission =
+  | { kind: 'started'; id: string }
+  | { kind: 'completed'; reply: string }
+  | {
+      kind:
+        | 'inflight'
+        | 'unknown'
+        | 'conflict'
+        | 'turn_limit'
+        | 'budget'
+        | 'request_unavailable'
+        | 'provider_unavailable';
+    };
+
 export interface DraftRecord {
   id: string;
   description: string;
@@ -88,6 +110,10 @@ export class WebsiteStore {
         name: '004_request_scope',
         directory: join(import.meta.dir, 'migrations/004_request_scope'),
       },
+      {
+        name: '005_chat_operation',
+        directory: join(import.meta.dir, 'migrations/005_chat_operation'),
+      },
     ];
     for (const migration of migrations) {
       const forward = readFileSync(join(migration.directory, 'migration.sql'), 'utf8');
@@ -108,6 +134,194 @@ export class WebsiteStore {
         })();
       }
     }
+    // Proof: removing this restart update made the paid in-flight restart test retain a resumable operation.
+    // An interrupted server process cannot prove final provider usage or safely resume its old stream.
+    this.database.run("UPDATE chat_operation SET state = 'unknown' WHERE state = 'inflight'");
+  }
+
+  /** Admits one account-owned, request-scoped chat operation and its optional provider reservation. */
+  admitChatOperation(
+    accountId: string,
+    requestId: string,
+    idempotencyKey: string,
+    bodyHash: string,
+    message: string,
+    initial: boolean,
+    reservedMicroUsd: number | null,
+    now: number,
+    allowNew = true,
+  ): ChatAdmission {
+    return this.database.transaction((): ChatAdmission => {
+      const active = this.database
+        .query<{ id: string }, [string, string]>(
+          'SELECT id FROM software_request WHERE id = ? AND account_id = ? AND submitted_at IS NULL AND inactive_at IS NULL',
+        )
+        .get(requestId, accountId);
+      if (!active) return { kind: 'request_unavailable' };
+      const existing = this.database
+        .query<ChatOperationRow, [string, string]>(
+          'SELECT id, body_hash, state, reply, provider_call_id FROM chat_operation WHERE request_id = ? AND idempotency_key = ?',
+        )
+        .get(requestId, idempotencyKey);
+      if (existing) {
+        // Proof: the changed-body replay test fails if the same key may authorize different text.
+        if (existing.body_hash !== bodyHash) return { kind: 'conflict' };
+        if (existing.state === 'completed') {
+          if (existing.reply === null) throw new Error('Completed chat operation has no reply');
+          return { kind: 'completed', reply: existing.reply };
+        }
+        return { kind: existing.state };
+      }
+      // Proof: a completed operation replays while a new paid operation is refused after provider disablement.
+      if (!allowNew) return { kind: 'provider_unavailable' };
+      const used = this.database
+        .query<{ count: number }, [string]>(
+          "SELECT count(*) AS count FROM chat_turn WHERE request_id = ? AND role = 'user'",
+        )
+        .get(requestId);
+      if (!used) throw new Error('Chat turn count query failed');
+      if (used.count >= 12 || (initial && used.count > 0)) return { kind: 'turn_limit' };
+      const running = this.database
+        .query<{ count: number }, [string]>(
+          "SELECT count(*) AS count FROM chat_operation WHERE account_id = ? AND state = 'inflight'",
+        )
+        .get(accountId);
+      if (!running) throw new Error('Chat operation count query failed');
+      if (running.count > 0) return { kind: 'inflight' };
+      const providerCallId =
+        reservedMicroUsd === null
+          ? null
+          : this.reserveProviderCall(accountId, requestId, reservedMicroUsd, now);
+      if (reservedMicroUsd !== null && providerCallId === null) return { kind: 'budget' };
+      const id = crypto.randomUUID();
+      this.database
+        .query(
+          'INSERT INTO chat_operation (id, account_id, request_id, idempotency_key, body_hash, message, initial, state, provider_call_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        )
+        .run(
+          id,
+          accountId,
+          requestId,
+          idempotencyKey,
+          bodyHash,
+          message,
+          initial ? 1 : 0,
+          'inflight',
+          providerCallId,
+          now,
+        );
+      return { kind: 'started', id };
+    })();
+  }
+
+  /** Commits usage and both turns together; an unknown operation cannot be made successful later. */
+  completeChatOperation(
+    id: string,
+    reply: string,
+    actualMicroUsd: number | null,
+    now: number,
+    truncated = false,
+  ): boolean {
+    return this.database.transaction(() => {
+      const operation = this.database
+        .query<
+          {
+            account_id: string;
+            request_id: string;
+            message: string;
+            state: string;
+            provider_call_id: string | null;
+          },
+          [string]
+        >(
+          'SELECT account_id, request_id, message, state, provider_call_id FROM chat_operation WHERE id = ?',
+        )
+        .get(id);
+      if (operation?.state !== 'inflight') return false;
+      if (operation.provider_call_id !== null) {
+        if (
+          actualMicroUsd === null ||
+          !this.settleProviderCall(operation.provider_call_id, actualMicroUsd)
+        )
+          return false;
+      } else if (actualMicroUsd !== null) return false;
+      this.addTurn(operation.account_id, operation.request_id, 'user', operation.message, now);
+      this.addTurn(operation.account_id, operation.request_id, 'assistant', reply, now + 1);
+      const updated = this.database
+        .query(
+          "UPDATE chat_operation SET state = 'completed', reply = ?, truncated = ? WHERE id = ? AND state = 'inflight'",
+        )
+        .run(reply, truncated ? 1 : 0, id);
+      return updated.changes === 1;
+    })();
+  }
+
+  markChatOperationUnknown(id: string): boolean {
+    return (
+      this.database
+        .query("UPDATE chat_operation SET state = 'unknown' WHERE id = ? AND state = 'inflight'")
+        .run(id).changes === 1
+    );
+  }
+
+  findChatOperation(
+    accountId: string,
+    requestId: string,
+    idempotencyKey: string,
+  ): { id: string; state: 'inflight' | 'completed' | 'unknown'; truncated: boolean } | null {
+    const operation = this.database
+      .query<
+        { id: string; state: 'inflight' | 'completed' | 'unknown'; truncated: number },
+        [string, string, string]
+      >(
+        'SELECT id, state, truncated FROM chat_operation WHERE account_id = ? AND request_id = ? AND idempotency_key = ?',
+      )
+      .get(accountId, requestId, idempotencyKey);
+    return operation
+      ? { id: operation.id, state: operation.state, truncated: operation.truncated === 1 }
+      : null;
+  }
+
+  findLatestChatOperation(
+    accountId: string,
+    requestId: string,
+  ): {
+    idempotencyKey: string;
+    state: 'inflight' | 'completed' | 'unknown';
+    truncated: boolean;
+    message: string;
+  } | null {
+    const operation = this.database
+      .query<
+        {
+          idempotency_key: string;
+          state: 'inflight' | 'completed' | 'unknown';
+          truncated: number;
+          message: string;
+        },
+        [string, string]
+      >(
+        'SELECT idempotency_key, state, truncated, message FROM chat_operation WHERE account_id = ? AND request_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1',
+      )
+      .get(accountId, requestId);
+    return operation
+      ? {
+          idempotencyKey: operation.idempotency_key,
+          state: operation.state,
+          truncated: operation.truncated === 1,
+          message: operation.message,
+        }
+      : null;
+  }
+
+  hasActiveChatOperation(accountId: string): boolean {
+    const active = this.database
+      .query<{ count: number }, [string]>(
+        "SELECT count(*) AS count FROM chat_operation WHERE account_id = ? AND state = 'inflight'",
+      )
+      .get(accountId);
+    if (!active) throw new Error('Chat operation count query failed');
+    return active.count > 0;
   }
 
   close(): void {

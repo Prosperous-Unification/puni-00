@@ -68,7 +68,24 @@ export class McpSessionStore {
       const created = path === ':memory:' || createdAbsent(path);
       db = new Database(path, { create: false, readwrite: true, strict: true });
       db.run('PRAGMA busy_timeout = 5000');
-      db.run('PRAGMA journal_mode = WAL');
+      const walDeadline = performance.now() + 5_000;
+      for (;;) {
+        try {
+          db.run('PRAGMA journal_mode = WAL');
+          break;
+        } catch (cause) {
+          // Proof: one injected SQLITE_BUSY failed creator startup without retry; persistent busy
+          // stops at the deadline, and an injected busy on an existing empty file is not retried.
+          if (
+            !created ||
+            path === ':memory:' ||
+            !(cause instanceof Error && 'code' in cause && cause.code === 'SQLITE_BUSY') ||
+            performance.now() >= walDeadline
+          )
+            throw cause;
+          Bun.sleepSync(5);
+        }
+      }
       db.run('PRAGMA foreign_keys = ON');
       db.run('PRAGMA synchronous = FULL');
       migrateMcpStore(db, created);

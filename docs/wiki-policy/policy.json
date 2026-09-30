@@ -443,6 +443,24 @@
     ],
     "binaryDeclarations": [
       {
+        "path": "apps/website/fe-01/src/assets/fonts/Geist-variable.ttf",
+        "format": "font/ttf",
+        "consumer": "apps/website/fe-01/src/style.css",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "https://github.com/google/fonts/tree/main/ofl/geist"
+        }
+      },
+      {
+        "path": "apps/website/fe-01/src/assets/fonts/InterTight-variable.ttf",
+        "format": "font/ttf",
+        "consumer": "apps/website/fe-01/src/style.css",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "https://github.com/google/fonts/tree/main/ofl/intertight"
+        }
+      },
+      {
         "path": "docs/assistant/work-view-prototype-A.png",
         "format": "image/png",
         "consumer": "docs/assistant/work-view-prototype.md",

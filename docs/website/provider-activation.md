@@ -1,0 +1,30 @@
+# OpenRouter provider candidate for Build
+
+Checked 2026-09-29 against public first-party catalogs and the current API source. This is a configuration candidate, not live provider certification. [Build runtime setup](build-runtime.md) owns the preview activation and disable sequence.
+
+## Recommendation
+
+Start with **`openai/gpt-4.1-mini` on the exact `azure/swedencentral` endpoint**, subject to the gates below. OpenRouter's [GPT-4.1 Mini page](https://openrouter.ai/openai/gpt-4.1-mini) lists it as a text-output model and shows Azure serving it. The [live ZDR endpoint catalog](https://openrouter.ai/api/v1/endpoints/zdr) listed `azure/swedencentral` for this model on 2026-09-29, at **$0.44 per million prompt tokens and $1.76 per million completion tokens**; its declared maximum completion was above PUNI's 1,024-token cap. The catalog also listed a cheaper `azure` endpoint at $0.40/$1.60. Pinning the full regional slug avoids treating the `azure` base slug as an exact endpoint: OpenRouter says a [base slug matches its regional variants](https://openrouter.ai/docs/guides/routing/provider-selection#targeting-specific-provider-endpoints). This endpoint name alone does not establish EU data residency; OpenRouter describes [in-region routing as a separate enterprise feature](https://openrouter.ai/docs/guides/routing/provider-selection).
+
+The [OpenAI GPT-4.1 family guide](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-4.1) describes the family as low-latency models without an internal reasoning step. That suits short scoping replies under PUNI's 30-second abort better than a default-reasoning model. [GPT-5 Mini](https://openrouter.ai/openai/gpt-5-mini) lists $0.25/$2.00 per million tokens and reasoning behavior; the [newer GPT-6 Luna](https://openrouter.ai/openai/gpt-6-luna) lists $0.10/$0.50, but [OpenAI says it defaults to medium reasoning](https://developers.openai.com/api/docs/guides/reasoning). Their lower input prices do not establish better completion time or usable visible output within PUNI's 1,024-token and 30-second limits. GPT-4.1 Mini is the conservative first paid candidate; compare quality and latency later with representative PUNI prompts.
+
+## Proposed nonsecret preview settings
+
+```dotenv
+OPENROUTER_MODEL=openai/gpt-4.1-mini
+OPENROUTER_PROVIDER=azure/swedencentral
+OPENROUTER_INPUT_USD_PER_MILLION=0.44
+OPENROUTER_OUTPUT_USD_PER_MILLION=1.76
+OPENROUTER_PRIVACY_VERIFIED=0
+OPENROUTER_ENABLED=0
+```
+
+Keep `OPENROUTER_API_KEY` unset until a dedicated capped key is provisioned in the protected runtime file. These rates are the endpoint's **public listed rates**, not a quote or a verified debit for PUNI's key. Re-read the endpoint catalog immediately before activation and update both configured rates if they change. The server's [reservation and settlement code](../../apps/website/be-01/src/server.ts) uses these configured rates; it does not discover prices at request time. The [preview Compose configuration and activation procedure](build-runtime.md) explicitly keep `OPENROUTER_ENABLED=0` even if the runtime env file contains `1`; the reviewed enable override is a separate activation step.
+
+## Required checks before enabling
+
+1. **Routing and privacy.** The public ZDR catalog shows an eligible endpoint, but it does not prove this account's key may use it or that the intersection with `data_collection: "deny"` is nonempty. OpenRouter says [`zdr` and `data_collection` apply separate routing filters](https://openrouter.ai/docs/guides/routing/provider-selection#requiring-providers-to-comply-with-data-policies). Check the actual key's privacy settings and a real response's provider identifier. Leave `OPENROUTER_PRIVACY_VERIFIED=0` until that is recorded. ZDR governs provider retention; it does not replace PUNI's own data retention and consent controls.
+2. **No fallback, required parameters and rate ceilings.** The source now sends `only`, `zdr`, `data_collection`, `allow_fallbacks: false`, `require_parameters: true`, and `max_price` with the configured prompt/completion rates and `request: 0` on both paid paths. Mounted-route tests inspect the outbound JSON from the direct fetch and installed AI SDK transport. Removing each routing flag or price object independently makes its path's test fail. This implements OpenRouter's [explicit routing and price filters](https://openrouter.ai/docs/guides/routing/provider-selection), but does not prove that the deployed account can reach the intersection of those filters. The installed OpenRouter AI SDK maps `maxOutputTokens` to `max_tokens`; the public ZDR catalog currently advertises `max_completion_tokens` for this Azure endpoint. Verify the router's alias handling with the real key and a 1,024-token cap before enabling; public metadata alone cannot prove the exact wire request passes `require_parameters: true`.
+3. **Time and accounting.** The model page's aggregate latency/throughput is not a 30-second guarantee for the pinned endpoint. With a capped key, run a bounded smoke through PUNI's server and verify a complete streamed reply, final raw usage, actual account debit, durable reply, duplicate-key replay without a second charge, timeout/cancel reservation handling, and provider identity. The [OpenRouter endpoint API](https://openrouter.ai/docs/api/api-reference/endpoints/list-endpoints) provides current metadata, but catalog access is not proof of live eligibility or billing.
+
+No paid request or credentialed eligibility check was made for this research. Until these checks pass, keep both activation flags at `0` and the visible unavailable state in place.

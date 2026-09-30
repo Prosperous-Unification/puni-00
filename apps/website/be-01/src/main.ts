@@ -13,6 +13,7 @@ const api = createWebsiteApi({
   publicOrigin,
   appOrigin,
   appManualUrl: `${appOrigin}/manual`,
+  appBuildUrl: appOrigin,
   operatorPassword: process.env['OPERATOR_PASSWORD'],
   secureCookies: new URL(appOrigin).protocol === 'https:',
   demoAuth: process.env['DEMO_AUTH'] === '1',

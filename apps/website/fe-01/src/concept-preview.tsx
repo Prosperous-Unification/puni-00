@@ -214,7 +214,7 @@ export function ConceptPreview({ concept }: { concept: Concept }) {
 
   return (
     <div className="concept-card">
-      <span className="tag">Illustrative concept · local interactions · simulated auth</span>
+      <span className="tag">Illustrative preview · simulated actions</span>
       <h3>{concept.title}</h3>
       <p>{concept.summary}</p>
       {workspace}
@@ -222,8 +222,7 @@ export function ConceptPreview({ concept }: { concept: Concept }) {
         {simulatedSignedIn
           ? 'Signed in inside this local preview only. '
           : 'Signed out of this local preview. '}
-        This preview uses fixed components and local state. It does not create accounts,
-        reservations or production records.
+        Actions here do not create real accounts, bookings or records.
       </p>
     </div>
   );
