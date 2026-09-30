@@ -14,12 +14,6 @@ import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
-import {
-  refusingEmailVerification,
-  refusingInvitations,
-  refusingJoinRequests,
-  refusingTestEmailDelivery,
-} from '../testing/email-verification-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { refusingOnboarding } from '../testing/onboarding-fixture';
@@ -169,10 +163,6 @@ function fixture(
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     domains: refusingDomains,
-    emailVerification: refusingEmailVerification,
-    invitations: refusingInvitations,
-    joinRequests: refusingJoinRequests,
-    emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     loginThrottle: testLoginThrottle(),
     clock: testClock,
@@ -533,14 +523,9 @@ describe('OIDC browser routes', () => {
     const f = fixture({ ...claims, wbs_groups: ['dev:wbs:read'] });
     const publicProtocolRoutes = new Set([
       '/api/auth/login',
-      // Exchanges a credential for a bounded context; it writes no domain state.
-      '/api/auth/context',
       '/api/auth/logout',
       '/api/auth/refresh',
       '/api/auth/register',
-      // Auth protocol start uses a fresh first-party password proof instead of a bearer write scope.
-      // Proof: 2026-09-28, removing this classification made `guards every registered user-facing mutation with write scope` receive 400 for link start instead of the expected 403 domain-write policy.
-      '/api/auth/link/auth0',
       '/api/smoke/echo',
     ]);
     const mutations = registeredRoutes(f.app.routes as unknown).filter(

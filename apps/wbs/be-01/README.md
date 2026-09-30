@@ -13,8 +13,6 @@ The API, and the only thing that writes the database. Elysia + Drizzle +
   Each handler receives typed input and identity; `http/elysia/mount.ts` owns
   framework parsing, policy order and reply rendering. `app.routes.test.ts`
   proves every shape is bound once and reaches the production app.
-  `controller/join-request.controller.db.test.ts` mounts join-request decisions
-  against SQLite and the injected test mail sink.
 - **`services.ts`** — the composition. One broadcaster, one clock, one write
   lock, built once and shared, because "there is exactly one of these in the
   process" is a claim about this file rather than about the classes.

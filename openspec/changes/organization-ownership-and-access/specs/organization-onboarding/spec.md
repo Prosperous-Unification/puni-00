@@ -64,22 +64,11 @@ After sign-in, a user without membership SHALL establish a verified email before
 
 An existing first-party username/password account without verified email SHALL retain its local WBS user ID and password sign-in. Its authenticated owner SHALL be offered a rendered path to add an email, receive a single-use expiring verification challenge at that address, and confirm possession before any organization creation, invitation acceptance or join request. Alternatively, the owner MAY link an Auth0 identity through a fresh authenticated Auth0 flow whose verified email is established by Auth0; WBS SHALL bind its verified issuer/subject to the same local user ID only after proving control of both sessions. Matching email alone SHALL never merge accounts. Expired, replayed, mismatched or unverified proofs and issuer/subject collisions SHALL refuse linking and onboarding without changing the local ID or granting membership. Lost delivery, expired challenge, collision and query failure SHALL have distinct rendered recovery or support paths.
 
-After activation, `POST /api/auth/link/auth0` SHALL require an originating first-party password session that remains enabled and a freshly verified password admitted by the shared password throttle, and SHALL begin an Auth0 code flow with its own redirect URI, state, nonce and PKCE verifier. Exhausted throttle capacity SHALL answer 429 `invalid_credentials` and release every admitted attempt after success, refusal or verifier error. `GET /api/auth/link/auth0/callback` SHALL consume only the matching unexpired browser binding and original password session while password sessions remain enabled, require Auth0's verified email, and insert the issuer/subject mapping and verified email in one immediate transaction against current activation and ownership. The email SHALL use activated OIDC login's canonical domain validation before ownership checking or persistence. The link flow SHALL never create an account or issue a new session. Before activation, start SHALL answer 403 `onboarding_inactive`. A bad password SHALL answer 401 `invalid_credentials`; a missing, swapped or replayed callback proof SHALL answer a bodyless 401; malformed provider parameters SHALL answer a bodyless 400; identity or email ownership collision SHALL answer a bodyless 409. Trusted marker corruption SHALL throw.
-
 #### Scenario: Password account verifies an address
 
 - **GIVEN** a password-only account with local user ID U and no verified email
 - **WHEN** U confirms a fresh single-use challenge sent to its new address
 - **THEN** U keeps the same local ID and may continue onboarding with that verified address
-
-#### Scenario: Password challenge delivery and consumption
-
-- **GIVEN** activation is complete and U is signed in with a password-only account
-- **WHEN** U requests a normalized address challenge through an injected mail sink and confirms its 30-minute token
-- **THEN** WBS stores only the token digest, marks the challenge delivered before confirmation, consumes it once in an immediate transaction, and updates U's existing email and verification flag without changing U's ID
-- **AND** pending or failed delivery, expiry, revocation, wrong account, replay and address conflict refuse without verifying U; an inactive marker refuses both routes
-- **AND** until an internationalized-address policy matches the existing SQLite email uniqueness rule, the challenge routes refuse non-ASCII addresses with typed `400 invalid_body`
-- **AND** the production sink currently refuses delivery with typed `503 delivery_failed` until a reviewed delivery adapter is provided
 
 #### Scenario: Auth0 link collision
 
@@ -87,17 +76,9 @@ After activation, `POST /api/auth/link/auth0` SHALL require an originating first
 - **WHEN** U attempts to link that Auth0 identity, even if their emails match
 - **THEN** linking and onboarding are refused without merging U and V or changing either ID
 
-#### Scenario: Swapped or replayed Auth0 callback
-
-- **GIVEN** U began an explicit link with a current password session and fresh password proof
-- **WHEN** the callback arrives with another password session, a mismatched state, or an already consumed binding
-- **THEN** it is refused without changing either account; a mismatched arrival does not consume U's honest pending proof
-
 ### Requirement: Invitations are bound and single use
 
 An authorized administrator SHALL create a revocable invitation for one normalized verified recipient email, organization and permitted role with an expiry. Only the matching currently verified email SHALL accept it. Acceptance SHALL consume the invitation and create or retain one membership atomically; expiry, revocation, concurrent acceptance and replay MUST be refused. Admins SHALL only invite viewer or member; super-admins SHALL also invite admin. An invitation SHALL NOT directly grant super-admin.
-
-The active-organization GET/POST `/api/organization/invitations` and DELETE `/api/organization/invitations/:id` SHALL recheck administrator authority in their store transaction. An admin SHALL NOT revoke an admin offer. A foreign or missing invitation id SHALL have the same 404. POST `/api/onboarding/invitations/accept` SHALL require a session with write scope, read the current durable verified email, and answer 403 for a recipient mismatch or missing verification, 404 for an unknown token, and 409 for an expired, revoked or consumed offer. Acceptance SHALL retain an existing membership's role without upgrading it. Issuance SHALL use the injected mail port, store only a token digest, and answer 503 while delivery fails. All four routes SHALL refuse before activation; delegated callers SHALL receive 403.
 
 #### Scenario: Invitation replay
 
@@ -114,14 +95,6 @@ The active-organization GET/POST `/api/organization/invitations` and DELETE `/ap
 ### Requirement: Join requests require administrator approval
 
 A verified-email user SHALL be able to submit at most one pending request to a matching verified organization. A current admin or super-admin SHALL approve it as viewer or member, or deny it, using the requester's current verified email and organization state. Approval SHALL issue one addressed invitation atomically; request submission, approval and denial SHALL grant no membership until the recipient accepts that invitation. Admin membership and super-admin grants SHALL require the super-admin invitation or role-change path.
-
-The active-organization GET `/api/organization/join-requests` SHALL list requests only to current administrators. POST `/:id/approve` SHALL accept only `viewer` or `member`, recheck the requester's durable verified address against the submitted address and the organization's exact currently verified domain in an immediate transaction, and resolve the request with one seven-day digest-only invitation. POST `/:id/deny` SHALL resolve a pending request without changing membership or invitation state. Both decisions SHALL recheck administrator authority in the committing transaction and answer identical `404 not_found` for foreign and absent ids, `409 request_resolved` for replay, and approval SHALL answer `409 domain_changed` for changed or unverified email or a suspended, released or mismatched claim. The injected mail port SHALL deliver an approval token; delivery failure SHALL answer `503 delivery_failed` and revoke that offer. It SHALL reopen the request if no replacement pending request exists. If the applicant submitted a replacement during delivery, that replacement SHALL remain pending and the original SHALL remain resolved with a revoked invitation. All three routes SHALL refuse before activation and delegated callers SHALL receive 403.
-
-#### Scenario: Replacement submitted during failed delivery
-
-- **GIVEN** approval is waiting for delivery and the applicant submits a new pending request
-- **WHEN** the injected delivery fails
-- **THEN** the invitation is revoked, the replacement remains pending, the original remains resolved, and approval answers `503 delivery_failed`
 
 #### Scenario: Approval after domain loss
 
