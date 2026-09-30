@@ -26,6 +26,17 @@ try {
   };
   if (plan.eligibleDrafts !== 1 || !/^[a-f0-9]{64}$/.test(plan.fingerprint))
     throw new Error('Bundled retention command returned the wrong plan');
+  const report = Bun.spawnSync(
+    ['bun', join(bundle, 'request-retention-cli.js'), 'report', databasePath],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  if (report.exitCode !== 0) throw new Error(new TextDecoder().decode(report.stderr));
+  const counts = JSON.parse(new TextDecoder().decode(report.stdout)) as {
+    deletion: string;
+    activation: string;
+  };
+  if (counts.deletion !== 'disabled' || counts.activation !== 'ready')
+    throw new Error('Bundled request retention report returned the wrong state');
 } finally {
   rmSync(directory, { recursive: true, force: true });
 }

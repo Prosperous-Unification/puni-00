@@ -7,6 +7,7 @@ const build = await Bun.build({
   entrypoints: [
     join(import.meta.dir, 'src/main.ts'),
     join(import.meta.dir, 'src/draft-retention-cli.ts'),
+    join(import.meta.dir, 'src/request-retention-cli.ts'),
   ],
   target: 'bun',
   outdir: output,
