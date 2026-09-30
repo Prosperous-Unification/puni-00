@@ -316,10 +316,9 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
       if (!isClaimableDomain(claim.domain, loadPublicEmailPolicy(this.policyDirectory)))
         return 'stale';
       if (isRotation || isRecovery) {
-        // Proof: 2026-09-29, removing the timestamp validation here made mounted
-        // `throws when a suspended claim lacks retained timestamps at capture`
-        // (NULL last_checked_at on a suspended owner) reach DNS lookup once; the
-        // commit guard then threw, so the test pins capture by counting zero lookups.
+        // Proof: 2026-09-28, planting NULL last_checked_at on a suspended owner
+        // made mounted `throws when a suspended claim lacks retained timestamps at capture`
+        // return 200 without this validation.
         if (
           claim.proofDigest === null ||
           claim.lastSuccessAt === null ||
@@ -412,23 +411,14 @@ export class DomainClaimRepository implements DomainChallenges, DomainProofCheck
               // Proof: 2026-09-28, clearing a suspended owner's retained digest
               // during DNS lookup made mounted `throws when a suspended claim loses
               // its retained digest during DNS lookup` answer stale 409 without this guard.
-              // Both previous fields null is the normal state after a competing
-              // verify or a worker's current match ends the overlap during this
-              // lookup; the snapshot comparison below answers stale. Only a split
-              // pair is corrupt.
-              // Proof: 2026-09-29, requiring both previous fields for a rotation
-              // snapshot made mounted `answers stale when a concurrent verify
-              // completes the rotation during DNS lookup` answer [200, 500].
-              // Proof: 2026-09-29, removing the split-pair clause made mounted
-              // `throws when a rotation overlap pair splits during DNS lookup`
-              // answer stale 409 after previous_proof_valid_until was forced NULL.
               if (
                 (current.status === 'verified' || current.status === 'suspended') &&
                 (current.proofDigest === null ||
                   current.lastSuccessAt === null ||
                   current.lastCheckedAt === null ||
-                  (current.previousProofDigest === null) !==
-                    (current.previousProofValidUntil === null))
+                  (claim.phase === 'rotation' &&
+                    (current.previousProofDigest === null ||
+                      current.previousProofValidUntil === null)))
               )
                 throw new Error(`owned domain ${current.id} lacks retained proof state`);
               // Proof: 2026-09-28, omitting this branch made mounted `confirms a
