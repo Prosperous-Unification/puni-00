@@ -406,6 +406,8 @@ async function exitAfterRelease(
       resolve(undefined);
     }, timeoutMilliseconds);
   });
+  // Proof: replacing allSettled with Promise.all let an injected stdout
+  // rejection strand the prepared Git hook; the test saw its PID survive.
   const settled = Promise.allSettled([child.exited, stdout, stderr] as const);
   let response: Awaited<typeof settled> | undefined;
   try {
