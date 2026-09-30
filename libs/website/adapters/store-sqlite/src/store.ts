@@ -6,8 +6,28 @@ import type { ChatTurn, ProposalStatus, SubmissionView } from '@website/contract
 import { Database } from 'bun:sqlite';
 
 import { websiteMigrations } from './migration-catalogue';
+import {
+  anchorRequestContent,
+  backfillRetentionSubjects,
+  insertRetentionSubject,
+} from './request-retention';
 export type { DraftCleanupPlan } from './draft-retention';
 export { inspectExpiredDrafts, purgeExpiredDrafts } from './draft-retention';
+export type {
+  AmbiguousRetentionSubject,
+  AnchorResolution,
+  RetentionAmbiguity,
+  RetentionReport,
+  RetentionSubjectCounts,
+  RetentionSubjectKind,
+} from './request-retention';
+export {
+  addUtcMonths,
+  assertRetentionCoverage,
+  inspectRequestRetention,
+  listAmbiguousRetentionSubjects,
+  resolveRetentionAnchor,
+} from './request-retention';
 
 interface DraftRow {
   id: string;
@@ -92,7 +112,11 @@ export type SubmitOutcome =
   | { kind: 'conflict' }
   | { kind: 'unavailable' };
 
-/** Owns the independent website SQLite database and refuses an edited applied migration. */
+/**
+ * Owns the independent website SQLite database and refuses an edited applied migration.
+ * Startup records a retention subject for any request or standalone submission that lacks one
+ * ({@link backfillRetentionSubjects}); content writes anchor a blank request's deadline.
+ */
 export class WebsiteStore {
   private readonly database: Database;
 
@@ -122,6 +146,7 @@ export class WebsiteStore {
         })();
       }
     }
+    backfillRetentionSubjects(this.database);
     // Proof: removing this restart update made the paid in-flight restart test retain a resumable operation.
     // An interrupted server process cannot prove final provider usage or safely resume its old stream.
     this.database.run("UPDATE chat_operation SET state = 'unknown' WHERE state = 'inflight'");
@@ -198,6 +223,7 @@ export class WebsiteStore {
           providerCallId,
           now,
         );
+      if (message.trim() !== '') anchorRequestContent(this.database, requestId, now);
       return { kind: 'started', id };
     })();
   }
@@ -403,6 +429,12 @@ export class WebsiteStore {
           'INSERT INTO proposal_submission (id, draft_id, email, brief, receipt, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         )
         .run(id, draft.id, email, brief, receipt, 'submitted', now, now);
+      // Proof: removing this insert made the standalone manual proposal test find no subject.
+      insertRetentionSubject(this.database, 'proposal_submission', id, {
+        resolution: 'anchored',
+        anchorAt: this.draftCreatedAt(draft.id),
+        source: 'draft',
+      });
       const consumed = this.database
         .query('UPDATE intake_draft SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL')
         .run(now, draft.id);
@@ -633,11 +665,17 @@ export class WebsiteStore {
           'UPDATE software_request SET inactive_at = ? WHERE account_id = ? AND submitted_at IS NULL AND inactive_at IS NULL',
         )
         .run(now, accountId);
+      const requestId = crypto.randomUUID();
       this.database
         .query(
           'INSERT INTO software_request (id, account_id, draft_id, description, brief, created_at) VALUES (?, ?, ?, ?, ?, ?)',
         )
-        .run(crypto.randomUUID(), accountId, draft.id, draft.description, draft.brief, now);
+        .run(requestId, accountId, draft.id, draft.description, draft.brief, now);
+      insertRetentionSubject(this.database, 'software_request', requestId, {
+        resolution: 'anchored',
+        anchorAt: this.draftCreatedAt(draft.id),
+        source: 'draft',
+      });
       const consumed = this.database
         .query('UPDATE intake_draft SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL')
         .run(now, draft.id);
@@ -646,13 +684,28 @@ export class WebsiteStore {
     })();
   }
 
+  /** A blank request has no deadline until its first nonempty content write. */
   ensureBlankRequest(accountId: string, now: number): void {
-    if (this.findAccountRequest(accountId)) return;
-    this.database
-      .query(
-        'INSERT INTO software_request (id, account_id, description, brief, created_at) VALUES (?, ?, ?, ?, ?)',
-      )
-      .run(crypto.randomUUID(), accountId, '', '', now);
+    this.database.transaction(() => {
+      if (this.findAccountRequest(accountId)) return;
+      const requestId = crypto.randomUUID();
+      this.database
+        .query(
+          'INSERT INTO software_request (id, account_id, description, brief, created_at) VALUES (?, ?, ?, ?, ?)',
+        )
+        .run(requestId, accountId, '', '', now);
+      insertRetentionSubject(this.database, 'software_request', requestId, {
+        resolution: 'pending_content',
+      });
+    })();
+  }
+
+  private draftCreatedAt(draftId: string): number {
+    const draft = this.database
+      .query<{ created_at: number }, [string]>('SELECT created_at FROM intake_draft WHERE id = ?')
+      .get(draftId);
+    if (!draft) throw new Error('Intake draft disappeared during its transaction');
+    return draft.created_at;
   }
 
   findAccountRequest(accountId: string): {
@@ -678,13 +731,20 @@ export class WebsiteStore {
       .get(accountId);
   }
 
-  updateAccountBrief(accountId: string, brief: string): boolean {
-    const write = this.database
-      .query(
-        'UPDATE software_request SET brief = ? WHERE account_id = ? AND submitted_at IS NULL AND inactive_at IS NULL',
-      )
-      .run(brief, accountId);
-    return write.changes === 1;
+  /** A nonempty brief is first content for a blank request and anchors its deadline at `now`. */
+  updateAccountBrief(accountId: string, brief: string, now: number): boolean {
+    return this.database.transaction(() => {
+      const active = this.findAccountRequest(accountId);
+      if (!active) return false;
+      const write = this.database
+        .query(
+          'UPDATE software_request SET brief = ? WHERE id = ? AND submitted_at IS NULL AND inactive_at IS NULL',
+        )
+        .run(brief, active.id);
+      if (write.changes !== 1) return false;
+      if (brief.trim() !== '') anchorRequestContent(this.database, active.id, now);
+      return true;
+    })();
   }
 
   submitAccount(
@@ -757,11 +817,14 @@ export class WebsiteStore {
   }
 
   saveConcept(requestId: string, body: string, now: number): void {
-    this.database
-      .query(
-        'INSERT OR IGNORE INTO request_concept_preview (request_id, body, created_at) VALUES (?, ?, ?)',
-      )
-      .run(requestId, body, now);
+    this.database.transaction(() => {
+      const saved = this.database
+        .query(
+          'INSERT OR IGNORE INTO request_concept_preview (request_id, body, created_at) VALUES (?, ?, ?)',
+        )
+        .run(requestId, body, now);
+      if (saved.changes === 1) anchorRequestContent(this.database, requestId, now);
+    })();
   }
 
   /** Proof: querying turns by account instead made the returning-user test revive the first request's chat. */
@@ -790,5 +853,6 @@ export class WebsiteStore {
         'INSERT INTO chat_turn (id, account_id, request_id, role, content, created_at) VALUES (?, ?, ?, ?, ?, ?)',
       )
       .run(crypto.randomUUID(), accountId, requestId, role, content, now);
+    if (content.trim() !== '') anchorRequestContent(this.database, requestId, now);
   }
 }
