@@ -6,6 +6,7 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  watch,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -351,13 +352,58 @@ async function captureRejection(operation: () => Promise<unknown>): Promise<Erro
   throw new Error('fixture promise resolved unexpectedly');
 }
 
-async function waitForPath(path: string): Promise<void> {
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    if (existsSync(path)) return;
-    await Bun.sleep(10);
+/** Waits for a child's marker without timing its cold start as a failure. */
+async function waitForPath(
+  path: string,
+  child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>,
+  childStderr: Promise<string>,
+): Promise<void> {
+  if (existsSync(path)) return;
+  const watcher = watch(dirname(path));
+  try {
+    const appeared = new Promise<void>((resolve, reject) => {
+      const check = () => {
+        if (existsSync(path)) resolve();
+      };
+      watcher.on('change', check);
+      watcher.on('error', reject);
+      check();
+    });
+    const exited = child.exited.then(async (code) => {
+      if (existsSync(path)) return;
+      throw new Error(
+        `fixture child exited ${String(code)} before ${path} appeared: ${await childStderr}`,
+      );
+    });
+    await Promise.race([appeared, exited]);
+  } finally {
+    watcher.close();
   }
-  throw new Error(`fixture path did not appear: ${path}`);
 }
+
+test('a child marker may arrive after the old two-second readiness ceiling', async () => {
+  const repository = mkdtempSync(join(tmpdir(), 'wiki-child-readiness-'));
+  scratch.push(repository);
+  const marker = join(repository, 'ready');
+  const child = Bun.spawn([process.execPath, '--eval', 'setInterval(() => undefined, 1000);'], {
+    stderr: 'pipe',
+    stdout: 'pipe',
+  });
+  const childStderr = new Response(child.stderr).text();
+  const announce = setTimeout(() => {
+    writeFileSync(marker, 'ready');
+  }, 2_100);
+  try {
+    // Proof: the former 200 x 10 ms marker poll failed this case at 2.049 s
+    // before the child's 2.1 s readiness marker could appear.
+    await waitForPath(marker, child, childStderr);
+    expect(existsSync(marker)).toBe(true);
+  } finally {
+    clearTimeout(announce);
+    child.kill();
+    await child.exited;
+  }
+});
 
 test('target advance while checks are held refuses the old candidate and recomposes exact bytes', async () => {
   const subject = fixture();
@@ -1248,6 +1294,8 @@ test('a competing recovery cannot clear publication while Git holds prepared ref
     )}\n  while [ ! -e ${JSON.stringify(releasePath)} ]; do sleep 0.01; done\nfi\n`,
   );
   chmodSync(hookPath, 0o755);
+  // Proof: omitting this hook installation made the publishing child exit 0
+  // before `.publication-prepared` appeared, failing the real ref-lock race.
   git(subject.repository, ['config', 'core.hooksPath', hookDirectory]);
 
   const payloadPath = join(subject.repository, '.publication-payload.json');
@@ -1337,7 +1385,7 @@ try {
   );
   const firstStdout = new Response(first.stdout).text();
   const firstStderr = new Response(first.stderr).text();
-  await waitForPath(readyPath);
+  await waitForPath(readyPath, first, firstStderr);
   const second = Bun.spawn(
     [
       process.execPath,
@@ -1352,7 +1400,7 @@ try {
   );
   const secondStdout = new Response(second.stdout).text();
   const secondStderr = new Response(second.stderr).text();
-  await waitForPath(secondStartedPath);
+  await waitForPath(secondStartedPath, second, secondStderr);
   await Bun.sleep(100);
   const secondWasSerialized = !existsSync(secondDonePath);
   writeFileSync(releasePath, 'release');
@@ -1398,7 +1446,7 @@ test('publication transactions are synchronous and never replay external effects
     { stderr: 'pipe', stdout: 'pipe' },
   );
   const readerStderr = new Response(reader.stderr).text();
-  await waitForPath(readerReady);
+  await waitForPath(readerReady, reader, readerStderr);
   let callbackAttempts = 0;
   expect(
     subject.store.transactPublication((transaction) => {
