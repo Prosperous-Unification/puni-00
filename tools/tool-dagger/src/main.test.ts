@@ -26,6 +26,31 @@ const WORKSPACE = resolve(new URL('../../../', import.meta.url).pathname);
 
 const sdkVersion = await installedDaggerSdkVersion();
 
+/** Waits for a child's lifecycle signal and reports an early exit with its stderr. */
+async function waitForChildLine(
+  child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>,
+  expected: string,
+): Promise<void> {
+  const reader = child.stdout.getReader();
+  const decoder = new TextDecoder();
+  let printed = '';
+  try {
+    while (!printed.includes('\n')) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      printed += decoder.decode(chunk.value, { stream: true });
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (printed !== `${expected}\n`) {
+    const [exitCode, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+    throw new Error(
+      `child printed ${JSON.stringify(printed)} instead of ${expected}; exit ${String(exitCode)}; stderr: ${stderr}`,
+    );
+  }
+}
+
 const expectedEngine = {
   State: {
     Running: false,
@@ -428,7 +453,7 @@ describe('runEngineLifecycle', () => {
           start: () => { appendFileSync(marker, 'started\\n'); return Promise.resolve(); },
           stop: () => { appendFileSync(marker, 'stopped\\n'); return Promise.resolve(); },
         },
-        () => { appendFileSync(marker, 'ready\\n'); return new Promise(() => {}); },
+        () => { appendFileSync(marker, 'ready\\n'); process.stdout.write('ready\\n'); return new Promise(() => {}); },
       );
     `;
     const child = Bun.spawn(['bun', '-e', childScript], {
@@ -438,16 +463,7 @@ describe('runEngineLifecycle', () => {
     });
 
     try {
-      const deadline = Date.now() + 2_000;
-      while (Date.now() < deadline) {
-        try {
-          if (readFileSync(marker, 'utf8').includes('ready')) break;
-        } catch (error: unknown) {
-          if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT')
-            throw error;
-        }
-        await Bun.sleep(10);
-      }
+      await waitForChildLine(child, 'ready');
       expect(readFileSync(marker, 'utf8')).toContain('ready');
 
       child.kill('SIGTERM');
@@ -473,10 +489,12 @@ describe('runEngineLifecycle', () => {
       import { runEngineLifecycle } from ${JSON.stringify(moduleUrl)};
       const marker = process.env['WBS_SIGNAL_MARKER'];
       if (marker === undefined) throw new Error('missing marker');
+      await Bun.sleep(2_100);
       await runEngineLifecycle(
         {
           start: () => {
             appendFileSync(marker, 'start-entered\\nengine-running\\n');
+            process.stdout.write('engine-running\\n');
             return new Promise(() => {});
           },
           stop: () => { appendFileSync(marker, 'stopped\\n'); return Promise.resolve(); },
@@ -491,16 +509,9 @@ describe('runEngineLifecycle', () => {
     });
 
     try {
-      const deadline = Date.now() + 2_000;
-      while (Date.now() < deadline) {
-        try {
-          if (readFileSync(marker, 'utf8').includes('engine-running')) break;
-        } catch (error: unknown) {
-          if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT')
-            throw error;
-        }
-        await Bun.sleep(10);
-      }
+      // Proof: delaying this child by 2.1 s made the former 2 s marker poll fail
+      // with ENOENT before SIGTERM; the stdout line now signals readiness.
+      await waitForChildLine(child, 'engine-running');
       expect(readFileSync(marker, 'utf8')).toContain('engine-running');
 
       child.kill('SIGTERM');
