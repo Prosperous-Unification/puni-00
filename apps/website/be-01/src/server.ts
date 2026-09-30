@@ -973,7 +973,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       if (!brief) return attachCors(failure('invalid_brief', 400), origin);
       const updated =
         accountDraft && session
-          ? store.updateAccountBrief(session.id, brief)
+          ? store.updateAccountBrief(session.id, brief, now)
           : claim
             ? store.updateBrief(digest(claim), brief, now)
             : false;
