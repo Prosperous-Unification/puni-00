@@ -11,7 +11,6 @@ import {
   type CaptureDirectoryChange,
   type CaseFixture,
   type CaseId,
-  changeSavedPlanCaptureTypedDependencies,
   createFaultControl,
   defineFault,
   DEPENDENCY_SURVIVOR_IDS,
@@ -164,7 +163,6 @@ function readersOf(source: SqliteSource): SourceReaders {
     measures: source.stores.measures,
     progress: source.stores.progress,
     dependencies: source.stores.dependencies,
-    typedDependencies: source.stores.typedDependencies,
     directory: source.stores.directory,
     journal: source.stores.journal,
     planEvents: source.stores.planEvents,
@@ -473,13 +471,7 @@ async function openSqliteSavedPlanCaptureCase(
             firstRead: { entered, release },
             changeDirectory: () => changeSqliteCaptureDirectory(source),
           }
-        : caseId === 'savedPlanCapture.readPlanInput:detached'
-          ? {
-              kind: 'capture-typed-change',
-              changeTypedDependencies: () =>
-                changeSavedPlanCaptureTypedDependencies(source.stores, DETERMINISTIC_SEED),
-            }
-          : { kind: 'ordinary' },
+        : { kind: 'ordinary' },
     close: async () => {
       release();
       await closeSqliteResources(source, directory);
@@ -725,7 +717,6 @@ const openers: ExistingStoreOpeners = {
   measures: (caseId) => openSqliteCase('measures', caseId),
   progress: (caseId) => openSqliteCase('progress', caseId),
   dependencies: (caseId) => openSqliteCase('dependencies', caseId),
-  typedDependencies: (caseId) => openSqliteCase('typedDependencies', caseId),
   directory: (caseId) => openSqliteCase('directory', caseId),
   eventLog: (caseId) => openSqliteCase('eventLog', caseId),
   planEvents: (caseId) => openSqliteCase('planEvents', caseId),
@@ -754,7 +745,6 @@ const declaration: SourceDeclaration = {
     measures: { kind: 'offered', gaps: [], open: openers.measures },
     progress: { kind: 'offered', gaps: [], open: openers.progress },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
-    typedDependencies: { kind: 'offered', gaps: [], open: openers.typedDependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
     eventLog: { kind: 'offered', gaps: [], open: openers.eventLog },
     planEvents: { kind: 'offered', gaps: [], open: openers.planEvents },
@@ -840,7 +830,6 @@ function emptyMissingCapture(): PlanInputReads {
     progress: [],
     measures: [],
     dependencies: [],
-    typedDependencies: [],
     assignments: [],
     capacity: new Map(),
     priorityBands: [],
@@ -4611,14 +4600,7 @@ async function proveFault(
           journalAppender: source.stores.journal,
           seed: DETERMINISTIC_SEED,
           readers: readersOf(source),
-          scenario:
-            caseId === 'savedPlanCapture.readPlanInput:detached'
-              ? {
-                  kind: 'capture-typed-change',
-                  changeTypedDependencies: () =>
-                    changeSavedPlanCaptureTypedDependencies(source.stores, DETERMINISTIC_SEED),
-                }
-              : { kind: 'ordinary' },
+          scenario: { kind: 'ordinary' },
           close: () => closeSqliteResources(source, directory),
         });
       };
@@ -4635,7 +4617,6 @@ async function proveFault(
         measures: (caseId) => takeFixture('measures', caseId),
         progress: (caseId) => takeFixture('progress', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
-        typedDependencies: (caseId) => takeFixture('typedDependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
         planEvents: (caseId) => takeFixture('planEvents', caseId),
@@ -6343,7 +6324,6 @@ describe('SQLite existing source conformance', () => {
     expect(cleanupProof.failure).toContain(
       'cleanup failed: injected SQLite capture cleanup failure after assertion',
     );
-    // Eighteen capture reads per exercise moved this case beyond Bun's five-second default.
   });
 
   it('Task 6.5 settles independent SQLite history writes without waiting', async () => {

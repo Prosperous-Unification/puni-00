@@ -160,17 +160,6 @@ const parserArms = {
     at: 'number',
     kind: commandKindsType,
   }),
-  invalid_typed_endpoint: type({
-    error: "'invalid_typed_endpoint'",
-    at: 'number',
-    kind: commandKindsType,
-  }),
-  type_must_be_text: type({ error: "'type_must_be_text'", at: 'number', kind: commandKindsType }),
-  dependencyId_must_be_text: type({
-    error: "'dependencyId_must_be_text'",
-    at: 'number',
-    kind: commandKindsType,
-  }),
   metric_must_be_text: type({
     error: "'metric_must_be_text'",
     at: 'number',
@@ -525,7 +514,6 @@ const batchRefusals = [
       type.or(
         type({ ...context, error: "'not_found'" }),
         type({ ...context, error: "'unknown_step'" }),
-        type({ ...context, error: "'unknown_dependency'" }),
         type({ ...context, error: "'unknown_metric'" }),
         type({ ...context, error: "'unknown_person'" }),
         type({ ...context, error: "'unknown_team'" }),
@@ -552,10 +540,6 @@ const batchRefusals = [
         type({ ...context, error: "'engine_unavailable'" }),
         type({ ...context, error: "'rolled_up'" }),
         type({ ...context, error: "'ancestor'" }),
-        // A typed dependency whose endpoints resolve a step node onto itself.
-        type({ ...context, error: "'self_node'" }),
-        type({ ...context, error: "'not_a_parent'" }),
-        type({ ...context, error: "'duplicate_dependency'" }),
         type({ ...context, error: "'too_large'" }),
       ),
     ),
@@ -563,20 +547,10 @@ const batchRefusals = [
   { status: 409, schema: responseSchema(type({ ...context, error: "'taken'", name: 'string' })) },
   { status: 409, schema: responseSchema(type({ ...context, error: "'in_use'", usage })) },
   {
-    status: 409,
-    schema: responseSchema(
-      type.or(
-        type({ ...context, error: "'node_on_parent'", dependencyIds: 'string[]' }),
-        type({ ...context, error: "'descendant_step_on_leaf'", dependencyIds: 'string[]' }),
-      ),
-    ),
-  },
-  {
     status: 422,
     schema: responseSchema(
       type.or(
         type({ ...context, error: "'calendar_range'" }),
-        type({ ...context, error: "'unsupported_relationship_type'" }),
         type({
           ...context,
           error: "'deadline_before_project_start'",

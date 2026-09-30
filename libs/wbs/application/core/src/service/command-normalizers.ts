@@ -2,7 +2,6 @@ import type { commandDefinitions, PlanCommandKind } from '@wbs/contracts';
 import {
   type AllowancePercent,
   allowancePercentOf,
-  isDependencyEndpointScope,
   isIsoDate,
   type IsoDate,
   isSettableStatus,
@@ -556,71 +555,6 @@ function normalizeStepAddress(raw: InputWith<'stepId' | 'stepNodeId'>): {
   return { ...target(raw), stepId: asText(raw.stepId, 'stepId') };
 }
 
-/**
- * One text field of a typed endpoint, absent allowed.
- *
- * Read off the raw value rather than the schema's inferred type: schema-failure
- * classification calls the normalizer on bodies the schema already refused,
- * so a number where text belongs must be the endpoint's indexed refusal rather
- * than a `TypeError` inside `parseStepNodeId`.
- */
-function endpointText(raw: object, field: string): string | undefined {
-  const value: unknown = Reflect.get(raw, field);
-  if (value === undefined) return undefined;
-  // Proof: this check deleted made `refuses a missing or malformed endpoint as
-  // 400` fail on `Expected: 400, Received: 500` for `stepNodeId: 7`; watched
-  // 2026-09-27.
-  if (typeof value !== 'string') throw new CommandNormalizationError('invalid_typed_endpoint');
-  return value;
-}
-
-/** Parses one typed endpoint before batch reference binding. */
-function normalizeTypedEndpoint(raw: unknown) {
-  // Proof: this object check deleted made the mounted `refuses a missing or
-  // malformed endpoint as 400` fail on `Expected: 400, Received: 500` for a
-  // null predecessor; watched 2026-09-27.
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    throw new CommandNormalizationError('invalid_typed_endpoint');
-  }
-  const scope: unknown = Reflect.get(raw, 'scope');
-  if (!isDependencyEndpointScope(scope)) {
-    throw new CommandNormalizationError('invalid_typed_endpoint');
-  }
-  const workItemId = endpointText(raw, 'workItemId');
-  const workItemRef = endpointText(raw, 'workItemRef');
-  const stepId = endpointText(raw, 'stepId');
-  const stepNodeId = endpointText(raw, 'stepNodeId');
-  if (scope === 'whole') {
-    // Proof: deleting this check made the mounted whole-with-step refusal return 200 instead of 400; watched 2026-09-27.
-    if (
-      (workItemId === undefined) === (workItemRef === undefined) ||
-      stepId !== undefined ||
-      stepNodeId !== undefined
-    )
-      throw new CommandNormalizationError('invalid_typed_endpoint');
-    return present({ scope, workItemId, workItemRef });
-  }
-  if (scope === 'node' && stepNodeId !== undefined) {
-    if (workItemId !== undefined || workItemRef !== undefined || stepId !== undefined)
-      throw new CommandNormalizationError('invalid_typed_endpoint');
-    const parsed = parseStepNodeId(stepNodeId);
-    if (!parsed.ok)
-      throw new CommandNormalizationError(
-        parsed.reason === 'unknown_encoding'
-          ? 'unknown_step_node_encoding'
-          : 'invalid_step_node_id',
-      );
-    return { scope, ...parsed.ref };
-  }
-  if (
-    (workItemId === undefined) === (workItemRef === undefined) ||
-    stepId === undefined ||
-    stepNodeId !== undefined
-  )
-    throw new CommandNormalizationError('invalid_typed_endpoint');
-  return present({ scope, workItemId, workItemRef, stepId });
-}
-
 function normalizedRef(value: unknown) {
   return present({ ref: asOptionalId(value, 'ref') });
 }
@@ -788,23 +722,6 @@ export const commandNormalizers = {
       predecessorId: asOptionalId(raw.predecessorId, 'predecessorId'),
       predecessorRef: asOptionalId(raw.predecessorRef, 'predecessorRef'),
     }),
-  addTypedDependency: (raw: CommandInput<'addTypedDependency'>) => ({
-    kind: 'addTypedDependency' as const,
-    predecessor: normalizeTypedEndpoint(raw.predecessor),
-    successor: normalizeTypedEndpoint(raw.successor),
-    type: asText(raw.type, 'type'),
-  }),
-  updateTypedDependency: (raw: CommandInput<'updateTypedDependency'>) => ({
-    kind: 'updateTypedDependency' as const,
-    dependencyId: asText(raw.dependencyId, 'dependencyId'),
-    predecessor: normalizeTypedEndpoint(raw.predecessor),
-    successor: normalizeTypedEndpoint(raw.successor),
-    type: asText(raw.type, 'type'),
-  }),
-  removeTypedDependency: (raw: CommandInput<'removeTypedDependency'>) => ({
-    kind: 'removeTypedDependency' as const,
-    dependencyId: asText(raw.dependencyId, 'dependencyId'),
-  }),
   arrangeBySchedule: (_raw: CommandInput<'arrangeBySchedule'>) => ({
     kind: 'arrangeBySchedule' as const,
   }),

@@ -19,7 +19,6 @@ const INPUT: ScheduleInput = {
   notBefore: new Map(),
   poolSizes: new Map(),
   reach: 'whole-item',
-  typed: [],
   deadlines: new Map(),
 };
 

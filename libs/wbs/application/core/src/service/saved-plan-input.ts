@@ -9,7 +9,7 @@ import {
 import type { PlanInputReads } from '../ports/saved-plan-capture-store';
 
 /**
- * Fold one capture's eighteen reads into the twenty collections
+ * Fold one capture's seventeen reads into the nineteen collections
  * `canonicalisePlanInput` folds again into the body.
  *
  * Two steps rather than one, and the seam is deliberate: this one knows the
@@ -101,7 +101,6 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
     })),
     steps: reads.steps.map((row) => ({
       id: row.id,
-      code: row.code,
       name: row.name,
       position: row.position,
       // History, never the live policy: a saved plan reads the allowance it
@@ -121,12 +120,6 @@ export function planInputRowsOf(reads: PlanInputReads): PlanInputRows {
     dependencies: reads.dependencies.map((row) => ({
       predecessorId: row.predecessorId,
       successorId: row.successorId,
-    })),
-    typedDependencies: reads.typedDependencies.map(({ id, predecessor, successor, type }) => ({
-      id,
-      predecessor,
-      successor,
-      type,
     })),
     assignments: reads.assignments.map((row) => ({
       workItemId: row.workItemId,
