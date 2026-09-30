@@ -134,7 +134,6 @@ export function guardRealPublication(
     input.poolSizes,
     input.reach,
     input.deadlines,
-    input.typed,
   );
 
   const optimizedValues = scoreReal(optimized, weightOf, baselineStartOf);

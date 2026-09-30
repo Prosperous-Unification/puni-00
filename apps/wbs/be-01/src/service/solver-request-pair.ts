@@ -28,7 +28,6 @@ export function buildSolverRequestPair(
     input.notBefore,
     input.poolSizes,
     input.reach,
-    input.typed,
   );
   const spawn = { baselineOffsets, solverVersion, budgetMs };
 

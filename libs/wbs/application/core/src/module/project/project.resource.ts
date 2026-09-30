@@ -25,7 +25,6 @@ import type {
 } from '../../ports/project-store';
 import type { OptimizerAvailability } from '../../ports/scheduler';
 import type { Step } from '../../ports/step-store';
-import type { DependencyGraphGuard } from '../../service/dependency-graph';
 
 /**
  * The steps a project starts with, **in step order**. Two sets of estimates is
@@ -54,12 +53,7 @@ export type UpdateOutcome =
          * in the request — `refusal-status.ts` answers it 409 for that reason,
          * and the same body will be accepted once TASK-220 wires the reader.
          */
-        | 'optimizer_unavailable'
-        /**
-         * A `depReach` change that would move a dynamic legacy anchor into a
-         * cycle with a typed dependency. Nothing is written.
-         */
-        | 'dependency_cycle';
+        | 'optimizer_unavailable';
     };
 
 /** A scoped viewer may not create; legacy access and every writing role may. */
@@ -106,13 +100,6 @@ export interface ProjectServiceOptions {
    * the whole point of the type is that it cannot disagree with the reader.
    */
   optimizerAvailable?: OptimizerAvailability;
-  /**
-   * The combined step-node graph a `depReach` change is checked against
-   * before it is written. Required: a reach change can move every legacy
-   * link's anchor at once, and a project that accepted one without asking
-   * would store a plan whose every later read throws.
-   */
-  dependencyGraph: Pick<DependencyGraphGuard, 'findCycle'>;
 }
 
 /**
@@ -411,16 +398,6 @@ export class ProjectService {
     // learns `forbidden` rather than a fact about how this box is wired.
     if (turnsTheOptimizerOn(project, patch) && !this.optimizerAvailable()) {
       return { ok: false, reason: 'optimizer_unavailable' };
-    }
-    // Asked of the state the patch would leave, before the write. The route
-    // runs this whole method as one unit of work (`admitted-write.ts`), so no
-    // other write lands between this read and the write below.
-    // Proof: this check skipped made the mounted `refuses a depReach change
-    // that closes a step-node cycle` fail on `Expected: 409, Received: 200`;
-    // watched 2026-09-27.
-    if (patch.depReach !== undefined && patch.depReach !== project.depReach) {
-      const cycle = await this.opts.dependencyGraph.findCycle(id, { reach: patch.depReach });
-      if (cycle !== null) return { ok: false, reason: 'dependency_cycle' };
     }
     const stamp = this.clock.stampFor(actorId);
     const updated =

@@ -69,7 +69,6 @@ export type { OidcVerifier } from './ports/oidc-verifier';
 export * from './ports/plan-event-store';
 export * from './ports/priority-band-store';
 export * from './ports/progress-store';
-export * from './ports/typed-dependency-store';
 // The neutral project-event port: `Broadcaster`, `ProjectEvent` and `subscriptionFor`.
 export * from './ports/membership-administration';
 export * from './ports/organization-access';

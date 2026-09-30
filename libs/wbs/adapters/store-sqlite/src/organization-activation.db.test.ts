@@ -32,8 +32,6 @@ const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
  * {@link ORGANIZATION_BRIDGE} and reversed before it.
  */
 const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
-/** Stamped after the bridge, so every rollback below the bridge reverses it first. */
-const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 /** The step allowance column, stamped between {@link STEP_CODE} and the marker. */
 const STEP_ALLOWANCE = '20260927170000_add_step_allowance';
 
@@ -211,7 +209,6 @@ describe('organization activation marker schema', () => {
 
   it('rolls back before activation and reapplies with a fresh seed', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
-      TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
       ORGANIZATION_ACTIVATION,
@@ -220,7 +217,7 @@ describe('organization activation marker schema', () => {
     ]);
     expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_OWNERSHIP);
     runMigrations(path, FOLDER);
-    expect(readAppliedMigrations().at(-1)).toBe(TYPED_DEPENDENCY);
+    expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_FROZEN);
     expect(withDb(readOrganizationActivation)).toBe('pre_activation');
   });
 
