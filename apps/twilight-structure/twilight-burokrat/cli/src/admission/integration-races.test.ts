@@ -398,25 +398,43 @@ async function exitAfterRelease(
   role: string,
   stdout: Promise<string>,
   stderr: Promise<string>,
+  timeoutMilliseconds = 5_000,
 ): Promise<{ code: number; output: string; error: string }> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<undefined>((resolve) => {
     timer = setTimeout(() => {
       resolve(undefined);
-    }, 5_000);
+    }, timeoutMilliseconds);
   });
-  const settled = Promise.all([child.exited, stdout, stderr]);
-  const response = await Promise.race([settled, timeout]);
-  if (timer !== undefined) clearTimeout(timer);
-  if (response !== undefined) {
-    const [code, output, error] = response;
-    return { code, output, error };
+  const settled = Promise.allSettled([child.exited, stdout, stderr] as const);
+  let response: Awaited<typeof settled> | undefined;
+  try {
+    response = await Promise.race([settled, timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
-  killChildGroup(child);
-  const killed = await Promise.race([settled, Bun.sleep(5_000).then(() => undefined)]);
-  throw new Error(
-    `${role} did not drain after publication release; group killed ${String(killed?.[0])}`,
-  );
+  const timedOut = response === undefined;
+  if (timedOut || response?.some((outcome) => outcome.status === 'rejected') === true) {
+    killChildGroup(child);
+    response = await Promise.race([settled, Bun.sleep(timeoutMilliseconds).then(() => undefined)]);
+  }
+  if (response === undefined) throw new Error(`${role} did not drain after group kill`);
+  const [exit, output, error] = response;
+  const failed = response.find((outcome) => outcome.status === 'rejected');
+  if (failed?.status === 'rejected') {
+    throw new Error(`${role} output or exit failed after group cleanup: ${String(failed.reason)}`, {
+      cause: failed.reason,
+    });
+  }
+  if (timedOut) throw new Error(`${role} did not drain before group kill`);
+  if (
+    exit.status !== 'fulfilled' ||
+    output.status !== 'fulfilled' ||
+    error.status !== 'fulfilled'
+  ) {
+    throw new Error(`${role} settled without complete output`);
+  }
+  return { code: exit.value, output: output.value, error: error.value };
 }
 
 /** Waits for the real prepared Git hook to disappear after group termination. */
@@ -1309,15 +1327,23 @@ test('a rejecting Git publication hook preserves the exact reservation and throw
   subject.store.close();
 });
 
-for (const scenario of ['normal', 'early-recovery', 'release-failure'] as const) {
+for (const scenario of [
+  'normal',
+  'early-recovery',
+  'release-failure',
+  'output-read-failure',
+] as const) {
   const recoveryExitsEarly = scenario === 'early-recovery';
   const releaseFails = scenario === 'release-failure';
+  const outputReadFails = scenario === 'output-read-failure';
   test(
-    releaseFails
-      ? 'a failed release terminates the prepared Git reference hook'
-      : recoveryExitsEarly
-        ? 'a failed recovery releases the publisher holding prepared Git ref locks'
-        : 'a competing recovery cannot clear publication while Git holds prepared ref locks',
+    outputReadFails
+      ? 'a failed output read reaps the prepared Git reference hook'
+      : releaseFails
+        ? 'a failed release terminates the prepared Git reference hook'
+        : recoveryExitsEarly
+          ? 'a failed recovery releases the publisher holding prepared Git ref locks'
+          : 'a competing recovery cannot clear publication while Git holds prepared ref locks',
     async () => {
       const subject = fixture();
       const one = subject.submission('one', 'src/one.ts', 'export const one = 2;\n');
@@ -1461,9 +1487,11 @@ try {
       try {
         await waitForPath(readyPath, first, firstStderr);
         hookPid = Number(readFileSync(hookPidPath, 'utf8').trim());
-        if (releaseFails) {
+        if (releaseFails || outputReadFails) {
           process.kill(hookPid, 0);
-          throw new Error('injected publication release failure');
+          throw new Error(
+            releaseFails ? 'injected publication release failure' : 'injected output read failure',
+          );
         }
         const recovery = Bun.spawn(
           [
@@ -1525,7 +1553,7 @@ try {
         let releaseFailure: unknown = releaseFails
           ? new Error('injected publication release failure')
           : undefined;
-        if (!releaseFails) {
+        if (!releaseFails && !outputReadFails) {
           try {
             writeFileSync(releasePath, 'release');
           } catch (cause) {
@@ -1548,7 +1576,15 @@ try {
           }
         }
         const exits = await Promise.allSettled([
-          exitAfterRelease(first, 'publisher', firstStdout, firstStderr),
+          exitAfterRelease(
+            first,
+            'publisher',
+            outputReadFails
+              ? Promise.reject(new Error('injected stdout read failure'))
+              : firstStdout,
+            firstStderr,
+            outputReadFails ? 100 : 5_000,
+          ),
           second === undefined
             ? Promise.resolve(undefined)
             : exitAfterRelease(
@@ -1568,6 +1604,27 @@ try {
         if (secondExit.status === 'rejected') {
           cleanupFailures.push(new Error('cannot reap recovery', { cause: secondExit.reason }));
         }
+        if (outputReadFails) {
+          const drained = await Promise.race([firstStdout, Bun.sleep(2_000).then(() => undefined)]);
+          if (drained === undefined)
+            cleanupFailures.push(new Error('publisher stdout did not drain'));
+        }
+      }
+      if (outputReadFails) {
+        if (hookPid === undefined) throw new Error('prepared Git hook PID was not recorded');
+        try {
+          await waitForProcessGone(hookPid);
+        } finally {
+          writeFileSync(releasePath, 'release');
+        }
+        const readFailure = cleanupFailures.find(
+          (failure) => failure.message === 'cannot reap publisher',
+        );
+        if (!(readFailure?.cause instanceof Error))
+          throw new Error('stdout read failure was not reported');
+        expect(readFailure.cause.message).toContain('injected stdout read failure');
+        expect(raceFailure).toBeInstanceOf(Error);
+        return;
       }
       if (releaseFails) {
         // Proof: a prepared Git hook remains live when its Bun parent alone
