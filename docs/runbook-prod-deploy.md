@@ -79,31 +79,3 @@ exits non-zero and `commit` does not run. The error names the manual command,
 `docker exec be-01-<colour> bun run src/backfill-step-codes-cli.ts`. That command is idempotent:
 run it until it prints `step codes backfilled: <n>`, then rerun the deploy to record it
 (`backfillStepCodes` in `libs/wbs/adapters/store-sqlite/src/step-code-backfill.ts`).
-
-## Typed dependency rollback
-
-Rolling back past `20260927213000_add_typed_dependency` refuses while `typed_dependency` holds
-rows: the older release cannot read them, and `down.sql` will not drop them silently. The
-refusal reads `CHECK constraint failed: typed dependencies exist: …`. The procedure is lossless.
-Run it inside the incoming container after its writers have stopped, with the same `DB_PATH`.
-
-Save the rows, then copy the file off the host:
-
-```sh
-docker exec be-01-<colour> bun run src/typed-dependency-rollback-cli.ts save /data/typed-dependency-<date>.json
-```
-
-Remove them only after the save is secure. Remove refuses unless the saved rows match the table
-exactly, including every column:
-
-```sh
-docker exec be-01-<colour> bun run src/typed-dependency-rollback-cli.ts remove /data/typed-dependency-<date>.json
-docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
-```
-
-After a later forward migration, restore from the saved file. Restore refuses the whole set if
-any endpoint no longer fits its project or work-item shape:
-
-```sh
-docker exec be-01-<colour> bun run src/typed-dependency-rollback-cli.ts restore /data/typed-dependency-<date>.json
-```

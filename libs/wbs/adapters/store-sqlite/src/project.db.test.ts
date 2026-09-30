@@ -122,7 +122,6 @@ describe('ProjectRepository', () => {
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
       '20260928010000_add_project_solution',
       '20260927220000_add_organization_audit',
-      '20260927213000_add_typed_dependency',
       '20260927200000_freeze_organization_ownership',
       '20260927190000_add_organization_bridge',
       '20260927180000_add_organization_activation',

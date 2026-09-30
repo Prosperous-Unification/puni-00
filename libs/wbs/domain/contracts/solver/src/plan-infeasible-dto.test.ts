@@ -22,7 +22,6 @@ const INPUT: ScheduleInput = {
   notBefore: new Map(),
   poolSizes: new Map(),
   reach: 'whole-item',
-  typed: [],
   deadlines: new Map([
     ['parent', 8],
     ['b', 5],
@@ -55,7 +54,6 @@ const ANCESTOR_BOUND: ScheduleInput = {
   notBefore: new Map(),
   poolSizes: new Map(),
   reach: 'whole-item',
-  typed: [],
   deadlines: new Map([
     ['parent', 5],
     ['late', 12],

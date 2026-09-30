@@ -18,7 +18,6 @@ export const PORT_NAMES = [
   'measures',
   'progress',
   'dependencies',
-  'typedDependencies',
   'subtrees',
   'journal',
   'savedPlans',
@@ -106,7 +105,6 @@ export const CASE_MANIFEST = {
     'dependencies.remove:pair',
     'dependencies.removeAllFor:touching-set',
   ],
-  typedDependencies: ['typedDependencies.write:identity-and-bulk'],
   subtrees: ['subtrees.insertSubtree:complete-copy', 'subtrees.insertSubtree:late-failure'],
   journal: [
     'journal.append:history-atomic',

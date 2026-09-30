@@ -237,7 +237,6 @@ describe('the seventh argument did not move a corpus byte', () => {
           each.poolSizes ?? new Map(),
           each.reach ?? 'whole-item',
           new Map(),
-          [],
           new Map(),
         ),
       ).toThrow(ScheduleInvalidOptimizedStartError);
