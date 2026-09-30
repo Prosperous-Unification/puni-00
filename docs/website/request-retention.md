@@ -22,7 +22,7 @@ bun apps/website/be-01/dist/request-retention-cli.js resolve /path/to/website.sq
 
 ## Ambiguity reasons
 
-- `unanchored_content`: content exists without a linked draft, as in migration 004's copied `account_request` rows or placeholder chat.
+- `unanchored_content`: content exists without a linked draft or recorded first write. Examples are migration 004's copied `account_request` rows, placeholder chat, or a blank request that an older API process filled during a blue/green swap.
 - `content_predates_anchor`: chat, operation or preview rows are older than the linked draft.
 - `overlapping_lineage`: the linked draft also belongs to another account's legacy row, or a submission shares the draft without being that request's own submission.
 
