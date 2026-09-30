@@ -2,7 +2,7 @@ import { noopLogger } from '@wbs/contracts';
 import { openMemorySource } from '@wbs/store-memory';
 
 import { composeServices, type RuntimePorts, type SharedComposition } from '../src/compose';
-import { PlanCommandRunner } from '../src/module/plan-commands/plan-commands.feature';
+import { createPlanCommandRunner } from '../src/module/plan-commands/composition';
 import { runCommandBatch } from '../src/module/plan-commands/run-command-batch';
 import { replay } from '../src/module/realtime/realtime.feature';
 import { savePlan } from '../src/module/saved-plans/save-plan';
@@ -101,7 +101,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
     },
     shared,
   });
-  const runner = new PlanCommandRunner({
+  const runner = createPlanCommandRunner({
     batchServices: graph.batch,
     publicServices: graph,
     uow: graph.uow,

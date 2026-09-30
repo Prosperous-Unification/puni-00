@@ -4,7 +4,8 @@ import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
 import { AdmittedScope } from './admitted-scope.resource';
-import { PlanCommandRunner, type PlanCommandServices } from './plan-commands.feature';
+import { createPlanCommandRunner } from './composition';
+import { type PlanCommandServices } from './plan-commands.feature';
 
 interface JournalEntry {
   id: string;
@@ -207,7 +208,7 @@ describe('the command runner builds services from each unit-of-work scope', () =
       return { workItems } as unknown as PlanCommandServices;
     };
 
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       batchServices: (scope, _broadcast) => {
         source.scopedStores.push(scope.stores);
         const plan = source.plans.get(scope.stores.projects);

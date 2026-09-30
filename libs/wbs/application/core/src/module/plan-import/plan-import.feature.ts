@@ -6,8 +6,7 @@ import type { Clock } from '../../ports/clock';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scheduler } from '../../ports/scheduler';
-import type { UnitOfWork } from '../../ports/unit-of-work';
-import { type ImportGraphFactory, runImportAdmission } from './imported-plan.resource';
+import type { ImportTransaction } from './imported-plan.resource';
 import {
   type ImportPreparation,
   type PreparedNamedEntry,
@@ -18,9 +17,8 @@ import {
 export interface ImportServiceOptions {
   clock: Clock;
   scheduler: Scheduler;
-  uow: UnitOfWork;
+  transaction: ImportTransaction;
   announcements: Broadcaster;
-  batchServices: ImportGraphFactory;
 }
 
 export interface ImportAdmission {
@@ -139,7 +137,7 @@ async function resolveNamed(
  * Admits one prepared archival plan and reconciles its deployment-global names.
  *
  * Every directory read, create, ownership write and membership write uses the
- * graph composed over the scope this import's own {@link UnitOfWork} supplies,
+ * graph composed over this import's admitted transaction,
  * and every other repository write goes through that scope's
  * {@link ImportedPlanResource}. Existing entries are authoritative and are never patched;
  * only entries created by this import receive file-owned metadata.
@@ -178,11 +176,9 @@ export class ImportService {
     const preparation = prepareImport(document, this.opts.scheduler);
     if (!preparation.ok) return preparation;
     const collector = new AnnouncementCollector(this.opts.announcements);
-    const admitted = await runImportAdmission<AdmittedImportOutcome>(
-      this.opts.uow,
-      this.opts.batchServices,
+    const admitted = await this.opts.transaction.run<AdmittedImportOutcome>(
       collector,
-      async (writes, graph) => {
+      async ({ writes, services: graph }) => {
         const directory = graph.directory;
         const [services, teams, people, tags, types, systems] = await Promise.all([
           directory.listWithin('services', access),

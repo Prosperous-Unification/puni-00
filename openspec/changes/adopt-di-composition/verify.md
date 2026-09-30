@@ -2596,3 +2596,11 @@ sources` on `Received: undefined` (3 pass, 1 fail); prepending
   `wbs-conformance` (with `typecheck:module`) and `nx run-many -t lint:fast` for the first four
   succeeded; `openspec validate --all --json` 145 passed. Not run: `wbs-fe-01`, a full
   `nx affected`, the host gate.
+
+### Plan Import and Plan Commands mapped transaction correction — 2026-10-01
+
+- The feature constructor options now accept fixed resource transactions. Composition modules own `uow.run`, per-scope graph factories, `NO_ADMISSION` route writes, and fresh rollback repair. `PlanCommandServices` lives in a neutral graph contract. Direct constructors moved to composition factories. This deliberately changes the two feature constructor option types; the exception is specified above.
+- With callable-signature traversal absent, the resolved audit missed a renamed `Scope` inside a nested Plan Commands callback (0 passed, 1 failed). Disabling that traversal also made the nested Plan Import callback-return negative fail (0 passed, 1 failed). Restored audit: 12 passed, 0 failed.
+- The raw admitted-write options fixture failed core spec typechecking with TS2344 before migration. Injecting `graphOf` into the mapped command callback failed its runtime resource-surface test (1 passed, 1 failed). A graph-factory throw left a Working plan read usable before cleanup; its focused regression failed, then passed after composition closed the plan on that path.
+- `bun test` on core Plan Import, Plan Commands, transaction boundary and module boundary files: 96 passed, 0 failed. Memory import contract: 31 passed, 0 failed. SQLite import contract and Working plan order: 41 passed, 0 failed. be-01 command, announcement and app-route files: 35 passed, 1 failed; the sole failure was `Bun.serve` returning `EPERM` on `listen` in the health-route framed-body test. Its isolated rerun failed for the same sandbox reason.
+- Core, be-01 and SQLite adapter lib/spec TypeScript configurations all passed `bunx tsc --noEmit`. Changed-file Prettier and ESLint checks passed; ESLint printed that its Nx module-boundary rule skipped because no cached ProjectGraph was available. OpenSpec CLI validation and the full h2puni gate were not run in the isolated archive.

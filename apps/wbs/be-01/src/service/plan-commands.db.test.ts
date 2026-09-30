@@ -8,11 +8,14 @@ import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar
 import { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import {
+  createPlanCommandRunner,
+  type PlanCommandsSource,
+} from '@wbs/core/module/plan-commands/composition';
+import type { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
+import {
   type AppliedCommand,
   type BatchOutcome,
   type BatchRefusal,
-  PlanCommandRunner,
-  type PlanCommandRunnerOptions,
 } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import { PriorityBandService } from '@wbs/core/module/priority-band/priority-band.resource';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
@@ -66,7 +69,7 @@ let dir: string;
 /** The raw handle, for the claims that are about a column rather than a row. */
 let db: Drizzle;
 let runner: PlanCommandRunner;
-let runnerOptions: PlanCommandRunnerOptions;
+let runnerOptions: PlanCommandsSource;
 let serviceOptions: WorkItemServiceOptions;
 let workItems: WorkItemService;
 let workItemStore: WorkItemRepository;
@@ -206,7 +209,7 @@ beforeEach(async () => {
     uow: sqliteUnitOfWork(db, new WriteCoordinator(), buildStores(db, OPEN)),
     announcements: broadcast,
   };
-  runner = new PlanCommandRunner(runnerOptions);
+  runner = createPlanCommandRunner(runnerOptions);
   const created = await new ProjectService({
     dependencyGraph: sqliteDependencyGraph(db, projectStore),
     clock: testClock,
@@ -679,14 +682,14 @@ describe('a command batch', () => {
     };
     // The slow publisher replaces the public graph's work-item service, so the
     // postcommit push driven through `slowRunner` is held by construction.
-    const slowRunner = new PlanCommandRunner({
+    const slowRunner = createPlanCommandRunner({
       ...runnerOptions,
       publicServices: {
         ...runnerOptions.publicServices,
         workItems: new WorkItemService({ ...serviceOptions, broadcast: slow }),
       },
     });
-    const fastRunner = new PlanCommandRunner(runnerOptions);
+    const fastRunner = createPlanCommandRunner(runnerOptions);
 
     const batchA = { state: 'pending' as 'pending' | 'applied' };
     const first = slowRunner
@@ -730,7 +733,7 @@ describe('a command batch', () => {
       publish: () => held,
       latestSeq: () => Promise.resolve(0),
     };
-    const tagRunner = new PlanCommandRunner({
+    const tagRunner = createPlanCommandRunner({
       ...runnerOptions,
       // The batch's own graph over its collector, as always; what is slow is
       // where the collector drains **to**, which is after the turn is let go.

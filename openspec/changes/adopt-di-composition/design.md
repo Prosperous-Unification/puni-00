@@ -28,6 +28,13 @@ does not refuse a returned bag; the module's tests enumerate the returned surfac
 
 ## Two lifetimes
 
+Plan Import and Plan Commands receive mapped transaction callbacks. Their composition modules
+retain raw unit-of-work and graph-factory capabilities, build a fresh resource graph for each
+admitted scope, and map rollback repair through the surviving scope. Direct constructor callers
+move to composition factories. This is an intentional TypeScript constructor-option break for
+these two features; their service exports remain. The callable-signature boundary audit follows
+nested callback parameters and returns so a renamed `Scope` cannot escape through a mapped type.
+
 - **Process modules** (Plan history, Realtime, Bounded replay sweep, Saved plans, Plan import,
   Authentication, Optimization) are installed once, where `composeServices` runs.
 - **Per-admission modules** (the seven resource responsibilities and Plan commands) are installed

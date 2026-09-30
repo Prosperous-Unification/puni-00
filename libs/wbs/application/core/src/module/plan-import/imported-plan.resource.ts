@@ -7,7 +7,7 @@ import type { NewProject } from '../../ports/project-values';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeCopy } from '../../ports/subtree-store';
 import type { StoredTypedDependency } from '../../ports/typed-dependency-store';
-import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
+import type { Scope } from '../../ports/unit-of-work';
 import type { WorkItemPatch } from '../../ports/work-item-store';
 import type { WriteStamp } from '../../ports/write-stamp';
 import type { DirectoryService } from '../directory/directory.resource';
@@ -27,6 +27,20 @@ export type ImportGraphFactory = (scope: Scope, broadcast: Broadcaster) => Impor
 
 /** Whether an admitted import keeps its writes, and what it answers either way. */
 export type ImportDecision<T> = { commit: true; value: T } | { commit: false; value: T };
+
+/** The complete resources an import may use during its own admitted turn. */
+export interface ImportedPlan {
+  writes: ImportedPlanResource;
+  services: ImportServices;
+}
+
+/** A mapped transaction; only composition can supply its source and graph factory. */
+export interface ImportTransaction {
+  run<T>(
+    broadcast: Broadcaster,
+    act: (plan: ImportedPlan) => Promise<ImportDecision<T>>,
+  ): Promise<T>;
+}
 
 /** The labels a created row receives once every directory entry it names exists. */
 export type ImportedLabels = Required<
@@ -173,23 +187,4 @@ export class ImportedPlanResource {
         : await this.#scope.stores.projects.list();
     return told.map(({ id }) => id);
   }
-}
-
-/**
- * Runs one import as one unit of work, handing it the scope's own
- * {@link ImportedPlanResource} and the graph `graphOver` builds over that scope
- * and `broadcast`.
- *
- * The scope never leaves this function, so the feature reaches the repository
- * only through the resource.
- */
-export function runImportAdmission<T>(
-  uow: UnitOfWork,
-  graphOver: ImportGraphFactory,
-  broadcast: Broadcaster,
-  act: (writes: ImportedPlanResource, graph: ImportServices) => Promise<ImportDecision<T>>,
-): Promise<T> {
-  return uow.run<T>(
-    async (scope) => await act(new ImportedPlanResource(scope), graphOver(scope, broadcast)),
-  );
 }

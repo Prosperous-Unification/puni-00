@@ -1,10 +1,7 @@
 import { AnnouncementCollector } from '../../ports/announcement-collector';
-import { NO_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
-import type { UnitOfWork } from '../../ports/unit-of-work';
 import type { ProjectService } from '../project/project.resource';
 import type { StepService } from '../step/step.resource';
-import { type AdmittedGraphFactory, runAdmitted } from './admitted-scope.resource';
 
 /** The two route writes that validate the combined dependency graph before they write. */
 export interface AdmittedServices {
@@ -12,15 +9,19 @@ export interface AdmittedServices {
   readonly steps: Pick<StepService, 'removeWithin'>;
 }
 
-/** What a host supplies: the source's unit of work, the per-scope graph and the direct broadcaster. */
-export interface AdmittedWriteSource {
-  readonly uow: UnitOfWork;
-  /**
-   * The per-scope graph. It is built with {@link NO_ADMISSION}: the two writes
-   * here authorize through the caller's access themselves and ask no
-   * admission, so any gated service reached through this graph is refused.
-   */
-  readonly batch: AdmittedGraphFactory<AdmittedServices>;
+export type AdmittedWriteDecision<T> = { commit: true; value: T } | { commit: false; value: T };
+
+/** One admitted route write over a mapped graph, with no source capability. */
+export interface AdmittedWriteTransaction {
+  run<T>(
+    broadcast: Broadcaster,
+    act: (services: AdmittedServices) => Promise<AdmittedWriteDecision<T>>,
+  ): Promise<T>;
+}
+
+/** The mapped transaction and broadcaster supplied to the route-write feature. */
+export interface AdmittedWriteOptions {
+  readonly transaction: AdmittedWriteTransaction;
   readonly announcements: Broadcaster;
 }
 
@@ -34,13 +35,13 @@ export interface AdmittedWriteSource {
  * rolls back, and announcements leave only after the commit, exactly as
  * `PlanCommandRunner` does for a batch.
  */
-export function admittedWrites(source: AdmittedWriteSource) {
+export function admittedWrites(options: AdmittedWriteOptions) {
   const admit = async <T extends { ok: boolean }>(
     act: (graph: AdmittedServices) => Promise<T>,
   ): Promise<T> => {
-    const collector = new AnnouncementCollector(source.announcements);
-    const outcome = await runAdmitted<T>(source.uow, async (scope) => {
-      const value = await act(scope.graphOf(source.batch, collector, NO_ADMISSION));
+    const collector = new AnnouncementCollector(options.announcements);
+    const outcome = await options.transaction.run<T>(collector, async (graph) => {
+      const value = await act(graph);
       return value.ok ? { commit: true, value } : { commit: false, value };
     });
     if (outcome.ok) await collector.send();

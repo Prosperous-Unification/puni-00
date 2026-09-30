@@ -127,6 +127,12 @@ contract is unchanged. Where direct callers still supply store-based constructor
 former path MAY export a compatibility adapter that builds the resource dependency, while the
 sealed module installs the feature directly.
 
+Plan Import and Plan Commands are the explicit exception to constructor compatibility: their
+feature constructors SHALL accept mapped resource transactions rather than raw unit-of-work,
+scope, or graph-factory options. Existing direct callers SHALL move to the composition factories;
+the constructor-option change is a deliberate TypeScript API break. Their exported service names
+and deep paths remain available.
+
 #### Scenario: A moved service keeps its former deep path
 
 - **GIVEN** a service file moved into its module directory without changing its constructor contract
@@ -138,6 +144,12 @@ sealed module installs the feature directly.
 - **GIVEN** a direct caller still constructing Authentication or Saved plans with repository stores
 - **WHEN** it imports the former service path
 - **THEN** a compatibility adapter constructs the resource and preserves that constructor behavior
+
+#### Scenario: A direct Plan Import or Plan Commands caller supplies a source
+
+- **GIVEN** a caller has a unit of work and a per-scope graph factory
+- **WHEN** it constructs the Plan Import or Plan Commands feature
+- **THEN** it uses the corresponding composition factory, and the feature constructor exposes only mapped resource transactions
 
 ### Requirement: Core modules own no process lifetime
 

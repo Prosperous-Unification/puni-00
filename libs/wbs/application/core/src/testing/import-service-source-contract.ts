@@ -7,7 +7,8 @@ import {
   classifyPlanDocument,
   PlanDocumentService,
 } from '../module/plan-document/plan-document.resource';
-import { ImportService } from '../module/plan-import/plan-import.feature';
+import { createImportService } from '../module/plan-import/composition';
+import type { ImportService } from '../module/plan-import/plan-import.feature';
 import { clockOf } from '../ports/clock';
 import { CREATOR_ADMISSION } from '../ports/edit-admission';
 import { LEGACY_ACCESS } from '../ports/organization-access';
@@ -40,7 +41,7 @@ function importService(
     newId: () => `imported-${String(++next)}`,
   });
   const announcements = options.announcements ?? recordingBroadcaster();
-  return new ImportService({
+  return createImportService({
     clock,
     scheduler: fastScheduler,
     uow: options.uow ?? source.uow,

@@ -36,12 +36,17 @@ function isRepositoryPort(declaration: ts.Declaration): boolean {
 }
 
 /**
- * Check a resolved type and its immediate public fields for repository ownership.
+ * Check a resolved type, public fields and callable signatures for repository ownership.
  * Class fields are private resource implementation, not feature dependencies.
  * Proof: before resolved-type inspection, the alias and compatibility-options
  * negatives both received no violation (each 0 pass, 1 fail).
  */
-function reachesRepositoryType(checker: ts.TypeChecker, type: ts.Type, location: ts.Node): boolean {
+function reachesRepositoryType(
+  checker: ts.TypeChecker,
+  type: ts.Type,
+  location: ts.Node,
+  signatures: boolean,
+): boolean {
   const seen = new Set<ts.Type>();
   const inspect = (current: ts.Type, fields: boolean): boolean => {
     if (seen.has(current)) return false;
@@ -52,19 +57,40 @@ function reachesRepositoryType(checker: ts.TypeChecker, type: ts.Type, location:
       return true;
     if (current.isUnionOrIntersection() && current.types.some((member) => inspect(member, false)))
       return true;
-    if (checker.isArrayType(current) || checker.isTupleType(current)) {
+    if (
+      (current.flags & ts.TypeFlags.Object) !== 0 &&
+      ((current as ts.ObjectType).objectFlags & ts.ObjectFlags.Reference) !== 0
+    ) {
       if (
         checker
           .getTypeArguments(current as ts.TypeReference)
-          .some((argument) => inspect(argument, false))
+          .some((argument) => inspect(argument, true))
       )
         return true;
     }
+    if (signatures) {
+      for (const kind of [ts.SignatureKind.Call, ts.SignatureKind.Construct]) {
+        for (const signature of checker.getSignaturesOfType(current, kind)) {
+          for (const parameter of signature.getParameters()) {
+            if (reachesRepositoryPort(checker, parameter)) return true;
+            if (inspect(checker.getTypeOfSymbolAtLocation(parameter, location), true)) return true;
+          }
+          if (inspect(checker.getReturnTypeOfSignature(signature), true)) return true;
+          for (const parameter of signature.getTypeParameters() ?? []) {
+            const constraint = checker.getBaseConstraintOfType(parameter);
+            if (constraint !== undefined && inspect(constraint, true)) return true;
+          }
+        }
+      }
+    }
     const isClass = symbol?.declarations?.some(ts.isClassDeclaration) ?? false;
-    if (fields && !isClass) {
+    const local = symbol?.declarations?.some((declaration) =>
+      declaration.getSourceFile().fileName.startsWith(sourceRoot),
+    );
+    if (fields && !isClass && (local ?? true)) {
       for (const property of current.getProperties()) {
         if (reachesRepositoryPort(checker, property)) return true;
-        if (inspect(checker.getTypeOfSymbolAtLocation(property, location), false)) return true;
+        if (inspect(checker.getTypeOfSymbolAtLocation(property, location), true)) return true;
       }
     }
     return false;
@@ -105,10 +131,10 @@ function findViolations(program: ts.Program, moduleName: string): string[] {
     );
   if (files.length === 0) return [`${moduleName}: no production files`];
   for (const source of files) {
-    // Resource implementations and module wiring are the permitted store owners.
+    // Resource implementations and composition wiring are the permitted store owners.
     if (
       source.fileName.endsWith('.resource.ts') ||
-      /\/(contract|module|check)\.ts$/.test(source.fileName)
+      /\/(contract|composition|module|check)\.ts$/.test(source.fileName)
     )
       continue;
     const report = (node: ts.Node, name: string): void => {
@@ -162,7 +188,7 @@ function findViolations(program: ts.Program, moduleName: string): string[] {
         ts.isPropertyAccessExpression(node)
       ) {
         const type = checker.getTypeAtLocation(node);
-        if (reachesRepositoryType(checker, type, node))
+        if (reachesRepositoryType(checker, type, node, !ts.isPropertyAccessExpression(node)))
           report(node, node.getText(source).slice(0, 80));
       }
       if (
@@ -307,6 +333,34 @@ test('repository method reached through compatibility options is refused', async
   );
   expect(
     findViolations(program, 'saved-plans').some((violation) => violation.includes('plans')),
+  ).toBe(true);
+}, 120_000);
+
+test('renamed scope inside a nested transaction callback is refused', async () => {
+  const program = await createProgramWith(
+    'module/plan-commands/plan-commands.feature.ts',
+    "export type EscapedTransaction = { mapped: { run: (act: (admitted: import('../../ports/unit-of-work').Scope) => Promise<void>) => Promise<void> } };",
+  );
+  // Proof: omitting signature traversal missed the injected `admitted` Scope
+  // and reported no violation; watched on the isolated candidate.
+  expect(
+    findViolations(program, 'plan-commands').some((violation) =>
+      violation.includes('EscapedTransaction'),
+    ),
+  ).toBe(true);
+}, 120_000);
+
+test('import transaction cannot return a raw scope through a nested resource callback', async () => {
+  const program = await createProgramWith(
+    'module/plan-import/plan-import.feature.ts',
+    "export type EscapedImportTransaction = { run: (act: (resources: { next: () => import('../../ports/unit-of-work').Scope }) => Promise<void>) => Promise<void> };",
+  );
+  // Proof: removing signature traversal made this renamed nested return
+  // produce no violation (0 pass, 1 fail); watched in the isolated candidate.
+  expect(
+    findViolations(program, 'plan-import').some((violation) =>
+      violation.includes('EscapedImportTransaction'),
+    ),
   ).toBe(true);
 }, 120_000);
 

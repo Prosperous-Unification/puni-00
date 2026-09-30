@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { subscriptionFor } from '@wbs/core';
-import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
+import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
@@ -452,7 +452,7 @@ describe('buildServices', () => {
       { optimizationEnabled: true, scheduleEngine: 'optimized' },
       { at: 1, by: ownerId },
     );
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       batchServices: services.batch,
       publicServices: services,
       uow: services.uow,

@@ -13,7 +13,7 @@ import {
   type SharedComposition,
   type WritingServices,
 } from './compose';
-import { PlanCommandRunner } from './module/plan-commands/plan-commands.feature';
+import { createPlanCommandRunner } from './module/plan-commands/composition';
 import { replay } from './module/realtime/realtime.feature';
 import { savePlan } from './module/saved-plans/save-plan';
 import { clockOf } from './ports/clock';
@@ -380,7 +380,7 @@ describe('composeServices', () => {
       graphs.push(services);
       return services;
     };
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       batchServices: observedGraph.batch,
       publicServices: graph,
       uow: graph.uow,

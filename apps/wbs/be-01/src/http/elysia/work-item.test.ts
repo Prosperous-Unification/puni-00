@@ -1,4 +1,4 @@
-import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
+import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { expect, spyOn, test } from 'bun:test';
 
 import { workItemRoutes } from '../../controller/work-item.routes';
@@ -12,7 +12,7 @@ import { mountEndpoints } from './mount';
 function fixture(readOnly = false) {
   const plan = inMemoryServices();
   const writes = testWrites(undefined, batchServices(plan));
-  const runner = new PlanCommandRunner({
+  const runner = createPlanCommandRunner({
     batchServices: writes.batch,
     publicServices: batchServices(plan),
     uow: writes.uow,

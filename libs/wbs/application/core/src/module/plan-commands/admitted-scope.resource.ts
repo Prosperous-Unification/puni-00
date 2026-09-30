@@ -3,8 +3,8 @@ import { canWriteInOrganization, type OrganizationScope } from '@wbs/domain';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectCrossReferenceKind, RecoveryAuditDetail } from '../../ports/project-values';
-import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
-import { createWorkingPlan } from './working-plan.resource';
+import type { Scope } from '../../ports/unit-of-work';
+import type { PlanCommandServices } from './plan-command-graph';
 
 /**
  * Builds a batch's service graph over the scope its unit of work admitted,
@@ -17,61 +17,16 @@ export type AdmittedGraphFactory<G> = (
 ) => G;
 
 /**
- * What an admitted act wants done with its writes: the unit of work's
- * `Decision`, with the rollback repair handed an {@link AdmittedScope} over the
- * surviving state instead of that state's stores.
- */
-export type AdmittedDecision<T> =
-  | { commit: true; value: T }
-  | { commit: false; value: T; afterRollback?: (scope: AdmittedScope) => Promise<void> };
-
-/** A batch's Working plan, open until {@link OpenWorkingPlan.close}. */
-export interface OpenWorkingPlan {
-  /** The admitted scope whose stores are the Working plan's retained reads and writes. */
-  readonly scope: AdmittedScope;
-  /** Permanently refuses the Working plan's retained reads; see `createWorkingPlan`. */
-  close(): void;
-}
-
-/**
- * One admitted unit of work's scope, as Plan commands' feature holds it.
+ * One admitted unit of work's scope, held privately by composition.
  *
- * The stores stay inside: the feature builds its graph over this scope, opens
- * a Working plan on it, and asks the organization questions an admission
- * needs, and never names a repository port.
+ * The stores stay inside. Composition maps the command runner's callback to
+ * specific graph and admission operations.
  */
 export class AdmittedScope {
   readonly #scope: Scope;
 
   constructor(scope: Scope) {
     this.#scope = scope;
-  }
-
-  /** The graph `factory` builds over this scope. */
-  graphOf<G>(
-    factory: AdmittedGraphFactory<G>,
-    broadcast: Broadcaster,
-    admission: EditAdmission,
-  ): G {
-    return factory(this.#scope, broadcast, admission);
-  }
-
-  /**
-   * Opens one project's Working plan over this scope.
-   *
-   * Proof: handing back this scope instead of the Working plan's stores failed
-   * 17 Plan commands module tests, among them `closes the admitted graph after
-   * success, refusal, and throw`; making `close` a no-op failed 3, among them
-   * `throws after its batch closes`; watched 2026-09-29.
-   */
-  openWorkingPlan(projectId: string): OpenWorkingPlan {
-    const plan = createWorkingPlan(this.#scope, projectId);
-    return {
-      scope: new AdmittedScope({ stores: plan.stores }),
-      close: () => {
-        plan.close();
-      },
-    };
   }
 
   /**
@@ -141,33 +96,33 @@ export class AdmittedScope {
   }
 }
 
-/**
- * Runs `act` as one unit of work over an {@link AdmittedScope}, translating a
- * rollback repair so it too receives the surviving state as an admitted scope.
- *
- * The raw scope never leaves this function and the scope's own methods.
- *
- * Proof: repairing through the rolled-back scope instead of `repair` made
- * `discards a stale journal entry through the fresh repair scope`
- * (`compose.test.ts`) and `settles staged writes, repairs through the surviving
- * scope, and reads after commit publicly` fail (89 pass, 2 fail); watched 2026-09-29.
- */
-export function runAdmitted<T>(
-  uow: UnitOfWork,
-  act: (scope: AdmittedScope) => Promise<AdmittedDecision<T>>,
-): Promise<T> {
-  return uow.run<T>(async (scope) => {
-    const decision = await act(new AdmittedScope(scope));
-    if (decision.commit) return decision;
-    const { afterRollback } = decision;
-    return afterRollback === undefined
-      ? { commit: false, value: decision.value }
-      : {
-          commit: false,
-          value: decision.value,
-          afterRollback: async (repair) => {
-            await afterRollback(new AdmittedScope(repair));
-          },
-        };
-  });
+/** The command graph and its scoped Working plan lifetime. */
+export interface OpenCommandGraph {
+  services: PlanCommandServices;
+  close(): void;
+}
+
+/** Repository-free operations available to a command act. */
+export interface CommandAdmission {
+  refuseOutsideScope: AdmittedScope['refuseOutsideScope'];
+  listCrossReferenceKinds: AdmittedScope['listCrossReferenceKinds'];
+  openCommandGraph(
+    projectId: string | null,
+    broadcast: Broadcaster,
+    admission: EditAdmission,
+  ): OpenCommandGraph;
+}
+
+/** The sole repair operation a failed replay needs over surviving state. */
+export interface CommandRepair {
+  discardEntry(entryId: string, broadcast: Broadcaster): Promise<void>;
+}
+
+export type CommandDecision<T> =
+  | { commit: true; value: T }
+  | { commit: false; value: T; afterRollback?: (repair: CommandRepair) => Promise<void> };
+
+/** A feature-owned decision over resources mapped privately by composition. */
+export interface CommandTransaction {
+  run<T>(act: (resources: CommandAdmission) => Promise<CommandDecision<T>>): Promise<T>;
 }

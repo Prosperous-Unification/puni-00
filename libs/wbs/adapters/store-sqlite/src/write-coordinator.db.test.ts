@@ -2,17 +2,18 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Broadcaster } from '@wbs/core';
+import type { Broadcaster, PlanCommandRunner } from '@wbs/core';
 import type { PlanCommand } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core';
 import { CapacityService } from '@wbs/core';
 import { DirectoryService } from '@wbs/core';
-import { type BatchOutcome, PlanCommandRunner } from '@wbs/core';
+import { type BatchOutcome } from '@wbs/core';
 import { PriorityBandService } from '@wbs/core';
 import { ProjectService } from '@wbs/core';
 import { StepService } from '@wbs/core';
 import { WorkItemService } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
+import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
@@ -206,7 +207,7 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
   });
-  runner = new PlanCommandRunner({
+  runner = createPlanCommandRunner({
     batchServices: (_scope, collector) => servicesWith(collector),
     publicServices: servicesWith(broadcast),
     uow: sqliteUnitOfWork(db, coordinator, admitted),
