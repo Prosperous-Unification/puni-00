@@ -3,12 +3,8 @@ import type {
   Clock,
   DomainChallenges,
   EditAdmission,
-  EmailDelivery,
-  EmailVerification,
   HistoryService,
   ImportService,
-  Invitation,
-  JoinRequest,
   MembershipAdministration,
   Onboarding,
   OrganizationAccess,
@@ -16,9 +12,6 @@ import type {
   SavedPlanService,
 } from '@wbs/core';
 import { domainRoutes } from '@wbs/core/http/domain.routes';
-import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
-import { invitationRoutes } from '@wbs/core/http/invitation.routes';
-import { joinRequestRoutes } from '@wbs/core/http/join-request.routes';
 import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
@@ -27,7 +20,6 @@ import { Elysia } from 'elysia';
 
 import { authOidcEndpoints } from './controller/auth-oidc-endpoints';
 import { authPasswordEndpoints } from './controller/auth-password-endpoints';
-import { bearerContextRoutes } from './controller/bearer-context.routes';
 import { calendarMarkerRoutes } from './controller/calendar-marker.routes';
 import { directoryRoutes } from './controller/directory.routes';
 import { historyRoutes } from './controller/history.routes';
@@ -47,7 +39,6 @@ import type { BoundEndpoint } from './http/endpoint';
 import { identityResolver } from './http/identity';
 import { openApiPlugin } from './openapi/openapi-plugin';
 import type { DatabaseHealth } from './repository/health-probe';
-import { type IssueBearerContext, REFUSE_BEARER_CONTEXT } from './runtime/bearer-context';
 import { nodeDigest } from './runtime/bun-runtime';
 import { type DelegationVerifier, REFUSE_DELEGATIONS } from './runtime/delegation';
 import type { AuthService } from './service/auth.service';
@@ -100,14 +91,6 @@ export interface AppOptions {
   domains: DomainChallenges;
   /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
   onboarding: Onboarding;
-  /** Required durable challenge boundary; absence is a boot configuration error. */
-  emailVerification: EmailVerification;
-  /** Required invitation boundary, inert until activation. */
-  invitations: Invitation;
-  /** Required join-request decision boundary. */
-  joinRequests: JoinRequest;
-  /** Injected mail sink; production's current adapter refuses delivery visibly. */
-  emailDelivery: EmailDelivery;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
   /** The manual Retry admission seam; absent only in optimizer-less deployments and tests. */
@@ -166,8 +149,6 @@ export interface AppOptions {
    * so the path stays inert. Configuring keys alone never activates it.
    */
   delegation?: DelegationVerifier;
-  /** Direct bearer issuance stays refusing unless explicitly wired after activation. */
-  bearerContext?: IssueBearerContext;
   /**
    * Required for the same reason as `auth`, and for one more: the stub this
    * replaced answered every resume with `replaying, count: 0`, which no client
@@ -281,31 +262,15 @@ export function mountedEndpoints(
       scrapeMetrics: runtime.scrapeMetrics,
     }),
     ...authPasswordEndpoints(opts.auth, opts.oidc, passwordThrottle),
-    ...bearerContextRoutes(opts.bearerContext ?? REFUSE_BEARER_CONTEXT),
     // Proof: removing this spread made app.routes.test.ts receive 40 bindings
     // instead of the 44 required by the OIDC composition.
-    ...(opts.oidc === undefined ? [] : authOidcEndpoints(opts.auth, opts.oidc, passwordThrottle)),
+    ...(opts.oidc === undefined ? [] : authOidcEndpoints(opts.auth, opts.oidc)),
     // Proof: omitting this binding made “binds each shared HTTP shape once”
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
     ...domainRoutes(opts.organizations, opts.domains, opts.clock),
     ...onboardingRoutes(opts.onboarding, opts.clock),
-    ...emailVerificationRoutes(opts.emailVerification, opts.emailDelivery, opts.clock, nodeDigest),
-    ...invitationRoutes(
-      opts.invitations,
-      opts.organizations,
-      opts.emailDelivery,
-      opts.clock,
-      nodeDigest,
-    ),
-    ...joinRequestRoutes(
-      opts.joinRequests,
-      opts.organizations,
-      opts.emailDelivery,
-      opts.clock,
-      nodeDigest,
-    ),
     ...stepRoutes(
       {
         addWithin: (...args) => opts.steps.addWithin(...args),

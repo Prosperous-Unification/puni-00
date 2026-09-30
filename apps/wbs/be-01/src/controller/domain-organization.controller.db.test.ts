@@ -29,7 +29,7 @@ function pinAsset(directory: string, content: string): void {
 }
 
 beforeEach(async () => {
-  harness = OrganizationHarness.open({ policyDirectory: copyPolicy() });
+  harness = OrganizationHarness.open(undefined, copyPolicy());
   await harness.register('owner');
   await harness.register('member');
   harness.organization('org-a');
@@ -104,7 +104,7 @@ describe('mounted organization domain challenges', () => {
 
   it('refuses a delegated caller even with current super-admin membership', async () => {
     const keys = await generateKeyPair('RS256');
-    const delegated = OrganizationHarness.open({ delegationKey: keys.publicKey });
+    const delegated = OrganizationHarness.open(keys.publicKey);
     try {
       await delegated.register('delegated-owner');
       delegated.organization('delegated-org');
