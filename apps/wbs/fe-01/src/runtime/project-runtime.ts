@@ -186,13 +186,13 @@ export function installProjectRuntime({
       ),
       reread: DiBag.createProvider(
         ({ feed }: { feed: PlanFeed }) =>
-          async (resources: readonly RefreshResource[]): Promise<void> => {
+          async (resources: readonly RefreshResource[]): Promise<boolean> => {
             // Proof: on 2026-09-24, removing this line (m3) failed `keeps one runtime current, and
             // nothing of a withdrawn one reaches anybody` at run 6, shrunk 5 times to
             // reenter(p1),openBroken(p1),drain,open(p1),reread(0): "reread: withdrawn r2 sent a
             // request: expected 1 to be +0".
-            if (!isCurrent()) return;
-            await feed.rereadResources(resources);
+            if (!isCurrent()) return false;
+            return feed.rereadResources(resources);
           },
         { factoryReturnKind: 'sync-value' },
       ),
@@ -224,7 +224,7 @@ export function installProjectRuntime({
           refusals,
         }: {
           readRefreshOwner: () => PlanFeed['owner'] | null;
-          reread: (resources: readonly RefreshResource[]) => Promise<void>;
+          reread: (resources: readonly RefreshResource[]) => Promise<boolean>;
           busy: Busy;
           commandsIssued: Channel<undefined>;
           refusals: Channel<PlanRefusal>;

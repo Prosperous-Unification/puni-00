@@ -8,6 +8,7 @@ import { REFUSAL_SUFFIX } from '../dep-picker';
 import { DependsCard, dependsLine, statusStripStyle } from '../depends-card';
 import { cellKey } from '../editable-grid';
 import { commandChordIn, escapesAnOpenList } from '../keyboard-bindings';
+import { didLand } from '../live-editing';
 import { DEP_EDGE_FADE, DEP_LIST_WIDTH } from '../plan-cell-props';
 import type { PlanLive } from '../plan-live';
 import {
@@ -591,9 +592,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                       )
                       .then((outcome) => {
                         setAnnouncement(
-                          outcome === 'landed'
-                            ? 'Dependency removed.'
-                            : 'Dependency removal refused.',
+                          didLand(outcome) ? 'Dependency removed.' : 'Dependency removal refused.',
                         );
                       });
                   }}
@@ -829,7 +828,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     .pickDependency(row.original.id, activeOption.id)
                     .then((outcome) => {
                       setAnnouncement(
-                        outcome === 'landed' ? 'Dependency added.' : 'Dependency refused.',
+                        didLand(outcome) ? 'Dependency added.' : 'Dependency refused.',
                       );
                     });
                   return;
@@ -961,7 +960,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                         .pickDependency(row.original.id, entry.id)
                         .then((outcome) => {
                           setAnnouncement(
-                            outcome === 'landed' ? 'Dependency added.' : 'Dependency refused.',
+                            didLand(outcome) ? 'Dependency added.' : 'Dependency refused.',
                           );
                         });
                     }}
@@ -1085,7 +1084,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                       )
                       .then((outcome) => {
                         setAnnouncement(
-                          outcome === 'landed'
+                          didLand(outcome)
                             ? dependency === undefined
                               ? 'Dependency added.'
                               : 'Dependency updated.'
@@ -1106,7 +1105,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                             )
                             .then((outcome) => {
                               setAnnouncement(
-                                outcome === 'landed'
+                                didLand(outcome)
                                   ? 'Dependency removed.'
                                   : 'Dependency removal refused.',
                               );
@@ -1143,9 +1142,7 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                     )
                     .then((outcome) => {
                       setAnnouncement(
-                        outcome === 'landed'
-                          ? 'Dependency removed.'
-                          : 'Dependency removal refused.',
+                        didLand(outcome) ? 'Dependency removed.' : 'Dependency removal refused.',
                       );
                     });
                 },
