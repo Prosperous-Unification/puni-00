@@ -210,7 +210,7 @@ describe('dependencies in the table', () => {
     const removed = recordCalls(api, 'removeTypedDependency');
     const chip = screen.getByRole('button', { name: /^Stop 020 waiting for 010/ });
     expect(chip).toHaveAttribute('data-reference-chip', api.rows[0]?.id);
-    expect(chip.textContent).toBe('010 FS ✕');
+    expect(chip.textContent).toBe('010 ✕');
     fireEvent.click(chip);
     await waitFor(() => {
       expect(removed).toHaveLength(1);
@@ -263,7 +263,7 @@ describe('dependencies in the table', () => {
     const chip = await screen.findByRole('button', {
       name: /^Stop 020 waiting for 010/,
     });
-    expect(chip.textContent).toBe('010 FS ✕');
+    expect(chip.textContent).toBe('010 ✕');
     expect(chip.getAttribute('title')).toMatch(/Finish-to-start.*Enter to edit/);
     expect(screen.getByRole('button', { name: 'Customize 010 - Strip' })).toBeDefined();
     fireEvent.keyDown(chip, { key: 'Enter' });
@@ -748,7 +748,7 @@ describe('dependencies in the table', () => {
         screen.getByRole('button', {
           name: /^Stop 020 waiting for 010/,
         }).textContent,
-      ).toBe('010 FS ✕');
+      ).toBe('010 ✕');
       expect(
         screen.getByRole('button', {
           name: /Edit dependency: Dev step of 010 Strip to Dev step of 020 Sand, Finish-to-start/,
