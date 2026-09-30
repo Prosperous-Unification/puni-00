@@ -40,3 +40,19 @@ _Avoid_: Contract, order
 
 **Operator inbox**:
 The private view in which an authorized PUNI operator reviews proposal requests and their contact status.
+
+**Retention subject**:
+An account-owned software request or a standalone manual proposal submission, identified separately for deadline, classification and erasure decisions.
+_Avoid_: Software request as a name for every proposal
+
+**Retention deadline**:
+The fixed date when a non-client retention subject's content becomes due for removal.
+_Avoid_: Session expiry, replay expiry
+
+**Client designation**:
+An explicit operator-recorded classification that a retention subject belongs to a contracted client, independent of proposal contact status.
+_Avoid_: Closed proposal
+
+**Erasure record**:
+A durable record that a retention subject's content was removed, including the identity needed to keep it removed after recovery.
+_Avoid_: Deleted backup
