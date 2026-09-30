@@ -23,7 +23,6 @@ import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testLoginThrottle } from '../testing/login-throttle-fixture';
@@ -165,12 +164,6 @@ describe('the calendar-marker routes', () => {
       tokens: joseTokenCodec(TEST_JWT_KEY),
       passwords: bunPasswordHasher,
     });
-    const projectService = new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(db, projects),
-      clock: testClock,
-      projects,
-      broadcast,
-    });
     app = buildApp({
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
@@ -178,7 +171,7 @@ describe('the calendar-marker routes', () => {
       clock: testClock,
       appOrigin: 'http://localhost',
       auth,
-      projects: projectService,
+      projects: new ProjectService({ clock: testClock, projects, broadcast }),
       // A clock held still, because `createdAt` is an ordering key here rather
       // than a stamp: every marker this file creates ties on `(date,
       // createdAt)`, which is the only state in which the third key decides
@@ -198,9 +191,7 @@ describe('the calendar-marker routes', () => {
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
-      // The same project service the routes use: a project PATCH runs through
-      // the batch graph, and a double there has never seen these projects.
-      writes: testWrites(broadcast, { projects: projectService }),
+      writes: testWrites(broadcast),
       migrationsApplied: true,
     });
 

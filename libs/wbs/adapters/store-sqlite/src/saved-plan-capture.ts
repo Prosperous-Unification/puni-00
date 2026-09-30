@@ -13,7 +13,6 @@ import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
 import { StepMeasureRepository } from './step-measure';
 import { StepProgressRepository } from './step-progress';
-import { TypedDependencyRepository } from './typed-dependency';
 import { WorkItemRepository } from './work-item';
 
 /**
@@ -66,16 +65,16 @@ export interface SavedPlanCaptureOptions {
  *   include. Capture separately calls {@link DirectoryRepository.listPeople}
  *   to retain every person and membership in its independent history.
  *
- * ## The eighteen reads
+ * ## The seventeen reads
  *
- * Twelve calls are shared with the live projection, excluding
+ * Eleven calls are shared with the live projection, excluding
  * `broadcast.latestSeq`, which is a refresh cursor rather than plan input.
  * The project-scoped assignment call includes assigned names in its answer.
  * Six calls are capture-only: `listPeople`, `listTeams`, `listServices`,
  * `listTags`, `listWorkItemTypes` and `listExternalSystems`. They retain the
  * complete directory that memberships, junctions and capacity rows name.
  *
- * All eighteen reads run inside one transaction, on a connection of this
+ * All seventeen reads run inside one transaction, on a connection of this
  * class's own. Project-scoped assignment reads do not narrow the separate
  * directory capture.
  *
@@ -150,9 +149,6 @@ export class SavedPlanCaptureRepository implements SavedPlanCaptureStore {
         const progress = await new StepProgressRepository(db, OPEN).listByProject(projectId);
         const measures = await new StepMeasureRepository(db, OPEN).listByProject(projectId);
         const dependencies = await new DependencyRepository(db, OPEN).listByProject(projectId);
-        const typedDependencies = (
-          await new TypedDependencyRepository(db, OPEN).listByProject(projectId)
-        ).map(({ id, predecessor, successor, type }) => ({ id, predecessor, successor, type }));
         const { assignments } = await directory.assignmentsInProject(projectId);
         const steps = await projects.stepsOf(projectId);
         const capacity = await new CapacityRepository(db, OPEN).slotsFor(projectId);
@@ -175,8 +171,6 @@ export class SavedPlanCaptureRepository implements SavedPlanCaptureStore {
           progress,
           measures,
           dependencies,
-          // Proof: omitting this snapshot read made `keeps captured node endpoints after step reorder and live relationship removal` receive undefined (2026-09-27).
-          typedDependencies,
           assignments,
           capacity,
           priorityBands,

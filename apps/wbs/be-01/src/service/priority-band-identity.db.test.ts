@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand, suggestStepCode } from '@wbs/domain';
-import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../repository';
@@ -302,7 +301,6 @@ describe('a priority ladder moves no date', () => {
       measures,
       progress,
       dependencies,
-      typedDependencies: inMemoryTypedDependencies(),
       directory,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands({ contended: bands }),
@@ -449,9 +447,7 @@ describe('a priority ladder moves no date', () => {
       return null;
     };
 
-    const { depReach, pertWeights, estimateRounding, typedDependencies, ...treeWithoutReach } =
-      tree;
-    expect(typedDependencies).toEqual([]);
+    const { depReach, pertWeights, estimateRounding, ...treeWithoutReach } = tree;
     // The weights and the rounding are lifted for `depReach`'s reason exactly —
     // the oracle predates both fields — and asserted rather than dropped, so a
     // replay that stopped setting them would fail here instead of being
@@ -719,7 +715,6 @@ describe('a priority ladder moves no date', () => {
       measures,
       progress,
       dependencies,
-      typedDependencies: inMemoryTypedDependencies(),
       directory,
       // The pools the capture was taken under — see {@link CAPACITIES}. Identical
       // across both replays, so the ladder is the only thing that differs.

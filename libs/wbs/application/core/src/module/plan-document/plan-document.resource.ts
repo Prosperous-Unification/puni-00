@@ -74,7 +74,8 @@ export class PlanDocumentService {
    * Under scoped access the directory closure is read from the organization's
    * own catalogs, under their local names, so a person's teams and a team's
    * services that cross into another organization fail the export closed
-   * rather than export a foreign entry; see {@link DirectoryStore.listInOrganization}.
+   * rather than export a foreign entry; see
+   * {@link DirectoryStore.listInOrganization}.
    *
    * Proof: reading the global directory under scoped access made `exports
    * only the organization's own directory, under its local names` in

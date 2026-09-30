@@ -44,9 +44,6 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
       priorityBandStore: DiBag.createProvider(() => requirements.priorityBands, {
         factoryReturnKind: 'sync-value',
       }),
-      typedDependencyStore: DiBag.createProvider(() => requirements.typedDependencies, {
-        factoryReturnKind: 'sync-value',
-      }),
       dependencyStore: DiBag.createProvider(() => requirements.dependencies, {
         factoryReturnKind: 'sync-value',
       }),
