@@ -112,10 +112,7 @@ function classifyExportFailure(failure: RequestFailure) {
  * Opening is caller navigation, so it bypasses canEdit while retaining write scope.
  */
 export function projectRoutes(
-  projects: Pick<
-    ProjectService,
-    'authorizeEdit' | 'createWithin' | 'listWithin' | 'openWithin' | 'readWithin' | 'updateWithin'
-  >,
+  projects: ProjectService,
   organizations: OrganizationAccess,
   workItems: WorkItemService,
   directory: DirectoryService,
@@ -229,8 +226,6 @@ export function projectRoutes(
             return { ok: false, status: 422, body: { error: outcome.reason } };
           // Proof: mapping this to 422 made the mounted unavailable-optimizer test receive 500 instead of 409.
           case 'optimizer_unavailable':
-            return { ok: false, status: 409, body: { error: outcome.reason } };
-          case 'dependency_cycle':
             return { ok: false, status: 409, body: { error: outcome.reason } };
         }
       },

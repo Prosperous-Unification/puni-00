@@ -24,8 +24,6 @@ const ORGANIZATION_BRIDGE = '20260927190000_add_organization_bridge';
  * {@link ORGANIZATION_BRIDGE} and reversed before it.
  */
 const ORGANIZATION_FROZEN = '20260927200000_freeze_organization_ownership';
-/** Stamped after the bridge, so every rollback below the bridge reverses it first. */
-const TYPED_DEPENDENCY = '20260927213000_add_typed_dependency';
 
 let dir: string;
 let path: string;
@@ -331,7 +329,6 @@ describe('20260927190000_add_organization_bridge', () => {
   it('rolls back to no triggers, keeping mappings and legacy writes working', async () => {
     run([LEGACY, ...writeRoots('1')]);
     expect(rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toEqual([
-      TYPED_DEPENDENCY,
       ORGANIZATION_FROZEN,
       ORGANIZATION_BRIDGE,
     ]);

@@ -1936,63 +1936,6 @@ export const dependency = sqliteTable(
 
 export type DependencyRow = typeof dependency.$inferSelect;
 
-/** Typed endpoint links coexist with legacy project-reach dependencies. */
-export const typedDependency = sqliteTable(
-  'typed_dependency',
-  {
-    id: text('id').primaryKey().notNull(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => project.id),
-    predecessorWorkItemId: text('predecessor_work_item_id')
-      .notNull()
-      .references(() => workItem.id, { onDelete: 'cascade' }),
-    predecessorScope: text('predecessor_scope').notNull(),
-    predecessorStepId: text('predecessor_step_id').references(() => step.id),
-    successorWorkItemId: text('successor_work_item_id')
-      .notNull()
-      .references(() => workItem.id, { onDelete: 'cascade' }),
-    successorScope: text('successor_scope').notNull(),
-    successorStepId: text('successor_step_id').references(() => step.id),
-    type: text('type').notNull(),
-    ...auditColumns(),
-  },
-  (t) => [
-    check(
-      'typed_dependency_predecessor_scope',
-      sql`${t.predecessorScope} IN ('whole','node','descendant-step')`,
-    ),
-    check(
-      'typed_dependency_successor_scope',
-      sql`${t.successorScope} IN ('whole','node','descendant-step')`,
-    ),
-    check('typed_dependency_type', sql`${t.type} IN ('FS','SS','FF')`),
-    check(
-      'typed_dependency_predecessor_step',
-      sql`(${t.predecessorScope} = 'whole') = (${t.predecessorStepId} IS NULL)`,
-    ),
-    check(
-      'typed_dependency_successor_step',
-      sql`(${t.successorScope} = 'whole') = (${t.successorStepId} IS NULL)`,
-    ),
-    uniqueIndex('typed_dependency_endpoints').on(
-      t.predecessorWorkItemId,
-      t.predecessorScope,
-      sql`ifnull(${t.predecessorStepId},'')`,
-      t.successorWorkItemId,
-      t.successorScope,
-      sql`ifnull(${t.successorStepId},'')`,
-      t.type,
-    ),
-    index('typed_dependency_project').on(t.projectId),
-    index('typed_dependency_by_successor').on(t.successorWorkItemId),
-    index('typed_dependency_by_predecessor_step').on(t.predecessorStepId),
-    index('typed_dependency_by_successor_step').on(t.successorStepId),
-  ],
-);
-
-export type TypedDependencyRow = typeof typedDependency.$inferSelect;
-
 /**
  * One command somebody ran, and everything needed to reverse it — the undo
  * stack, held on the server so it survives a reload.

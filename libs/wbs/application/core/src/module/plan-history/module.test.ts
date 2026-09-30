@@ -1,10 +1,8 @@
 import { inMemoryPlanEvents } from '@wbs/store-memory/history-fixture';
-import { inMemoryStores } from '@wbs/store-memory/in-memory-source';
 import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { describe, expect, it } from 'bun:test';
 import { DiBag } from 'di-bag';
 
-import { DependencyGraphGuard } from '../../service/dependency-graph';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { PlanEventService } from '../plan-event/plan-event.resource';
@@ -15,10 +13,6 @@ import { planHistoryModule } from './module';
 
 const requirements = () => ({
   projects: new ProjectService({
-    dependencyGraph: new DependencyGraphGuard({
-      ...inMemoryStores(),
-      projects: inMemoryProjects(),
-    }),
     projects: inMemoryProjects(),
     clock: testClock,
     broadcast: recordingBroadcaster(),
@@ -63,7 +57,6 @@ describe('the Plan history module', () => {
     await projectStore.create(project, [], { at: 1, by: project.ownerId });
     const { history } = installPlanHistory({
       projects: new ProjectService({
-        dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects: projectStore }),
         projects: projectStore,
         clock: testClock,
         broadcast: recordingBroadcaster(),

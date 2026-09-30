@@ -18,7 +18,7 @@ import { StepService, type StepServiceOptions } from './step.resource';
  * `stepStore` because the host graph's `steps` key is this module's export.
  *
  * The module registers no disposer: `StepService` holds the borrowed stores of
- * one scope, a clock, a broadcaster and a dependency graph guard, and no handle of its own.
+ * one scope, a clock and a broadcaster, and no handle of its own.
  */
 export const stepModule = DiBag.createBuilder()
   .withServices({
@@ -28,13 +28,11 @@ export const stepModule = DiBag.createBuilder()
         stepStore,
         broadcast,
         clock,
-        dependencyGraph,
       }: {
         projectStore: ProjectStore;
         stepStore: StepStore;
         broadcast: Broadcaster;
         clock: Clock;
-        dependencyGraph: StepServiceOptions['dependencyGraph'];
       }): StepServiceOptions => ({
         projects: projectStore,
         steps: stepStore,
@@ -44,7 +42,6 @@ export const stepModule = DiBag.createBuilder()
         // failing (4 pass, 1 fail): it received `[]`.
         broadcast,
         clock,
-        dependencyGraph,
       }),
       { factoryReturnKind: 'sync-value' },
     ),

@@ -22,7 +22,6 @@ const INPUT: ScheduleInput = {
   notBefore: new Map([['a', 4]]),
   poolSizes: new Map([['team-1', 2]]),
   reach: 'anchor-slice',
-  typed: [],
   deadlines: new Map([['b', 9]]),
 };
 

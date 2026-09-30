@@ -104,7 +104,6 @@ const plan: SolverRequestPlan = {
   notBefore: new Map(),
   poolSizes: new Map(),
   reach: 'whole-item',
-  typed: [],
   deadlines: new Map(),
 };
 
@@ -118,7 +117,6 @@ const requestOf = () => {
       plan.notBefore,
       plan.poolSizes,
       plan.reach,
-      [],
     ),
     solverVersion: '0.1.3',
     budgetMs: 30_000,
