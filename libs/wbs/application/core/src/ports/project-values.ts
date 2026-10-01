@@ -123,3 +123,55 @@ export interface ProjectPatch {
   scheduleEngine?: ScheduleEngine;
   scheduleObjective?: SolverObjectiveName;
 }
+
+/**
+ * Every relation {@link ProjectStore.findCrossReferences} follows, as the
+ * reconciliation names it. Closed, so a consumer that maps each kind to a
+ * refusal cannot silently miss one.
+ */
+export const PROJECT_CROSS_REFERENCE_KINDS = [
+  'estimate_step',
+  'actual_step',
+  'step_progress_step',
+  'step_measure_step',
+  'assignment_step',
+  'assignment_person',
+  'work_item_tag',
+  'work_item_team',
+  'work_item_type',
+  'work_item_service_link',
+  'work_item_external_ref',
+  'work_item_service_team',
+  'work_item_service',
+  'work_item_parent',
+  'dependency_endpoint',
+  'project_team_capacity',
+  'incoming_step_row',
+  'incoming_parent',
+  'incoming_dependency',
+] as const;
+
+export type ProjectCrossReferenceKind = (typeof PROJECT_CROSS_REFERENCE_KINDS)[number];
+
+/**
+ * What an audited recovery records about the edit: a project PATCH's fields,
+ * sorted; a command batch's command kinds, in order; a journal direction; or
+ * the operation in a dependent write family. The detail always names one
+ * successful operation on one project.
+ */
+export type RecoveryAuditDetail =
+  | { readonly fields: readonly string[] }
+  | { readonly commands: readonly string[] }
+  | { readonly journal: 'undo' | 'redo' }
+  | { readonly step: 'add' | 'rename' | 'remove' }
+  | { readonly marker: 'create' | 'rename' | 'recolor' | 'remove' }
+  | { readonly savedPlan: 'save' | 'rename' | 'delete' }
+  | { readonly optimizer: 'retry' };
+
+/** One reference that leaves the project or its organization; see {@link ProjectStore.findCrossReferences}. */
+export interface ProjectCrossReference {
+  /** Which relation it is. */
+  readonly kind: ProjectCrossReferenceKind;
+  /** The referring row, as the reconciliation identifies it. */
+  readonly id: string;
+}

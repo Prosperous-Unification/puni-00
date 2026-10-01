@@ -2,13 +2,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { arch, cpus, platform, release, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { PlanCommandRunner } from '@wbs/core';
 import {
   type Broadcaster,
   clockOf,
   type Decision,
   type PlanCommand,
-  PlanCommandRunner,
-  type PlanCommandRunnerOptions,
   type PlanTransactionalStores,
   type Scope,
   servicesOver,
@@ -16,6 +15,10 @@ import {
   type WriteStamp,
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
+import {
+  createPlanCommandRunner,
+  type PlanCommandsSource,
+} from '@wbs/core/module/plan-commands/composition';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
@@ -268,7 +271,7 @@ async function performanceFixture(name: string): Promise<PerformanceFixture> {
     counts,
     runner(mode) {
       const admitted = countedUnitOfWork(source.uow, counts);
-      const options: PlanCommandRunnerOptions = {
+      const options: PlanCommandsSource = {
         uow: admitted.uow,
         announcements: silentBroadcaster,
         publicServices: compose(source.stores, silentBroadcaster),
@@ -277,7 +280,7 @@ async function performanceFixture(name: string): Promise<PerformanceFixture> {
         batchServices: (scope, broadcast) =>
           compose(mode === 'cached' ? scope.stores : admitted.current(), broadcast),
       };
-      return new PlanCommandRunner(options);
+      return createPlanCommandRunner(options);
     },
     close: async () => {
       await source.close();

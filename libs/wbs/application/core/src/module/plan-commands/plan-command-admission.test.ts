@@ -7,7 +7,8 @@ import type { Project } from '../../ports/project-store';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
-import { PlanCommandRunner, type PlanCommandServices } from './plan-commands.feature';
+import { createPlanCommandRunner } from './composition';
+import { type PlanCommandServices } from './plan-commands.feature';
 
 const PROJECT = 'project-1';
 const ACTOR = 'super-admin';
@@ -71,7 +72,7 @@ function runnerOver(entryToDiscard?: string) {
       },
     } as unknown as PlanCommandServices;
   };
-  const runner = new PlanCommandRunner({
+  const runner = createPlanCommandRunner({
     batchServices: (_scope, _broadcast, admission) => graph(admission),
     publicServices: graph(CREATOR_ADMISSION),
     uow,

@@ -4,7 +4,8 @@ import { join } from 'node:path';
 
 import type { Broadcaster, ProjectEvent } from '@wbs/core';
 import { clockOf } from '@wbs/core';
-import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
+import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import type { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import type { PlanCommand } from '@wbs/core/service/plan-command';
@@ -144,7 +145,7 @@ beforeEach(async () => {
   }) as typeof admitted.workItems;
 
   const batchStores = { ...admitted, workItems: suspendingWorkItems };
-  runner = new PlanCommandRunner({
+  runner = createPlanCommandRunner({
     // The graph the runner builds per batch, over the collector it hands in.
     batchServices: (_scope, collector) =>
       servicesOver(batchStores, { ...shared, broadcast: collector }),

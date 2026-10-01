@@ -30,8 +30,8 @@ import type { LoginThrottle } from '@wbs/core/module/authentication/login-thrott
 import type { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import type { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
 import type { DirectoryService } from '@wbs/core/module/directory/directory.resource';
-import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
-import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
+import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
+import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import type { PriorityBandService } from '@wbs/core/module/priority-band/priority-band.resource';
 import type { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { StepService } from '@wbs/core/module/step/step.resource';
@@ -261,7 +261,7 @@ export function mountedEndpoints(
   },
 ): readonly BoundEndpoint[] {
   const passwordThrottle = opts.loginThrottle;
-  const commands = new PlanCommandRunner({
+  const commands = createPlanCommandRunner({
     batchServices: opts.writes.batch,
     publicServices: {
       workItems: opts.workItems,
@@ -276,7 +276,7 @@ export function mountedEndpoints(
   // A project reach change and a step removal read the combined dependency
   // graph before they write, so each runs as one unit of work: a write landing
   // between the check and the write could otherwise leave a cycle.
-  const admitted = admittedWrites(opts.writes);
+  const admitted = createAdmittedWrites(opts.writes);
   // Spaces stamp their writes; the app's clock is time alone, so ids are
   // random UUIDs as `services.ts` issues them.
   const spaceClock = clockOf({ now: () => opts.clock.now(), newId: () => crypto.randomUUID() });

@@ -8,7 +8,7 @@ import type { PlanTransactionalStores } from '../../ports/stores';
 import { testClock } from '../../testing/clock-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
-import { PlanCommandRunner } from './plan-commands.feature';
+import { createPlanCommandRunner } from './composition';
 import { createWorkingPlan } from './working-plan.resource';
 
 /** Whether a call refused, synchronously or by rejecting; `.rejects` cannot be awaited under Bun's types. */
@@ -118,7 +118,7 @@ describe('the admitted working batch baseline', () => {
         scheduler: fastScheduler,
       });
     const publicGraph = compose(source.stores, direct);
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       uow: source.uow,
       announcements: direct,
       publicServices: publicGraph,
@@ -281,7 +281,7 @@ describe('the admitted working batch baseline', () => {
       const projectId = (await publicGraph.projects.create('Working lifecycle', OWNER)).project.id;
       let retainedRead:
         (() => ReturnType<PlanTransactionalStores['workItems']['listByProject']>) | undefined;
-      const runner = new PlanCommandRunner({
+      const runner = createPlanCommandRunner({
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
@@ -304,6 +304,43 @@ describe('the admitted working batch baseline', () => {
 
       // Proof: without the WorkingPlan close guard this resolved with the
       // committed row, permitting a stale batch-owned read after settlement.
+      expect(retainedRead()).rejects.toThrow(/working plan.*closed/i);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('closes the working plan when graph composition throws', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const graph = servicesOver(source.stores, {
+      admission: CREATOR_ADMISSION,
+      clock: testClock,
+      broadcast: direct,
+      scheduler: fastScheduler,
+    });
+    const projectId = 'broken-graph-project';
+    let retainedRead:
+      (() => ReturnType<PlanTransactionalStores['workItems']['listByProject']>) | undefined;
+    const runner = createPlanCommandRunner({
+      uow: source.uow,
+      announcements: direct,
+      publicServices: graph,
+      batchServices(scope) {
+        retainedRead = () => scope.stores.workItems.listByProject(projectId);
+        throw new Error('graph construction failed');
+      },
+    });
+    try {
+      try {
+        await runner.run(projectId, OWNER, []);
+        throw new Error('command graph unexpectedly composed');
+      } catch (cause) {
+        expect(cause).toEqual(new Error('graph construction failed'));
+      }
+      if (retainedRead === undefined) throw new Error('graph did not retain its read');
+      // Proof: omitting the close on a graph factory throw let this read resolve;
+      // watched with the composition catch removed in the isolated candidate.
       expect(retainedRead()).rejects.toThrow(/working plan.*closed/i);
     } finally {
       await source.close();

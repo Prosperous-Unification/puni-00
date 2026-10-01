@@ -7,7 +7,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { retentionSweep } from '../module/bounded-replay-sweep/bounded-replay-sweep.feature';
 import { EventLogService } from '../module/event-log/event-log.resource';
-import { PlanCommandRunner } from '../module/plan-commands/plan-commands.feature';
+import { createPlanCommandRunner } from '../module/plan-commands/composition';
 import { runCommandBatch, runCommandBatchAfter } from '../module/plan-commands/run-command-batch';
 import { PlanEventService } from '../module/plan-event/plan-event.resource';
 import { replay } from '../module/realtime/realtime.feature';
@@ -46,7 +46,7 @@ describe('runCommandBatch', () => {
     });
     const plan = inMemoryServices({ projects });
     const writes = testWrites(undefined, batchServices(plan));
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       batchServices: writes.batch,
       publicServices: batchServices(plan),
       uow: writes.uow,
