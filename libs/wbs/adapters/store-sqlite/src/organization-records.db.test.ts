@@ -744,6 +744,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261001020000_add_browser_auth_lifecycle',
       '20261001010000_add_browser_credential_revocations',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
@@ -765,6 +766,8 @@ describe('20260927120000_add_organization_records', () => {
     expect(tableNames()).toEqual(
       withTables.filter(
         (name) =>
+          name !== 'browser_auth_association' &&
+          name !== 'browser_auth_lifecycle' &&
           name !== 'browser_credential_revocations' &&
           name !== 'email_challenge' &&
           name !== 'typed_dependency' &&
