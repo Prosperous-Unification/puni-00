@@ -122,7 +122,10 @@ describe('spaces', () => {
 
   describe('the rollback', () => {
     it('rolls back while no space exists', () => {
-      expect(rollbackTo(path, FOLDER, BEFORE_SPACES)).toEqual([SPACES]);
+      expect(rollbackTo(path, FOLDER, BEFORE_SPACES)).toEqual([
+        '20261001010000_add_browser_credential_revocations',
+        SPACES,
+      ]);
       expect(
         raw((db) => db.query("SELECT name FROM sqlite_master WHERE name LIKE 'space%'").all()),
       ).toEqual([]);

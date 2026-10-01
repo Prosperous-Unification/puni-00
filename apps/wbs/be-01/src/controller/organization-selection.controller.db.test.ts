@@ -1,7 +1,14 @@
+import { createHash } from 'node:crypto';
+
 import { JwksTokenVerifier } from '@wbs/auth';
-import { openConnection, SqliteOrganizationSelection } from '@wbs/store-sqlite';
+import {
+  openConnection,
+  SqliteBrowserCredentialRevocations,
+  SqliteOrganizationSelection,
+  WriteCoordinator,
+} from '@wbs/store-sqlite';
 import { afterEach, expect, test } from 'bun:test';
-import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+import { decodeJwt, exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 import { OrganizationHarness } from '../testing/organization-harness';
 
@@ -151,6 +158,122 @@ test('selects only a current membership and scopes the mounted project route by 
   const removed = await harness.app.handle(request(token, 'GET', '/api/projects', undefined, pair));
   expect(removed.status).toBe(403);
   expect(await removed.json()).toEqual({ error: 'not_a_member' });
+});
+
+test('a committed revocation refuses the old browser pair and reselection across the shared store', async () => {
+  harness = OrganizationHarness.open({ sessionBinding: true });
+  await harness.register('ada');
+  await harness.register('bob');
+  harness.organization('org-a');
+  harness.member('org-a', 'ada', 'member');
+  harness.member('org-a', 'bob', 'member');
+  harness.activate();
+  const token = harness.token('ada');
+  const selected = await harness.app.handle(
+    request(token, 'POST', '/api/organization/active', { organizationId: 'org-a' }),
+  );
+  expect(selected.status).toBe(200);
+  const pair = selected.headers.get('set-cookie')?.split(';')[0];
+  if (pair === undefined) throw new Error('selection did not set its cookie');
+  expect(
+    (await harness.app.handle(request(token, 'GET', '/api/projects', undefined, pair))).status,
+  ).toBe(200);
+
+  const claims = decodeJwt(token);
+  if (typeof claims.exp !== 'number') throw new Error('native test token lacks expiry');
+  const writer = Bun.spawnSync([
+    process.execPath,
+    new URL('../testing/browser-revocation-writer.proc.ts', import.meta.url).pathname,
+    harness.databasePath(),
+    harness.userId('ada'),
+    createHash('sha256').update(token, 'utf8').digest('hex'),
+    String(claims.exp * 1000),
+  ]);
+  expect(writer.exitCode, writer.stderr.toString()).toBe(0);
+  const restarted = Bun.spawnSync([
+    process.execPath,
+    new URL('../testing/browser-revocation-reader.proc.ts', import.meta.url).pathname,
+    harness.databasePath(),
+    harness.userId('ada'),
+    token,
+    pair,
+  ]);
+  expect(restarted.exitCode, restarted.stderr.toString()).toBe(0);
+  expect(restarted.stdout.toString()).toBe('null');
+
+  // Proof: bypassing the shared lookup in activeOrganizationOf makes this
+  // old-pair request answer 200; bypassing the selection lookup makes the
+  // revoked credential receive another selection cookie (both watched).
+  const protectedResponse = await harness.app.handle(
+    request(token, 'GET', '/api/projects', undefined, pair),
+  );
+  expect(protectedResponse.status).toBe(403);
+  expect(await protectedResponse.json()).toEqual({ error: 'no_active_organization' });
+  expect(
+    (await harness.app.handle(request(token, 'GET', '/api/organization/memberships'))).status,
+  ).toBe(401);
+  const reselected = await harness.app.handle(
+    request(token, 'POST', '/api/organization/active', { organizationId: 'org-a' }),
+  );
+  expect(reselected.status).toBe(401);
+  expect(reselected.headers.get('set-cookie')).toBeNull();
+
+  // Proof: widening the revocation key to the user or organization made the
+  // fresh same-user token or Bob's separate credential lose selection.
+  const login = await harness.app.handle(
+    new Request('http://localhost/api/auth/login', {
+      method: 'POST',
+      headers: { origin: 'http://localhost', 'content-type': 'application/json' },
+      body: JSON.stringify({ username: 'ada', password: 'correct-horse' }),
+    }),
+  );
+  expect(login.status).toBe(200);
+  const fresh = (await login.json()) as { token?: unknown };
+  if (typeof fresh.token !== 'string') throw new Error('fresh login returned no token');
+  expect(fresh.token).not.toBe(token);
+  expect(
+    (
+      await harness.app.handle(
+        request(fresh.token, 'POST', '/api/organization/active', { organizationId: 'org-a' }),
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await harness.app.handle(
+        request(harness.token('bob'), 'POST', '/api/organization/active', {
+          organizationId: 'org-a',
+        }),
+      )
+    ).status,
+  ).toBe(200);
+});
+
+test('a missing shared revocation table makes enabled browser selection and access fail closed', async () => {
+  harness = OrganizationHarness.open({ sessionBinding: true });
+  await harness.register('ada');
+  harness.organization('org-a');
+  harness.member('org-a', 'ada', 'member');
+  harness.activate();
+  const token = harness.token('ada');
+  const selected = await harness.app.handle(
+    request(token, 'POST', '/api/organization/active', { organizationId: 'org-a' }),
+  );
+  expect(selected.status).toBe(200);
+  const pair = selected.headers.get('set-cookie')?.split(';')[0];
+  if (pair === undefined) throw new Error('selection did not set its cookie');
+  harness.sqlite.run('DROP TABLE browser_credential_revocations');
+  // Proof: treating a missing table as an empty revocation set returned 200
+  // for all three mounted paths instead of a server failure.
+  for (const requestOf of [
+    request(token, 'GET', '/api/projects', undefined, pair),
+    request(token, 'GET', '/api/organization/memberships'),
+    request(token, 'POST', '/api/organization/active', { organizationId: 'org-a' }),
+  ]) {
+    const response = await harness.app.handle(requestOf);
+    expect(response.status).toBe(500);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  }
 });
 
 test('refuses substituted and ambiguous browser carriers on the mounted access route', async () => {
@@ -325,6 +448,36 @@ test('binds a real verified OIDC access cookie to its mapped local member and re
       (await harness.app.handle(cookieRequest(ada, 'GET', '/api/projects', undefined, pair)))
         .status,
     ).toBe(200);
+    const writer = openConnection(harness.databasePath());
+    try {
+      await new SqliteBrowserCredentialRevocations(writer.db, new WriteCoordinator()).revoke(
+        {
+          kind: 'oidc',
+          userId: harness.userId('ada'),
+          digest: createHash('sha256').update(ada, 'utf8').digest('hex'),
+          expiresAt: (seconds + 300) * 1000,
+        },
+        Date.now(),
+      );
+    } finally {
+      writer.close();
+    }
+    // Proof: treating OIDC evidence as an unrevoked native credential made
+    // this mounted real-verifier old-pair request answer 200 after revocation.
+    expect(
+      (await harness.app.handle(cookieRequest(ada, 'GET', '/api/projects', undefined, pair)))
+        .status,
+    ).toBe(403);
+    expect(
+      (await harness.app.handle(cookieRequest(ada, 'GET', '/api/organization/memberships'))).status,
+    ).toBe(401);
+    expect(
+      (
+        await harness.app.handle(
+          cookieRequest(ada, 'POST', '/api/organization/active', { organizationId: 'org-a' }),
+        )
+      ).status,
+    ).toBe(401);
     for (const replacement of [await signed('subject-ada'), await signed('subject-bob')]) {
       expect(
         (

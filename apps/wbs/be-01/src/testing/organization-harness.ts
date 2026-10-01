@@ -23,6 +23,7 @@ import {
   readOrganizationActivation,
   scheduleInputHash,
   SpaceRepository,
+  SqliteBrowserCredentialRevocations,
   SqliteDelegationUse,
   SqliteOrganizationAccess,
   SqliteOrganizationSelection,
@@ -194,6 +195,7 @@ export class OrganizationHarness {
         ? organizationSelection(
             new SqliteOrganizationSelection(db),
             organizationCookieBinding(sessionKey),
+            new SqliteBrowserCredentialRevocations(db, gate),
           )
         : undefined;
     const organizations = new SqliteOrganizationAccess(

@@ -1,4 +1,4 @@
-import type { AuthenticatedUser } from '@wbs/contracts';
+import type { AuthenticatedUser, VerifiedOrganizationCredential } from '@wbs/contracts';
 import type { OrganizationPrincipal } from '@wbs/core';
 
 import type { organizationCookieBinding } from './organization-cookie';
@@ -12,6 +12,11 @@ interface MembershipChoice {
 /** Reads the marker and current membership choices from one trusted snapshot. */
 export interface OrganizationChoices {
   list(userId: string): Promise<'inactive' | readonly MembershipChoice[]>;
+}
+
+/** Shared, per-request revocation lookup for an exact verified browser credential. */
+export interface BrowserCredentialRevocations {
+  isRevoked(credential: VerifiedOrganizationCredential): Promise<boolean>;
 }
 
 export type OrganizationSelectionOutcome =
@@ -42,6 +47,7 @@ export const REFUSE_ORGANIZATION_SELECTION: OrganizationSelection = {
 export function organizationSelection(
   choices: OrganizationChoices,
   cookie: ReturnType<typeof organizationCookieBinding>,
+  revocations: BrowserCredentialRevocations,
 ): {
   readonly endpoints: OrganizationSelection;
   readonly activeOrganizationOf: (principal: OrganizationPrincipal) => Promise<string | null>;
@@ -52,6 +58,9 @@ export function organizationSelection(
         if (principal.delegation !== undefined) return { kind: 'invalid_credential' };
         const evidence = principal.organizationBinding?.credential;
         if (evidence === undefined) return { kind: 'invalid_credential' };
+        // Proof: bypassing this lookup let the mounted old-token membership
+        // list answer 200 after a second connection committed revocation.
+        if (await revocations.isRevoked(evidence)) return { kind: 'invalid_credential' };
         const memberships = await choices.list(principal.id);
         return memberships === 'inactive' ? { kind: 'inactive' } : { kind: 'listed', memberships };
       },
@@ -59,6 +68,9 @@ export function organizationSelection(
         if (principal.delegation !== undefined) return { kind: 'invalid_credential' };
         const evidence = principal.organizationBinding?.credential;
         if (evidence === undefined) return { kind: 'invalid_credential' };
+        // Proof: bypassing this lookup made the mounted revoked token receive
+        // a fresh organization cookie after revocation committed.
+        if (await revocations.isRevoked(evidence)) return { kind: 'invalid_credential' };
         const memberships = await choices.list(principal.id);
         if (memberships === 'inactive') return { kind: 'inactive' };
         // Proof: bypassing this current-membership check made the mounted
@@ -74,9 +86,12 @@ export function organizationSelection(
         };
       },
     },
-    activeOrganizationOf: (principal) => {
+    activeOrganizationOf: async (principal) => {
       const presented = principal.organizationBinding;
-      if (presented?.cookie == null) return Promise.resolve(null);
+      if (presented?.cookie == null) return null;
+      // Proof: removing this read made the mounted old token/cookie pair keep
+      // listing projects after a different connection committed revocation.
+      if (await revocations.isRevoked(presented.credential)) return null;
       return cookie.read(presented.cookie, presented.credential);
     },
   };

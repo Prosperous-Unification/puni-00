@@ -48,6 +48,43 @@ An authenticated WBS request SHALL carry exactly one server-validated active org
 - **AND** membership listing and selection responses, including refusals, are not cacheable
 - **AND** these browser selection endpoints are excluded from generated MCP tools
 
+#### Scenario: A revoked browser credential cannot recover organization authority
+
+- **GIVEN** an explicitly enabled browser-organization composition and a valid credential with an issued organization cookie
+- **WHEN** revocation of that exact verified credential commits to shared storage
+- **THEN** subsequent organization-access resolution refuses the complete old access-token and organization-cookie pair with `403 no_active_organization`
+- **AND** membership listing and active-organization selection using that credential refuse with `401 unauthenticated`, so reselection cannot restore it
+- **AND** the refusal holds in another process and after restart
+- **AND** other credentials belonging to the same user and other users retain their independently established authority
+
+#### Scenario: Revocation is durable, monotonic and idempotent
+
+- **GIVEN** concurrent revocation and selection attempts for one verified credential
+- **WHEN** its first revocation commits
+- **THEN** repeated revocation succeeds without deleting, replacing or weakening the recorded revocation
+- **AND** requests beginning after that commit cannot obtain organization authority
+- **AND** an in-flight selection cannot produce a cookie that restores authority on a subsequent protected request
+
+#### Scenario: Unavailable revocation authority cannot mean unrevoked
+
+- **GIVEN** browser organization binding is explicitly enabled
+- **WHEN** required revocation storage is absent, unreadable or malformed, or its required operation fails
+- **THEN** the request fails as a server error without issuing a selection cookie or granting organization access
+- **AND** a failed revocation write is never acknowledged as committed
+
+#### Scenario: Rollback cannot erase revocation
+
+- **GIVEN** the browser-credential revocation table contains any record
+- **WHEN** its down migration is requested
+- **THEN** rollback refuses and preserves both the table and migration ledger
+- **AND** an empty-table rollback remains permitted
+
+#### Scenario: Revocation groundwork remains inactive in production
+
+- **GIVEN** the production composition still supplies `NO_BOUND_ORGANIZATION` and refusing selection
+- **WHEN** a valid credential and organization cookie are presented
+- **THEN** the new revocation capability does not enable selection or scoped access
+
 #### Scenario: Native bearer context binds one current organization
 
 - **GIVEN** a native WBS session credential and a current membership in A
