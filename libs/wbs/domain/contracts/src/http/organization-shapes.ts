@@ -113,6 +113,10 @@ export const listOrganizationMemberships = defineEndpointShape({
   path: '/api/organization/memberships',
   operationId: 'getApiOrganizationMemberships',
   policies: [{ kind: 'identity', require: 'signed-in' }],
+  defaultResponseHeaders: [
+    ['cache-control', 'no-store'],
+    ['vary', 'Cookie, Authorization'],
+  ],
   responses: [
     {
       kind: 'json',
@@ -141,8 +145,14 @@ export const selectActiveOrganization = defineEndpointShape({
   path: '/api/organization/active',
   operationId: 'postApiOrganizationActive',
   policies: [
-    { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
+    // Proof: the cookie-conditional policy let a bearer-only POST with no
+    // Origin issue a selection cookie (mounted selection negative, 0/1).
+    { kind: 'origin', when: 'always' },
     { kind: 'identity', require: 'signed-in' },
+  ],
+  defaultResponseHeaders: [
+    ['cache-control', 'no-store'],
+    ['vary', 'Cookie, Authorization'],
   ],
   body: requestSchema(type({ organizationId: 'string' })),
   responses: [

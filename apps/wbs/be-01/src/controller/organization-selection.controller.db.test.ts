@@ -1,5 +1,7 @@
+import { JwksTokenVerifier } from '@wbs/auth';
 import { openConnection, SqliteOrganizationSelection } from '@wbs/store-sqlite';
 import { afterEach, expect, test } from 'bun:test';
+import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 import { OrganizationHarness } from '../testing/organization-harness';
 
@@ -25,6 +27,24 @@ function request(
       ...(cookie === undefined ? {} : { cookie }),
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       ...headers,
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+}
+
+function cookieRequest(
+  token: string,
+  method: 'GET' | 'POST',
+  path: string,
+  body?: unknown,
+  selection?: string,
+): Request {
+  return new Request(`http://localhost${path}`, {
+    method,
+    headers: {
+      cookie: `__Host-wbs_access=${token}${selection === undefined ? '' : `; ${selection}`}`,
+      ...(method === 'POST' ? { origin: 'http://localhost' } : {}),
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
@@ -86,6 +106,8 @@ test('throws on a malformed current membership role rather than advertising auth
     request(harness.token('ada'), 'GET', '/api/organization/memberships'),
   );
   expect(response.status).toBe(500);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(response.headers.get('vary')).toBe('Cookie, Authorization');
 });
 
 test('selects only a current membership and scopes the mounted project route by the exact pair', async () => {
@@ -178,4 +200,152 @@ test('refuses substituted and ambiguous browser carriers on the mounted access r
   );
   expect(foreignOrigin.status).toBe(403);
   expect(await foreignOrigin.json()).toEqual({ error: 'invalid_origin' });
+  const duplicateSelection = await harness.app.handle(
+    request(
+      ada,
+      'POST',
+      '/api/organization/active',
+      { organizationId: 'org-a' },
+      `${pair}; __Host-wbs_organization=bad`,
+    ),
+  );
+  expect(duplicateSelection.status).toBe(401);
+  expect(await duplicateSelection.json()).toEqual({ error: 'unauthenticated' });
+  const malformedDuplicate = await harness.app.handle(
+    request(
+      ada,
+      'POST',
+      '/api/organization/active',
+      { organizationId: 'org-a' },
+      `__Host-wbs_organization =bad; ${pair}`,
+    ),
+  );
+  expect(malformedDuplicate.status).toBe(401);
+  expect(await malformedDuplicate.json()).toEqual({ error: 'unauthenticated' });
+});
+
+test('requires the exact Origin for bearer-only selection and protects every selection response from caching', async () => {
+  harness = OrganizationHarness.open({ sessionBinding: true });
+  await harness.register('ada');
+  harness.organization('org-a');
+  harness.member('org-a', 'ada', 'member');
+  harness.activate();
+  const token = harness.token('ada');
+  const noOrigin = await harness.app.handle(
+    new Request('http://localhost/api/organization/active', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ organizationId: 'org-a' }),
+    }),
+  );
+  expect(noOrigin.status).toBe(403);
+  expect(await noOrigin.json()).toEqual({ error: 'invalid_origin' });
+  for (const response of [
+    noOrigin,
+    await harness.app.handle(request(token, 'POST', '/api/organization/active', {})),
+    await harness.app.handle(
+      request(token, 'POST', '/api/organization/active', { organizationId: 'foreign' }),
+    ),
+    await harness.app.handle(request('invalid', 'GET', '/api/organization/memberships')),
+    await harness.app.handle(request(token, 'GET', '/api/organization/memberships')),
+  ]) {
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('vary')).toBe('Cookie, Authorization');
+  }
+});
+
+test('binds a real verified OIDC access cookie to its mapped local member and rejects invalid evidence', async () => {
+  const issuer = 'https://idp.test';
+  const audience = 'api://wbs';
+  const signing = await generateKeyPair('RS256');
+  const otherSigning = await generateKeyPair('RS256');
+  const publicJwk = await exportJWK(signing.publicKey);
+  const server = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch: () =>
+      Response.json({ keys: [{ ...publicJwk, alg: 'RS256', kid: 'selection-key', use: 'sig' }] }),
+  });
+  try {
+    const verifier = new JwksTokenVerifier({
+      audience,
+      issuer,
+      jwksUri: new URL(`http://127.0.0.1:${String(server.port)}/jwks`),
+    });
+    harness = OrganizationHarness.open({
+      sessionBinding: true,
+      upstreamCredential: { verifier, groupPrefix: 'dev', groupsClaim: 'wbs_groups' },
+    });
+    await harness.register('ada');
+    await harness.register('bob');
+    harness.organization('org-a');
+    harness.member('org-a', 'ada', 'member');
+    harness.member('org-a', 'bob', 'member');
+    harness.activate();
+    for (const [subject, userId] of [
+      ['subject-ada', harness.userId('ada')],
+      ['subject-bob', harness.userId('bob')],
+    ]) {
+      harness.sqlite.run(
+        'INSERT INTO external_identity (id, user_id, issuer, subject, created_at) VALUES (?, ?, ?, ?, 1)',
+        [crypto.randomUUID(), userId, issuer, subject],
+      );
+    }
+    const seconds = Math.floor(Date.now() / 1000);
+    const signed = (
+      subject: string,
+      overrides: { issuer?: string; audience?: string; expires?: boolean; otherKey?: boolean } = {},
+    ) => {
+      let token = new SignJWT({ wbs_groups: ['dev:wbs:read'] })
+        .setProtectedHeader({ alg: 'RS256', kid: 'selection-key' })
+        .setIssuer(overrides.issuer ?? issuer)
+        .setAudience(overrides.audience ?? audience)
+        .setSubject(subject)
+        .setJti(crypto.randomUUID())
+        .setIssuedAt(seconds);
+      if (overrides.expires !== false) token = token.setExpirationTime(seconds + 300);
+      return token.sign(overrides.otherKey === true ? otherSigning.privateKey : signing.privateKey);
+    };
+    const ada = await signed('subject-ada');
+    const listed = await harness.app.handle(
+      cookieRequest(ada, 'GET', '/api/organization/memberships'),
+    );
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toEqual({
+      state: 'selection_required',
+      memberships: [{ organizationId: 'org-a', name: 'org-a', role: 'member' }],
+    });
+    const selected = await harness.app.handle(
+      cookieRequest(ada, 'POST', '/api/organization/active', { organizationId: 'org-a' }),
+    );
+    expect(selected.status).toBe(200);
+    const pair = selected.headers.get('set-cookie')?.split(';')[0];
+    if (pair === undefined) throw new Error('OIDC selection did not set a cookie');
+    expect(
+      (await harness.app.handle(cookieRequest(ada, 'GET', '/api/projects', undefined, pair)))
+        .status,
+    ).toBe(200);
+    for (const replacement of [await signed('subject-ada'), await signed('subject-bob')]) {
+      expect(
+        (
+          await harness.app.handle(
+            cookieRequest(replacement, 'GET', '/api/projects', undefined, pair),
+          )
+        ).status,
+      ).toBe(403);
+    }
+    for (const invalid of [
+      await signed('subject-ada', { issuer: 'https://other.test' }),
+      await signed('subject-ada', { audience: 'api://other' }),
+      await signed('subject-ada', { otherKey: true }),
+      await signed('subject-ada', { expires: false }),
+    ]) {
+      const response = await harness.app.handle(
+        cookieRequest(invalid, 'POST', '/api/organization/active', { organizationId: 'org-a' }),
+      );
+      expect(response.status).toBe(401);
+    }
+  } finally {
+    await server.stop(true);
+  }
 });

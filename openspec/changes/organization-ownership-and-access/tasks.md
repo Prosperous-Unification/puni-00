@@ -30,6 +30,7 @@
     - a separate signed `__Host-wbs_organization` cookie, bound to the user and a digest of the verified access token and capped at its expiry (password tokens need a fresh `jti`);
     - `OrganizationAccess.resolve(principal)` carrying the verified binding;
     - `GET /api/organization/memberships` and `POST /api/organization/active`, with explicit selection even for one membership;
+    - the access credential may arrive in the browser access cookie or a Bearer header; selection binds the verified bytes either way, and the POST requires an exact same-origin `Origin` in both cases. A Bearer-only request with no Origin does not select;
     - D1: require explicit reselection after access-credential replacement; refresh never carries selection forward;
     - D2: immediately invalidate the entire prior access-token/organization-cookie pair on logout or credential rotation using shared server-checked revocation state; prove refusal across processes and restart;
     - D3: every browser organization-resource mutation requires an expected-organization precondition; missing or mismatch returns typed `409 organization_context_changed`, makes no write and triggers no retry. Cover directory writes, project creation, import and project commands;

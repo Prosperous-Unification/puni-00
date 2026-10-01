@@ -8,7 +8,7 @@ import {
 } from '../middleware/authenticated';
 import { bearerContextCredential } from '../runtime/bearer-context';
 import { declaresDelegation, type DelegationVerifier } from '../runtime/delegation';
-import { organizationCookieFromHeaders } from '../runtime/organization-cookie';
+import { organizationCookieCarrier } from '../runtime/organization-cookie';
 import type { VerifiedCredentialOf } from '../runtime/organization-credential';
 import type { IdentityResolver } from './endpoint';
 
@@ -76,11 +76,12 @@ export function identityResolver(
         if (evidence !== null && evidence.userId === principal.id) {
           // Proof: mutating the authenticated principal made the next request
           // inherit a prior binding when the account adapter reused its object.
+          const carrier = organizationCookieCarrier(request.headers);
           requestPrincipal = {
             ...principal,
             organizationBinding: {
               credential: evidence,
-              cookie: organizationCookieFromHeaders(request.headers),
+              cookie: carrier.kind === 'present' ? carrier.value : null,
             },
           };
         }

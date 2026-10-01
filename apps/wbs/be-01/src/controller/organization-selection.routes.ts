@@ -1,6 +1,7 @@
 import { listOrganizationMemberships, selectActiveOrganization } from '@wbs/contracts';
 
 import { bind } from '../http/endpoint';
+import { organizationCookieCarrier } from '../runtime/organization-cookie';
 import type {
   OrganizationSelection,
   OrganizationSelectionOutcome,
@@ -61,13 +62,13 @@ export function organizationSelectionRoutes(selection: OrganizationSelection) {
           state: outcome.memberships.length === 0 ? 'onboarding_required' : 'selection_required',
           memberships: outcome.memberships.map((member) => ({ ...member })),
         },
-        headers: [
-          ['cache-control', 'no-store'],
-          ['vary', 'Cookie, Authorization'],
-        ],
       } as const;
     }),
-    bind(selectActiveOrganization, async ({ principal, body }) => {
+    bind(selectActiveOrganization, async ({ principal, body, request }) => {
+      // Proof: omitting this raw carrier refusal let two conflicting
+      // organization cookies produce a new selection (200 instead of 401).
+      if (organizationCookieCarrier(request.headers).kind === 'invalid')
+        return { ok: false, status: 401, body: { error: 'unauthenticated' } } as const;
       const outcome = await selection.select(principal, body.organizationId);
       if (outcome.kind !== 'selected') return refusal(outcome, true);
       return {
@@ -79,8 +80,6 @@ export function organizationSelectionRoutes(selection: OrganizationSelection) {
             'set-cookie',
             `__Host-wbs_organization=${encodeURIComponent(outcome.cookie)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${String(outcome.maxAge)}`,
           ],
-          ['cache-control', 'no-store'],
-          ['vary', 'Cookie, Authorization'],
         ],
       } as const;
     }),

@@ -71,19 +71,30 @@ export function organizationCookieBinding(keyMaterial: string, now: () => number
   };
 }
 
-/** Reads exactly one named cookie; duplicate or malformed carrier is not authority. */
-export function organizationCookieFromHeaders(headers: Headers): string | null {
-  const named = (headers.get('cookie') ?? '').split(';').filter((part) => {
-    const separator = part.indexOf('=');
-    return separator > 0 && part.slice(0, separator).trim() === '__Host-wbs_organization';
-  });
-  // Proof: accepting the last duplicate would let a substituted organization
-  // cookie hide beside a malformed first value in the mounted carrier matrix.
-  if (named.length !== 1) return null;
+/** Distinguishes an absent selection from a malformed or duplicate carrier. */
+export function organizationCookieCarrier(
+  headers: Headers,
+): { readonly kind: 'absent' | 'invalid' } | { readonly kind: 'present'; readonly value: string } {
+  const name = '__Host-wbs_organization';
+  const named = (headers.get('cookie') ?? '')
+    .split(';')
+    .map((part) => part.trim())
+    // Proof: with only the exact `name=` match, a malformed `name =bad`
+    // beside a valid carrier was ignored and mounted POST selected (200/401).
+    .filter(
+      (part) =>
+        part.startsWith(name) &&
+        (part.length === name.length || /^[\t ]*=/.test(part.slice(name.length))),
+    );
+  if (named.length === 0) return { kind: 'absent' };
+  // Proof: ignoring a duplicate let mounted POST /api/organization/active
+  // issue a new cookie beside a conflicting old pair (200 instead of 401).
+  if (named.length !== 1 || !named[0].startsWith(`${name}=`)) return { kind: 'invalid' };
   try {
-    return decodeURIComponent(named[0].slice(named[0].indexOf('=') + 1));
+    const value = decodeURIComponent(named[0].slice(name.length + 1));
+    return value.length === 0 ? { kind: 'invalid' } : { kind: 'present', value };
   } catch (cause) {
-    if (cause instanceof URIError) return null;
+    if (cause instanceof URIError) return { kind: 'invalid' };
     throw cause;
   }
 }

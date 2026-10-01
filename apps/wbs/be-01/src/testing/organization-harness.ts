@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { buildOidcVerifier, oidcCredentialEvidence, type TokenVerifier } from '@wbs/auth';
 import { CREATOR_ADMISSION, type DomainResolver, type PasswordHasher } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
@@ -93,6 +94,11 @@ export interface OrganizationHarnessOptions {
   readonly policyDirectory?: string;
   readonly resolver?: DomainResolver;
   readonly sessionBinding?: boolean;
+  readonly upstreamCredential?: {
+    readonly verifier: TokenVerifier;
+    readonly groupPrefix: string;
+    readonly groupsClaim: string;
+  };
 }
 
 interface TestMail {
@@ -172,6 +178,7 @@ export class OrganizationHarness {
     policyDirectory,
     resolver,
     sessionBinding,
+    upstreamCredential,
   }: OrganizationHarnessOptions = {}): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
@@ -194,11 +201,19 @@ export class OrganizationHarness {
       selection?.activeOrganizationOf ??
         userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null)),
     );
+    const users = new UserRepository(db, OPEN);
     const auth = new AuthService({
       clock: testClock,
-      users: new UserRepository(db, OPEN),
+      users,
+      identities: users,
       tokens: joseTokenCodec(sessionKey),
       passwords: fastPasswordHasher,
+      ...(upstreamCredential === undefined
+        ? {}
+        : {
+            oidc: buildOidcVerifier(upstreamCredential.verifier, upstreamCredential),
+            passwordSessions: true,
+          }),
     });
     const projects = new ProjectRepository(db, OPEN);
     const directoryStore = new DirectoryRepository(db, OPEN);
@@ -260,7 +275,13 @@ export class OrganizationHarness {
         ? {}
         : {
             organizationSelection: selection.endpoints,
-            credentialEvidence: organizationCredentialEvidence(auth, sessionKey),
+            credentialEvidence: organizationCredentialEvidence(
+              auth,
+              sessionKey,
+              upstreamCredential === undefined
+                ? undefined
+                : oidcCredentialEvidence(upstreamCredential.verifier, upstreamCredential),
+            ),
           }),
       memberships: new OrganizationRepository(db, OPEN),
       domains,
