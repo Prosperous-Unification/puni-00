@@ -60,3 +60,17 @@ Place authorization at the application service boundary and require repository q
 
 1. Which exact production user ID is Dany's, and what are existing users' effective rights? Recommend: resolve from a reviewed inventory; block activation until unambiguous.
 2. Which existing catalogs and saved-plan tables have global uniqueness or indirect references that need shadow structures? Recommend: finish a relation-by-relation inventory before migration design; refuse activation if any owner is unmapped.
+
+## Slice 2.4B1: shared browser credential revocation authority
+
+This slice establishes durable revocation state for the later logout, credential-rotation and refresh lifecycle wiring. It does not expose a public endpoint or activate organization-bound production behavior. The production composition remains `NO_BOUND_ORGANIZATION`.
+
+The revocation key is the tuple `(verified credential kind, stable local user ID, SHA-256 of the exact verified access credential)`. Credential kind is native or OIDC. It is deliberately neither user-wide nor organization-wide, so revoking one credential pair leaves other credentials usable.
+
+Add `browser_credential_revocations` with an additive migration and paired `down.sql`. Store only credential kind, user ID, lowercase 64-character digest, safe-integer credential expiry, and safe-integer revocation time. The tuple is the primary key. Keep user IDs for audit when an account is deleted. Never store raw credentials, cookies, refresh tokens, or email. Do not garbage-collect rows or reset revocations. Rollback may drop the table only after proving it is empty, including expired rows.
+
+Expose a narrow application boundary for atomic, idempotent revoke and shared-store lookup. Repeating the same revoke preserves the original `revoked_at`; the same key with a different expiry throws. Every lookup reads shared storage without a process-local negative cache. An absent row in a valid migrated store is unrevoked. Missing/unreadable store, missing table, malformed matching state and failed writes throw; do not create, repair, or swallow errors.
+
+For the later enabled composition, check revocation before membership listing, selection issuance, and resolving an existing browser organization binding. The committed revocation is the linearization point: requests after it refuse. A selection already in flight may issue its cookie, but protected resolution must refuse it after commit. Do not cancel transactions already authorized. Preserve delegation behavior; delegated requests cannot select a browser organization.
+
+Acceptance proofs must inject each fault into the production path: an old intact token/cookie pair is refused across another process or restart after commit; removing the shared lookup makes that mounted test fail; a revoked token cannot obtain a new selection cookie and removing the selection check makes that test fail; other credentials and users remain valid; concurrent revoke/select remains monotonic and idempotent; unavailable authority and write failure surface as server failures without acknowledging revocation; rollback refuses every nonempty table; and production remains unbound. Record exact commands, outcomes and fault observations in `verify.md` after implementation.

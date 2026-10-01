@@ -3020,6 +3020,19 @@ export const delegationUse = sqliteTable(
   ],
 );
 
+/** Monotonic revocations of exact verified browser access credentials. */
+export const browserCredentialRevocations = sqliteTable(
+  'browser_credential_revocations',
+  {
+    kind: text('kind').notNull(),
+    userId: text('user_id').notNull(),
+    credentialDigest: text('credential_digest').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    revokedAt: integer('revoked_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.userId, t.credentialDigest] })],
+);
+
 export const savedPlanOrganization = sqliteTable(
   'saved_plan_organization',
   {
