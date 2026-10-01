@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 import {
   browserBindingCookieName,
@@ -9,10 +9,13 @@ import {
   InMemoryOidcLinkStore,
   isOidcCallbackRefused,
   MAX_BROWSER_BINDINGS,
+  oidcCredentialEvidence,
   type OidcFailureKind,
   oidcIdentityFromClaims,
+  type RefreshRecord,
   selectBrowserBindings,
 } from '@wbs/auth';
+import type { VerifiedOrganizationCredential } from '@wbs/contracts';
 import {
   completeAuth0Link,
   completeOidcLogin,
@@ -23,6 +26,7 @@ import {
 } from '@wbs/contracts';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { AuthService } from '@wbs/core/service/auth.service';
+import { BrowserLifecycleRefusedError } from '@wbs/store-sqlite';
 
 import {
   bind,
@@ -73,9 +77,51 @@ const browserBindingsOf = (request: RequestMetadata): HeldBrowserBinding[] =>
 const clearSession = (): Header[] => [
   cookie('__Host-wbs_access', '', 0),
   cookie('__Host-wbs_session', '', 0),
+  cookie('__Host-wbs_organization', '', 0),
 ];
 const correlationOf = (request: RequestMetadata) =>
   cookieValue(request.headers.get('cookie') ?? undefined, '__Host-wbs_session');
+const accessOf = (request: RequestMetadata) =>
+  cookieValue(request.headers.get('cookie') ?? undefined, '__Host-wbs_access');
+const credentialDigest = (token: string): string =>
+  createHash('sha256').update(token, 'utf8').digest('hex');
+function invalidBrowserCarriers(request: RequestMetadata): boolean {
+  const seen = new Set<string>();
+  for (const part of (request.headers.get('cookie') ?? '').split(';')) {
+    const sent = part.trimStart();
+    const separator = sent.indexOf('=');
+    const name = separator < 0 ? sent : sent.slice(0, separator);
+    const carrier = name.trimEnd();
+    if (carrier !== '__Host-wbs_session' && carrier !== '__Host-wbs_access') continue;
+    // Proof: accepting the second same-named access cookie made mounted
+    // duplicate-carrier refresh return 204 instead of 401 (0/1, 2026-10-01).
+    if (name !== carrier || separator < 0 || seen.has(carrier)) return true;
+    seen.add(carrier);
+    try {
+      if (decodeURIComponent(sent.slice(separator + 1)).length === 0) return true;
+    } catch {
+      return true;
+    }
+  }
+  return false;
+}
+type BoundRefreshRecord = RefreshRecord & {
+  readonly userId: string;
+  readonly generation: number;
+  readonly credential: VerifiedOrganizationCredential;
+};
+function isBoundRefreshRecord(record: RefreshRecord): record is BoundRefreshRecord {
+  return (
+    typeof record.userId === 'string' &&
+    record.userId.length > 0 &&
+    Number.isSafeInteger(record.generation) &&
+    (record.generation ?? 0) > 0 &&
+    record.credential?.kind === 'oidc' &&
+    record.credential.userId === record.userId &&
+    /^[0-9a-f]{64}$/.test(record.credential.digest) &&
+    Number.isSafeInteger(record.credential.expiresAt)
+  );
+}
 /** HEAD must not spend state or mint a session; transport retains its Allow header.
  * Proof: deleting this admission made the mounted HEAD test receive302 instead of405. */
 function callbackAdmission(request: RequestMetadata) {
@@ -187,6 +233,11 @@ export function authOidcEndpoints(
 ) {
   const now = options.now ?? Date.now;
   const random = options.random ?? (() => randomBytes(32).toString('base64url'));
+  const verifyEvidence = oidcCredentialEvidence(
+    options.verifier,
+    { groupPrefix: options.groupPrefix, groupsClaim: options.groupsClaim },
+    now,
+  );
   const links = new InMemoryOidcLinkStore(now);
   const linkRedirectUri = new URL('/api/auth/link/auth0/callback', options.redirectUri).href;
   return [
@@ -394,6 +445,14 @@ export function authOidcEndpoints(
             headers: clearsFor(settled),
           };
         }
+        const accessEvidence =
+          options.browserLifecycle === undefined ? null : await verifyEvidence(tokens.accessToken);
+        if (
+          options.browserLifecycle !== undefined &&
+          (accessEvidence?.identity.issuer !== identity.issuer ||
+            accessEvidence.identity.subject !== identity.subject)
+        )
+          return { ok: false, status: 401, body: EMPTY, headers: clearsFor(settled) };
         // Proof: catching account-store failure as null returned409 instead of500 in the mounted failure test.
         const account = await auth.resolveOidcIdentity(identity);
         if (account === null)
@@ -404,11 +463,30 @@ export function authOidcEndpoints(
             headers: clearsFor(settled),
           };
         const correlation = random();
+        if (options.browserLifecycle !== undefined && accessEvidence !== null)
+          await options.browserLifecycle.open(correlation, {
+            kind: 'oidc',
+            userId: account.id,
+            digest: accessEvidence.digest,
+            expiresAt: accessEvidence.expiresAt,
+          });
         if (tokens.refreshToken !== undefined)
           options.tokens.save({
             expiresAt: now() + 30 * 86400000,
             refreshToken: tokens.refreshToken,
             sessionCorrelation: correlation,
+            ...(accessEvidence === null
+              ? {}
+              : {
+                  userId: account.id,
+                  generation: 1,
+                  credential: {
+                    kind: 'oidc' as const,
+                    userId: account.id,
+                    digest: accessEvidence.digest,
+                    expiresAt: accessEvidence.expiresAt,
+                  },
+                }),
           });
         // Proof: JSON null instead of EMPTY returned500 instead of302 in the mounted recovery test.
         return {
@@ -426,6 +504,17 @@ export function authOidcEndpoints(
       { prevalidate: callbackAdmission, classifyRequestFailure: callbackFailure },
     ),
     bind(refreshOidcSession, async ({ request }): Promise<HttpReply<typeof refreshOidcSession>> => {
+      if (options.browserLifecycle !== undefined) {
+        if (request.headers.get('origin') !== options.appOrigin)
+          return { ok: false, status: 403, body: { error: 'invalid_origin' } };
+        if (invalidBrowserCarriers(request))
+          return {
+            ok: false,
+            status: 401,
+            body: { error: 'invalid_oidc_session' },
+            headers: clearSession(),
+          };
+      }
       const correlation = correlationOf(request);
       const current = correlation === null ? null : options.tokens.read(correlation);
       if (correlation === null || current === null)
@@ -435,6 +524,115 @@ export function authOidcEndpoints(
           body: { error: 'invalid_oidc_session' },
           headers: clearSession(),
         };
+      if (options.browserLifecycle !== undefined) {
+        const refused = (): HttpReply<typeof refreshOidcSession> => ({
+          ok: false,
+          status: 401,
+          body: { error: 'invalid_oidc_session' },
+          headers: clearSession(),
+        });
+        // Proof: accepting an unbound process-local record would let a stale
+        // server skip the durable generation/user/tuple join before provider IO.
+        if (!isBoundRefreshRecord(current)) return refused();
+        let captured;
+        try {
+          captured = await options.browserLifecycle.generation(correlation);
+          // Proof: bypassing the captured local/durable generation and tuple
+          // join made a stale process refresh return 204 instead of 401
+          // before provider IO (0/1, 2026-10-01).
+          if (
+            captured.generation !== current.generation ||
+            captured.current.kind !== current.credential.kind ||
+            captured.current.userId !== current.userId ||
+            captured.current.digest !== current.credential.digest ||
+            captured.current.expiresAt !== current.credential.expiresAt
+          )
+            return refused();
+          const presented = accessOf(request);
+          // Proof: re-verifying the presented access JWT for current expiry
+          // made an exact previously verified but expired token refuse refresh
+          // (401 instead of 204; 0/1, 2026-10-01). It is only a digest here.
+          // Proof: disabling this check made a same-user token from another
+          // lifecycle refresh the captured session (204 instead of 401;
+          // 0/1, 2026-10-01).
+          if (presented !== null)
+            await options.browserLifecycle.proveAssociation(correlation, {
+              kind: 'oidc',
+              digest: credentialDigest(presented),
+            });
+        } catch (cause) {
+          if (cause instanceof BrowserLifecycleRefusedError) return refused();
+          throw cause;
+        }
+        const next = await options.client.refresh(current.refreshToken);
+        const refreshToken = next.refreshToken ?? current.refreshToken;
+        // Proof: falling back from missing verified exp to identity claims and
+        // an invented TTL made mounted malformed-evidence refresh return 204
+        // instead of 401 (0/1, 2026-10-01).
+        const evidence = await verifyEvidence(next.accessToken);
+        if (evidence === null) {
+          if (refreshToken !== current.refreshToken)
+            options.tokens.deleteIfCurrent(correlation, current);
+          return refused();
+        }
+        // Proof: replacing this with resolveOidcIdentity made the mounted
+        // unknown-subject/same-email negative link the password account
+        // (1 pass, 1 fail; 2026-10-01), despite the final 401 refusal.
+        const account = await auth.readExistingOidcIdentity(evidence.identity);
+        // Proof: removing the captured-user comparison made the mounted
+        // wrong-user negative call lifecycle.replace once before its 401;
+        // expected zero calls (0 pass, 1 fail; 2026-10-01).
+        if (account?.id !== current.userId) {
+          if (refreshToken !== current.refreshToken)
+            options.tokens.deleteIfCurrent(correlation, current);
+          return refused();
+        }
+        const successor: VerifiedOrganizationCredential = {
+          kind: 'oidc',
+          userId: account.id,
+          digest: evidence.digest,
+          expiresAt: evidence.expiresAt,
+        };
+        let nextGeneration: number;
+        try {
+          nextGeneration = await options.browserLifecycle.replace(
+            correlation,
+            captured.generation,
+            captured.current,
+            successor,
+            now(),
+          );
+        } catch (cause) {
+          // Proof: deleting the captured record on a typed stale CAS let a
+          // losing refresh erase the winner's still-pending local install;
+          // two provider-barrier requests both returned 401 (0/1, 2026-10-01).
+          if (cause instanceof BrowserLifecycleRefusedError) return refused();
+          if (refreshToken !== current.refreshToken)
+            options.tokens.deleteIfCurrent(correlation, current);
+          throw cause;
+        }
+        // Proof: replacing the local winner unconditionally let a delayed
+        // completion overwrite or recreate material after a concurrent loss.
+        if (
+          !options.tokens.replaceIfCurrent(correlation, current, {
+            expiresAt: now() + 30 * 86400000,
+            refreshToken,
+            userId: account.id,
+            generation: nextGeneration,
+            credential: successor,
+          })
+        )
+          return refused();
+        return {
+          ok: true,
+          status: 204,
+          body: EMPTY,
+          headers: [
+            cookie('__Host-wbs_access', next.accessToken, next.expiresIn),
+            cookie('__Host-wbs_organization', '', 0),
+          ],
+        };
+      }
       const next = await options.client.refresh(current.refreshToken);
       const refreshToken = next.refreshToken ?? current.refreshToken;
       const expiresAt = now() + 30 * 86400000;

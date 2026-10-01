@@ -10,6 +10,7 @@ import {
   type TokenStore,
   type TokenVerifier,
 } from '@wbs/auth';
+import type { BrowserAuthLifecycle } from '@wbs/store-sqlite';
 
 import { oidcCallbackUrlFromEnv } from '../config';
 
@@ -23,6 +24,8 @@ export interface AuthRouteLog {
 /** Provider, state and optional password settings for the OIDC app composition. */
 export interface OidcRouteOptions {
   appOrigin: string;
+  /** Shared authority, supplied only by a composition that enables browser lifecycle transitions. */
+  browserLifecycle?: BrowserAuthLifecycle;
   client: ReturnType<typeof browserOidcClientFromEnv>;
   groupPrefix: string;
   groupsClaim: string;

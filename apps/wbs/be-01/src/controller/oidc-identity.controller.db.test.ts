@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,8 +8,14 @@ import {
   buildOidcVerifier,
   InMemoryOidcTransactionStore,
   InMemoryTokenStore,
+  type JwtClaims,
 } from '@wbs/auth';
 import { AuthService } from '@wbs/core/service/auth.service';
+import {
+  type BrowserAuthLifecycle,
+  SqliteBrowserAuthLifecycle,
+  SqliteBrowserCredentialRevocations,
+} from '@wbs/store-sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -76,6 +82,14 @@ describe('the OIDC callback after activation', () => {
   let passwordVerifyHold: Promise<void> | null;
   let passwordVerifications: number;
   let passwordVerifyFault: boolean;
+  let refreshAccess: string;
+  let refreshSecret: string;
+  let refreshCalls: number;
+  let refreshHold: Promise<void> | null;
+  let refreshEntered: (() => void) | null;
+  let refreshClaims: JwtClaims;
+  let callbackAccessClaims: JwtClaims;
+  let localTokens: InMemoryTokenStore;
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-oidc-identity-'));
@@ -87,6 +101,13 @@ describe('the OIDC callback after activation', () => {
     passwordVerifyHold = null;
     passwordVerifications = 0;
     passwordVerifyFault = false;
+    refreshAccess = 'access-from-refresh';
+    refreshSecret = 'refresh-2';
+    refreshCalls = 0;
+    refreshHold = null;
+    refreshEntered = null;
+    refreshClaims = { ...claims, exp: Math.floor((now + 900_000) / 1000) };
+    callbackAccessClaims = { ...claims, exp: Math.floor((now + 900_000) / 1000) };
   });
 
   afterEach(() => {
@@ -111,7 +132,10 @@ describe('the OIDC callback after activation', () => {
   };
 
   /** The app, with one browser login already started as `binding-1`. */
-  function mounted(providerClaims: Readonly<Record<string, unknown>> = claims) {
+  function mounted(
+    providerClaims: Readonly<Record<string, unknown>> = claims,
+    browserLifecycle?: BrowserAuthLifecycle,
+  ) {
     const users = new UserRepository(openDrizzle(path), OPEN);
     const transactions = new InMemoryOidcTransactionStore({ now: () => now, ttlMs: 300_000 });
     transactions.save({
@@ -143,9 +167,19 @@ describe('the OIDC callback after activation', () => {
             accessToken: 'access-1',
             expiresIn: 900,
             idTokenClaims: providerClaims,
+            ...(browserLifecycle === undefined ? {} : { refreshToken: 'refresh-1' }),
           });
         },
-        refresh: () => Promise.reject(new Error('no refresh in this suite')),
+        refresh: async () => {
+          refreshCalls++;
+          if (refreshCalls === 2) refreshEntered?.();
+          if (refreshHold !== null) await refreshHold;
+          return {
+            accessToken: refreshAccess,
+            expiresIn: 900,
+            refreshToken: refreshSecret,
+          };
+        },
         revoke: () => Promise.resolve(),
       },
       groupPrefix: 'dev',
@@ -154,8 +188,18 @@ describe('the OIDC callback after activation', () => {
       now: () => now,
       random: () => 'session-1',
       redirectUri: 'https://dev.wbs.test/api/auth/okta/callback',
-      verifier: { verify: () => Promise.resolve(claims) },
-      tokens: new InMemoryTokenStore({ now: () => now }),
+      verifier: {
+        verify: (token: string) =>
+          Promise.resolve(
+            token === refreshAccess
+              ? refreshClaims
+              : token === 'access-1'
+                ? callbackAccessClaims
+                : claims,
+          ),
+      },
+      browserLifecycle,
+      tokens: (localTokens = new InMemoryTokenStore({ now: () => now })),
       transactions,
     };
     auth = new AuthService({
@@ -745,5 +789,534 @@ describe('the OIDC callback after activation', () => {
     const start = await startLink(app, registration.value.token, 'fresh-password');
     expect(outcomeOf(await linkCallback(app, start, registration.value.token))).toBe('refused');
     expect(all('SELECT * FROM external_identity')).toEqual([]);
+  });
+
+  it('refuses a verified refresh identity for another local user before lifecycle CAS', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('foreign', 'foreign', NULL, 'https://idp.test', 'subject-2', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const revoked = new SqliteBrowserCredentialRevocations(openDrizzle(path), OPEN);
+    const credential = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', credential);
+    refreshClaims = { ...claims, sub: 'subject-2', exp: Math.floor((now + 900_000) / 1000) };
+    let replacements = 0;
+    const observedLifecycle: BrowserAuthLifecycle = {
+      open: (...args) => lifecycle.open(...args),
+      generation: (...args) => lifecycle.generation(...args),
+      proveAssociation: (...args) => lifecycle.proveAssociation(...args),
+      replace: (...args) => {
+        replacements++;
+        return lifecycle.replace(...args);
+      },
+      close: (...args) => lifecycle.close(...args),
+    };
+    const app = mounted(claims, observedLifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential,
+    });
+    const before = all(
+      'SELECT id, username, email, idp_issuer, idp_sub, updated_at FROM users ORDER BY id',
+    );
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          origin: 'https://dev.wbs.test',
+          cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+        },
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(replacements).toBe(0);
+    expect(response.headers.get('set-cookie')).not.toContain(
+      '__Host-wbs_access=access-from-refresh;',
+    );
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 1, current: credential });
+    expect(await revoked.isRevoked(credential)).toBe(false);
+    expect(
+      all('SELECT id, username, email, idp_issuer, idp_sub, updated_at FROM users ORDER BY id'),
+    ).toEqual(before);
+  });
+
+  it('refuses an unknown same-email refresh subject without creating or linking an account', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    sql(
+      "INSERT INTO users (id, username, password_hash, created_at) VALUES ('legacy', 'dany@puni.test', 'hash', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const credential = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', credential);
+    refreshClaims = { ...claims, sub: 'unknown-subject', exp: Math.floor((now + 900_000) / 1000) };
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential,
+    });
+    const before = all(
+      'SELECT id, username, email, idp_issuer, idp_sub, updated_at FROM users ORDER BY id',
+    );
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          origin: 'https://dev.wbs.test',
+          cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+        },
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 1, current: credential });
+    expect(
+      all('SELECT id, username, email, idp_issuer, idp_sub, updated_at FROM users ORDER BY id'),
+    ).toEqual(before);
+  });
+
+  it('commits verified refresh replacement before rotated local material and cookies', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const revoked = new SqliteBrowserCredentialRevocations(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', first);
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          origin: 'https://dev.wbs.test',
+          cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+        },
+      }),
+    );
+    const successor = {
+      ...first,
+      digest: createHash('sha256').update(refreshAccess).digest('hex'),
+    };
+    expect(response.status).toBe(204);
+    expect(response.headers.get('set-cookie')).toContain('__Host-wbs_access=access-from-refresh;');
+    expect(response.headers.get('set-cookie')).toContain('__Host-wbs_organization=;');
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 2, current: successor });
+    expect(await revoked.isRevoked(first)).toBe(true);
+    expect(await revoked.isRevoked(successor)).toBe(false);
+    expect(localTokens.read('session-1')).toMatchObject({
+      refreshToken: 'refresh-2',
+      generation: 2,
+      userId: 'captured',
+      credential: successor,
+    });
+  });
+
+  it('uses durable CAS when the provider retains its refresh secret', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    refreshSecret = 'refresh-1';
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', first);
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: { origin: 'https://dev.wbs.test', cookie: '__Host-wbs_session=session-1' },
+      }),
+    );
+    expect(response.status).toBe(204);
+    expect((await lifecycle.generation('session-1')).generation).toBe(2);
+    expect(localTokens.read('session-1')).toMatchObject({
+      refreshToken: 'refresh-1',
+      generation: 2,
+    });
+  });
+
+  it('refuses identical replacement access bytes without revoking and reissuing them', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    refreshAccess = 'access-1';
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const revoked = new SqliteBrowserCredentialRevocations(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', first);
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: { origin: 'https://dev.wbs.test', cookie: '__Host-wbs_session=session-1' },
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get('set-cookie')).not.toContain('__Host-wbs_access=access-1;');
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 1, current: first });
+    expect(await revoked.isRevoked(first)).toBe(false);
+  });
+
+  it('refuses a stale local generation before provider I/O', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    const second = { ...first, digest: createHash('sha256').update('access-2').digest('hex') };
+    await lifecycle.open('session-1', first);
+    await lifecycle.replace('session-1', 1, first, second, now);
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: { origin: 'https://dev.wbs.test', cookie: '__Host-wbs_session=session-1' },
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(refreshCalls).toBe(0);
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 2, current: second });
+  });
+
+  it('refuses duplicate access-cookie carriers before provider I/O', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', first);
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          origin: 'https://dev.wbs.test',
+          cookie:
+            '__Host-wbs_session=session-1; __Host-wbs_access=access-1; __Host-wbs_access=access-1',
+        },
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(refreshCalls).toBe(0);
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 1, current: first });
+  });
+
+  it('uses an expired presented access token only as an exact retained association', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('expired-access').digest('hex'),
+      expiresAt: now - 1_000,
+    };
+    await lifecycle.open('session-1', first);
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          origin: 'https://dev.wbs.test',
+          cookie: '__Host-wbs_session=session-1; __Host-wbs_access=expired-access',
+        },
+      }),
+    );
+    expect(response.status).toBe(204);
+    expect((await lifecycle.generation('session-1')).generation).toBe(2);
+  });
+
+  it('refuses a same-user access token from another lifecycle before provider I/O', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    const foreign = {
+      ...first,
+      digest: createHash('sha256').update('foreign-access').digest('hex'),
+    };
+    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-2', foreign);
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          origin: 'https://dev.wbs.test',
+          cookie: '__Host-wbs_session=session-1; __Host-wbs_access=foreign-access',
+        },
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(refreshCalls).toBe(0);
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 1, current: first });
+    expect(await lifecycle.generation('session-2')).toEqual({ generation: 1, current: foreign });
+  });
+
+  it('refuses refresh after restart without the process-local provider secret', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', first);
+    const restarted = mounted(claims, lifecycle);
+    const response = await restarted.handle(
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          origin: 'https://dev.wbs.test',
+          cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+        },
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(refreshCalls).toBe(0);
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 1, current: first });
+  });
+
+  it('refuses provider access without a verified future expiry before lifecycle CAS', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', first);
+    refreshClaims = claims;
+    let replacements = 0;
+    const observedLifecycle: BrowserAuthLifecycle = {
+      open: (...args) => lifecycle.open(...args),
+      generation: (...args) => lifecycle.generation(...args),
+      proveAssociation: (...args) => lifecycle.proveAssociation(...args),
+      replace: (...args) => {
+        replacements++;
+        return lifecycle.replace(...args);
+      },
+      close: (...args) => lifecycle.close(...args),
+    };
+    const app = mounted(claims, observedLifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: { origin: 'https://dev.wbs.test', cookie: '__Host-wbs_session=session-1' },
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(replacements).toBe(0);
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 1, current: first });
+  });
+
+  it('allows one of two paused refresh completions to publish without losing local winner', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', first);
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    let releaseProvider = (): void => {
+      throw new Error('provider hold was not installed');
+    };
+    refreshHold = new Promise<void>((resolve) => {
+      releaseProvider = resolve;
+    });
+    let reportBothEntered: (() => void) | null = null;
+    const bothEntered = new Promise<void>((resolve) => {
+      reportBothEntered = resolve;
+    });
+    refreshEntered = () => reportBothEntered?.();
+    const request = () =>
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          origin: 'https://dev.wbs.test',
+          cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+        },
+      });
+    const firstResponse = app.handle(request());
+    const secondResponse = app.handle(request());
+    await bothEntered;
+    expect(refreshCalls).toBe(2);
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 1, current: first });
+    releaseProvider();
+    const responses = await Promise.all([firstResponse, secondResponse]);
+    expect(responses.map((response) => response.status).sort()).toEqual([204, 401]);
+    const winner = responses.find((response) => response.status === 204);
+    const loser = responses.find((response) => response.status === 401);
+    expect(winner?.headers.get('set-cookie')).toContain('__Host-wbs_access=access-from-refresh;');
+    expect(loser?.headers.get('set-cookie')).not.toContain(
+      '__Host-wbs_access=access-from-refresh;',
+    );
+    expect((await lifecycle.generation('session-1')).generation).toBe(2);
+    expect(localTokens.read('session-1')).toMatchObject({
+      generation: 2,
+      refreshToken: 'refresh-2',
+    });
+  });
+
+  it('opens a durable lifecycle and bound local refresh record before issuing callback cookies', async () => {
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const app = mounted(claims, lifecycle);
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: { cookie: `${browserBindingCookieName('binding-1')}=binding-1` },
+      }),
+    );
+    expect(response.status).toBe(302);
+    const accountRows = all('SELECT id FROM users');
+    expect(accountRows).toHaveLength(1);
+    const userId = (accountRows[0] as { id: string }).id;
+    const expected = {
+      kind: 'oidc' as const,
+      userId,
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 1, current: expected });
+    expect(localTokens.read('session-1')).toMatchObject({
+      userId,
+      generation: 1,
+      credential: expected,
+    });
+    expect(response.headers.get('set-cookie')).toContain('__Host-wbs_access=access-1;');
   });
 });

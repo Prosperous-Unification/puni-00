@@ -1,5 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
+import type { VerifiedOrganizationCredential } from '@wbs/contracts';
+
 export interface OidcTransactionInput {
   browserBinding: string;
   nonce: string;
@@ -280,11 +282,17 @@ export interface RefreshRecordInput {
   expiresAt: number;
   refreshToken: string;
   sessionCorrelation: string;
+  userId?: string;
+  generation?: number;
+  credential?: VerifiedOrganizationCredential;
 }
 
 export interface RefreshRecord {
   expiresAt: number;
   refreshToken: string;
+  userId?: string;
+  generation?: number;
+  credential?: VerifiedOrganizationCredential;
 }
 
 export interface RefreshRotationInput extends RefreshRecordInput {
@@ -296,13 +304,34 @@ export type RefreshRotationResult = 'expired' | 'invalid' | 'missing' | 'replay'
 export interface TokenStore {
   cleanupExpired(): number;
   delete(sessionCorrelation: string): boolean;
+  deleteIfCurrent(sessionCorrelation: string, captured: RefreshRecord): boolean;
   read(sessionCorrelation: string): RefreshRecord | null;
+  replaceIfCurrent(
+    sessionCorrelation: string,
+    captured: RefreshRecord,
+    replacement: RefreshRecord,
+  ): boolean;
   rotate(rotation: RefreshRotationInput): RefreshRotationResult;
   save(record: RefreshRecordInput): void;
 }
 
 interface StoredRefreshRecord extends RefreshRecord {
   spentRefreshTokens: Set<string>;
+}
+
+function sameRefreshRecord(current: RefreshRecord, captured: RefreshRecord): boolean {
+  const currentCredential = current.credential;
+  const capturedCredential = captured.credential;
+  return (
+    current.expiresAt === captured.expiresAt &&
+    sameSecret(current.refreshToken, captured.refreshToken) &&
+    current.userId === captured.userId &&
+    current.generation === captured.generation &&
+    currentCredential?.kind === capturedCredential?.kind &&
+    currentCredential?.userId === capturedCredential?.userId &&
+    currentCredential?.digest === capturedCredential?.digest &&
+    currentCredential?.expiresAt === capturedCredential?.expiresAt
+  );
 }
 
 /**
@@ -322,6 +351,9 @@ export class InMemoryTokenStore implements TokenStore {
     this.records.set(digest(record.sessionCorrelation), {
       expiresAt: record.expiresAt,
       refreshToken: record.refreshToken,
+      userId: record.userId,
+      generation: record.generation,
+      credential: record.credential,
       spentRefreshTokens: new Set(),
     });
   }
@@ -336,7 +368,48 @@ export class InMemoryTokenStore implements TokenStore {
       this.records.delete(key);
       return null;
     }
-    return { expiresAt: record.expiresAt, refreshToken: record.refreshToken };
+    return {
+      expiresAt: record.expiresAt,
+      refreshToken: record.refreshToken,
+      ...(record.userId === undefined ? {} : { userId: record.userId }),
+      ...(record.generation === undefined ? {} : { generation: record.generation }),
+      ...(record.credential === undefined ? {} : { credential: record.credential }),
+    };
+  }
+
+  /** Installs a refresh result only while the exact captured local record still owns the correlation. */
+  replaceIfCurrent(
+    sessionCorrelation: string,
+    captured: RefreshRecord,
+    replacement: RefreshRecord,
+  ): boolean {
+    const key = digest(sessionCorrelation);
+    const current = this.records.get(key);
+    if (current === undefined || current.expiresAt <= this.now()) {
+      if (current !== undefined) this.records.delete(key);
+      return false;
+    }
+    // Proof: bypassing the exact-record comparison made the stale completion
+    // overwrite a newer local winner in `does not let a stale refresh completion`.
+    if (!sameRefreshRecord(current, captured)) return false;
+    this.records.set(key, {
+      ...replacement,
+      spentRefreshTokens:
+        current.refreshToken === replacement.refreshToken
+          ? current.spentRefreshTokens
+          : new Set([...current.spentRefreshTokens, digest(current.refreshToken)]),
+    });
+    return true;
+  }
+
+  /** Removes only material still owned by the captured refresh attempt. */
+  deleteIfCurrent(sessionCorrelation: string, captured: RefreshRecord): boolean {
+    const key = digest(sessionCorrelation);
+    const current = this.records.get(key);
+    // Proof: dropping the exact-record comparison deleted generation 2 with
+    // a generation-1 capture (Expected false, Received true; 0/1, 2026-10-01).
+    if (current === undefined || !sameRefreshRecord(current, captured)) return false;
+    return this.records.delete(key);
   }
 
   rotate(rotation: RefreshRotationInput): RefreshRotationResult {
@@ -362,6 +435,9 @@ export class InMemoryTokenStore implements TokenStore {
     this.records.set(key, {
       expiresAt: rotation.expiresAt,
       refreshToken: rotation.refreshToken,
+      userId: rotation.userId,
+      generation: rotation.generation,
+      credential: rotation.credential,
       spentRefreshTokens: new Set([...record.spentRefreshTokens, previousDigest]),
     });
     return 'rotated';

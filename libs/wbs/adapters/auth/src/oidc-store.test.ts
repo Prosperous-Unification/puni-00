@@ -203,6 +203,82 @@ describe('InMemoryOidcTransactionStore', () => {
 });
 
 describe('InMemoryTokenStore', () => {
+  const firstCredential = {
+    kind: 'oidc' as const,
+    userId: 'user-1',
+    digest: 'a'.repeat(64),
+    expiresAt: 5_000,
+  };
+
+  it('retains the exact local user, generation and verified credential for a refresh join', () => {
+    const store = new InMemoryTokenStore({ now: () => 1_000 });
+    store.save({
+      expiresAt: 6_000,
+      refreshToken: 'refresh-1',
+      sessionCorrelation: 'session-1',
+      userId: 'user-1',
+      generation: 1,
+      credential: firstCredential,
+    });
+
+    expect(store.read('session-1')).toEqual({
+      expiresAt: 6_000,
+      refreshToken: 'refresh-1',
+      userId: 'user-1',
+      generation: 1,
+      credential: firstCredential,
+    });
+  });
+
+  it('does not let a stale refresh completion overwrite or recreate a local winner', () => {
+    const store = new InMemoryTokenStore({ now: () => 1_000 });
+    const first = {
+      expiresAt: 6_000,
+      refreshToken: 'refresh-1',
+      userId: 'user-1',
+      generation: 1,
+      credential: firstCredential,
+    };
+    const second = {
+      ...first,
+      expiresAt: 7_000,
+      refreshToken: 'refresh-2',
+      generation: 2,
+      credential: { ...firstCredential, digest: 'b'.repeat(64) },
+    };
+    store.save({ ...first, sessionCorrelation: 'session-1' });
+
+    expect(store.replaceIfCurrent('session-1', first, second)).toBe(true);
+    expect(store.replaceIfCurrent('session-1', first, { ...second, generation: 3 })).toBe(false);
+    expect(store.read('session-1')).toEqual(second);
+    store.delete('session-1');
+    expect(store.replaceIfCurrent('session-1', first, second)).toBe(false);
+    expect(store.read('session-1')).toBeNull();
+  });
+
+  it('removes only the captured refresh material after a failed durable transition', () => {
+    const store = new InMemoryTokenStore({ now: () => 1_000 });
+    const first = {
+      expiresAt: 6_000,
+      refreshToken: 'refresh-1',
+      userId: 'user-1',
+      generation: 1,
+      credential: firstCredential,
+    };
+    const second = {
+      ...first,
+      refreshToken: 'refresh-2',
+      generation: 2,
+      credential: { ...firstCredential, digest: 'b'.repeat(64) },
+    };
+    store.save({ ...first, sessionCorrelation: 'session-1' });
+    expect(store.replaceIfCurrent('session-1', first, second)).toBe(true);
+    expect(store.deleteIfCurrent('session-1', first)).toBe(false);
+    expect(store.read('session-1')).toEqual(second);
+    expect(store.deleteIfCurrent('session-1', second)).toBe(true);
+    expect(store.read('session-1')).toBeNull();
+  });
+
   it('keeps a refresh token behind the session correlation', () => {
     const store = new InMemoryTokenStore({ now: () => 1_000 });
     store.save({
