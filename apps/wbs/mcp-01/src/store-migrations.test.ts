@@ -311,11 +311,14 @@ describe('MCP store migrations', () => {
 
 describe('switchToWal', () => {
   /** A rival start inside its migration: it holds the write lock on a store not yet in WAL. */
-  function rivalHoldingTheWriteLock(): { path: string; rival: Database } {
+  function rivalHoldingTheWriteLock(lockMode: 'IMMEDIATE' | 'EXCLUSIVE' = 'IMMEDIATE'): {
+    path: string;
+    rival: Database;
+  } {
     const path = storePath();
     writeFileSync(path, '');
     const rival = new Database(path, { strict: true });
-    rival.run('BEGIN IMMEDIATE');
+    rival.run(`BEGIN ${lockMode}`);
     return { path, rival };
   }
 
@@ -340,6 +343,7 @@ describe('switchToWal', () => {
       });
       expect(pauses).toEqual([50]);
       expect(db.query('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' });
+      expect(db.query('PRAGMA busy_timeout').get()).toEqual({ timeout: 5000 });
     } finally {
       db.close();
       rival.close();
@@ -364,6 +368,30 @@ describe('switchToWal', () => {
     }
   });
 
+  it('bounds an exclusive rival and restores the caller busy timeout', () => {
+    const { path, rival } = rivalHoldingTheWriteLock('EXCLUSIVE');
+    const db = starting(path);
+    db.run('PRAGMA busy_timeout = 20');
+    try {
+      let pauses = 0;
+      const started = performance.now();
+      // Proof: with the busy handler left at 20 ms, 100 attempts took about 2 s;
+      // turning it off only for the switch keeps the wait inside the 99 pauses.
+      expect(() => {
+        switchToWal(db, () => {
+          pauses += 1;
+        });
+      }).toThrow(/database is locked/);
+      expect(performance.now() - started).toBeLessThan(1_000);
+      expect(pauses).toBe(99);
+      expect(db.query('PRAGMA busy_timeout').get()).toEqual({ timeout: 20 });
+    } finally {
+      db.close();
+      rival.run('ROLLBACK');
+      rival.close();
+    }
+  });
+
   it('throws any other error without retrying', () => {
     const db = new Database(':memory:');
     db.close();
@@ -374,6 +402,18 @@ describe('switchToWal', () => {
       });
     }).toThrow();
     expect(pauses).toBe(0);
+  });
+
+  it('refuses an absent busy-timeout reading before changing the connection', () => {
+    const unreadable = {
+      query: () => ({ get: () => null }),
+      run: () => {
+        throw new Error('changed the connection before validating the timeout');
+      },
+    } as unknown as Database;
+    expect(() => {
+      switchToWal(unreadable);
+    }).toThrow('SQLite did not report a valid busy timeout before the WAL switch');
   });
 });
 
