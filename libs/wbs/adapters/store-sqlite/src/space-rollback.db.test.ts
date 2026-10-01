@@ -56,6 +56,7 @@ describe('space rollback save, remove and restore', () => {
     expect(snapshot()).toEqual({ spaces: [], members: [] });
 
     expect(rollbackTo(path, FOLDER, BEFORE_SPACES)).toEqual([
+      '20261001020000_add_browser_auth_lifecycle',
       '20261001010000_add_browser_credential_revocations',
       '20260929100000_add_spaces',
     ]);
