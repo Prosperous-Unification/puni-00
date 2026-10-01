@@ -487,13 +487,15 @@ export function switchToWal(
         return;
       } catch (cause) {
         const busy = cause instanceof SQLiteError && cause.code === 'SQLITE_BUSY';
+        // Proof: removing the non-BUSY branch made a read-only WAL switch pause 99 times
+        // instead of throwing SQLITE_READONLY at once.
         if (!busy || attempt === WAL_SWITCH_ATTEMPTS) throw cause;
       }
       pause(WAL_SWITCH_PAUSE_MS);
     }
   } finally {
-    // Proof: removing this restore made the successful rival-release case read timeout 0,
-    // where the caller had configured 5000.
+    // Proof: removing this restore made the rival-release case read 0 instead of 5000,
+    // and the SQLITE_READONLY failure case read 0 instead of its caller's 1234.
     db.run(`PRAGMA busy_timeout = ${String(configured.timeout)}`);
   }
 }

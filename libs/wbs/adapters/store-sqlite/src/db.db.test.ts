@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- switchToWal is tested on a file not yet in WAL, which openDatabase would already have switched
-import { Database } from 'bun:sqlite';
+import { Database, SQLiteError } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { assertPragmas, openDatabase, switchToWal } from './db';
@@ -160,7 +160,7 @@ describe('switchToWal', () => {
     }
   });
 
-  it('throws any other error without retrying', () => {
+  it('refuses a closed connection before any WAL attempt', () => {
     const db = new Database(':memory:');
     db.close();
     let pauses = 0;
@@ -170,6 +170,32 @@ describe('switchToWal', () => {
       });
     }).toThrow();
     expect(pauses).toBe(0);
+  });
+
+  it('does not retry SQLITE_READONLY and restores the caller busy timeout', () => {
+    const path = join(dir, 'readonly.db');
+    const writer = new Database(path, { create: true });
+    writer.run('CREATE TABLE readonly_probe (id INTEGER)');
+    writer.close();
+    const db = new Database(path, { readonly: true });
+    db.run('PRAGMA busy_timeout = 1234;');
+    try {
+      let pauses = 0;
+      let refusal: unknown = null;
+      try {
+        switchToWal(db, () => {
+          pauses += 1;
+        });
+      } catch (cause) {
+        refusal = cause;
+      }
+      if (!(refusal instanceof SQLiteError)) throw new Error('WAL did not refuse with SQLiteError');
+      expect(refusal.code).toBe('SQLITE_READONLY');
+      expect(pauses).toBe(0);
+      expect(db.query('PRAGMA busy_timeout;').get()).toEqual({ timeout: 1234 });
+    } finally {
+      db.close();
+    }
   });
 
   it('refuses an absent busy-timeout reading before changing the connection', () => {
