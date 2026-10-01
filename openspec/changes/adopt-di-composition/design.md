@@ -34,6 +34,12 @@ admitted scope, and map rollback repair through the surviving scope. Direct cons
 move to composition factories. This is an intentional TypeScript constructor-option break for
 these two features; their service exports remain. The callable-signature boundary audit follows
 nested callback parameters and returns so a renamed `Scope` cannot escape through a mapped type.
+Public resource class methods, getters and callable fields receive the same resolved-capability
+check: `Scope`, `UnitOfWork`, repository interfaces and store aggregates cannot reach a feature
+through aliases, generic constraints or `Promise` returns. Private implementation and constructors
+may retain those capabilities. A public resource method may use a store-owned value record such as
+`Step` or `CalendarMarker`; such a DTO grants no repository authority. Direct feature imports and
+types still follow the stricter repository-declaration ownership rule.
 
 - **Process modules** (Plan history, Realtime, Bounded replay sweep, Saved plans, Plan import,
   Authentication, Optimization) are installed once, where `composeServices` runs.

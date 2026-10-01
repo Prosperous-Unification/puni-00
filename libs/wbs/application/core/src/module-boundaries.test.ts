@@ -36,8 +36,47 @@ function isRepositoryPort(declaration: ts.Declaration): boolean {
 }
 
 /**
- * Check a resolved type, public fields and callable signatures for repository ownership.
- * Class fields are private resource implementation, not feature dependencies.
+ * Raw transactions and method-bearing repository interfaces grant authority; DTOs do not.
+ * Proof: replacing this with the blanket repository-port predicate made the
+ * private-scope/public-DTO fixture fail (0 pass, 1 fail).
+ */
+function isRepositoryCapability(declaration: ts.Declaration): boolean {
+  const path = declaration.getSourceFile().fileName;
+  if (!path.startsWith(`${sourceRoot}ports/`)) return false;
+  if (/\/(?:unit-of-work|stores)\.ts$/.test(path)) return true;
+  return (
+    /\/[^/]+-store\.ts$/.test(path) &&
+    ts.isInterfaceDeclaration(declaration) &&
+    declaration.members.some(ts.isMethodSignature)
+  );
+}
+
+/** Resource constructors and hidden members may retain their admitted scope privately. */
+function isHiddenClassMember(declaration: ts.Declaration): boolean {
+  const privateName =
+    (ts.isPropertyDeclaration(declaration) ||
+      ts.isMethodDeclaration(declaration) ||
+      ts.isGetAccessorDeclaration(declaration) ||
+      ts.isSetAccessorDeclaration(declaration)) &&
+    ts.isPrivateIdentifier(declaration.name);
+  const restricted =
+    ts.canHaveModifiers(declaration) &&
+    (ts
+      .getModifiers(declaration)
+      ?.some(
+        (modifier) =>
+          modifier.kind === ts.SyntaxKind.PrivateKeyword ||
+          modifier.kind === ts.SyntaxKind.ProtectedKeyword,
+      ) ??
+      false);
+  return privateName || restricted;
+}
+
+/**
+ * Direct feature types cannot depend on repository declarations. Public resource
+ * members are checked for authority only: a DTO from a store file is still a
+ * value, while Scope, UnitOfWork and repository interfaces grant store access.
+ * Private/protected/# members and constructors are composition implementation.
  * Proof: before resolved-type inspection, the alias and compatibility-options
  * negatives both received no violation (each 0 pass, 1 fail).
  */
@@ -47,15 +86,20 @@ function reachesRepositoryType(
   location: ts.Node,
   signatures: boolean,
 ): boolean {
-  const seen = new Set<ts.Type>();
-  const inspect = (current: ts.Type, fields: boolean): boolean => {
+  const seenOwnership = new Set<ts.Type>();
+  const seenCapabilities = new Set<ts.Type>();
+  const inspect = (current: ts.Type, fields: boolean, capabilityOnly = false): boolean => {
+    const seen = capabilityOnly ? seenCapabilities : seenOwnership;
     if (seen.has(current)) return false;
     seen.add(current);
     const symbol = Reflect.get(current, 'symbol') as ts.Symbol | undefined;
-    if (symbol !== undefined && reachesRepositoryPort(checker, symbol)) return true;
-    if (current.aliasSymbol !== undefined && reachesRepositoryPort(checker, current.aliasSymbol))
-      return true;
-    if (current.isUnionOrIntersection() && current.types.some((member) => inspect(member, false)))
+    const forbidden = capabilityOnly ? reachesRepositoryCapability : reachesRepositoryPort;
+    if (symbol !== undefined && forbidden(checker, symbol)) return true;
+    if (current.aliasSymbol !== undefined && forbidden(checker, current.aliasSymbol)) return true;
+    if (
+      current.isUnionOrIntersection() &&
+      current.types.some((member) => inspect(member, false, capabilityOnly))
+    )
       return true;
     if (
       (current.flags & ts.TypeFlags.Object) !== 0 &&
@@ -64,7 +108,7 @@ function reachesRepositoryType(
       if (
         checker
           .getTypeArguments(current as ts.TypeReference)
-          .some((argument) => inspect(argument, true))
+          .some((argument) => inspect(argument, true, capabilityOnly))
       )
         return true;
     }
@@ -72,13 +116,17 @@ function reachesRepositoryType(
       for (const kind of [ts.SignatureKind.Call, ts.SignatureKind.Construct]) {
         for (const signature of checker.getSignaturesOfType(current, kind)) {
           for (const parameter of signature.getParameters()) {
-            if (reachesRepositoryPort(checker, parameter)) return true;
-            if (inspect(checker.getTypeOfSymbolAtLocation(parameter, location), true)) return true;
+            if (forbidden(checker, parameter)) return true;
+            if (
+              inspect(checker.getTypeOfSymbolAtLocation(parameter, location), true, capabilityOnly)
+            )
+              return true;
           }
-          if (inspect(checker.getReturnTypeOfSignature(signature), true)) return true;
+          if (inspect(checker.getReturnTypeOfSignature(signature), true, capabilityOnly))
+            return true;
           for (const parameter of signature.getTypeParameters() ?? []) {
             const constraint = checker.getBaseConstraintOfType(parameter);
-            if (constraint !== undefined && inspect(constraint, true)) return true;
+            if (constraint !== undefined && inspect(constraint, true, capabilityOnly)) return true;
           }
         }
       }
@@ -87,10 +135,19 @@ function reachesRepositoryType(
     const local = symbol?.declarations?.some((declaration) =>
       declaration.getSourceFile().fileName.startsWith(sourceRoot),
     );
-    if (fields && !isClass && (local ?? true)) {
+    if (fields && (local ?? true)) {
       for (const property of current.getProperties()) {
-        if (reachesRepositoryPort(checker, property)) return true;
-        if (inspect(checker.getTypeOfSymbolAtLocation(property, location), true)) return true;
+        if (isClass && property.declarations?.some(isHiddenClassMember)) continue;
+        const memberCapability = capabilityOnly || isClass;
+        if (
+          (memberCapability ? reachesRepositoryCapability : reachesRepositoryPort)(
+            checker,
+            property,
+          )
+        )
+          return true;
+        if (inspect(checker.getTypeOfSymbolAtLocation(property, location), true, memberCapability))
+          return true;
       }
     }
     return false;
@@ -105,6 +162,23 @@ function reachesRepositoryPort(checker: ts.TypeChecker, symbol: ts.Symbol): bool
   while (!visited.has(current)) {
     visited.add(current);
     if (current.declarations?.some(isRepositoryPort)) return true;
+    if ((current.flags & ts.SymbolFlags.Alias) === 0) return false;
+    current = checker.getAliasedSymbol(current);
+  }
+  return false;
+}
+
+/**
+ * Resolve aliases before deciding whether a public resource type grants repository authority.
+ * Proof: ignoring the resolved capability declaration made the public resource
+ * escape fixture fail (0 pass, 1 fail), while its DTO-only class stayed allowed.
+ */
+function reachesRepositoryCapability(checker: ts.TypeChecker, symbol: ts.Symbol): boolean {
+  const visited = new Set<ts.Symbol>();
+  let current = symbol;
+  while (!visited.has(current)) {
+    visited.add(current);
+    if (current.declarations?.some(isRepositoryCapability)) return true;
     if ((current.flags & ts.SymbolFlags.Alias) === 0) return false;
     current = checker.getAliasedSymbol(current);
   }
@@ -296,7 +370,11 @@ test('closed feature modules do not reference repository ports and debt stays li
 }, 120_000);
 
 /** Build the real core program with one source change visible only to this test. */
-async function createProgramWith(path: string, addition: string): Promise<ts.Program> {
+async function createProgramWith(
+  path: string,
+  addition: string,
+  extra?: { path: string; addition: string },
+): Promise<ts.Program> {
   const read = ts.readConfigFile(`${root}tsconfig.lib.json`, (file) => ts.sys.readFile(file));
   if (read.error !== undefined)
     throw new Error(ts.flattenDiagnosticMessageText(read.error.messageText, ' '));
@@ -306,11 +384,15 @@ async function createProgramWith(path: string, addition: string): Promise<ts.Pro
   const files = (await readdir(sourceRoot, { recursive: true }))
     .filter((file) => file.endsWith('.ts'))
     .map((file) => `${sourceRoot}${file}`);
-  const target = `${sourceRoot}${path}`;
-  const original = await readFile(target, 'utf8');
+  const additions = new Map<string, string>();
+  for (const change of [{ path, addition }, ...(extra === undefined ? [] : [extra])]) {
+    const target = `${sourceRoot}${change.path}`;
+    const original = await readFile(target, 'utf8');
+    additions.set(target, `${original}\n${change.addition}\n`);
+  }
   const host = ts.createCompilerHost({ ...config.options, noEmit: true });
   const readSource = host.readFile.bind(host);
-  host.readFile = (file) => (file === target ? `${original}\n${addition}\n` : readSource(file));
+  host.readFile = (file) => additions.get(file) ?? readSource(file);
   return ts.createProgram({ rootNames: files, options: { ...config.options, noEmit: true }, host });
 }
 
@@ -362,6 +444,32 @@ test('import transaction cannot return a raw scope through a nested resource cal
       violation.includes('EscapedImportTransaction'),
     ),
   ).toBe(true);
+}, 120_000);
+
+test('public resource surfaces cannot pass raw repository authority to a feature', async () => {
+  const program = await createProgramWith(
+    'module/plan-import/plan-import.feature.ts',
+    "import type { PublicScopeEscape, ReturnedScopeEscape, UnitEscape, StoreEscape, AggregateEscape, ConstraintEscape, PrivateDtoResource } from './imported-plan.resource'; export type EscapedPublicResource = { resource: PublicScopeEscape }; export type EscapedReturnedScope = { resource: ReturnedScopeEscape }; export type EscapedUnit = { resource: UnitEscape }; export type EscapedStore = { resource: StoreEscape }; export type EscapedAggregate = { resource: AggregateEscape }; export type EscapedConstraint = { resource: ConstraintEscape }; export type AllowedPrivateDto = { resource: PrivateDtoResource };",
+    {
+      path: 'module/plan-import/imported-plan.resource.ts',
+      addition:
+        "export class PublicScopeEscape { expose<T>(act: (admitted: Scope) => T): T { throw new Error('fixture'); } } export class ReturnedScopeEscape { get pending(): Promise<Scope> { throw new Error('fixture'); } } export class UnitEscape { expose(unit: import('../../ports/unit-of-work').UnitOfWork): void { throw new Error('fixture'); } } export class StoreEscape { expose(store: import('../../ports/project-store').ProjectStore): void { throw new Error('fixture'); } } export class AggregateEscape { expose(stores: import('../../ports/stores').PlanTransactionalStores): void { throw new Error('fixture'); } } export class ConstraintEscape { expose<T extends Scope>(value: T): void { throw new Error('fixture'); } } export class PrivateDtoResource { readonly #scope: Scope; constructor(scope: Scope) { this.#scope = scope; } private hidden(): Scope { throw new Error('fixture'); } createProject(steps: Step[], callback: (step: Step) => CalendarMarker): CalendarMarker { throw new Error('fixture'); } }",
+    },
+  );
+  // Proof: skipping all class members made this synthetic public `expose`
+  // callback return no violation (0 pass, 1 fail), even with a raw Scope.
+  const violations = findViolations(program, 'plan-import');
+  for (const escaped of [
+    'EscapedPublicResource',
+    'EscapedReturnedScope',
+    'EscapedUnit',
+    'EscapedStore',
+    'EscapedAggregate',
+    'EscapedConstraint',
+  ]) {
+    expect(violations.some((violation) => violation.includes(escaped))).toBe(true);
+  }
+  expect(violations.some((violation) => violation.includes('AllowedPrivateDto'))).toBe(false);
 }, 120_000);
 
 test('repository-owned value types are refused without a Store suffix', async () => {
