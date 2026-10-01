@@ -52,6 +52,7 @@ import { importRoutes } from './controller/import.routes';
 import { infrastructureEndpoints } from './controller/infrastructure-endpoints';
 import { gatewayAccessRoutes, internalRoutes } from './controller/internal.routes';
 import type { OidcRouteOptions } from './controller/oidc-options';
+import { organizationSelectionRoutes } from './controller/organization-selection.routes';
 import { projectRoutes } from './controller/project.routes';
 import { savedPlanRoutes } from './controller/saved-plan.routes';
 import { smokeRoutes } from './controller/smoke.routes';
@@ -68,6 +69,11 @@ import type { DatabaseHealth } from './repository/health-probe';
 import { type IssueBearerContext, REFUSE_BEARER_CONTEXT } from './runtime/bearer-context';
 import { nodeDigest } from './runtime/bun-runtime';
 import { type DelegationVerifier, REFUSE_DELEGATIONS } from './runtime/delegation';
+import type { VerifiedCredentialOf } from './runtime/organization-credential';
+import {
+  type OrganizationSelection,
+  REFUSE_ORGANIZATION_SELECTION,
+} from './runtime/organization-selection';
 import type { WritingServices } from './services';
 
 export interface AppOptions {
@@ -81,6 +87,10 @@ export interface AppOptions {
    * absent, answering 404 — indistinguishable from a routing fault at the edge.
    */
   auth: AuthService;
+  /** Optional evidence seam; absent callers cannot select an organization. */
+  credentialEvidence?: VerifiedCredentialOf;
+  /** Selection is intentionally refusing unless the composition explicitly enables it. */
+  organizationSelection?: OrganizationSelection;
   /** The composition's one password-attempt throttle. */
   loginThrottle: LoginThrottle;
   oidc?: OidcRouteOptions;
@@ -306,6 +316,7 @@ export function mountedEndpoints(
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
+    ...organizationSelectionRoutes(opts.organizationSelection ?? REFUSE_ORGANIZATION_SELECTION),
     ...domainRoutes(opts.organizations, opts.domains, opts.clock),
     ...onboardingRoutes(opts.onboarding, opts.clock),
     ...emailVerificationRoutes(opts.emailVerification, opts.emailDelivery, opts.clock, nodeDigest),
@@ -438,6 +449,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             opts.auth,
             opts.internalAuthSecret,
             opts.delegation ?? REFUSE_DELEGATIONS,
+            opts.credentialEvidence,
           ),
           // Proof: on 2026-09-21, replacing this production callback with a no-op made
           // “reports one redacted unexpected production failure with its shared occurrence” receive

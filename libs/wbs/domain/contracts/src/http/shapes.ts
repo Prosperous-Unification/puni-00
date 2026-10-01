@@ -51,7 +51,13 @@ import {
   readOnboarding,
   submitOnboardingJoinRequest,
 } from './onboarding-shapes';
-import { changeMemberRole, listMembers, removeMember } from './organization-shapes';
+import {
+  changeMemberRole,
+  listMembers,
+  listOrganizationMemberships,
+  removeMember,
+  selectActiveOrganization,
+} from './organization-shapes';
 import { readOrganizationLoad, readPersonLoad } from './person-load-shapes';
 import {
   createProject,
@@ -115,6 +121,8 @@ export const httpShapes = [
   changeMemberRole,
   listMembers,
   removeMember,
+  listOrganizationMemberships,
+  selectActiveOrganization,
   listOrganizationDomains,
   releaseDomainClaim,
   createDomainChallenge,

@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { buildOidcVerifier, oidcCredentialEvidence, type TokenVerifier } from '@wbs/auth';
 import { CREATOR_ADMISSION, type DomainResolver, type PasswordHasher } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
@@ -24,6 +25,8 @@ import {
   SpaceRepository,
   SqliteDelegationUse,
   SqliteOrganizationAccess,
+  SqliteOrganizationSelection,
+  userBoundOrganizationOf,
 } from '@wbs/store-sqlite';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 
@@ -48,6 +51,9 @@ import { joseTokenCodec } from '../runtime/bun-runtime';
 import { delegationVerifier } from '../runtime/delegation';
 import { delegationIssuer } from '../runtime/delegation-issuer';
 import { runDomainProofWorker } from '../runtime/domain-proof-worker';
+import { organizationCookieBinding } from '../runtime/organization-cookie';
+import { organizationCredentialEvidence } from '../runtime/organization-credential';
+import { organizationSelection } from '../runtime/organization-selection';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { buildServices } from '../services';
 import { TEST_JWT_KEY } from './auth-fixture';
@@ -87,6 +93,12 @@ export interface OrganizationHarnessOptions {
   readonly directSigningKey?: CryptoKey;
   readonly policyDirectory?: string;
   readonly resolver?: DomainResolver;
+  readonly sessionBinding?: boolean;
+  readonly upstreamCredential?: {
+    readonly verifier: TokenVerifier;
+    readonly groupPrefix: string;
+    readonly groupsClaim: string;
+  };
 }
 
 interface TestMail {
@@ -165,6 +177,8 @@ export class OrganizationHarness {
     directSigningKey,
     policyDirectory,
     resolver,
+    sessionBinding,
+    upstreamCredential,
   }: OrganizationHarnessOptions = {}): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
@@ -175,14 +189,31 @@ export class OrganizationHarness {
     const bound = new Map<string, string>();
     const sessionKey =
       directSigningKey === undefined ? TEST_JWT_KEY : crypto.randomUUID() + crypto.randomUUID();
-    const organizations = new SqliteOrganizationAccess(db, (userId) =>
-      Promise.resolve(bound.get(userId) ?? null),
+    const selection =
+      sessionBinding === true
+        ? organizationSelection(
+            new SqliteOrganizationSelection(db),
+            organizationCookieBinding(sessionKey),
+          )
+        : undefined;
+    const organizations = new SqliteOrganizationAccess(
+      db,
+      selection?.activeOrganizationOf ??
+        userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null)),
     );
+    const users = new UserRepository(db, OPEN);
     const auth = new AuthService({
       clock: testClock,
-      users: new UserRepository(db, OPEN),
+      users,
+      identities: users,
       tokens: joseTokenCodec(sessionKey),
       passwords: fastPasswordHasher,
+      ...(upstreamCredential === undefined
+        ? {}
+        : {
+            oidc: buildOidcVerifier(upstreamCredential.verifier, upstreamCredential),
+            passwordSessions: true,
+          }),
     });
     const projects = new ProjectRepository(db, OPEN);
     const directoryStore = new DirectoryRepository(db, OPEN);
@@ -240,6 +271,18 @@ export class OrganizationHarness {
       savedPlans: testSavedPlanService(),
       ...writing,
       organizations,
+      ...(selection === undefined
+        ? {}
+        : {
+            organizationSelection: selection.endpoints,
+            credentialEvidence: organizationCredentialEvidence(
+              auth,
+              sessionKey,
+              upstreamCredential === undefined
+                ? undefined
+                : oidcCredentialEvidence(upstreamCredential.verifier, upstreamCredential),
+            ),
+          }),
       memberships: new OrganizationRepository(db, OPEN),
       domains,
       onboarding: new OnboardingRepository(db, OPEN),
@@ -331,8 +374,9 @@ export class OrganizationHarness {
           }
         : {}),
     });
-    const organizationAccess = new SqliteOrganizationAccess(source.db, (userId) =>
-      Promise.resolve(bound.get(userId) ?? null),
+    const organizationAccess = new SqliteOrganizationAccess(
+      source.db,
+      userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null)),
     );
     const app = buildApp({
       appOrigin: 'http://localhost',
