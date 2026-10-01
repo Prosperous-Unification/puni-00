@@ -25,11 +25,14 @@
     - No migration: the table and its unique index exist since `20260927120000_add_organization_records`.
 - [ ] 2.4 Bind browser active organization to WBS session and current membership. Red: zero/one/multiple memberships, forged header, and revoked live session. Fault: bypass membership recheck; observe mounted protected-route test fail, restore and add `Proof:`.
   - Groundwork, slice 17 (Astra design call, 2026-09-28): a read-only selection preview over an explicit database copy. It is `previewOrganizationSelection` and `organization-selection-preview-cli.ts` on `openReadOnlyConnection`. For each local user it reports `onboarding_required` or `selection_required` with the candidates, and never chooses one. It fails on a missing file, a broken marker or a malformed role, and leaves the file byte for byte as it was. Production still wires `NO_BOUND_ORGANIZATION`.
-  - Open, per the design call:
+  - Coordinator decisions adopted 2026-10-01 under the user's standing authorization to resolve non-harmful blockers; these defaults are not attributed to Dany. Split implementation into ordered slices 2.4A (selection and credential binding), 2.4B (refresh/logout/rotation), and 2.4C (stale-tab write preconditions):
     - a separate signed `__Host-wbs_organization` cookie, bound to the user and a digest of the verified access token and capped at its expiry (password tokens need a fresh `jti`);
     - `OrganizationAccess.resolve(principal)` carrying the verified binding;
     - `GET /api/organization/memberships` and `POST /api/organization/active`, with explicit selection even for one membership;
-    - the mounted negatives: tampering, cross-user or cross-session substitution, expiry, refresh, forged headers and membership removal.
+    - D1: require explicit reselection after access-credential replacement; refresh never carries selection forward;
+    - D2: immediately invalidate the entire prior access-token/organization-cookie pair on logout or credential rotation using shared server-checked revocation state; prove refusal across processes and restart;
+    - D3: every browser organization-resource mutation requires an expected-organization precondition; missing or mismatch returns typed `409 organization_context_changed`, makes no write and triggers no retry. Cover directory writes, project creation, import and project commands;
+    - mounted negatives: tampering, cross-user or cross-session substitution, expiry, credential replacement, old-pair replay, forged headers, stale-tab writes and membership removal. The 2.4 task remains open until these proofs and implementation pass.
 - [ ] 2.5 Issue and verify audience-specific signed bearer, gateway and MCP delegation. Red: wrong audience, forged organization and expired signature. Fault: trust caller header; observe mounted route refusal fail, restore and add `Proof:`.
   - Slice 22, the verifier (Astra design call, 2026-09-28):
     - be-01's `delegationVerifier` checks a WBS-signed `wbs-delegation+jwt`. It must be RS256 under a dedicated public key, never the session or internal secret.
