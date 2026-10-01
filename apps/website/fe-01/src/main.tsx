@@ -1,10 +1,20 @@
+import './style.css';
+
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { ApiFailure, requestJson } from './api';
+import { describeFailure, loadAiExploration } from './app-flow';
 import { BuildErrorBoundary, BuildPage } from './build-page';
-const siteOrigin = import.meta.env['VITE_SITE_ORIGIN'] ?? 'http://localhost:4321';
-import './style.css';
+import {
+  OperatorFooter,
+  OperatorHeader,
+  SiteFooter,
+  SiteHeader,
+  siteOrigin,
+  useHeadingFocus,
+  usePageTitle,
+} from './chrome';
 
 interface Draft {
   description: string;
@@ -67,14 +77,12 @@ type LoadState =
   | { kind: 'recover' }
   | { kind: 'error'; message: string };
 
-function failureMessage(error: unknown): string {
-  if (error instanceof ApiFailure) {
-    if (error.status === 429) return 'Too many attempts. Please wait and try again.';
-    if (error.status === 503) return 'This feature is not configured in this environment.';
-    return error.code.replaceAll('_', ' ');
-  }
-  return 'The service could not be reached. Check that the API is running and try again.';
-}
+/**
+ * Manual brief length. The API accepts 8,000 characters, but concept generation reads only the
+ * first 4,000, so the form stops there. Home's 2,000 limit applies to the shorter description
+ * that this brief expands.
+ */
+const briefLimit = 4000;
 
 function ManualPage() {
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' });
@@ -87,6 +95,7 @@ function ManualPage() {
   );
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState('');
+  const [aiExploration, setAiExploration] = useState<'offered' | 'hidden'>('hidden');
   const [requestKey, setRequestKey] = useState(() => {
     const saved = sessionStorage.getItem('puni_proposal_key');
     if (saved) return saved;
@@ -94,6 +103,10 @@ function ManualPage() {
     sessionStorage.setItem('puni_proposal_key', created);
     return created;
   });
+
+  useEffect(() => {
+    void loadAiExploration(() => requestJson<unknown>('/session')).then(setAiExploration);
+  }, []);
 
   useEffect(() => {
     requestJson<Draft>('/draft')
@@ -113,7 +126,7 @@ function ManualPage() {
           } catch (replayError) {
             setLoad({
               kind: 'error',
-              message: `Your previous submission needs confirmation. ${failureMessage(replayError)}`,
+              message: `Your previous submission needs confirmation. ${describeFailure(replayError)}`,
             });
           }
           return;
@@ -121,7 +134,7 @@ function ManualPage() {
         setLoad(
           error instanceof ApiFailure && error.status === 401
             ? { kind: 'recover' }
-            : { kind: 'error', message: failureMessage(error) },
+            : { kind: 'error', message: describeFailure(error) },
         );
       });
   }, []);
@@ -149,7 +162,7 @@ function ManualPage() {
     try {
       setPreviousReceipt(await replayProposal(pendingProposal));
     } catch (error) {
-      setMessage(failureMessage(error));
+      setMessage(describeFailure(error));
     } finally {
       setPending(false);
     }
@@ -169,7 +182,7 @@ function ManualPage() {
         'Brief saved. You can return to this page in the same browser until the draft expires.',
       );
     } catch (error) {
-      setMessage(failureMessage(error));
+      setMessage(describeFailure(error));
     } finally {
       setPending(false);
     }
@@ -204,186 +217,250 @@ function ManualPage() {
       setPendingProposal(null);
       setReceipt(answer.receipt);
     } catch (error) {
-      setMessage(failureMessage(error));
+      setMessage(describeFailure(error));
     } finally {
       setPending(false);
     }
   }
 
+  const view = receipt ? 'receipt' : load.kind;
+  usePageTitle(
+    view === 'receipt'
+      ? 'Request received'
+      : view === 'recover'
+        ? 'Start your request'
+        : view === 'error'
+          ? 'Request unavailable'
+          : 'Your brief',
+  );
+  const heading = useHeadingFocus(view);
+  // Loading, recover and error show every step as upcoming: same height, no claimed progress.
+  const stepIndex = view === 'receipt' ? 2 : view === 'ready' ? 1 : -1;
+
   return (
     <div className="page-shell">
-      <Header />
+      <SiteHeader buildCurrent="true" />
       <main className="manual-layout" id="main">
-        <aside className="context-panel">
-          <p className="eyebrow">01 / REQUEST</p>
-          <h1>
-            Shape the work.
-            <br />
-            <em>We’ll take it from here.</em>
-          </h1>
-          <p>
-            Tell us what you need. A person reviews every proposal request; this page does not
-            promise a price or delivery date.
+        <aside className="context-panel" aria-label="About this step">
+          <p className="eyebrow">01 / Request</p>
+          <p className="context-statement">
+            Shape the work. <span>We’ll take it from here.</span>
           </p>
-          <div className="steps">
-            <span className="step active">Describe</span>
-            <span className="step active">Review</span>
-            <span className="step">Human follow-up</span>
-          </div>
+          <p className="context-copy">
+            A person reviews every proposal request. This page does not promise a price or delivery
+            date.
+          </p>
+          <ol className="stepper" aria-label="Progress">
+            {['Describe', 'Review', 'Human follow-up'].map((label, index) => {
+              const status =
+                stepIndex < 0
+                  ? 'next'
+                  : index < stepIndex
+                    ? 'done'
+                    : index === stepIndex
+                      ? 'current'
+                      : 'next';
+              return (
+                <li
+                  key={label}
+                  className={`stepper-step ${status}`}
+                  aria-current={status === 'current' ? 'step' : undefined}
+                >
+                  <span className="stepper-mark" aria-hidden="true"></span>
+                  <span>
+                    {label}
+                    <span className="visually-hidden">
+                      {status === 'done' ? ', done' : status === 'next' ? ', next' : ''}
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
           <p className="privacy-note">
-            Your draft is available in this browser for 24 hours. Read our{' '}
-            <a href={`${siteOrigin}/privacy/`}>privacy information</a> for how request details are
-            handled.
+            Read our <a href={`${siteOrigin}/privacy/`}>privacy information</a> for how request
+            details are handled.
           </p>
         </aside>
         <section className="form-panel" aria-live="polite">
-          {!receipt && load.kind === 'loading' && (
-            <div className="state">
-              <div className="spinner" />
-              Retrieving your request…
-            </div>
-          )}
-          {!receipt && load.kind === 'recover' && (
-            <div className="state">
-              <p className="eyebrow">DRAFT UNAVAILABLE</p>
-              <h2>Let’s start with your request.</h2>
-              <p>The draft expired or belongs to another browser.</p>
-              <a className="button" href={`${siteOrigin}/#request`}>
-                Start again
-              </a>
-            </div>
-          )}
-          {!receipt && load.kind === 'error' && (
-            <div className="state">
-              <h2>We couldn’t load your request.</h2>
-              <p>{load.message}</p>
-              <button
-                className="button"
-                onClick={() => {
-                  window.location.reload();
-                }}
-              >
-                Try again
-              </button>
-            </div>
-          )}
-          {load.kind === 'ready' && !receipt && (
-            <>
-              <p className="eyebrow">YOUR REQUEST</p>
-              <h2>Make the brief yours.</h2>
-              {pendingProposal && (
-                <div className="previous-proposal">
-                  <p>A previous submission may need confirmation. Your current draft is safe.</p>
+          <div className="form-panel-inner">
+            {view === 'loading' && (
+              <div className="state" role="status">
+                <h1 ref={heading} tabIndex={-1} className="visually-hidden">
+                  Your brief
+                </h1>
+                <div className="spinner" aria-hidden="true" />
+                <p>Retrieving your request…</p>
+              </div>
+            )}
+            {view === 'recover' && (
+              <div className="state">
+                <p className="eyebrow">Draft unavailable</p>
+                <h1 ref={heading} tabIndex={-1}>
+                  Let’s start with your request.
+                </h1>
+                <p className="lead">
+                  This draft has expired or was saved in another browser. Describe what you need and
+                  we’ll keep it ready for you here.
+                </p>
+                <div className="actions">
+                  <a className="button" href={`${siteOrigin}/#request`}>
+                    Start a new request <span aria-hidden="true">→</span>
+                  </a>
+                </div>
+              </div>
+            )}
+            {view === 'error' && load.kind === 'error' && (
+              <div className="state" role="alert">
+                <p className="eyebrow">Request</p>
+                <h1 ref={heading} tabIndex={-1}>
+                  We couldn’t load your request.
+                </h1>
+                <p className="lead">{load.message}</p>
+                <div className="actions">
                   <button
                     type="button"
-                    className="text-button"
-                    disabled={pending}
-                    onClick={() => void recoverPreviousReceipt()}
+                    className="button"
+                    onClick={() => {
+                      window.location.reload();
+                    }}
                   >
-                    Recover previous receipt
+                    Try again
+                  </button>
+                  <a className="button secondary" href={`${siteOrigin}/`}>
+                    Back to Home
+                  </a>
+                </div>
+              </div>
+            )}
+            {view === 'ready' && load.kind === 'ready' && (
+              <>
+                <p className="eyebrow">Your request</p>
+                <h1 ref={heading} tabIndex={-1}>
+                  Make the brief yours.
+                </h1>
+                <p className="lead">
+                  Add who it helps, what should change and any systems it touches. A person reads it
+                  and replies by email.
+                </p>
+                {pendingProposal && (
+                  <div className="notice">
+                    <p>A previous submission may need confirmation. Your current draft is safe.</p>
+                    <button
+                      type="button"
+                      className="button secondary compact"
+                      disabled={pending}
+                      onClick={() => void recoverPreviousReceipt()}
+                    >
+                      Recover previous receipt
+                    </button>
+                  </div>
+                )}
+                {previousReceipt && (
+                  <p className="feedback" role="status">
+                    Previous reference: <strong>{previousReceipt}</strong>
+                  </p>
+                )}
+                {/* Proof: rendering this card unconditionally failed the oidc-off `manual`
+                    capture in browser/screens.mjs ("manual brief links back to Build"). */}
+                {aiExploration === 'offered' && (
+                  <div className="route-choice">
+                    <div>
+                      <p className="route-choice-title">Prefer to think it through first?</p>
+                      <p>
+                        Sign in to explore your request with PUNI. Your description comes with you.
+                      </p>
+                    </div>
+                    <a className="button secondary" href="/">
+                      Explore with AI <span aria-hidden="true">→</span>
+                    </a>
+                  </div>
+                )}
+                <div className="field">
+                  <label htmlFor="brief">What should we understand?</label>
+                  <textarea
+                    id="brief"
+                    rows={8}
+                    maxLength={briefLimit}
+                    aria-describedby="brief-help"
+                    value={brief}
+                    onChange={(event) => {
+                      setBrief(event.target.value);
+                    }}
+                    required
+                  />
+                  <div className="form-meta" id="brief-help">
+                    <span>Your draft stays in this browser for 24 hours.</span>
+                    <span>
+                      {brief.length.toLocaleString('en')} / {briefLimit.toLocaleString('en')}
+                    </span>
+                  </div>
+                  {brief !== load.draft.description && (
+                    <details className="original">
+                      <summary>Original</summary>
+                      <p>{load.draft.description}</p>
+                    </details>
+                  )}
+                  <button
+                    className="button secondary compact"
+                    type="button"
+                    disabled={pending}
+                    onClick={() => void saveBrief()}
+                  >
+                    Save draft
                   </button>
                 </div>
-              )}
-              {previousReceipt && (
-                <p className="feedback" role="status">
-                  Previous reference: <strong>{previousReceipt}</strong>
-                </p>
-              )}
-              <div className="route-choice">
-                <div>
-                  <span className="tag">Optional AI exploration</span>
-                  <h3>Think it through first.</h3>
-                  <p>
-                    Sign in to scope the request and try a concept when this environment is
-                    configured. Your description comes with you.
+                <form className="field" onSubmit={(event) => void submitProposal(event)}>
+                  <label htmlFor="email">Where can we reply?</label>
+                  <input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="you@company.com"
+                    aria-describedby="email-help"
+                    value={email}
+                    onChange={(event) => {
+                      setEmail(event.target.value);
+                    }}
+                    required
+                  />
+                  <p className="small" id="email-help">
+                    We’ll use this address to discuss your request. Submitting sends your brief to
+                    our private operator inbox.
                   </p>
+                  <button className="button full" disabled={pending || !brief.trim()}>
+                    {pending ? 'Working…' : 'Request a human proposal'}{' '}
+                    <span aria-hidden="true">↗</span>
+                  </button>
+                </form>
+                {message && (
+                  <p className="feedback" role="status">
+                    {message}
+                  </p>
+                )}
+              </>
+            )}
+            {view === 'receipt' && (
+              <div className="state">
+                <p className="eyebrow">Request received</p>
+                <h1 ref={heading} tabIndex={-1}>
+                  A person will review your brief.
+                </h1>
+                <p className="lead">
+                  Your reference is <strong className="reference">{receipt}</strong>
+                  Keep it for your records. It does not unlock your submitted details.
+                </p>
+                <div className="actions">
+                  <a className="button" href={`${siteOrigin}/`}>
+                    Back to PUNI <span aria-hidden="true">→</span>
+                  </a>
                 </div>
-                <a className="button" href="/studio">
-                  Explore with AI <span aria-hidden>→</span>
-                </a>
               </div>
-              <label htmlFor="original">Your original description</label>
-              <div className="original" id="original">
-                {load.draft.description}
-              </div>
-              <label htmlFor="brief">What should we understand?</label>
-              <textarea
-                id="brief"
-                rows={8}
-                maxLength={4000}
-                value={brief}
-                onChange={(event) => {
-                  setBrief(event.target.value);
-                }}
-                required
-              />
-              <div className="form-meta">
-                <span>Include who it helps, what should change, and any existing systems.</span>
-                <span>{brief.length}/4000</span>
-              </div>
-              <button
-                className="text-button"
-                type="button"
-                disabled={pending}
-                onClick={() => void saveBrief()}
-              >
-                Save draft
-              </button>
-              <form onSubmit={(event) => void submitProposal(event)}>
-                <label htmlFor="email">Where can we reply?</label>
-                <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@company.com"
-                  value={email}
-                  onChange={(event) => {
-                    setEmail(event.target.value);
-                  }}
-                  required
-                />
-                <p className="small">
-                  We’ll use this address to discuss your request. Submitting sends your brief to our
-                  private operator inbox.
-                </p>
-                <button className="button full" disabled={pending || !brief.trim()}>
-                  {pending ? 'Working…' : 'Request a human proposal'} <span aria-hidden>↗</span>
-                </button>
-              </form>
-              {message && (
-                <p className="feedback" role="status">
-                  {message}
-                </p>
-              )}
-              <div className="future-panel">
-                <span className="tag">Optional exploration</span>
-                <h3>Want to think it through first?</h3>
-                <p>
-                  AI scoping and concept preview appear here when the private account and provider
-                  are configured. You can request a proposal now.
-                </p>
-                <a href="/studio">
-                  Explore available tools <span aria-hidden>→</span>
-                </a>
-              </div>
-            </>
-          )}
-          {receipt && (
-            <div className="state">
-              <p className="eyebrow">REQUEST RECEIVED</p>
-              <h2>A person will review your brief.</h2>
-              <p>
-                Your reference is <strong>{receipt}</strong>
-                <span>Keep it for your records. It does not unlock your submitted details.</span>
-              </p>
-              <a className="button" href={`${siteOrigin}/`}>
-                Back to PUNI
-              </a>
-            </div>
-          )}
+            )}
+          </div>
         </section>
       </main>
-      <Footer />
+      <SiteFooter />
     </div>
   );
 }
@@ -403,7 +480,7 @@ function OperatorPage() {
       })
       .catch((error: unknown) => {
         if (!(error instanceof ApiFailure && error.status === 401))
-          setMessage(failureMessage(error));
+          setMessage(describeFailure(error));
       });
   }, []);
 
@@ -413,7 +490,7 @@ function OperatorPage() {
       setSubmissions(answer.submissions);
       setCsrf((token) => token ?? '');
     } catch (error) {
-      setMessage(failureMessage(error));
+      setMessage(describeFailure(error));
     }
   }
 
@@ -430,7 +507,7 @@ function OperatorPage() {
       setCsrf(answer.csrfToken);
       await loadInbox();
     } catch (error) {
-      setMessage(failureMessage(error));
+      setMessage(describeFailure(error));
     } finally {
       setPending(false);
     }
@@ -449,17 +526,22 @@ function OperatorPage() {
       });
       await loadInbox();
     } catch (error) {
-      setMessage(failureMessage(error));
+      setMessage(describeFailure(error));
     }
   }
 
+  const heading = useHeadingFocus(csrf === null ? 'signed-out' : 'inbox');
+  usePageTitle(csrf === null ? 'Operator sign-in' : 'Operator inbox');
+
   return (
-    <div className="page-shell">
-      <Header />
+    <div className="page-shell operator-page">
+      <OperatorHeader />
       <main className="operator-layout" id="main">
-        <p className="eyebrow">PRIVATE WORKSPACE / OPERATOR</p>
-        <h1>Proposal inbox.</h1>
-        <p>Only a configured PUNI operator can see submitted requests.</p>
+        <p className="eyebrow">Private workspace</p>
+        <h1 ref={heading} tabIndex={-1}>
+          Proposal inbox.
+        </h1>
+        <p className="lead">Only a configured PUNI operator can see submitted requests.</p>
         {csrf === null ? (
           <form className="operator-login" onSubmit={(event) => void signIn(event)}>
             <label htmlFor="operator-password">Operator password</label>
@@ -479,10 +561,14 @@ function OperatorPage() {
           </form>
         ) : (
           <>
-            <button className="text-button" onClick={() => void loadInbox()}>
-              Refresh inbox
-            </button>
-            {submissions.length === 0 && <p>No proposals have been submitted yet.</p>}
+            <div className="actions">
+              <button className="button secondary compact" onClick={() => void loadInbox()}>
+                Refresh inbox
+              </button>
+            </div>
+            {submissions.length === 0 && (
+              <p className="empty-state">No proposals have been submitted yet.</p>
+            )}
             <div className="inbox">
               {submissions.map((submission) => (
                 <article className="submission" key={submission.id}>
@@ -500,6 +586,7 @@ function OperatorPage() {
                       <button
                         type="button"
                         key={status}
+                        className="button secondary compact"
                         disabled={submission.status === status}
                         onClick={() => void advance(submission, status)}
                       >
@@ -518,37 +605,8 @@ function OperatorPage() {
           </p>
         )}
       </main>
-      <Footer />
+      <OperatorFooter />
     </div>
-  );
-}
-
-function Header() {
-  return (
-    <header className="site-header">
-      <a className="brand" href={`${siteOrigin}/`} aria-label="PUNI home">
-        <span>
-          PUNI
-          <span className="brand-dot" aria-hidden="true">
-            ●
-          </span>
-        </span>
-      </a>
-      <nav aria-label="Primary">
-        <a href={`${siteOrigin}/`}>[1] Home</a>
-        <a href="/">[2] Build</a>
-        <a href={`${siteOrigin}/services/`}>[3] Services</a>
-        <a href={`${siteOrigin}/blog/`}>[4] Blog</a>
-      </nav>
-    </header>
-  );
-}
-function Footer() {
-  return (
-    <footer className="site-footer">
-      <span>© PUNI</span>
-      <span>Software shaped around real work.</span>
-    </footer>
   );
 }
 
@@ -561,7 +619,7 @@ createRoot(root).render(
     <ManualPage />
   ) : (
     <BuildErrorBoundary>
-      <BuildPage Header={Header} Footer={Footer} />
+      <BuildPage />
     </BuildErrorBoundary>
   ),
 );

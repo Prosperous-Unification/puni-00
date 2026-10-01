@@ -11,6 +11,7 @@ import type { UIMessage } from 'ai';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { ApiFailure, apiOrigin, requestJson } from './api';
+import { describeFailure, signInRoute } from './app-flow';
 import {
   buildReturnUrl,
   chatRequestBody,
@@ -21,10 +22,9 @@ import {
   savedOperationCompleted,
   shouldRegeneratePending,
 } from './build-contract';
+import { SiteFooter, SiteHeader, siteOrigin, useHeadingFocus, usePageTitle } from './chrome';
 import { type Concept, parseConcept } from './concept';
 import { ConceptPreview } from './concept-preview';
-
-const siteOrigin = import.meta.env['VITE_SITE_ORIGIN'] ?? 'http://localhost:4321';
 const pendingChatKey = 'puni_build_pending_chat';
 
 /** Renders corrupt local recovery state explicitly instead of treating it as a missing request. */
@@ -41,10 +41,11 @@ export class BuildErrorBoundary extends React.Component<
   override render(): React.ReactNode {
     if (this.state.message === null) return this.props.children;
     return (
-      <main className="build-layout" role="alert">
+      <main className="build-layout" role="alert" id="main">
         <div className="build-state">
+          <p className="eyebrow">Build</p>
           <h1>Build needs your attention.</h1>
-          <p>{this.state.message}</p>
+          <p className="lead">{this.state.message}</p>
           <button
             type="button"
             className="button"
@@ -112,10 +113,8 @@ function failureMessage(error: unknown): string {
       return 'PUNI is still working on that message. Refresh the conversation before retrying.';
     if (error.code === 'chat_unsettled')
       return 'Usage for the previous attempt is still being checked. New AI turns are paused.';
-    if (error.status === 503) return 'AI or sign-in is not configured in this environment.';
-    return error.code.replaceAll('_', ' ');
   }
-  return error instanceof Error ? error.message : 'The service could not be reached.';
+  return describeFailure(error);
 }
 
 function storedMessages(history: ChatHistory): UIMessage[] {
@@ -345,7 +344,7 @@ function Conversation({
     <AssistantRuntimeProvider runtime={runtime}>
       <section className="build-chat" aria-label="Conversation with PUNI">
         <div className="build-section-head">
-          <span className="eyebrow">01 / CONVERSATION</span>
+          <span className="eyebrow">01 / Conversation</span>
           <h2>Shape the work together.</h2>
           <p>
             Ask about the people, workflow and useful first release. PUNI cannot agree to a price or
@@ -359,7 +358,7 @@ function Conversation({
           <p className="build-notice">
             Your opening request is still being processed.{' '}
             <button
-              className="text-button"
+              className="button secondary compact"
               type="button"
               onClick={() =>
                 void chat.sendMessage({ text: draft.description }, { body: { initial: true } })
@@ -450,7 +449,11 @@ function Conversation({
                   </ComposerPrimitive.Send>
                 )}
                 {pendingIdentity && (
-                  <button type="button" className="text-button" onClick={() => void cancel()}>
+                  <button
+                    type="button"
+                    className="button secondary compact"
+                    onClick={() => void cancel()}
+                  >
                     Stop response
                   </button>
                 )}
@@ -459,7 +462,7 @@ function Conversation({
           </div>
         </ThreadPrimitive.Root>
         {recoverable && !pendingIdentity && chat.status !== 'streaming' && (
-          <button className="text-button" type="button" onClick={retryPending}>
+          <button className="button secondary compact" type="button" onClick={retryPending}>
             Retry the same message
           </button>
         )}
@@ -473,13 +476,7 @@ function Conversation({
   );
 }
 
-export function BuildPage({
-  Header,
-  Footer,
-}: {
-  Header: () => React.JSX.Element;
-  Footer: () => React.JSX.Element;
-}) {
+export function BuildPage() {
   const [load, setLoad] = useState<BuildLoad>({ kind: 'loading' });
   const [email, setEmail] = useState('');
   const [pending, setPending] = useState(false);
@@ -542,6 +539,8 @@ export function BuildPage({
     try {
       await requestJson('/session/demo', { method: 'POST', body: JSON.stringify({ email }) });
       await loadBuild();
+      // The workspace replaces the sign-in form; start it at its heading, not mid-page.
+      window.scrollTo({ top: 0 });
     } catch (error) {
       setMessage(failureMessage(error));
     } finally {
@@ -592,62 +591,122 @@ export function BuildPage({
     }
   }
 
+  const signedIn = load.kind === 'ready' && load.session.account !== null;
+  const route =
+    load.kind === 'ready'
+      ? signInRoute({
+          mode: load.session.mode,
+          configured: load.session.configured,
+          signedIn,
+        })
+      : null;
+  const heading = useHeadingFocus(`${load.kind}-${String(signedIn)}`);
+  usePageTitle(load.kind === 'error' ? 'Build unavailable' : 'Build');
+
   return (
     <div className="page-shell build-page">
-      <Header />
-      <main
-        className={
-          load.kind === 'ready' && load.session.account
-            ? 'build-layout workspace-active'
-            : 'build-layout'
-        }
-        id="main"
-      >
+      <SiteHeader buildCurrent="page" />
+      <main className={signedIn ? 'build-layout workspace-active' : 'build-layout'} id="main">
         <div className="build-intro">
-          <p className="eyebrow">PUNI / BUILD</p>
-          <h1>Let’s build what matters.</h1>
-          <p>
-            Your request stays with you. Explore it with PUNI, preview an interface, or ask a person
-            to take it forward.
+          <p className="eyebrow">PUNI / Build</p>
+          <h1 ref={heading} tabIndex={-1}>
+            Let’s build what matters.
+          </h1>
+          <p className="lead">
+            {route === 'unavailable' && !signedIn
+              ? 'Your request is saved in this browser. Shape it into a brief and a person at PUNI will take it forward.'
+              : 'Your request stays with you. Explore it with PUNI, preview an interface, or ask a person to take it forward.'}
           </p>
         </div>
         {load.kind === 'loading' && (
-          <p className="build-state" role="status">
-            Checking your request…
-          </p>
+          <div className="build-state build-loading" role="status">
+            <div className="spinner" aria-hidden="true" />
+            <p>Checking your request…</p>
+          </div>
         )}
         {load.kind === 'error' && (
           <div className="build-state" role="alert">
             <h2>We couldn’t load Build.</h2>
-            <p>{load.message}</p>
-            <button className="button" onClick={() => void loadBuild()}>
-              Try again
-            </button>
+            <p className="lead">{load.message}</p>
+            <div className="actions">
+              <button type="button" className="button" onClick={() => void loadBuild()}>
+                Try again
+              </button>
+              <a className="button secondary" href={`${siteOrigin}/`}>
+                Back to Home
+              </a>
+            </div>
           </div>
         )}
-        {load.kind === 'ready' && !load.session.account && (
+        {load.kind === 'ready' && !load.session.account && route === 'unavailable' && (
           <div className="build-entry-grid">
-            <section className="build-request-card">
-              <span className="eyebrow">YOUR REQUEST</span>
-              <h2>It’s here when you’re ready.</h2>
-              <p>{load.draft.description}</p>
-              <a className="text-button" href="/manual">
-                Continue a manual brief →
+            <section className="build-request-card" aria-labelledby="request-heading">
+              <p className="eyebrow">Your request</p>
+              <h2 id="request-heading">It’s here when you’re ready.</h2>
+              <blockquote className="request-quote">{load.draft.description}</blockquote>
+              <div className="actions">
+                <a className="button" href="/manual">
+                  Shape your brief <span aria-hidden="true">→</span>
+                </a>
+              </div>
+            </section>
+            <aside className="how-it-works" aria-labelledby="how-heading">
+              <p className="eyebrow" id="how-heading">
+                How it works
+              </p>
+              <ol>
+                <li>
+                  <span aria-hidden="true">[1]</span>
+                  <div>
+                    <strong>Shape your brief</strong>
+                    <p>Add who it helps, what should change and the systems it touches.</p>
+                  </div>
+                </li>
+                <li>
+                  <span aria-hidden="true">[2]</span>
+                  <div>
+                    <strong>A person reviews it</strong>
+                    <p>
+                      Someone at PUNI reads the whole brief. Nothing here commits you to a price.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span aria-hidden="true">[3]</span>
+                  <div>
+                    <strong>We reply by email</strong>
+                    <p>With a proposal, or with the questions we need answered first.</p>
+                  </div>
+                </li>
+              </ol>
+            </aside>
+          </div>
+        )}
+        {load.kind === 'ready' && !load.session.account && route !== 'unavailable' && (
+          <div className="build-entry-grid">
+            <section className="build-request-card" aria-labelledby="request-heading">
+              <p className="eyebrow">Your request</p>
+              <h2 id="request-heading">It’s here when you’re ready.</h2>
+              <blockquote className="request-quote">{load.draft.description}</blockquote>
+              <a className="arrow-link" href="/manual">
+                Continue with a manual brief <span aria-hidden="true">→</span>
               </a>
             </section>
-            <section className="build-signin-card">
-              <span className="eyebrow">NEXT STEP</span>
-              <h2>Make it yours.</h2>
-              {load.session.mode === 'oidc' && load.session.configured ? (
+            <section className="build-signin-card" aria-labelledby="signin-heading">
+              <p className="eyebrow">Next step</p>
+              <h2 id="signin-heading">Make it yours.</h2>
+              {route === 'google' ? (
                 <>
                   <p>
                     Sign in with Google to keep this request with your account before any AI call.
                   </p>
-                  <a className="button" href={`${apiOrigin}/session/oidc/start`}>
-                    Continue with Google →
-                  </a>
+                  <div className="actions">
+                    <a className="button inverse" href={`${apiOrigin}/session/oidc/start`}>
+                      Continue with Google <span aria-hidden="true">→</span>
+                    </a>
+                  </div>
                 </>
-              ) : load.session.mode === 'demo' ? (
+              ) : (
                 <>
                   <p>
                     This local test sign-in does not verify your identity. The provider is shown in
@@ -665,20 +724,10 @@ export function BuildPage({
                       }}
                       required
                     />
-                    <button className="button" disabled={pending}>
+                    <button className="button inverse" disabled={pending}>
                       Enter local demo
                     </button>
                   </form>
-                </>
-              ) : (
-                <>
-                  <p>
-                    Google sign-in is not configured in this environment. Your request can still go
-                    to a person.
-                  </p>
-                  <a className="button" href="/manual">
-                    Continue your brief →
-                  </a>
                 </>
               )}
             </section>
@@ -723,7 +772,7 @@ export function BuildPage({
                 }
               >
                 <div className="build-section-head">
-                  <span className="eyebrow">02 / YOUR BRIEF</span>
+                  <span className="eyebrow">02 / Your brief</span>
                   <h2>What we heard.</h2>
                   <p>{load.draft.description}</p>
                   {load.draft.brief && load.draft.brief !== load.draft.description && (
@@ -737,16 +786,17 @@ export function BuildPage({
                   </span>
                 </div>
                 <section className="build-concept">
-                  <span className="eyebrow">03 / CONCEPT</span>
+                  <span className="eyebrow">03 / Concept</span>
                   <h2>See a possible shape.</h2>
                   <p>Illustrative preview. Actions here do not create real bookings or accounts.</p>
                   {!load.concept && (
                     <button
-                      className="text-button"
+                      type="button"
+                      className="button secondary compact"
                       disabled={pending}
                       onClick={() => void generateConcept(load.session)}
                     >
-                      Create concept preview →
+                      Create concept preview <span aria-hidden="true">→</span>
                     </button>
                   )}
                   {load.concept && (
@@ -768,7 +818,7 @@ export function BuildPage({
                             required
                           />
                           <button
-                            className="text-button"
+                            className="button secondary compact"
                             disabled={pending || !revisionFeedback.trim()}
                           >
                             Request one revision
@@ -781,8 +831,8 @@ export function BuildPage({
                 <div className="build-followup">
                   <h2>Ready to talk?</h2>
                   <p>Human follow-up is available even if you don’t use the AI allowance.</p>
-                  <a className="button" href="/manual">
-                    Discuss this project with PUNI →
+                  <a className="button inverse" href="/manual">
+                    Discuss this project with PUNI <span aria-hidden="true">→</span>
                   </a>
                 </div>
               </aside>
@@ -795,7 +845,7 @@ export function BuildPage({
           </p>
         )}
       </main>
-      <Footer />
+      <SiteFooter />
     </div>
   );
 }

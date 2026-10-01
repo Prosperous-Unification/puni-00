@@ -28,6 +28,7 @@ Manual submission does not require a visitor account. Choosing AI requires sign-
 - [Intent](../../openspec/changes/puni-website-funnel/proposal.md), [technical design](../../openspec/changes/puni-website-funnel/design.md), [implementation slices](../../openspec/changes/puni-website-funnel/tasks.md), and [verification](../../openspec/changes/puni-website-funnel/verify.md).
 - [WBS work-item mapping](../../openspec/changes/puni-website-funnel/evidence/wbs-mapping.md) and [verified write receipt](../../openspec/changes/puni-website-funnel/evidence/wbs-verification.json).
 - [Build app change](../../openspec/changes/assistant-ui-build/proposal.md), [implementation tasks](../../openspec/changes/assistant-ui-build/tasks.md), [verification](../../openspec/changes/assistant-ui-build/verify.md), and [Google/OpenRouter runtime setup](build-runtime.md).
+- [Build app screen polish](../../openspec/changes/polish-build-app-screens/proposal.md) and its [verification](../../openspec/changes/polish-build-app-screens/verify.md); `apps/website/fe-01/browser/screens.mjs` audits every app state at four widths.
 - [Domain language](CONTEXT.md), [OpenRouter research](openrouter-research.md), and [frontend agent libraries](frontend-agent-libraries.md).
 - [Anonymous draft retention operator procedure](draft-retention.md) records the explicit inspect/apply command and its backup limitation.
 - [Request retention deadlines](request-retention.md) records the count-only report, activation coverage and ambiguous-anchor resolution commands.
