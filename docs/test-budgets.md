@@ -99,6 +99,17 @@ On the loaded run these timed out at their own budget. They were raised by the r
 - `apps/wbs/be-01`, invitation `consumes once across independent SQLite processes` and
   email-verification `serializes competing address confirmations across processes`: 10 to 20 s
   (WBS 080.12). Two cold children that import the store overran 10 s at load 115 to 164.
+- `apps/wbs/be-01`, browser lifecycle current and expired-historical restart proofs: 10 to
+  30 s (2026-10-01, WBS 010.5.2 B2.5). Each case starts and reaps three real Bun children
+  with independent SQLite connections. PR CI at `ea7025ace` timed out the current-token case
+  at the target's 10 s bound; the per-case 30 s bound preserves each worker operation's
+  separate 10 s failure deadline and all restart/refusal assertions.
+- `apps/wbs/be-01`, two browser lifecycle refresh-wins race variants: 10 to 20 s
+  (2026-10-01, WBS 010.5.2 B2.5). Both start a fresh third reader after the shared CAS;
+  the same/rotated cases took 4.56/4.56 s locally, and PR CI at `511b29eff` timed out the
+  rotated case at 10.075 s. The policy minimum is 20 s (three times idle is below twice
+  the overrun bound). Logout-wins keeps 10 s, and worker operations retain their 10 s
+  failure deadlines.
 
 ## Vitest (fe-01), WBS 080.16
 

@@ -239,6 +239,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20261001020000_add_browser_auth_lifecycle',
       '20261001010000_add_browser_credential_revocations',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
@@ -269,6 +270,8 @@ describe('20260905090000_add_calendar_marker', () => {
       withTable.filter(
         (n) =>
           n !== 'calendar_marker' &&
+          n !== 'browser_auth_association' &&
+          n !== 'browser_auth_lifecycle' &&
           n !== 'browser_credential_revocations' &&
           n !== 'email_challenge' &&
           n !== 'typed_dependency' &&

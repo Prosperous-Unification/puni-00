@@ -4,6 +4,11 @@ import { type AuthService, TOKEN_TTL_SECONDS } from '@wbs/core/service/auth.serv
 
 import { bind, type RequestFailure } from '../http/endpoint';
 import { credentialFromHeaders } from '../middleware/authenticated';
+import {
+  type BrowserSessionAuthority,
+  proveBrowserPredecessor,
+  retireBrowserPredecessor,
+} from './browser-session';
 
 /** Password switches from the OIDC composition; absence selects local password mode. */
 export interface PasswordOidcOptions {
@@ -43,6 +48,20 @@ function accessCookie(token: string): readonly [string, string] {
   ];
 }
 
+function clearBrowserCookie(name: string): readonly [string, string] {
+  return ['set-cookie', `${name}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`];
+}
+
+const clearRetiredContext = () => [
+  clearBrowserCookie('__Host-wbs_session'),
+  clearBrowserCookie('__Host-wbs_organization'),
+];
+
+const clearRetiredNativeCookies = () => [
+  clearBrowserCookie('__Host-wbs_access'),
+  ...clearRetiredContext(),
+];
+
 const sessionResponseHeaders = [
   ['cache-control', 'no-store'],
   ['vary', 'Cookie, Authorization, X-WBS-Token'],
@@ -56,11 +75,23 @@ export function authPasswordEndpoints(
   auth: AuthService,
   oidc: PasswordOidcOptions | undefined,
   passwordThrottle: LoginThrottle,
+  browserSession?: BrowserSessionAuthority,
+  appOrigin?: string,
 ) {
+  if (browserSession !== undefined && appOrigin === undefined)
+    throw new Error('enabled browser session requires its exact app origin');
   return [
     bind(
       registerPassword,
       async ({ body, request }) => {
+        const predecessor =
+          browserSession === undefined
+            ? { kind: 'none' as const }
+            : await proveBrowserPredecessor(request, browserSession, appOrigin ?? '');
+        // Proof: without predecessor admission the mounted registration made a
+        // new account before discovering malformed or mixed browser identity.
+        if (predecessor === null)
+          return { ok: false, status: 401, body: { error: 'unauthenticated' } } as const;
         // Proof: removing the switch made the mounted disabled registration receive 200 instead of 404.
         if (oidc !== undefined && oidc.passwordRegisterEnabled !== true) {
           return { ok: false, status: 404, body: { error: 'not_found' } };
@@ -82,13 +113,25 @@ export function authPasswordEndpoints(
             ? ({ ok: false, status: 409, body: { error: outcome.reason } } as const)
             : ({ ok: false, status: 400, body: { error: outcome.reason } } as const);
         }
+        if (browserSession !== undefined)
+          await retireBrowserPredecessor(predecessor, browserSession, Date.now());
         return oidc === undefined
-          ? ({ ok: true, status: 200, body: outcome.value } as const)
+          ? ({
+              ok: true,
+              status: 200,
+              body: outcome.value,
+              ...(browserSession === undefined ? {} : { headers: clearRetiredNativeCookies() }),
+            } as const)
           : ({
               ok: true,
               status: 200,
               body: { token: '', user: outcome.value.user },
-              headers: [accessCookie(outcome.value.token)],
+              // Proof: omitting these clears left an OIDC predecessor's old
+              // correlation in the cookie jar; the next native logout was 401.
+              headers: [
+                accessCookie(outcome.value.token),
+                ...(browserSession === undefined ? [] : clearRetiredContext()),
+              ],
             } as const);
       },
       { classifyRequestFailure: classifyCredentials },
@@ -96,6 +139,12 @@ export function authPasswordEndpoints(
     bind(
       loginPassword,
       async ({ body, request }) => {
+        const predecessor =
+          browserSession === undefined
+            ? { kind: 'none' as const }
+            : await proveBrowserPredecessor(request, browserSession, appOrigin ?? '');
+        if (predecessor === null)
+          return { ok: false, status: 401, body: { error: 'unauthenticated' } } as const;
         // Proof: removing the switch made the mounted disabled login receive 401 instead of 404.
         if (oidc?.passwordLoginEnabled === false) {
           return { ok: false, status: 404, body: { error: 'not_found' } };
@@ -118,13 +167,25 @@ export function authPasswordEndpoints(
             return { ok: false, status: 401, body: { error: 'invalid_credentials' } };
           }
           passwordThrottle.recordSuccess(body.username);
+          if (browserSession !== undefined)
+            await retireBrowserPredecessor(predecessor, browserSession, Date.now());
           return oidc === undefined
-            ? ({ ok: true, status: 200, body: outcome.value } as const)
+            ? ({
+                ok: true,
+                status: 200,
+                body: outcome.value,
+                ...(browserSession === undefined ? {} : { headers: clearRetiredNativeCookies() }),
+              } as const)
             : ({
                 ok: true,
                 status: 200,
                 body: { token: '', user: outcome.value.user },
-                headers: [accessCookie(outcome.value.token)],
+                // Proof: omitting retired-session/organization clears left a
+                // stale OIDC correlation next to the new native access cookie.
+                headers: [
+                  accessCookie(outcome.value.token),
+                  ...(browserSession === undefined ? [] : clearRetiredContext()),
+                ],
               } as const);
         } finally {
           // Proof: removing release makes the mounted success/refusal/error matrix observe two verifiers, not three.

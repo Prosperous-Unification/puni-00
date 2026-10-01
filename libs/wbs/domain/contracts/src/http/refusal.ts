@@ -287,6 +287,7 @@ type BareRefusalCode =
   | 'unsupported_version'
   | 'invalid_oidc_callback'
   | 'invalid_oidc_session'
+  | 'refresh_in_progress'
   | 'oidc_identity_conflict'
   // A step's chosen code (ADR 0031): breaks the grammar, lies in the ordinal
   // alias's namespace, or is already held in the project.

@@ -132,6 +132,7 @@ describe(STEP_CODE, () => {
     const before = readStepColumns().map((column) => column.name);
 
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+      '20261001020000_add_browser_auth_lifecycle',
       '20261001010000_add_browser_credential_revocations',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',

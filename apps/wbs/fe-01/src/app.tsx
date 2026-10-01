@@ -1,4 +1,11 @@
-import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
 import { AppRouter } from '@/app-router';
 import { AuthForm } from '@/components/auth/auth-form';
@@ -8,10 +15,11 @@ import { LifetimeFault } from '@/components/chrome/lifetime-fault';
 import { OnboardingScreen } from '@/components/onboarding/onboarding-screen';
 import { PresencePanel } from '@/components/presence/presence-panel';
 import { HintLayer } from '@/components/wbs/hint';
-import { me as fetchMe, type Session } from '@/lib/api';
+import { type logout, me as fetchMe, type Session } from '@/lib/api';
 import { failureMessage, unreachable } from '@/lib/http';
 import { ThemeProvider, useThemeChoice } from '@/lib/theme';
 import { useRetirementJoin } from '@/runtime/application-services-context';
+import { type BrowserSignOutState, createBrowserSignOut } from '@/runtime/browser-sign-out';
 import { credentialOf } from '@/runtime/credential';
 import {
   createSessionOwner,
@@ -40,11 +48,23 @@ export class SessionRetirementError extends Error {
  * See {@link AppFaultBoundary} for why the fallback offers a reload and not a
  * retry.
  */
-export function App() {
+export type BrowserSignOutMode =
+  { readonly kind: 'local' } | { readonly kind: 'server'; readonly logout: typeof logout };
+
+/** The default bootstrap stays local until the backend session authority is enabled. */
+export const LOCAL_BROWSER_SIGN_OUT: BrowserSignOutMode = { kind: 'local' };
+
+export function App({
+  signOutMode = LOCAL_BROWSER_SIGN_OUT,
+  openOwner = createSessionOwner,
+}: {
+  signOutMode?: BrowserSignOutMode;
+  openOwner?: () => SessionOwner;
+}) {
   return (
     <AppFaultBoundary>
       <ThemeProvider>
-        <AppContent />
+        <AppContent signOutMode={signOutMode} openOwner={openOwner} />
       </ThemeProvider>
     </AppFaultBoundary>
   );
@@ -79,18 +99,108 @@ function ThemedAccountMenu({
   );
 }
 
-function AppContent() {
+function AppContent({
+  signOutMode,
+  openOwner,
+}: {
+  signOutMode: BrowserSignOutMode;
+  openOwner: () => SessionOwner;
+}) {
   const [session, setSession] = useState<Session | null>(null);
   const [checked, setChecked] = useState(false);
   const [sessionError, setSessionError] = useState('');
+  const [signOutState, setSignOutState] = useState<BrowserSignOutState | null>(null);
+  const owner = useRef<SessionOwner | null>(null);
+  const sessionRevision = useRef(0);
+  const mounted = useRef(false);
+  const [signOut] = useState(() =>
+    signOutMode.kind === 'server'
+      ? createBrowserSignOut({
+          logout: signOutMode.logout,
+          budgetMs: 10_000,
+          publish: (state) => {
+            if (state.kind === 'signed-out') {
+              owner.current = null;
+              setSession(null);
+              setSignOutState(null);
+            } else setSignOutState(state);
+          },
+        })
+      : null,
+  );
+  useEffect(() => {
+    const revision = sessionRevision;
+    mounted.current = true;
+    signOut?.resume();
+    return () => {
+      mounted.current = false;
+      revision.current++;
+      signOut?.dispose();
+    };
+  }, [signOut]);
+  const acceptSession = useCallback(
+    (next: Session) => {
+      // Proof: a same-user replacement credential is a new attempt revision;
+      // its predecessor's delayed 204 cannot sign it out.
+      sessionRevision.current++;
+      signOut?.acceptSession();
+      owner.current = null;
+      setSignOutState(null);
+      setSession(next);
+    },
+    [signOut],
+  );
+  const beginSignOut = (identity: Session, currentOwner: SessionOwner | null) => {
+    sessionRevision.current++;
+    const attemptRevision = sessionRevision.current;
+    // Proof: removing this code-owned local-mode branch made the mounted
+    // production-compatibility logout fail instead of returning to sign-in.
+    if (signOut === null) {
+      // Production remains on the pre-activation local contract and sends no
+      // logout request until the backend's shared browser authority is wired.
+      if (currentOwner === null) {
+        setSession(null);
+        return;
+      }
+      void currentOwner.exit().then(
+        (outcome) => {
+          // Proof: a held local exit overtaken by a newer owner must not
+          // unmount that owner or publish a stale sign-out/error.
+          if (!mounted.current || attemptRevision !== sessionRevision.current) return;
+          // Proof: publishing the modeled overtaken result as a global alert
+          // unmounted a newer live owner in the mounted local-mode race.
+          if (outcome === 'signed-out') setSession(null);
+          else if (outcome === 'fatal') setSignOutState({ kind: 'fatal' });
+        },
+        (cause: unknown) => {
+          if (!mounted.current || attemptRevision !== sessionRevision.current) return;
+          setSignOutState({
+            kind: 'fault',
+            error: cause instanceof Error ? cause : new Error('local sign-out failed', { cause }),
+          });
+        },
+      );
+      return;
+    }
+    // The server coordinator invokes exit synchronously before dispatching logout.
+    signOut.start(
+      identity.token,
+      currentOwner === null ? () => Promise.resolve('signed-out') : () => currentOwner.exit(),
+    );
+  };
 
   // Session refusal and unavailable verification are distinct rendered states.
   useEffect(() => {
+    let active = true;
+    const requestedAt = sessionRevision.current;
     void fetchMe()
       .then((reply) => {
+        // Proof: a delayed Strict Mode /me response after acknowledged logout
+        // must not restore the retired identity.
+        if (!active || requestedAt !== sessionRevision.current) return;
         switch (reply.kind) {
           case 'success':
-            if (reply.body.user !== null) setSession({ token: '', user: reply.body.user });
+            if (reply.body.user !== null) acceptSession({ token: '', user: reply.body.user });
             return;
           case 'failure':
             setSessionError(failureMessage(reply.failure));
@@ -112,16 +222,50 @@ function AppContent() {
         }
       })
       .catch(() => {
-        setSessionError('Could not check your session. Reload and try again.');
+        if (active && requestedAt === sessionRevision.current)
+          setSessionError('Could not check your session. Reload and try again.');
       })
       .finally(() => {
-        setChecked(true);
+        if (active) setChecked(true);
       });
-  }, []);
+    return () => {
+      active = false;
+    };
+  }, [acceptSession]);
 
   if (!checked)
     return (
       <main className="bg-background text-muted-foreground min-h-full p-8 font-sans">Loading…</main>
+    );
+
+  if (signOutState?.kind === 'fault') throw signOutState.error;
+  if (signOutState?.kind === 'fatal') {
+    const state = owner.current?.snapshot();
+    if (state?.status !== 'fatal')
+      throw new Error('fatal sign-out has no disclosed lifetime fault');
+    return <LifetimeFault fault={state.fault} />;
+  }
+  if (signOutState?.kind === 'pending')
+    return (
+      <main className="p-8" role="status">
+        Signing out…
+      </main>
+    );
+  if (signOutState?.kind === 'failure' || signOutState?.kind === 'overtaken')
+    return (
+      <main className="p-8" role="alert">
+        <p>Could not confirm sign-out. Your session was withdrawn; try again or reload.</p>
+        {signOutState.kind === 'failure' && session !== null && (
+          <button
+            type="button"
+            onClick={() => {
+              beginSignOut(session, owner.current);
+            }}
+          >
+            Try sign-out again
+          </button>
+        )}
+      </main>
     );
 
   if (session === null)
@@ -145,20 +289,24 @@ function AppContent() {
          */}
         <h1 className="mb-6 text-2xl font-semibold tracking-tight">WBS tool v2</h1>
         {sessionError !== '' && <p role="alert">{sessionError}</p>}
-        <AuthForm onSignedIn={setSession} />
+        <AuthForm onSignedIn={acceptSession} />
       </main>
     );
 
   return (
     <OnboardingScreen
       onSignOut={() => {
-        setSession(null);
+        beginSignOut(session, owner.current);
       }}
     >
       <SignedInApp
         session={session}
-        onSignedOut={() => {
-          setSession(null);
+        openOwner={openOwner}
+        onOwner={(current) => {
+          owner.current = current;
+        }}
+        onSignOut={(current) => {
+          beginSignOut(session, current);
         }}
       />
     </OnboardingScreen>
@@ -170,11 +318,11 @@ export interface SignedInAppProps {
   /** The identity the gate let in: from the startup check, or from a password login. */
   session: Session;
   /**
-   * Called once a log out has retired the session's project and then the
-   * session, and only then: the signed-out state it renders is the last thing a
-   * log out does, never the first.
+   * Sends the account-menu gesture to the app-scoped server/local coordinator.
    */
-  onSignedOut: () => void;
+  onSignOut: (owner: SessionOwner) => void;
+  /** Lets the app-scoped coordinator also serve the onboarding sign-out gesture. */
+  onOwner?: (owner: SessionOwner) => void;
   /**
    * Injected in tests; the app lets it default to the real owner, which cuts
    * the session's clients from the credential.
@@ -208,21 +356,22 @@ export interface SignedInAppProps {
  * see {@link sessionFor} — and the sanitized fatal state when the runtime
  * could not be built or given back.
  *
- * **Log out is the owner's local exit** ({@link SessionOwner.exit}): the account
- * menu's `Log out` withdraws the session and its project at once, so the region
- * stops drawing them before anything is closed, sends no request, and hands the
- * signed-out state up through `onSignedOut` only when the project and then the
- * session have both let go. When either could not — a socket that refused or
- * never closed within the retirement budget — the owner is `fatal` and this draws
- * that instead; nothing retired is drawn again, and the page's Reload is the way
- * on.
+ * The account-menu gesture hands this owner to the app-scoped sign-out
+ * coordinator. It withdraws the runtime synchronously, sends server logout in
+ * the same turn and publishes signed-out only after both outcomes succeed.
+ * A fatal retirement still renders the sanitized {@link LifetimeFault}; a
+ * refused or unknown server outcome does not reopen the withdrawn runtime.
  */
 export function SignedInApp({
   session,
-  onSignedOut,
+  onSignOut,
+  onOwner,
   openOwner = createSessionOwner,
 }: SignedInAppProps): React.JSX.Element {
   const [sessionOwner] = useState(openOwner);
+  useEffect(() => {
+    onOwner?.(sessionOwner);
+  }, [onOwner, sessionOwner]);
   const sessionState = useSyncExternalStore(sessionOwner.subscribe, sessionOwner.snapshot);
   const joinRetirement = useRetirementJoin();
   useEffect(() => {
@@ -264,12 +413,7 @@ export function SignedInApp({
       <main className="bg-background text-muted-foreground min-h-full p-8 font-sans">Loading…</main>
     );
   const signOut = (): void => {
-    void sessionOwner.exit().then((exit) => {
-      // Proof: on 2026-09-24, signing out whatever the exit settled (a2) failed `shows the fatal
-      // state instead of signing out when the project will not let go`: expected
-      // [ 'signed out' ] to not include 'signed out'.
-      if (exit === 'signed-out') onSignedOut();
-    });
+    onSignOut(sessionOwner);
   };
 
   return (
