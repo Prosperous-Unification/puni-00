@@ -36,18 +36,28 @@ function isRepositoryPort(declaration: ts.Declaration): boolean {
 }
 
 /**
- * Raw transactions and method-bearing repository interfaces grant authority; DTOs do not.
+ * Raw transactions and operation-bearing repository interfaces grant authority; DTOs do not.
  * Proof: replacing this with the blanket repository-port predicate made the
  * private-scope/public-DTO fixture fail (0 pass, 1 fail).
  */
-function isRepositoryCapability(declaration: ts.Declaration): boolean {
+function isRepositoryCapability(checker: ts.TypeChecker, declaration: ts.Declaration): boolean {
   const path = declaration.getSourceFile().fileName;
   if (!path.startsWith(`${sourceRoot}ports/`)) return false;
   if (/\/(?:unit-of-work|stores)\.ts$/.test(path)) return true;
+  if (!/\/[^/]+-store\.ts$/.test(path)) return false;
+  const isOperation = (member: ts.TypeElement): boolean =>
+    ts.isMethodSignature(member) ||
+    ts.isCallSignatureDeclaration(member) ||
+    (ts.isPropertySignature(member) &&
+      checker.getTypeAtLocation(member).getCallSignatures().length > 0);
+  if (ts.isInterfaceDeclaration(declaration)) return declaration.members.some(isOperation);
+  if (ts.isFunctionTypeNode(declaration) && ts.isPropertySignature(declaration.parent))
+    return isRepositoryCapability(checker, declaration.parent);
   return (
-    /\/[^/]+-store\.ts$/.test(path) &&
-    ts.isInterfaceDeclaration(declaration) &&
-    declaration.members.some(ts.isMethodSignature)
+    (ts.isMethodSignature(declaration) || ts.isPropertySignature(declaration)) &&
+    ts.isInterfaceDeclaration(declaration.parent) &&
+    declaration.parent.members.some(isOperation) &&
+    isOperation(declaration)
   );
 }
 
@@ -86,19 +96,29 @@ function reachesRepositoryType(
   location: ts.Node,
   signatures: boolean,
 ): boolean {
-  const seenOwnership = new Set<ts.Type>();
-  const seenCapabilities = new Set<ts.Type>();
+  const seenOwnershipFields = new Set<ts.Type>();
+  const seenOwnershipShape = new Set<ts.Type>();
+  const seenCapabilityFields = new Set<ts.Type>();
+  const seenCapabilityShape = new Set<ts.Type>();
   const inspect = (current: ts.Type, fields: boolean, capabilityOnly = false): boolean => {
-    const seen = capabilityOnly ? seenCapabilities : seenOwnership;
+    const seen = capabilityOnly
+      ? fields
+        ? seenCapabilityFields
+        : seenCapabilityShape
+      : fields
+        ? seenOwnershipFields
+        : seenOwnershipShape;
     if (seen.has(current)) return false;
     seen.add(current);
     const symbol = Reflect.get(current, 'symbol') as ts.Symbol | undefined;
     const forbidden = capabilityOnly ? reachesRepositoryCapability : reachesRepositoryPort;
     if (symbol !== undefined && forbidden(checker, symbol)) return true;
     if (current.aliasSymbol !== undefined && forbidden(checker, current.aliasSymbol)) return true;
+    // Proof: reverting union members to shape-only inspection missed
+    // `UnionEscape.read()`'s Scope field (0 pass, 1 fail).
     if (
       current.isUnionOrIntersection() &&
-      current.types.some((member) => inspect(member, false, capabilityOnly))
+      current.types.some((member) => inspect(member, capabilityOnly, capabilityOnly))
     )
       return true;
     if (
@@ -115,6 +135,13 @@ function reachesRepositoryType(
     if (signatures) {
       for (const kind of [ts.SignatureKind.Call, ts.SignatureKind.Construct]) {
         for (const signature of checker.getSignaturesOfType(current, kind)) {
+          // Proof: omitting the resolved callable declaration missed a selected
+          // repository property (`SyntheticCallableRepository['find']`, 0/1).
+          if (
+            signature.declaration !== undefined &&
+            isRepositoryCapability(checker, signature.declaration)
+          )
+            return true;
           for (const parameter of signature.getParameters()) {
             if (forbidden(checker, parameter)) return true;
             if (
@@ -178,7 +205,8 @@ function reachesRepositoryCapability(checker: ts.TypeChecker, symbol: ts.Symbol)
   let current = symbol;
   while (!visited.has(current)) {
     visited.add(current);
-    if (current.declarations?.some(isRepositoryCapability)) return true;
+    if (current.declarations?.some((declaration) => isRepositoryCapability(checker, declaration)))
+      return true;
     if ((current.flags & ts.SymbolFlags.Alias) === 0) return false;
     current = checker.getAliasedSymbol(current);
   }
@@ -373,7 +401,7 @@ test('closed feature modules do not reference repository ports and debt stays li
 async function createProgramWith(
   path: string,
   addition: string,
-  extra?: { path: string; addition: string },
+  extras: readonly { path: string; addition: string }[] = [],
 ): Promise<ts.Program> {
   const read = ts.readConfigFile(`${root}tsconfig.lib.json`, (file) => ts.sys.readFile(file));
   if (read.error !== undefined)
@@ -385,7 +413,7 @@ async function createProgramWith(
     .filter((file) => file.endsWith('.ts'))
     .map((file) => `${sourceRoot}${file}`);
   const additions = new Map<string, string>();
-  for (const change of [{ path, addition }, ...(extra === undefined ? [] : [extra])]) {
+  for (const change of [{ path, addition }, ...extras]) {
     const target = `${sourceRoot}${change.path}`;
     const original = await readFile(target, 'utf8');
     additions.set(target, `${original}\n${change.addition}\n`);
@@ -449,27 +477,42 @@ test('import transaction cannot return a raw scope through a nested resource cal
 test('public resource surfaces cannot pass raw repository authority to a feature', async () => {
   const program = await createProgramWith(
     'module/plan-import/plan-import.feature.ts',
-    "import type { PublicScopeEscape, ReturnedScopeEscape, UnitEscape, StoreEscape, AggregateEscape, ConstraintEscape, PrivateDtoResource } from './imported-plan.resource'; export type EscapedPublicResource = { resource: PublicScopeEscape }; export type EscapedReturnedScope = { resource: ReturnedScopeEscape }; export type EscapedUnit = { resource: UnitEscape }; export type EscapedStore = { resource: StoreEscape }; export type EscapedAggregate = { resource: AggregateEscape }; export type EscapedConstraint = { resource: ConstraintEscape }; export type AllowedPrivateDto = { resource: PrivateDtoResource };",
-    {
-      path: 'module/plan-import/imported-plan.resource.ts',
-      addition:
-        "export class PublicScopeEscape { expose<T>(act: (admitted: Scope) => T): T { throw new Error('fixture'); } } export class ReturnedScopeEscape { get pending(): Promise<Scope> { throw new Error('fixture'); } } export class UnitEscape { expose(unit: import('../../ports/unit-of-work').UnitOfWork): void { throw new Error('fixture'); } } export class StoreEscape { expose(store: import('../../ports/project-store').ProjectStore): void { throw new Error('fixture'); } } export class AggregateEscape { expose(stores: import('../../ports/stores').PlanTransactionalStores): void { throw new Error('fixture'); } } export class ConstraintEscape { expose<T extends Scope>(value: T): void { throw new Error('fixture'); } } export class PrivateDtoResource { readonly #scope: Scope; constructor(scope: Scope) { this.#scope = scope; } private hidden(): Scope { throw new Error('fixture'); } createProject(steps: Step[], callback: (step: Step) => CalendarMarker): CalendarMarker { throw new Error('fixture'); } }",
-    },
+    "import type { PublicScopeEscape, ReturnedScopeEscape, UnitEscape, StoreEscape, AggregateEscape, ConstraintEscape, UnionEscape, MethodEscape, CallablePropertyEscape, PrivateDtoResource, DtoUnionResource } from './imported-plan.resource'; export type EscapedPublicResource = { resource: PublicScopeEscape }; export type EscapedReturnedScope = { resource: ReturnedScopeEscape }; export type EscapedUnit = { resource: UnitEscape }; export type EscapedStore = { resource: StoreEscape }; export type EscapedAggregate = { resource: AggregateEscape }; export type EscapedConstraint = { resource: ConstraintEscape }; export type EscapedUnion = { resource: UnionEscape }; export type EscapedMethod = { resource: MethodEscape }; export type EscapedCallableProperty = { resource: CallablePropertyEscape }; export type AllowedPrivateDto = { resource: PrivateDtoResource }; export type AllowedDtoUnion = { resource: DtoUnionResource };",
+    [
+      {
+        path: 'module/plan-import/imported-plan.resource.ts',
+        addition:
+          "export class PublicScopeEscape { expose<T>(act: (admitted: Scope) => T): T { throw new Error('fixture'); } } export class ReturnedScopeEscape { get pending(): Promise<Scope> { throw new Error('fixture'); } } export class UnitEscape { expose(unit: import('../../ports/unit-of-work').UnitOfWork): void { throw new Error('fixture'); } } export class StoreEscape { expose(store: import('../../ports/project-store').ProjectStore): void { throw new Error('fixture'); } } export class AggregateEscape { expose(stores: import('../../ports/stores').PlanTransactionalStores): void { throw new Error('fixture'); } } export class ConstraintEscape { expose<T extends Scope>(value: T): void { throw new Error('fixture'); } } export class UnionEscape { read(): {kind:'empty'} | {kind:'scope'; scope: Scope} { throw new Error('fixture'); } } export class MethodEscape { get find(): import('../../ports/project-store').ProjectStore['findById'] { throw new Error('fixture'); } } export class CallablePropertyEscape { get find(): import('../../ports/project-store').SyntheticCallableRepository['find'] { throw new Error('fixture'); } } export class PrivateDtoResource { readonly #scope: Scope; constructor(scope: Scope) { this.#scope = scope; } private hidden(): Scope { throw new Error('fixture'); } createProject(steps: Step[], callback: (step: Step) => CalendarMarker): CalendarMarker { throw new Error('fixture'); } } export class DtoUnionResource { read(): {kind:'marker'; marker: CalendarMarker} | {kind:'steps'; steps: Step[]} { throw new Error('fixture'); } }",
+      },
+      {
+        path: 'ports/project-store.ts',
+        addition:
+          'export interface SyntheticCallableRepository { find: (id: string) => Promise<void>; }',
+      },
+    ],
   );
   // Proof: skipping all class members made this synthetic public `expose`
   // callback return no violation (0 pass, 1 fail), even with a raw Scope.
+  // Proof: shape-only union traversal missed EscapedUnion; disabling selected
+  // method classification missed EscapedMethod (each 0/1). Omitting resolved
+  // callable declarations missed EscapedCallableProperty (0/1).
   const violations = findViolations(program, 'plan-import');
-  for (const escaped of [
+  const escapes = [
     'EscapedPublicResource',
     'EscapedReturnedScope',
     'EscapedUnit',
     'EscapedStore',
     'EscapedAggregate',
     'EscapedConstraint',
-  ]) {
-    expect(violations.some((violation) => violation.includes(escaped))).toBe(true);
-  }
+    'EscapedUnion',
+    'EscapedMethod',
+    'EscapedCallableProperty',
+  ];
+  expect(
+    escapes.filter((escaped) => !violations.some((violation) => violation.includes(escaped))),
+  ).toEqual([]);
   expect(violations.some((violation) => violation.includes('AllowedPrivateDto'))).toBe(false);
+  expect(violations.some((violation) => violation.includes('AllowedDtoUnion'))).toBe(false);
 }, 120_000);
 
 test('repository-owned value types are refused without a Store suffix', async () => {
