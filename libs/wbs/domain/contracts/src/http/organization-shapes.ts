@@ -130,6 +130,9 @@ export const listOrganizationMemberships = defineEndpointShape({
     },
   ],
   refusals: [
+    // Proof: omitting this adapter refusal made the full GET-shape contract
+    // audit fail for getApiOrganizationMemberships (431/432 on h2puni).
+    { status: 400, schema: responseSchema(type({ error: "'invalid_body' | 'invalid_query'" })) },
     { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
     {
       status: 403,
