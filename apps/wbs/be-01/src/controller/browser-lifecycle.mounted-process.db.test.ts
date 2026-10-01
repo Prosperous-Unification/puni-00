@@ -629,97 +629,104 @@ for (const fault of ['missing', 'unreadable'] as const) {
 
 for (const nextSecret of ['same', 'rotated'] as const) {
   for (const winner of ['logout', 'refresh'] as const) {
-    test(`${winner} wins a two-process OIDC refresh race with ${nextSecret} provider secret`, async () => {
-      dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-race-'));
-      const path = join(dir, 'shared.db');
-      runMigrations(path, migrations);
-      const sqlite = openDatabase(path);
-      try {
-        seedAccounts(sqlite);
-        const oldAccess = await signed('ada');
-        const nextAccess = await signed('ada');
-        const first = oidcCredential(oldAccess);
-        await withLifecycle(path, (lifecycle) => lifecycle.open('race-correlation', first));
-        const refresher = await openWorker(path);
-        const closer = await openWorker(path);
-        await refresher.send({
-          kind: 'seed',
-          correlation: 'race-correlation',
-          refreshToken: 'refresh-a',
-          userId: 'ada',
-          generation: 1,
-          credential: first,
-        });
-        const selected = await refresher.send(request('/api/organization/active', oldAccess));
-        const oldMarker = selected.setCookie?.split(';')[0];
-        if (oldMarker === undefined) throw new Error('old session did not select');
-        await refresher.send({
-          kind: 'configure-refresh',
-          accessToken: nextAccess,
-          nextRefreshToken: nextSecret === 'same' ? 'refresh-a' : 'refresh-b',
-          hold: winner === 'logout' ? 'provider' : 'install',
-        });
-        const pending = refresher.send(
-          request('/api/auth/refresh', oldAccess, undefined, 'race-correlation'),
-        );
-        await refresher.waitEvent(winner === 'logout' ? 'provider' : 'install');
-        let nextMarker: string | undefined;
-        if (winner === 'refresh') {
-          const selectedNext = await closer.send(request('/api/organization/active', nextAccess));
-          expect(selectedNext.status).toBe(200);
-          nextMarker = selectedNext.setCookie?.split(';')[0];
-          if (nextMarker === undefined) throw new Error('committed successor did not select');
-          expect((await closer.send(request('/api/projects', nextAccess, nextMarker))).status).toBe(
-            200,
+    // Proof: PR CI timed out the rotated refresh-wins case at 10,075.69 ms.
+    // Withholding release-refresh still failed 0/1 at the worker's 10 s
+    // deadline under this 20 s budget; restoring it passed 1/1.
+    test(
+      `${winner} wins a two-process OIDC refresh race with ${nextSecret} provider secret`,
+      async () => {
+        dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-race-'));
+        const path = join(dir, 'shared.db');
+        runMigrations(path, migrations);
+        const sqlite = openDatabase(path);
+        try {
+          seedAccounts(sqlite);
+          const oldAccess = await signed('ada');
+          const nextAccess = await signed('ada');
+          const first = oidcCredential(oldAccess);
+          await withLifecycle(path, (lifecycle) => lifecycle.open('race-correlation', first));
+          const refresher = await openWorker(path);
+          const closer = await openWorker(path);
+          await refresher.send({
+            kind: 'seed',
+            correlation: 'race-correlation',
+            refreshToken: 'refresh-a',
+            userId: 'ada',
+            generation: 1,
+            credential: first,
+          });
+          const selected = await refresher.send(request('/api/organization/active', oldAccess));
+          const oldMarker = selected.setCookie?.split(';')[0];
+          if (oldMarker === undefined) throw new Error('old session did not select');
+          await refresher.send({
+            kind: 'configure-refresh',
+            accessToken: nextAccess,
+            nextRefreshToken: nextSecret === 'same' ? 'refresh-a' : 'refresh-b',
+            hold: winner === 'logout' ? 'provider' : 'install',
+          });
+          const pending = refresher.send(
+            request('/api/auth/refresh', oldAccess, undefined, 'race-correlation'),
           );
-        }
-        const logout = await closer.send(
-          request('/api/auth/logout', oldAccess, undefined, 'race-correlation'),
-        );
-        expect(logout.status).toBe(204);
-        await refresher.send({ kind: 'release-refresh' });
-        const completed = await pending;
-        if (winner === 'logout') {
-          // Proof: letting a paused provider completion publish after shared
-          // closure made the cross-process loser return 204/new cookie.
-          expect(completed.status).toBe(401);
-          expect(completed.setCookie).not.toContain(`__Host-wbs_access=${nextAccess}`);
+          await refresher.waitEvent(winner === 'logout' ? 'provider' : 'install');
+          let nextMarker: string | undefined;
+          if (winner === 'refresh') {
+            const selectedNext = await closer.send(request('/api/organization/active', nextAccess));
+            expect(selectedNext.status).toBe(200);
+            nextMarker = selectedNext.setCookie?.split(';')[0];
+            if (nextMarker === undefined) throw new Error('committed successor did not select');
+            expect(
+              (await closer.send(request('/api/projects', nextAccess, nextMarker))).status,
+            ).toBe(200);
+          }
+          const logout = await closer.send(
+            request('/api/auth/logout', oldAccess, undefined, 'race-correlation'),
+          );
+          expect(logout.status).toBe(204);
+          await refresher.send({ kind: 'release-refresh' });
+          const completed = await pending;
+          if (winner === 'logout') {
+            // Proof: letting a paused provider completion publish after shared
+            // closure made the cross-process loser return 204/new cookie.
+            expect(completed.status).toBe(401);
+            expect(completed.setCookie).not.toContain(`__Host-wbs_access=${nextAccess}`);
+            expect(
+              sqlite.query('SELECT COUNT(*) AS total FROM browser_auth_association').get(),
+            ).toEqual({ total: 1 });
+          } else {
+            if (completed.status === undefined) throw new Error('refresh returned no status');
+            expect([204, 401]).toContain(completed.status);
+            expect(
+              sqlite.query('SELECT COUNT(*) AS total FROM browser_auth_association').get(),
+            ).toEqual({ total: 2 });
+            if (nextMarker === undefined) throw new Error('successor marker missing');
+            // Proof: skipping close's current-successor B1 insert made this
+            // complete selected pair answer 200 in A (0/1, 2026-10-01).
+            // Another process cannot clear A's memory, so shared authority
+            // must deny the pair across A, B and a fresh reader.
+            expect(
+              (await refresher.send(request('/api/projects', nextAccess, nextMarker))).status,
+            ).toBe(403);
+            expect(
+              (await closer.send(request('/api/projects', nextAccess, nextMarker))).status,
+            ).toBe(403);
+            const fresh = await openWorker(path);
+            expect(
+              (await fresh.send(request('/api/projects', nextAccess, nextMarker))).status,
+            ).toBe(403);
+          }
           expect(
-            sqlite.query('SELECT COUNT(*) AS total FROM browser_auth_association').get(),
-          ).toEqual({ total: 1 });
-        } else {
-          if (completed.status === undefined) throw new Error('refresh returned no status');
-          expect([204, 401]).toContain(completed.status);
-          expect(
-            sqlite.query('SELECT COUNT(*) AS total FROM browser_auth_association').get(),
-          ).toEqual({ total: 2 });
-          if (nextMarker === undefined) throw new Error('successor marker missing');
-          // Proof: skipping close's current-successor B1 insert made this
-          // complete selected pair answer 200 in A (0/1, 2026-10-01).
-          // Another process cannot clear A's memory, so shared authority
-          // must deny the pair across A, B and a fresh reader.
-          expect(
-            (await refresher.send(request('/api/projects', nextAccess, nextMarker))).status,
+            (await refresher.send(request('/api/projects', oldAccess, oldMarker))).status,
           ).toBe(403);
-          expect((await closer.send(request('/api/projects', nextAccess, nextMarker))).status).toBe(
-            403,
+          const after = await refresher.send(
+            request('/api/auth/refresh', nextAccess, undefined, 'race-correlation'),
           );
-          const fresh = await openWorker(path);
-          expect((await fresh.send(request('/api/projects', nextAccess, nextMarker))).status).toBe(
-            403,
-          );
+          expect(after.status).toBe(401);
+          expect(after.providerCalls).toBe(1);
+        } finally {
+          sqlite.close();
         }
-        expect((await refresher.send(request('/api/projects', oldAccess, oldMarker))).status).toBe(
-          403,
-        );
-        const after = await refresher.send(
-          request('/api/auth/refresh', nextAccess, undefined, 'race-correlation'),
-        );
-        expect(after.status).toBe(401);
-        expect(after.providerCalls).toBe(1);
-      } finally {
-        sqlite.close();
-      }
-    });
+      },
+      winner === 'refresh' ? 20_000 : 10_000,
+    );
   }
 }
