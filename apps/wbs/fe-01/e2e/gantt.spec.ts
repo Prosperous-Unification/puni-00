@@ -3896,7 +3896,7 @@ test.describe('the marker rule, measured in the columns it paints', () => {
     await expect(page.locator('[role="tooltip"]')).toHaveCount(0);
     // Measure the freshly saved 28px chart at the same scale. A marker change
     // must leave the existing marks intact without needing a scale change to
-    // repaint them. Proof: removing the chart's marker-change remount failed
+    // repaint them. Proof: disabling the chart's keyed paint surface failed
     // here 5/5 times at columns 122-124 (20 pixels, maxDelta 40), 2026-10-01.
 
     const rule = page.locator('[data-gantt-marker-rule]');

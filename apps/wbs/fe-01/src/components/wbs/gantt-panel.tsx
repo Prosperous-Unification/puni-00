@@ -5524,11 +5524,12 @@ function GanttChart({
   );
 
   /**
-   * Remount the SVG when a marker changes. Chromium can retain stale pixels at
-   * an overlapping bar edge after inserting a rule into an otherwise unchanged
-   * SVG; rebuilding the SVG repaints that edge at the same scale.
-   * Proof: without this key, the unchanged-scale marker-save browser case failed
-   * 5/5 times at 28px (20 stale pixels, maxDelta 40, columns 122-124).
+   * Recreate only the transparent paint surface when a marker changes. Chromium
+   * otherwise retains stale bar-edge pixels at the same scale; keeping the SVG
+   * itself mounted preserves the focused bar and keyboard position.
+   * Proof: making this key constant failed the 28px browser pixel oracle
+   * (20 changed pixels, maxDelta 40); keying the SVG disconnected the focused
+   * bar on the first peer-marker update.
    */
   const markerPaintKey = JSON.stringify(markers.map(({ id, date, color }) => [id, date, color]));
 
@@ -6101,7 +6102,6 @@ function GanttChart({
           */}
             <div className="relative">
               <svg
-                key={markerPaintKey}
                 ref={chartSvgRef}
                 data-gantt-chart
                 // The contract, in three attributes: the user space is days by
@@ -6150,6 +6150,15 @@ function GanttChart({
                     />
                   </pattern>
                 </defs>
+                <rect
+                  key={markerPaintKey}
+                  x={0}
+                  y={0}
+                  width={days}
+                  height={rowCount}
+                  fill="transparent"
+                  pointerEvents="none"
+                />
                 {marksUnderLight}
 
                 {/*

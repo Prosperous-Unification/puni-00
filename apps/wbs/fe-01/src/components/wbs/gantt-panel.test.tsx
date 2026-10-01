@@ -6073,6 +6073,56 @@ describe('a calendar marker is a chip in the axis band, placed by its date', () 
   });
 });
 
+describe('a peer marker repaint keeps the keyboard position', () => {
+  const plan = planOf({
+    rows: [rowAt('strip', 0, 10)],
+    slices: [sliceAt('strip-dev', 'strip', 0, 10)],
+  });
+  const marker: CalendarMarkerView = {
+    id: 'peer-marker',
+    date: '2026-08-19',
+    name: 'Peer milestone',
+    color: '#5d6afe',
+  };
+  const chart = (markers: readonly CalendarMarkerView[]) => (
+    <GanttPanel
+      plan={plan}
+      startDate={MONDAY_START}
+      scheduleError={null}
+      generation={0}
+      heightPx={null}
+      onPickRow={() => undefined}
+      onPointRow={() => undefined}
+      pointed={pointedAtRow(null)}
+      markers={markers}
+    />
+  );
+
+  itDom('retains the focused bar node through marker create, update and delete', () => {
+    const view = render(chart([]));
+    const bar = document.querySelector<SVGRectElement>('[data-gantt-bar="strip-dev"]');
+    if (bar === null) throw new Error('the strip bar was not drawn');
+    act(() => {
+      bar.focus();
+    });
+    expect(document.activeElement).toBe(bar);
+
+    for (const markers of [[marker], [{ ...marker, date: '2026-08-20' as IsoDate }], []]) {
+      view.rerender(chart(markers));
+      expect(bar.isConnected).toBe(true);
+      expect(document.querySelector('[data-gantt-bar="strip-dev"]')).toBe(bar);
+      expect(document.activeElement).toBe(bar);
+    }
+
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    outside.focus();
+    view.rerender(chart([marker]));
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+});
+
 describe('the marker rule takes its named slot in marksOverLight', () => {
   /**
    * The eight marks slice 8.2 fixes the rule between, in the order
