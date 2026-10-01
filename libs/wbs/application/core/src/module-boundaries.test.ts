@@ -114,11 +114,17 @@ function reachesRepositoryType(
     const forbidden = capabilityOnly ? reachesRepositoryCapability : reachesRepositoryPort;
     if (symbol !== undefined && forbidden(checker, symbol)) return true;
     if (current.aliasSymbol !== undefined && forbidden(checker, current.aliasSymbol)) return true;
-    // Proof: reverting union members to shape-only inspection missed
-    // `UnionEscape.read()`'s Scope field (0 pass, 1 fail).
+    // Proof: shape-only union traversal missed `UnionEscape.read()`'s Scope
+    // field and a feature union wrapping OuterScopeResource (each 0/1).
+    // Keep ownership's shallow member scan: making it recursively inspect
+    // fields reported 38 unrelated DTO/option paths in the real modules.
     if (
       current.isUnionOrIntersection() &&
-      current.types.some((member) => inspect(member, capabilityOnly, capabilityOnly))
+      current.types.some((member) =>
+        capabilityOnly
+          ? inspect(member, fields, true)
+          : inspect(member, false) || (fields && inspect(member, true, true)),
+      )
     )
       return true;
     if (
@@ -540,6 +546,36 @@ test('indexed resource results cannot contain raw scope but may contain value re
   // Proof: inspecting index values with the ownership predicate instead of
   // capability mode refused the allowed Step record (0 pass, 1 fail).
   expect(violations.some((violation) => violation.includes('AllowedIndexedStep'))).toBe(false);
+}, 120_000);
+
+test('feature wrappers cannot hide a resource with a public raw scope', async () => {
+  const program = await createProgramWith(
+    'module/plan-import/plan-import.feature.ts',
+    "import type { OuterScopeResource, OuterDtoResource } from './imported-plan.resource'; export type EscapedPlain = {resource: OuterScopeResource}; export type EscapedOuterUnion = {kind:'resource'; resource: OuterScopeResource} | {kind:'none'}; export type EscapedIntersection = {resource: OuterScopeResource} & {kind:'resource'}; export type EscapedPromise = Promise<OuterScopeResource>; export type EscapedArray = OuterScopeResource[]; export type EscapedRecord = Record<string, OuterScopeResource>; export type AllowedOuterUnion = {kind:'resource'; resource: OuterDtoResource} | {kind:'none'}; export type AllowedRecord = Record<string, OuterDtoResource>;",
+    [
+      {
+        path: 'module/plan-import/imported-plan.resource.ts',
+        addition:
+          "export class OuterScopeResource { read(): Scope { throw new Error('fixture'); } } export class OuterDtoResource { read(): Step { throw new Error('fixture'); } }",
+      },
+    ],
+  );
+  const violations = findViolations(program, 'plan-import');
+  const escapes = [
+    'EscapedPlain',
+    'EscapedOuterUnion',
+    'EscapedIntersection',
+    'EscapedPromise',
+    'EscapedArray',
+    'EscapedRecord',
+  ];
+  expect(
+    escapes.filter((escaped) => !violations.some((violation) => violation.includes(escaped))),
+  ).toEqual([]);
+  // Proof: forcing resource members into ownership mode falsely refused
+  // AllowedOuterUnion's public Step result (0 pass, 1 fail).
+  expect(violations.some((violation) => violation.includes('AllowedOuterUnion'))).toBe(false);
+  expect(violations.some((violation) => violation.includes('AllowedRecord'))).toBe(false);
 }, 120_000);
 
 test('repository-owned value types are refused without a Store suffix', async () => {

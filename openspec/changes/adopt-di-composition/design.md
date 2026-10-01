@@ -36,8 +36,10 @@ these two features; their service exports remain. The callable-signature boundar
 nested callback parameters and returns so a renamed `Scope` cannot escape through a mapped type.
 Public resource class methods, getters and callable fields receive the same resolved-capability
 check: `Scope`, `UnitOfWork`, repository interfaces and store aggregates cannot reach a feature
-through aliases, union members, indexed repository operations, index-signature values,
-generic constraints or `Promise` returns. Private implementation and constructors
+through aliases, feature-side wrappers and union members, indexed repository operations,
+index-signature values, generic constraints or `Promise` returns. Union members keep the
+direct repository-declaration scan shallow, then inspect nested fields for capabilities;
+this preserves value-record use inside feature unions. Private implementation and constructors
 may retain those capabilities. A public resource method may use a store-owned value record such as
 `Step` or `CalendarMarker`; such a DTO grants no repository authority. Direct feature imports and
 types still follow the stricter repository-declaration ownership rule.
