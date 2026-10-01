@@ -2,6 +2,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { captureAndSchedulePlan } from '@wbs/core/service/saved-plan-schedule';
+import {
+  buildScheduleBody,
+  SCHEDULE_BODY_SCHEMA_VERSION,
+  serialiseScheduleBody,
+} from '@wbs/core/service/saved-plan-schedule-body';
 import {
   addWorkdays,
   firstWorkdayOf,
@@ -25,12 +31,6 @@ import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { projectRow } from '../testing/project-fixture';
-import { captureAndSchedulePlan } from './saved-plan-schedule';
-import {
-  buildScheduleBody,
-  SCHEDULE_BODY_SCHEMA_VERSION,
-  serialiseScheduleBody,
-} from './saved-plan-schedule-body';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 

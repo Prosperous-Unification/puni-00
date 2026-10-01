@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -197,7 +197,35 @@ describe('password email verification', () => {
     expect(confirmations.map((answer) => answer.status).sort()).toEqual([200, 409]);
   });
 
+  // Its own budget (docs/test-budgets.md): two cold Bun children import the
+  // store, and on a loaded host that alone overran be-01's 10 s at the budget.
+  // By the rule, twice the overrun budget: 20 s. The race itself takes < 0.5 s.
   it('serializes competing address confirmations across processes', async () => {
+    // Started first, so their cold start overlaps the registration and the two
+    // challenges below instead of adding to them. Each blocks on one stdin line
+    // naming its account and token digest, which is also the release.
+    const spawnConfirmation = () =>
+      LaneProcess.spawn([
+        process.execPath,
+        '-e',
+        `
+          import { openDrizzle } from '@wbs/store-sqlite/db';
+          import { EmailVerificationRepository } from '@wbs/store-sqlite/email-verification';
+          import { OPEN } from '@wbs/store-sqlite/gate';
+          const verification = new EmailVerificationRepository(openDrizzle(${JSON.stringify(harness.databasePath())}), OPEN);
+          process.stdout.write('ready\\n');
+          let release;
+          for await (const line of console) {
+            release = line;
+            break;
+          }
+          if (release === undefined) throw new Error('stdin closed before the release line');
+          const { userId, address, digest } = JSON.parse(release);
+          const answer = await verification.confirm(userId, address, digest, Date.now);
+          process.stdout.write(JSON.stringify(answer));
+        `,
+      ]);
+    const workers = [spawnConfirmation(), spawnConfirmation()] as const;
     harness.activate();
     await harness.register('bea');
     const address = 'shared@example.org';
@@ -205,35 +233,17 @@ describe('password email verification', () => {
     const adaToken = harness.deliveredEmailToken(address);
     await harness.call('bea', 'POST', '/api/onboarding/email-challenges', { email: address });
     const beaToken = harness.deliveredEmailToken(address);
-    const folder = dirname(harness.databasePath());
-    const release = join(folder, 'confirm-release');
-    const spawnConfirmation = (name: 'ada' | 'bea', token: string) =>
-      LaneProcess.spawn([
-        process.execPath,
-        '-e',
-        `
-          import { createHash } from 'node:crypto';
-          import { existsSync } from 'node:fs';
-          import { openDrizzle } from '@wbs/store-sqlite/db';
-          import { EmailVerificationRepository } from '@wbs/store-sqlite/email-verification';
-          import { OPEN } from '@wbs/store-sqlite/gate';
-          const verification = new EmailVerificationRepository(openDrizzle(${JSON.stringify(harness.databasePath())}), OPEN);
-          process.stdout.write('ready\\n');
-          const started = Date.now();
-          while (!existsSync(${JSON.stringify(release)})) {
-            if (Date.now() - started > 10000) throw new Error('confirmation was never released');
-            Bun.sleepSync(5);
-          }
-          const answer = await verification.confirm(
-            ${JSON.stringify(harness.userId(name))}, ${JSON.stringify(address)},
-            createHash('sha256').update(${JSON.stringify(token)}).digest('hex'), Date.now,
-          );
-          process.stdout.write(JSON.stringify(answer));
-        `,
-      ]);
-    const workers = [spawnConfirmation('ada', adaToken), spawnConfirmation('bea', beaToken)];
+    const release = (name: 'ada' | 'bea', token: string) =>
+      JSON.stringify({
+        userId: harness.userId(name),
+        address,
+        digest: createHash('sha256').update(token).digest('hex'),
+      });
     await Promise.all(workers.map((worker) => worker.expectLine('ready')));
-    writeFileSync(release, 'go');
+    await Promise.all([
+      workers[0].send(release('ada', adaToken)),
+      workers[1].send(release('bea', beaToken)),
+    ]);
     const answers = await Promise.all(
       workers.map(async (worker) => {
         const exit = await worker.finish();
@@ -242,6 +252,10 @@ describe('password email verification', () => {
         return JSON.parse(exit.answer) as { ok: boolean; refusal?: string };
       }),
     );
+    // Proof: 2026-09-29 (WBS 080.12), making the confirm-time address collision
+    // read never match let both workers confirm; the loser exited 1, failing the
+    // exit-code check above. Under the same load as the invitation race, the
+    // overlapped, stdin-released version passed 12/12; the file-poll one 3/12.
     expect(answers.filter((answer) => answer.ok)).toHaveLength(1);
     expect(answers.filter((answer) => !answer.ok)).toEqual([
       { ok: false, refusal: 'address_conflict' },
@@ -257,7 +271,7 @@ describe('password email verification', () => {
         .query('SELECT consumed_at FROM email_challenge WHERE user_id = ?')
         .get(harness.userId(loser)),
     ).toEqual({ consumed_at: null });
-  });
+  }, 20_000);
 
   it('refuses a challenge that expires while confirmation waits for a separate writer', async () => {
     harness.activate();

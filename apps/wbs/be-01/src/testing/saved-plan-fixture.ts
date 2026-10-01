@@ -1,9 +1,10 @@
+import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
+
 import { openConnection } from '../repository/db';
 import { SavedPlanRepository } from '../repository/saved-plan';
 import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { nodeDigest } from '../runtime/bun-runtime';
 import { fastScheduler } from '../service/optimizer-wiring';
-import { SavedPlanService } from '../service/saved-plan.service';
 
 /**
  * A {@link SavedPlanService} for the callers that want the routes registered

@@ -1,4 +1,4 @@
-import type { AuthenticatedUser, AuthService } from '../service/auth.service';
+import type { AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
 
 /**
  * The app token from the hardened browser cookie or standard Bearer header.

@@ -172,7 +172,7 @@ export interface DirectoryUsage {
 }
 
 /**
- * Mirrors apps/wbs/be-01/src/service/step.service.ts::StepInUse, including explicit
+ * Mirrors libs/wbs/application/core/src/module/step/step.resource.ts::StepInUse, including explicit
  * assignments omitted by the initial HTTP inventory. Proof (type boundary only):
  * making assignments optional produces TS2578 for its missing-field fixture.
  */

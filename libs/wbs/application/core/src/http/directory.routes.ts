@@ -7,8 +7,8 @@ import {
   listWorkItemTypes,
 } from '@wbs/contracts';
 
+import type { DirectoryService } from '../module/directory/directory.resource';
 import type { OrganizationAccess } from '../ports/organization-access';
-import type { DirectoryService } from '../service/directory.service';
 import { bind, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 

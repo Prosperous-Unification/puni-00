@@ -2510,3 +2510,101 @@ the guard disabled, `names a module its config leaves unchecked` failed (5 pass,
 `authentication/tsconfig.json`'s `include` deleted; with the guard restored the same fault failed
 the target naming `authentication (config leaves out .../module.ts, ...)`. The fixture suite also
 creates the untracked `tmp/` parent itself, so it passes in a fresh checkout.
+
+### Remaining re-export shims, task 7.1 in part — 2026-09-29
+
+- A module-specifier scan (static `from`, `import()`, `require()` and `mock.module()` specifiers,
+  relative and `@wbs/core/*`, over every tracked `.ts` and `.tsx` file; a throwaway Python scan)
+  listed the importers of all 56 `re-export shim` rows. Each importer now names the owning module
+  file, a core service file, `@wbs/core` or `@wbs/runtime-portable`; be-01's
+  `optimization-coordinator.ts` importers split between the Optimization `contract.ts` and
+  `optimization.feature.ts`. The shims and their rows are deleted in one commit per module:
+  `kinds.json` goes from 80 entries to 24, none a re-export shim. Every module index and
+  `docs/wiki-policy/modules.json` row that declared a shim as an external consumer declares the
+  production importers instead. `apps/wbs/be-01/tools/capture-capacity-oracle.ts` is a frozen pin
+  outside lint and typecheck and is left byte-for-byte.
+- Checks keyed to the shims changed with them: `service-boundaries.test.ts` lints only the core
+  service files that remain; `sideways-type-boundaries.test.ts` drops the two rows keyed to
+  `service/plan-document.ts` and `service/calendar-marker.service.ts`; be-01's
+  `module-boundaries.test.ts` drops the Supervisor rule's shim clause; `clock.test.ts` probes
+  `service/optimizer-wiring.ts` for the be-01 folder; `module-labels.test.ts` audits the real
+  ledger (now with no module-naming shim row) and a synthetic ledger through one helper.
+- Faults: `SHIM_OWNER` expecting `modules directly` failed `checks each shim row form against the
+files it names` with `named` 0 against 2 (5 pass, 1 fail); prepending
+  `import '../calendar-marker/calendar-marker.resource';` to Plan document's resource failed the
+  sideways suite with exactly that violation (0 pass, 1 fail); dropping
+  `apps/wbs/be-01/src/service` from `clock.test.ts`'s `FOLDERS` failed `is reading real service
+sources` on `Received: undefined` (3 pass, 1 fail); prepending
+  `import '../optimization/optimization.feature';` to `solver-supervisor-spawner.ts` still failed
+  be-01's `module-boundaries.test.ts` with one violation (0 pass, 1 fail); importing `Nope` from
+  the deleted `@wbs/core/service/replay-buffer` in a be-01 database test failed
+  `nx run wbs-be-01:typecheck`.
+- After, with `CLAUDECODE` unset: `tool-devsync` `bun test --preload ../test/scratch/preload.ts
+--timeout=30000` 392 pass, 0 fail; `wbs-core` `bun test src --timeout=10000` 797 pass, 0 fail;
+  be-01 `bun test src --timeout=10000` 1592 pass, 1 skip, 0 fail; burokrat CLI
+  `pilot-policy.test.ts`, `kind-inventory.test.ts` and `src/indexes` 132 pass, 0 fail.
+  `nx run-many -t typecheck` for `wbs-core`, `wbs-be-01`, `tool-devsync`, `wbs-store-sqlite` and
+  `wbs-contracts`, and `nx run-many -t lint` for those five plus `wbs-fe-01`, succeeded. Not run:
+  `wbs-fe-01` typecheck and tests (one comment changed), the host gate.
+
+### Plan import and Plan commands K3 closure, task 7.8 (WBS 040.11) — 2026-09-29
+
+- Base `0e6befe47dd42d98015cf79442c851d6926edf92` (`batch-9/040-07-shims-2`), clean tree. With the
+  ledger emptied, the audit reported 90 violations in `plan-import.feature.ts`, 12 in
+  `prepare-import.ts` and 298 across Plan commands (`plan-commands.feature.ts` 87, the five
+  unsuffixed Working plan parts 202, `command-bindings.ts` 7, `admitted-write.ts` 2).
+- Change: Plan import's writes go through `ImportedPlanResource` (`imported-plan.resource.ts`), built
+  over the admitted scope by `runImportAdmission`; `ImportServiceOptions` keeps its shape. Plan
+  commands holds each scope as `AdmittedScope` (`admitted-scope.resource.ts`), which builds the batch
+  graph, opens the Working plan, answers `refuseOutsideScope` and the cross-reference kinds, and
+  translates the rollback repair. The Working plan's five parts are renamed `*.resource.ts`. The
+  entity values the features name move to `ports/{work-item,directory,dependency,command-journal}-values.ts`
+  and `ports/project-values.ts`, re-exported by their store ports. `allowedDebt` is empty.
+- Boundary-check negatives (`module-boundaries.test.ts`, the whole 10-test file 9 pass, 1 fail each,
+  re-observed 2026-09-30, restored): an `import()` type of `SubtreeCopy` in `plan-import.feature.ts`;
+  `plan-commands.feature.ts` importing from `work-item-store` again; a `Scope`-typed parameter in
+  `admitted-write.ts`; a cast reaching `AdmittedScope`'s private scope in `plan-commands.feature.ts`;
+  `plan-import` added back to `debt` (`new debt is not allowed`, `stale debt ledger`).
+- Runtime privacy (review, 2026-09-30): the audit reads types only, and Fable's
+  `Reflect.get(scope, 'scope')` probe passed it while the field was TypeScript `private`.
+  `AdmittedScope` and `ImportedPlanResource` now hold the scope in a `#scope` field. New tests in
+  `plan-command-scope.test.ts` and `plan-import/module.test.ts` assert no own keys and an undefined
+  `Reflect.get`. Declaring the field `private readonly scope` again failed both (8 pass, 2 fail).
+- Production-path negatives, each restored:
+
+| Fault injected                                             | Observed failing test                                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Slug looked up deployment-wide under scoped access         | `keeps a slug only another organization holds` (9 pass, 1 fail)                       |
+| Project created unmapped under scoped access               | `imports into the organization, resolving names among its own entries` (8/2)          |
+| Every project told the directory changed                   | `tells only the organization's projects that its directory changed` (9/1)             |
+| Label refusal answered as success                          | memory contract `rolls back visible admitted writes after a later store refused`      |
+| `forbidden` admission ignored                              | `refuses a viewer every batch, undo and redo` and two recovery cases (19/3)           |
+| Fail-closed crossing check skipped                         | `fails closed on a project that already crosses its organization` and one more (20/2) |
+| Cross-reference kinds answered empty                       | the same two fail-closed cases (20/2)                                                 |
+| Repair run through the rolled-back scope                   | `discards a stale journal entry through the fresh repair scope` and one more (89/2)   |
+| Working plan never closed                                  | `throws after its batch closes` and two more (69/3)                                   |
+| Batch graph built over the raw scope, not the Working plan | 17 Plan commands module tests (55/17)                                                 |
+
+- After, with `CLAUDECODE` unset: `wbs-core` `bun test src --timeout=10000` 797 pass, 0 fail
+  (`module-boundaries.test.ts` 10/10); `wbs-store-memory` `bun test src` 146 pass; `wbs-store-sqlite`
+  `bun test --timeout=30000` 1191 pass; be-01 `bun test src --timeout=10000` 1592 pass, 1 skip,
+  0 fail; devsync `module-labels`, `service-kinds`, `typecheck-modules` and `workspace-targets`
+  51 pass; burokrat `pilot-policy.test.ts` and `kind-inventory.test.ts` 43 pass with
+  `TOOL_WIKI_TRUSTED_NODE_MODULES` set to the worktree's `node_modules` (without it, 12 fail on
+  `trusted TypeScript runtime modules are not configured`), `src/indexes` passing;
+  `nx run-many -t typecheck` for `wbs-core`, `wbs-be-01`, `wbs-store-sqlite`, `wbs-store-memory` and
+  `wbs-conformance` (with `typecheck:module`) and `nx run-many -t lint:fast` for the first four
+  succeeded; `openspec validate --all --json` 145 passed. Not run: `wbs-fe-01`, a full
+  `nx affected`, the host gate.
+
+### Plan Import and Plan Commands mapped transaction correction — 2026-10-01
+
+- The feature constructor options now accept fixed resource transactions. Composition modules own `uow.run`, per-scope graph factories, `NO_ADMISSION` route writes, and fresh rollback repair. `PlanCommandServices` lives in a neutral graph contract. Direct constructors moved to composition factories. This deliberately changes the two feature constructor option types; the exception is specified above.
+- With callable-signature traversal absent, the resolved audit missed a renamed `Scope` inside a nested Plan Commands callback (0 passed, 1 failed). Disabling that traversal also made the nested Plan Import callback-return negative fail (0 passed, 1 failed). Restored audit: 12 passed, 0 failed.
+- The raw admitted-write options fixture failed core spec typechecking with TS2344 before migration. Injecting `graphOf` into the mapped command callback failed its runtime resource-surface test (1 passed, 1 failed). A graph-factory throw left a Working plan read usable before cleanup; its focused regression failed, then passed after composition closed the plan on that path.
+- `bun test` on core Plan Import, Plan Commands, transaction boundary and module boundary files: 96 passed, 0 failed. Memory import contract: 31 passed, 0 failed. SQLite import contract and Working plan order: 41 passed, 0 failed. be-01 command, announcement and app-route files: 35 passed, 1 failed; the sole failure was `Bun.serve` returning `EPERM` on `listen` in the health-route framed-body test. Its isolated rerun failed for the same sandbox reason.
+- Core, be-01 and SQLite adapter lib/spec TypeScript configurations all passed `bunx tsc --noEmit`. Changed-file Prettier and ESLint checks passed; ESLint printed that its Nx module-boundary rule skipped because no cached ProjectGraph was available. OpenSpec CLI validation and the full h2puni gate were not run in the isolated archive.
+- Public resource capability audit follow-up (2026-10-01): an in-memory resource class whose public method accepted `(Scope) => T` through a feature-facing class type produced no violation before the class traversal (0 pass, 1 fail). The corrected audit rejects that callback, a `Promise<Scope>` getter, `UnitOfWork`, `ProjectStore`, a store aggregate, and a generic `Scope` constraint; a private `#scope` with a public `Step`/`CalendarMarker` DTO method stays allowed. Replacing the resolved capability hit with `false` failed the leak fixture (0/1); replacing the capability classifier with the blanket repository-port predicate failed the DTO allowance (0/1). Direct feature repository-declaration checks remain unchanged. The full `module-boundaries.test.ts` file passed 13/13, and core lib/spec TypeScript, changed-file ESLint and Prettier passed. ESLint skipped the uncached Nx ProjectGraph rule. `openspec` validation and the h2puni gate remain unavailable in this isolated clone.
+- Second capability audit follow-up (2026-10-01): the same fixture caught a resource method returning `{kind:'empty'} | {kind:'scope'; scope: Scope}` and a getter returning `ProjectStore['findById']`. Both escaped before union-member field traversal and selected-method declaration recognition (0/1, with both names missing). Reverting union members to shape-only traversal missed only `EscapedUnion` (0/1); disabling selected-method classification missed only `EscapedMethod` (0/1). A selected callable repository property `SyntheticCallableRepository['find']` was then watched red (0/1), and passes after resolving its function-type declaration. A private `#scope` and public DTO method or DTO union remain allowed. `bun test libs/wbs/application/core/src/module-boundaries.test.ts --timeout=30000`: 13/13. The focused Import/Commands/transaction/boundary suite: 97/97. Core lib/spec `bunx tsc --noEmit`, changed-file ESLint, Prettier and `git diff --check` passed. ESLint skipped the uncached Nx ProjectGraph rule. `openspec` validation and the h2puni gate remain unavailable in this isolated clone.
+- Indexed resource value follow-up (2026-10-01): a public resource returning `Record<string, Scope>` escaped the resolved audit without a diagnostic (focused test 0/1). Traversing the TypeScript index value now rejects it while allowing `Record<string, Step>`. Replacing capability-mode index inspection with the stricter repository-declaration ownership predicate made the allowed Step case fail (0/1). The full boundary file passed 14/14, and the focused Import/Commands/transaction/boundary suite passed 98/98. Core lib/spec TypeScript, changed-file ESLint, Prettier and `git diff --check` passed. ESLint skipped the uncached Nx ProjectGraph rule; OpenSpec CLI validation and the h2puni gate remain unavailable in this isolated clone.
+- Feature wrapper follow-up (2026-10-01): a discriminated union containing a resource whose public method returns `Scope` escaped the audit in ownership mode. A matrix of plain object, union, intersection, `Promise`, array and `Record` wrappers was watched red with only the union undetected (0/1). Preserving ownership-mode field traversal indiscriminately passed the matrix but produced 38 false findings in the real closed-module audit (14/15). The corrected two-pass union scan preserves shallow declaration ownership and separately inspects nested fields for raw capabilities; full boundary file passed 15/15 and focused Import/Commands/transaction/boundary suite passed 99/99. A parallel DTO-resource union and record remain allowed. Forcing public resource members into ownership mode falsely refused the DTO-resource union (0/1). Core lib/spec TypeScript, changed-file ESLint, Prettier and `git diff --check` passed. ESLint skipped the uncached Nx ProjectGraph rule; OpenSpec CLI validation and the h2puni gate remain unavailable in this isolated clone.

@@ -5523,6 +5523,16 @@ function GanttChart({
     [dayPx, drawnBars],
   );
 
+  /**
+   * Recreate only the transparent paint surface when a marker changes. Chromium
+   * otherwise retains stale bar-edge pixels at the same scale; keeping the SVG
+   * itself mounted preserves the focused bar and keyboard position.
+   * Proof: making this key constant failed the 28px browser pixel oracle
+   * (20 changed pixels, maxDelta 40); keying the SVG disconnected the focused
+   * bar on the first peer-marker update.
+   */
+  const markerPaintKey = JSON.stringify(markers.map(({ id, date, color }) => [id, date, color]));
+
   const chartAndItsControls = (
     <>
       {detailShown && undrawnCount > 0 && (
@@ -6140,6 +6150,15 @@ function GanttChart({
                     />
                   </pattern>
                 </defs>
+                <rect
+                  key={markerPaintKey}
+                  x={0}
+                  y={0}
+                  width={days}
+                  height={rowCount}
+                  fill="transparent"
+                  pointerEvents="none"
+                />
                 {marksUnderLight}
 
                 {/*

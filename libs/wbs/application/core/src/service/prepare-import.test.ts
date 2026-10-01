@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 
+import { prepareImport } from '../module/plan-import/prepare-import';
 import { planDocumentFixture } from '../testing/plan-document-fixture';
-import { prepareImport } from './prepare-import';
 
 const supportsAll = { supports: () => true };
 type PlanFixture = ReturnType<typeof planDocumentFixture>;

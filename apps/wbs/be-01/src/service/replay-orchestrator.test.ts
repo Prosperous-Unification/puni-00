@@ -1,12 +1,12 @@
 import { EventLogService } from '@wbs/core';
+import { ReplayBuffer } from '@wbs/core/module/realtime/replay-buffer';
+import { ReplayOrchestrator } from '@wbs/core/module/realtime/replay-orchestrator';
 import { makeTestDb } from '@wbs/validation/fixtures';
 import type { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
-import { ReplayBuffer } from './replay-buffer';
-import { ReplayOrchestrator } from './replay-orchestrator';
 
 const BOOT_SQL = `
   CREATE TABLE event_sequencer (subscription TEXT PRIMARY KEY, next_seq INTEGER NOT NULL DEFAULT 0);

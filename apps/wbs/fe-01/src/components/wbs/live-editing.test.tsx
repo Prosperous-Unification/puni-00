@@ -332,6 +332,47 @@ describe('a refused draft typed over and refused again', () => {
 });
 
 describe('an own edit that lands while the cell is being typed in again', () => {
+  itDom('keeps the saved name when a precommit peer value is left by a failed reread', async () => {
+    const { pending, commit } = queuedCommits();
+    const view = render(<TableFace value="Alpha" commit={commit} />);
+    typeAndLeave('Beta');
+
+    const box = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'BetaX' } });
+    view.rerender(<TableFace value="Peer" commit={commit} />);
+    await answerPatch(pending[0], 'landed-unread');
+    fireEvent.change(box, { target: { value: 'Beta' } });
+    act(() => {
+      box.blur();
+    });
+
+    expect(box.value).toBe('Beta');
+    expect(pending.map((patch) => patch.typed)).toEqual(['Beta']);
+  });
+
+  itDom('shows a peer revert to the original name after the covering reread succeeds', async () => {
+    const { pending, commit } = queuedCommits();
+    const view = render(<TableFace value="Alpha" commit={commit} />);
+    typeAndLeave('Beta');
+
+    const box = screen.getByLabelText<HTMLInputElement>('Name of 010');
+    act(() => {
+      box.focus();
+    });
+    fireEvent.change(box, { target: { value: 'BetaX' } });
+    view.rerender(<TableFace value="Alpha" commit={commit} />);
+    await answerPatch(pending[0], 'landed');
+    fireEvent.change(box, { target: { value: 'Beta' } });
+    act(() => {
+      box.blur();
+    });
+
+    expect(box.value).toBe('Alpha');
+    expect(pending.map((patch) => patch.typed)).toEqual(['Beta']);
+  });
   /**
    * `e2e/name-cell.spec.ts`'s peer-rename case, at the speed a loaded runner
    * gives it. The name is typed and left, and the reader is back in the cell
@@ -405,7 +446,7 @@ describe('an own edit that lands while the cell is being typed in again', () => 
 
   /**
    * A save that lands with no read behind it — be-01 took the patch and the
-   * covering reread failed, which `PlanWriter.run` still answers `landed` —
+   * covering reread failed, which `PlanWriter.run` answers `landed-unread` —
    * while the reader is back in the cell and has typed back to what they saved.
    * The field has heard nothing newer than the name from before the save, and
    * writing that over the box on the way out would put back a name the server
@@ -426,7 +467,7 @@ describe('an own edit that lands while the cell is being typed in again', () => 
       box.focus();
     });
     fireEvent.change(box, { target: { value: 'BetaX' } });
-    await answerPatch(pending[0], 'landed');
+    await answerPatch(pending[0], 'landed-unread');
     fireEvent.change(box, { target: { value: 'Beta' } });
     act(() => {
       box.blur();
@@ -512,7 +553,7 @@ describe('an own edit that lands while the cell is being typed in again', () => 
       box.focus();
     });
     fireEvent.change(box, { target: { value: 'BetaX' } });
-    await answerPatch(pending[0], 'landed');
+    await answerPatch(pending[0], 'landed-unread');
     fireEvent.change(box, { target: { value: 'Beta' } });
     act(() => {
       box.blur();

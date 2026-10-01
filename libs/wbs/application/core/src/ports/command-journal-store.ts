@@ -1,4 +1,6 @@
+import type { UndoState } from './command-journal-values';
 import type { PlanEvent } from './plan-event-store';
+export type { UndoState } from './command-journal-values';
 
 /**
  * One command an account ran on one project, and what it takes to reverse it.
@@ -35,12 +37,6 @@ export interface NewJournalEntry {
   inverse: unknown;
   preconditions: unknown;
   createdAt: number;
-}
-
-/** Whether an account has anything to undo or redo on one project. */
-export interface UndoState {
-  undoable: boolean;
-  redoable: boolean;
 }
 
 /**

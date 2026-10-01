@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Scheduler } from '@wbs/core';
+import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
 import {
   diffPlans,
   planDiffIsEmpty,
@@ -28,7 +29,6 @@ import { WorkItemRepository } from '../repository/work-item';
 import { nodeDigest } from '../runtime/bun-runtime';
 import { projectRow } from '../testing/project-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import { SavedPlanService } from './saved-plan.service';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
