@@ -85,6 +85,108 @@ An authenticated WBS request SHALL carry exactly one server-validated active org
 - **WHEN** a valid credential and organization cookie are presented
 - **THEN** the new revocation capability does not enable selection or scoped access
 
+### Requirement: Browser credential lifecycle commits revoke stale organization authority
+
+OIDC refresh and OIDC browser-session logout SHALL transition through shared durable lifecycle state before acknowledging or issuing browser credentials. Refresh completion SHALL be conditional on the generation captured before provider I/O and SHALL atomically update lifecycle state and B1 credential-revocation rows. Logout SHALL authenticate against any exact credential association retained for that lifecycle, then close and revoke its currently active credential even if refresh advanced the generation. Provider refresh secrets SHALL remain process-local and SHALL NOT be persisted by this requirement. Native browser logout and replacement SHALL revoke only the exact verified credential through B1; an independent native login does not invent a shared refresh lifecycle. A successful refresh SHALL clear the organization-selection cookie and require explicit reselection. Production SHALL continue to refuse organization binding until activation.
+
+#### Scenario: OIDC refresh replaces one verified browser credential
+
+- **GIVEN** an active OIDC browser lifecycle and its current verified access credential
+- **WHEN** refresh returns a valid replacement credential
+- **THEN** one shared transaction revokes the previous exact credential, associates the verified replacement and advances the lifecycle generation
+- **AND** the replacement access cookie is issued only after that transaction commits
+- **AND** the previous access-token and organization-cookie pair is refused across processes and after restart
+- **AND** the organization cookie is cleared and the replacement credential must explicitly select an organization
+- **AND** whether the provider rotates or retains its refresh token, refresh completion uses the same conditional generation transition
+- **AND** replacement refresh material is installed in the process-local token store only after the shared transition wins
+
+#### Scenario: Native logout revokes its exact verified credential
+
+- **GIVEN** a native browser request with one currently verified access credential and no OIDC refresh lifecycle
+- **WHEN** logout is requested through the common browser endpoint
+- **THEN** the server commits B1 revocation for only that exact credential before returning `204`
+- **AND** another credential for the same user remains independently usable
+- **AND** no synthetic shared refresh lifecycle is created
+
+#### Scenario: Successful login retires a proved browser predecessor
+
+- **GIVEN** the browser presents an active predecessor access credential and, for an OIDC predecessor, its matching lifecycle correlation
+- **WHEN** a new OIDC callback or native password login has successfully verified and resolved its identity
+- **THEN** an OIDC predecessor's proved lifecycle is closed and its exact current credential revoked, or a native predecessor's exact verified credential is revoked through B1, before replacement cookies are issued
+- **AND** a failed callback leaves the predecessor lifecycle and credential unchanged
+- **AND** an absent predecessor means the new login is independent; an incomplete or mismatched presented predecessor/correlation is refused without inferring identity from unverified claims
+- **AND** the OIDC identity-link callback does not retire the current session because it issues no replacement credential
+
+#### Scenario: Logout with a predecessor credential closes the current successor
+
+- **GIVEN** an authenticated OIDC lifecycle whose refresh has already committed a successor credential
+- **WHEN** logout arrives with the exact previously issued predecessor credential and that lifecycle's correlation
+- **THEN** the server proves the retained predecessor-to-lifecycle association
+- **AND** closes the currently active lifecycle and revokes its successor, regardless of predecessor expiry or generation
+- **AND** neither predecessor nor successor can establish organization authority
+
+#### Scenario: Refresh cannot republish identical access-token bytes
+
+- **GIVEN** refresh returns access-token bytes identical to the currently active credential
+- **WHEN** the shared transition would revoke that exact credential tuple
+- **THEN** refresh refuses to issue the already-revoked bytes and requires reauthentication
+- **AND** it does not report successful refresh or carry forward organization selection
+
+#### Scenario: Logout wins a concurrent refresh
+
+- **GIVEN** an active browser lifecycle and a refresh operation waiting for its provider response
+- **WHEN** logout commits closure of that lifecycle first
+- **THEN** the current access credential is revoked before logout acknowledges success
+- **AND** the late refresh completion fails its generation condition and issues no replacement credential
+- **AND** any already-issued late response cannot restore organization authority
+
+#### Scenario: Refresh wins before logout
+
+- **GIVEN** an active browser lifecycle and a refresh completion that commits before logout
+- **WHEN** logout is processed for that same lifecycle
+- **THEN** logout revokes the current replacement credential and closes the lifecycle
+- **AND** neither the predecessor nor successor credential can establish organization authority
+
+#### Scenario: Lifecycle transition failures are not acknowledged
+
+- **GIVEN** a browser credential replacement or logout
+- **WHEN** required lifecycle state is missing, malformed, unreadable, stale, or its atomic write fails
+- **THEN** the operation fails with a typed server or authentication refusal
+- **AND** no replacement access cookie or success response is emitted before durable commit
+- **AND** a provider logout failure after durable closure does not restore local browser authority
+- **AND** provider rotation followed by failed local commit does not blindly replay a possibly spent refresh token
+- **AND** replacement material from a losing completion cannot overwrite or delete the winning process-local token record
+
+#### Scenario: Credential replacement preserves independent sessions
+
+- **GIVEN** two independent credentials for the same local user or credentials for different users
+- **WHEN** one browser lifecycle refreshes, replaces its credential, or logs out
+- **THEN** only the exact associated predecessor credential is revoked
+- **AND** unrelated credentials retain their existing authority
+
+#### Scenario: Browser logout is acknowledged by the server
+
+- **GIVEN** a browser session with an identifiable verified access credential and, when present, its correlated refresh lifecycle
+- **WHEN** the user signs out
+- **THEN** the server commits local revocation and lifecycle closure before returning success and clearing access, refresh-session and organization cookies
+- **AND** the browser retires its project and organization runtime only after the server outcome is known
+- **AND** an invalid, ambiguous or unidentified lifecycle is refused without claiming server logout succeeded
+
+#### Scenario: Retrying a committed logout is idempotent
+
+- **GIVEN** local lifecycle closure and credential revocation committed but the response was lost or upstream provider revocation failed
+- **WHEN** logout is retried with a retained exact credential association to that lifecycle
+- **THEN** the server returns local logout success without reopening the lifecycle or requiring successful repeated provider revocation
+- **AND** a missing or foreign association remains refused
+- **AND** the browser renders signed-out only after server acknowledgment and successful local project/session retirement; it preserves overtaken or fatal retirement outcomes and never restores the revoked runtime
+
+#### Scenario: Lifecycle state remains separate from provider refresh material and organization activation
+
+- **GIVEN** lifecycle state survives a process restart but provider refresh material does not
+- **WHEN** a refresh is requested after restart
+- **THEN** the server refuses it and requires reauthentication without reopening or weakening committed revocations
+- **AND** production remains `NO_BOUND_ORGANIZATION` until its separate activation gate passes
+
 #### Scenario: Native bearer context binds one current organization
 
 - **GIVEN** a native WBS session credential and a current membership in A
