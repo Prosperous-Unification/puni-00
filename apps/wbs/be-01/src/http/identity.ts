@@ -8,6 +8,8 @@ import {
 } from '../middleware/authenticated';
 import { bearerContextCredential } from '../runtime/bearer-context';
 import { declaresDelegation, type DelegationVerifier } from '../runtime/delegation';
+import { organizationCookieFromHeaders } from '../runtime/organization-cookie';
+import type { VerifiedCredentialOf } from '../runtime/organization-credential';
 import type { IdentityResolver } from './endpoint';
 
 /**
@@ -23,6 +25,7 @@ export function identityResolver(
   auth: AuthService,
   internalAuthSecret: string,
   delegation: DelegationVerifier,
+  credentialEvidence?: VerifiedCredentialOf,
 ): IdentityResolver {
   return async (requirement, request) => {
     if (requirement === 'internal') {
@@ -65,6 +68,24 @@ export function identityResolver(
     // Proof: inventing a fallback account returned 200 instead of 401 in the
     // mounted absent/invalid/retired-credential test (elysia/identity.test.ts).
     if (principal === null) return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+    let requestPrincipal = principal;
+    if (credentialEvidence !== undefined && principal.delegation === undefined) {
+      const credential = bearerContextCredential(request.headers);
+      if (credential !== null) {
+        const evidence = await credentialEvidence(credential, principal);
+        if (evidence !== null && evidence.userId === principal.id) {
+          // Proof: mutating the authenticated principal made the next request
+          // inherit a prior binding when the account adapter reused its object.
+          requestPrincipal = {
+            ...principal,
+            organizationBinding: {
+              credential: evidence,
+              cookie: organizationCookieFromHeaders(request.headers),
+            },
+          };
+        }
+      }
+    }
     // Proof: independently removing either scope check returned 200 instead
     // of 403 in the mounted scoped-token matrix (elysia/identity.test.ts).
     if (
@@ -73,7 +94,7 @@ export function identityResolver(
     ) {
       return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
     }
-    return { ok: true, principal };
+    return { ok: true, principal: requestPrincipal };
   };
 }
 

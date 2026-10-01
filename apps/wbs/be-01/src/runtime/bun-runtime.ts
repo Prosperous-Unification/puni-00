@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import type { Digest, Intervals, PasswordHasher, SessionClaims, TokenCodec } from '@wbs/core';
 import { errors, type JWTPayload, jwtVerify, SignJWT } from 'jose';
@@ -32,6 +32,9 @@ export function joseTokenCodec(jwtKey: string): TokenCodec {
       return await new SignJWT({ username: claims.username })
         .setProtectedHeader({ alg: 'HS256' })
         .setSubject(claims.subject)
+        // Proof: without a fresh jti, two logins in one second issued the
+        // same token and `two native sessions issued in one second` failed.
+        .setJti(randomUUID())
         .setIssuedAt(issuedAt)
         .setExpirationTime(issuedAt + ttlSeconds)
         .sign(key);

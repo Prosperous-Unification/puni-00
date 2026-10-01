@@ -134,6 +134,41 @@ test('resolves the actual password account once for each user requirement', asyn
   }
 });
 
+test('keeps a verified organization binding on this request when authentication reuses a principal', async () => {
+  const fixture = await passwordFixture();
+  const authenticated = await fixture.auth.authenticate(fixture.token);
+  if (authenticated === null) throw new Error('credential did not authenticate');
+  const shared = { ...authenticated };
+  const authenticate = spyOn(fixture.auth, 'authenticate').mockResolvedValue(shared);
+  try {
+    const resolve = identityResolver(fixture.auth, internalSecret, REFUSE_DELEGATIONS, () =>
+      Promise.resolve({
+        kind: 'native',
+        userId: shared.id,
+        digest: 'a'.repeat(64),
+        expiresAt: Date.now() + 60_000,
+      }),
+    );
+    const first = await resolve('signed-in', {
+      url: new URL('https://backend.example/identity'),
+      method: 'GET',
+      headers: new Headers({ authorization: `Bearer ${fixture.token}` }),
+    });
+    if (!first.ok || !('id' in first.principal)) throw new Error('first request was not a user');
+    expect(first.principal.organizationBinding?.credential.userId).toBe(shared.id);
+    const second = await resolve('signed-in', {
+      url: new URL('https://backend.example/identity'),
+      method: 'GET',
+      headers: new Headers(),
+    });
+    if (!second.ok || !('id' in second.principal)) throw new Error('second request was not a user');
+    expect(second.principal.organizationBinding).toBeUndefined();
+    expect(shared.organizationBinding).toBeUndefined();
+  } finally {
+    authenticate.mockRestore();
+  }
+});
+
 test('requires the requested scope while signed-in accepts an account with no scopes', async () => {
   for (const scopes of [[], ['read'], ['write']] as const) {
     const fixture = await scopedFixture(scopes);

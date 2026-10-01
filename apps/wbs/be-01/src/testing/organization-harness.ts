@@ -24,6 +24,8 @@ import {
   SpaceRepository,
   SqliteDelegationUse,
   SqliteOrganizationAccess,
+  SqliteOrganizationSelection,
+  userBoundOrganizationOf,
 } from '@wbs/store-sqlite';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 
@@ -48,6 +50,9 @@ import { joseTokenCodec } from '../runtime/bun-runtime';
 import { delegationVerifier } from '../runtime/delegation';
 import { delegationIssuer } from '../runtime/delegation-issuer';
 import { runDomainProofWorker } from '../runtime/domain-proof-worker';
+import { organizationCookieBinding } from '../runtime/organization-cookie';
+import { organizationCredentialEvidence } from '../runtime/organization-credential';
+import { organizationSelection } from '../runtime/organization-selection';
 import { fastScheduler } from '../service/optimizer-wiring';
 import { buildServices } from '../services';
 import { TEST_JWT_KEY } from './auth-fixture';
@@ -87,6 +92,7 @@ export interface OrganizationHarnessOptions {
   readonly directSigningKey?: CryptoKey;
   readonly policyDirectory?: string;
   readonly resolver?: DomainResolver;
+  readonly sessionBinding?: boolean;
 }
 
 interface TestMail {
@@ -165,6 +171,7 @@ export class OrganizationHarness {
     directSigningKey,
     policyDirectory,
     resolver,
+    sessionBinding,
   }: OrganizationHarnessOptions = {}): OrganizationHarness {
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
@@ -175,8 +182,17 @@ export class OrganizationHarness {
     const bound = new Map<string, string>();
     const sessionKey =
       directSigningKey === undefined ? TEST_JWT_KEY : crypto.randomUUID() + crypto.randomUUID();
-    const organizations = new SqliteOrganizationAccess(db, (userId) =>
-      Promise.resolve(bound.get(userId) ?? null),
+    const selection =
+      sessionBinding === true
+        ? organizationSelection(
+            new SqliteOrganizationSelection(db),
+            organizationCookieBinding(sessionKey),
+          )
+        : undefined;
+    const organizations = new SqliteOrganizationAccess(
+      db,
+      selection?.activeOrganizationOf ??
+        userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null)),
     );
     const auth = new AuthService({
       clock: testClock,
@@ -240,6 +256,12 @@ export class OrganizationHarness {
       savedPlans: testSavedPlanService(),
       ...writing,
       organizations,
+      ...(selection === undefined
+        ? {}
+        : {
+            organizationSelection: selection.endpoints,
+            credentialEvidence: organizationCredentialEvidence(auth, sessionKey),
+          }),
       memberships: new OrganizationRepository(db, OPEN),
       domains,
       onboarding: new OnboardingRepository(db, OPEN),
@@ -331,8 +353,9 @@ export class OrganizationHarness {
           }
         : {}),
     });
-    const organizationAccess = new SqliteOrganizationAccess(source.db, (userId) =>
-      Promise.resolve(bound.get(userId) ?? null),
+    const organizationAccess = new SqliteOrganizationAccess(
+      source.db,
+      userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null)),
     );
     const app = buildApp({
       appOrigin: 'http://localhost',

@@ -1,4 +1,4 @@
-import { buildOidcVerifier } from '@wbs/auth';
+import { buildOidcVerifier, oidcCredentialEvidence } from '@wbs/auth';
 import type { DelegationIssuer } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import type { Logger } from '@wbs/observability';
@@ -30,6 +30,7 @@ import { REFUSE_DELEGATIONS } from './runtime/delegation';
 import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
 import { importDelegationKeys } from './runtime/delegation-keys';
 import { refusingEmailDelivery } from './runtime/email-delivery';
+import { organizationCredentialEvidence } from './runtime/organization-credential';
 import { type BeServices, buildServices, type OptimizerRuntime } from './services';
 
 export interface BootOptions {
@@ -198,6 +199,13 @@ export async function bootBe01(
                 return state.migrationsApplied;
               },
               auth: services.auth,
+              credentialEvidence: organizationCredentialEvidence(
+                services.auth,
+                opts.jwtKey,
+                opts.oidc === undefined
+                  ? undefined
+                  : oidcCredentialEvidence(opts.oidc.verifier, opts.oidc),
+              ),
               // Proof: constructing a second LoginThrottle here made
               // boot.db.test.ts receive HTTP 401 instead of 429 (0 pass, 1 fail,
               // 13 filtered).

@@ -35,6 +35,7 @@ export * from './organization';
 export * from './organization-access';
 export * from './organization-activation';
 export * from './organization-ownership';
+export * from './organization-selection';
 export * from './organization-selection-preview';
 export * from './plan-event';
 export * from './priority-band';
