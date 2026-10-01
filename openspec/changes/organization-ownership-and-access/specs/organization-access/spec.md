@@ -170,10 +170,14 @@ In the explicitly enabled browser-session composition, native-only password regi
 
 #### Scenario: Browser logout is acknowledged by the server
 
-- **GIVEN** a browser session with an identifiable verified access credential and, when present, its correlated refresh lifecycle
+- **GIVEN** an explicitly enabled server-acknowledged browser session with an identifiable verified access credential and, when present, its correlated refresh lifecycle
 - **WHEN** the user signs out
 - **THEN** the server commits local revocation and lifecycle closure before returning success and clearing access, refresh-session and organization cookies
-- **AND** the browser retires its project and organization runtime only after the server outcome is known
+- **AND** the browser withdraws its project and organization runtime at the gesture and renders signed-out only after both local retirement and a validated server `204` settle
+- **AND** native JSON credentials use one first-party Authorization Bearer while cookie-restored OIDC sessions use same-origin cookies without a Bearer
+- **AND** server refusal, malformed response, transport failure or timeout remains visible without reopening the withdrawn runtime
+- **AND** a newer session, including another credential for the same user, or an unmounted browser cannot publish the older logout's delayed acknowledgment
+- **AND** while the production bootstrap remains explicitly in local mode before backend activation, sign-out preserves local retirement and sends no server logout request
 - **AND** an invalid, ambiguous or unidentified lifecycle is refused without claiming server logout succeeded
 
 #### Scenario: Retrying a committed logout is idempotent

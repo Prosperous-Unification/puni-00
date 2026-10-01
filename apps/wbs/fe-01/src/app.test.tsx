@@ -10,6 +10,7 @@ import { fakeDirectoryApi } from '@/modules/directory/fake-directory-api';
 import { browserStorage } from '@/modules/preferences/browser-storage.repository';
 import { type ApplicationServices, installApplicationRuntime } from '@/runtime/application-runtime';
 import { ApplicationServicesProvider } from '@/runtime/application-services-context';
+import { credentialOf } from '@/runtime/credential';
 import { createLifetimeSlot, type LifetimeSlot } from '@/runtime/lifetime-slot';
 import { installProjectRuntime } from '@/runtime/project-runtime';
 import {
@@ -19,6 +20,8 @@ import {
 } from '@/runtime/session-runtime';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 
+import type { BrowserSignOutMode } from './app';
+
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
@@ -27,6 +30,7 @@ const me = vi.hoisted(() => vi.fn<() => ReturnType<typeof Api.me>>());
 const login = vi.hoisted(() =>
   vi.fn<(username: string, password: string) => ReturnType<typeof Api.login>>(),
 );
+const onboardingOnly = vi.hoisted(() => ({ current: false }));
 
 /**
  * Every router the signed-in region builds, by identity: `AppRouter` builds one
@@ -54,10 +58,24 @@ vi.mock('@/lib/api', async (importOriginal) => ({
 // The onboarding boundary has its own request-state suite. Existing session
 // lifecycle tests keep exercising the signed-in region under an inactive gate.
 vi.mock('@/components/onboarding/onboarding-screen', () => ({
-  OnboardingScreen: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  OnboardingScreen: ({
+    children,
+    onSignOut,
+  }: {
+    children: React.ReactNode;
+    onSignOut: () => void;
+  }) => (
+    <>
+      {!onboardingOnly.current && children}
+      <button type="button" onClick={onSignOut}>
+        Onboarding sign out
+      </button>
+    </>
+  ),
 }));
 
 const { App, SignedInApp } = await import('./app');
+const { logout } = await import('@/lib/api');
 
 /**
  * A slot `live` over the production installer, its liveness predicate wired
@@ -71,11 +89,24 @@ const { App, SignedInApp } = await import('./app');
  */
 let servicesSlot: LifetimeSlot<ApplicationServices>;
 
-const renderApp = () =>
+const renderApp = (
+  signOutMode: BrowserSignOutMode = { kind: 'local' },
+  openOwner?: () => SessionOwner,
+) =>
   render(
     <ApplicationServicesProvider slot={servicesSlot}>
-      <App />
+      <App signOutMode={signOutMode} openOwner={openOwner} />
     </ApplicationServicesProvider>,
+  );
+const renderServerApp = (openOwner?: () => SessionOwner) =>
+  renderApp({ kind: 'server', logout }, openOwner);
+const renderStrictServerApp = () =>
+  render(
+    <StrictMode>
+      <ApplicationServicesProvider slot={servicesSlot}>
+        <App signOutMode={{ kind: 'server', logout }} />
+      </ApplicationServicesProvider>
+    </StrictMode>,
   );
 
 const muteConsoleError = () =>
@@ -118,6 +149,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   localStorage.clear();
   window.history.replaceState({}, '', '/');
+  onboardingOnly.current = false;
 });
 
 describe('the app root', () => {
@@ -335,7 +367,7 @@ describe('the signed-in user’s session', () => {
   const signedInAs = (session: Api.Session, openOwner?: () => SessionOwner) => (
     <ApplicationServicesProvider slot={servicesSlot}>
       <ThemeProvider>
-        <SignedInApp session={session} onSignedOut={() => undefined} openOwner={openOwner} />
+        <SignedInApp session={session} onSignOut={() => undefined} openOwner={openOwner} />
       </ThemeProvider>
     </ApplicationServicesProvider>
   );
@@ -467,12 +499,369 @@ describe('the signed-in user’s session', () => {
 });
 
 /**
- * Log out, through the account menu the reader clicks: a local exit that sends
- * nothing, retires the session's project and then the session, and hands the
- * signed-out state up only once both have let go — the fatal state otherwise.
+ * Log out through the account menu: retire the local runtime and request
+ * server revocation before showing signed out.
  */
 describe('log out', () => {
   const KAT = { id: 'u1', username: 'kat', scopes: ['read', 'write'] as ('read' | 'write')[] };
+
+  itDom(
+    'waits for a validated server 204 and local retirement before showing signed out',
+    async () => {
+      me.mockResolvedValue({
+        kind: 'success',
+        representation: 'json',
+        status: 200,
+        body: { user: KAT },
+        headers: new Headers(),
+      });
+      let acknowledge = (): void => {
+        throw new Error('logout response not held');
+      };
+      const server = new Promise<Response>((resolve) => {
+        acknowledge = () => {
+          resolve(new Response(null, { status: 204 }));
+        };
+      });
+      const sent: string[] = [];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((path: string) => {
+          sent.push(path);
+          if (path === '/api/auth/logout') return server;
+          const collection = path.split('/').at(-1) ?? 'unknown';
+          return Promise.resolve(Response.json({ [collection]: [] }));
+        }),
+      );
+      renderServerApp();
+      await screen.findByRole('button', { name: 'kat' });
+      fireEvent.click(screen.getByRole('button', { name: 'kat' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Log out' }));
+      expect(sent).toContain('/api/auth/logout');
+      expect(screen.queryByRole('link', { name: 'Continue with SSO' })).toBeNull();
+      expect(await screen.findByText('Signing out…')).toBeDefined();
+      acknowledge();
+      expect(await screen.findByRole('link', { name: 'Continue with SSO' })).toBeDefined();
+    },
+  );
+
+  itDom(
+    'routes the onboarding sign-out gesture through the same server acknowledgment',
+    async () => {
+      me.mockResolvedValue({
+        kind: 'success',
+        representation: 'json',
+        status: 200,
+        body: { user: KAT },
+        headers: new Headers(),
+      });
+      let acknowledge = (): void => {
+        throw new Error('logout response not held');
+      };
+      const server = new Promise<Response>((resolve) => {
+        acknowledge = () => {
+          resolve(new Response(null, { status: 204 }));
+        };
+      });
+      const sent: string[] = [];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((path: string) => {
+          sent.push(path);
+          if (path === '/api/auth/logout') return server;
+          const collection = path.split('/').at(-1) ?? 'unknown';
+          return Promise.resolve(Response.json({ [collection]: [] }));
+        }),
+      );
+      renderServerApp();
+      const button = await screen.findByRole('button', { name: 'Onboarding sign out' });
+      fireEvent.click(button);
+      expect(sent).toContain('/api/auth/logout');
+      expect(screen.queryByRole('link', { name: 'Continue with SSO' })).toBeNull();
+      acknowledge();
+      expect(await screen.findByRole('link', { name: 'Continue with SSO' })).toBeDefined();
+    },
+  );
+
+  itDom('acknowledges onboarding sign-out without a mounted signed-in child', async () => {
+    onboardingOnly.current = true;
+    me.mockResolvedValue({
+      kind: 'success',
+      representation: 'json',
+      status: 200,
+      body: { user: KAT },
+      headers: new Headers(),
+    });
+    let acknowledge = (): void => {
+      throw new Error('logout response not held');
+    };
+    const server = new Promise<Response>((resolve) => {
+      acknowledge = () => {
+        resolve(new Response(null, { status: 204 }));
+      };
+    });
+    const sent: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((path: string) => {
+        sent.push(path);
+        if (path === '/api/auth/logout') return server;
+        return Promise.resolve(Response.json({}));
+      }),
+    );
+    renderServerApp();
+    fireEvent.click(await screen.findByRole('button', { name: 'Onboarding sign out' }));
+    expect(sent).toContain('/api/auth/logout');
+    expect(screen.queryByRole('link', { name: 'Continue with SSO' })).toBeNull();
+    acknowledge();
+    expect(await screen.findByRole('link', { name: 'Continue with SSO' })).toBeDefined();
+  });
+
+  itDom('preserves a fatal held retirement after the server has acknowledged 204', async () => {
+    me.mockResolvedValue({
+      kind: 'success',
+      representation: 'json',
+      status: 200,
+      body: { user: KAT },
+      headers: new Headers(),
+    });
+    let failClose = (): void => {
+      throw new Error('project close was not held');
+    };
+    const owner = recordingOwner(
+      [],
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          failClose = () => {
+            reject(new Error('socket would not close'));
+          };
+        }),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((path: string) => {
+        if (path === '/api/auth/logout')
+          return Promise.resolve(new Response(null, { status: 204 }));
+        const collection = path.split('/').at(-1) ?? 'unknown';
+        return Promise.resolve(Response.json({ [collection]: [] }));
+      }),
+    );
+    window.history.replaceState({}, '', '/directory');
+    renderServerApp(() => owner);
+    await screen.findByRole('heading', { name: 'Directory' });
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error('session was not published');
+    await act(async () => {
+      await opened.services.projects.open('p1');
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Onboarding sign out' }));
+    expect(await screen.findByText('Signing out…')).toBeDefined();
+    expect(screen.queryByRole('link', { name: 'Continue with SSO' })).toBeNull();
+    failClose();
+    await fatalShown();
+    expect(screen.queryByRole('link', { name: 'Continue with SSO' })).toBeNull();
+    cleanup();
+    await expect(servicesSlot.retire()).rejects.toThrow();
+    expect(applicationFailed()).toBe(true);
+  });
+
+  itDom('does not publish a local overtaken exit over a newer owner', async () => {
+    me.mockResolvedValue({
+      kind: 'success',
+      representation: 'json',
+      status: 200,
+      body: { user: KAT },
+      headers: new Headers(),
+    });
+    let releaseClose = (): void => {
+      throw new Error('project close was not held');
+    };
+    let closeHeld = false;
+    const owner = recordingOwner(
+      [],
+      () =>
+        new Promise<void>((resolve) => {
+          closeHeld = true;
+          releaseClose = () => {
+            resolve();
+          };
+        }),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((path: string) => {
+        if (path === '/api/auth/logout') throw new Error('local mode sent server logout');
+        const collection = path.split('/').at(-1) ?? 'unknown';
+        return Promise.resolve(Response.json({ [collection]: [] }));
+      }),
+    );
+    window.history.replaceState({}, '', '/directory');
+    renderApp({ kind: 'local' }, () => owner);
+    await screen.findByRole('heading', { name: 'Directory' });
+    const opened = owner.snapshot();
+    if (opened.status !== 'live') throw new Error('session was not published');
+    await act(async () => {
+      await opened.services.projects.open('p1');
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Onboarding sign out' }));
+    const replacing = owner.open({ userId: 'u2', credential: credentialOf('new-token') });
+    await vi.waitFor(
+      () => {
+        expect(closeHeld).toBe(true);
+      },
+      { interval: 1, timeout: 30 },
+    );
+    releaseClose();
+    await replacing;
+    await waitFor(() => {
+      expect(owner.snapshot().status).toBe('live');
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByRole('link', { name: 'Continue with SSO' })).toBeNull();
+    });
+  });
+
+  itDom('sends the captured native login token as Bearer on account-menu logout', async () => {
+    login.mockResolvedValue({
+      kind: 'success',
+      representation: 'json',
+      status: 200,
+      body: { token: 'native-credential', user: KAT },
+      headers: new Headers(),
+    });
+    const logoutHeaders: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((path: string, init?: RequestInit) => {
+        if (path === '/api/auth/logout') {
+          logoutHeaders.push(new Headers(init?.headers).get('authorization') ?? '');
+          return Promise.resolve(new Response(null, { status: 204 }));
+        }
+        const collection = path.split('/').at(-1) ?? 'unknown';
+        return Promise.resolve(Response.json({ [collection]: [] }));
+      }),
+    );
+    renderServerApp();
+    fireEvent.change(await screen.findByLabelText('Username'), { target: { value: 'kat' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with password' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'kat' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Log out' }));
+    expect(await screen.findByRole('link', { name: 'Continue with SSO' })).toBeDefined();
+    expect(logoutHeaders).toEqual(['Bearer native-credential']);
+  });
+
+  itDom('keeps a refused server logout visible after withdrawing the local runtime', async () => {
+    me.mockResolvedValue({
+      kind: 'success',
+      representation: 'json',
+      status: 200,
+      body: { user: KAT },
+      headers: new Headers(),
+    });
+    const sent: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((path: string) => {
+        sent.push(path);
+        if (path === '/api/auth/logout')
+          return Promise.resolve(Response.json({ error: 'unauthenticated' }, { status: 401 }));
+        const collection = path.split('/').at(-1) ?? 'unknown';
+        return Promise.resolve(Response.json({ [collection]: [] }));
+      }),
+    );
+    renderServerApp();
+    const button = await screen.findByRole('button', { name: 'Onboarding sign out' });
+    fireEvent.click(button);
+    expect(sent).toContain('/api/auth/logout');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not confirm sign-out');
+    expect(screen.queryByRole('link', { name: 'Continue with SSO' })).toBeNull();
+  });
+
+  itDom.each([
+    ['unavailable enabled route', () => Response.json({ error: 'not_found' }, { status: 404 })],
+    ['invalid Origin', () => Response.json({ error: 'invalid_origin' }, { status: 403 })],
+    ['server failure', () => Response.json({ error: 'server_error' }, { status: 500 })],
+    ['malformed acknowledgment', () => Response.json({ unexpected: true }, { status: 200 })],
+  ])('keeps %s visible instead of publishing signed out', async (_case, answer) => {
+    me.mockResolvedValue({
+      kind: 'success',
+      representation: 'json',
+      status: 200,
+      body: { user: KAT },
+      headers: new Headers(),
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((path: string) => {
+        if (path === '/api/auth/logout') return Promise.resolve(answer());
+        const collection = path.split('/').at(-1) ?? 'unknown';
+        return Promise.resolve(Response.json({ [collection]: [] }));
+      }),
+    );
+    renderServerApp();
+    fireEvent.click(await screen.findByRole('button', { name: 'Onboarding sign out' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not confirm sign-out');
+    expect(screen.queryByRole('link', { name: 'Continue with SSO' })).toBeNull();
+  });
+
+  itDom('shows network uncertainty without reopening the withdrawn runtime', async () => {
+    me.mockResolvedValue({
+      kind: 'success',
+      representation: 'json',
+      status: 200,
+      body: { user: KAT },
+      headers: new Headers(),
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((path: string) => {
+        if (path === '/api/auth/logout') return Promise.reject(new Error('offline'));
+        const collection = path.split('/').at(-1) ?? 'unknown';
+        return Promise.resolve(Response.json({ [collection]: [] }));
+      }),
+    );
+    renderServerApp();
+    fireEvent.click(await screen.findByRole('button', { name: 'Onboarding sign out' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not confirm sign-out');
+    expect(screen.queryByRole('link', { name: 'Continue with SSO' })).toBeNull();
+  });
+
+  itDom('ignores a stale Strict Mode session read after acknowledged logout', async () => {
+    const identity = {
+      kind: 'success',
+      representation: 'json',
+      status: 200,
+      body: { user: KAT },
+      headers: new Headers(),
+    } as const;
+    let releaseStale = (): void => {
+      throw new Error('stale session read was not held');
+    };
+    const stale = new Promise<Awaited<ReturnType<typeof Api.me>>>((resolve) => {
+      releaseStale = () => {
+        resolve(identity);
+      };
+    });
+    me.mockImplementationOnce(() => stale).mockResolvedValue(identity);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((path: string) => {
+        if (path === '/api/auth/logout')
+          return Promise.resolve(new Response(null, { status: 204 }));
+        const collection = path.split('/').at(-1) ?? 'unknown';
+        return Promise.resolve(Response.json({ [collection]: [] }));
+      }),
+    );
+    renderStrictServerApp();
+    fireEvent.click(await screen.findByRole('button', { name: 'Onboarding sign out' }));
+    expect(await screen.findByRole('link', { name: 'Continue with SSO' })).toBeDefined();
+    await act(async () => {
+      releaseStale();
+      await stale;
+    });
+    expect(screen.getByRole('link', { name: 'Continue with SSO' })).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'kat' })).toBeNull();
+  });
 
   /** Every request the page sends, by path. */
   const requestsSent = () => {
@@ -481,6 +870,8 @@ describe('log out', () => {
       'fetch',
       vi.fn((path: string) => {
         paths.push(path);
+        if (path === '/api/auth/logout')
+          return Promise.resolve(new Response(null, { status: 204 }));
         const collection = path.split('/').at(-1) ?? 'unknown';
         return Promise.resolve(new Response(JSON.stringify({ [collection]: [] }), { status: 200 }));
       }),
@@ -529,7 +920,11 @@ describe('log out', () => {
       <ThemeProvider>
         <SignedInApp
           session={{ token: '', user: KAT }}
-          onSignedOut={onSignedOut}
+          onSignOut={(current) => {
+            void current.exit().then((exit) => {
+              if (exit === 'signed-out') onSignedOut();
+            });
+          }}
           openOwner={() => owner}
         />
       </ThemeProvider>
@@ -750,7 +1145,7 @@ describe('log out', () => {
 
       // A reload is a fresh document: the cookie the log out left alone restores the identity.
       first.unmount();
-      renderApp();
+      renderApp({ kind: 'local' });
       await waitFor(() => {
         expect(screen.getByRole('heading', { name: 'Directory' })).toBeDefined();
       });
@@ -821,7 +1216,7 @@ describe('the selected project, through the router', () => {
         <ThemeProvider>
           <SignedInApp
             session={{ token: '', user: KAT }}
-            onSignedOut={() => undefined}
+            onSignOut={() => undefined}
             openOwner={() => owner}
           />
         </ThemeProvider>
