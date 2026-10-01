@@ -18,6 +18,7 @@ import {
   SqliteBrowserCredentialRevocations,
 } from '@wbs/store-sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { SignJWT } from 'jose';
 
 import { buildApp } from '../app';
 import { openDatabase, openDrizzle } from '../repository/db';
@@ -25,6 +26,7 @@ import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { UserRepository } from '../repository/user';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
+import { nativeBrowserCredentialEvidence } from '../runtime/organization-credential';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
@@ -91,11 +93,13 @@ describe('the OIDC callback after activation', () => {
   let refreshClaims: JwtClaims;
   let refreshVerifyFault: boolean;
   let refreshProviderFault: boolean;
+  let revokeFault: boolean;
   let refreshResponse:
     | ((call: number) => Promise<{ accessToken: string; expiresIn: number; refreshToken: string }>)
     | null;
   let callbackAccessClaims: JwtClaims;
   let localTokens: InMemoryTokenStore;
+  let nativeSessionKey: string;
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-oidc-identity-'));
@@ -115,6 +119,7 @@ describe('the OIDC callback after activation', () => {
     refreshClaims = { ...claims, exp: Math.floor((now + 900_000) / 1000) };
     refreshVerifyFault = false;
     refreshProviderFault = false;
+    revokeFault = false;
     refreshResponse = null;
     callbackAccessClaims = { ...claims, exp: Math.floor((now + 900_000) / 1000) };
   });
@@ -145,6 +150,8 @@ describe('the OIDC callback after activation', () => {
     providerClaims: Readonly<Record<string, unknown>> = claims,
     browserLifecycle?: BrowserAuthLifecycle,
     logLines?: string[],
+    mode: 'oidc' | 'native' = 'oidc',
+    authorityLifecycle?: BrowserAuthLifecycle | null,
   ) {
     const users = new UserRepository(openDrizzle(path), OPEN);
     const transactions = new InMemoryOidcTransactionStore({ now: () => now, ttlMs: 300_000 });
@@ -183,7 +190,7 @@ describe('the OIDC callback after activation', () => {
         refresh: async () => {
           refreshCalls++;
           if (refreshResponse !== null) return refreshResponse(refreshCalls);
-          if (refreshCalls === 2) refreshEntered?.();
+          refreshEntered?.();
           if (refreshHold !== null) await refreshHold;
           if (refreshProviderFault) throw new Error('provider outcome unavailable');
           return {
@@ -192,7 +199,10 @@ describe('the OIDC callback after activation', () => {
             refreshToken: refreshSecret,
           };
         },
-        revoke: () => Promise.resolve(),
+        revoke: () => {
+          if (revokeFault) throw new Error('provider revoke unavailable');
+          return Promise.resolve();
+        },
       },
       groupPrefix: 'dev',
       groupsClaim: 'wbs_groups',
@@ -216,11 +226,12 @@ describe('the OIDC callback after activation', () => {
       tokens: (localTokens = new InMemoryTokenStore({ now: () => now })),
       transactions,
     };
+    const sessionKey = (nativeSessionKey = randomBytes(32).toString('base64url'));
     auth = new AuthService({
       clock: testClock,
       users,
       identities: users,
-      tokens: joseTokenCodec(randomBytes(32).toString('base64url')),
+      tokens: joseTokenCodec(sessionKey),
       passwords: {
         hash: (password) => bunPasswordHasher.hash(password),
         verify: async (password, hash) => {
@@ -230,8 +241,9 @@ describe('the OIDC callback after activation', () => {
           return bunPasswordHasher.verify(password, hash);
         },
       },
-      oidc: buildOidcVerifier(oidc.verifier, oidc),
-      passwordSessions: true,
+      ...(mode === 'oidc'
+        ? { oidc: buildOidcVerifier(oidc.verifier, oidc), passwordSessions: true }
+        : {}),
     });
     return buildApp(
       {
@@ -255,7 +267,23 @@ describe('the OIDC callback after activation', () => {
         internalAuthSecret: 'x'.repeat(32),
         writes: testWrites(),
         migrationsApplied: true,
-        oidc,
+        ...(mode === 'oidc' ? { oidc } : {}),
+        ...(browserLifecycle !== undefined || mode === 'native' || authorityLifecycle !== undefined
+          ? {
+              browserSession: {
+                revocations: new SqliteBrowserCredentialRevocations(openDrizzle(path), OPEN),
+                verifyNativeBrowserCredential: nativeBrowserCredentialEvidence(auth, sessionKey),
+                ...(authorityLifecycle === null ||
+                (browserLifecycle === undefined && authorityLifecycle === undefined)
+                  ? { tokens: oidc.tokens, revokeProvider: oidc.client.revoke }
+                  : {
+                      lifecycle: authorityLifecycle ?? browserLifecycle,
+                      tokens: oidc.tokens,
+                      revokeProvider: oidc.client.revoke,
+                    }),
+              },
+            }
+          : {}),
         priorityBands: testPriorityBandService(),
         probeDatabase: () => 'ok',
         projects: testProjectService(),
@@ -1682,6 +1710,694 @@ describe('the OIDC callback after activation', () => {
       (cause: unknown) => {
         expect(cause).toBeInstanceOf(Error);
       },
+    );
+  });
+
+  it('logs out a refreshed lifecycle using its retained predecessor association', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const revoked = new SqliteBrowserCredentialRevocations(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', first);
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    const refresh = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          origin: 'https://dev.wbs.test',
+          cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+        },
+      }),
+    );
+    expect(refresh.status).toBe(204);
+    const successor = (await lifecycle.generation('session-1')).current;
+    const logout = () =>
+      app.handle(
+        new Request('https://dev.wbs.test/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            origin: 'https://dev.wbs.test',
+            cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+          },
+        }),
+      );
+    expect((await logout()).status).toBe(204);
+    expect(await revoked.isRevoked(first)).toBe(true);
+    expect(await revoked.isRevoked(successor)).toBe(true);
+    expect(localTokens.read('session-1')).toBeNull();
+    await lifecycle.generation('session-1').then(
+      () => {
+        throw new Error('closed lifecycle returned a generation');
+      },
+      (cause: unknown) => {
+        expect(cause).toBeInstanceOf(Error);
+      },
+    );
+    expect((await logout()).status).toBe(204);
+  });
+
+  for (const nextSecret of ['refresh-1', 'refresh-2']) {
+    it(`closes the lifecycle before a paused ${nextSecret} refresh can publish`, async () => {
+      sql(
+        "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+      );
+      const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+      const revoked = new SqliteBrowserCredentialRevocations(openDrizzle(path), OPEN);
+      const first = {
+        kind: 'oidc' as const,
+        userId: 'captured',
+        digest: createHash('sha256').update('access-1').digest('hex'),
+        expiresAt: now + 900_000,
+      };
+      await lifecycle.open('session-1', first);
+      const app = mounted(claims, lifecycle);
+      localTokens.save({
+        sessionCorrelation: 'session-1',
+        refreshToken: 'refresh-1',
+        expiresAt: now + 86_400_000,
+        userId: 'captured',
+        generation: 1,
+        credential: first,
+      });
+      refreshSecret = nextSecret;
+      let releaseProvider = (): void => {
+        throw new Error('provider hold missing');
+      };
+      refreshHold = new Promise<void>((resolve) => {
+        releaseProvider = resolve;
+      });
+      let signalProvider = (): void => {
+        throw new Error('provider signal missing');
+      };
+      const providerEntered = new Promise<void>((resolve) => {
+        signalProvider = resolve;
+      });
+      refreshEntered = signalProvider;
+      const refresh = app.handle(
+        new Request('https://dev.wbs.test/api/auth/refresh', {
+          method: 'POST',
+          headers: {
+            origin: 'https://dev.wbs.test',
+            cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+          },
+        }),
+      );
+      await providerEntered;
+      const logout = await app.handle(
+        new Request('https://dev.wbs.test/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            origin: 'https://dev.wbs.test',
+            cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+          },
+        }),
+      );
+      expect(logout.status).toBe(204);
+      expect(await revoked.isRevoked(first)).toBe(true);
+      releaseProvider();
+      const late = await refresh;
+      expect(late.status).toBe(401);
+      expect(late.headers.get('set-cookie')).not.toContain(
+        '__Host-wbs_access=access-from-refresh;',
+      );
+      expect(localTokens.read('session-1')).toBeNull();
+      await lifecycle.generation('session-1').then(
+        () => {
+          throw new Error('closed lifecycle returned a generation');
+        },
+        (cause: unknown) => {
+          expect(cause).toBeInstanceOf(Error);
+        },
+      );
+    });
+  }
+
+  for (const nextSecret of ['refresh-1', 'refresh-2']) {
+    it(`closes the committed ${nextSecret} successor while refresh awaits local installation`, async () => {
+      sql(
+        "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+      );
+      const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+      const revoked = new SqliteBrowserCredentialRevocations(openDrizzle(path), OPEN);
+      const first = {
+        kind: 'oidc' as const,
+        userId: 'captured',
+        digest: createHash('sha256').update('access-1').digest('hex'),
+        expiresAt: now + 900_000,
+      };
+      await lifecycle.open('session-1', first);
+      let releaseInstall = (): void => {
+        throw new Error('install hold missing');
+      };
+      const installHold = new Promise<void>((resolve) => {
+        releaseInstall = resolve;
+      });
+      let signalCommit = (): void => {
+        throw new Error('commit signal missing');
+      };
+      const committed = new Promise<void>((resolve) => {
+        signalCommit = resolve;
+      });
+      const observedLifecycle: BrowserAuthLifecycle = {
+        open: (...args) => lifecycle.open(...args),
+        generation: (...args) => lifecycle.generation(...args),
+        proveAssociation: (...args) => lifecycle.proveAssociation(...args),
+        replace: async (...args) => {
+          const generation = await lifecycle.replace(...args);
+          signalCommit();
+          await installHold;
+          return generation;
+        },
+        close: (...args) => lifecycle.close(...args),
+      };
+      const app = mounted(claims, observedLifecycle);
+      localTokens.save({
+        sessionCorrelation: 'session-1',
+        refreshToken: 'refresh-1',
+        expiresAt: now + 86_400_000,
+        userId: 'captured',
+        generation: 1,
+        credential: first,
+      });
+      refreshSecret = nextSecret;
+      const refresh = app.handle(
+        new Request('https://dev.wbs.test/api/auth/refresh', {
+          method: 'POST',
+          headers: {
+            origin: 'https://dev.wbs.test',
+            cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+          },
+        }),
+      );
+      await committed;
+      const successor = (await lifecycle.generation('session-1')).current;
+      const logout = await app.handle(
+        new Request('https://dev.wbs.test/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            origin: 'https://dev.wbs.test',
+            cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+          },
+        }),
+      );
+      expect(logout.status).toBe(204);
+      expect(await revoked.isRevoked(first)).toBe(true);
+      expect(await revoked.isRevoked(successor)).toBe(true);
+      releaseInstall();
+      const late = await refresh;
+      expect(late.status).toBe(401);
+      expect(late.headers.get('set-cookie')).not.toContain(
+        '__Host-wbs_access=access-from-refresh;',
+      );
+      expect(localTokens.read('session-1')).toBeNull();
+      await lifecycle.generation('session-1').then(
+        () => {
+          throw new Error('closed lifecycle returned a generation');
+        },
+        (cause: unknown) => {
+          expect(cause).toBeInstanceOf(Error);
+        },
+      );
+    });
+  }
+
+  it('keeps an OIDC lifecycle closed when upstream revoke fails, then acknowledges a proved retry', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const revoked = new SqliteBrowserCredentialRevocations(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', first);
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    const logout = () =>
+      app.handle(
+        new Request('https://dev.wbs.test/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            origin: 'https://dev.wbs.test',
+            cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+          },
+        }),
+      );
+    revokeFault = true;
+    const firstReply = await logout();
+    expect(firstReply.status).toBe(500);
+    expect(firstReply.headers.get('set-cookie')).toBeNull();
+    expect(await revoked.isRevoked(first)).toBe(true);
+    expect(localTokens.read('session-1')).toBeNull();
+    expect((await logout()).status).toBe(204);
+  });
+
+  it('does not acknowledge OIDC logout when retained association state is missing', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', first);
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    sql('DROP TABLE browser_auth_association');
+    const reply = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          origin: 'https://dev.wbs.test',
+          cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+        },
+      }),
+    );
+    expect(reply.status).toBe(500);
+    expect(reply.headers.get('set-cookie')).toBeNull();
+    expect(localTokens.read('session-1')?.refreshToken).toBe('refresh-1');
+  });
+
+  it('refuses mixed and duplicate OIDC logout carriers before closing any lifecycle', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    const second = { ...first, digest: createHash('sha256').update('access-2').digest('hex') };
+    await lifecycle.open('session-1', first);
+    await lifecycle.open('session-2', second);
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    for (const cookies of [
+      '__Host-wbs_session=session-1; __Host-wbs_access=access-2',
+      '__Host-wbs_session=session-1; __Host-wbs_access=access-1; __Host-wbs_access=access-2',
+      '__Host-wbs_session=session-1',
+    ]) {
+      const response = await app.handle(
+        new Request('https://dev.wbs.test/api/auth/logout', {
+          method: 'POST',
+          headers: { origin: 'https://dev.wbs.test', cookie: cookies },
+        }),
+      );
+      expect(response.status).toBe(401);
+      expect(response.headers.get('set-cookie')).toBeNull();
+    }
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 1, current: first });
+    expect(await lifecycle.generation('session-2')).toEqual({ generation: 1, current: second });
+    expect(localTokens.read('session-1')?.refreshToken).toBe('refresh-1');
+  });
+
+  it('mounts common logout in native-only mode and revokes only its exact verified credential', async () => {
+    const app = mounted(claims, undefined, undefined, 'native');
+    const registered = await auth.register('native-user', 'correct-horse');
+    if (!registered.ok) throw new Error('native registration failed');
+    const independent = await auth.login('native-user', 'correct-horse');
+    if (!independent.ok) throw new Error('independent login failed');
+    const login = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/login', {
+        method: 'POST',
+        headers: { origin: 'https://dev.wbs.test', 'content-type': 'application/json' },
+        body: JSON.stringify({ username: 'native-user', password: 'correct-horse' }),
+      }),
+    );
+    expect(login.status).toBe(200);
+    const issued = (await login.json()) as { token: string };
+    expect(issued.token).toBeTypeOf('string');
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/logout', {
+        method: 'POST',
+        headers: { origin: 'https://dev.wbs.test', authorization: `Bearer ${issued.token}` },
+      }),
+    );
+    expect(response.status).toBe(204);
+    const rows = all('SELECT credential_digest FROM browser_credential_revocations');
+    expect(rows).toEqual([
+      { credential_digest: createHash('sha256').update(issued.token).digest('hex') },
+    ]);
+    expect(createHash('sha256').update(independent.value.token).digest('hex')).not.toBe(
+      (rows[0] as { credential_digest: string }).credential_digest,
+    );
+    expect(
+      (
+        await app.handle(
+          new Request('https://dev.wbs.test/api/auth/logout', {
+            method: 'POST',
+            headers: { origin: 'https://dev.wbs.test', authorization: `Bearer ${issued.token}` },
+          }),
+        )
+      ).status,
+    ).toBe(204);
+  });
+
+  it('refuses mixed, foreign-origin and delegated native logout carriers before revocation', async () => {
+    const app = mounted(claims, undefined, undefined, 'native');
+    const issued = await auth.register('native-user', 'correct-horse');
+    if (!issued.ok) throw new Error('native registration failed');
+    const token = issued.value.token;
+    const signedAt = Math.floor(Date.now() / 1000);
+    const valid = await new SignJWT({ username: 'native-user' })
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .setSubject(issued.value.user.id)
+      .setJti('valid-control')
+      .setIssuedAt(signedAt)
+      .setExpirationTime(signedAt + 900)
+      .sign(new TextEncoder().encode(nativeSessionKey));
+    const delegated = await new SignJWT({ username: 'native-user' })
+      .setProtectedHeader({ alg: 'HS256', typ: 'wbs-delegation+jwt' })
+      .setSubject(issued.value.user.id)
+      .setJti('delegated')
+      .setIssuedAt(signedAt)
+      .setExpirationTime(signedAt + 900)
+      .sign(new TextEncoder().encode(nativeSessionKey));
+    const expired = await new SignJWT({ username: 'native-user' })
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .setSubject(issued.value.user.id)
+      .setJti('expired')
+      .setIssuedAt(signedAt - 120)
+      .setExpirationTime(signedAt - 60)
+      .sign(new TextEncoder().encode(nativeSessionKey));
+    const refused: Record<string, string>[] = [
+      {
+        origin: 'https://dev.wbs.test',
+        authorization: `Bearer ${token}`,
+        cookie: `__Host-wbs_access=${token}`,
+      },
+      {
+        origin: 'https://dev.wbs.test',
+        authorization: `Bearer ${token}`,
+        cookie: '__Host-wbs_session=foreign',
+      },
+      { origin: 'https://foreign.test', authorization: `Bearer ${token}` },
+      { authorization: `Bearer ${token}` },
+      { origin: 'https://dev.wbs.test', authorization: `Bearer ${delegated}` },
+      { origin: 'https://dev.wbs.test', authorization: `Bearer ${expired}` },
+      { origin: 'https://dev.wbs.test', authorization: 'Bearer access-1' },
+      { origin: 'https://dev.wbs.test', cookie: '__Host-wbs_session=foreign' },
+      { origin: 'https://dev.wbs.test', authorization: `Bearer ${token}`, 'x-wbs-token': token },
+      {
+        origin: 'https://dev.wbs.test',
+        cookie: `__Host-wbs_access=${token}; __Host-wbs_access=${token}`,
+      },
+    ];
+    for (const headers of refused) {
+      const reply = await app.handle(
+        new Request('https://dev.wbs.test/api/auth/logout', {
+          method: 'POST',
+          headers: new Headers(headers),
+        }),
+      );
+      expect([401, 403]).toContain(reply.status);
+      expect(reply.headers.get('set-cookie')).toBeNull();
+    }
+    expect(all('SELECT credential_digest FROM browser_credential_revocations')).toEqual([]);
+    const accepted = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          origin: 'https://dev.wbs.test',
+          authorization: `Bearer ${valid}`,
+          cookie: '__Host-wbs_organization=selected; ui_pref=compact',
+        },
+      }),
+    );
+    expect(accepted.status).toBe(204);
+    expect(all('SELECT credential_digest FROM browser_credential_revocations')).toEqual([
+      { credential_digest: createHash('sha256').update(valid).digest('hex') },
+    ]);
+  });
+
+  it('does not acknowledge native logout when the shared revocation authority is unreadable', async () => {
+    const app = mounted(claims, undefined, undefined, 'native');
+    const issued = await auth.register('native-user', 'correct-horse');
+    if (!issued.ok) throw new Error('native registration failed');
+    sql('DROP TABLE browser_credential_revocations');
+    const reply = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/logout', {
+        method: 'POST',
+        headers: { origin: 'https://dev.wbs.test', authorization: `Bearer ${issued.value.token}` },
+      }),
+    );
+    expect(reply.status).toBe(500);
+    expect(reply.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('retires a proved predecessor before native registration issues a replacement credential', async () => {
+    const app = mounted(claims, undefined, undefined, 'native');
+    const predecessor = await auth.register('first-user', 'correct-horse');
+    if (!predecessor.ok) throw new Error('predecessor registration failed');
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://dev.wbs.test',
+          cookie: `__Host-wbs_access=${predecessor.value.token}`,
+        },
+        body: JSON.stringify({ username: 'second-user', password: 'correct-horse' }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as { token: string }).token).toBeTypeOf('string');
+    expect(
+      response.headers.getSetCookie().some((cookie) => cookie.startsWith('__Host-wbs_access=;')),
+    ).toBe(true);
+    expect(all('SELECT credential_digest FROM browser_credential_revocations')).toEqual([
+      { credential_digest: createHash('sha256').update(predecessor.value.token).digest('hex') },
+    ]);
+  });
+
+  it('leaves the proved predecessor active after a failed native login', async () => {
+    const app = mounted(claims, undefined, undefined, 'native');
+    const predecessor = await auth.register('first-user', 'correct-horse');
+    if (!predecessor.ok) throw new Error('predecessor registration failed');
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://dev.wbs.test',
+          cookie: `__Host-wbs_access=${predecessor.value.token}`,
+        },
+        body: JSON.stringify({ username: 'first-user', password: 'wrong-password' }),
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(all('SELECT credential_digest FROM browser_credential_revocations')).toEqual([]);
+  });
+
+  it('retires a native bearer predecessor on successful account-switch login only', async () => {
+    const app = mounted(claims, undefined, undefined, 'native');
+    const first = await auth.register('first-user', 'correct-horse');
+    const second = await auth.register('second-user', 'second-horse');
+    if (!first.ok || !second.ok) throw new Error('registration failed');
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://dev.wbs.test',
+          authorization: `Bearer ${first.value.token}`,
+          cookie: '__Host-wbs_organization=selected; ui_pref=compact',
+        },
+        body: JSON.stringify({ username: 'second-user', password: 'second-horse' }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as { user: { id: string } }).user.id).toBe(
+      second.value.user.id,
+    );
+    expect(all('SELECT credential_digest FROM browser_credential_revocations')).toEqual([
+      { credential_digest: createHash('sha256').update(first.value.token).digest('hex') },
+    ]);
+  });
+
+  it('refuses partial registration predecessor before creating another account', async () => {
+    const app = mounted(claims, undefined, undefined, 'native');
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://dev.wbs.test',
+          cookie: '__Host-wbs_session=foreign',
+        },
+        body: JSON.stringify({ username: 'uncreated', password: 'correct-horse' }),
+      }),
+    );
+    expect(response.status).toBe(401);
+    expect(all("SELECT id FROM users WHERE username = 'uncreated'")).toEqual([]);
+    expect(all('SELECT credential_digest FROM browser_credential_revocations')).toEqual([]);
+  });
+
+  it('retires a proved native predecessor before OIDC callback publishes replacement cookies', async () => {
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const app = mounted(claims, lifecycle);
+    const predecessor = await auth.register('password-user', 'correct-horse');
+    if (!predecessor.ok) throw new Error('password registration failed');
+    const callback = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: {
+          cookie: `${browserBindingCookieName('binding-1')}=binding-1; __Host-wbs_access=${predecessor.value.token}`,
+        },
+      }),
+    );
+    expect(callback.status).toBe(302);
+    expect(callback.headers.get('set-cookie')).toContain('__Host-wbs_access=access-1;');
+    expect(
+      callback.headers
+        .getSetCookie()
+        .some((cookie) => cookie.startsWith('__Host-wbs_organization=;')),
+    ).toBe(true);
+    expect(all('SELECT credential_digest FROM browser_credential_revocations')).toEqual([
+      { credential_digest: createHash('sha256').update(predecessor.value.token).digest('hex') },
+    ]);
+  });
+
+  it('leaves a native predecessor active when the OIDC callback identity is invalid', async () => {
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const app = mounted({ ...claims, sub: '' }, lifecycle);
+    const predecessor = await auth.register('password-user', 'correct-horse');
+    if (!predecessor.ok) throw new Error('password registration failed');
+    const reply = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: {
+          cookie: `${browserBindingCookieName('binding-1')}=binding-1; __Host-wbs_access=${predecessor.value.token}`,
+        },
+      }),
+    );
+    expect(reply.status).toBe(401);
+    expect(all('SELECT credential_digest FROM browser_credential_revocations')).toEqual([]);
+  });
+
+  it('closes an OIDC predecessor before a native account-switch login publishes its cookie', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const revoked = new SqliteBrowserCredentialRevocations(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', first);
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    const native = await auth.register('password-user', 'correct-horse');
+    if (!native.ok) throw new Error('native account registration failed');
+    const response = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://dev.wbs.test',
+          'x-forwarded-for': '127.0.0.1',
+          cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+        },
+        body: JSON.stringify({ username: 'password-user', password: 'correct-horse' }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('set-cookie')).toContain('__Host-wbs_access=');
+    const cookieJar = new Map([
+      ['__Host-wbs_session', 'session-1'],
+      ['__Host-wbs_access', 'access-1'],
+      ['__Host-wbs_organization', 'selected'],
+    ]);
+    for (const setCookie of response.headers.getSetCookie()) {
+      const [pair] = setCookie.split(';');
+      const separator = pair.indexOf('=');
+      const name = pair.slice(0, separator);
+      if (setCookie.includes('Max-Age=0')) cookieJar.delete(name);
+      else cookieJar.set(name, decodeURIComponent(pair.slice(separator + 1)));
+    }
+    expect([...cookieJar.keys()]).toEqual(['__Host-wbs_access']);
+    const nextLogout = await app.handle(
+      new Request('https://dev.wbs.test/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          origin: 'https://dev.wbs.test',
+          cookie: [...cookieJar].map(([name, value]) => `${name}=${value}`).join('; '),
+        },
+      }),
+    );
+    expect(nextLogout.status).toBe(204);
+    expect(await revoked.isRevoked(first)).toBe(true);
+    expect(localTokens.read('session-1')).toBeNull();
+    await lifecycle.generation('session-1').then(
+      () => {
+        throw new Error('closed predecessor returned a generation');
+      },
+      (cause: unknown) => {
+        expect(cause).toBeInstanceOf(Error);
+      },
+    );
+  });
+
+  it('refuses an enabled OIDC browser composition with no shared lifecycle or a mismatched one', () => {
+    const first = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const second = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    expect(() => mounted(claims, undefined, undefined, 'oidc', null)).toThrow(
+      'browser lifecycle composition disagrees',
+    );
+    expect(() => mounted(claims, first, undefined, 'oidc', second)).toThrow(
+      'browser lifecycle composition disagrees',
     );
   });
 

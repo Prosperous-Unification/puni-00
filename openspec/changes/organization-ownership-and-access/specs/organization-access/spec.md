@@ -91,6 +91,8 @@ OIDC refresh and OIDC browser-session logout SHALL transition through shared dur
 
 An enabled OIDC browser refresh SHALL admit at most one process-local attempt for an exact correlation and captured refresh record at a time. A concurrent attempt SHALL return typed `409 refresh_in_progress` without calling the provider, changing local or shared state, or sending `Set-Cookie`; attempts for different correlations SHALL proceed independently. The claim SHALL end only after the owner's durable transition and local installation or cleanup. Logout or local replacement SHALL invalidate the old owner's ability to reinstall material. Browser refresh SHALL refuse an Authorization bearer, including delegation, before provider I/O without clearing browser cookies. If provider use may have spent the captured secret, a failed verification, identity lookup, or transition SHALL remove only still-owned local material and issue no cookie; a cleanup failure SHALL preserve the original failure as well as cleanup context.
 
+In the explicitly enabled browser-session composition, native-only password registration and login continue to return the native credential in JSON; OIDC-configured password issuance remains cookie-based. Common logout and replacement admission SHALL accept exactly one verified first-party native access cookie or one native Authorization Bearer at the exact configured Origin, with no OIDC correlation. OIDC logout and replacement SHALL require one access cookie and its retained matching correlation, with no Authorization. Simultaneous carriers, malformed or duplicate access/correlation cookies, missing or foreign Origin on logout or an unsafe predecessor proof, delegated or OIDC Bearer credentials, and the retired `x-wbs-token` carrier SHALL be refused before account creation, provider I/O or durable mutation. A proved native logout retry remains idempotent while its credential is verifiable; an expired native credential is refused. The state-bound OIDC sign-in callback is a GET browser navigation without an Origin header; its verified transaction state and browser binding, rather than Origin, admit it. Successful replacement SHALL clear the retired correlation and organization-selection cookies while preserving the new access cookie; native-only JSON replacement SHALL clear retired access, correlation and selection cookies. An explicitly enabled OIDC composition SHALL share one defined lifecycle, token store and provider-revocation capability with its browser-session authority.
+
 #### Scenario: OIDC refresh replaces one verified browser credential
 
 - **GIVEN** an active OIDC browser lifecycle and its current verified access credential
@@ -104,7 +106,7 @@ An enabled OIDC browser refresh SHALL admit at most one process-local attempt fo
 
 #### Scenario: Native logout revokes its exact verified credential
 
-- **GIVEN** a native browser request with one currently verified access credential and no OIDC refresh lifecycle
+- **GIVEN** a native browser request with one currently verified access credential in either its access cookie or sole first-party Authorization Bearer, at the exact configured Origin, and no OIDC refresh lifecycle
 - **WHEN** logout is requested through the common browser endpoint
 - **THEN** the server commits B1 revocation for only that exact credential before returning `204`
 - **AND** another credential for the same user remains independently usable
@@ -113,7 +115,7 @@ An enabled OIDC browser refresh SHALL admit at most one process-local attempt fo
 #### Scenario: Successful login retires a proved browser predecessor
 
 - **GIVEN** the browser presents an active predecessor access credential and, for an OIDC predecessor, its matching lifecycle correlation
-- **WHEN** a new OIDC callback or native password login has successfully verified and resolved its identity
+- **WHEN** a new OIDC callback, native password login or native registration has successfully verified or created its identity
 - **THEN** an OIDC predecessor's proved lifecycle is closed and its exact current credential revoked, or a native predecessor's exact verified credential is revoked through B1, before replacement cookies are issued
 - **AND** a failed callback leaves the predecessor lifecycle and credential unchanged
 - **AND** an absent predecessor means the new login is independent; an incomplete or mismatched presented predecessor/correlation is refused without inferring identity from unverified claims

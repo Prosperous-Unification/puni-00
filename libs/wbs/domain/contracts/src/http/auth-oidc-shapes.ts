@@ -120,6 +120,10 @@ export const logoutOidcSession = defineEndpointShape({
   operationId: 'postApiAuthLogout',
   policies: unsafe,
   responses: [{ kind: 'empty', status: 204 }],
-  refusals: [malformed, invalidOrigin],
+  refusals: [
+    malformed,
+    invalidOrigin,
+    { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
+  ],
   document: { summary: 'End the browser session.' },
 });

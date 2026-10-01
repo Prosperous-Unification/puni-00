@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 
 import {
   browserBindingCookieName,
@@ -38,6 +38,15 @@ import {
 } from '../http/endpoint';
 import { cookiesIn, cookieValue } from '../middleware/authenticated';
 import { clientIpOf } from './auth-password-endpoints';
+import {
+  accessOf,
+  type BrowserSessionAuthority,
+  correlationOf,
+  credentialDigest,
+  invalidBrowserCarriers,
+  proveBrowserPredecessor,
+  retireBrowserPredecessor,
+} from './browser-session';
 import type { OidcRouteOptions } from './oidc-options';
 
 const reportable = new Set([
@@ -79,32 +88,6 @@ const clearSession = (): Header[] => [
   cookie('__Host-wbs_session', '', 0),
   cookie('__Host-wbs_organization', '', 0),
 ];
-const correlationOf = (request: RequestMetadata) =>
-  cookieValue(request.headers.get('cookie') ?? undefined, '__Host-wbs_session');
-const accessOf = (request: RequestMetadata) =>
-  cookieValue(request.headers.get('cookie') ?? undefined, '__Host-wbs_access');
-const credentialDigest = (token: string): string =>
-  createHash('sha256').update(token, 'utf8').digest('hex');
-function invalidBrowserCarriers(request: RequestMetadata): boolean {
-  const seen = new Set<string>();
-  for (const part of (request.headers.get('cookie') ?? '').split(';')) {
-    const sent = part.trimStart();
-    const separator = sent.indexOf('=');
-    const name = separator < 0 ? sent : sent.slice(0, separator);
-    const carrier = name.trimEnd();
-    if (carrier !== '__Host-wbs_session' && carrier !== '__Host-wbs_access') continue;
-    // Proof: accepting the second same-named access cookie made mounted
-    // duplicate-carrier refresh return 204 instead of 401 (0/1, 2026-10-01).
-    if (name !== carrier || separator < 0 || seen.has(carrier)) return true;
-    seen.add(carrier);
-    try {
-      if (decodeURIComponent(sent.slice(separator + 1)).length === 0) return true;
-    } catch {
-      return true;
-    }
-  }
-  return false;
-}
 type BoundRefreshRecord = RefreshRecord & {
   readonly userId: string;
   readonly generation: number;
@@ -121,6 +104,105 @@ function isBoundRefreshRecord(record: RefreshRecord): record is BoundRefreshReco
     /^[0-9a-f]{64}$/.test(record.credential.digest) &&
     Number.isSafeInteger(record.credential.expiresAt)
   );
+}
+
+/** One logout decision for native-only and OIDC browser compositions. */
+async function logoutBrowser(
+  request: RequestMetadata,
+  appOrigin: string,
+  now: () => number,
+  browserSession?: BrowserSessionAuthority,
+  options?: OidcRouteOptions,
+): Promise<HttpReply<typeof logoutOidcSession>> {
+  if (browserSession !== undefined) {
+    if (request.headers.get('origin') !== appOrigin)
+      return { ok: false, status: 403, body: { error: 'invalid_origin' } };
+    // Proof: malformed or duplicated access/correlation carriers and a
+    // delegated Authorization bearer must fail before shared mutation.
+    if (invalidBrowserCarriers(request) || request.headers.has('x-wbs-token'))
+      return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+    const correlation = correlationOf(request);
+    const cookieAccess = accessOf(request);
+    const authorization = request.headers.get('authorization');
+    // Proof: the real native JSON-token login could not sign out through the
+    // common route until its sole Bearer carrier was admitted (401 vs 204).
+    // Proof: removing the cookie-carrier refusal made the mounted mixed
+    // native logout return 204 instead of 401 (0/1, 2026-10-01).
+    // Proof: treating every Cookie header as an access carrier made verified
+    // native Bearer logout with only organization/UI cookies return 401
+    // instead of 204 (0/1, 2026-10-01).
+    // A simultaneous access or correlation cookie is ambiguous proof.
+    if (
+      authorization !== null &&
+      (cookieAccess !== null ||
+        correlation !== null ||
+        !/^Bearer [A-Za-z0-9._~-]+$/.test(authorization))
+    )
+      return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+    const presented = authorization === null ? cookieAccess : authorization.slice(7);
+    if (presented === null) return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+    if (correlation !== null) {
+      if (
+        options === undefined ||
+        browserSession.lifecycle === undefined ||
+        browserSession.tokens === undefined ||
+        browserSession.revokeProvider === undefined
+      )
+        return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+      // A native credential paired with an OIDC correlation is not a second
+      // possible proof path. It is a conflicting browser identity.
+      if ((await browserSession.verifyNativeBrowserCredential(presented)) !== null)
+        return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+      try {
+        // Proof: omitting historical association closure let a predecessor
+        // logout leave the refreshed successor unrevoked (0/1, 2026-10-01).
+        const outcome = await browserSession.lifecycle.close(
+          correlation,
+          { kind: 'oidc', digest: credentialDigest(presented) },
+          now(),
+        );
+        const record = browserSession.tokens.read(correlation);
+        // Proof: upstream revoke failure after local deletion left durable
+        // closure intact and a proved retry acknowledged 204.
+        browserSession.tokens.delete(correlation);
+        if (outcome === 'closed' && record !== null)
+          await browserSession.revokeProvider(record.refreshToken);
+        return { ok: true, status: 204, body: EMPTY, headers: clearSession() };
+      } catch (cause) {
+        if (cause instanceof BrowserLifecycleRefusedError)
+          return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+        throw cause;
+      }
+    }
+    const native = await browserSession.verifyNativeBrowserCredential(presented);
+    if (native === null) return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+    // Proof: native-only mounted logout was 404 without this common route;
+    // its exact B1 row is the acknowledgement point, not a user-wide flag.
+    // Proof: skipping B1 revoke made mounted native logout answer 204 with
+    // no revocation row, and the unreadable-table negative answer 204 instead
+    // of 500 (both 0/1, 2026-10-01).
+    await browserSession.revocations.revoke(native, now());
+    return { ok: true, status: 204, body: EMPTY, headers: clearSession() };
+  }
+  if (options === undefined) throw new Error('browser logout has no configured authority');
+  const correlation = correlationOf(request);
+  const record = correlation === null ? null : options.tokens.read(correlation);
+  // Proof: revoking before deletion left stored material in the legacy mounted failure test.
+  if (correlation !== null) options.tokens.delete(correlation);
+  if (record !== null) await options.client.revoke(record.refreshToken);
+  return { ok: true, status: 204, body: EMPTY, headers: clearSession() };
+}
+
+/** Mounts the common browser logout even when no OIDC provider is configured. */
+export function nativeBrowserLogoutEndpoints(
+  appOrigin: string,
+  browserSession: BrowserSessionAuthority,
+) {
+  return [
+    bind(logoutOidcSession, async ({ request }) =>
+      logoutBrowser(request, appOrigin, Date.now, browserSession),
+    ),
+  ] as const;
 }
 /** HEAD must not spend state or mint a session; transport retains its Allow header.
  * Proof: deleting this admission made the mounted HEAD test receive302 instead of405. */
@@ -230,6 +312,7 @@ export function authOidcEndpoints(
   auth: AuthService,
   options: OidcRouteOptions,
   passwordThrottle: LoginThrottle,
+  browserSession?: BrowserSessionAuthority,
 ) {
   const now = options.now ?? Date.now;
   const random = options.random ?? (() => randomBytes(32).toString('base64url'));
@@ -291,6 +374,12 @@ export function authOidcEndpoints(
             // discarding the logins in flight` fail at its honest callback, Expected302 Received400.
             headers: clearsFor(settled),
           };
+        const predecessor =
+          browserSession === undefined
+            ? { kind: 'none' as const }
+            : await proveBrowserPredecessor(request, browserSession, options.appOrigin);
+        if (predecessor === null)
+          return { ok: false, status: 401, body: EMPTY, headers: clearsFor(settled) };
         const consumed = consumeBrowserBinding(
           options.transactions,
           held.offered.map(({ binding }) => binding),
@@ -462,6 +551,10 @@ export function authOidcEndpoints(
             body: EMPTY,
             headers: clearsFor(settled),
           };
+        // Proof: without this retirement, a mounted native predecessor still
+        // had no B1 row after OIDC callback issued replacement cookies (0/1).
+        if (browserSession !== undefined)
+          await retireBrowserPredecessor(predecessor, browserSession, now());
         const correlation = random();
         if (options.browserLifecycle !== undefined && accessEvidence !== null)
           await options.browserLifecycle.open(correlation, {
@@ -497,6 +590,7 @@ export function authOidcEndpoints(
             ...clearsFor(settled),
             cookie('__Host-wbs_access', tokens.accessToken, tokens.expiresIn),
             cookie('__Host-wbs_session', correlation, 30 * 86400),
+            ...(browserSession === undefined ? [] : [cookie('__Host-wbs_organization', '', 0)]),
             ['location', '/'],
           ],
         };
@@ -694,14 +788,9 @@ export function authOidcEndpoints(
         headers: [cookie('__Host-wbs_access', next.accessToken, next.expiresIn)],
       };
     }),
-    bind(logoutOidcSession, async ({ request }) => {
-      const correlation = correlationOf(request);
-      const record = correlation === null ? null : options.tokens.read(correlation);
-      // Proof: revoking before deletion left the stored token present in the mounted logout failure test.
-      if (correlation !== null) options.tokens.delete(correlation);
-      if (record !== null) await options.client.revoke(record.refreshToken);
-      return { ok: true, status: 204, body: EMPTY, headers: clearSession() };
-    }),
+    bind(logoutOidcSession, async ({ request }) =>
+      logoutBrowser(request, options.appOrigin, now, browserSession, options),
+    ),
     bind(startAuth0Link, async ({ body, request }) => {
       // Proof: 2026-09-28, skipping this marker check made `refuses link start before activation` answer an Auth0 location.
       if (!(await auth.isLinkActive()))
