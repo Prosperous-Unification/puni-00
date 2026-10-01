@@ -507,6 +507,10 @@ export function authOidcEndpoints(
       if (options.browserLifecycle !== undefined) {
         if (request.headers.get('origin') !== options.appOrigin)
           return { ok: false, status: 403, body: { error: 'invalid_origin' } };
+        // Proof: without this admission, a mounted delegated Authorization
+        // bearer plus browser correlation reached the provider and returned 204.
+        if (request.headers.has('authorization'))
+          return { ok: false, status: 401, body: { error: 'invalid_oidc_session' } };
         if (invalidBrowserCarriers(request))
           return {
             ok: false,
@@ -534,104 +538,133 @@ export function authOidcEndpoints(
         // Proof: accepting an unbound process-local record would let a stale
         // server skip the durable generation/user/tuple join before provider IO.
         if (!isBoundRefreshRecord(current)) return refused();
-        let captured;
+        const attempt = options.tokens.claimIfCurrent(correlation, current);
+        // Proof: a contender after the owner's durable CAS was previously
+        // classified stale before seeing the in-flight local owner, and its
+        // 401 Set-Cookie could clear the browser's pending winner.
+        if (attempt === 'busy')
+          return { ok: false, status: 409, body: { error: 'refresh_in_progress' } };
+        if (attempt === null) return refused();
         try {
-          captured = await options.browserLifecycle.generation(correlation);
-          // Proof: bypassing the captured local/durable generation and tuple
-          // join made a stale process refresh return 204 instead of 401
-          // before provider IO (0/1, 2026-10-01).
-          if (
-            captured.generation !== current.generation ||
-            captured.current.kind !== current.credential.kind ||
-            captured.current.userId !== current.userId ||
-            captured.current.digest !== current.credential.digest ||
-            captured.current.expiresAt !== current.credential.expiresAt
-          )
-            return refused();
-          const presented = accessOf(request);
-          // Proof: re-verifying the presented access JWT for current expiry
-          // made an exact previously verified but expired token refuse refresh
-          // (401 instead of 204; 0/1, 2026-10-01). It is only a digest here.
-          // Proof: disabling this check made a same-user token from another
-          // lifecycle refresh the captured session (204 instead of 401;
-          // 0/1, 2026-10-01).
-          if (presented !== null)
-            await options.browserLifecycle.proveAssociation(correlation, {
+          let captured;
+          try {
+            captured = await options.browserLifecycle.generation(correlation);
+            // Proof: bypassing the captured local/durable generation and tuple
+            // join made a stale process refresh return 204 instead of 401
+            // before provider IO (0/1, 2026-10-01).
+            if (
+              captured.generation !== current.generation ||
+              captured.current.kind !== current.credential.kind ||
+              captured.current.userId !== current.userId ||
+              captured.current.digest !== current.credential.digest ||
+              captured.current.expiresAt !== current.credential.expiresAt
+            )
+              return refused();
+            const presented = accessOf(request);
+            // Proof: re-verifying the presented access JWT for current expiry
+            // made an exact previously verified but expired token refuse refresh
+            // (401 instead of 204; 0/1, 2026-10-01). It is only a digest here.
+            // Proof: disabling this check made a same-user token from another
+            // lifecycle refresh the captured session (204 instead of 401;
+            // 0/1, 2026-10-01).
+            if (presented !== null)
+              await options.browserLifecycle.proveAssociation(correlation, {
+                kind: 'oidc',
+                digest: credentialDigest(presented),
+              });
+          } catch (cause) {
+            if (cause instanceof BrowserLifecycleRefusedError) return refused();
+            throw cause;
+          }
+          let spent = false;
+          try {
+            // A provider-call failure has unknown spend status. Once it returns,
+            // only an explicitly rotated secret is treated as spent on later faults.
+            spent = true;
+            const next = await options.client.refresh(current.refreshToken);
+            const refreshToken = next.refreshToken ?? current.refreshToken;
+            spent = refreshToken !== current.refreshToken;
+            // Proof: falling back from missing verified exp to identity claims and
+            // an invented TTL made mounted malformed-evidence refresh return 204
+            // instead of 401 (0/1, 2026-10-01).
+            const evidence = await verifyEvidence(next.accessToken);
+            if (evidence === null) {
+              if (spent) attempt.delete();
+              return refused();
+            }
+            // Proof: replacing this with resolveOidcIdentity made the mounted
+            // unknown-subject/same-email negative link the password account.
+            const account = await auth.readExistingOidcIdentity(evidence.identity);
+            // Proof: removing this comparison called lifecycle.replace for the
+            // wrong local user before refusing.
+            if (account?.id !== current.userId) {
+              if (spent) attempt.delete();
+              return refused();
+            }
+            const successor: VerifiedOrganizationCredential = {
               kind: 'oidc',
-              digest: credentialDigest(presented),
-            });
-        } catch (cause) {
-          if (cause instanceof BrowserLifecycleRefusedError) return refused();
-          throw cause;
+              userId: account.id,
+              digest: evidence.digest,
+              expiresAt: evidence.expiresAt,
+            };
+            let nextGeneration: number;
+            try {
+              nextGeneration = await options.browserLifecycle.replace(
+                correlation,
+                captured.generation,
+                captured.current,
+                successor,
+                now(),
+              );
+            } catch (cause) {
+              if (cause instanceof BrowserLifecycleRefusedError) {
+                attempt.delete();
+                return refused();
+              }
+              throw cause;
+            }
+            // Proof: replacing without owner identity let a delayed completion
+            // recreate local material after logout or overwrite a new record.
+            if (
+              !attempt.replace({
+                expiresAt: now() + 30 * 86400000,
+                refreshToken,
+                userId: account.id,
+                generation: nextGeneration,
+                credential: successor,
+              })
+            )
+              return refused();
+            return {
+              ok: true,
+              status: 204,
+              body: EMPTY,
+              headers: [
+                cookie('__Host-wbs_access', next.accessToken, next.expiresIn),
+                cookie('__Host-wbs_organization', '', 0),
+              ],
+            };
+          } catch (cause) {
+            // Proof: rotated evidence verification and read-only mapping faults
+            // left a replayable old secret until the owner removed it.
+            if (spent) {
+              try {
+                attempt.delete();
+              } catch (cleanupCause) {
+                // Both faults matter: the provider's original failure explains
+                // why local material must be invalidated, and cleanup failed.
+                throw new AggregateError(
+                  [cause, cleanupCause],
+                  'refresh failed and local cleanup failed',
+                  { cause: cleanupCause },
+                );
+              }
+            }
+            throw cause;
+          }
+        } finally {
+          attempt.release();
         }
-        const next = await options.client.refresh(current.refreshToken);
-        const refreshToken = next.refreshToken ?? current.refreshToken;
-        // Proof: falling back from missing verified exp to identity claims and
-        // an invented TTL made mounted malformed-evidence refresh return 204
-        // instead of 401 (0/1, 2026-10-01).
-        const evidence = await verifyEvidence(next.accessToken);
-        if (evidence === null) {
-          if (refreshToken !== current.refreshToken)
-            options.tokens.deleteIfCurrent(correlation, current);
-          return refused();
-        }
-        // Proof: replacing this with resolveOidcIdentity made the mounted
-        // unknown-subject/same-email negative link the password account
-        // (1 pass, 1 fail; 2026-10-01), despite the final 401 refusal.
-        const account = await auth.readExistingOidcIdentity(evidence.identity);
-        // Proof: removing the captured-user comparison made the mounted
-        // wrong-user negative call lifecycle.replace once before its 401;
-        // expected zero calls (0 pass, 1 fail; 2026-10-01).
-        if (account?.id !== current.userId) {
-          if (refreshToken !== current.refreshToken)
-            options.tokens.deleteIfCurrent(correlation, current);
-          return refused();
-        }
-        const successor: VerifiedOrganizationCredential = {
-          kind: 'oidc',
-          userId: account.id,
-          digest: evidence.digest,
-          expiresAt: evidence.expiresAt,
-        };
-        let nextGeneration: number;
-        try {
-          nextGeneration = await options.browserLifecycle.replace(
-            correlation,
-            captured.generation,
-            captured.current,
-            successor,
-            now(),
-          );
-        } catch (cause) {
-          // Proof: deleting the captured record on a typed stale CAS let a
-          // losing refresh erase the winner's still-pending local install;
-          // two provider-barrier requests both returned 401 (0/1, 2026-10-01).
-          if (cause instanceof BrowserLifecycleRefusedError) return refused();
-          if (refreshToken !== current.refreshToken)
-            options.tokens.deleteIfCurrent(correlation, current);
-          throw cause;
-        }
-        // Proof: replacing the local winner unconditionally let a delayed
-        // completion overwrite or recreate material after a concurrent loss.
-        if (
-          !options.tokens.replaceIfCurrent(correlation, current, {
-            expiresAt: now() + 30 * 86400000,
-            refreshToken,
-            userId: account.id,
-            generation: nextGeneration,
-            credential: successor,
-          })
-        )
-          return refused();
-        return {
-          ok: true,
-          status: 204,
-          body: EMPTY,
-          headers: [
-            cookie('__Host-wbs_access', next.accessToken, next.expiresIn),
-            cookie('__Host-wbs_organization', '', 0),
-          ],
-        };
       }
       const next = await options.client.refresh(current.refreshToken);
       const refreshToken = next.refreshToken ?? current.refreshToken;

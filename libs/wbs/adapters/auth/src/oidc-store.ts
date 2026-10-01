@@ -301,7 +301,18 @@ export interface RefreshRotationInput extends RefreshRecordInput {
 
 export type RefreshRotationResult = 'expired' | 'invalid' | 'missing' | 'replay' | 'rotated';
 
+/** Ownership of one captured local record, held across provider IO and durable CAS. */
+export interface RefreshAttempt {
+  delete(): boolean;
+  replace(replacement: RefreshRecord): boolean;
+  release(): void;
+}
+
 export interface TokenStore {
+  claimIfCurrent(
+    sessionCorrelation: string,
+    captured: RefreshRecord,
+  ): RefreshAttempt | 'busy' | null;
   cleanupExpired(): number;
   delete(sessionCorrelation: string): boolean;
   deleteIfCurrent(sessionCorrelation: string, captured: RefreshRecord): boolean;
@@ -317,6 +328,7 @@ export interface TokenStore {
 
 interface StoredRefreshRecord extends RefreshRecord {
   spentRefreshTokens: Set<string>;
+  attempt?: symbol;
 }
 
 function sameRefreshRecord(current: RefreshRecord, captured: RefreshRecord): boolean {
@@ -374,6 +386,51 @@ export class InMemoryTokenStore implements TokenStore {
       ...(record.userId === undefined ? {} : { userId: record.userId }),
       ...(record.generation === undefined ? {} : { generation: record.generation }),
       ...(record.credential === undefined ? {} : { credential: record.credential }),
+    };
+  }
+
+  /** A competing request may read the record but cannot call its provider or mutate it. */
+  claimIfCurrent(
+    sessionCorrelation: string,
+    captured: RefreshRecord,
+  ): RefreshAttempt | 'busy' | null {
+    const key = digest(sessionCorrelation);
+    const record = this.records.get(key);
+    if (
+      record === undefined ||
+      record.expiresAt <= this.now() ||
+      !sameRefreshRecord(record, captured)
+    )
+      return null;
+    // Proof: removing this claim let two mounted provider calls race, and an
+    // invalid-evidence loser deleted the winner before local installation.
+    if (record.attempt !== undefined) return 'busy';
+    const attempt = Symbol('refresh attempt');
+    record.attempt = attempt;
+    const owns = () => this.records.get(key) === record && record.attempt === attempt;
+    return {
+      delete: () => {
+        if (!owns()) return false;
+        return this.records.delete(key);
+      },
+      replace: (replacement: RefreshRecord) => {
+        if (!owns() || record.expiresAt <= this.now()) return false;
+        this.records.set(key, {
+          ...replacement,
+          spentRefreshTokens:
+            record.refreshToken === replacement.refreshToken
+              ? record.spentRefreshTokens
+              : new Set([...record.spentRefreshTokens, digest(record.refreshToken)]),
+        });
+        return true;
+      },
+      release: () => {
+        // Proof: a late owner release must not clear a successor claim after
+        // replacement. Mutating release to clear the latest record's claim
+        // made the direct store test receive a new claim instead of `busy`
+        // (0/1, 2026-10-01).
+        if (owns()) record.attempt = undefined;
+      },
     };
   }
 

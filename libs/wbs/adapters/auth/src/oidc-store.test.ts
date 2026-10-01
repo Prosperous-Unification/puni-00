@@ -279,6 +279,52 @@ describe('InMemoryTokenStore', () => {
     expect(store.read('session-1')).toBeNull();
   });
 
+  it('gives one exact refresh attempt ownership and cannot release a successor claim', () => {
+    const store = new InMemoryTokenStore({ now: () => 1_000 });
+    const first = {
+      expiresAt: 6_000,
+      refreshToken: 'refresh-1',
+      userId: 'user-1',
+      generation: 1,
+      credential: firstCredential,
+    };
+    const second = { ...first, generation: 2, refreshToken: 'refresh-2' };
+    store.save({ ...first, sessionCorrelation: 'session-1' });
+    store.save({ ...first, sessionCorrelation: 'session-2' });
+    const owner = store.claimIfCurrent('session-1', first);
+    expect(typeof owner).toBe('object');
+    if (typeof owner !== 'object' || owner === null) throw new Error('claim missing');
+    expect(store.claimIfCurrent('session-1', first)).toBe('busy');
+    expect(typeof store.claimIfCurrent('session-2', first)).toBe('object');
+    expect(owner.replace(second)).toBe(true);
+    const successor = store.claimIfCurrent('session-1', second);
+    expect(typeof successor).toBe('object');
+    if (typeof successor !== 'object' || successor === null)
+      throw new Error('successor claim missing');
+    owner.release();
+    expect(store.claimIfCurrent('session-1', second)).toBe('busy');
+    successor.release();
+    expect(typeof store.claimIfCurrent('session-1', second)).toBe('object');
+  });
+
+  it('invalidates a refresh owner when logout deletes its captured record', () => {
+    const store = new InMemoryTokenStore({ now: () => 1_000 });
+    const first = {
+      expiresAt: 6_000,
+      refreshToken: 'refresh-1',
+      userId: 'user-1',
+      generation: 1,
+      credential: firstCredential,
+    };
+    store.save({ ...first, sessionCorrelation: 'session-1' });
+    const owner = store.claimIfCurrent('session-1', first);
+    if (typeof owner !== 'object' || owner === null) throw new Error('claim missing');
+    store.delete('session-1');
+    expect(owner.replace({ ...first, generation: 2 })).toBe(false);
+    expect(owner.delete()).toBe(false);
+    expect(store.read('session-1')).toBeNull();
+  });
+
   it('keeps a refresh token behind the session correlation', () => {
     const store = new InMemoryTokenStore({ now: () => 1_000 });
     store.save({

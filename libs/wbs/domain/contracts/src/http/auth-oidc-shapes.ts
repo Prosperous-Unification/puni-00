@@ -105,7 +105,12 @@ export const refreshOidcSession = defineEndpointShape({
   operationId: 'postApiAuthRefresh',
   policies: unsafe,
   responses: [{ kind: 'empty', status: 204 }],
-  refusals: [malformed, invalidOrigin, sessionRefusal],
+  refusals: [
+    malformed,
+    invalidOrigin,
+    sessionRefusal,
+    { status: 409, schema: responseSchema(type({ error: "'refresh_in_progress'" })) },
+  ],
   document: { summary: 'Refresh the browser access cookie.' },
 });
 /** Deletes the local session before revoking the upstream refresh token. */
