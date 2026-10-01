@@ -132,6 +132,14 @@ function reachesRepositoryType(
       )
         return true;
     }
+    // Proof: omitting index value traversal let a public resource return
+    // Record<string, Scope> without a violation (0 pass, 1 fail).
+    if (
+      checker
+        .getIndexInfosOfType(current)
+        .some((index) => inspect(index.type, true, capabilityOnly))
+    )
+      return true;
     if (signatures) {
       for (const kind of [ts.SignatureKind.Call, ts.SignatureKind.Construct]) {
         for (const signature of checker.getSignaturesOfType(current, kind)) {
@@ -513,6 +521,25 @@ test('public resource surfaces cannot pass raw repository authority to a feature
   ).toEqual([]);
   expect(violations.some((violation) => violation.includes('AllowedPrivateDto'))).toBe(false);
   expect(violations.some((violation) => violation.includes('AllowedDtoUnion'))).toBe(false);
+}, 120_000);
+
+test('indexed resource results cannot contain raw scope but may contain value records', async () => {
+  const program = await createProgramWith(
+    'module/plan-import/plan-import.feature.ts',
+    "import type { IndexedScopeResource, IndexedStepResource } from './imported-plan.resource'; export type EscapedIndexedScope = { resource: IndexedScopeResource }; export type AllowedIndexedStep = { resource: IndexedStepResource };",
+    [
+      {
+        path: 'module/plan-import/imported-plan.resource.ts',
+        addition:
+          "export class IndexedScopeResource { read(): Record<string, Scope> { throw new Error('fixture'); } } export class IndexedStepResource { read(): Record<string, Step> { throw new Error('fixture'); } }",
+      },
+    ],
+  );
+  const violations = findViolations(program, 'plan-import');
+  expect(violations.some((violation) => violation.includes('EscapedIndexedScope'))).toBe(true);
+  // Proof: inspecting index values with the ownership predicate instead of
+  // capability mode refused the allowed Step record (0 pass, 1 fail).
+  expect(violations.some((violation) => violation.includes('AllowedIndexedStep'))).toBe(false);
 }, 120_000);
 
 test('repository-owned value types are refused without a Store suffix', async () => {
