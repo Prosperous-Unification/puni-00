@@ -472,6 +472,8 @@ test('logout in another mounted process denies an old intact selected OIDC pair 
 });
 
 for (const expires of ['5m', '-1s']) {
+  // Proof: PR CI timed out the current-token restart case at its
+  // 10 s target budget while cold-starting three real child processes.
   test(`a fresh process refuses refresh without local secret but accepts exact ${expires === '5m' ? 'current' : 'expired historical'} logout idempotently`, async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-restart-'));
     const path = join(dir, 'shared.db');
@@ -576,7 +578,7 @@ for (const expires of ['5m', '-1s']) {
     } finally {
       sqlite.close();
     }
-  });
+  }, 30_000);
 }
 
 for (const fault of ['missing', 'unreadable'] as const) {
