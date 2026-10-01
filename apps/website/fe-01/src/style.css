@@ -19,7 +19,9 @@
   --ink-2: #34343a;
   --muted: #5f5f67;
   --line: #e4e4e0;
-  --line-strong: #c9c9c4;
+  /* Field and control borders: 3.3:1 on white (WCAG 1.4.11 non-text contrast).
+     Proof: restoring #c9c9c4 made screens.mjs report "field border 1.66:1" on manual and operator. */
+  --line-strong: #8f8f88;
   --paper: #ffffff;
   --paper-2: #f5f5f3;
   --night: #0b0915;
@@ -300,6 +302,7 @@ p {
 .brand {
   grid-column: 2;
   grid-row: 1;
+  justify-self: center;
   display: inline-flex;
   align-items: center;
   min-height: var(--target);
@@ -365,6 +368,7 @@ p {
   }
   .brand {
     grid-column: 1;
+    justify-self: start;
   }
   .header-request {
     display: none;
@@ -660,9 +664,10 @@ textarea {
 }
 :is(input, textarea):focus {
   border-color: var(--ink);
-  box-shadow: 0 0 0 3px #f6ae4c59;
-  outline: none;
 }
+/* Fields keep the global 2px focus outline; the ink border alone is the at-rest contrast.
+   Proof: adding `outline: none` here made screens.mjs report a 0:1 focus indicator on #brief,
+   #email and #build-message. */
 .form-meta {
   display: flex;
   justify-content: space-between;
@@ -1102,6 +1107,12 @@ textarea {
   color: var(--muted);
   font-size: var(--text-small);
 }
+/* The scrollable transcript is keyboard-focusable in Chromium; show where focus is. */
+.build-messages:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-field);
+}
 .build-message {
   max-width: 88%;
   border-radius: 18px;
@@ -1152,6 +1163,11 @@ textarea {
   padding: var(--space-3) var(--space-4);
   font-size: var(--text-body);
   color: var(--ink);
+}
+/* Proof: removing this rule with the old amber-glow focus made screens.mjs report a 0:1 focus
+   indicator on #build-message at all four widths. */
+.build-compose textarea:focus {
+  border-color: var(--ink);
 }
 .build-compose-actions {
   display: flex;

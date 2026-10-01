@@ -3,12 +3,23 @@ import { describe, expect, test } from 'bun:test';
 import { ApiFailure } from './api';
 import {
   describeFailure,
+  describeOperatorFailure,
+  InvalidSessionStatus,
   loadAiExploration,
   offersAiExploration,
   parseSessionStatus,
   signInRoute,
   unreachableMessage,
 } from './app-flow';
+
+async function rejectionOf(pending: Promise<unknown>): Promise<unknown> {
+  try {
+    await pending;
+  } catch (error) {
+    return error;
+  }
+  throw new Error('Expected a rejection');
+}
 
 describe('AI exploration routing', () => {
   test('Build offers Google only when OIDC is configured, and demo sign-in only in demo mode', () => {
@@ -40,21 +51,42 @@ describe('AI exploration routing', () => {
     expect(() => parseSessionStatus(null)).toThrow('session status');
   });
 
-  test('hides the optional AI card when the session status cannot be read', async () => {
+  test('offers or hides the AI card from a readable session status', async () => {
     expect(
       await loadAiExploration(() =>
         Promise.resolve({ mode: 'oidc', configured: false, account: null }),
       ),
-    ).toBe('hidden');
+    ).toEqual({ kind: 'hidden' });
     expect(
       await loadAiExploration(() =>
         Promise.resolve({ mode: 'oidc', configured: true, account: null }),
       ),
-    ).toBe('offered');
-    expect(await loadAiExploration(() => Promise.reject(new TypeError('Failed to fetch')))).toBe(
-      'hidden',
+    ).toEqual({ kind: 'offered' });
+  });
+
+  test('reports modelled session failures as unavailable, carrying the error', async () => {
+    const network = new TypeError('Failed to fetch');
+    expect(await loadAiExploration(() => Promise.reject(network))).toEqual({
+      kind: 'unavailable',
+      error: network,
+    });
+    const api = new ApiFailure(500, 'internal_error');
+    expect(await loadAiExploration(() => Promise.reject(api))).toEqual({
+      kind: 'unavailable',
+      error: api,
+    });
+    const malformed = await loadAiExploration(() => Promise.resolve({ mode: 'other' }));
+    expect(malformed.kind).toBe('unavailable');
+    expect(malformed.kind === 'unavailable' && malformed.error).toBeInstanceOf(
+      InvalidSessionStatus,
     );
-    expect(await loadAiExploration(() => Promise.resolve({ mode: 'other' }))).toBe('hidden');
+  });
+
+  test('rethrows failures it does not model', async () => {
+    const bug = new TypeError('Cannot read properties of undefined');
+    expect(await rejectionOf(loadAiExploration(() => Promise.reject(bug)))).toBe(bug);
+    const unexpected = new Error('unexpected');
+    expect(await rejectionOf(loadAiExploration(() => Promise.reject(unexpected)))).toBe(unexpected);
   });
 });
 
@@ -80,5 +112,18 @@ describe('failure copy', () => {
     );
     expect(describeFailure(new ApiFailure(400, 'invalid_email'))).toBe('invalid email');
     expect(describeFailure('unexpected')).toBe('Something went wrong. Try again.');
+  });
+
+  test('gives operator sign-in its own copy instead of visitor brief copy', () => {
+    expect(describeOperatorFailure(new ApiFailure(503, 'operator_unconfigured'))).toBe(
+      'Operator sign-in is not set up on this API. Set OPERATOR_PASSWORD and restart it.',
+    );
+    expect(describeOperatorFailure(new ApiFailure(401, 'invalid_credentials'))).toBe(
+      'That password was not accepted.',
+    );
+    expect(describeOperatorFailure(new TypeError('Failed to fetch'))).toBe(unreachableMessage);
+    expect(describeOperatorFailure(new ApiFailure(429, 'rate_limited'))).toBe(
+      'Too many attempts. Please wait and try again.',
+    );
   });
 });

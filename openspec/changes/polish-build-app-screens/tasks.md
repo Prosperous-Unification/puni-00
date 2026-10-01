@@ -6,4 +6,5 @@
 - [x] 4. Single saved-request card and "Shape your brief" action when sign-in is unavailable; plain unreachable copy with retry and Back to Home.
 - [x] 5. Shared chrome: header (numbered nav, `aria-current`, centered wordmark, request pill, Menu disclosure), fuller footer, minimal operator header; per-route titles and h1 focus.
 - [x] 6. Token sheet in `style.css`: palette, spacing scale, clamp() type ramp, radius, eyebrow and one button system.
-- [x] 7. Strict browser audit, R5 fault injections, explicit-send regression, uncached Nx targets, Prettier and OpenSpec validation; record in `verify.md`.
+- [x] 7. Review fixes: modelled `loadAiExploration` outcomes with a distinct loading state, operator failure copy, composer and field focus indicators, 3:1 field borders, brand-first header DOM order, plus focus-contrast, tab-order and session-down browser checks.
+- [x] 8. Strict browser audit, R5 fault injections, explicit-send regression, uncached Nx targets, Prettier and OpenSpec validation; record in `verify.md`.

@@ -66,6 +66,12 @@ export function SiteHeader({ buildCurrent }: { buildCurrent: 'page' | 'true' }) 
       <a className="skip-link" href="#main">
         Skip to content
       </a>
+      {/* Brand precedes the toggle so mobile focus order matches the visual order; grid
+          placement keeps it centered on desktop. Proof: moving it after the toggle made the
+          screens.mjs tab-order-390 check report skip-link,menu-toggle,brand. */}
+      <a className="brand" href={`${siteOrigin}/`} aria-label="PUNI home">
+        <Wordmark />
+      </a>
       <button
         ref={menuButton}
         type="button"
@@ -99,9 +105,6 @@ export function SiteHeader({ buildCurrent }: { buildCurrent: 'page' | 'true' }) 
           </li>
         </ul>
       </nav>
-      <a className="brand" href={`${siteOrigin}/`} aria-label="PUNI home">
-        <Wordmark />
-      </a>
       <a className="button header-request" href={`${siteOrigin}/#request`}>
         Start a Request
       </a>

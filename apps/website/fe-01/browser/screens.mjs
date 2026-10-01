@@ -92,6 +92,25 @@ const states = [
     ready: (page) => page.locator('#brief').waitFor(),
   },
   {
+    name: 'manual-session-down',
+    stack: oidc,
+    path: '/manual',
+    cookie: true,
+    abortSession: true,
+    // The aborted /session request and its contextual report are the expected console output.
+    allowed: ['net::ERR_FAILED', 'Manual brief hid the AI card'],
+    ready: (page) => page.locator('#brief').waitFor(),
+    // Proof: hiding the card without console.error made this check report "unavailable not reported".
+    check: async (page, consoleTexts) => {
+      const problems = [];
+      if ((await page.getByRole('link', { name: /Explore with AI/ }).count()) !== 0)
+        problems.push('AI card shown without a session status');
+      if (!consoleTexts.some((text) => text.includes('Manual brief hid the AI card')))
+        problems.push('unavailable not reported');
+      return problems;
+    },
+  },
+  {
     name: 'manual-nocookie',
     stack: oidc,
     path: '/manual',
@@ -155,6 +174,76 @@ if (operatorPassword)
     ready: (page) => page.getByRole('button', { name: /Refresh inbox/ }).waitFor(),
   });
 
+/**
+ * Measures an element's focus outline (`focus`) or border (`rest`) against the first opaque
+ * surface behind it, as a WCAG contrast ratio. Runs in the page.
+ */
+function inspectIndicator(element, mode) {
+  const channels = (color) => {
+    const parts = color.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0, 0];
+    return [parts[0], parts[1], parts[2], parts[3] ?? 1];
+  };
+  const luminance = (rgb) =>
+    rgb
+      .slice(0, 3)
+      .map((channel) => channel / 255)
+      .map((channel) => (channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4))
+      .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+  let behind = [255, 255, 255, 1];
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const color = channels(globalThis.getComputedStyle(node).backgroundColor);
+    if (color[3] > 0) {
+      behind = color;
+      break;
+    }
+  }
+  const style = globalThis.getComputedStyle(element);
+  const visible =
+    mode === 'rest' ||
+    (style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) >= 2);
+  const raw = channels(mode === 'rest' ? style.borderTopColor : style.outlineColor);
+  const shown = raw
+    .slice(0, 3)
+    .map((channel, index) => channel * raw[3] + behind[index] * (1 - raw[3]));
+  const [high, low] = [luminance(shown), luminance(behind)].sort((first, second) => second - first);
+  return {
+    name: `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ''} "${(element.textContent ?? '').trim().slice(0, 24)}"`,
+    ratio: visible ? (high + 0.05) / (low + 0.05) : 0,
+  };
+}
+
+/**
+ * Proof: `outline: none` on focused fields, the old composer glow, and the old #c9c9c4 border
+ * each made this report a failing ratio (0:1 indicator, 1.66:1 border).
+ * Tabs through the page and focuses every text field, failing any focus indicator under 3:1
+ * (WCAG 2.4.13) and any resting field border under 3:1 (WCAG 1.4.11) against its surface.
+ */
+async function auditFocus(page) {
+  const problems = [];
+  const seen = new Set();
+  const record = (focus, label) => {
+    if (seen.has(focus.name)) return;
+    seen.add(focus.name);
+    if (focus.ratio < 3)
+      problems.push(`${label} focus indicator ${focus.ratio.toFixed(2)}:1 on ${focus.name}`);
+  };
+  await page.locator('h1').first().focus();
+  for (let step = 0; step < 14; step += 1) {
+    await page.keyboard.press('Tab');
+    const focused = page.locator(':focus');
+    if ((await focused.count()) === 1)
+      record(await focused.evaluate(inspectIndicator, 'focus'), 'tab');
+  }
+  for (const field of await page.locator('input:visible, textarea:visible').all()) {
+    await field.focus();
+    record(await field.evaluate(inspectIndicator, 'focus'), 'field');
+    await field.evaluate((element) => element.blur());
+    const rest = await field.evaluate(inspectIndicator, 'rest');
+    if (rest.ratio < 3) problems.push(`field border ${rest.ratio.toFixed(2)}:1 on ${rest.name}`);
+  }
+  return problems;
+}
+
 const only = env['PUNI_SCREENS_ONLY']?.split(',');
 const selected = only ? states.filter((state) => only.includes(state.name)) : states;
 const failures = [];
@@ -167,10 +256,12 @@ try {
       if (state.cookie) await context.addCookies([await createDraftCookie(state.stack)]);
       const page = await context.newPage();
       const consoleErrors = [];
+      const consoleTexts = [];
       page.on('pageerror', (error) => consoleErrors.push(`pageerror: ${error.message}`));
       page.on('console', (message) => {
         if (message.type() !== 'error') return;
         const text = message.text();
+        consoleTexts.push(text);
         // A signed-out session and a missing manual draft answer 401 by contract.
         if (text.includes('status of 401')) return;
         if (state.allowed?.some((allowed) => text.includes(allowed))) return;
@@ -188,6 +279,8 @@ try {
       if (state.hold)
         await page.route(`${state.stack.api}/entry`, () => new Promise(() => undefined));
       if (state.abort) await page.route(`${state.stack.api}/entry`, (route) => route.abort());
+      if (state.abortSession)
+        await page.route(`${state.stack.api}/session`, (route) => route.abort());
       await page.goto(`${state.stack.app}${state.path}`, { waitUntil: 'domcontentloaded' });
       if (state.demoSignIn) {
         await page.locator('#demo-email').fill(`screens-${String(Date.now())}@example.test`);
@@ -226,7 +319,8 @@ try {
           h1Focused: h1 !== null && globalThis.document.activeElement === h1,
         };
       });
-      const problems = state.check ? await state.check(page) : [];
+      const problems = state.check ? await state.check(page, consoleTexts) : [];
+      problems.push(...(await auditFocus(page)));
       if (audit.overflow > 0) problems.push(`horizontal overflow ${String(audit.overflow)}px`);
       if (audit.small.length > 0) problems.push(`small targets: ${audit.small.join('; ')}`);
       if (audit.cls >= 0.05) problems.push(`CLS ${audit.cls.toFixed(3)}`);
@@ -239,11 +333,28 @@ try {
     }
   }
 
-  if (!only) {
+  if (!only || only.includes('menu')) {
     const context = await browser.newContext({ viewport: viewports[2] });
     await context.addCookies([await createDraftCookie(oidc)]);
     const page = await context.newPage();
     await page.goto(oidc.app, { waitUntil: 'domcontentloaded' });
+    // Wait for the loaded state: its h1 focus would otherwise reset the focus start point.
+    await page.locator('.build-request-card').waitFor();
+    await page.waitForLoadState('networkidle');
+    // Clicking the header's empty middle sets the sequential focus start before its controls.
+    await page.mouse.click(195, 34);
+    const order = [];
+    for (let step = 0; step < 3; step += 1) {
+      await page.keyboard.press('Tab');
+      order.push(
+        await page.evaluate(() => globalThis.document.activeElement?.className.split(' ')[0] ?? ''),
+      );
+    }
+    // Proof: moving the brand back after the Menu toggle made this report skip-link,menu-toggle,brand.
+    const orderOk = order.join(',') === 'skip-link,brand,menu-toggle';
+    globalThis.console.log(`tab-order-390: ${order.join(',')} ${orderOk ? 'OK' : 'FAIL'}`);
+    if (!orderOk) failures.push('tab-order-390');
+    await page.keyboard.press('Escape');
     const menu = page.getByRole('button', { name: 'Menu' });
     await menu.click();
     const build = page.locator('nav[aria-label="Primary"] a[aria-current="page"]');

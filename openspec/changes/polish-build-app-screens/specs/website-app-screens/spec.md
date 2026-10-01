@@ -2,7 +2,7 @@
 
 ### Requirement: No route loop without sign-in
 
-The manual brief SHALL offer AI exploration only when Build would offer the visitor a sign-in route (configured Google, local demo) or the visitor is already signed in. When the session status cannot be read, the optional AI card SHALL be hidden and the manual brief SHALL remain usable.
+The manual brief SHALL offer AI exploration only when Build would offer the visitor a sign-in route (configured Google, local demo) or the visitor is already signed in. The manual brief SHALL wait for the session status before showing the draft, so the card never appears late. A typed API failure, a network failure or a malformed status SHALL hide the optional AI card, report the cause to the console and leave the manual brief usable; any other failure SHALL surface as the page error state.
 
 #### Scenario: Google sign-in is not configured
 
@@ -18,7 +18,7 @@ The manual brief SHALL offer AI exploration only when Build would offer the visi
 
 ### Requirement: Recoverable unreachable-API state
 
-When an app request fails before reaching the API, the app SHALL show "We couldn’t reach PUNI. Check your connection and try again." instead of the browser's error text, with a retry and an exit to Home. Programming errors and typed API failures SHALL keep distinct copy.
+When an app request fails before reaching the API, the app SHALL show "We couldn’t reach PUNI. Check your connection and try again." instead of the browser's error text, with a retry and an exit to Home. Programming errors and typed API failures SHALL keep distinct copy, and operator sign-in failures SHALL use operator-facing copy rather than visitor brief copy.
 
 #### Scenario: Build entry cannot reach the API
 
@@ -41,7 +41,7 @@ The manual brief SHALL show its progress as a non-interactive stepper (done, cur
 
 ### Requirement: Route orientation
 
-Every app route SHALL set a distinct document title and move focus to its h1 after load and state changes without scrolling. Primary navigation SHALL mark Build with `aria-current` and a visible state, and every interactive target SHALL be at least 44px. The operator route SHALL use a minimal header without marketing navigation.
+Every app route SHALL set a distinct document title and move focus to its h1 after load and state changes without scrolling. Primary navigation SHALL mark Build with `aria-current` and a visible state. Every interactive target SHALL be at least 44px, every focus indicator and resting field border SHALL reach 3:1 against its surface, and header focus order SHALL match the visual order. The operator route SHALL use a minimal header without marketing navigation.
 
 #### Scenario: Keyboard user loads Build
 

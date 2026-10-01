@@ -60,9 +60,49 @@ An earlier harness edit had replaced the wrong `const problems = [];`, so state 
 ## Checks
 
 - `env -u CLAUDECODE NX_DAEMON=false bunx nx run-many -t test,lint,typecheck,build -p website-fe-01 --skip-nx-cache`: all four targets succeeded. Direct `bun test apps/website/fe-01/src` reports 16 passed and 0 failed.
-- `bun apps/website/fe-01/browser/explicit-send.mjs` against the demo stack: 0 POSTs before Send, 1 after, ordinary later turn, one saved Home turn, same-key recovery; exit 0.
+- (First pass) `bun apps/website/fe-01/browser/explicit-send.mjs` against the demo stack: 0 POSTs before Send, 1 after, ordinary later turn, one saved Home turn, same-key recovery; exit 0.
 - `bunx @fission-ai/openspec@1.12.0 validate polish-build-app-screens --strict`: valid. `validate --all --json`: 144/144 passed.
 - `bunx prettier --check` on `apps/website/fe-01/{src,browser}` and this change: all files use Prettier style.
+
+## Review fixes (PR #253)
+
+An independent review of `9ad67d8b9` raised one R5 blocker and four smaller issues. Each fix was written test-first where it changes behavior, and each guard was removed once to watch its check fail.
+
+1. **`loadAiExploration` swallowed every error (blocker).**
+   - It now returns `offered | hidden | unavailable`. `unavailable` carries the cause: an `ApiFailure`, a network `TypeError`, or the new `InvalidSessionStatus`. Any other error rethrows.
+   - `main.tsx` logs `unavailable` with context, renders it as hidden, and shows a rethrown error as the page error state.
+   - The draft stays in the loading view until the session status resolves, so the card cannot pop in late.
+2. **Chat composer focus.** The composer had only a 1.2:1 amber glow. Fields now keep the global 2px `--focus` outline with an ink border; the global `outline: none` on focus was removed, which also lets the sign-in card's accent outline appear. The audit also found the Chromium-focusable transcript viewport with no indicator, which now has an outline.
+3. **Field borders.** `--line-strong` changed from `#c9c9c4` (1.66:1) to `#8f8f88` (3.3:1). The re-screenshots were inspected: borders read clearly and stay light.
+4. **Operator copy.** `describeOperatorFailure` maps `operator_unconfigured` (503) and `invalid_credentials` (401) to operator copy, and otherwise defers to `describeFailure`.
+5. **Header focus order.** The brand now precedes the Menu toggle in the DOM; grid placement keeps the desktop layout. The audit's empty-header click also showed the brand link stretched across the whole mobile column, so it is now `justify-self: start` (centered on desktop). On desktop, focus now reaches the centered brand before the left-hand nav, a mismatch traded for the correct mobile order.
+
+`screens.mjs` gained three checks:
+
+- **Focus contrast:** every capture tabs 14 times from the h1 and focuses each text field. It fails any focus indicator under 3:1 and any resting field border under 3:1 against the first opaque surface behind it.
+- **Tab order:** a 390px check that the header order is skip link, brand, Menu.
+- **Session down:** a `manual-session-down` state that aborts `/session` and requires a hidden card plus the contextual console report.
+
+| Injected fault                                       | Observed failure                                                                                |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `loadAiExploration` catches everything               | `rethrows failures it does not model` failed                                                    |
+| `ApiFailure`, parse or network branch removed (each) | `reports modelled session failures as unavailable` failed (3 separate runs)                     |
+| `operator_unconfigured` branch removed               | `gives operator sign-in its own copy` failed                                                    |
+| `outline: none` on focused fields                    | 0:1 tab focus on `#brief`, `#email`, `#build-message`; manual and workspace failed (8 captures) |
+| Old composer treatment (glow, no ink focus rule)     | 0:1 on `#build-message`; workspace failed (4 captures)                                          |
+| `--line-strong` back to `#c9c9c4`                    | `field border 1.66:1` on `#brief`, `#email`, `#operator-password`; 8 captures failed            |
+| Brand moved after the Menu toggle                    | `tab-order-390: skip-link,menu-toggle,brand FAIL`                                               |
+| `unavailable` console report removed                 | `manual-session-down` failed "unavailable not reported" at all 4 widths                         |
+| Restored (`cmp` identical)                           | 19/19 FE tests; affected checks exit 0                                                          |
+
+The first tab-order fault run reported `button,button,` because the harness clicked before Build finished loading, and the later h1 focus moved the focus start point. The harness now waits for the loaded card and network idle; the rerun reported the order above. The first console-report mutation missed text that Prettier had reformatted and passed vacuously. It was rerun against the formatted source, and only the rerun is recorded.
+
+Final reruns after the fixes:
+
+- **`screens.mjs`** with `PUNI_SCREENS_STRICT=1`: exit 0, 38/38 OK (9 states × 4 widths, tab order, menu), max CLS 0.045.
+- **`explicit-send.mjs`:** exit 0, with 0 POSTs before Send, 1 after, and same-key recovery.
+- **Nx:** `env -u CLAUDECODE NX_DAEMON=false bunx nx run-many -t test,lint,typecheck,build -p website-fe-01 --skip-nx-cache` passed all four targets; 19 tests passed and 0 failed.
+- **Prettier:** check passed on all changed files.
 
 ## Decisions
 

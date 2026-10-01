@@ -9,9 +9,16 @@ export interface SessionStatus {
   signedIn: boolean;
 }
 
+/** The `GET /session` body did not match the API contract. */
+export class InvalidSessionStatus extends Error {
+  constructor() {
+    super('Invalid session status');
+  }
+}
+
 /**
  * Validates the `GET /session` body at the API boundary.
- * @throws Error when the mode, configured flag or account shape is not the API contract.
+ * @throws InvalidSessionStatus when the mode, configured flag or account shape is not the API contract.
  */
 export function parseSessionStatus(value: unknown): SessionStatus {
   if (
@@ -24,7 +31,7 @@ export function parseSessionStatus(value: unknown): SessionStatus {
     !('account' in value) ||
     (value.account !== null && typeof value.account !== 'object')
   )
-    throw new Error('Invalid session status');
+    throw new InvalidSessionStatus();
   return { mode: value.mode, configured: value.configured, signedIn: value.account !== null };
 }
 
@@ -44,17 +51,33 @@ export function offersAiExploration(status: SessionStatus): boolean {
   return status.signedIn || signInRoute(status) !== 'unavailable';
 }
 
+/** The manual brief's optional AI card; `unavailable` renders as hidden but keeps its cause. */
+export type AiExploration =
+  | { kind: 'offered' }
+  | { kind: 'hidden' }
+  | { kind: 'unavailable'; error: ApiFailure | TypeError | InvalidSessionStatus };
+
 /**
- * Resolves the manual brief's optional AI card. The card is an optional shortcut, so an
- * unreadable or malformed session status hides it instead of blocking the manual brief.
+ * Resolves the manual brief's optional AI card. The card is an optional shortcut, so a typed API
+ * failure, a network failure or a malformed session status yields `unavailable` instead of
+ * blocking the manual brief.
+ * @throws any other error unchanged; it is a defect, not a modelled outcome.
  */
 export async function loadAiExploration(
   readSession: () => Promise<unknown>,
-): Promise<'offered' | 'hidden'> {
+): Promise<AiExploration> {
   try {
-    return offersAiExploration(parseSessionStatus(await readSession())) ? 'offered' : 'hidden';
-  } catch {
-    return 'hidden';
+    return offersAiExploration(parseSessionStatus(await readSession()))
+      ? { kind: 'offered' }
+      : { kind: 'hidden' };
+  } catch (error) {
+    // Proof: catching every error (the guard removed) failed the app-flow.test.ts rethrow case;
+    // dropping any one branch failed the matching unavailable case.
+    if (error instanceof ApiFailure || error instanceof InvalidSessionStatus)
+      return { kind: 'unavailable', error };
+    if (error instanceof TypeError && isNetworkFailure(error))
+      return { kind: 'unavailable', error };
+    throw error;
   }
 }
 
@@ -64,6 +87,16 @@ function isNetworkFailure(error: unknown): boolean {
     error instanceof TypeError &&
     /failed to fetch|networkerror|load failed|network request failed/i.test(error.message)
   );
+}
+
+/** Turns a failed operator request into operator-facing copy. */
+export function describeOperatorFailure(error: unknown): string {
+  // Proof: removing this branch fell through to the visitor brief copy and failed app-flow.test.ts.
+  if (error instanceof ApiFailure && error.code === 'operator_unconfigured')
+    return 'Operator sign-in is not set up on this API. Set OPERATOR_PASSWORD and restart it.';
+  if (error instanceof ApiFailure && error.code === 'invalid_credentials')
+    return 'That password was not accepted.';
+  return describeFailure(error);
 }
 
 /** Turns a failed app request into visitor-facing copy. */
