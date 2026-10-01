@@ -1,0 +1,400 @@
+import { mkdirSync } from 'node:fs';
+import { env } from 'node:process';
+
+import { chromium } from 'playwright';
+
+// Two fixture stacks: demo sign-in (4218/3118) and Google sign-in unconfigured (4219/3119).
+const demo = {
+  app: 'http://localhost:4218',
+  api: 'http://localhost:3118',
+  site: 'http://localhost:4318',
+};
+const oidc = {
+  app: 'http://localhost:4219',
+  api: 'http://localhost:3119',
+  site: 'http://localhost:4319',
+};
+const outDir = env['PUNI_SCREENS_DIR'];
+if (!outDir) throw new Error('PUNI_SCREENS_DIR is required');
+const strict = env['PUNI_SCREENS_STRICT'] === '1';
+const operatorPassword = env['PUNI_OPERATOR_PASSWORD'];
+mkdirSync(outDir, { recursive: true });
+
+const viewports = [
+  { width: 1440, height: 900 },
+  { width: 768, height: 1024 },
+  { width: 390, height: 844 },
+  { width: 320, height: 568 },
+];
+const description =
+  'A booking tool for a community bicycle workshop, so volunteers stop juggling paper slots.';
+
+async function createDraftCookie(stack) {
+  const intake = await globalThis.fetch(`${stack.api}/intakes`, {
+    method: 'POST',
+    headers: { origin: stack.site, 'content-type': 'application/json' },
+    body: JSON.stringify({ description }),
+  });
+  if (intake.status !== 201) throw new Error(`Fixture intake failed: ${String(intake.status)}`);
+  const cookie = intake.headers.get('set-cookie')?.split(';')[0];
+  if (!cookie) throw new Error('Fixture intake did not issue a draft cookie');
+  const separator = cookie.indexOf('=');
+  if (separator < 1) throw new Error('Fixture draft cookie is malformed');
+  return {
+    name: cookie.slice(0, separator),
+    value: cookie.slice(separator + 1),
+    url: stack.app,
+    httpOnly: true,
+    sameSite: 'Lax',
+  };
+}
+
+const states = [
+  {
+    name: 'saved',
+    check: async (page) => {
+      const problems = [];
+      const main = await page.locator('main').innerText();
+      if (/not configured/i.test(main)) problems.push('"not configured" wording shown');
+      if ((await page.locator('main .build-request-card, main .build-signin-card').count()) !== 1)
+        problems.push('expected one card while sign-in is unavailable');
+      if ((await page.getByRole('link', { name: /Shape your brief/ }).count()) !== 1)
+        problems.push('missing Shape your brief action');
+      if ((await page.locator('nav[aria-label="Primary"] a[aria-current="page"]').count()) !== 1)
+        problems.push('Build is not marked as the current page');
+      return problems;
+    },
+    stack: oidc,
+    path: '/',
+    cookie: true,
+    ready: (page) => page.locator('h1').first().waitFor(),
+  },
+  {
+    name: 'manual',
+    // Proof: forcing the manual AI card on (in app-flow.ts or main.tsx) made this check fail all four widths.
+    check: async (page) => {
+      await page.waitForLoadState('networkidle');
+      const back = await page.locator('main a').evaluateAll((links) =>
+        links
+          .map((link) => new globalThis.URL(link.href))
+          .filter(
+            (url) =>
+              url.origin === globalThis.location.origin &&
+              (url.pathname === '/' || url.pathname.startsWith('/studio')),
+          )
+          .map((url) => url.href),
+      );
+      return back.length === 0 ? [] : [`manual brief links back to Build: ${back.join(', ')}`];
+    },
+    stack: oidc,
+    path: '/manual',
+    cookie: true,
+    ready: (page) => page.locator('#brief').waitFor(),
+  },
+  {
+    name: 'manual-session-down',
+    stack: oidc,
+    path: '/manual',
+    cookie: true,
+    abortSession: true,
+    // The aborted /session request and its contextual report are the expected console output.
+    allowed: ['net::ERR_FAILED', 'Manual brief hid the AI card'],
+    ready: (page) => page.locator('#brief').waitFor(),
+    // Proof: hiding the card without console.error made this check report "unavailable not reported".
+    check: async (page, consoleTexts) => {
+      const problems = [];
+      if ((await page.getByRole('link', { name: /Explore with AI/ }).count()) !== 0)
+        problems.push('AI card shown without a session status');
+      if (!consoleTexts.some((text) => text.includes('Manual brief hid the AI card')))
+        problems.push('unavailable not reported');
+      return problems;
+    },
+  },
+  {
+    name: 'manual-nocookie',
+    stack: oidc,
+    path: '/manual',
+    cookie: false,
+    ready: (page) => page.getByRole('heading', { name: /start with your request/i }).waitFor(),
+  },
+  {
+    name: 'loading',
+    stack: oidc,
+    path: '/',
+    cookie: true,
+    hold: true,
+    ready: (page) => page.getByText(/Checking your request/).waitFor(),
+  },
+  {
+    name: 'error',
+    // Proof: removing the network branch of describeFailure made this check report "Failed to fetch".
+    check: async (page) => {
+      const alert = await page.getByRole('alert').innerText();
+      const problems = [];
+      if (!alert.includes('We couldn’t reach PUNI. Check your connection and try again.'))
+        problems.push(`error copy: ${alert.replaceAll('\n', ' ')}`);
+      if (alert.includes('Failed to fetch')) problems.push('raw browser error shown');
+      if ((await page.getByRole('button', { name: 'Try again' }).count()) !== 1)
+        problems.push('no retry');
+      if ((await page.getByRole('link', { name: 'Back to Home' }).count()) !== 1)
+        problems.push('no exit');
+      return problems;
+    },
+    stack: oidc,
+    path: '/',
+    cookie: true,
+    abort: true,
+    ready: (page) => page.getByRole('alert').waitFor(),
+  },
+  {
+    name: 'operator',
+    stack: oidc,
+    path: '/operator',
+    cookie: false,
+    ready: (page) => page.locator('#operator-password').waitFor(),
+  },
+  {
+    name: 'workspace',
+    // A request without a concept answers GET /concept with 404 by contract.
+    allowed: ['status of 404'],
+    stack: demo,
+    path: '/',
+    cookie: true,
+    demoSignIn: true,
+    ready: (page) => page.getByRole('heading', { name: 'Shape the work together.' }).waitFor(),
+  },
+];
+if (operatorPassword)
+  states.push({
+    name: 'operator-inbox',
+    stack: oidc,
+    path: '/operator',
+    cookie: false,
+    operatorSignIn: true,
+    ready: (page) => page.getByRole('button', { name: /Refresh inbox/ }).waitFor(),
+  });
+
+/**
+ * Measures an element's focus outline (`focus`) or border (`rest`) against the first opaque
+ * surface behind it, as a WCAG contrast ratio. Runs in the page.
+ */
+function inspectIndicator(element, mode) {
+  const channels = (color) => {
+    const parts = color.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0, 0];
+    return [parts[0], parts[1], parts[2], parts[3] ?? 1];
+  };
+  const luminance = (rgb) =>
+    rgb
+      .slice(0, 3)
+      .map((channel) => channel / 255)
+      .map((channel) => (channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4))
+      .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+  let behind = [255, 255, 255, 1];
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const color = channels(globalThis.getComputedStyle(node).backgroundColor);
+    if (color[3] > 0) {
+      behind = color;
+      break;
+    }
+  }
+  const style = globalThis.getComputedStyle(element);
+  const visible =
+    mode === 'rest' ||
+    (style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) >= 2);
+  const raw = channels(mode === 'rest' ? style.borderTopColor : style.outlineColor);
+  const shown = raw
+    .slice(0, 3)
+    .map((channel, index) => channel * raw[3] + behind[index] * (1 - raw[3]));
+  const [high, low] = [luminance(shown), luminance(behind)].sort((first, second) => second - first);
+  return {
+    name: `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ''} "${(element.textContent ?? '').trim().slice(0, 24)}"`,
+    ratio: visible ? (high + 0.05) / (low + 0.05) : 0,
+  };
+}
+
+/**
+ * Proof: `outline: none` on focused fields, the old composer glow, and the old #c9c9c4 border
+ * each made this report a failing ratio (0:1 indicator, 1.66:1 border).
+ * Tabs through the page and focuses every text field, failing any focus indicator under 3:1
+ * (WCAG 2.4.13) and any resting field border under 3:1 (WCAG 1.4.11) against its surface.
+ */
+async function auditFocus(page) {
+  const problems = [];
+  const seen = new Set();
+  const record = (focus, label) => {
+    if (seen.has(focus.name)) return;
+    seen.add(focus.name);
+    if (focus.ratio < 3)
+      problems.push(`${label} focus indicator ${focus.ratio.toFixed(2)}:1 on ${focus.name}`);
+  };
+  await page.locator('h1').first().focus();
+  for (let step = 0; step < 14; step += 1) {
+    await page.keyboard.press('Tab');
+    const focused = page.locator(':focus');
+    if ((await focused.count()) === 1)
+      record(await focused.evaluate(inspectIndicator, 'focus'), 'tab');
+  }
+  for (const field of await page.locator('input:visible, textarea:visible').all()) {
+    await field.focus();
+    record(await field.evaluate(inspectIndicator, 'focus'), 'field');
+    await field.evaluate((element) => element.blur());
+    const rest = await field.evaluate(inspectIndicator, 'rest');
+    if (rest.ratio < 3) problems.push(`field border ${rest.ratio.toFixed(2)}:1 on ${rest.name}`);
+  }
+  return problems;
+}
+
+const only = env['PUNI_SCREENS_ONLY']?.split(',');
+const selected = only ? states.filter((state) => only.includes(state.name)) : states;
+const failures = [];
+const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+try {
+  for (const state of selected) {
+    for (const viewport of viewports) {
+      const label = `${state.name}-${String(viewport.width)}`;
+      const context = await browser.newContext({ viewport });
+      if (state.cookie) await context.addCookies([await createDraftCookie(state.stack)]);
+      const page = await context.newPage();
+      const consoleErrors = [];
+      const consoleTexts = [];
+      page.on('pageerror', (error) => consoleErrors.push(`pageerror: ${error.message}`));
+      page.on('console', (message) => {
+        if (message.type() !== 'error') return;
+        const text = message.text();
+        consoleTexts.push(text);
+        // A signed-out session and a missing manual draft answer 401 by contract.
+        if (text.includes('status of 401')) return;
+        if (state.allowed?.some((allowed) => text.includes(allowed))) return;
+        if (state.abort && text.includes('net::ERR_FAILED')) return;
+        if (state.abort && text.includes('CORS')) return;
+        consoleErrors.push(text);
+      });
+      await page.addInitScript(() => {
+        globalThis.__cls = 0;
+        new globalThis.PerformanceObserver((list) => {
+          for (const entry of list.getEntries())
+            if (!entry.hadRecentInput) globalThis.__cls += entry.value;
+        }).observe({ type: 'layout-shift', buffered: true });
+      });
+      if (state.hold)
+        await page.route(`${state.stack.api}/entry`, () => new Promise(() => undefined));
+      if (state.abort) await page.route(`${state.stack.api}/entry`, (route) => route.abort());
+      if (state.abortSession)
+        await page.route(`${state.stack.api}/session`, (route) => route.abort());
+      await page.goto(`${state.stack.app}${state.path}`, { waitUntil: 'domcontentloaded' });
+      if (state.demoSignIn) {
+        await page.locator('#demo-email').fill(`screens-${String(Date.now())}@example.test`);
+        await page.getByRole('button', { name: /Enter local demo/ }).click();
+      }
+      if (state.operatorSignIn) {
+        await page.locator('#operator-password').fill(operatorPassword);
+        await page.getByRole('button', { name: /Sign in/ }).click();
+      }
+      await state.ready(page);
+      await page.evaluate(() => globalThis.document.fonts.ready);
+      await page.waitForTimeout(500);
+      await page.screenshot({ path: `${outDir}/app-${label}.png`, fullPage: true });
+      const audit = await page.evaluate(() => {
+        const overflow = globalThis.document.documentElement.scrollWidth - globalThis.innerWidth;
+        const small = [];
+        for (const element of globalThis.document.querySelectorAll(
+          'a[href], button, input, textarea, select, summary',
+        )) {
+          const box = element.getBoundingClientRect();
+          if (box.width === 0 || box.height === 0) continue;
+          if (globalThis.getComputedStyle(element).visibility === 'hidden') continue;
+          // WCAG 2.5.8 exempts links inside running text.
+          if (element.tagName === 'A' && element.closest('p')) continue;
+          if (box.height < 44 || box.width < 44)
+            small.push(
+              `${element.tagName.toLowerCase()} "${(element.textContent ?? '').trim().slice(0, 32)}" ${String(Math.round(box.width))}x${String(Math.round(box.height))}`,
+            );
+        }
+        const h1 = globalThis.document.querySelector('h1');
+        return {
+          overflow,
+          small,
+          cls: globalThis.__cls,
+          title: globalThis.document.title,
+          h1Focused: h1 !== null && globalThis.document.activeElement === h1,
+        };
+      });
+      const problems = state.check ? await state.check(page, consoleTexts) : [];
+      problems.push(...(await auditFocus(page)));
+      if (audit.overflow > 0) problems.push(`horizontal overflow ${String(audit.overflow)}px`);
+      if (audit.small.length > 0) problems.push(`small targets: ${audit.small.join('; ')}`);
+      if (audit.cls >= 0.05) problems.push(`CLS ${audit.cls.toFixed(3)}`);
+      if (consoleErrors.length > 0) problems.push(`console: ${consoleErrors.join(' | ')}`);
+      globalThis.console.log(
+        `${label}: title="${audit.title}" h1Focused=${String(audit.h1Focused)} cls=${audit.cls.toFixed(3)} ${problems.length === 0 ? 'OK' : problems.join(' / ')}`,
+      );
+      if (problems.length > 0) failures.push(label);
+      await context.close();
+    }
+  }
+
+  if (!only || only.includes('menu')) {
+    const context = await browser.newContext({ viewport: viewports[2] });
+    await context.addCookies([await createDraftCookie(oidc)]);
+    const page = await context.newPage();
+    await page.goto(oidc.app, { waitUntil: 'domcontentloaded' });
+    // Wait for the loaded state: its h1 focus would otherwise reset the focus start point.
+    await page.locator('.build-request-card').waitFor();
+    await page.waitForLoadState('networkidle');
+    // Clicking the header's empty middle sets the sequential focus start before its controls.
+    await page.mouse.click(195, 34);
+    const order = [];
+    for (let step = 0; step < 3; step += 1) {
+      await page.keyboard.press('Tab');
+      order.push(
+        await page.evaluate(() => globalThis.document.activeElement?.className.split(' ')[0] ?? ''),
+      );
+    }
+    // Proof: moving the brand back after the Menu toggle made this report skip-link,menu-toggle,brand.
+    const orderOk = order.join(',') === 'skip-link,brand,menu-toggle';
+    globalThis.console.log(`tab-order-390: ${order.join(',')} ${orderOk ? 'OK' : 'FAIL'}`);
+    if (!orderOk) failures.push('tab-order-390');
+    await page.keyboard.press('Escape');
+    const menu = page.getByRole('button', { name: 'Menu' });
+    await menu.click();
+    const build = page.locator('nav[aria-label="Primary"] a[aria-current="page"]');
+    await build.waitFor();
+    await page.screenshot({ path: `${outDir}/app-menu-open-390.png` });
+    const expanded = await page.locator('.menu-toggle').getAttribute('aria-expanded');
+    await page.keyboard.press('Escape');
+    const closed = !(await build.isVisible());
+    const focused = await page.evaluate(() =>
+      globalThis.document.activeElement?.classList.contains('menu-toggle'),
+    );
+    const menuOk = expanded === 'true' && closed && focused === true;
+    globalThis.console.log(
+      `menu-390: expanded=${String(expanded)} escapeClosed=${String(closed)} focusReturned=${String(focused)} ${menuOk ? 'OK' : 'FAIL'}`,
+    );
+    if (!menuOk) failures.push('menu-390');
+    await context.close();
+  }
+
+  for (const viewport of only ? [] : [viewports[0], viewports[2]]) {
+    const context = await browser.newContext({
+      viewport,
+      recordVideo: { dir: `${outDir}/video-${String(viewport.width)}`, size: viewport },
+    });
+    await context.addCookies([await createDraftCookie(oidc)]);
+    const page = await context.newPage();
+    await page.goto(oidc.app, { waitUntil: 'domcontentloaded' });
+    await page.locator('h1').first().waitFor();
+    await page.waitForTimeout(1200);
+    await page.getByRole('link', { name: /brief/i }).first().click();
+    await page.locator('#brief').waitFor();
+    await page.waitForTimeout(800);
+    await page.mouse.wheel(0, 600);
+    await page.waitForTimeout(1200);
+    await context.close();
+  }
+} finally {
+  await browser.close();
+}
+if (strict && failures.length > 0)
+  throw new Error(
+    `Screen audit failed for ${String(failures.length)} captures: ${failures.join(', ')}`,
+  );
