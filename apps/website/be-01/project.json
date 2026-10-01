@@ -21,7 +21,7 @@
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint apps/website/be-01/src apps/website/be-01/build.ts"
+        "command": "bunx eslint apps/website/be-01/src apps/website/be-01/build.ts apps/website/be-01/build-smoke.ts"
       }
     },
     "typecheck": {
@@ -45,6 +45,13 @@
         "command": "bun run apps/website/be-01/build.ts"
       },
       "outputs": ["{projectRoot}/dist"]
+    },
+    "test:package": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["build"],
+      "options": {
+        "command": "bun run apps/website/be-01/build-smoke.ts"
+      }
     }
   }
 }
