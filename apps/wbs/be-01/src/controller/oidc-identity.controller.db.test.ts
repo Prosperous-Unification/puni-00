@@ -94,6 +94,7 @@ describe('the OIDC callback after activation', () => {
   let refreshVerifyFault: boolean;
   let refreshProviderFault: boolean;
   let revokeFault: boolean;
+  let revokeCalls: number;
   let refreshResponse:
     | ((call: number) => Promise<{ accessToken: string; expiresIn: number; refreshToken: string }>)
     | null;
@@ -120,6 +121,7 @@ describe('the OIDC callback after activation', () => {
     refreshVerifyFault = false;
     refreshProviderFault = false;
     revokeFault = false;
+    revokeCalls = 0;
     refreshResponse = null;
     callbackAccessClaims = { ...claims, exp: Math.floor((now + 900_000) / 1000) };
   });
@@ -200,6 +202,7 @@ describe('the OIDC callback after activation', () => {
           };
         },
         revoke: () => {
+          revokeCalls++;
           if (revokeFault) throw new Error('provider revoke unavailable');
           return Promise.resolve();
         },
@@ -1769,6 +1772,55 @@ describe('the OIDC callback after activation', () => {
       },
     );
     expect((await logout()).status).toBe(204);
+  });
+
+  it('rolls back a revocation when lifecycle closure fails after its insert', async () => {
+    sql(
+      "INSERT INTO users (id, username, password_hash, idp_issuer, idp_sub, created_at) VALUES ('captured', 'captured', NULL, 'https://idp.test', 'subject-1', 1)",
+    );
+    const lifecycle = new SqliteBrowserAuthLifecycle(openDrizzle(path), OPEN);
+    const revoked = new SqliteBrowserCredentialRevocations(openDrizzle(path), OPEN);
+    const first = {
+      kind: 'oidc' as const,
+      userId: 'captured',
+      digest: createHash('sha256').update('access-1').digest('hex'),
+      expiresAt: now + 900_000,
+    };
+    await lifecycle.open('session-1', first);
+    const app = mounted(claims, lifecycle);
+    localTokens.save({
+      sessionCorrelation: 'session-1',
+      refreshToken: 'refresh-1',
+      expiresAt: now + 86_400_000,
+      userId: 'captured',
+      generation: 1,
+      credential: first,
+    });
+    sql(
+      "CREATE TRIGGER refuse_lifecycle_close BEFORE UPDATE OF state ON browser_auth_lifecycle WHEN NEW.state = 'closed' BEGIN SELECT RAISE(ABORT, 'injected close failure'); END",
+    );
+    const logout = () =>
+      app.handle(
+        new Request('https://dev.wbs.test/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            origin: 'https://dev.wbs.test',
+            cookie: '__Host-wbs_session=session-1; __Host-wbs_access=access-1',
+          },
+        }),
+      );
+    const failed = await logout();
+    expect(failed.status).toBe(500);
+    expect(failed.headers.get('set-cookie')).toBeNull();
+    expect(await lifecycle.generation('session-1')).toEqual({ generation: 1, current: first });
+    // Proof: running close without its SQLite transaction left the B1 row
+    // committed after this injected UPDATE abort; generation then refused.
+    expect(await revoked.isRevoked(first)).toBe(false);
+    expect(localTokens.read('session-1')).not.toBeNull();
+    expect(revokeCalls).toBe(0);
+    sql('DROP TRIGGER refuse_lifecycle_close');
+    expect((await logout()).status).toBe(204);
+    expect(await revoked.isRevoked(first)).toBe(true);
   });
 
   for (const nextSecret of ['refresh-1', 'refresh-2']) {
