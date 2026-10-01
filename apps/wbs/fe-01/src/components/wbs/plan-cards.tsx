@@ -35,7 +35,7 @@ import { type CellElement, cellKey } from './editable-grid';
 import { POINTS, showTrio } from './estimate-draft';
 import type { ServiceLabel, ServiceTeamLabel, TagLabel } from './gantt-geometry';
 import { renderName } from './inline-markdown';
-import { type CommitOutcome, flushCell } from './live-editing';
+import { type CommitOutcome, didLand, flushCell } from './live-editing';
 import { composeNameCell } from './name-notes';
 import { priorityBandStyleOf } from './priority-band-style';
 import { ReferenceSetSheet } from './reference-set-field';
@@ -1737,7 +1737,7 @@ function CardPriorityField({
   const paint = priorityBandStyleOf(bands, row.priority);
   const send = async (typed: string): Promise<void> => {
     const outcome = await setPriority(row, typed);
-    if (outcome === 'landed') setOpen(false);
+    if (didLand(outcome)) setOpen(false);
   };
   return (
     <Modal
@@ -2017,7 +2017,7 @@ function CardDependsField({
     setAdding((current) => withId(current, entry.id));
     void addDependency(row, entry.id).then((outcome) => {
       setAdding((current) => withoutId(current, entry.id));
-      if (outcome === 'landed') setTyped('');
+      if (didLand(outcome)) setTyped('');
     });
   };
 

@@ -29,6 +29,7 @@ import { ExternalRefsModal } from './external-refs-modal';
 import { GanttFaultBoundary } from './gantt-fault';
 import { appliedGanttHeight, DAY_PX, GanttPanel, isoToday } from './gantt-panel';
 import { KeyboardCheatSheet } from './keyboard-cheat-sheet';
+import { didLand } from './live-editing';
 import { logicalGrid } from './logical-grid';
 import { formatDestination, moveUnderCandidates, MoveUnderPicker } from './move-under-picker';
 import { OptimizationCue } from './optimization-cue';
@@ -1112,8 +1113,8 @@ export function WbsTable({
    */
   const arrangeBySchedule = useCallback(() => {
     void run((write) => write.perform(['tree'], () => commands.arrangeBySchedule())).then(
-      (landed) => {
-        if (landed === 'landed') pushToast({ kind: 'info', text: 'Arranged by schedule.' });
+      (outcome) => {
+        if (didLand(outcome)) pushToast({ kind: 'info', text: 'Arranged by schedule.' });
       },
     );
   }, [commands, pushToast, run]);
@@ -1299,7 +1300,7 @@ export function WbsTable({
         finished === null
           ? await setStatus(id, 'in_progress', started, started)
           : await setStatus(id, 'done', finished, started);
-      if (outcome !== 'landed') return;
+      if (!didLand(outcome)) return;
       // `setStatus` fills the two facts only where the row held none, so a held
       // day the reader changed in the prompt follows as a patch of its own.
       if (finished !== null && held.factEnd !== null && held.factEnd !== finished) {

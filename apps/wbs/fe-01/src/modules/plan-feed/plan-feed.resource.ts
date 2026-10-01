@@ -186,9 +186,14 @@ export function createPlanReading({
       // left only one initialize call instead of two in `rereads by
       // invalidating, and resynchronizes when nothing is anchored and
       // something is stale` (2026-09-20).
+      // Proof: treating a failed resynchronization as installed makes
+      // `reports a failed resynchronization used instead of invalidation`
+      // receive true instead of false, 2026-10-01.
       if (owner.getSnapshot().baseline === null && owner.getSnapshot().staleResources.length > 0)
-        await owner.initialize();
-      else await owner.invalidate({ resources });
+        return (await owner.initialize()).status === 'installed';
+      // Proof: replacing the status check with `true` made `reports when the
+      // covering read failed` receive true instead of false, 2026-10-01.
+      return (await owner.invalidate({ resources })).status === 'installed';
     },
     close: () => {
       // Proof: deleting `stop()` omitted "stop" from the close call sequence

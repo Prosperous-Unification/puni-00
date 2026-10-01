@@ -386,6 +386,34 @@ describe('one project’s reading', () => {
     expect(fake.invalidations).toHaveLength(1);
   });
 
+  it('reports when the covering read failed', async () => {
+    const fake = fakeOwner();
+    fake.show(ANCHORED_SNAPSHOT);
+    fake.owner.invalidate = () =>
+      Promise.resolve({
+        status: 'failed',
+        failures: [{ resource: 'tree', cause: new Error('offline') }],
+      });
+    const reading = createPlanReading(portsOver(fake.owner).ports);
+
+    expect(await reading.rereadResources(['tree'])).toBe(false);
+  });
+
+  it('reports a failed resynchronization used instead of invalidation', async () => {
+    const fake = fakeOwner();
+    fake.show(snapshotOf({ staleResources: ['tree'] }));
+    const reading = createPlanReading(portsOver(fake.owner).ports);
+
+    const reread = reading.rereadResources(['tree']);
+    fake.firstRead({
+      status: 'failed',
+      failures: [{ resource: 'tree', cause: new Error('offline') }],
+    });
+
+    expect(await reread).toBe(false);
+    expect(fake.invalidations).toEqual([]);
+  });
+
   it('exposes the store contract over its own owner', () => {
     const fake = fakeOwner();
     const reading = createPlanReading(portsOver(fake.owner).ports);

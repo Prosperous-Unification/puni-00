@@ -15,13 +15,20 @@ import {
  * dropped connection, a request that never went out. They are one event to a
  * cell: the only copy of what was typed is the one on screen.
  *
+ * `landed-unread` means the write was accepted but its covering read failed;
+ * the cell keeps the saved text until a later read can order peer values.
+ *
  * `unsent` is the commit that asked be-01 for nothing, and it is not the same
  * answer. A composite cell whose two texts differ only in their line endings
  * sends no patch; an estimate cell holds a half-typed trio as a draft it
  * renders from. Neither has anything for a face to hold back or to correct,
  * and calling either of them `landed` would be recording a write.
  */
-export type CommitOutcome = 'landed' | 'refused' | 'unsent';
+export type CommitOutcome = 'landed' | 'landed-unread' | 'refused' | 'unsent';
+
+/** A successful write, whether or not its covering reread installed. */
+export const didLand = (outcome: CommitOutcome): boolean =>
+  outcome === 'landed' || outcome === 'landed-unread';
 
 /** The answer a commit that sent nothing gives, as a settled promise. */
 export const unsent = (): Promise<CommitOutcome> => Promise.resolve('unsent');
@@ -77,12 +84,10 @@ interface Submission {
    * anything rule 2 held back may be written — see {@link LiveField.leave}.
    */
   landed: boolean;
-  /**
-   * {@link LiveField.serverValues} when it was sent. A value rule 2 was already
-   * holding back then predates the save, and releasing it over the saved text
-   * would put back what the save replaced; only one heard since may go in.
-   */
-  heardBefore: number;
+  /** Whether the read after this save installed; only that read can order earlier peer values. */
+  readInstalled: boolean;
+  /** The last server value heard when the save answered. Later peers can still be released. */
+  heardAtLanding: number;
 }
 
 /**
@@ -453,12 +458,18 @@ export class LiveField {
       // still in the air` failed on `expected 'Peer' to be 'Beta'`. Watched,
       // 2026-09-27.
       //
-      // And only a value heard since it was sent: one rule 2 was holding from
-      // before is older than the save, and a reread that failed leaves it as
-      // the newest thing the field knows. Proof: the `heardBefore` comparison removed, `a
-      // peer name held from before a save is not written over it` failed on
-      // `expected 'Peer' to be 'Beta'`. Watched, 2026-09-27.
-      if (this.sent.landed && this.serverValues !== this.sent.heardBefore) {
+      // A successful covering read establishes the current server value even
+      // when a peer reverted to the original text, so that value can be shown.
+      // After a failed read, only a value heard after the save's answer can
+      // safely replace it. Proof: treating the precommit peer as later made
+      // `keeps the saved name when a precommit peer value is left by a failed
+      // reread` submit Beta twice; ignoring the installed read left Beta in
+      // `shows a peer revert to the original name after the covering reread
+      // succeeds`. Both failed before this rule, 2026-10-01.
+      if (
+        this.sent.landed &&
+        (this.sent.readInstalled || this.serverValues !== this.sent.heardAtLanding)
+      ) {
         // The box shows what landed, so that is its baseline for the sync:
         // left on the one from before the save, a peer's revert to that very
         // name would read as nothing new. Proof: this line removed, `a peer's
@@ -530,7 +541,10 @@ export class LiveField {
       // on the very next render by the one be-01 had refused, and sent again
       // by the blur after that.
       if (generation !== this.submissions) return outcome;
-      if (outcome !== 'landed') {
+      // Proof: treating `landed-unread` as a refusal made `keeps the saved
+      // name when a precommit peer value is left by a failed reread` send
+      // Beta twice, 2026-10-01.
+      if (!didLand(outcome)) {
         // Nothing of this edit is on the server — `refused` was turned down,
         // `unsent` never went — so the record of a submission goes with it
         // and leaving the cell again is a fresh ask rather than a duplicate.
@@ -560,9 +574,11 @@ export class LiveField {
       this.refused = false;
       heldRefusals.delete(this.cellKey);
       submission.landed = true;
-      // The refetch this commit triggered lands *before* it resolves, so a
-      // draft that rule 4 held back was held back through the one render
-      // that carried its answer. Nothing else would come.
+      submission.readInstalled = outcome === 'landed';
+      submission.heardAtLanding = this.serverValues;
+      // If the refetch installed, it has answered before the commit resolves.
+      // If it failed, the field retains the saved text and the stale banner
+      // reports that the screen may be behind.
       this.sync();
       this.afterSync(this.node);
       return outcome;
@@ -575,7 +591,8 @@ export class LiveField {
       baseline,
       landing,
       landed: false,
-      heardBefore: this.serverValues,
+      readInstalled: false,
+      heardAtLanding: this.serverValues,
     };
     this.sent = submission;
     return landing;
