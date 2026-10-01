@@ -8,8 +8,8 @@ import type { Broadcaster } from '../../ports/project-event';
 import type { Scheduler } from '../../ports/scheduler';
 import type { SubtreeCopy } from '../../ports/subtree-store';
 import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
-import type { DirectoryService } from '../../service/directory.service';
-import type { WorkItemService } from '../../service/work-item.service';
+import type { DirectoryService } from '../directory/directory.resource';
+import type { WorkItemService } from '../work-item/work-item.resource';
 import {
   type ImportPreparation,
   type PreparedNamedEntry,

@@ -1,6 +1,6 @@
 # Capacity
 
-<!-- module-index {"schemaVersion":1,"moduleId":"module.application.capacity","memberships":[{"kind":"path","path":"capacity.resource.ts"},{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every reader this packet verified by reading compose.ts, index.ts and the compatibility shim."},{"section":"invariants","reason":"The canEditProject gate and the one-project announcement are documented on CapacityService.set; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"},{"kind":"path","path":"libs/wbs/application/core/src/service/capacity.service.ts"}],"knowledgeLimit":"Only the composition root, the core barrel and the compatibility shim are declared; Plan commands, the be-01 clock test and the be-01 shim and controller tests reach this module through the shim or the barrel and are not tracked here."}} -->
+<!-- module-index {"schemaVersion":1,"moduleId":"module.application.capacity","memberships":[{"kind":"path","path":"capacity.resource.ts"},{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.core.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every production reader a module-specifier scan found on 2026-09-29, when the compatibility shims were retired."},{"section":"invariants","reason":"The canEditProject gate and the one-project announcement are documented on CapacityService.set; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/be-01/src/app.ts"},{"kind":"path","path":"libs/wbs/application/core/src/compose.ts"},{"kind":"path","path":"libs/wbs/application/core/src/index.ts"},{"kind":"path","path":"libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts"}],"knowledgeLimit":"The composition root, the core barrel, Plan commands and be-01's app are declared; the be-01 clock test and controller and database tests are not tracked here."}} -->
 
 A sealed resource module installed per admitted scope: `servicesOver` in
 `libs/wbs/application/core/src/compose.ts` installs it once for the public graph and once for every
@@ -21,8 +21,9 @@ The applicable check is the `wbs-core:test` target declared in
 ## Consumers
 
 `libs/wbs/application/core/src/compose.ts` installs the module per supplied scope;
-`libs/wbs/application/core/src/service/capacity.service.ts` keeps the former path for Plan commands,
-`@wbs/core`'s barrel and be-01's deep-import shim.
+`libs/wbs/application/core/src/index.ts` re-exports `capacity.resource.ts` from the `@wbs/core`
+barrel; `libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts` and
+`apps/wbs/be-01/src/app.ts` import it directly.
 
 ## Wiki registration
 

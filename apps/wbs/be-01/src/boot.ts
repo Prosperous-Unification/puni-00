@@ -1,5 +1,6 @@
 import { buildOidcVerifier } from '@wbs/auth';
 import type { DelegationIssuer } from '@wbs/core';
+import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import type { Logger } from '@wbs/observability';
 import {
   DomainClaimRepository,
@@ -29,7 +30,6 @@ import { REFUSE_DELEGATIONS } from './runtime/delegation';
 import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
 import { importDelegationKeys } from './runtime/delegation-keys';
 import { refusingEmailDelivery } from './runtime/email-delivery';
-import type { AuthenticatedUser } from './service/auth.service';
 import { type BeServices, buildServices, type OptimizerRuntime } from './services';
 
 export interface BootOptions {

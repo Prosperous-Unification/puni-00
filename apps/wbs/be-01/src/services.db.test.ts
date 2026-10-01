@@ -3,10 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { subscriptionFor } from '@wbs/core';
+import { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
+import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
 
+import type { ReservedSpawner, ReservedSpawnRequest } from './module/optimization/contract';
+import { readRuntimeSolverVersion } from './module/solver-launcher/solver-launcher.repository';
 import { openConnection, type openDrizzle } from './repository/db';
 import { DrizzleEventLogStore } from './repository/event-log';
 import { OPEN } from './repository/gate';
@@ -25,10 +29,6 @@ import {
 import { UserRepository } from './repository/user';
 import { WorkItemRepository } from './repository/work-item';
 import { nodeDigest } from './runtime/bun-runtime';
-import type { ReservedSpawner, ReservedSpawnRequest } from './service/optimization-coordinator';
-import { PlanCommandRunner } from './service/plan-commands';
-import { SavedPlanService } from './service/saved-plan.service';
-import { readRuntimeSolverVersion } from './service/solver-launcher-process';
 import { buildServices } from './services';
 import { projectRow } from './testing/project-fixture';
 

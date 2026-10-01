@@ -22,24 +22,24 @@ import type { ProjectCrossReferenceKind, RecoveryAuditDetail } from '../../ports
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
 import type { Service, Tag, WorkItemType } from '../../ports/work-item-store';
-import type { CapacityService } from '../../service/capacity.service';
+import type { DirectoryUsage } from '../../service/directory-usage';
+import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
+import type { CapacityService } from '../capacity/capacity.resource';
 import type {
   DirectoryOutcome,
   DirectoryRefusal,
   RemoveDirectoryOutcome,
-} from '../../service/directory.service';
-import type { DirectoryService } from '../../service/directory.service';
-import type { DirectoryUsage } from '../../service/directory-usage';
-import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
-import type { PriorityBandService } from '../../service/priority-band.service';
-import type { StepService } from '../../service/step.service';
-import type { WorkItemRefusal } from '../../service/work-item.service';
+} from '../directory/directory.resource';
+import type { DirectoryService } from '../directory/directory.resource';
+import type { PriorityBandService } from '../priority-band/priority-band.resource';
+import type { StepService } from '../step/step.resource';
+import type { WorkItemRefusal } from '../work-item/work-item.resource';
 import type {
   Collected,
   UndoOutcome,
   WorkItemOutcome,
   WorkItemService,
-} from '../../service/work-item.service';
+} from '../work-item/work-item.resource';
 import { applyCommand, bindCommands, CommandContext, CommandRefused } from './command-bindings';
 import { createWorkingPlan } from './working-plan.resource';
 

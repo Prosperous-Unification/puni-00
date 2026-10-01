@@ -893,8 +893,8 @@ describe('what a refused directory change says', () => {
   });
 
   it('has a sentence for every code the directory routes answer with', () => {
-    // The list is `statusFor` and `DirectoryRefusal` in
-    // `apps/wbs/be-01/src/service/directory.service.ts`, plus the one this client
+    // The list is `DirectoryRefusal` in
+    // `libs/wbs/application/core/src/module/directory/directory.resource.ts`, plus the one this client
     // raises itself. A code with no sentence would reach the page as itself.
     for (const code of [
       'name_required',

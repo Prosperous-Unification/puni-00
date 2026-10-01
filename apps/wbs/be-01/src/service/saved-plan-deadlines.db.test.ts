@@ -3,6 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { CREATOR_ADMISSION } from '@wbs/core';
+import {
+  captureAndSchedulePlan,
+  scheduleInputOfCaptured,
+  schedulePlanInput,
+} from '@wbs/core/service/saved-plan-schedule';
 import type { Schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
@@ -31,11 +36,6 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { projectRow } from '../testing/project-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import {
-  captureAndSchedulePlan,
-  scheduleInputOfCaptured,
-  schedulePlanInput,
-} from './saved-plan-schedule';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 

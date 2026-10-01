@@ -2,8 +2,8 @@ import { AnnouncementCollector } from '../../ports/announcement-collector';
 import { type EditAdmission, NO_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
-import type { ProjectService } from '../../service/project.service';
-import type { StepService } from '../../service/step.service';
+import type { ProjectService } from '../project/project.resource';
+import type { StepService } from '../step/step.resource';
 
 /** The two route writes that validate the combined dependency graph before they write. */
 export interface AdmittedServices {

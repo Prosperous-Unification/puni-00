@@ -2,7 +2,7 @@ import type { AuthenticatedUser } from '@wbs/contracts';
 
 import { mayEditProjectWithin, type ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
-import type { ProjectService } from '../../service/project.service';
+import type { ProjectService } from '../project/project.resource';
 import type {
   SavedPlanSaveOutcome,
   SavedPlanSaveRequest,

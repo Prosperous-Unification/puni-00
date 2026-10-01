@@ -2510,3 +2510,39 @@ the guard disabled, `names a module its config leaves unchecked` failed (5 pass,
 `authentication/tsconfig.json`'s `include` deleted; with the guard restored the same fault failed
 the target naming `authentication (config leaves out .../module.ts, ...)`. The fixture suite also
 creates the untracked `tmp/` parent itself, so it passes in a fresh checkout.
+
+### Remaining re-export shims, task 7.1 in part — 2026-09-29
+
+- A module-specifier scan (static `from`, `import()`, `require()` and `mock.module()` specifiers,
+  relative and `@wbs/core/*`, over every tracked `.ts` and `.tsx` file; a throwaway Python scan)
+  listed the importers of all 56 `re-export shim` rows. Each importer now names the owning module
+  file, a core service file, `@wbs/core` or `@wbs/runtime-portable`; be-01's
+  `optimization-coordinator.ts` importers split between the Optimization `contract.ts` and
+  `optimization.feature.ts`. The shims and their rows are deleted in one commit per module:
+  `kinds.json` goes from 80 entries to 24, none a re-export shim. Every module index and
+  `docs/wiki-policy/modules.json` row that declared a shim as an external consumer declares the
+  production importers instead. `apps/wbs/be-01/tools/capture-capacity-oracle.ts` is a frozen pin
+  outside lint and typecheck and is left byte-for-byte.
+- Checks keyed to the shims changed with them: `service-boundaries.test.ts` lints only the core
+  service files that remain; `sideways-type-boundaries.test.ts` drops the two rows keyed to
+  `service/plan-document.ts` and `service/calendar-marker.service.ts`; be-01's
+  `module-boundaries.test.ts` drops the Supervisor rule's shim clause; `clock.test.ts` probes
+  `service/optimizer-wiring.ts` for the be-01 folder; `module-labels.test.ts` audits the real
+  ledger (now with no module-naming shim row) and a synthetic ledger through one helper.
+- Faults: `SHIM_OWNER` expecting `modules directly` failed `checks each shim row form against the
+files it names` with `named` 0 against 2 (5 pass, 1 fail); prepending
+  `import '../calendar-marker/calendar-marker.resource';` to Plan document's resource failed the
+  sideways suite with exactly that violation (0 pass, 1 fail); dropping
+  `apps/wbs/be-01/src/service` from `clock.test.ts`'s `FOLDERS` failed `is reading real service
+sources` on `Received: undefined` (3 pass, 1 fail); prepending
+  `import '../optimization/optimization.feature';` to `solver-supervisor-spawner.ts` still failed
+  be-01's `module-boundaries.test.ts` with one violation (0 pass, 1 fail); importing `Nope` from
+  the deleted `@wbs/core/service/replay-buffer` in a be-01 database test failed
+  `nx run wbs-be-01:typecheck`.
+- After, with `CLAUDECODE` unset: `tool-devsync` `bun test --preload ../test/scratch/preload.ts
+--timeout=30000` 392 pass, 0 fail; `wbs-core` `bun test src --timeout=10000` 797 pass, 0 fail;
+  be-01 `bun test src --timeout=10000` 1592 pass, 1 skip, 0 fail; burokrat CLI
+  `pilot-policy.test.ts`, `kind-inventory.test.ts` and `src/indexes` 132 pass, 0 fail.
+  `nx run-many -t typecheck` for `wbs-core`, `wbs-be-01`, `tool-devsync`, `wbs-store-sqlite` and
+  `wbs-contracts`, and `nx run-many -t lint` for those five plus `wbs-fe-01`, succeeded. Not run:
+  `wbs-fe-01` typecheck and tests (one comment changed), the host gate.

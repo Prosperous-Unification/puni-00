@@ -1,6 +1,6 @@
 import { expect, spyOn, test } from 'bun:test';
 
-import { PlanCommandRunner } from '../service/plan-commands';
+import { PlanCommandRunner } from '../module/plan-commands/plan-commands.feature';
 import { inMemoryServices } from '../testing/harness';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { batchServices, testWrites } from '../testing/writes-fixture';

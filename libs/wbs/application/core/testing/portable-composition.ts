@@ -2,13 +2,13 @@ import { noopLogger } from '@wbs/contracts';
 import { openMemorySource } from '@wbs/store-memory';
 
 import { composeServices, type RuntimePorts, type SharedComposition } from '../src/compose';
+import { PlanCommandRunner } from '../src/module/plan-commands/plan-commands.feature';
+import { runCommandBatch } from '../src/module/plan-commands/run-command-batch';
+import { replay } from '../src/module/realtime/realtime.feature';
+import { savePlan } from '../src/module/saved-plans/save-plan';
 import { clockOf } from '../src/ports/clock';
 import { LEGACY_ACCESS } from '../src/ports/organization-access';
-import { PlanCommandRunner } from '../src/service/plan-commands';
 import { fastScheduler } from '../src/testing/scheduler-fixture';
-import { replay } from '../src/use-cases/replay';
-import { runCommandBatch } from '../src/use-cases/run-command-batch';
-import { savePlan } from '../src/use-cases/save-plan';
 
 type OperationName = 'batch' | 'save' | 'replay' | 'retention';
 
