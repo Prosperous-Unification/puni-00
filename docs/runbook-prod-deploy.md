@@ -278,3 +278,30 @@ the organization already holds a space of that name, or an author is no longer a
 ```sh
 docker exec be-01-<colour> bun run src/space-rollback-cli.ts restore /data/spaces-<date>.json
 ```
+
+## Project rank rollback
+
+Code rollback needs nothing: an older image has no rank routes, and the `project_rank` table is
+inert to it. Rolling back past `20260929180000_add_project_rank` refuses while any rank exists,
+reading `CHECK constraint failed: project ranks exist: …`, because dropping the table would lose
+every organization's project order. Run the procedure inside the incoming container after its
+writers have stopped, with the same `DB_PATH`. Save, then copy the file off the host:
+
+```sh
+docker exec be-01-<colour> bun run src/project-rank-rollback-cli.ts save /data/project-ranks-<date>.json
+```
+
+Remove only after the save is secure. Remove refuses unless the file equals every stored rank,
+every column included:
+
+```sh
+docker exec be-01-<colour> bun run src/project-rank-rollback-cli.ts remove /data/project-ranks-<date>.json
+docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
+```
+
+After a later forward migration, restore. Restore refuses the whole set, naming the project,
+when a saved project is no longer owned by its organization or an author is no longer a user:
+
+```sh
+docker exec be-01-<colour> bun run src/project-rank-rollback-cli.ts restore /data/project-ranks-<date>.json
+```

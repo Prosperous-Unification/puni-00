@@ -662,6 +662,7 @@ describe('readMigrationFolders', () => {
       '20260928040000_add_email_challenge',
       '20260928200000_add_work_item_status_facts',
       '20260929100000_add_spaces',
+      '20260929180000_add_project_rank',
       '20261001010000_add_browser_credential_revocations',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
@@ -795,6 +796,7 @@ describe('rollbackTo, against a real database', () => {
         '20260928040000_add_email_challenge',
         '20260928200000_add_work_item_status_facts',
         '20260929100000_add_spaces',
+        '20260929180000_add_project_rank',
         '20261001010000_add_browser_credential_revocations',
       ]);
 
@@ -802,6 +804,7 @@ describe('rollbackTo, against a real database', () => {
 
       expect(reversed).toEqual([
         '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
@@ -942,6 +945,7 @@ describe('rollbackTo, against a real database', () => {
         '20260928040000_add_email_challenge',
         '20260928200000_add_work_item_status_facts',
         '20260929100000_add_spaces',
+        '20260929180000_add_project_rank',
         '20261001010000_add_browser_credential_revocations',
       ]);
     } finally {
@@ -1014,6 +1018,7 @@ describe('rollbackTo, against a real database', () => {
 
       expect(reversed).toEqual([
         '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
@@ -1119,6 +1124,7 @@ describe('rollbackTo, against a real database', () => {
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
         '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',
@@ -1209,6 +1215,7 @@ describe('rollbackTo, against a real database', () => {
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
         '20261001010000_add_browser_credential_revocations',
+        '20260929180000_add_project_rank',
         '20260929100000_add_spaces',
         '20260928200000_add_work_item_status_facts',
         '20260928040000_add_email_challenge',

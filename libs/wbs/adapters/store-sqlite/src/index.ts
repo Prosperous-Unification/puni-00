@@ -41,6 +41,7 @@ export * from './organization-selection-preview';
 export * from './plan-event';
 export * from './priority-band';
 export * from './project';
+export * from './project-rank';
 export * from './revision';
 export * from './saved-plan';
 export * from './saved-plan-capture';

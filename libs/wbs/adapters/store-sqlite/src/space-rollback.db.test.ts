@@ -57,6 +57,7 @@ describe('space rollback save, remove and restore', () => {
 
     expect(rollbackTo(path, FOLDER, BEFORE_SPACES)).toEqual([
       '20261001010000_add_browser_credential_revocations',
+      '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
     ]);
     runMigrations(path, FOLDER);
