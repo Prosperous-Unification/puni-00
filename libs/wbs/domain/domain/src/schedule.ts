@@ -1997,6 +1997,23 @@ function elsewhereWindow(
   return { start, holder };
 }
 
+/** Latest start no later than `ceiling` that still fits before a person's bookings. */
+function latestStartAroundElsewhere(
+  bookings: readonly ElsewhereBooking[],
+  ceiling: number,
+  duration: number,
+): number {
+  let start = ceiling;
+  if (duration === 0) return start;
+  for (let at = bookings.length - 1; at >= 0; at -= 1) {
+    const booking = bookings[at];
+    if (booking.end <= start) break;
+    if (booking.start >= start + duration) continue;
+    start = booking.start - duration;
+  }
+  return start;
+}
+
 /**
  * {@link placeSlices}' window for a person booked elsewhere: move between the
  * bookings and the pools until both accept one instant.
@@ -2638,8 +2655,16 @@ function weightedLateTimes(
   edges: readonly WeightedEdge[],
   finish: number,
   placed: readonly Placed[],
+  elsewhere: Elsewhere = NOWHERE,
 ): Late[] {
   const starts = graph.nodes.map((node) => finish - durationOf(node.slice));
+  const capStart = (at: number): number => {
+    const { slice } = graph.nodes[at];
+    const bookings = slice.personId === null ? undefined : elsewhere.get(slice.personId);
+    return bookings === undefined
+      ? starts[at]
+      : latestStartAroundElsewhere(bookings, starts[at], durationOf(slice));
+  };
   const outgoing = graph.nodes.map((): WeightedEdge[] => []);
   const incoming = graph.nodes.map(() => 0);
   for (const edge of edges) {
@@ -2664,9 +2689,38 @@ function weightedLateTimes(
       for (const edge of outgoing[before]) {
         starts[before] = Math.min(starts[before], starts[edge.after] - edge.weight);
       }
+      // Proof: omitting this cap made `caps latest starts in the weighted pass
+      // and passes the cap to a predecessor` report A's latestStart as 9 and
+      // its predecessor's as 8 across Ana's [2,10) booking; watched 2026-10-05.
+      starts[before] = capStart(before);
     }
   } else {
-    relaxWeightedStarts(starts, edges);
+    // A weighted resource cycle can relax one start into a booking after an
+    // earlier pass capped it. Each cap crosses at least one booking for that
+    // slice, so the number of relevant intervals bounds convergence.
+    const capLimit = graph.nodes.reduce((count, node) => {
+      const personId = node.slice.personId;
+      return count + (personId === null ? 0 : (elsewhere.get(personId)?.length ?? 0));
+    }, 0);
+    for (let pass = 0; pass <= capLimit; pass += 1) {
+      relaxWeightedStarts(starts, edges);
+      let capped = false;
+      for (let taken = 0; taken < starts.length; taken += 1) {
+        const next = capStart(taken);
+        if (next < starts[taken]) {
+          starts[taken] = next;
+          capped = true;
+        }
+      }
+      // Proof: stopping after the first cap made `propagates booking caps
+      // around a feasible weighted resource cycle` return [10,14,10], not
+      // [10,9,9]; watched 2026-10-05.
+      if (!capped) break;
+      // Proof: with the interval budget broken to zero, the same production
+      // test threw here; removing this refusal returned [10,14,10] instead
+      // of [10,9,9]; both faults watched 2026-10-05.
+      if (pass === capLimit) throw new Error('backward booking bounds did not converge');
+    }
   }
   return graph.nodes.map((node, at) => {
     const latestStart = withinDrift(starts[at], placed[at].start) ? placed[at].start : starts[at];
@@ -2777,6 +2831,7 @@ function lateTimes(
   projectFinish: number,
   placed: readonly Placed[],
   hasQueues: boolean,
+  elsewhere: Elsewhere = NOWHERE,
 ): Late[] {
   const { nodes } = graph;
   const late: Late[] = [];
@@ -2792,6 +2847,17 @@ function lateTimes(
       if (settled < finish) finish = settled;
     }
 
+    const personId = node.slice.personId;
+    const bookings = personId === null ? undefined : elsewhere.get(personId);
+    if (bookings !== undefined) {
+      const duration = offsets[at + 1] - offsets[at];
+      const latestStart = latestStartAroundElsewhere(bookings, finish - duration, duration);
+      // Proof: removing this booking cap made `does not give a slice false
+      // float across its next booking` report latest [9,10), float 9 for Ana's
+      // [0,1) slice with a fixed booking [1,10); watched 2026-10-05.
+      finish = latestStart + duration;
+    }
+
     // The tight-path rule. Proof: with this branch removed, `reports a queue
     // that ends the project as critical, exactly` failed on `a`'s late start —
     // `Expected: 0 Received: -2.220446049250313e-16` — and, with that
@@ -2805,7 +2871,7 @@ function lateTimes(
     // differential — report the snapped answer either way. What the rule buys
     // is the number the engine hands out verbatim, not the colour.
     const early = placed[taken];
-    if (hasQueues && finish === early.finish) {
+    if ((hasQueues || bookings !== undefined) && finish === early.finish) {
       anchorOf[node.item] = { finish, at };
       late[taken] = { latestFinish: finish, latestStart: early.start };
       continue;
@@ -3528,6 +3594,7 @@ export function schedule(
         [...weightedEdges, ...leveled.resourceEdges],
         projectFinish,
         leveled.placed,
+        elsewhere,
       )
     : lateTimes(
         graph,
@@ -3536,6 +3603,7 @@ export function schedule(
         projectFinish,
         leveled.placed,
         queues.some((next) => next.length > 0),
+        elsewhere,
       );
 
   const scheduledSlices = new Map<string, ScheduledSlice>();

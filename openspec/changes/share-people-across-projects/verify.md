@@ -134,3 +134,44 @@ Fable's review of #250 unified "non-empty elsewhere": a listed person holds at l
 (which now calls `checkElsewhere` and no longer sorts bookings it has validated) and the wire 2
 builder. The FS pass's drift between the searched length and `tileFinish`'s finish is documented
 beside the search, not re-searched; the overlap property already applies the same tolerance.
+
+## Slice 4 — backward booking bounds (PR #250 review)
+
+The backward FS and weighted passes now fit latest intervals around the same fixed bookings
+as the forward pass. A cap propagates to plan predecessors and around a feasible augmented
+resource cycle; float and criticality therefore cannot describe an interval inside a booking.
+The cyclic relaxation repeats after caps until all bounds settle, with a budget of one pass
+per relevant booking plus the final settled pass.
+
+Verified 2026-10-05 in `/tmp/puni-pr250-integration` on `pop-os`, using `env -u CLAUDECODE`
+for Bun tests and Nx commands. Nx ran with `NX_DAEMON=false` and `--skip-nx-cache`.
+
+| Command                                                                                                               | Result                                                           |
+| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `bun test libs/wbs/domain/domain/src/schedule-elsewhere.test.ts libs/wbs/domain/domain/src/schedule-weighted.test.ts` | 39 pass, 0 fail                                                  |
+| `bun test --timeout=10000` (cwd `libs/wbs/domain/domain`)                                                             | 872 pass, 1 skip, 0 fail; 58,615 assertions across 69 files      |
+| `bunx nx run-many -t typecheck lint -p wbs-domain --skip-nx-cache`                                                    | both targets succeeded                                           |
+| `bunx nx run-many -t build -p wbs-be-01,wbs-gw-01,wbs-fe-01 --skip-nx-cache`                                          | three application builds and their protocol dependency succeeded |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                              | 145 passed, 0 failed                                             |
+
+The initial domain invocation from the workspace root included nested boundary checks with
+project-relative fixtures: 1,678 pass, 2 skip, 9 fail and 5 errors. The corrected project-cwd
+command above is the domain test target's contract and passed. The remaining skipped check is
+`certifies 600 slices in under 20ms elapsed`, which the suite marks skipped. The canonical
+h2puni SHA gate was not run on this `pop-os` workspace; these are scoped checks, not a host-wide
+gate result.
+
+Each mutation below changed production `schedule.ts`, was watched failing, and was restored.
+The four-test command was `bun test libs/wbs/domain/domain/src/schedule-elsewhere.test.ts -t
+'false float|booking-capped|caps latest|propagates booking caps'`; the cycle-only command used
+`-t 'propagates booking caps'`.
+
+| Fault                                                                       | Observed production regression                                                | Result                                                                                     |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `latestStartAroundElsewhere` returns its ceiling without searching bookings | `does not give a slice false float across its next booking`                   | latestStart 9, latestFinish 10, float 9, critical false; expected 0, 1, 0, true            |
+| same bypass                                                                 | `passes a booking-capped latest start backward to a plan predecessor`         | A latestStart 9, float 8, critical false; expected 1, 0, true                              |
+| same bypass                                                                 | `caps latest starts in the weighted pass and passes the cap to a predecessor` | A latestStart 9, float 8, critical false; expected 1, 0, true                              |
+| same bypass                                                                 | `propagates booking caps around a feasible weighted resource cycle`           | latest starts [24,14,23]; expected [10,9,9]; complete run: 0 pass, 4 fail, 12 filtered out |
+| stop cyclic relaxation immediately after its first cap                      | cycle regression                                                              | latest starts [10,14,10]; expected [10,9,9]; 0 pass, 1 fail                                |
+| break the interval budget to zero                                           | cycle regression                                                              | throws `backward booking bounds did not converge`; 0 pass, 1 fail                          |
+| zero budget with the convergence refusal removed                            | cycle regression                                                              | returns [10,14,10], violating propagated bounds; 0 pass, 1 fail                            |

@@ -49,6 +49,7 @@ function around(
   elsewhere: Elsewhere,
   extra: {
     edges?: readonly DependencyEdge[];
+    floors?: ReadonlyMap<string, number>;
     poolSizes?: PoolSizes;
     typed?: readonly TypedDependency[];
   } = {},
@@ -57,7 +58,7 @@ function around(
     rows,
     extra.edges ?? [],
     slices,
-    new Map(),
+    extra.floors ?? new Map(),
     extra.poolSizes ?? new Map(),
     'whole-item',
     new Map(),
@@ -160,6 +161,109 @@ describe('a person booked elsewhere', () => {
     const b = sliceOf(plan, 'b');
     expect([b.earliestStart, b.earliestFinish, b.boundBy]).toEqual([4, 6, 'elsewhere']);
     expect(b.elsewhereHolder).toEqual({ projectId: 'platform', workItemId: 'x1' });
+  });
+
+  it('does not give a slice false float across its next booking', () => {
+    const plan = around(
+      [leaf('a', 0), leaf('long', 1)],
+      [work('a', 1, { personId: 'ana' }), work('long', 10)],
+      new Map([['ana', [booking(1, 10)]]]),
+    );
+
+    expect(sliceOf(plan, 'a')).toMatchObject({
+      earliestStart: 0,
+      earliestFinish: 1,
+      latestStart: 0,
+      latestFinish: 1,
+      float: 0,
+      critical: true,
+    });
+  });
+
+  it('passes a booking-capped latest start backward to a plan predecessor', () => {
+    const plan = around(
+      [leaf('before', 0), leaf('a', 1), leaf('long', 2)],
+      [work('before', 1), work('a', 1, { personId: 'ana' }), work('long', 10)],
+      new Map([['ana', [booking(2, 10)]]]),
+      { edges: [{ predecessorId: 'before', successorId: 'a' }] },
+    );
+
+    expect(sliceOf(plan, 'a')).toMatchObject({
+      earliestStart: 1,
+      latestStart: 1,
+      float: 0,
+      critical: true,
+    });
+    expect(sliceOf(plan, 'before')).toMatchObject({
+      earliestStart: 0,
+      latestStart: 0,
+      float: 0,
+      critical: true,
+    });
+  });
+
+  it('caps latest starts in the weighted pass and passes the cap to a predecessor', () => {
+    const plan = around(
+      [leaf('before', 0), leaf('a', 1), leaf('long', 2), leaf('later', 3)],
+      [work('before', 1), work('a', 1, { personId: 'ana' }), work('long', 10), work('later', 1)],
+      new Map([['ana', [booking(2, 10)]]]),
+      {
+        edges: [{ predecessorId: 'before', successorId: 'a' }],
+        typed: [
+          {
+            id: 'unrelated-ss',
+            predecessor: { scope: 'whole', workItemId: 'long' },
+            successor: { scope: 'whole', workItemId: 'later' },
+            type: 'SS',
+          },
+        ],
+      },
+    );
+
+    expect(sliceOf(plan, 'a')).toMatchObject({
+      earliestStart: 1,
+      latestStart: 1,
+      float: 0,
+      critical: true,
+    });
+    expect(sliceOf(plan, 'before')).toMatchObject({
+      earliestStart: 0,
+      latestStart: 0,
+      float: 0,
+      critical: true,
+    });
+  });
+
+  it('propagates booking caps around a feasible weighted resource cycle', () => {
+    const plan = around(
+      [leaf('a', 0), leaf('b', 1), leaf('c', 2), leaf('long', 3)],
+      [
+        work('a', 1, { personId: 'ana' }),
+        work('b', 11),
+        work('c', 1, { personId: 'ana' }),
+        work('long', 25),
+      ],
+      new Map([['ana', [booking(11, 30)]]]),
+      {
+        floors: new Map([['a', 10]]),
+        typed: [
+          {
+            id: 'a-b',
+            predecessor: { scope: 'whole', workItemId: 'a' },
+            successor: { scope: 'whole', workItemId: 'b' },
+            type: 'FF',
+          },
+          {
+            id: 'b-c',
+            predecessor: { scope: 'whole', workItemId: 'b' },
+            successor: { scope: 'whole', workItemId: 'c' },
+            type: 'SS',
+          },
+        ],
+      },
+    );
+
+    expect(['a', 'b', 'c'].map((id) => sliceOf(plan, id).latestStart)).toEqual([10, 9, 9]);
   });
 
   it('refuses a malformed map', () => {
