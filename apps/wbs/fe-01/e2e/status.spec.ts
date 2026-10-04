@@ -414,77 +414,114 @@ test.describe('each status on the chart, in a browser (add-work-item-statuses)',
   });
 });
 
-test.describe('status colours against the page, in a browser (add-work-item-statuses)', () => {
-  test('every status colour reaches 4.5:1, since each is glyph text as well as a strip', async ({
+test.describe('status colours on table surfaces, in a browser (add-work-item-statuses)', () => {
+  test('every status glyph clears 4.5:1 on the table surfaces it can occupy', async ({
     page,
   }, testInfo) => {
     await seedALongRow(page);
-    // The browser's own reading of each token, through a canvas so an `oklch()`
-    // colour comes back as the sRGB pixel it paints, then WCAG's relative
-    // luminance against the page background.
-    const ratios = await page.evaluate(() => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 1;
-      canvas.height = 1;
-      const context = canvas.getContext('2d', { willReadFrequently: true });
-      if (context === null) throw new Error('no 2d canvas in this browser');
-      const pixel = (css: string): [number, number, number] => {
+    await page.getByRole('button', { name: 'Add work item' }).click();
+    await showColumn(page, 'Status', 'status');
+    const rows = page.locator('tbody tr[data-row-id]');
+    await expect(rows).toHaveCount(2);
+    const ratios: Record<string, Record<string, number>> = {};
+    const tokens = [
+      '--status-draft',
+      '--status-ready',
+      '--status-in-progress',
+      '--status-blocked-by-proxy',
+      '--status-on-hold',
+      '--status-blocked',
+      '--status-done',
+    ];
+    const measure = async (surface: string, rowIndex: number): Promise<void> => {
+      // Cell backgrounds fade for 100ms when a row changes state.
+      await page.waitForTimeout(150);
+      ratios[surface] = await rows.nth(rowIndex).evaluate((row, statusTokens) => {
+        const cell = row.querySelector('td[data-column="status"]');
+        const glyph = cell?.querySelector('input[data-status-value]');
+        if (!(cell instanceof HTMLTableCellElement) || !(glyph instanceof HTMLInputElement)) {
+          throw new Error('status glyph or its painted cell is absent');
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (context === null) throw new Error('no 2d canvas in this browser');
+        const pixel = (): [number, number, number] => {
+          const rgba = context.getImageData(0, 0, 1, 1).data;
+          if (rgba[3] !== 255) throw new Error('table surface is not opaque');
+          return [rgba[0], rgba[1], rgba[2]];
+        };
+        const paint = (colour: string): void => {
+          context.fillStyle = colour;
+          context.fillRect(0, 0, 1, 1);
+        };
+        const cellStyle = getComputedStyle(cell);
+        if (!cellStyle.backgroundImage.startsWith('linear-gradient(')) {
+          throw new Error('status cell has no row-tint background layer');
+        }
         context.clearRect(0, 0, 1, 1);
-        context.fillStyle = css;
-        context.fillRect(0, 0, 1, 1);
-        const [r = 0, g = 0, b = 0] = context.getImageData(0, 0, 1, 1).data;
-        return [r, g, b];
-      };
-      const resolved = (token: string): string => {
-        const probe = document.createElement('span');
-        probe.style.color = `var(${token})`;
-        document.body.append(probe);
-        const colour = getComputedStyle(probe).color;
-        probe.remove();
-        return colour;
-      };
-      const channel = (value: number): number => {
-        const c = value / 255;
-        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-      };
-      const luminance = ([r, g, b]: [number, number, number]): number =>
-        0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
-      // The page's own ground token: the body's computed background is
-      // transparent, and a transparent pixel reads as black.
-      const ground = luminance(pixel(resolved('--background')));
-      const ratio = (token: string): number => {
-        const ink = luminance(pixel(resolved(token)));
-        return (Math.max(ink, ground) + 0.05) / (Math.min(ink, ground) + 0.05);
-      };
-      const measured = Object.fromEntries(
-        [
-          '--status-draft',
-          '--status-ready',
-          '--status-in-progress',
-          '--status-blocked-by-proxy',
-          '--status-on-hold',
-          '--status-blocked',
-          '--status-done',
-        ].map((token) => [token, Math.round(ratio(token) * 100) / 100]),
-      );
-      return measured;
-    });
+        paint(cellStyle.backgroundColor);
+        // The first background image is a uniform gradient of --row-tint.
+        // Paint it over the resolved --cell-bg so its alpha is composited.
+        paint(cellStyle.getPropertyValue('--row-tint'));
+        const surfacePixel = pixel();
+        const channel = (value: number): number => {
+          const part = value / 255;
+          return part <= 0.04045 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4;
+        };
+        const luminance = ([red, green, blue]: [number, number, number]): number =>
+          0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue);
+        const ground = luminance(surfacePixel);
+        return Object.fromEntries(
+          statusTokens.map((token) => {
+            glyph.style.color = `var(${token})`;
+            const inkColour = getComputedStyle(glyph).color;
+            context.clearRect(0, 0, 1, 1);
+            paint(inkColour);
+            const ink = luminance(pixel());
+            return [token, (Math.max(ink, ground) + 0.05) / (Math.min(ink, ground) + 0.05)];
+          }),
+        );
+      }, tokens);
+    };
+    for (const tinted of [false, true]) {
+      if (tinted) {
+        await rows.evaluateAll((paintedRows) => {
+          for (const row of paintedRows) row.setAttribute('data-row-status', 'done');
+        });
+      }
+      const prefix = tinted ? 'done tint' : 'plain';
+      for (const [index, parity] of ['normal', 'banded'].entries()) {
+        const row = rows.nth(index);
+        await expect(row).toHaveAttribute('data-row-parity', parity === 'normal' ? 'odd' : 'even');
+        if (tinted) await expect(row).toHaveAttribute('data-row-status', 'done');
+        await page.mouse.move(0, 0);
+        await measure(`${prefix} ${parity}`, index);
+        await row.hover();
+        await expect(row).toHaveAttribute('data-row-lit', 'true');
+        await measure(`${prefix} ${parity} hover`, index);
+        await page.mouse.move(0, 0);
+        await row.evaluate((element) => {
+          element.setAttribute('data-row-lit', 'true');
+        });
+        await expect(row).toHaveAttribute('data-row-lit', 'true');
+        await measure(`${prefix} ${parity} highlighted`, index);
+        await row.evaluate((element) => {
+          element.removeAttribute('data-row-lit');
+        });
+      }
+    }
     await testInfo.attach('status colour contrast', {
       body: JSON.stringify(ratios, null, 2),
       contentType: 'application/json',
     });
-    // Every token is glyph text somewhere — the Status cell's glyph, and the
-    // bold lead word of a menu entry or a fact card — so every token owes
-    // 4.5:1, which also clears the strip's 3:1.
-    // Proof: `--status-in-progress` put back to `oklch(0.72 0.15 72)` in
-    // `styles.css`, and this failed on `--status-in-progress`, `Received:
-    // 2.54`; watched in Chromium 2026-09-29. With draft, ready, on hold and done
-    // at their earlier lightness (0.62, 0.6, 0.58, 0.6) it failed on
-    // `--status-draft as glyph text`, `Received: 3.64`; watched in Chromium
-    // 2026-09-29. The measured ratios are attached to every run.
-    for (const [token, measured] of Object.entries(ratios)) {
-      expect(measured, `${token} as a strip`).toBeGreaterThanOrEqual(3);
-      expect(measured, `${token} as glyph text`).toBeGreaterThanOrEqual(4.5);
+    // Proof: restoring the old --status-done L 0.54 in styles.css made this
+    // browser test fail on the plain hovered row at 3.973500377557369:1.
+    for (const [surface, colours] of Object.entries(ratios)) {
+      for (const [token, measured] of Object.entries(colours)) {
+        expect(measured, `${token} glyph on ${surface}`).toBeGreaterThanOrEqual(4.5);
+      }
     }
   });
 });
