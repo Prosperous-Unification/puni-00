@@ -3131,3 +3131,30 @@ export const spaceProject = sqliteTable(
     index('space_project_project').on(t.projectId, t.organizationId),
   ],
 );
+
+/**
+ * One ranked project's place in its organization's project rank. The
+ * composite reference carries `organization_id`, so a rank across
+ * organizations has no parent; see `20260929180000_add_project_rank`.
+ * Positions tie legally (ADR 0016); ties order by project id.
+ */
+export const projectRank = sqliteTable(
+  'project_rank',
+  {
+    projectId: text('project_id').primaryKey(),
+    organizationId: text('organization_id').notNull(),
+    position: integer('position').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.projectId, t.organizationId],
+      foreignColumns: [projectOrganization.resourceId, projectOrganization.organizationId],
+    }).onDelete('cascade'),
+    index('project_rank_order').on(t.organizationId, t.position, t.projectId),
+  ],
+);

@@ -12,6 +12,7 @@ import type {
   MembershipAdministration,
   Onboarding,
   OrganizationAccess,
+  ProjectRankStore,
   ReplayOrchestrator,
   SavedPlanService,
   SpaceStore,
@@ -25,6 +26,7 @@ import { joinRequestRoutes } from '@wbs/core/http/join-request.routes';
 import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
+import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
 import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
 import type { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
@@ -38,6 +40,7 @@ import type { StepService } from '@wbs/core/module/step/step.resource';
 import type { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import type { AuthService } from '@wbs/core/service/auth.service';
 import { PersonLoad } from '@wbs/core/service/person-load.feature';
+import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
 import { RollUpCache, SpaceResource } from '@wbs/core/service/space.resource';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
@@ -176,6 +179,11 @@ export interface AppOptions {
    */
   spaces: SpaceStore;
   /**
+   * The organizations' project rank (`share-people-across-projects`, slice
+   * 3). Required, like `spaces`: the load reads order by it.
+   */
+  projectRanks: ProjectRankStore;
+  /**
    * Shared secret gw-01 presents on /internal/*. Required — a default here
    * would silently diverge from the value gw-01 loads from the environment,
    * failing every forward with a 401 that only shows up in a real deployment.
@@ -287,7 +295,7 @@ export function mountedEndpoints(
   // graph before they write, so each runs as one unit of work: a write landing
   // between the check and the write could otherwise leave a cycle.
   const admitted = createAdmittedWrites(opts.writes);
-  // Spaces stamp their writes; the app's clock is time alone, so ids are
+  // Spaces and rank moves stamp their writes; the app's clock is time alone, so ids are
   // random UUIDs as `services.ts` issues them.
   const spaceClock = clockOf({ now: () => opts.clock.now(), newId: () => crypto.randomUUID() });
   // One cache per app, which is one per process in production (design memo §8).
@@ -352,6 +360,15 @@ export function mountedEndpoints(
         projects: opts.projects,
         workItems: opts.workItems,
         directory: opts.directory,
+        ranks: opts.projectRanks,
+      }),
+      opts.organizations,
+    ),
+    ...projectRankRoutes(
+      new ProjectRankResource({
+        ranks: opts.projectRanks,
+        projects: opts.projects,
+        clock: spaceClock,
       }),
       opts.organizations,
     ),

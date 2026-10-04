@@ -86,6 +86,7 @@ export * from './ports/membership-administration';
 export * from './ports/onboarding';
 export * from './ports/organization-access';
 export * from './ports/project-event';
+export * from './ports/project-rank-store';
 export * from './ports/project-store';
 export type { PushTransport } from './ports/push-transport';
 export type { Digest, PasswordHasher, SessionClaims, TokenCodec } from './ports/runtime';

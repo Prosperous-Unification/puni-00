@@ -20,6 +20,7 @@ import {
   OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
+  ProjectRankRepository,
   readOrganizationActivation,
   scheduleInputHash,
   SpaceRepository,
@@ -292,6 +293,7 @@ export class OrganizationHarness {
       invitations: new InvitationRepository(db, OPEN),
       joinRequests: new JoinRequestRepository(db, OPEN),
       spaces: new SpaceRepository(db, OPEN),
+      projectRanks: new ProjectRankRepository(db, OPEN),
       emailDelivery: {
         deliver: async (address, token) => {
           await mail.beforeDelivery?.();
@@ -401,6 +403,7 @@ export class OrganizationHarness {
       invitations: new InvitationRepository(source.db, services.gate),
       joinRequests: new JoinRequestRepository(source.db, services.gate),
       spaces: new SpaceRepository(source.db, services.gate),
+      projectRanks: new ProjectRankRepository(source.db, services.gate),
       emailDelivery: {
         deliver: () => Promise.reject(new Error('composed harness mail sink refuses delivery')),
       },
