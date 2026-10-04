@@ -241,3 +241,20 @@ gate passes in Chromium.
 ## Not run
 
 - The h2puni host gate; the orchestrator runs it on the integration branch.
+
+## 2026-10-04 PR #248 contrast correction
+
+The earlier `--background` measurements above describe the initial token
+values only. The status glyph test now composites the row tint over each
+computed cell background and checks all seven tokens on plain and banded rows,
+hovered and highlighted rows, with and without the Done tint. Each measured
+ratio must be at least 4.5:1.
+
+The original values were red in Chromium: Draft on a hovered row measured
+3.920405954:1 and Done on its resting tint measured 4.274764846:1. Restoring
+the old Done lightness after the fix also failed at 3.973500378:1 on a hovered
+row. The final values in `apps/wbs/fe-01/src/styles.css` are Done L 0.48,
+In Progress L 0.49, Draft L 0.49, Ready L 0.48, On Hold L 0.49, Blocked L
+0.50, and Blocked by Proxy L 0.49. The full status browser spec passed 5/5;
+FE lint, FE typecheck, and Prettier passed. The h2puni host gate remains to be
+run by the coordinator.
