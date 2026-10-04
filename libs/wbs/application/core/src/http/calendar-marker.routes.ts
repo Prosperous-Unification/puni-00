@@ -12,15 +12,15 @@ import {
   validateCustomColor,
 } from '@wbs/domain';
 
-import type { CalendarMarker } from '../ports/calendar-marker-store';
-import type { OrganizationAccess } from '../ports/organization-access';
-import type { ResourceAccess } from '../ports/organization-access';
 import type {
   CalendarMarkerOutcome,
   CalendarMarkerRefusal,
   CalendarMarkerRefused,
   CalendarMarkerService,
-} from '../service/calendar-marker.service';
+} from '../module/calendar-marker/calendar-marker.resource';
+import type { CalendarMarker } from '../ports/calendar-marker-store';
+import type { OrganizationAccess } from '../ports/organization-access';
+import type { ResourceAccess } from '../ports/organization-access';
 import { bind, EMPTY, type RequestFailure } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 import { type RecoveryWriteBoundary, runRecoveryWrite } from './recovery-write';

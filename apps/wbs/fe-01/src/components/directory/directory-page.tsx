@@ -33,6 +33,12 @@ export interface DirectoryPageProps {
   nav?: ReactNode;
   /** The account menu, from router context. */
   account?: ReactNode;
+  /**
+   * Each person's booked and overlapping workdays, drawn under their row. The
+   * route supplies it from `GET /api/people/load`; left out, rows carry no load
+   * line, which is how the page's own suite draws it without a router.
+   */
+  loadOf?: (person: { id: string; name: string }) => ReactNode;
 }
 
 export type { DirectoryKind };
@@ -172,7 +178,7 @@ const TAP_PICKER = '[&_input]:h-11 [&_input]:rounded-md [&_input]:border [&_inpu
  * from what came back, so a refused change leaves the screen as it was with the
  * refusal on it.
  */
-export function DirectoryPage({ directory: management, nav, account }: DirectoryPageProps) {
+export function DirectoryPage({ directory: management, nav, account, loadOf }: DirectoryPageProps) {
   const shown = useDirectoryManagement(management);
   const { people, teams, tags, services, workItemTypes, busy, problem } = shown;
 
@@ -535,6 +541,7 @@ export function DirectoryPage({ directory: management, nav, account }: Directory
                           />
                         </span>
                       </div>
+                      {loadOf?.(person)}
                     </li>
                   ))}
                 </ul>

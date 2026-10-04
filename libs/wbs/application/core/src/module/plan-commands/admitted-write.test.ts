@@ -3,7 +3,8 @@ import { describe, expect, it } from 'bun:test';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
-import { type AdmittedServices, admittedWrites } from './admitted-write';
+import type { AdmittedServices } from './admitted-write';
+import { createAdmittedWrites } from './composition';
 
 /** A unit of work that records what ran inside it and what it decided. */
 function recordingUnitOfWork(log: string[]): UnitOfWork {
@@ -46,7 +47,7 @@ describe('admittedWrites', () => {
       },
       steps: { removeWithin: () => Promise.reject(new Error('not asked')) },
     });
-    const writes = admittedWrites({
+    const writes = createAdmittedWrites({
       uow: recordingUnitOfWork(log),
       batch: graph,
       announcements: silent(log),
@@ -59,7 +60,7 @@ describe('admittedWrites', () => {
 
   it('rolls a refused step removal back and announces nothing', async () => {
     const log: string[] = [];
-    const writes = admittedWrites({
+    const writes = createAdmittedWrites({
       uow: recordingUnitOfWork(log),
       batch: (_scope, broadcast) => ({
         projects: { updateWithin: () => Promise.reject(new Error('not asked')) },

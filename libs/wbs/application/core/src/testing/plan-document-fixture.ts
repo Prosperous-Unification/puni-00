@@ -48,6 +48,8 @@ export function planDocumentFixture(): PlanDocumentImport {
         deadline: '2026-09-18',
         factStart: null,
         factEnd: null,
+        readiness: null,
+        hold: null,
         priority: 2,
         serviceTeamId: 'team-1',
         serviceId: 'service-1',

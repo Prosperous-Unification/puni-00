@@ -41,6 +41,7 @@ export const NODE_SUITES: readonly string[] = [
   'src/components/wbs/pointed-row-store.test.ts',
   'src/components/wbs/project-picker.test.ts',
   'src/components/wbs/short-date.test.ts',
+  'src/components/wbs/status-offers.test.ts',
   'src/components/wbs/wbs-rows.test.ts',
   // `work-item-deadline` 8.9's repository assertion. It parses `.tsx` sources
   // with the TypeScript parser and reads them off disk, which is a file-system

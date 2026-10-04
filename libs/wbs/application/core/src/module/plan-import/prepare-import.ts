@@ -4,6 +4,7 @@ import {
   allowancePercentOf,
   findTypedEndpointDefect,
   formatTypedDependencyKey,
+  type Hold,
   isHexTriple,
   isIsoDate,
   isMarkerName,
@@ -17,6 +18,7 @@ import {
   MOST_PEOPLE_AT_ONCE,
   PertWeights,
   priorityLadderProblem,
+  type Readiness,
   type StepState,
   suggestStepCodes,
   type ThreePointEstimate as Estimate,
@@ -26,9 +28,9 @@ import {
 } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
-import type { StoredDependency } from '../../ports/dependency-store';
+import type { StoredDependency } from '../../ports/dependency-values';
 import type { Scheduler } from '../../ports/scheduler';
-import type { WorkItem } from '../../ports/work-item-store';
+import type { WorkItem } from '../../ports/work-item-values';
 import { cleanName } from '../../service/clean-name';
 import { MOST_CHARACTERS_IN_A_REF_NAME } from '../../service/command-normalizers';
 import { canDepend } from '../../service/dependency';
@@ -119,6 +121,8 @@ export interface PreparedWorkItem {
   deadline: string | null;
   factStart: string | null;
   factEnd: string | null;
+  readiness: Readiness | null;
+  hold: Hold | null;
   priority: number | null;
   serviceTeamFileId: string | null;
   serviceFileId: string | null;
@@ -313,8 +317,8 @@ function rowShape(row: DocumentRow): WorkItem {
     deadline: row.deadline,
     factStart: row.factStart,
     factEnd: row.factEnd,
-    readiness: null,
-    hold: null,
+    readiness: row.readiness,
+    hold: row.hold,
     priority: row.priority,
     serviceTeamId: row.serviceTeamId,
     serviceId: row.serviceId,
@@ -341,6 +345,8 @@ function preparedRow(
     deadline: row.deadline,
     factStart: row.factStart,
     factEnd: row.factEnd,
+    readiness: row.readiness,
+    hold: row.hold,
     priority: row.priority,
     serviceTeamFileId: row.serviceTeamId,
     serviceFileId: row.serviceId,

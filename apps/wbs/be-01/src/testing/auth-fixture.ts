@@ -1,9 +1,9 @@
 import { buildOidcVerifier, type OidcIdentityOptions, type TokenVerifier } from '@wbs/auth';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { inMemoryUsers } from '@wbs/store-memory/auth-fixture';
 
 import type { OidcIdentityStore, UserStore } from '../repository';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { AuthService } from '../service/auth.service';
 import { testClock } from './clock-fixture';
 
 export const TEST_JWT_KEY = 'test-jwt-signing-key-at-least-32-chars';

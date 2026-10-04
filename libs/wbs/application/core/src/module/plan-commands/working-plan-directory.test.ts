@@ -4,7 +4,7 @@ import { describe, expect, it } from 'bun:test';
 
 import type { DirectoryStore } from '../../ports/directory-store';
 import type { WriteStamp } from '../../ports/write-stamp';
-import { createWorkingPlanDirectory } from './working-plan-directory';
+import { createWorkingPlanDirectory } from './working-plan-directory.resource';
 
 const STAMP: WriteStamp = { at: 1, by: 'directory-wrapper-owner' };
 

@@ -96,20 +96,36 @@
       both fields, `scheduleInputOfCaptured` applies `withoutHeldSubtrees`.
 - [x] 5.3 Negatives (saved plans): the upgrade returning the body unchanged; the saved plan's
       reduction handed an empty held set.
-- [ ] 5.4 Plan document v6: waits for typed dependency stage B's v5 (#183) to reach main, so v6
-      is written on top of it rather than on v4. Then import reads v1–v5 with both fields null
-      and refuses a value outside each vocabulary, a statement on a parent, and a hold on a row
-      marked done; the spreadsheet export already carries the status word (`Status` column).
+- [x] 5.4 Plan document v6, on stage B's v5 (main `802432df`): `PLAN_DOCUMENT_VERSION` 6; the
+      export carries each row's `readiness` and `hold`; import reads versions 1–5 with both
+      null and refuses, from version 6, a value outside each vocabulary, a missing field and a
+      statement on a parent (`invalid_body` at the field). A hold on done work is accepted
+      (Fable review of #225: `setProgress` keeps a hold, so refusing it refused the plan's own
+      export). Negatives: each of the vocabulary and parent checks disabled; the import writing
+      both as null; the done refusal restored against the held-then-done round trip. The
+      spreadsheet export already carries the status word.
 
 ## 6. fe-01 table (ships in the same integration round as slice 3)
 
-- [ ] 6.1 Red: labels, strip, cell, menu, prompt, depends card; `e2e/status.spec.ts`.
-- [ ] 6.2 Green.
-- [ ] 6.3 Negatives: menu filter removed → a held row offers its own hold; unknown status word →
+- [x] 6.1 Red: labels, strip, cell, menu, prompt, depends card; `e2e/status.spec.ts`.
+- [x] 6.2 Green: `statusOffersOf` (table menu, card menu and Status cell alike), `chooseStatus`
+      (Done and In progress through the completion prompt, the rest at once), palette tokens
+      per status (`STATUS_TOKEN`), the three `setStatus` refusals worded.
+- [x] 6.3 Negatives: menu filter removed → a held row offers its own hold; unknown status word →
       query-failure state, not a blank glyph.
+
+- [x] 6.4 Design follow-up (Fable review of #234): blocked and blocked by proxy share the `⊘`
+      glyph and the status word is exposed only in the hover card. Give blocked by proxy its own
+      glyph and expose the word to assistive tech (`aria-description` or an sr-only span). Revisit
+      in-progress contrast, 2.55:1 against white (pre-existing).
 
 ## 7. fe-01 Gantt
 
-- [ ] 7.1 Red: no bar for held, blocked outline, proxy hatch, arrows, bracket; pixel shards.
-- [ ] 7.2 Green.
-- [ ] 7.3 Negative: held filter removed → a held leaf draws a bar.
+- [x] 7.1 Red: no bar for held, blocked outline, proxy hatch, arrows, bracket; pixel shards
+      (`e2e/status.spec.ts`, `each status on the chart, in a browser`).
+- [x] 7.2 Green: `On hold` in a held row; `data-blocked` and the blocked red outline;
+      `data-blocked-by-proxy`, the hatch and the card naming the predecessors in the way (stored
+      and authored); arrows leaving a blocked bar in the blocked red; a held leaf is no end of an
+      arrow, stored or authored, instead of reading as a broken payload.
+- [x] 7.3 Negative: held filter removed → the held row loses its `On hold` word (a held leaf
+      has no slice, so slice 4's `schedule === null` skip is what keeps it barless).

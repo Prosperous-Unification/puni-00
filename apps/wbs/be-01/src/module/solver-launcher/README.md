@@ -1,6 +1,6 @@
 # Solver launcher
 
-<!-- module-index {"schemaVersion":1,"moduleId":"module.backend.solver-launcher","memberships":[{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"solver-launcher.repository.test.ts"},{"kind":"path","path":"solver-launcher.repository.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.be-01.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every reader this packet verified by reading main.ts, dev/main.ts and the compatibility shim."},{"section":"invariants","reason":"The verdict-before-request stdin framing and the one-authority version read are documented on spawnSolverLauncher and readRuntimeSolverVersion; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/be-01/src/dev/main.ts"},{"kind":"path","path":"apps/wbs/be-01/src/main.ts"},{"kind":"path","path":"apps/wbs/be-01/src/service/solver-launcher-process.ts"}],"knowledgeLimit":"Only the two entrypoints and the compatibility shim are declared; the local solver spawner and the two database tests reach this module through the shim and are not tracked here."}} -->
+<!-- module-index {"schemaVersion":1,"moduleId":"module.backend.solver-launcher","memberships":[{"kind":"path","path":"check.ts"},{"kind":"path","path":"contract.ts"},{"kind":"path","path":"module.test.ts"},{"kind":"path","path":"module.ts"},{"kind":"path","path":"solver-launcher.repository.test.ts"},{"kind":"path","path":"solver-launcher.repository.ts"},{"kind":"path","path":"tsconfig.json"}],"relationshipSelectors":[],"applicableChecks":["check.be-01.test"],"inapplicableSections":[{"section":"relationships","reason":"No committed relationship extractor is pointed at this directory yet; Consumers below names every production reader a module-specifier scan found on 2026-09-29, when the compatibility shims were retired."},{"section":"invariants","reason":"The verdict-before-request stdin framing and the one-authority version read are documented on spawnSolverLauncher and readRuntimeSolverVersion; neither spans more than one file of this module."}],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"apps/wbs/be-01/src/dev/local-solver-spawner.ts"},{"kind":"path","path":"apps/wbs/be-01/src/dev/main.ts"},{"kind":"path","path":"apps/wbs/be-01/src/main.ts"}],"knowledgeLimit":"The two entrypoints and the local solver spawner are declared; the two database tests that import this module directly are not tracked here."}} -->
 
 The first sealed DI Bag module under `apps/wbs/be-01`, following the core modules' pattern:
 `module.ts` seals the graph, `check.ts` is the only place that builds a bag, and `contract.ts`
@@ -19,8 +19,8 @@ recorded above as `check.be-01.test` and declared in `docs/wiki-policy/relations
 ## Consumers
 
 `apps/wbs/be-01/src/main.ts` and `apps/wbs/be-01/src/dev/main.ts` install the module to read the
-solver version; `apps/wbs/be-01/src/service/solver-launcher-process.ts` keeps the former path for
-`dev/local-solver-spawner.ts`, `services.db.test.ts` and `solver-child-lifecycle.db.test.ts`.
+solver version; `apps/wbs/be-01/src/dev/local-solver-spawner.ts` imports `spawnSolverLauncher` from
+`solver-launcher.repository.ts` directly.
 
 ## Wiki registration
 

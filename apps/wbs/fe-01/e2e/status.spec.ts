@@ -121,13 +121,15 @@ test.describe('the Status list, in a browser', () => {
 
     await page.getByRole('combobox', { name: 'Status of 010' }).click();
     const lines = page.getByRole('listbox', { name: 'Status for 010' }).getByRole('option');
-    await expect(lines).toHaveCount(2);
+    // A silent row is offered every settable status but Unknown, in the menu
+    // order (`add-work-item-statuses`).
+    await expect(lines).toHaveText(['Draft', 'Ready', 'In progress', 'On hold', 'Blocked', 'Done']);
     // Every line, and the first one is the check: it is the line that lies
     // over the next row, where the Links button would cover it — the last line
     // hangs below the table's final row with nothing under it, and sampled
     // alone it passed with the lift deleted (probed 2026-09-13:
     // `Unknown→BUTTON[Links for 020], Done→LI`).
-    for (const name of ['Unknown', 'Done']) {
+    for (const name of ['Draft', 'Done']) {
       const line = lines.filter({ hasText: name });
       const box = await line.boundingBox();
       if (box === null) throw new Error(`the ${name} line has no browser box`);
@@ -270,5 +272,217 @@ test.describe('marking a row done, in a browser', () => {
     const shot = testInfo.outputPath('done-row.png');
     await page.screenshot({ path: shot });
     await testInfo.attach('the done row and its bar', { path: shot, contentType: 'image/png' });
+  });
+});
+
+test.describe('holding and starting a row, in a browser (add-work-item-statuses)', () => {
+  test('holds a row from its menu, paints the hold on its strip, then starts it with Started on alone', async ({
+    page,
+  }) => {
+    await seedALongRow(page);
+    await showColumn(page, 'Status', 'status');
+    const row = page.locator('tbody tr[data-row-id]').first();
+    const dragCell = row.locator('td[data-column="drag"]');
+    const stripOf = () => dragCell.evaluate((node) => getComputedStyle(node).boxShadow);
+    const tokenColour = (token: string) =>
+      page.evaluate((name) => {
+        // The token resolved the way the strip resolves it: through a probe
+        // element's computed colour, so both sides are the browser's own form.
+        const probe = document.createElement('span');
+        probe.style.color = `var(${name})`;
+        document.body.append(probe);
+        const colour = getComputedStyle(probe).color;
+        probe.remove();
+        return colour;
+      }, token);
+
+    await page.getByRole('button', { name: 'Actions for 010' }).click();
+    await page.getByRole('menuitem', { name: 'Set status to On hold' }).click();
+    await expect(row).toHaveAttribute('data-row-status', 'on_hold');
+    await expect(page.getByRole('combobox', { name: 'Status of 010' })).toHaveValue('‖');
+    // Proof: the `on_hold` strip rule's selector struck in `styles.css`, and
+    // this failed on `Expected substring: "oklch(0.58 0.1 300)" · Received
+    // string: "oklch(0.929 0.013 255.508) -1px -1px 0px 0px inset"` — the row
+    // separator alone; watched in Chromium 2026-09-29.
+    expect(await stripOf()).toContain(await tokenColour('--status-on-hold'));
+
+    await page.getByRole('button', { name: 'Actions for 010' }).click();
+    const statuses = page.getByRole('menuitem').filter({ hasText: /^Set status to / });
+    await expect(statuses).toHaveText([
+      'Set status to Draft',
+      'Set status to Ready',
+      'Set status to In progress',
+      'Set status to Blocked',
+      'Set status to Done',
+      'Set status to Unknown',
+    ]);
+    await page.getByRole('menuitem', { name: 'Set status to In progress' }).click();
+
+    const prompt = page.getByRole('dialog', { name: 'Set 010 to In progress' });
+    await expect(prompt).toBeVisible();
+    await expect(prompt.getByLabel('Started on')).toBeVisible();
+    await expect(prompt.getByLabel('Finished on')).toHaveCount(0);
+    await prompt.getByRole('button', { name: 'Set to In progress' }).click();
+
+    await expect(row).toHaveAttribute('data-row-status', 'in_progress');
+    expect(await stripOf()).toContain(await tokenColour('--status-in-progress'));
+  });
+});
+
+test.describe('each status on the chart, in a browser (add-work-item-statuses)', () => {
+  test('a held row says On hold and draws no bar, its successor is hatched, and a blocked bar is outlined red', async ({
+    page,
+  }, testInfo) => {
+    await seedALongRow(page);
+    await page.getByRole('button', { name: 'Add work item' }).click();
+    const estimate = page.getByLabel('Dev estimate for 020');
+    await estimate.fill('5');
+    await estimate.blur();
+    await expect(estimate).not.toHaveValue('');
+    const depends = page.getByLabel('Add a dependency to 020');
+    await depends.click();
+    await depends.fill('010');
+    await depends.press('Enter');
+    await expect(page.getByRole('button', { name: /^Stop 020 waiting for / })).toHaveCount(1);
+
+    await page.getByRole('button', { name: 'Actions for 010' }).click();
+    await page.getByRole('menuitem', { name: 'Set status to On hold' }).click();
+    await expect(page.locator('tbody tr[data-row-id]').first()).toHaveAttribute(
+      'data-row-status',
+      'on_hold',
+    );
+    await openTheChart(page);
+
+    // 020's two bars, Dev and its unestimated QA, and none of 010's: 010 is
+    // out of the schedule and says so in its row.
+    await expect(page.locator('[data-gantt-bar]')).toHaveCount(2);
+    const held = page.locator('[data-gantt-held]');
+    await expect(held).toHaveText('On hold');
+    await boxOf(held, 'the On hold word');
+    const hatched = page.locator('[data-gantt-bar][data-blocked-by-proxy="true"]');
+    await expect(hatched).toHaveCount(2);
+    const devBar = hatched.first();
+    await expect(devBar).toHaveAttribute('aria-label', /Blocked by proxy — waiting on 010/);
+    // The hatch is painted over the bar, edge to edge: measured, not assumed.
+    // Within a pixel and a half: the bar's box carries its 2px outline's
+    // half-pixel overhang, the hatch's does not.
+    const bar = await boxOf(devBar, 'the hatched bar');
+    // Both are drawn off the same bars in the same order, so the first hatch
+    // is the first hatched bar's.
+    const hatch = await boxOf(page.locator('[data-gantt-bar-hatch]').first(), 'the hatch');
+    expect(
+      Math.abs(hatch.left - bar.left),
+      'the hatch starts where the bar does',
+    ).toBeLessThanOrEqual(1.5);
+    expect(
+      Math.abs(hatch.right - bar.right),
+      'the hatch stops where the bar does',
+    ).toBeLessThanOrEqual(1.5);
+    const shotHeld = testInfo.outputPath('held-and-hatched.png');
+    await page.screenshot({ path: shotHeld });
+    await testInfo.attach('a held row and the bar it stops', {
+      path: shotHeld,
+      contentType: 'image/png',
+    });
+
+    await page.getByRole('button', { name: 'Actions for 010' }).click();
+    await page.getByRole('menuitem', { name: 'Set status to Blocked' }).click();
+    const blocked = page.locator('[data-gantt-bar][data-blocked="true"]');
+    await expect(blocked).toHaveCount(2);
+    await expect(page.locator('[data-gantt-held]')).toHaveCount(0);
+    expect(await blocked.first().evaluate((rect) => getComputedStyle(rect).stroke)).toBe(
+      'rgb(220, 38, 38)',
+    );
+    await expect(page.locator('[data-gantt-bar][data-blocked-by-proxy="true"]')).toHaveCount(2);
+    // The arrow leaving the blocked bar, in the blocked red, whichever kind of
+    // dependency the cell wrote.
+    // The switch only when the arrows are not already on: pressing it turns them off.
+    if ((await page.locator('path[data-gantt-arrow]').count()) === 0) {
+      await page.locator('[data-gantt-detail-toggle]').click();
+    }
+    const leaving = page.locator('path[data-gantt-arrow][data-blocked="true"]');
+    await expect(leaving).toHaveCount(1);
+    expect(await leaving.evaluate((path) => getComputedStyle(path).stroke)).toBe(
+      'rgb(220, 38, 38)',
+    );
+    const shotBlocked = testInfo.outputPath('blocked.png');
+    await page.screenshot({ path: shotBlocked });
+    await testInfo.attach('a blocked row and the bar it stops', {
+      path: shotBlocked,
+      contentType: 'image/png',
+    });
+  });
+});
+
+test.describe('status colours against the page, in a browser (add-work-item-statuses)', () => {
+  test('every status strip reaches 3:1, and the glyphs task 6.4 names reach 4.5:1', async ({
+    page,
+  }, testInfo) => {
+    await seedALongRow(page);
+    // The browser's own reading of each token, through a canvas so an `oklch()`
+    // colour comes back as the sRGB pixel it paints, then WCAG's relative
+    // luminance against the page background.
+    const ratios = await page.evaluate(() => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (context === null) throw new Error('no 2d canvas in this browser');
+      const pixel = (css: string): [number, number, number] => {
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = css;
+        context.fillRect(0, 0, 1, 1);
+        const [r = 0, g = 0, b = 0] = context.getImageData(0, 0, 1, 1).data;
+        return [r, g, b];
+      };
+      const resolved = (token: string): string => {
+        const probe = document.createElement('span');
+        probe.style.color = `var(${token})`;
+        document.body.append(probe);
+        const colour = getComputedStyle(probe).color;
+        probe.remove();
+        return colour;
+      };
+      const channel = (value: number): number => {
+        const c = value / 255;
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      };
+      const luminance = ([r, g, b]: [number, number, number]): number =>
+        0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+      // The page's own ground token: the body's computed background is
+      // transparent, and a transparent pixel reads as black.
+      const ground = luminance(pixel(resolved('--background')));
+      const ratio = (token: string): number => {
+        const ink = luminance(pixel(resolved(token)));
+        return (Math.max(ink, ground) + 0.05) / (Math.min(ink, ground) + 0.05);
+      };
+      const measured = Object.fromEntries(
+        [
+          '--status-draft',
+          '--status-ready',
+          '--status-in-progress',
+          '--status-blocked-by-proxy',
+          '--status-on-hold',
+          '--status-blocked',
+          '--status-done',
+        ].map((token) => [token, Math.round(ratio(token) * 100) / 100]),
+      );
+      return measured;
+    });
+    await testInfo.attach('status colour contrast', {
+      body: JSON.stringify(ratios, null, 2),
+      contentType: 'application/json',
+    });
+    // Proof: `--status-in-progress` put back to `oklch(0.72 0.15 72)` in
+    // `styles.css`, and this failed on `--status-in-progress as a strip`,
+    // `Received: 2.54`; watched in Chromium 2026-09-29. Measured in Chromium:
+    // draft 3.64, ready 3.78, blocked by proxy 5.05, on hold 4.46, blocked
+    // 4.77, done 3.68; in progress at L 0.56 computes to 4.77 (attached to every run).
+    for (const [token, measured] of Object.entries(ratios)) {
+      expect(measured, `${token} as a strip`).toBeGreaterThanOrEqual(3);
+    }
+    for (const token of ['--status-in-progress', '--status-blocked-by-proxy', '--status-blocked']) {
+      expect(ratios[token], `${token} as a glyph`).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

@@ -78,6 +78,8 @@ const rowAt = (
   tags: { own: [], inherited: [] },
   trioByStep: new Map(),
   waitsFor: [],
+  stoppedBy: [],
+  held: false,
   ...extras,
 });
 
@@ -138,6 +140,7 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   slices: [],
   dependencies: [],
   tree: treeFrom(parts.rows ?? []),
+  heldLeafIds: new Set(),
   // Off unless a test is about the sentence a filter's dropped waits earn.
   narrowedByFilter: false,
   steps: [
@@ -1488,6 +1491,7 @@ describe('dependency arrows', () => {
         fromFinish: 3,
         toRowIndex: 1,
         toStart: 3,
+        blocked: false,
       },
     ]);
     expect(chart.personLinks).toEqual([]);
@@ -1566,6 +1570,7 @@ describe('dependency arrows', () => {
         fromFinish: 3,
         toRowIndex: 1,
         toStart: 3,
+        blocked: false,
       },
     ]);
   });
@@ -1604,6 +1609,7 @@ describe('dependency arrows', () => {
         fromFinish: 4,
         toRowIndex: 3,
         toStart: 4,
+        blocked: false,
       },
     ]);
   });
@@ -1644,6 +1650,7 @@ describe('dependency arrows', () => {
         fromFinish: 4,
         toRowIndex: 1,
         toStart: 4,
+        blocked: false,
       },
     ]);
   });
@@ -1695,6 +1702,7 @@ describe('dependency arrows', () => {
         fromFinish: 4,
         toRowIndex: 5,
         toStart: 4,
+        blocked: false,
       },
     ]);
   });
@@ -1794,6 +1802,7 @@ describe('dependency arrows', () => {
         fromFinish: 6,
         toRowIndex: 3,
         toStart: 6,
+        blocked: false,
       },
     ]);
   });
@@ -1860,8 +1869,8 @@ describe('the rest of the chart', () => {
     // id: 'step', number: '010', … }`, and the panel drew a column of names
     // with no numbers in it. Watched, 2026-08-09.
     expect(chart.labels).toEqual([
-      { id: 'step', number: '010', name: 'Prep', depth: 0, rowIndex: 0 },
-      { id: 'strip', number: '010.1', name: 'Strip', depth: 1, rowIndex: 1 },
+      { id: 'step', number: '010', name: 'Prep', depth: 0, rowIndex: 0, held: false },
+      { id: 'strip', number: '010.1', name: 'Strip', depth: 1, rowIndex: 1, held: false },
     ]);
   });
 
@@ -4021,5 +4030,177 @@ describe('a done leaf draws one bar over its facts', () => {
       }),
     );
     expect(chart.brackets.map((bracket) => [bracket.start, bracket.finish])).toEqual([[8, 15]]);
+  });
+});
+
+describe('each status on the chart (add-work-item-statuses)', () => {
+  /** `strip` on hold, taken out of the schedule, and `sand` waiting on it. */
+  const heldStrip = (): GanttPlan =>
+    planOf({
+      rows: [
+        rowAt('strip', 0, 0, { status: 'on_hold', held: true, schedule: null }),
+        rowAt('sand', 0, 3, {
+          status: 'blocked_by_proxy',
+          stoppedBy: ['strip - Strip (On hold)'],
+        }),
+      ],
+      slices: [sliceAt('sand-dev', 'sand', 0, 3)],
+      dependencies: [{ predecessorId: 'strip', successorId: 'sand' }],
+      heldLeafIds: new Set(['strip']),
+    });
+
+  it('draws no bar for a held leaf and says On hold in its row instead', () => {
+    const chart = layOutGantt(heldStrip());
+    expect(chart.bars.map((bar) => bar.sliceId)).toEqual(['sand-dev']);
+    expect(chart.labels.map((label) => [label.id, label.held])).toEqual([
+      ['strip', true],
+      ['sand', false],
+    ]);
+    expect(chart.arrows).toEqual([]);
+  });
+
+  it('hatches the bar a held predecessor stops, and names that predecessor on it', () => {
+    const [bar] = layOutGantt(heldStrip()).bars;
+    expect([bar.stop, bar.stoppedBy]).toEqual(['blocked_by_proxy', ['strip - Strip (On hold)']]);
+  });
+
+  it('outlines a blocked bar and draws its arrows in the blocked colour, and no other', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('strip', 0, 2, { status: 'blocked' }),
+          rowAt('sand', 2, 4, { status: 'blocked_by_proxy' }),
+          rowAt('paint', 4, 6),
+        ],
+        slices: [
+          sliceAt('strip-dev', 'strip', 0, 2),
+          sliceAt('sand-dev', 'sand', 2, 4),
+          sliceAt('paint-dev', 'paint', 4, 6),
+        ],
+        dependencies: [
+          { predecessorId: 'strip', successorId: 'sand' },
+          { predecessorId: 'sand', successorId: 'paint' },
+        ],
+      }),
+    );
+    expect(chart.bars.map((bar) => [bar.sliceId, bar.stop])).toEqual([
+      ['strip-dev', 'blocked'],
+      ['sand-dev', 'blocked_by_proxy'],
+      ['paint-dev', null],
+    ]);
+    expect(chart.arrows.map((arrow) => [arrow.predecessorId, arrow.blocked])).toEqual([
+      ['strip', true],
+      ['sand', false],
+    ]);
+  });
+
+  it('leaves a done bar as it was: no stop, whatever it depends on', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [rowAt('strip', 8, 15, { status: 'done', factEndStop: 12 })],
+        slices: [sliceAt('strip-dev', 'strip', 8, 15)],
+      }),
+    );
+    expect(chart.bars.map((bar) => [bar.done, bar.stop])).toEqual([[true, null]]);
+  });
+
+  it('leaves an arrow from a branch with a held leaf from the leaf still scheduled', () => {
+    // The held leaf has no slice on the chart, because be-01 took it out of the
+    // schedule; the branch's arrow leaves from the leaf that is still in it.
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('branch', 0, 4, { leaf: false }),
+          rowAt('strip', 0, 0, { depth: 1, status: 'on_hold', held: true, schedule: null }),
+          rowAt('sand', 0, 4, { depth: 1 }),
+          rowAt('paint', 4, 6),
+        ],
+        slices: [sliceAt('sand-dev', 'sand', 0, 4), sliceAt('paint-dev', 'paint', 4, 6)],
+        dependencies: [{ predecessorId: 'branch', successorId: 'paint' }],
+        heldLeafIds: new Set(['strip']),
+      }),
+    );
+    expect(chart.arrows.map((arrow) => [arrow.predecessorId, arrow.fromFinish])).toEqual([
+      ['branch', 4],
+    ]);
+  });
+
+  it('draws no typed arrow from a held leaf, and does not take its missing slices for bad data', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('strip', 0, 0, { status: 'on_hold', held: true, schedule: null }),
+          rowAt('sand', 0, 3),
+        ],
+        slices: [sliceAt('sand-dev', 'sand', 0, 3)],
+        typedDependencies: [
+          {
+            id: 'ss',
+            type: 'SS',
+            predecessor: { scope: 'whole', workItemId: 'strip' },
+            successor: { scope: 'whole', workItemId: 'sand' },
+          },
+        ],
+        heldLeafIds: new Set(['strip']),
+      }),
+    );
+    expect(chart.typedArrows).toEqual([]);
+  });
+});
+
+describe('a held leaf is no end of an arrow (add-work-item-statuses)', () => {
+  // be-01 takes every leaf whose stored hold is `on_hold` out of the schedule,
+  // whatever it reads — done included — so it has no slice in the payload.
+  // `strip` is such a leaf: held, then marked done.
+  const heldThenDone = (depth = 0): GanttRow =>
+    rowAt('strip', 0, 0, { depth, status: 'done', held: true, schedule: null });
+
+  it('leaves an arrow from a branch holding a held leaf from the leaf still scheduled', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [
+          rowAt('branch', 0, 4, { leaf: false }),
+          heldThenDone(1),
+          rowAt('sand', 0, 4, { depth: 1 }),
+          rowAt('paint', 4, 6),
+        ],
+        slices: [sliceAt('sand-dev', 'sand', 0, 4), sliceAt('paint-dev', 'paint', 4, 6)],
+        dependencies: [{ predecessorId: 'branch', successorId: 'paint' }],
+        heldLeafIds: new Set(['strip']),
+      }),
+    );
+    expect(chart.arrows.map((arrow) => [arrow.predecessorId, arrow.fromFinish])).toEqual([
+      ['branch', 4],
+    ]);
+    // Held by the stored hold, so its row says On hold although it reads done.
+    // Proof: the label keyed on `status === 'on_hold'`, and this failed on
+    // `expected [ [ 'branch', false ], …(3) ] to deep equally contain [ 'strip',
+    // true ]`; watched 2026-09-29.
+    expect(chart.labels.map((label) => [label.id, label.held])).toContainEqual(['strip', true]);
+  });
+
+  it('draws no authored arrow to or from a held leaf, and does not read its missing slices as bad data', () => {
+    const chart = layOutGantt(
+      planOf({
+        rows: [heldThenDone(), rowAt('sand', 0, 3), rowAt('paint', 3, 5)],
+        slices: [sliceAt('sand-dev', 'sand', 0, 3), sliceAt('paint-dev', 'paint', 3, 5)],
+        typedDependencies: [
+          {
+            id: 'from-held',
+            type: 'FS',
+            predecessor: { scope: 'whole', workItemId: 'strip' },
+            successor: { scope: 'whole', workItemId: 'sand' },
+          },
+          {
+            id: 'to-held',
+            type: 'SS',
+            predecessor: { scope: 'whole', workItemId: 'paint' },
+            successor: { scope: 'whole', workItemId: 'strip' },
+          },
+        ],
+        heldLeafIds: new Set(['strip']),
+      }),
+    );
+    expect(chart.typedArrows).toEqual([]);
   });
 });

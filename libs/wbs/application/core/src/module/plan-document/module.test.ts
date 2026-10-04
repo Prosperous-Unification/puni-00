@@ -22,7 +22,7 @@ const EXPORTED_AT = Date.parse('2026-09-24T09:00:00.000Z');
  *
  * The marker read is a stub rather than the Calendar marker resource on
  * purpose: `ports/sideways-type-boundaries.test.ts` refuses any file of this
- * module that reaches `service/calendar-marker.service.ts`, tests included.
+ * module that reaches `module/calendar-marker/calendar-marker.resource.ts`, tests included.
  */
 async function seeded() {
   const source = openMemorySource();
@@ -98,7 +98,7 @@ describe('the Plan document module', () => {
     if (!exported.ok) throw new Error('export refused');
     expect(exported.value.document).toEqual({
       format: 'wbs-plan',
-      version: 5,
+      version: 6,
       exportedAt: '2026-09-24T09:00:00.000Z',
     });
     expect(exported.value.calendarMarkers).toEqual([

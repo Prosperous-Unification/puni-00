@@ -107,10 +107,10 @@ export interface PlanReading extends Store<PlanRefreshSnapshot> {
   /**
    * Reads these resources again, awaiting the covering outcome.
    *
-   * Failures are not thrown: they stay in the owner's snapshot and reach the
-   * screen as the stale banner on the next publication.
+   * True means the covering read installed. Failures return false, stay in the
+   * owner's snapshot and reach the screen as the stale banner.
    */
-  readonly rereadResources: (resources: readonly RefreshResource[]) => Promise<void>;
+  readonly rereadResources: (resources: readonly RefreshResource[]) => Promise<boolean>;
   /** Stop listening, dispose the owner, drop the stream. */
   readonly close: () => void;
 }
@@ -164,8 +164,8 @@ export interface PlanFeed extends Store<PlanRefreshSnapshot> {
    * handing out the owner is what keeps this extraction behaviour-free.
    */
   readonly owner: PlanRefresh;
-  /** Reads these resources again, awaiting the covering outcome. */
-  readonly rereadResources: (resources: readonly RefreshResource[]) => Promise<void>;
+  /** Reads these resources again; true means the covering read installed. */
+  readonly rereadResources: (resources: readonly RefreshResource[]) => Promise<boolean>;
   /** Ends this lifetime: nothing after it reaches the screen. */
   readonly close: () => void;
 }

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
+import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -17,7 +18,6 @@ import type { WriteCoordinator } from './repository/gate';
 import { runMigrations } from './repository/migrate';
 import { allocateGeneration, readGeneration } from './repository/optimization-generation';
 import { DELEGATION_TOKEN_TYPE, REFUSE_DELEGATIONS } from './runtime/delegation';
-import type { AuthenticatedUser } from './service/auth.service';
 
 /**
  * What `/health` answers, as this suite reads it.
@@ -386,18 +386,30 @@ describe('bootBe01', () => {
   it('refuses the project and directory lists after activation until a session binds an organization', async () => {
     const dir = tempDir('wbs-organization-boot-');
     const dbPath = join(dir, 'test.db');
-    running = await bootBe01({
-      appOrigin: 'http://localhost',
-      dbPath,
-      port: 0,
-      logger: createLogger({ service: 'be-01' }),
-      jwtKey: 'k'.repeat(32),
-      gwUrl: 'http://gw.invalid',
-      internalAuthSecret: 's'.repeat(32),
-      localIdentity: { id: 'local-dev', username: 'local-dev', scopes: ['read', 'write'] },
-      migrateOnStartup: true,
-      migrationsFolder: FOLDER,
-    });
+    let productionAccess: Parameters<typeof buildApp>[0]['organizations'] | undefined;
+    running = await bootBe01(
+      {
+        appOrigin: 'http://localhost',
+        dbPath,
+        port: 0,
+        logger: createLogger({ service: 'be-01' }),
+        jwtKey: 'k'.repeat(32),
+        gwUrl: 'http://gw.invalid',
+        internalAuthSecret: 's'.repeat(32),
+        localIdentity: { id: 'local-dev', username: 'local-dev', scopes: ['read', 'write'] },
+        migrateOnStartup: true,
+        migrationsFolder: FOLDER,
+      },
+      {
+        openSource: openSqliteSource,
+        makeApp: (options) => {
+          productionAccess = options.organizations;
+          expect(options.credentialEvidence).toBeDefined();
+          expect(options.organizationSelection).toBeUndefined();
+          return buildApp(options);
+        },
+      },
+    );
     const projects = `http://localhost:${String(running.port)}/api/projects`;
     let listed: Response | undefined;
     for (let attempt = 0; attempt < 50; attempt += 1) {
@@ -414,6 +426,25 @@ describe('bootBe01', () => {
     } finally {
       marker.close();
     }
+
+    if (productionAccess === undefined) throw new Error('boot did not mount organization access');
+    // Proof: replacing NO_BOUND_ORGANIZATION with principal.organizationBinding
+    // made this production composition answer not_a_member for the injected
+    // org-a claim instead of no_active_organization (0 pass, 1 fail).
+    expect(
+      await productionAccess.resolve({
+        id: 'local-dev',
+        organizationBinding: {
+          credential: {
+            kind: 'native',
+            userId: 'local-dev',
+            digest: 'a'.repeat(64),
+            expiresAt: Date.now() + 60_000,
+          },
+          cookie: 'org-a',
+        },
+      }),
+    ).toEqual({ ok: false, refusal: 'no_active_organization' });
 
     for (const path of ['/api/projects', '/api/tags', '/api/people']) {
       const refused = await fetch(`http://localhost:${String(running.port)}${path}`);

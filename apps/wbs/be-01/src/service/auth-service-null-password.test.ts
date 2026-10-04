@@ -1,9 +1,9 @@
+import { AuthService } from '@wbs/core/service/auth.service';
 import { expect, it } from 'bun:test';
 
 import type { UserStore } from '../repository';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { testClock } from '../testing/clock-fixture';
-import { AuthService } from './auth.service';
 
 it('rejects password login for an OIDC-only account', async () => {
   const oidcUser = {

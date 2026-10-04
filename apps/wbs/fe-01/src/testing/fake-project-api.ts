@@ -467,15 +467,11 @@ export function fakeProjectApi(): ProjectApi & {
           projectId,
           position: rows.indexOf(r),
           serviceId: null,
-          // be-01 always sends both; the face reads the folded status only.
-          readiness: null,
-          hold: null,
           tagIds: [...(r.tagIds ?? [])],
           serviceIds: [...(r.serviceIds ?? [])],
           typeIds: [...(r.typeIds ?? [])],
           externalRefs: (r.externalRefs ?? []).map((ref) => ({ ...ref })),
           actuals: {},
-          progress: {},
           // The row's own, written by this fake's `setStatus` — the fold be-01
           // derives, stored here because a fake has no steps to fold.
           status: r.status,
@@ -868,6 +864,9 @@ export function fakeProjectApi(): ProjectApi & {
         factStart: null,
         factEnd: null,
         status: 'unknown' as const,
+        readiness: null,
+        hold: null,
+        progress: {},
         // A duplicate `teamIds` sat here until 2026-08-18, and a duplicate
         // `startNoEarlierThanReason` until 2026-09-02 — both harmless, and both
         // only possible because nothing typechecked this file. Moving it here,
@@ -943,6 +942,10 @@ export function fakeProjectApi(): ProjectApi & {
       return Promise.resolve();
     },
     setStatus(id, status, on, factStart) {
+      const [firstStep] = stepList;
+      if ((status === 'done' || status === 'in_progress') && stepList.length === 0) {
+        return Promise.reject(new Error('no_steps'));
+      }
       // be-01's fan-out and its fill, in the fake's own terms: the row and every
       // row beneath it take the status, and a done row with no fact end takes
       // `on`. Recorded for the tests that assert what was sent.
@@ -952,6 +955,25 @@ export function fakeProjectApi(): ProjectApi & {
         const row = rows.find((r) => r.id === id_);
         if (row === undefined) continue;
         row.status = status;
+        // The statements behind the status, so the menu reads what be-01 would
+        // send back: readiness and holds as `setStatus` writes them, and one
+        // statement per step for the two that speak for steps.
+        if (status === 'draft' || status === 'ready') {
+          row.readiness = status;
+          row.hold = null;
+        } else if (status === 'on_hold' || status === 'blocked') {
+          row.hold = status;
+        } else if (status === 'unknown') {
+          row.readiness = null;
+          row.hold = null;
+          row.progress = {};
+        } else {
+          row.hold = null;
+          row.progress =
+            status === 'done'
+              ? Object.fromEntries(stepList.map((step) => [step.id, 'done' as const]))
+              : { ...row.progress, [firstStep.id]: 'in_progress' as const };
+        }
         if (status === 'done' && row.factEnd === null) row.factEnd = on;
         if (status === 'done' && factStart !== undefined && row.factStart === null) {
           row.factStart = factStart;

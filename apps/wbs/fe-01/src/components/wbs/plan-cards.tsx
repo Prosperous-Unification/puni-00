@@ -1,3 +1,4 @@
+import type { SettableStatus } from '@wbs/domain/progress';
 import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import {
@@ -34,12 +35,12 @@ import { type CellElement, cellKey } from './editable-grid';
 import { POINTS, showTrio } from './estimate-draft';
 import type { ServiceLabel, ServiceTeamLabel, TagLabel } from './gantt-geometry';
 import { renderName } from './inline-markdown';
-import { type CommitOutcome, flushCell } from './live-editing';
+import { type CommitOutcome, didLand, flushCell } from './live-editing';
 import { composeNameCell } from './name-notes';
 import { priorityBandStyleOf } from './priority-band-style';
 import { ReferenceSetSheet } from './reference-set-field';
 import { type PrintedDay, shortIsoDate } from './short-date';
-import { OFFERED_STATUSES, STATUS_LABEL } from './status-cell';
+import { statusActions } from './status-cell';
 import { cardIndentFor } from './table-frame';
 import { dependencyWords, endpointText, TypedDependencyEditor } from './typed-dependency-editor';
 import type { TreeRow } from './wbs-rows';
@@ -450,10 +451,10 @@ export interface CardRowActionHandlers {
   moveUnder: (rowId: string) => void;
   unfreeze: (rowId: string) => void;
   remove: (row: TreeRow) => void;
-  /** Opens the completion prompt over the row — `Mark done…`, the table's own gesture. */
-  markDone: (rowId: string) => void;
-  /** Sets a done row back to unknown, at once. */
-  setUnknown: (rowId: string) => void;
+  /** The table's own `chooseStatus`: Done and In progress ask first, the rest are sent at once. */
+  chooseStatus: (rowId: string, status: SettableStatus) => void;
+  /** The statuses the row's menu offers, the table's own {@link statusOffersOf}. */
+  statusOffers: (row: TreeRow) => SettableStatus[];
 }
 
 /**
@@ -466,15 +467,9 @@ const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuActi
   // The same list the table's ⋯ offers (`plan-columns/actions.tsx`), in the
   // same order: the status entries, Add child, Move under…, Duplicate, Unfreeze where it applies, and
   // Delete last in the destructive tint.
-  ...OFFERED_STATUSES.filter((status) => status !== row.status).map((status) => ({
-    id: `set-${status}`,
-    label: `Set status to ${STATUS_LABEL[status]}`,
-    lead: { word: STATUS_LABEL[status], ...(status === 'done' ? { tone: 'done' as const } : {}) },
-    run: () => {
-      if (status === 'done') handlers.markDone(row.id);
-      else handlers.setUnknown(row.id);
-    },
-  })),
+  ...statusActions(handlers.statusOffers(row), (status) => {
+    handlers.chooseStatus(row.id, status);
+  }),
   {
     id: 'add-child',
     label: 'Add child',
@@ -1742,7 +1737,7 @@ function CardPriorityField({
   const paint = priorityBandStyleOf(bands, row.priority);
   const send = async (typed: string): Promise<void> => {
     const outcome = await setPriority(row, typed);
-    if (outcome === 'landed') setOpen(false);
+    if (didLand(outcome)) setOpen(false);
   };
   return (
     <Modal
@@ -2022,7 +2017,7 @@ function CardDependsField({
     setAdding((current) => withId(current, entry.id));
     void addDependency(row, entry.id).then((outcome) => {
       setAdding((current) => withoutId(current, entry.id));
-      if (outcome === 'landed') setTyped('');
+      if (didLand(outcome)) setTyped('');
     });
   };
 

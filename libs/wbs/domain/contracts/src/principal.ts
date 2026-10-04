@@ -23,6 +23,19 @@ export interface AuthenticatedUser {
    * organization of its own; see {@link Delegation}.
    */
   delegation?: Delegation;
+  /** Verified exact access credential and presented selection cookie, if this request has both carriers. */
+  organizationBinding?: {
+    readonly credential: VerifiedOrganizationCredential;
+    readonly cookie: string | null;
+  };
+}
+
+/** Evidence from the credential verifier, never from caller-declared kind or expiry. */
+export interface VerifiedOrganizationCredential {
+  readonly kind: 'native' | 'oidc';
+  readonly userId: string;
+  readonly digest: string;
+  readonly expiresAt: number;
 }
 
 /** Who may present a delegation, as its `aud` names it; see {@link Delegation}. */

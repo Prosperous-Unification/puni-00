@@ -1,6 +1,6 @@
+import { SmokeService } from '@wbs/core/service/smoke.service';
 import { describe, expect, it, spyOn } from 'bun:test';
 
-import { SmokeService } from '../service/smoke.service';
 import { testApp } from '../testing/app-fixture';
 import { smokeRoutes } from './smoke.routes';
 

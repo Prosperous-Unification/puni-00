@@ -20,6 +20,7 @@ export interface DocumentResponse {
 export interface DocumentOperation {
   operationId: string;
   summary: string;
+  description?: string;
   parameters: DocumentParameter[];
   requestBody?: { required: boolean; content: Record<string, { schema: JsonSchema }> };
   responses: Record<string, DocumentResponse | undefined>;
@@ -151,6 +152,9 @@ export function documentFromShapes(shapes: readonly EndpointShape[]): ShapeDocum
     operations[method] = {
       operationId: shape.operationId,
       summary: shape.document.summary,
+      ...(shape.document.description === undefined
+        ? {}
+        : { description: shape.document.description }),
       parameters,
       responses,
       ...(bodySchema === undefined

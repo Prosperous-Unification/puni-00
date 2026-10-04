@@ -592,7 +592,7 @@ test('every alias has an allowed prefix and resolves to a tracked file', async (
   expect(failures).toEqual([]);
 });
 
-test('every migration keeps its expected namespaced path and Git blob', async () => {
+test('every inventoried migration keeps its expected namespaced path and Git blob', async () => {
   const inventory = await readFile(
     join(WORKSPACE, 'openspec/changes/repo-namespacing/preflight-inventory.md'),
     'utf8',
@@ -600,6 +600,7 @@ test('every migration keeps its expected namespaced path and Git blob', async ()
   const expected = [...inventory.matchAll(/^([0-9a-f]{40}) apps\/be-01\/drizzle\/(.+)$/gm)]
     .map(([, blob, suffix]) => [`apps/wbs/be-01/drizzle/${suffix}`, blob] as const)
     .sort(([left], [right]) => left.localeCompare(right));
+  const inventoriedPaths = new Set<string>(expected.map(([path]) => path));
   const migrationRoot = join(WORKSPACE, 'apps/wbs/be-01/drizzle');
   const observed = await Promise.all(
     (await filesBelow(migrationRoot)).map(async (path) => {
@@ -609,8 +610,11 @@ test('every migration keeps its expected namespaced path and Git blob', async ()
   );
 
   // Proof: omitting one moved `down.sql` made this actual-candidate manifest fail with the exact
-  // absent path while retaining the other 91 path/blob tuples (2026-09-14).
-  expect(observed).toEqual(expected);
+  // absent path while retaining the other 91 path/blob tuples (2026-09-14). Adding the B1
+  // revocation migration then failed the unfiltered historical comparison at the h2puni gate;
+  // with the filter, injecting omission of the inventoried add_spaces/down.sql still failed
+  // with that exact missing path and blob (2026-10-01).
+  expect(observed.filter(([path]) => inventoriedPaths.has(path))).toEqual(expected);
 });
 
 test('every legacy source occurrence and relevant text family is pinned', async () => {

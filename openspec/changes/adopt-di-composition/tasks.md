@@ -300,7 +300,16 @@
       deleted with their `kinds.json` rows (59 shim rows remain, 33 of them naming a module).
       `AGE_THEIR_OWN_ENTRIES` keeps `retention-timer.ts`: it matches by file name, and the owner
       `module/bounded-replay-sweep/retention-timer.ts` keeps that name. The task stays open for
-      the shims that still have importers.
+      the shims that still have importers. **2026-09-29:** every remaining re-export shim is
+      deleted: their importers name the owning module file (or `@wbs/core`,
+      `@wbs/runtime-portable`, or a core service file) directly, and `kinds.json` drops all 56
+      `re-export shim` rows (80 entries become 24). Only the `auth.service.ts`,
+      `saved-plan.service.ts` and `saved-plan-schedule.ts` compatibility adapters stay, since
+      direct callers still construct them from stores. The task stays open for its first half:
+      tests of moved code (`gateway-broadcaster.test.ts`, the two `replay-buffer` suites,
+      `retention-timer.test.ts`, `prepare-import.test.ts` under `service/`, and
+      `use-cases/admission.test.ts`, and be-01 `service/` suites such as `retention-job.test.ts`
+      and `replay-orchestrator.test.ts`) still live outside their owners' modules.
 - [x] 7.2 Update `docs/code-organization/kinds.json` for every moved and suffix-declared file: a
       suffix-declared path carries no entry, and a retained unsuffixed shim keeps one. Closed
       2026-09-24 by evidence: both halves hold on this tree under
@@ -452,5 +461,20 @@
       deferred because its admitted initialization surface and both memory and SQLite source
       contracts need a separate slice. The production-path negatives and commands are recorded
       in `verify.md`.
+- [x] 7.8 Close the remaining K3 debt of Plan import and Plan commands (WBS 040.11) and empty the
+      shrink-only ledger in `module-boundaries.test.ts`. Plan import writes through a private
+      `ImportedPlanResource` that `runImportAdmission` builds over the admitted scope. Plan commands
+      holds each admitted scope only as a private `AdmittedScope` resource (graph, Working plan,
+      organization admission, cross-reference kinds), and its Working plan parts carry the
+      `.resource.ts` suffix they always had in role. Entity values the features name move into
+      neutral `ports/*-values.ts` files behind store re-exports. Behaviour is unchanged: the memory
+      and SQLite import source contracts and the organization import and command database tests
+      pass unchanged. Proofs and commands are in `verify.md`.
+- [x] 7.9 Colocate the remaining Realtime broadcaster and replay-buffer tests (WBS 040.07).
+      Move `gateway-broadcaster.test.ts`, `replay-buffer.test.ts`, and
+      `replay-buffer.property.test.ts` from `service/` into `module/realtime/`, update their
+      relative imports and the module index, and retain their production-path fault proofs.
+      The pilot wiki membership is a directory prefix, so its registration needs no change.
+      Baseline, moved-suite, module, typecheck, lint, and fault outcomes are recorded in `verify.md`.
 
 The label inference limit recorded in task 7 is closed by `di-bag-label-surface` (WBS `cc9361f6`): the check reads the scanned module's `moduleLabel` getter on di-bag 0.5.1. Historical task evidence remains dated.

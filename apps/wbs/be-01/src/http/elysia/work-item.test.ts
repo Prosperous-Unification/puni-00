@@ -1,8 +1,8 @@
+import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { expect, spyOn, test } from 'bun:test';
 
 import { workItemRoutes } from '../../controller/work-item.routes';
 import { nodeDigest } from '../../runtime/bun-runtime';
-import { PlanCommandRunner } from '../../service/plan-commands';
 import { inMemoryServices } from '../../testing/harness';
 import { legacyOrganizationAccess } from '../../testing/organization-access-fixture';
 import { projectRow } from '../../testing/project-fixture';
@@ -12,7 +12,7 @@ import { mountEndpoints } from './mount';
 function fixture(readOnly = false) {
   const plan = inMemoryServices();
   const writes = testWrites(undefined, batchServices(plan));
-  const runner = new PlanCommandRunner({
+  const runner = createPlanCommandRunner({
     batchServices: writes.batch,
     publicServices: batchServices(plan),
     uow: writes.uow,

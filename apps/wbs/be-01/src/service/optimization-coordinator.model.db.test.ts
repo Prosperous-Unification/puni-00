@@ -3,10 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { clockOf, type OptimizationVariantState } from '@wbs/core';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { describe, expect, it } from 'bun:test';
 import fc from 'fast-check';
 
+import type { ReservedSpawnRequest } from '../module/optimization/contract';
+import { OptimizationCoordinator } from '../module/optimization/optimization.feature';
+import { runSolverChildLifecycle } from '../module/optimization/solver-child-lifecycle';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
@@ -17,9 +21,6 @@ import { ProjectRepository } from '../repository/project';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
-import { OptimizationCoordinator, type ReservedSpawnRequest } from './optimization-coordinator';
-import { ProjectService } from './project.service';
-import { runSolverChildLifecycle } from './solver-child-lifecycle';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CONTRACT = '7+0.1.0';

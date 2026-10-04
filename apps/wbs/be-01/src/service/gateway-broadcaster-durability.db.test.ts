@@ -3,7 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { EventLogService, subscriptionFor } from '@wbs/core';
+import { GatewayBroadcaster } from '@wbs/core/module/realtime/gateway-broadcaster';
+import { ReplayBuffer } from '@wbs/core/module/realtime/replay-buffer';
 import { systemTimers } from '@wbs/runtime-portable';
+import { PushClient } from '@wbs/runtime-portable';
 import { DeadlineClock } from '@wbs/runtime-portable/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -12,9 +15,6 @@ import { DrizzleEventLogStore } from '../repository/event-log';
 import { WriteCoordinator } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { testClock } from '../testing/clock-fixture';
-import { GatewayBroadcaster } from './gateway-broadcaster';
-import { PushClient } from './push-client';
-import { ReplayBuffer } from './replay-buffer';
 
 const FOLDER = join(import.meta.dir, '..', '..', 'drizzle');
 

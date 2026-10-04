@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
+import { clearLinkOutcome, readLinkOutcome } from './auth0-link';
 import { EmailVerification } from './email-verification';
 import { InvitationAcceptance } from './invitation-acceptance';
 
@@ -33,6 +34,14 @@ export function OnboardingScreen({
   onSignOut: () => void;
 }): React.JSX.Element {
   const [view, setView] = useState<View>({ kind: 'loading' });
+  // Read in an initializer and cleared in an effect, as `AuthForm` does with
+  // its SSO error, so StrictMode's second run neither mutates nor erases it.
+  const [linkOutcome] = useState(readLinkOutcome);
+  useEffect(() => {
+    // Proof: 2026-09-29, skipping this made the three `renders … and strips the
+    // parameter` cases keep `?auth_link=` in the address.
+    clearLinkOutcome();
+  }, []);
   const [name, setName] = useState('');
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState('');
@@ -132,18 +141,35 @@ export function OnboardingScreen({
     }
   }
 
-  if (view.kind === 'loading') return <main className="p-8">Loading onboarding…</main>;
+  const notice = linkOutcome === '' ? null : <p role="status">{linkOutcome}</p>;
+  if (view.kind === 'loading')
+    return (
+      <>
+        {notice}
+        <main className="p-8">Loading onboarding…</main>
+      </>
+    );
   if (view.kind === 'fault') throw view.error;
-  if (view.kind === 'inactive') return <>{children}</>;
+  if (view.kind === 'inactive')
+    return (
+      <>
+        {notice}
+        {children}
+      </>
+    );
   if (view.kind === 'failure')
     return (
-      <main className="p-8" role="alert">
-        {view.message}
-      </main>
+      <>
+        {notice}
+        <main className="p-8" role="alert">
+          {view.message}
+        </main>
+      </>
     );
   const state = view.state;
   return (
     <main className="bg-background text-foreground mx-auto max-w-xl p-8 font-sans">
+      {notice}
       <h1 className="mb-4 text-2xl font-semibold">Join your organization</h1>
       <button type="button" onClick={onSignOut}>
         Sign out

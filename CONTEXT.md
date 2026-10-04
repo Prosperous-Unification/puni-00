@@ -30,6 +30,22 @@ _Avoid_: tenant, workspace, account
 One user's association with one organization and the role that governs access there. It is separate from a directory person's service-team membership.
 _Avoid_: team membership, IdP group
 
+**Browser credential pair**:
+The verified WBS access credential and organization selection carried together to establish browser organization access.
+_Avoid_: user session, organization cookie alone
+
+**Credential revocation**:
+The decision that one verified browser credential can no longer establish or retain organization authority.
+_Avoid_: user-wide revocation, logout cookie
+
+**Browser lifecycle session**:
+A durable server-side record that orders access-credential issuance, replacement and logout for one correlated browser authentication path; it stores no provider refresh secret.
+_Avoid_: access credential, provider refresh token
+
+**Lifecycle generation**:
+The monotonically increasing version that makes a refresh completion conditional on logout or a newer credential replacement not having committed first.
+_Avoid_: timestamp, provider token version
+
 **Role**:
 The level of authority a membership grants within its organization: super-admin, admin, member or viewer.
 _Avoid_: scope, group
@@ -1239,6 +1255,39 @@ A signed, short-lived, identity-free browser cookie set after a matched MCP logi
 The next authorization consumes it and asks the provider for `prompt=login`, so a refused
 provider account is not silently reused.
 _Avoid_: logout cookie, retry flag, browser binding
+
+### Shared capacity
+
+**Booking**:
+One placed slice of a project's displayed schedule as its person sees it: the project, work
+item, step, start and end, in absolute workdays with fractions kept. Derived on read from the
+engine the project displays, never stored.
+_Avoid_: reservation, allocation
+
+**Load**:
+A person's bookings across every project of the organization the reader can open.
+_Avoid_: utilisation, workload (alone)
+
+**Overlap**:
+Where two bookings of one person intersect by more than a touching endpoint. A project's own
+scheduler never overlaps a person with themself, so an overlap spans projects, and exists only
+while the organization's people are isolated.
+_Avoid_: conflict, double-booking (in code)
+
+**Project rank**:
+The organization's total order over its projects; a higher project books a shared person
+first. Ranked projects by position, then every unranked one by creation.
+_Avoid_: project priority
+
+**Elsewhere**:
+The bookings a project's scheduler works around: those of the people it names, made by the
+projects that outrank it. Named as the `elsewhere` floor on a slice that waited for one.
+_Avoid_: foreign load
+
+**Shared people**:
+An organization's capacity mode, `isolated` (each project schedules its people alone, the
+default) or `shared` (a project works around its people's bookings elsewhere).
+_Avoid_: global capacity, cross-project mode
 
 ### Architecture
 

@@ -6,6 +6,7 @@ import { requestSchema, responseSchema } from './schema-shape';
 
 /** A membership role as the wire carries it, `stored-vocabularies`' `ORGANIZATION_ROLES`. */
 const role = "'super_admin' | 'admin' | 'member' | 'viewer'";
+const selectableMembership = type({ organizationId: 'string', name: 'string', role });
 const memberParams = requestSchema(type({ userId: 'string' }));
 const policies = [
   { kind: 'origin', when: 'always-unsafe-with-session-cookie' },
@@ -63,4 +64,117 @@ export const removeMember = defineEndpointShape({
   responses: [{ kind: 'empty', status: 204 }],
   refusals,
   document: { summary: 'Remove a member from the active organization.' },
+});
+
+/**
+ * Lists the members of the caller's active organization for an administrator.
+ * Only admin and super-admin may read it (the invitation gate); a member or
+ * viewer is refused `forbidden`, and a delegated caller `insufficient_scope`.
+ * Answered only after organization activation.
+ */
+export const listMembers = defineEndpointShape({
+  method: 'GET',
+  path: '/api/organization/members',
+  operationId: 'getApiOrganizationMembers',
+  policies: [{ kind: 'identity', require: 'signed-in' }],
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(
+        type({
+          members: type({
+            userId: 'string',
+            username: 'string',
+            email: 'string | null',
+            role,
+            createdAt: 'number',
+          }).array(),
+        }),
+      ),
+    },
+  ],
+  refusals: [
+    { status: 400, schema: responseSchema(type({ error: "'invalid_query' | 'invalid_body'" })) },
+    { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
+    {
+      status: 403,
+      schema: responseSchema(type({ error: "'insufficient_scope' | 'onboarding_inactive'" })),
+    },
+    organizationRefusal,
+    { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
+  ],
+  document: { summary: 'List members of the active organization.' },
+});
+
+/** Lists current choices without silently selecting even a sole membership. */
+export const listOrganizationMemberships = defineEndpointShape({
+  method: 'GET',
+  path: '/api/organization/memberships',
+  operationId: 'getApiOrganizationMemberships',
+  policies: [{ kind: 'identity', require: 'signed-in' }],
+  defaultResponseHeaders: [
+    ['cache-control', 'no-store'],
+    ['vary', 'Cookie, Authorization'],
+  ],
+  responses: [
+    {
+      kind: 'json',
+      status: 200,
+      schema: responseSchema(
+        type({
+          state: "'onboarding_required' | 'selection_required'",
+          memberships: selectableMembership.array(),
+        }),
+      ),
+    },
+  ],
+  refusals: [
+    // Proof: omitting this adapter refusal made the full GET-shape contract
+    // audit fail for getApiOrganizationMemberships (431/432 on h2puni).
+    { status: 400, schema: responseSchema(type({ error: "'invalid_body' | 'invalid_query'" })) },
+    { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
+    {
+      status: 403,
+      schema: responseSchema(type({ error: "'onboarding_inactive' | 'insufficient_scope'" })),
+    },
+  ],
+  document: { summary: 'List the signed-in account’s current organization choices.' },
+});
+
+/** Explicitly selects a current membership for this exact access credential. */
+export const selectActiveOrganization = defineEndpointShape({
+  method: 'POST',
+  path: '/api/organization/active',
+  operationId: 'postApiOrganizationActive',
+  policies: [
+    // Proof: the cookie-conditional policy let a bearer-only POST with no
+    // Origin issue a selection cookie (mounted selection negative, 0/1).
+    { kind: 'origin', when: 'always' },
+    { kind: 'identity', require: 'signed-in' },
+  ],
+  defaultResponseHeaders: [
+    ['cache-control', 'no-store'],
+    ['vary', 'Cookie, Authorization'],
+  ],
+  body: requestSchema(type({ organizationId: 'string' })),
+  responses: [
+    { kind: 'json', status: 200, schema: responseSchema(type({ organizationId: 'string' })) },
+  ],
+  refusals: [
+    {
+      status: 400,
+      schema: responseSchema(type({ error: "'invalid_body' | 'invalid_json' | 'invalid_query'" })),
+    },
+    { status: 401, schema: responseSchema(type({ error: "'unauthenticated'" })) },
+    {
+      status: 403,
+      schema: responseSchema(
+        type({
+          error: "'onboarding_inactive' | 'not_a_member' | 'insufficient_scope' | 'invalid_origin'",
+        }),
+      ),
+    },
+  ],
+  document: { summary: 'Bind a current organization to this browser access credential.' },
 });

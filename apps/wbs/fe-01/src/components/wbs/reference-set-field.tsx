@@ -11,6 +11,7 @@ import {
 import { CreatablePicker, type CreatablePickerProps } from './creatable-picker';
 import { HoverCard } from './hover-card';
 import type { CommitOutcome } from './live-editing';
+import { didLand } from './live-editing';
 
 /**
  * The dimensions this strip draws.
@@ -380,7 +381,7 @@ export function ReferenceSetStrip({
       const outcome = await commit(current, next);
       // Creation cannot project the server-assigned id. Its unchanged `next`
       // must not overwrite props that refreshed while the create was awaited.
-      if (outcome === 'landed' && current.join('\0') !== next.join('\0')) {
+      if (didLand(outcome) && current.join('\0') !== next.join('\0')) {
         projectedIdsRef.current = next;
       }
       return outcome;
@@ -828,7 +829,7 @@ export function ReferenceSetStrip({
                 (current) => adapter.create(name, holdsOne ? [] : current),
               )
             }
-            closeWhen={(outcome) => outcome === 'landed'}
+            closeWhen={(outcome) => outcome === 'landed' || outcome === 'landed-unread'}
             disabled={pending}
             placeholder={placeholder ?? `Search ${label.toLowerCase()}`}
             data-hint={hint}
@@ -887,7 +888,7 @@ export function ReferenceSetSheet({
 
   const ownIds = unique(adapter.ownIds);
   const closeAfterLanded = (outcome: CommitOutcome): CommitOutcome => {
-    if (outcome === 'landed') onClose();
+    if (didLand(outcome)) onClose();
     return outcome;
   };
   const sheetAdapter: ReferenceSetAdapter = {

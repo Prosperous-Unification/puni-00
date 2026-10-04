@@ -1,7 +1,7 @@
+import { AuthService } from '@wbs/core/service/auth.service';
 import { expect, test } from 'bun:test';
 import { SignJWT } from 'jose';
 
-import { AuthService } from '../service/auth.service';
 import { inMemoryUsers } from '../testing/auth-fixture';
 import { testClock } from '../testing/clock-fixture';
 import {

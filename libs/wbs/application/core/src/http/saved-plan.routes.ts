@@ -8,20 +8,20 @@ import {
 } from '@wbs/contracts';
 import { canWriteInOrganization } from '@wbs/domain';
 
+import type { ProjectService } from '../module/project/project.resource';
+import { SavedPlanWriteError, savePlan } from '../module/saved-plans/save-plan';
+import { UnknownSavedPlanBodyVersionError } from '../module/saved-plans/saved-plan-integrity';
 import type {
   OrganizationAccess,
   OrganizationPrincipal,
   ResourceAccess,
 } from '../ports/organization-access';
 import type { Broadcaster } from '../ports/project-event';
-import type { ProjectService } from '../service/project.service';
 import type {
   SavedPlanService,
   SavedPlanSideRef,
   SavedPlanTouchResult,
 } from '../service/saved-plan.service';
-import { UnknownSavedPlanBodyVersionError } from '../service/saved-plan-integrity';
-import { SavedPlanWriteError, savePlan } from '../use-cases/save-plan';
 import { bind, EMPTY, type HttpReply, type RequestFailure } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 

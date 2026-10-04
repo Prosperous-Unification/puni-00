@@ -1,4 +1,4 @@
-import type { AuthenticatedUser, AuthService } from '../service/auth.service';
+import type { AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
 
 /**
  * The app token from the hardened browser cookie or standard Bearer header.
@@ -86,7 +86,9 @@ export function hasInvalidCookieOrigin(request: Request, appOrigin: string): boo
     return false;
   const cookies = cookiesIn(request.headers.get('cookie') ?? undefined);
   return (
-    (cookies.has('__Host-wbs_access') || cookies.has('__Host-wbs_session')) &&
+    (cookies.has('__Host-wbs_access') ||
+      cookies.has('__Host-wbs_session') ||
+      cookies.has('__Host-wbs_organization')) &&
     request.headers.get('origin') !== appOrigin
   );
 }
