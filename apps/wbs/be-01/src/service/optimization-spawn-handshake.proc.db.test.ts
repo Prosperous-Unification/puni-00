@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, describe, expect, it } from 'bun:test';
 
+import type { ReservedSolverChild, ReservedSpawnRequest } from '../module/optimization/contract';
+import { OptimizationCoordinator } from '../module/optimization/optimization.feature';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
@@ -12,11 +14,6 @@ import { runMigrations } from '../repository/migrate';
 import { createOptimizationRepository } from '../repository/optimization';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { solverSlot } from '../repository/schema';
-import {
-  OptimizationCoordinator,
-  type ReservedSolverChild,
-  type ReservedSpawnRequest,
-} from './optimization-coordinator';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CONTRACT = '7+0.1.0';

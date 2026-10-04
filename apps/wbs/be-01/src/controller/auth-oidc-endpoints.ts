@@ -21,6 +21,8 @@ import {
   startAuth0Link,
   startOidcLogin,
 } from '@wbs/contracts';
+import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
+import type { AuthService } from '@wbs/core/service/auth.service';
 
 import {
   bind,
@@ -31,8 +33,6 @@ import {
   type RequestMetadata,
 } from '../http/endpoint';
 import { cookiesIn, cookieValue } from '../middleware/authenticated';
-import type { AuthService } from '../service/auth.service';
-import type { LoginThrottle } from '../service/login-throttle';
 import { clientIpOf } from './auth-password-endpoints';
 import type { OidcRouteOptions } from './oidc-options';
 

@@ -3,9 +3,17 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { clockOf } from '@wbs/core';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, describe, expect, it } from 'bun:test';
 
+import type { ReservedSolverChild, ReservedSpawnRequest } from '../module/optimization/contract';
+import { OptimizationCoordinator } from '../module/optimization/optimization.feature';
+import {
+  runSolverChildLifecycle,
+  type SolverChildLifecycleOptions,
+  type SolverChildSlot,
+} from '../module/optimization/solver-child-lifecycle';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
@@ -19,17 +27,6 @@ import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { optimizedScheduleCache, solverQueue, solverSlot } from '../repository/schema';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
-import {
-  OptimizationCoordinator,
-  type ReservedSolverChild,
-  type ReservedSpawnRequest,
-} from './optimization-coordinator';
-import { ProjectService } from './project.service';
-import {
-  runSolverChildLifecycle,
-  type SolverChildLifecycleOptions,
-  type SolverChildSlot,
-} from './solver-child-lifecycle';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CONTRACT = '7+1.0.0';

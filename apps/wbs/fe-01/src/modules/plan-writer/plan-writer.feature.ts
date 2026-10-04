@@ -56,8 +56,8 @@ export function createPlanWriter({
      * and some callers need the fact. `CellInput` is the one: a refused edit
      * exists only in the box it was typed into, and the box has to be told so it
      * can hold it against the next refetch (rule 4 there). A reread that failed
-     * is still `landed` — the write happened, and the banner is what says the
-     * screen may be behind.
+     * returns `landed-unread`: the write happened, but the name cell needs to
+     * know that the screen may be behind before releasing a peer value.
      */
     async run(action) {
       // Proof: guarding only projectId leaked one refusal toast into the new API
@@ -120,7 +120,7 @@ export function createPlanWriter({
         // The following reread assertion was not reached during that failing run.
         // Watched, 2026-09-20.
         if (!isCurrent()) return 'refused';
-        if (completed.length > 0) await rereadResources(completed);
+        const readInstalled = completed.length === 0 || (await rereadResources(completed));
         // Asked again after the covering read, which the reader may have left
         // while it was reading. One owner per feed, never renewed, so its
         // identity decides this outcome as it decided the one above.
@@ -128,7 +128,9 @@ export function createPlanWriter({
         // adds when unmounted during their covering read` (`expected [ …(2) ] to deeply equal
         // [ [ 'p1', { parentId: null, …(2) } ] ]`).
         if (!isCurrent()) return 'refused';
-        return 'landed';
+        // Proof: forcing `landed` here failed `reports a landed write whose
+        // covering reread failed` with received `landed`, 2026-10-01.
+        return readInstalled ? 'landed' : 'landed-unread';
       } finally {
         // Lowered however the gesture ended, and with nothing asked of the
         // reader: busy is this project runtime's own, so a gesture whose reader

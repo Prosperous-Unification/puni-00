@@ -1,5 +1,3 @@
-import { writeFileSync } from 'node:fs';
-
 import { openConnection } from '../repository/db';
 import type { SavedPlanWrite } from '../repository/saved-plan';
 import { SavedPlanRepository } from '../repository/saved-plan';
@@ -27,24 +25,28 @@ import { SavedPlanRepository } from '../repository/saved-plan';
  * `BEGIN IMMEDIATE`, taken the same way, for the same duration a slow save
  * would.
  *
- * Usage: `bun saved-plan-lock-holder.ts <dbPath> <projectId> <planId> <holdMs>
- * <readyPath>`. It writes `readyPath` **after** the lock is held and before it
- * sleeps, so the parent can start its attempt knowing the lock is taken rather
- * than guessing with a delay; it then commits, so the parent can also observe
- * what the file holds once the contention is over.
+ * Usage: `bun saved-plan-lock-holder.ts <dbPath> <projectId> <planId>
+ * <releaseAfterMs>`. It prints `held` **after** the lock is held, then holds
+ * until stdin says when to let go, and commits:
+ *
+ * - `release` commits now;
+ * - `go` commits `releaseAfterMs` later, measured from that line rather than
+ *   from startup, so a cold start on a loaded host cannot use up the hold
+ *   before the parent has even attempted its save;
+ * - stdin closing commits now, so a parent that died does not strand the lock.
  */
 async function holdTheWriteLock(argv: readonly string[]): Promise<void> {
   // Checked as an arity rather than element by element: this project does not
   // run `noUncheckedIndexedAccess`, so the destructured names are `string` to
-  // the compiler whatever the array holds, and five `=== undefined` tests are
-  // five conditions lint can prove dead. The count is the thing that can
+  // the compiler whatever the array holds, and four `=== undefined` tests are
+  // four conditions lint can prove dead. The count is the thing that can
   // actually be wrong.
-  if (argv.length !== 5) {
+  if (argv.length !== 4) {
     throw new Error(
-      `usage: <dbPath> <projectId> <planId> <holdMs> <readyPath>; got ${String(argv.length)}`,
+      `usage: <dbPath> <projectId> <planId> <releaseAfterMs>; got ${String(argv.length)}`,
     );
   }
-  const [dbPath, projectId, planId, holdMs, readyPath] = argv;
+  const [dbPath, projectId, planId, releaseAfterMs] = argv;
 
   const plan: SavedPlanWrite = {
     id: planId,
@@ -60,11 +62,11 @@ async function holdTheWriteLock(argv: readonly string[]): Promise<void> {
   const plans = new SavedPlanRepository({ openConnection: () => openConnection(dbPath) });
   const written = await plans.write<never>(plan, async () => {
     // Inside the transaction, so the lock is held from here to the commit. The
-    // signal is written here rather than before the call: at that point the
+    // signal is printed here rather than before the call: at that point the
     // lock is only *about* to be taken, and a parent racing the gap would
     // measure an uncontended save and pass for the wrong reason.
-    writeFileSync(readyPath, 'held');
-    await Bun.sleep(Number(holdMs));
+    process.stdout.write('held\n');
+    await awaitRelease(Number(releaseAfterMs));
     return null;
   });
   if (written.outcome !== 'written') {
@@ -72,4 +74,27 @@ async function holdTheWriteLock(argv: readonly string[]): Promise<void> {
   }
 }
 
+/** Resolves on `release`, `releaseAfterMs` after `go`, or when stdin closes. */
+function awaitRelease(releaseAfterMs: number): Promise<undefined> {
+  const { promise, resolve, reject } = Promise.withResolvers<undefined>();
+  const listen = async (): Promise<void> => {
+    for await (const line of console) {
+      if (line === 'release') {
+        resolve(undefined);
+      } else if (line === 'go') {
+        setTimeout(() => {
+          resolve(undefined);
+        }, releaseAfterMs);
+      } else {
+        throw new Error(`the holder got an unknown instruction: ${JSON.stringify(line)}`);
+      }
+    }
+    resolve(undefined);
+  };
+  listen().catch(reject);
+  return promise;
+}
+
 await holdTheWriteLock(Bun.argv.slice(2));
+// Stdin may still be open after the commit; the parent reads the exit code.
+process.exit(0);

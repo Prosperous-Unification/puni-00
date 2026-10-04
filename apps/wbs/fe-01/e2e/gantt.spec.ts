@@ -3894,17 +3894,10 @@ test.describe('the marker rule, measured in the columns it paints', () => {
     // count to reach zero is `hover-cards.spec.ts:54`'s own inert park.
     await page.mouse.move(0, 0);
     await expect(page.locator('[role="tooltip"]')).toHaveCount(0);
-    // Force the first measured rung to be a real scale change, so every
-    // `present` clip, like every `absent` one, follows a whole-chart layout.
-    // Without it, on `batch-9/integration-5` the body identity failed at 28px
-    // with maxDelta 40 over columns 122-124 (the day-4 edge, where WBS
-    // 010.4.4's zero-time slice stacks a placeholder, a bar, its priority cap,
-    // an arrowhead and a caret) while both chart DOMs were equal but for the
-    // rule; with it, all three rungs read changedPixels=0. Suspected cause: a
-    // partial re-raster after the save, not ink. Proof it still sees ink: an
-    // untagged line eight days right of the rule in `gantt-panel.tsx` failed
-    // this test at 28px with maxDelta 129 (local, 2026-09-27).
-    await pickRung(page, RUNGS[RUNGS.length - 1]);
+    // Measure the freshly saved 28px chart at the same scale. A marker change
+    // must leave the existing marks intact without needing a scale change to
+    // repaint them. Proof: disabling the chart's keyed paint surface failed
+    // here 5/5 times at columns 122-124 (20 pixels, maxDelta 40), 2026-10-01.
 
     const rule = page.locator('[data-gantt-marker-rule]');
     await expect(rule).toHaveCount(1);

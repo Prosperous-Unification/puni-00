@@ -1,4 +1,5 @@
 import { defineEndpointShape, responseSchema } from '@wbs/contracts';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { type } from 'arktype';
 import { expect, spyOn, test } from 'bun:test';
 import { Elysia } from 'elysia';
@@ -6,7 +7,6 @@ import { jwtVerify, SignJWT } from 'jose';
 
 import { bunPasswordHasher, joseTokenCodec } from '../../runtime/bun-runtime';
 import { REFUSE_DELEGATIONS } from '../../runtime/delegation';
-import { AuthService } from '../../service/auth.service';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../../testing/auth-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { bind } from '../endpoint';

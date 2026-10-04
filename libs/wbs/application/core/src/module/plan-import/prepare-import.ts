@@ -28,9 +28,9 @@ import {
 } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
-import type { StoredDependency } from '../../ports/dependency-store';
+import type { StoredDependency } from '../../ports/dependency-values';
 import type { Scheduler } from '../../ports/scheduler';
-import type { WorkItem } from '../../ports/work-item-store';
+import type { WorkItem } from '../../ports/work-item-values';
 import { cleanName } from '../../service/clean-name';
 import { MOST_CHARACTERS_IN_A_REF_NAME } from '../../service/command-normalizers';
 import { canDepend } from '../../service/dependency';

@@ -1,7 +1,7 @@
 import { readSolution } from '@wbs/contracts';
 
+import type { ProjectService } from '../module/project/project.resource';
 import type { OrganizationAccess } from '../ports/organization-access';
-import type { ProjectService } from '../service/project.service';
 import { bind, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
 

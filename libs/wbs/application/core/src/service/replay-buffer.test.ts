@@ -1,6 +1,6 @@
 import { describe, expect, it, spyOn } from 'bun:test';
 
-import { ReplayBuffer } from './replay-buffer';
+import { ReplayBuffer } from '../module/realtime/replay-buffer';
 
 describe('ReplayBuffer', () => {
   it('returns in-order events with seq strictly greater than sinceSeq', () => {

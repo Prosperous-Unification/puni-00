@@ -7,10 +7,10 @@ import type {
   BatchPrelude,
   PlanCommandServices,
 } from '../module/plan-commands/plan-commands.feature';
+import { StepService } from '../module/step/step.resource';
 import type { EditAdmission } from '../ports/edit-admission';
 import { DependencyGraphGuard } from '../service/dependency-graph';
 import type { PlanCommand } from '../service/plan-command';
-import { StepService } from '../service/step.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';

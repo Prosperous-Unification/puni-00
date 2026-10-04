@@ -9,6 +9,7 @@ import {
   servicesOver as coreServicesOver,
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
+import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import { contractVersionOf } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
 import { type FetchLike, PushClient, systemTimers } from '@wbs/runtime-portable';
@@ -30,7 +31,6 @@ import {
   nodeDigest,
   systemInterval,
 } from './runtime/bun-runtime';
-import type { AuthenticatedUser } from './service/auth.service';
 import { optimizerWiring } from './service/optimizer-wiring';
 
 const EVENT_LOG_MAX_PER_SUBSCRIPTION = 1_000;

@@ -6,6 +6,13 @@ import { schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, describe, expect, it } from 'bun:test';
 
+import type {
+  ReservedSolverChild,
+  ReservedSolverTerminal,
+  ReservedSpawnRequest,
+} from '../module/optimization/contract';
+import { OptimizationCoordinator } from '../module/optimization/optimization.feature';
+import { runSolverChildLifecycle } from '../module/optimization/solver-child-lifecycle';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
@@ -22,13 +29,6 @@ import { enqueueSolverRequest } from '../repository/optimization-queue';
 import { readOptimizedPair, storeOptimizedOutcome } from '../repository/optimized-schedule-cache';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { eventLog, optimizedScheduleCache, solverQueue, solverSlot } from '../repository/schema';
-import {
-  OptimizationCoordinator,
-  type ReservedSolverChild,
-  type ReservedSolverTerminal,
-  type ReservedSpawnRequest,
-} from './optimization-coordinator';
-import { runSolverChildLifecycle } from './solver-child-lifecycle';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CONTRACT = '7+0.1.0';

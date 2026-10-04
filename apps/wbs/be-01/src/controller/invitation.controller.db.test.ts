@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
 
 import { type Gate, InvitationRepository, openConnection } from '@wbs/store-sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -188,7 +187,16 @@ describe('organization invitations', () => {
     ).toEqual(['recipient@example.org']);
   });
 
+  // Its own budget (docs/test-budgets.md): two cold Bun children import the
+  // store, and on a loaded host that alone overran be-01's 10 s at the budget.
+  // By the rule, twice the overrun budget: 20 s. The race itself takes < 0.5 s.
   it('consumes once across independent SQLite processes', async () => {
+    // Started before the invitation exists, so their cold start overlaps the
+    // parent's own setup instead of adding to it.
+    const workerPath = new URL('../testing/invitation-accept.worker.ts', import.meta.url).pathname;
+    const workers = ['0', '1'].map(() =>
+      LaneProcess.spawn([process.execPath, workerPath, harness.databasePath()]),
+    );
     harness.activate();
     await harness.call('owner', 'POST', '/api/organization/invitations', {
       email: 'recipient@example.org',
@@ -197,21 +205,11 @@ describe('organization invitations', () => {
     const digest = createHash('sha256')
       .update(harness.deliveredEmailToken('recipient@example.org'))
       .digest('hex');
-    const databasePath = harness.databasePath();
-    const workerPath = new URL('../testing/invitation-accept.worker.ts', import.meta.url).pathname;
-    const workers = ['0', '1'].map(() =>
-      LaneProcess.spawn([
-        process.execPath,
-        workerPath,
-        databasePath,
-        harness.userId('recipient'),
-        digest,
-      ]),
-    );
     // Proof: 2026-09-29, a worker that threw before printing `ready` failed
     // this wait at once with its stderr, instead of after a fixed poll budget.
     await Promise.all(workers.map((worker) => worker.expectLine('ready')));
-    writeFileSync(`${databasePath}.go`, 'go');
+    const release = JSON.stringify({ userId: harness.userId('recipient'), digest });
+    await Promise.all(workers.map((worker) => worker.send(release)));
     const answers = await Promise.all(
       workers.map(async (worker) => {
         const exit = await worker.finish();
@@ -220,6 +218,10 @@ describe('organization invitations', () => {
         return JSON.parse(exit.answer) as { ok: boolean; refusal?: string };
       }),
     );
+    // Proof: 2026-09-29 (WBS 080.12), dropping the consumedAt check from
+    // InvitationRepository.accept made both released workers answer ok here.
+    // Under 16 busy loops and 24 concurrent copies at load 115-164, the
+    // stdin release and 20 s budget passed 12/12; the file-poll version 9/12.
     expect(answers.map((answer) => answer.ok).sort()).toEqual([false, true]);
     expect(answers.find((answer) => !answer.ok)?.refusal).toBe('invitation_invalid');
     expect(
@@ -227,7 +229,7 @@ describe('organization invitations', () => {
         .query('SELECT COUNT(*) AS count FROM organization_membership WHERE user_id = ?')
         .get(harness.userId('recipient')),
     ).toEqual({ count: 1 });
-  });
+  }, 20_000);
 
   it("refuses an admin's admin invitation and a removed issuer", async () => {
     harness.activate();

@@ -5,9 +5,9 @@ import {
   resumeInternal,
 } from '@wbs/contracts';
 
+import type { ProjectService } from '../module/project/project.resource';
+import { replay } from '../module/realtime/realtime.feature';
 import type { OrganizationAccess } from '../ports/organization-access';
-import type { ProjectService } from '../service/project.service';
-import { replay } from '../use-cases/replay';
 import { EMPTY } from './endpoint';
 import { bind, type RequestMetadata } from './endpoint';
 import { organizationRefusal } from './organization-refusal';

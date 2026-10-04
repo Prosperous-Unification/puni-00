@@ -599,14 +599,15 @@ export function usePlanRead({
    * nothing.
    */
   const refreshOrMarkStale = useCallback(
-    (scope: PlanReadScope = 'all'): Promise<void> =>
-      project.reread(
+    async (scope: PlanReadScope = 'all'): Promise<void> => {
+      await project.reread(
         scope === 'tree'
           ? ['tree']
           : scope === 'tree-and-steps'
             ? ['tree', 'steps']
             : ALL_RESOURCES,
-      ),
+      );
+    },
     [project],
   );
 

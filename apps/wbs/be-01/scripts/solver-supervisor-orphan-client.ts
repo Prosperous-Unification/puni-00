@@ -1,4 +1,4 @@
-import { connectSolverSupervisor } from '../src/service/solver-supervisor-client';
+import { connectSolverSupervisor } from '../src/module/solver-supervisor/solver-supervisor.repository';
 
 function recordOf(value: unknown): Readonly<Record<string, unknown>> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {

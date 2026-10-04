@@ -3,6 +3,12 @@ import { suggestStepCode } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../compose';
+import {
+  classifyPlanDocument,
+  PlanDocumentService,
+} from '../module/plan-document/plan-document.resource';
+import { createImportService } from '../module/plan-import/composition';
+import type { ImportService } from '../module/plan-import/plan-import.feature';
 import { clockOf } from '../ports/clock';
 import { CREATOR_ADMISSION } from '../ports/edit-admission';
 import { LEGACY_ACCESS } from '../ports/organization-access';
@@ -13,8 +19,6 @@ import type { Source } from '../ports/source';
 import type { TransactionalStores } from '../ports/stores';
 import type { UnitOfWork } from '../ports/unit-of-work';
 import type { WorkItemStore } from '../ports/work-item-store';
-import { ImportService } from '../service/import.service';
-import { classifyPlanDocument, PlanDocumentService } from '../service/plan-document';
 import { type RecordingBroadcaster, recordingBroadcaster } from './broadcast-fixture';
 import { planDocumentFixture } from './plan-document-fixture';
 import { fastScheduler } from './scheduler-fixture';
@@ -37,7 +41,7 @@ function importService(
     newId: () => `imported-${String(++next)}`,
   });
   const announcements = options.announcements ?? recordingBroadcaster();
-  return new ImportService({
+  return createImportService({
     clock,
     scheduler: fastScheduler,
     uow: options.uow ?? source.uow,
