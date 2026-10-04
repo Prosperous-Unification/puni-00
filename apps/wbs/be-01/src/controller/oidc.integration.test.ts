@@ -543,6 +543,9 @@ describe('OIDC browser routes', () => {
       // Auth protocol start uses a fresh first-party password proof instead of a bearer write scope.
       // Proof: 2026-09-28, removing this classification made `guards every registered user-facing mutation with write scope` receive 400 for link start instead of the expected 403 domain-write policy.
       '/api/auth/link/auth0',
+      // Selection writes only a credential-bound browser cookie after checking
+      // current membership; read-only users may choose their organization.
+      '/api/organization/active',
       '/api/smoke/echo',
     ]);
     const mutations = registeredRoutes(f.app.routes as unknown).filter(

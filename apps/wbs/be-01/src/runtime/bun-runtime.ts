@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import type { Digest, Intervals, PasswordHasher, SessionClaims, TokenCodec } from '@wbs/core';
 import { errors, type JWTPayload, jwtVerify, SignJWT } from 'jose';
@@ -32,6 +32,9 @@ export function joseTokenCodec(jwtKey: string): TokenCodec {
       return await new SignJWT({ username: claims.username })
         .setProtectedHeader({ alg: 'HS256' })
         .setSubject(claims.subject)
+        // Proof: without a fresh jti, two logins in one second issued the
+        // same token and `two native sessions issued in one second` failed.
+        .setJti(randomUUID())
         .setIssuedAt(issuedAt)
         .setExpirationTime(issuedAt + ttlSeconds)
         .sign(key);
@@ -39,7 +42,10 @@ export function joseTokenCodec(jwtKey: string): TokenCodec {
     async verify(token: string): Promise<SessionClaims | null> {
       let payload: JWTPayload;
       try {
-        ({ payload } = await jwtVerify(token, key));
+        // Proof: without the algorithm guard, an invalid RS256 bearer that
+        // fell through OIDC verification hit a key-type TypeError and the
+        // mounted OIDC selection negative returned 500 instead of 401.
+        ({ payload } = await jwtVerify(token, key, { algorithms: ['HS256'] }));
       } catch (cause) {
         // A token that is expired, forged or malformed is a modeled condition
         // and answers `null`; anything else — a key this process cannot use,

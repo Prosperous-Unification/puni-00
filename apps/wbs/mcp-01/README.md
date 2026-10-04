@@ -1,7 +1,7 @@
 # mcp-01
 
 Streamable HTTP MCP server over be-01. Tools are derived from
-the shared HTTP descriptors in `@wbs/contracts`; auth, internal, and operational routes are excluded.
+the shared HTTP descriptors in `@wbs/contracts`; auth, internal, operational, and browser organization-selection routes are excluded.
 Every tool call forwards the caller's Bearer token to be-01, so the same
 issuer, identity, scope, journal, and owner rules govern MCP and browser calls.
 

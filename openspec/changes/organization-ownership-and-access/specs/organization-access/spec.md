@@ -39,6 +39,15 @@ An authenticated WBS request SHALL carry exactly one server-validated active org
 - **WHEN** an administrator removes the membership and the user calls a protected A route
 - **THEN** be-01 answers 403 without waiting for token expiry
 
+#### Scenario: Explicit browser selection is bound to verified credential evidence
+
+- **GIVEN** a current local membership and a verified native or OIDC access credential carried in the access cookie or a Bearer header
+- **WHEN** the user selects the organization with an exact same-origin POST
+- **THEN** be-01 issues a separate organization cookie bound to that local user and the exact access credential, no longer than that credential's expiry
+- **AND** a missing or foreign Origin, duplicate or malformed organization-cookie carrier, different local account, invalid signature, issuer or audience, or absent expiry cannot grant selection; a replacement credential cannot reuse the previous selection and must explicitly select again
+- **AND** membership listing and selection responses, including refusals, are not cacheable
+- **AND** these browser selection endpoints are excluded from generated MCP tools
+
 #### Scenario: Native bearer context binds one current organization
 
 - **GIVEN** a native WBS session credential and a current membership in A
