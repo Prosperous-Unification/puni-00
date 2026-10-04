@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import fc from 'fast-check';
 
-import { ReplayBuffer } from '../module/realtime/replay-buffer';
+import { ReplayBuffer } from './replay-buffer';
 
 describe('Layer-A invariants (ReplayBuffer)', () => {
   it('invariant: no replay below ack — since(lastAck) yields only seq > lastAck', () => {
