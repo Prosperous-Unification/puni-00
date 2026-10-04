@@ -119,25 +119,42 @@ check SHALL enforce this for the closed modules and SHALL keep every remaining d
 - **WHEN** its feature no longer references a repository port
 - **THEN** the boundary check fails until the ledger is updated
 
-### Requirement: Existing core exports keep working through the move
+### Requirement: Core exports survive while forwarding paths retire
 
-Every symbol `@wbs/core` and its deep service paths export today SHALL keep its name while a
-responsibility moves. The former path SHALL remain a compatibility re-export when its constructor
-contract is unchanged. Where direct callers still supply store-based constructor options, the
-former path MAY export a compatibility adapter that builds the resource dependency, while the
-sealed module installs the feature directly.
+Every symbol exported by the `@wbs/core` barrel SHALL keep its name while a responsibility moves.
+Former deep service paths MAY forward during migration, but a forwarding-only path SHALL be
+retired after its callers import the owning module or service directly. Where direct callers
+still supply store-based constructor options, the former path SHALL remain a compatibility
+adapter that builds the resource dependency, while the sealed module installs the feature
+directly. The frozen historical `capture-capacity-oracle.ts` capture SHALL retain its original
+import reference; it is not a live caller or a reason to retain a forwarding path.
 
-#### Scenario: A moved service keeps its former deep path
+Plan Import and Plan Commands are the explicit exception to constructor compatibility: their
+feature constructors SHALL accept mapped resource transactions rather than raw unit-of-work,
+scope, or graph-factory options. Existing direct callers SHALL move to the composition factories;
+the constructor-option change is a deliberate TypeScript API break. Their exported service names
+remain available through the `@wbs/core` barrel; retired forwarding-only deep paths do not return.
 
-- **GIVEN** a service file moved into its module directory without changing its constructor contract
-- **WHEN** a caller imports the former `@wbs/core/service/<name>` path
-- **THEN** it receives the same declaration the module exports
+#### Scenario: A migrated forwarding path retires
+
+- **GIVEN** a service file moved into its module directory and all live callers migrated to its owner
+- **WHEN** the forwarding-only former `@wbs/core/service/<name>` path is retired
+- **THEN** the symbol remains available by its existing `@wbs/core` barrel name
+- **AND** the frozen capacity oracle capture keeps its historical reference unchanged
 
 #### Scenario: A former constructor accepts repository stores
 
-- **GIVEN** a direct caller still constructing Authentication or Saved plans with repository stores
+- **GIVEN** a direct caller still constructing Authentication or Saved plans with repository stores,
+  or invoking Saved plan schedule with its store-based call contract
 - **WHEN** it imports the former service path
-- **THEN** a compatibility adapter constructs the resource and preserves that constructor behavior
+- **THEN** the Authentication, Saved plan, or Saved plan schedule compatibility adapter constructs
+  the resource and preserves the former constructor or call behavior
+
+#### Scenario: A direct Plan Import or Plan Commands caller supplies a source
+
+- **GIVEN** a caller has a unit of work and a per-scope graph factory
+- **WHEN** it constructs the Plan Import or Plan Commands feature
+- **THEN** it uses the corresponding composition factory, and the feature constructor exposes only mapped resource transactions
 
 ### Requirement: Core modules own no process lifetime
 

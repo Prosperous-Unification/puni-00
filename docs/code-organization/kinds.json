@@ -2,140 +2,10 @@
   "reviewed": "2026-09-20",
   "entries": [
     {
-      "path": "apps/wbs/be-01/src/service/auth.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/auth.service directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/calendar-marker.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/calendar-marker.service directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/capacity.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/capacity.service directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/directory.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/directory.service directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/gateway-broadcaster.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/login-throttle.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/login-throttle directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/optimization-coordinator.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use the optimization module directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/optimized-schedule-reader.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use the optimization module directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/optimizer-wiring.ts",
       "kind": "support",
       "disposition": "composition wiring; move to the backend composition root",
       "rationale": "buildServices binds an optional OptimizedScheduleAdapter into the core Scheduler through optimizerWiring, while service fixtures reuse its Fast-only scheduler"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/plan-command.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/plan-command directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/plan-commands.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/plan-commands directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/priority-band.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/priority-band.service directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/project.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/project.service directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/push-client.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/runtime-portable directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/replay-buffer.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/replay-orchestrator.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/retention-job.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/roll-up.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/roll-up directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/saved-plan-default-name.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/saved-plan-input.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/saved-plan-integrity.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/saved-plan-quota.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/saved-plan-schedule-body.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/saved-plan-schedule.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/saved-plan.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/smoke.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/smoke.service directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/solver-child-lifecycle.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use the optimization module directly"
     },
     {
       "path": "apps/wbs/be-01/src/service/solver-exit-outcome.ts",
@@ -144,35 +14,10 @@
       "rationale": "OptimizationCoordinator calls evaluateSolverOutcome as a pure transformation of ScheduleInput, a solver request and a captured process outcome with no store, clock, socket or process access"
     },
     {
-      "path": "apps/wbs/be-01/src/service/solver-launcher-process.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use the solver-launcher module directly"
-    },
-    {
       "path": "apps/wbs/be-01/src/service/solver-request-pair.ts",
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
       "rationale": "OptimizationCoordinator calls it to derive two solver requests from one ScheduleInput and quantised baseline without reading a store, clock, socket or process"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/solver-supervisor-client.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use the solver-supervisor module directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/step.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/step.service directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/unit-of-work.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core directly"
-    },
-    {
-      "path": "apps/wbs/be-01/src/service/work-item.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core/service/work-item.service directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/assumed-assignee.ts",
@@ -187,25 +32,10 @@
       "rationale": "The sealed Authentication feature uses AccountResource, while direct callers still construct AuthService with UserStore and optional OidcIdentityStore."
     },
     {
-      "path": "libs/wbs/application/core/src/service/calendar-marker.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the calendar-marker module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/capacity.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the capacity module directly"
-    },
-    {
       "path": "libs/wbs/application/core/src/service/clean-name.ts",
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
       "rationale": "directory.service.ts, prepare-import.ts and step.service.ts call its pure name normalization with no store or clock"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/command-bindings.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-commands module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/command-normalizers.ts",
@@ -238,35 +68,10 @@
       "rationale": "directory.service.ts calls its pure removal-effect projections over DirectoryUsageRows and labelled work items for the glossary's directory usage, with no store or clock"
     },
     {
-      "path": "libs/wbs/application/core/src/service/directory.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the directory module directly"
-    },
-    {
       "path": "libs/wbs/application/core/src/service/domain-proof.service.ts",
       "kind": "support",
       "disposition": "organization domain lifecycle; move into an organization-domains module when one exists",
       "rationale": "be-01's dormant domain-proof worker calls checkDomainProofs to run one bounded TXT lookup per due retained claim through the DomainProofChecks port; it holds no store or timer of its own"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/gateway-broadcaster.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the realtime module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/history.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-history module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/import.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-import module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/login-throttle.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the authentication module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/numbered-work-item.ts",
@@ -285,51 +90,6 @@
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
       "rationale": "plan-commands.ts consumes its command type and batch-limit value, which carry no store, clock or runtime access"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/plan-commands.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-commands module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/plan-document.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-document module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/prepare-import.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-import module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/priority-band.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the priority-band module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/project.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the project module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/replay-buffer.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the realtime module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/replay-orchestrator.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the realtime module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/retention-job.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the bounded-replay-sweep module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/retention-timer.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the bounded-replay-sweep module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/roll-up.ts",
@@ -354,11 +114,6 @@
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
       "rationale": "SavedPlanService calls planInputRowsOf to transform detached PlanInputReads into canonical saved-plan values without asking a store, clock or runtime port"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/saved-plan-integrity.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the saved-plans module directly"
     },
     {
       "path": "libs/wbs/application/core/src/service/saved-plan-quota.ts",
@@ -389,41 +144,6 @@
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",
       "rationale": "smokeRoutes is its only production caller and uses echo as a pure text transformation with no store, clock or external port"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/step.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the step module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/work-item.service.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the work-item module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/service/working-plan.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-commands module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/use-cases/replay.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the realtime module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/use-cases/retention-sweep.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the bounded-replay-sweep module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/use-cases/run-command-batch.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the plan-commands module directly"
-    },
-    {
-      "path": "libs/wbs/application/core/src/use-cases/save-plan.ts",
-      "kind": "support",
-      "disposition": "re-export shim; delete when importers use @wbs/core or the saved-plans module directly"
     }
   ]
 }

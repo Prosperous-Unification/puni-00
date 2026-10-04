@@ -1,5 +1,6 @@
-import { buildOidcVerifier } from '@wbs/auth';
+import { buildOidcVerifier, oidcCredentialEvidence } from '@wbs/auth';
 import type { DelegationIssuer } from '@wbs/core';
+import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import type { Logger } from '@wbs/observability';
 import {
   DomainClaimRepository,
@@ -10,6 +11,7 @@ import {
   OnboardingRepository,
   openSqliteSource,
   OrganizationRepository,
+  ProjectRankRepository,
   SpaceRepository,
   SqliteOrganizationAccess,
 } from '@wbs/store-sqlite';
@@ -29,7 +31,7 @@ import { REFUSE_DELEGATIONS } from './runtime/delegation';
 import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
 import { importDelegationKeys } from './runtime/delegation-keys';
 import { refusingEmailDelivery } from './runtime/email-delivery';
-import type { AuthenticatedUser } from './service/auth.service';
+import { organizationCredentialEvidence } from './runtime/organization-credential';
 import { type BeServices, buildServices, type OptimizerRuntime } from './services';
 
 export interface BootOptions {
@@ -198,6 +200,13 @@ export async function bootBe01(
                 return state.migrationsApplied;
               },
               auth: services.auth,
+              credentialEvidence: organizationCredentialEvidence(
+                services.auth,
+                opts.jwtKey,
+                opts.oidc === undefined
+                  ? undefined
+                  : oidcCredentialEvidence(opts.oidc.verifier, opts.oidc),
+              ),
               // Proof: constructing a second LoginThrottle here made
               // boot.db.test.ts receive HTTP 401 instead of 429 (0 pass, 1 fail,
               // 13 filtered).
@@ -216,6 +225,7 @@ export async function bootBe01(
               invitations: new InvitationRepository(db, services.gate),
               joinRequests: new JoinRequestRepository(db, services.gate),
               spaces: new SpaceRepository(db, services.gate),
+              projectRanks: new ProjectRankRepository(db, services.gate),
               emailDelivery: refusingEmailDelivery,
               steps: services.steps,
               calendarMarkers: services.calendarMarkers,

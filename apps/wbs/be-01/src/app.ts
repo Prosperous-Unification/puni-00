@@ -12,10 +12,12 @@ import type {
   MembershipAdministration,
   Onboarding,
   OrganizationAccess,
+  ProjectRankStore,
   ReplayOrchestrator,
   SavedPlanService,
   SpaceStore,
 } from '@wbs/core';
+import type { Scope, UnitOfWork } from '@wbs/core';
 import { clockOf } from '@wbs/core';
 import { domainRoutes } from '@wbs/core/http/domain.routes';
 import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
@@ -24,9 +26,21 @@ import { joinRequestRoutes } from '@wbs/core/http/join-request.routes';
 import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
+import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
 import { spaceRoutes } from '@wbs/core/http/space.routes';
-import { admittedWrites } from '@wbs/core/module/plan-commands/admitted-write';
+import type { LoginThrottle } from '@wbs/core/module/authentication/login-throttle';
+import type { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
+import type { CapacityService } from '@wbs/core/module/capacity/capacity.resource';
+import type { DirectoryService } from '@wbs/core/module/directory/directory.resource';
+import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
+import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import type { PriorityBandService } from '@wbs/core/module/priority-band/priority-band.resource';
+import type { ProjectService } from '@wbs/core/module/project/project.resource';
+import type { StepService } from '@wbs/core/module/step/step.resource';
+import type { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import type { AuthService } from '@wbs/core/service/auth.service';
 import { PersonLoad } from '@wbs/core/service/person-load.feature';
+import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
 import { RollUpCache, SpaceResource } from '@wbs/core/service/space.resource';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
@@ -41,6 +55,7 @@ import { importRoutes } from './controller/import.routes';
 import { infrastructureEndpoints } from './controller/infrastructure-endpoints';
 import { gatewayAccessRoutes, internalRoutes } from './controller/internal.routes';
 import type { OidcRouteOptions } from './controller/oidc-options';
+import { organizationSelectionRoutes } from './controller/organization-selection.routes';
 import { projectRoutes } from './controller/project.routes';
 import { savedPlanRoutes } from './controller/saved-plan.routes';
 import { smokeRoutes } from './controller/smoke.routes';
@@ -51,23 +66,17 @@ import { mountEndpoints } from './http/elysia/mount';
 import { createUnexpectedFailureReporter } from './http/elysia/unexpected-failure';
 import type { BoundEndpoint } from './http/endpoint';
 import { identityResolver } from './http/identity';
+import type { OptimizationCoordinator } from './module/optimization/optimization.feature';
 import { openApiPlugin } from './openapi/openapi-plugin';
 import type { DatabaseHealth } from './repository/health-probe';
 import { type IssueBearerContext, REFUSE_BEARER_CONTEXT } from './runtime/bearer-context';
 import { nodeDigest } from './runtime/bun-runtime';
 import { type DelegationVerifier, REFUSE_DELEGATIONS } from './runtime/delegation';
-import type { AuthService } from './service/auth.service';
-import type { CalendarMarkerService } from './service/calendar-marker.service';
-import type { CapacityService } from './service/capacity.service';
-import type { DirectoryService } from './service/directory.service';
-import type { LoginThrottle } from './service/login-throttle';
-import type { OptimizationCoordinator } from './service/optimization-coordinator';
-import { PlanCommandRunner } from './service/plan-commands';
-import type { PriorityBandService } from './service/priority-band.service';
-import type { ProjectService } from './service/project.service';
-import type { StepService } from './service/step.service';
-import type { Scope, UnitOfWork } from './service/unit-of-work';
-import type { WorkItemService } from './service/work-item.service';
+import type { VerifiedCredentialOf } from './runtime/organization-credential';
+import {
+  type OrganizationSelection,
+  REFUSE_ORGANIZATION_SELECTION,
+} from './runtime/organization-selection';
 import type { WritingServices } from './services';
 
 export interface AppOptions {
@@ -81,6 +90,10 @@ export interface AppOptions {
    * absent, answering 404 — indistinguishable from a routing fault at the edge.
    */
   auth: AuthService;
+  /** Optional evidence seam; absent callers cannot select an organization. */
+  credentialEvidence?: VerifiedCredentialOf;
+  /** Selection is intentionally refusing unless the composition explicitly enables it. */
+  organizationSelection?: OrganizationSelection;
   /** The composition's one password-attempt throttle. */
   loginThrottle: LoginThrottle;
   oidc?: OidcRouteOptions;
@@ -166,6 +179,11 @@ export interface AppOptions {
    */
   spaces: SpaceStore;
   /**
+   * The organizations' project rank (`share-people-across-projects`, slice
+   * 3). Required, like `spaces`: the load reads order by it.
+   */
+  projectRanks: ProjectRankStore;
+  /**
    * Shared secret gw-01 presents on /internal/*. Required — a default here
    * would silently diverge from the value gw-01 loads from the environment,
    * failing every forward with a 401 that only shows up in a real deployment.
@@ -200,7 +218,8 @@ export interface AppOptions {
    * What a command batch runs inside: the source's unit of work and the batch's
    * own service graph — `sqliteUnitOfWork(db, coordinator, admitted)` in
    * production, the counting fixture on in-memory stores. See
-   * `libs/wbs/application/core/src/service/plan-commands.ts`, ADR 0007 and ADR 0015.
+   * `libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts`,
+   * ADR 0007 and ADR 0015.
    */
   writes: {
     /** The process's atomic archival plan importer over this same source admission boundary. */
@@ -260,7 +279,7 @@ export function mountedEndpoints(
   },
 ): readonly BoundEndpoint[] {
   const passwordThrottle = opts.loginThrottle;
-  const commands = new PlanCommandRunner({
+  const commands = createPlanCommandRunner({
     batchServices: opts.writes.batch,
     publicServices: {
       workItems: opts.workItems,
@@ -275,8 +294,8 @@ export function mountedEndpoints(
   // A project reach change and a step removal read the combined dependency
   // graph before they write, so each runs as one unit of work: a write landing
   // between the check and the write could otherwise leave a cycle.
-  const admitted = admittedWrites(opts.writes);
-  // Spaces stamp their writes; the app's clock is time alone, so ids are
+  const admitted = createAdmittedWrites(opts.writes);
+  // Spaces and rank moves stamp their writes; the app's clock is time alone, so ids are
   // random UUIDs as `services.ts` issues them.
   const spaceClock = clockOf({ now: () => opts.clock.now(), newId: () => crypto.randomUUID() });
   // One cache per app, which is one per process in production (design memo §8).
@@ -305,6 +324,7 @@ export function mountedEndpoints(
     // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
     ...organizationRoutes(opts.organizations, opts.memberships, opts.clock),
+    ...organizationSelectionRoutes(opts.organizationSelection ?? REFUSE_ORGANIZATION_SELECTION),
     ...domainRoutes(opts.organizations, opts.domains, opts.clock),
     ...onboardingRoutes(opts.onboarding, opts.clock),
     ...emailVerificationRoutes(opts.emailVerification, opts.emailDelivery, opts.clock, nodeDigest),
@@ -340,6 +360,15 @@ export function mountedEndpoints(
         projects: opts.projects,
         workItems: opts.workItems,
         directory: opts.directory,
+        ranks: opts.projectRanks,
+      }),
+      opts.organizations,
+    ),
+    ...projectRankRoutes(
+      new ProjectRankResource({
+        ranks: opts.projectRanks,
+        projects: opts.projects,
+        clock: spaceClock,
       }),
       opts.organizations,
     ),
@@ -437,6 +466,7 @@ export function buildApp(opts: AppOptions, makeLogger: typeof createLogger = cre
             opts.auth,
             opts.internalAuthSecret,
             opts.delegation ?? REFUSE_DELEGATIONS,
+            opts.credentialEvidence,
           ),
           // Proof: on 2026-09-21, replacing this production callback with a no-op made
           // “reports one redacted unexpected production failure with its shared occurrence” receive

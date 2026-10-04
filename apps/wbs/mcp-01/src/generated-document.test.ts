@@ -47,6 +47,12 @@ test('required exclusion drift remains a failure when operational routes are abs
   expect(() => toolsFromDocument(document)).toThrow('exclusion list');
 });
 
+test('keeps browser organization selection out of the generated MCP tools', () => {
+  const names = toolsFromDocument(readDocument()).map((tool) => tool.name);
+  expect(names).not.toContain('getApiOrganizationMemberships');
+  expect(names).not.toContain('postApiOrganizationActive');
+});
+
 test('pins every generated MCP operation name independently of the registry', () => {
   // Proof: removing importProject from httpShapes failed with
   // `postApiProjectsImport` as the one expected-only operation.
@@ -69,6 +75,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'getApiOrganizationInvitations',
     'getApiOrganizationJoinRequests',
     'getApiOrganizationMembers',
+    'getApiOrganizationProject-rank',
     'getApiPeople',
     'getApiPeopleByPersonIdLoad',
     'getApiPeopleLoad',
@@ -109,6 +116,7 @@ test('pins every generated MCP operation name independently of the registry', ()
     'postApiOrganizationInvitations',
     'postApiOrganizationJoinRequestsByIdApprove',
     'postApiOrganizationJoinRequestsByIdDeny',
+    'postApiOrganizationProjectsByIdRank',
     'postApiProjects',
     'postApiProjectsByIdCalendar-markers',
     'postApiProjectsByIdCommands',

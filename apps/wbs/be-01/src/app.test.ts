@@ -1,11 +1,11 @@
 import type { FailureReporting } from '@shared/failures';
 import type { LogFields, Logger, LogMethod } from '@wbs/contracts';
+import type { AuthService } from '@wbs/core/service/auth.service';
 import { createLogger, type CreateLoggerOptions, LogRecord } from '@wbs/observability';
 import { parseOrThrow } from '@wbs/validation';
 import { describe, expect, it } from 'bun:test';
 
 import { type AppOptions, buildApp } from './app';
-import type { AuthService } from './service/auth.service';
 import { inMemoryUsers, testAuthService } from './testing/auth-fixture';
 import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
 import { testCapacityService } from './testing/capacity-fixture';
@@ -27,6 +27,7 @@ import {
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { testProjectService } from './testing/project-fixture';
+import { refusingProjectRanks } from './testing/project-rank-fixture';
 import { testReplay } from './testing/replay-fixture';
 import { testSavedPlanService } from './testing/saved-plan-fixture';
 import { refusingSpaces } from './testing/space-fixture';
@@ -84,6 +85,7 @@ function optionsFor(auth: AuthService, internalAuthSecret = TEST_SECRET): AppOpt
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: refusingSpaces,
+    projectRanks: refusingProjectRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: refusingOnboarding,
     clock: testClock,

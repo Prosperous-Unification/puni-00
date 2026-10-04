@@ -20,11 +20,16 @@ export interface LaneExit {
  * of a test the runner abandoned. A child that exits, or prints anything else,
  * before the expected line fails the wait at once with its exit code and
  * stderr.
+ *
+ * The parent answers on the child's stdin through {@link LaneProcess.send}: a
+ * release is a line the child blocks on, not a marker file it polls against a
+ * deadline of its own. A polling child spent CPU its sibling needed for its cold
+ * start, and its own deadline measured the machine the way the old ready polls did.
  */
 export class LaneProcess {
   static readonly #running = new Set<LaneProcess>();
 
-  readonly #child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>;
+  readonly #child: Bun.Subprocess<'pipe', 'pipe', 'pipe'>;
   readonly #errors: Promise<string>;
   readonly #drained: Promise<void>;
   #printed = '';
@@ -33,7 +38,7 @@ export class LaneProcess {
   #wake: (() => void) | undefined;
 
   private constructor(argv: readonly string[]) {
-    this.#child = Bun.spawn([...argv], { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+    this.#child = Bun.spawn([...argv], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' });
     this.#errors = new Response(this.#child.stderr).text();
     this.#drained = this.#drain();
     LaneProcess.#running.add(this);
@@ -72,6 +77,18 @@ export class LaneProcess {
         this.#wake = resolve;
       });
     }
+  }
+
+  /**
+   * Writes `line` and a newline to the child's stdin and flushes it.
+   *
+   * Bun 1.4.2 does not throw when the child has already exited, so a lost
+   * release surfaces in {@link LaneProcess.finish} as the child's exit code and
+   * stderr, not here.
+   */
+  async send(line: string): Promise<void> {
+    await this.#child.stdin.write(`${line}\n`);
+    await this.#child.stdin.flush();
   }
 
   /** Waits for the child to exit and returns what it left. */

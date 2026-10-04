@@ -11,7 +11,8 @@ import type { PlanCommand } from '../../service/plan-command';
 import { testClock } from '../../testing/clock-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
-import { PlanCommandRunner } from './plan-commands.feature';
+import { createPlanCommandRunner } from './composition';
+import type { PlanCommandRunner } from './plan-commands.feature';
 import { createWorkingPlan } from './working-plan.resource';
 
 const OWNER = 'plan-command-owner';
@@ -40,7 +41,7 @@ function runnerOver(
     broadcast,
   ) => compose(scope.stores, broadcast),
 ): PlanCommandRunner {
-  return new PlanCommandRunner({
+  return createPlanCommandRunner({
     uow,
     announcements: silentBroadcaster(),
     publicServices: publicGraph,
@@ -265,7 +266,7 @@ describe('working plan batch ownership', () => {
       announcements += 1;
       await announceTreeNow(announcedProjectId);
     };
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       uow: source.uow,
       announcements: direct,
       publicServices: publicGraph,
@@ -341,7 +342,7 @@ describe('working plan command before-images', () => {
       if (!seeded.ok) throw new Error('before-image fixture labelling refused');
 
       const observedTagSets: string[][] = [];
-      const runner = new PlanCommandRunner({
+      const runner = createPlanCommandRunner({
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
@@ -820,7 +821,7 @@ describe('working plan subtree mutations through runner commands', () => {
           scheduler: fastScheduler,
         });
       const publicGraph = composeBatch(source.stores, direct);
-      const runner = new PlanCommandRunner({
+      const runner = createPlanCommandRunner({
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
@@ -1196,7 +1197,7 @@ describe('working plan value mutations through runner commands', () => {
           scheduler: fastScheduler,
         });
       const admitted = captureAdmittedStores(source.uow);
-      const runner = new PlanCommandRunner({
+      const runner = createPlanCommandRunner({
         uow: admitted.uow,
         announcements: direct,
         publicServices: publicGraph,

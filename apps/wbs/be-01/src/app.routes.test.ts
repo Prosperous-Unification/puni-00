@@ -9,6 +9,7 @@ import {
   startAuth0Link,
   startOidcLogin,
 } from '@wbs/contracts';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
 import { describe, expect, it, spyOn } from 'bun:test';
@@ -16,7 +17,6 @@ import { describe, expect, it, spyOn } from 'bun:test';
 import type { AppOptions } from './app';
 import { buildApp, mountedEndpoints } from './app';
 import { bunPasswordHasher, joseTokenCodec } from './runtime/bun-runtime';
-import { AuthService } from './service/auth.service';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from './testing/auth-fixture';
 import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
 import { testCapacityService } from './testing/capacity-fixture';
@@ -37,6 +37,7 @@ import {
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
 import { inMemoryProjects, testProjectService } from './testing/project-fixture';
+import { refusingProjectRanks } from './testing/project-rank-fixture';
 import { testReplay } from './testing/replay-fixture';
 import { testSavedPlanService } from './testing/saved-plan-fixture';
 import { testStepService } from './testing/step-fixture';
@@ -52,6 +53,7 @@ function options(): AppOptions {
     invitations: refusingInvitations,
     joinRequests: refusingJoinRequests,
     spaces: inMemorySpaces(new Map()),
+    projectRanks: refusingProjectRanks,
     emailDelivery: refusingTestEmailDelivery,
     onboarding: {
       discover: () => Promise.resolve({ ok: false, refusal: 'onboarding_inactive' }),
@@ -146,6 +148,7 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postApiAuthRegister: { username: 'route-probe', password: 'valid-password' },
   postApiAuthLogin: { username: 'route-probe', password: 'valid-password' },
   postApiOnboardingOrganizations: { name: 'Reachable organization' },
+  postApiOrganizationActive: { organizationId: ROUTE_ID },
   postApiOnboardingJoinRequests: { organizationId: ROUTE_ID },
   postApiOrganizationDomainsChallenges: { domain: 'example.org' },
   postApiOnboardingEmailChallenges: { email: 'test@example.org' },
@@ -189,6 +192,7 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   patchApiSpacesById: { name: 'Renamed route probe' },
   postApiSpacesByIdProjects: { projectId: ROUTE_ID },
   postApiSpacesByIdProjectsByProjectIdMove: {},
+  postApiOrganizationProjectsByIdRank: {},
   'patchApiSaved-plansById': { name: 'Renamed snapshot' },
   postInternalForward: { message: { kind: 'route-probe' }, trace_id: 'route-probe' },
   postInternalResume: { resume_points: { subscription: -1 }, trace_id: 'route-probe' },
@@ -234,6 +238,8 @@ const SIGNED_IN_OPERATIONS = [
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
   'getApiOrganizationMembers',
+  'getApiOrganizationMemberships',
+  'getApiOrganizationProject-rank',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',
@@ -254,6 +260,7 @@ const SIGNED_IN_OPERATIONS = [
   'getApiTags',
   'getApiTeams',
   'getApiWork-item-types',
+  'postApiOrganizationActive',
 ] as const;
 const READ_SCOPE_OPERATIONS = ['getApiProjectsByIdExport', 'getPlansBy-solutionBySlug'] as const;
 const WRITE_SCOPE_OPERATIONS = [
@@ -283,6 +290,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiOrganizationInvitations',
   'postApiOrganizationJoinRequestsByIdApprove',
   'postApiOrganizationJoinRequestsByIdDeny',
+  'postApiOrganizationProjectsByIdRank',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -308,6 +316,7 @@ const ALWAYS_ORIGIN_OPERATIONS = [
   'postApiOnboardingInvitationsAccept',
   'postApiOnboardingJoinRequests',
   'postApiOnboardingOrganizations',
+  'postApiOrganizationActive',
   'postApiOrganizationInvitations',
   'postApiOrganizationJoinRequestsByIdApprove',
   'postApiOrganizationJoinRequestsByIdDeny',
@@ -335,6 +344,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiOrganizationDomainsByIdRotate',
   'postApiOrganizationDomainsByIdVerify',
   'postApiOrganizationDomainsChallenges',
+  'postApiOrganizationProjectsByIdRank',
   'postApiProjects',
   'postApiProjectsByIdCalendar-markers',
   'postApiProjectsByIdCommands',
@@ -357,10 +367,12 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiAuthOktaCallback',
   'getApiExternal-systems',
   'getApiOnboarding',
+  'getApiOrganizationMemberships',
   'getApiOrganizationDomains',
   'getApiOrganizationInvitations',
   'getApiOrganizationJoinRequests',
   'getApiOrganizationMembers',
+  'getApiOrganizationProject-rank',
   'getApiPeople',
   'getApiPeopleByPersonIdLoad',
   'getApiPeopleLoad',

@@ -75,15 +75,25 @@ export interface OpenApiDocument {
 }
 
 /**
- * D1's three exclusion classes, as one named set.
+ * D1's required exclusion classes, as one named set.
  *
  * `/api/auth/*` would make this a credential factory; `/internal/*` is gw-01's
- * surface behind a different secret; smoke carries no plan. A trailing
+ * surface behind a different secret; smoke carries no plan. Browser
+ * organization selection creates a cookie tied to a browser access credential,
+ * not an MCP delegation. A trailing
  * `/*` matches a prefix and nothing else does — no regex, because a pattern
  * that can match more than it reads is the wrong tool for a deny list.
  */
 
-export const EXCLUDED_PATHS: readonly string[] = ['/api/auth/*', '/internal/*', '/api/smoke/echo'];
+export const EXCLUDED_PATHS: readonly string[] = [
+  '/api/auth/*',
+  '/internal/*',
+  '/api/smoke/echo',
+  // Proof: removing either path independently made the production-document
+  // exclusion test expose its GET or POST tool (0/1 for each mutation).
+  '/api/organization/memberships',
+  '/api/organization/active',
+];
 
 /** What the MCP protocol accepts as a tool name; `operationId` must already fit. */
 const TOOL_NAME = /^[a-zA-Z0-9_-]{1,128}$/;

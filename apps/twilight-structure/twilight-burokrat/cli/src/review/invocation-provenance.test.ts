@@ -5,10 +5,11 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  watch,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
@@ -381,11 +382,107 @@ else journal.complete(command.invocationId, command.terminal);
   return path;
 }
 
-async function waitForFiles(paths: string[]): Promise<void> {
-  const deadline = Date.now() + 3000;
-  while (!paths.every((path) => existsSync(path))) {
-    if (Date.now() > deadline) throw new Error('workers did not become ready');
-    await Bun.sleep(10);
+test('waits for a worker marker after the former three-second startup ceiling', async () => {
+  const directory = createScratch();
+  const readyPath = join(directory, 'delayed-ready');
+  const worker = Bun.spawn(
+    [
+      process.execPath,
+      '--eval',
+      `import { writeFileSync } from 'node:fs'; await Bun.sleep(3100); writeFileSync(${JSON.stringify(readyPath)}, 'ready');`,
+    ],
+    { stderr: 'pipe', stdout: 'pipe' },
+  );
+  try {
+    await waitForFiles([readyPath], [worker]);
+    expect(await worker.exited).toBe(0);
+  } finally {
+    worker.kill();
+    await worker.exited;
+  }
+});
+
+test('reports a worker exit before its readiness marker', async () => {
+  const directory = createScratch();
+  const readyPath = join(directory, 'never-ready');
+  const worker = Bun.spawn([process.execPath, '--eval', 'process.exit(17);'], {
+    stderr: 'pipe',
+    stdout: 'pipe',
+  });
+  let failure: unknown;
+  try {
+    await waitForFiles([readyPath], [worker]);
+  } catch (cause) {
+    failure = cause;
+  } finally {
+    await worker.exited;
+  }
+  if (!(failure instanceof Error)) throw new Error('worker exit was not reported');
+  expect(failure.message).toContain('worker 0 exited 17 before readiness marker');
+});
+
+/** Waits for real child readiness, failing if a child exits before its marker. */
+async function waitForFiles(
+  paths: string[],
+  workers: Bun.Subprocess<'ignore', 'pipe', 'pipe'>[],
+): Promise<void> {
+  if (paths.length !== workers.length || paths.length === 0) {
+    throw new Error('worker readiness paths do not match workers');
+  }
+  const directory = dirname(paths[0]);
+  if (paths.some((path) => dirname(path) !== directory)) {
+    throw new Error('worker readiness paths must share a directory');
+  }
+  if (paths.every((path) => existsSync(path))) return;
+  // Proof: the former three-second poll rejected a 3.1-second marker at
+  // 3009.68ms; watching the directory accepts the same worker when ready.
+  const watcher = watch(directory);
+  try {
+    const ready = new Promise<void>((resolve, reject) => {
+      const check = () => {
+        if (paths.every((path) => existsSync(path))) resolve();
+      };
+      watcher.on('change', check);
+      watcher.on('error', reject);
+      check();
+    });
+    // Proof: removing this child-exit race made the exit-17 fixture time out
+    // after 1000ms instead of reporting the missing readiness marker.
+    const exited = Promise.race(
+      workers.map((worker, index) =>
+        worker.exited.then(async (code) => {
+          if (existsSync(paths[index])) return ready;
+          const stderr = await new Response(worker.stderr).text();
+          throw new Error(
+            `worker ${String(index)} exited ${String(code)} before readiness marker: ${stderr}`,
+          );
+        }),
+      ),
+    );
+    await Promise.race([ready, exited]);
+  } finally {
+    watcher.close();
+  }
+}
+
+/** Releases the fixture lock and reaps both workers even when release fails. */
+async function releaseAndReapWorkers(
+  lock: FileJournalLock,
+  workers: Bun.Subprocess<'ignore', 'pipe', 'pipe'>[],
+  released: boolean,
+): Promise<void> {
+  let releaseFailure: unknown;
+  if (!released) {
+    try {
+      lock.release();
+    } catch (cause) {
+      releaseFailure = cause;
+      for (const worker of workers) worker.kill();
+    }
+  }
+  await Promise.all(workers.map((worker) => worker.exited));
+  if (releaseFailure !== undefined) {
+    throw new Error('cannot release journal fixture lock', { cause: releaseFailure });
   }
 }
 
@@ -872,16 +969,23 @@ describe('review invocation provenance', () => {
         { stderr: 'pipe', stdout: 'pipe' },
       );
     });
-    await waitForFiles(readyPaths);
-    await Bun.sleep(50);
-    expect(processes.map((process) => process.exitCode)).toEqual([null, null]);
-    lock.release();
-    expect(await Promise.all(processes.map((process) => process.exited))).toEqual([0, 0]);
-    expect(
-      readInvocationJournal(journalPath)
-        .entries.map((entry) => entry.registration.invocationId)
-        .sort(),
-    ).toEqual(['invocation.a', 'invocation.b']);
+    let released = false;
+    try {
+      await waitForFiles(readyPaths, processes);
+      await Bun.sleep(50);
+      expect(processes.map((process) => process.exitCode)).toEqual([null, null]);
+      lock.release();
+      released = true;
+      expect(await Promise.all(processes.map((process) => process.exited))).toEqual([0, 0]);
+      expect(
+        readInvocationJournal(journalPath)
+          .entries.map((entry) => entry.registration.invocationId)
+          .sort(),
+      ).toEqual(['invocation.a', 'invocation.b']);
+    } finally {
+      // A failed readiness wait must not leave either child blocked on this lock.
+      await releaseAndReapWorkers(lock, processes, released);
+    }
   });
 
   test('makes exact completion idempotent and refuses conflicting terminal transitions', () => {
@@ -946,15 +1050,21 @@ describe('review invocation provenance', () => {
         { stderr: 'pipe', stdout: 'pipe' },
       );
     });
-    await waitForFiles(readyPaths);
-    await Bun.sleep(50);
-    expect(processes.map((process) => process.exitCode)).toEqual([null, null]);
-    lock.release();
-    expect(await Promise.all(processes.map((process) => process.exited))).toEqual([0, 0]);
-    expect(readInvocationJournal(journalPath).entries.map((entry) => entry.state)).toEqual([
-      'terminal',
-      'terminal',
-    ]);
+    let released = false;
+    try {
+      await waitForFiles(readyPaths, processes);
+      await Bun.sleep(50);
+      expect(processes.map((process) => process.exitCode)).toEqual([null, null]);
+      lock.release();
+      released = true;
+      expect(await Promise.all(processes.map((process) => process.exited))).toEqual([0, 0]);
+      expect(readInvocationJournal(journalPath).entries.map((entry) => entry.state)).toEqual([
+        'terminal',
+        'terminal',
+      ]);
+    } finally {
+      await releaseAndReapWorkers(lock, processes, released);
+    }
 
     mkdirSync(`${journalPath}.lock`, { mode: 0o700 });
     writeFileSync(ownerPath, 'stale-owner\n', 'utf8');

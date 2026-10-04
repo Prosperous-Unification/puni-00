@@ -211,6 +211,8 @@ describe('organization activation marker schema', () => {
 
   it('rolls back before activation and reapplies with a fresh seed', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+      '20261001010000_add_browser_credential_revocations',
+      '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
       '20260928040000_add_email_challenge',
@@ -227,7 +229,9 @@ describe('organization activation marker schema', () => {
     ]);
     expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_OWNERSHIP);
     runMigrations(path, FOLDER);
-    expect(readAppliedMigrations().at(-1)).toBe('20260929100000_add_spaces');
+    expect(readAppliedMigrations().at(-1)).toBe(
+      '20261001010000_add_browser_credential_revocations',
+    );
     expect(withDb(readOrganizationActivation)).toBe('pre_activation');
   });
 

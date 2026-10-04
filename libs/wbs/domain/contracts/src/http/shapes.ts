@@ -51,8 +51,15 @@ import {
   readOnboarding,
   submitOnboardingJoinRequest,
 } from './onboarding-shapes';
-import { changeMemberRole, listMembers, removeMember } from './organization-shapes';
+import {
+  changeMemberRole,
+  listMembers,
+  listOrganizationMemberships,
+  removeMember,
+  selectActiveOrganization,
+} from './organization-shapes';
 import { readOrganizationLoad, readPersonLoad } from './person-load-shapes';
+import { moveProjectRank, readProjectRank } from './project-rank-shapes';
 import {
   createProject,
   exportProject,
@@ -115,6 +122,8 @@ export const httpShapes = [
   changeMemberRole,
   listMembers,
   removeMember,
+  listOrganizationMemberships,
+  selectActiveOrganization,
   listOrganizationDomains,
   releaseDomainClaim,
   createDomainChallenge,
@@ -140,6 +149,8 @@ export const httpShapes = [
   listExternalSystems,
   readOrganizationLoad,
   readPersonLoad,
+  readProjectRank,
+  moveProjectRank,
   readHistory,
   readSolution,
   createProject,

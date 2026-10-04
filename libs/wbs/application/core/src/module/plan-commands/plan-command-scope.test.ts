@@ -3,7 +3,9 @@ import { describe, expect, it } from 'bun:test';
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
-import { PlanCommandRunner, type PlanCommandServices } from './plan-commands.feature';
+import { AdmittedScope } from './admitted-scope.resource';
+import { createPlanCommandRunner } from './composition';
+import { type PlanCommandServices } from './plan-commands.feature';
 
 interface JournalEntry {
   id: string;
@@ -206,7 +208,7 @@ describe('the command runner builds services from each unit-of-work scope', () =
       return { workItems } as unknown as PlanCommandServices;
     };
 
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       batchServices: (scope, _broadcast) => {
         source.scopedStores.push(scope.stores);
         const plan = source.plans.get(scope.stores.projects);
@@ -265,5 +267,18 @@ describe('the command runner builds services from each unit-of-work scope', () =
     expect(new Set(source.scopedStores).size).toBe(7);
     expect(publicAnnouncements).toBe(4);
     expect(publicReads).toBe(2);
+  });
+});
+
+describe('AdmittedScope', () => {
+  // The boundary audit reads types only; `Reflect.get(scope, 'scope')` passed it
+  // while the field was TypeScript-private, so run-time privacy is checked here.
+  // Proof (2026-09-30): declaring the field `private readonly scope` made this
+  // and the ImportedPlanResource twin fail (8 pass, 2 fail).
+  it('keeps the raw scope out of reach at run time', () => {
+    const scope: Scope = { stores: {} as PlanTransactionalStores };
+    const admitted = new AdmittedScope(scope);
+    expect(Reflect.ownKeys(admitted)).toEqual([]);
+    expect(Reflect.get(admitted, 'scope')).toBeUndefined();
   });
 });

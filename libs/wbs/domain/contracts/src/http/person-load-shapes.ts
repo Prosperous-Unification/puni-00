@@ -46,6 +46,7 @@ export const readPersonLoad = defineEndpointShape({
           person: type({ id: 'string', name: 'string' }),
           projects: namedProject
             .and({
+              rank: 'number',
               engine: "'fast' | 'optimized'",
               bookings: type({
                 workItemId: 'string',

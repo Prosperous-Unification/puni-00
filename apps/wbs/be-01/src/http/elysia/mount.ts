@@ -71,7 +71,8 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
   app.onError({ as: 'global' }, ({ error, request }) => {
     // Proof: on 2026-09-21, removing this guard made “leaves an unrelated legacy route
     // parser and error boundary intact” receive status 500 instead of 400.
-    if (!admissions.has(request)) return undefined;
+    const admission = admissions.get(request);
+    if (admission === undefined) return undefined;
     // Proof: on 2026-09-21, deleting this call made “refuses anonymous identity and
     // preserves an unexpected account-store failure” receive zero reports instead of one;
     // duplicating it made the same test receive two.
@@ -79,7 +80,10 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
     // Proof: on 2026-09-21, returning String(error) made the account-store test receive
     // `Error: account store offline` instead of the generic body; adding a JSON content type made
     // it receive `application/json` instead of the measured absent header.
-    return new Response('Internal Server Error', { status: 500 });
+    return new Response('Internal Server Error', {
+      status: 500,
+      headers: responseHeaders(admission.endpoint.shape),
+    });
   });
   app.onRequest(async ({ request }) => {
     const metadata = {
@@ -404,8 +408,7 @@ async function refuse(shape: EndpointShape, body: Refusal): Promise<Response> {
  * JSON null as an empty response gives the null-body test "" instead of "null".
  */
 async function renderReply(shape: EndpointShape, reply: EndpointReply): Promise<Response> {
-  const headers = new Headers();
-  for (const [name, value] of reply.headers ?? []) headers.append(name, value);
+  const headers = responseHeaders(shape, reply.headers);
   if (!reply.ok) {
     for (const refusal of shape.refusals) {
       if (refusal.status !== reply.status) continue;
@@ -452,6 +455,19 @@ async function renderReply(shape: EndpointShape, reply: EndpointReply): Promise<
     }
   }
   throw new Error(`Endpoint ${shape.operationId} returned an undeclared success representation`);
+}
+
+/** Shape-owned headers survive policy, parsing, handler and failure responses. */
+function responseHeaders(
+  shape: EndpointShape,
+  replyHeaders: readonly (readonly [string, string])[] = [],
+): Headers {
+  const headers = new Headers();
+  // Proof: omitting shape defaults made mounted invalid-Origin, invalid-body
+  // and unauthenticated selection refusals lose no-store/Vary (0/1).
+  for (const [name, value] of shape.defaultResponseHeaders ?? []) headers.append(name, value);
+  for (const [name, value] of replyHeaders) headers.append(name, value);
+  return headers;
 }
 
 /**

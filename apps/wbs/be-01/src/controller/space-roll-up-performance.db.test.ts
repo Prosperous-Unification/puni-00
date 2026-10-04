@@ -1,4 +1,4 @@
-import { WorkItemService } from '@wbs/core/service/work-item.service';
+import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { crossReferenceScans } from '@wbs/store-sqlite/testing/cross-reference-plan';
 import { afterAll, beforeAll, expect, spyOn, test } from 'bun:test';

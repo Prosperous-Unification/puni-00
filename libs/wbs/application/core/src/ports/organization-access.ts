@@ -53,7 +53,10 @@ export interface OrganizationAccess {
 }
 
 /** What {@link OrganizationAccess.resolve} reads of a principal. */
-export type OrganizationPrincipal = Pick<AuthenticatedUser, 'id' | 'delegation'>;
+export type OrganizationPrincipal = Pick<
+  AuthenticatedUser,
+  'id' | 'delegation' | 'organizationBinding'
+>;
 
 /** The access every unscoped method uses: deployment-wide, as before organizations. */
 export const LEGACY_ACCESS: ResourceAccess = { kind: 'legacy' };
