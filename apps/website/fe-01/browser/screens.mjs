@@ -62,6 +62,9 @@ const states = [
         problems.push('missing Shape your brief action');
       if ((await page.locator('nav[aria-label="Primary"] a[aria-current="page"]').count()) !== 1)
         problems.push('Build is not marked as the current page');
+      // Proof: restoring the header pill made this report at all four widths.
+      if ((await page.locator('header.site-header a', { hasText: /request/i }).count()) !== 0)
+        problems.push('header carries a request link');
       return problems;
     },
     stack: oidc,

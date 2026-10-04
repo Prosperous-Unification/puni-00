@@ -270,7 +270,7 @@ p {
   flex-direction: column;
 }
 
-/* Header: numbered navigation, centered wordmark, request pill; Menu disclosure when narrow. */
+/* Header: numbered navigation, centered wordmark, empty right column; Menu disclosure when narrow. */
 .site-header {
   position: relative;
   display: grid;
@@ -348,17 +348,6 @@ p {
 .site-nav a[aria-current] .nav-index {
   color: var(--accent-ink);
 }
-.site-nav .nav-request {
-  display: none;
-}
-.header-request {
-  grid-column: 3;
-  grid-row: 1;
-  justify-self: end;
-  min-height: var(--target);
-  padding: var(--space-2) var(--space-5);
-  font-size: var(--text-small);
-}
 .menu-toggle {
   display: none;
 }
@@ -369,9 +358,6 @@ p {
   .brand {
     grid-column: 1;
     justify-self: start;
-  }
-  .header-request {
-    display: none;
   }
   .menu-toggle {
     grid-column: 2;
@@ -436,19 +422,6 @@ p {
     padding: 0;
     font-size: var(--text-lead);
     border-radius: 0;
-  }
-  .site-nav .nav-request {
-    display: block;
-    border-bottom: 0;
-    padding-top: var(--space-4);
-  }
-  .site-nav .nav-request a {
-    justify-content: center;
-    min-height: 48px;
-    border-radius: var(--radius-pill);
-    background: var(--ink);
-    color: var(--paper);
-    font-size: var(--text-body);
   }
 }
 

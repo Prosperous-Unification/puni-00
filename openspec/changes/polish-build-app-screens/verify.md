@@ -104,6 +104,15 @@ Final reruns after the fixes:
 - **Nx:** `env -u CLAUDECODE NX_DAEMON=false bunx nx run-many -t test,lint,typecheck,build -p website-fe-01 --skip-nx-cache` passed all four targets; 19 tests passed and 0 failed.
 - **Prettier:** check passed on all changed files.
 
+## Header without the request pill
+
+The "Start a Request" pill was removed from the header and from the mobile Menu panel; the site header drops it at the same time. Desktop keeps the numbered nav at left, the wordmark centered and an empty right column. On mobile, the Menu toggle holds the right slot. The footer's "Start a Request" link and the operator header are unchanged. The `saved` state now fails if any header link mentions a request.
+
+- **Proof:** re-adding the pill to `SiteHeader` made `PUNI_SCREENS_ONLY=saved` report "header carries a request link" at all four widths, exit 1. After restoring the file (`cmp` identical), the same run exited 0.
+- **`screens.mjs`** with `PUNI_SCREENS_STRICT=1`: exit 0, 38/38 OK; `tab-order-390` is still skip link, brand, Menu.
+- **`explicit-send.mjs`:** exit 0 (0 POSTs before Send, 1 after, same-key recovery).
+- **Nx:** the uncached `test,lint,typecheck,build` run for `website-fe-01` passed all four targets; `bun test` reports 19 passed, 0 failed.
+
 ## Decisions
 
 - **Brief limit:** the manual brief keeps 4,000 characters. `PATCH /brief` and `POST /proposals` accept 8,000, but concept generation reads `brief.slice(0, 4000)`. Home's 2,000 limit applies to the description that the brief expands.

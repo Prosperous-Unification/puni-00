@@ -39,8 +39,9 @@ const navigation = [
 ] as const;
 
 /**
- * Public header: numbered navigation, centered wordmark and a request pill. Below 900px the
- * navigation collapses behind a Menu disclosure. `buildCurrent` marks Build as the current page
+ * Public header: numbered navigation at left and a centered wordmark; the right column stays
+ * empty so the wordmark holds the center. Below 900px the navigation collapses behind a Menu
+ * disclosure that takes the right slot. `buildCurrent` marks Build as the current page
  * (`page`) or as the section the manual brief belongs to (`true`).
  */
 export function SiteHeader({ buildCurrent }: { buildCurrent: 'page' | 'true' }) {
@@ -100,14 +101,8 @@ export function SiteHeader({ buildCurrent }: { buildCurrent: 'page' | 'true' }) 
               </a>
             </li>
           ))}
-          <li className="nav-request">
-            <a href={`${siteOrigin}/#request`}>Start a Request</a>
-          </li>
         </ul>
       </nav>
-      <a className="button header-request" href={`${siteOrigin}/#request`}>
-        Start a Request
-      </a>
     </header>
   );
 }
