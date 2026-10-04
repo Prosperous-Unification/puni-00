@@ -30,6 +30,14 @@ _Avoid_: tenant, workspace, account
 One user's association with one organization and the role that governs access there. It is separate from a directory person's service-team membership.
 _Avoid_: team membership, IdP group
 
+**Browser credential pair**:
+The verified WBS access credential and organization selection carried together to establish browser organization access.
+_Avoid_: user session, organization cookie alone
+
+**Credential revocation**:
+The decision that one verified browser credential can no longer establish or retain organization authority.
+_Avoid_: user-wide revocation, logout cookie
+
 **Role**:
 The level of authority a membership grants within its organization: super-admin, admin, member or viewer.
 _Avoid_: scope, group

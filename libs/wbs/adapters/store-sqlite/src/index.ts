@@ -1,5 +1,6 @@
 export * from './actual';
 export * from './audit';
+export * from './browser-credential-revocations';
 export * from './build-stores';
 export * from './calendar-marker';
 export * from './capacity';
