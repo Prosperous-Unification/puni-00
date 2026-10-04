@@ -11,12 +11,12 @@ import {
   type TypedDependency,
 } from '@wbs/domain';
 
+import { slicesOf } from '../module/work-item/work-item.resource';
 import type { DependencyStore, StoredDependency } from '../ports/dependency-store';
 import type { EstimateStore, StoredEstimate } from '../ports/estimate-store';
 import type { ProjectStore } from '../ports/project-store';
 import type { TypedDependencyStore } from '../ports/typed-dependency-store';
 import type { WorkItem, WorkItemStore } from '../ports/work-item-store';
-import { slicesOf } from './work-item.service';
 
 /**
  * Everything the combined step-node graph is built from: the tree, the

@@ -1,4 +1,4 @@
-import { Database } from 'bun:sqlite';
+import { Database, SQLiteError } from 'bun:sqlite';
 import type { Logger } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { drizzle, type SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
@@ -21,8 +21,8 @@ export function openDatabase(dbPath: string): Database {
   const db = new Database(dbPath, { create: true });
   // `run` rather than the deprecated `exec`; behavior is identical for these
   // single-statement PRAGMAs.
-  db.run('PRAGMA journal_mode = WAL;');
   db.run(`PRAGMA busy_timeout = ${String(BUSY_TIMEOUT_MS)};`);
+  switchToWal(db);
   db.run('PRAGMA foreign_keys = ON;');
   // Asserted here, not left to the caller. Setting a PRAGMA is a request, not
   // a guarantee — SQLite reports the mode it actually adopted and does not
@@ -33,6 +33,58 @@ export function openDatabase(dbPath: string): Database {
   // would have been unverified.
   assertPragmas(db);
   return db;
+}
+
+const WAL_SWITCH_ATTEMPTS = 100;
+const WAL_SWITCH_PAUSE_MS = 50;
+
+/**
+ * Sets `journal_mode = WAL`, retrying `SQLITE_BUSY` for up to 100 attempts 50 ms apart.
+ *
+ * A read-to-write lock upgrade refuses at once, but an exclusive rival can make each attempt
+ * wait for the configured `busy_timeout`. Disable that handler during this bounded retry and
+ * restore its original setting even when the switch fails.
+ * Two processes opening one new file at the same moment meet exactly here, and without the
+ * retry one of them fails to open with `database is locked`. mcp-01 hit this race in CI on its
+ * own store; its `session-store.ts` carries the same retry.
+ *
+ * @param db A connection outside any transaction.
+ * @param pause Waits between attempts; a test passes one that releases its rival's lock.
+ * @throws If the busy timeout cannot be read, the last `SQLITE_BUSY` when every attempt is
+ * refused, or any other error at once.
+ */
+export function switchToWal(
+  db: Database,
+  pause: (ms: number) => void = (ms) => {
+    Bun.sleepSync(ms);
+  },
+): void {
+  const configured = db.query<{ timeout: number }, []>('PRAGMA busy_timeout;').get();
+  // Proof: a reader returning null made the malformed-timeout case refuse before any pragma.
+  if (configured === null || !Number.isInteger(configured.timeout) || configured.timeout < 0) {
+    throw new Error('SQLite did not report a valid busy timeout before the WAL switch');
+  }
+  // Proof: without this zero, an exclusive rival held the 20 ms handler for 100 attempts;
+  // the adapter test observed 2053 ms against its 1000 ms bound.
+  db.run('PRAGMA busy_timeout = 0;');
+  try {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        db.run('PRAGMA journal_mode = WAL;');
+        return;
+      } catch (cause) {
+        const busy = cause instanceof SQLiteError && cause.code === 'SQLITE_BUSY';
+        // Proof: removing the non-BUSY branch made a read-only WAL switch pause 99 times
+        // instead of throwing SQLITE_READONLY at once.
+        if (!busy || attempt === WAL_SWITCH_ATTEMPTS) throw cause;
+      }
+      pause(WAL_SWITCH_PAUSE_MS);
+    }
+  } finally {
+    // Proof: removing this restore made the rival-release case read 0 instead of 5000,
+    // and the SQLITE_READONLY failure case read 0 instead of its caller's 1234.
+    db.run(`PRAGMA busy_timeout = ${String(configured.timeout)};`);
+  }
 }
 
 /**

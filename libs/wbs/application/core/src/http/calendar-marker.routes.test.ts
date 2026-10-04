@@ -3,7 +3,7 @@ import { inMemoryCalendarMarkers } from '@wbs/store-memory/calendar-marker-fixtu
 import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
-import { CalendarMarkerService } from '../service/calendar-marker.service';
+import { CalendarMarkerService } from '../module/calendar-marker/calendar-marker.resource';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';

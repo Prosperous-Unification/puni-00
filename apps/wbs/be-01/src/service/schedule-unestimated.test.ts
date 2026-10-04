@@ -1,10 +1,10 @@
+import { rollUp } from '@wbs/core/service/roll-up';
 import type { DependencyEdge, PoolSizes, Schedule, ScheduledSlice, Slice } from '@wbs/domain';
 import { schedule, sliceKey } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import type { WorkItem } from '../repository';
 import { workItemRow } from '../testing/work-item-fixture';
-import { rollUp } from './roll-up';
 
 /**
  * What a slice nobody has estimated occupies, and what it still reports.

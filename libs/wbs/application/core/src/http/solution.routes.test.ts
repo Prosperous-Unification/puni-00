@@ -2,8 +2,8 @@ import { inMemoryStores } from '@wbs/store-memory/in-memory-source';
 import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
+import { ProjectService } from '../module/project/project.resource';
 import { DependencyGraphGuard } from '../service/dependency-graph';
-import { ProjectService } from '../service/project.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';

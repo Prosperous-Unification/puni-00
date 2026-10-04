@@ -34,6 +34,8 @@ const fixture = (): FixtureDocument => ({
     '/health': { get: { operationId: 'getHealth' } },
     '/metrics': { get: { operationId: 'getMetrics' } },
     '/api/smoke/echo': { post: { operationId: 'postApiSmokeEcho' } },
+    '/api/organization/memberships': { get: { operationId: 'getApiOrganizationMemberships' } },
+    '/api/organization/active': { post: { operationId: 'postApiOrganizationActive' } },
     '/api/auth/login': { post: { operationId: 'postApiAuthLogin' } },
     '/internal/forward': { post: { operationId: 'postInternalForward' } },
     '/api/projects/': {
@@ -108,6 +110,8 @@ describe('toolsFromDocument, on a fixture document', () => {
     expect(names).not.toContain('postApiSmokeEcho');
     expect(names).not.toContain('postApiAuthLogin');
     expect(names).not.toContain('postInternalForward');
+    expect(names).not.toContain('getApiOrganizationMemberships');
+    expect(names).not.toContain('postApiOrganizationActive');
     expect([...names].sort()).toEqual(['getApiProjects', 'getApiProjectsById', 'putBand']);
   });
 
@@ -242,7 +246,7 @@ describe('toolsFromDocument, on the generated document', () => {
       'workItems',
     ]);
     expect(JSON.stringify(importDocument.inputSchema)).not.toContain('"$ref"');
-    expect(EXCLUDED_PATHS).toHaveLength(3);
+    expect(EXCLUDED_PATHS).toHaveLength(5);
   });
 
   it('offers batches, not single writes (plan-commands)', () => {

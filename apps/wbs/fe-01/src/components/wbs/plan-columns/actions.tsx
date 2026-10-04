@@ -1,7 +1,6 @@
 import { ActionsMenu } from '../actions-menu';
-import { isoToday } from '../gantt-panel';
 import type { PlanLive } from '../plan-live';
-import { OFFERED_STATUSES, STATUS_LABEL } from '../status-cell';
+import { statusActions } from '../status-cell';
 import { column } from './column';
 
 /** Builds the actions column family against the stable live cell contract. */
@@ -27,31 +26,18 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
           );
         }}
         actions={[
-          // The status entries first — every settable status but the one the
-          // row reads, so a row in progress offers both — then Add child, Move
-          // under… and Duplicate, then
-          // Unfreeze where it applies, and Delete last in the destructive tint
-          // (Dany, 2026-09-13: "Set status * … Duplicate … Delete in the end").
-          // `Set status to Done` asks for the days through the completion
-          // prompt exactly as the cell does; `In progress` is a step's statement
-          // and is not offered. The status word is drawn as the status card
-          // draws it — bold, `Done` in green — so a status is said one way
-          // everywhere.
-          ...OFFERED_STATUSES.filter((status) => status !== row.original.status).map((status) => ({
-            id: `set-${status}`,
-            label: `Set status to ${STATUS_LABEL[status]}`,
-            lead: {
-              word: STATUS_LABEL[status],
-              ...(status === 'done' ? { tone: 'done' as const } : {}),
-            },
-            run: () => {
-              if (status === 'done') {
-                live.current.openCompletionPrompt(row.original.id);
-                return;
-              }
-              void live.current.setStatus(row.original.id, status, isoToday(new Date()));
-            },
-          })),
+          // The status entries first — every settable status the row does not
+          // read and whose write would change something, in the menu order
+          // (`statusOffersOf`) — then Add child, Move under… and Duplicate,
+          // then Unfreeze where it applies, and Delete last in the destructive
+          // tint (Dany, 2026-09-13: "Set status * … Duplicate … Delete in the
+          // end"). `Done` and `In progress` ask for their days through the
+          // completion prompt exactly as the cell does. The status word is
+          // drawn as the status card draws it — bold, `Done` in green — so a
+          // status is said one way everywhere.
+          ...statusActions(live.current.statusOffers(row.original), (status) => {
+            live.current.chooseStatus(row.original.id, status);
+          }),
           {
             id: 'add-child',
             // Offered on a frozen row as well: its number stays pinned, and a

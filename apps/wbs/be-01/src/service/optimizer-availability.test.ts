@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { OptimizedScheduleReader } from './optimized-schedule-reader';
+import type { OptimizedScheduleReader } from '../module/optimization/optimized-schedule-reader';
 import { optimizerWiring } from './optimizer-wiring';
 
 /**

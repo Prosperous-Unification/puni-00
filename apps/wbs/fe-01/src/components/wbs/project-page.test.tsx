@@ -1,4 +1,12 @@
-import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  getConfig,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import type { PlanDocumentRequest } from '@wbs/contracts';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -39,6 +47,7 @@ import { refusingApi } from '@/testing/refusing-api';
 import { planRead } from '@/testing/views';
 
 import { recallLastProject, rememberLastProject } from './project-page';
+import { INFO_TOAST_MS } from './toasts';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -257,6 +266,39 @@ const importFile = (contents: unknown = IMPORTABLE_PLAN): void => {
 const toastTexts = (): string[] =>
   [...document.querySelectorAll('[data-toast-text]')].map((node) => node.textContent);
 
+/**
+ * Settles once `shows` holds for the document, checked at once and after every
+ * DOM mutation, with React's act environment lifted as `waitFor` lifts it.
+ *
+ * It has no clock of its own. The target's `--testTimeout`
+ * ([test budgets](../../../../../../docs/test-budgets.md)) is the one bound, so a
+ * page that is merely slow on a loaded host is waited for, and a page that
+ * never arrives still fails the test. A nested one-second `waitFor` around an
+ * import, a pick and a remount failed 4 of 24 loaded runs (WBS 080.12).
+ */
+function untilDocumentShows(shows: () => boolean): Promise<void> {
+  return getConfig().asyncWrapper(
+    () =>
+      new Promise<void>((resolve) => {
+        if (shows()) {
+          resolve();
+          return;
+        }
+        const observer = new MutationObserver(() => {
+          if (!shows()) return;
+          observer.disconnect();
+          resolve();
+        });
+        observer.observe(document.body, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          characterData: true,
+        });
+      }),
+  );
+}
+
 /** A third project, so a card can be asked to leave the options either side of it alone. */
 const THREE: ProjectListEntry[] = [
   ...TWO,
@@ -390,7 +432,17 @@ describe('opening an imported project', () => {
     'refreshes the picker catalogue and keeps one success toast across the table remount',
     async () => {
       const api = fakeProjects(TWO);
-      const readTree = vi.fn(api.tree.bind(api));
+      const readPlan = api.tree.bind(api);
+      let announceImportedRead: () => void = () => {
+        throw new Error('the imported project read announcer was not installed');
+      };
+      const importedRead = new Promise<void>((resolve) => {
+        announceImportedRead = resolve;
+      });
+      const readTree = vi.fn((projectId: string) => {
+        if (projectId === 'p3') announceImportedRead();
+        return readPlan(projectId);
+      });
       api.tree = readTree;
       api.importPlan = async () => {
         const project = await api.createProject('Imported exact');
@@ -398,15 +450,43 @@ describe('opening an imported project', () => {
       };
       pageWith(api);
       await selectProject('p1');
-      await screen.findByLabelText('Import JSON');
+      await untilDocumentShows(() => screen.queryByLabelText('Import JSON') !== null);
+      // The success toast fades after `INFO_TOAST_MS` of `setTimeout`. Every
+      // timer of that length is dropped until the remount is seen, so the toast
+      // can only have survived the remount or been lost in it, never have faded
+      // while a loaded host was still remounting. Only those timers: faking
+      // every `setTimeout` instead hung the import itself at the 30 s budget,
+      // 48 of 48 loaded runs.
+      const realSetTimeout = globalThis.setTimeout;
+      const droppedFades = vi
+        .spyOn(globalThis, 'setTimeout')
+        .mockImplementation(((handler: () => void, delayMs?: number, ...rest: unknown[]) =>
+          delayMs === INFO_TOAST_MS
+            ? realSetTimeout(() => undefined, 0)
+            : realSetTimeout(handler, delayMs, ...rest)) as typeof setTimeout);
+      try {
+        importFile();
 
-      importFile();
-
-      await waitFor(() => {
-        expect(localStorage.getItem('wbs.project')).toBe('p3');
-        expect(readTree).toHaveBeenCalledWith('p3');
-        expect(picker()).toHaveValue('Imported exact');
-      });
+        // The imported project's own runtime asking for its plan, then its table
+        // drawn with the toast the page kept across the remount: the two events
+        // the import ends in, awaited as events rather than inside a clock.
+        // Proof: on 2026-09-29, 8 copies x 3 rounds beside 24 busy loops failed the
+        // former one-second `waitFor` here 4 of 24 times: `readTree` called only
+        // with p1 while the pick of p3 waited 700 ms for its effect. Awaiting the
+        // events with the fade left real then timed out 1 of 24 runs at 30 s:
+        // the toast had faded before the p3 table was drawn.
+        await importedRead;
+        await untilDocumentShows(
+          () => document.querySelector('[data-project-id="p3"] [data-toast-text]') !== null,
+        );
+        // The fade this test drops is the one the page asked for, so the spy is
+        // not standing beside a timer it never sees.
+        expect(droppedFades).toHaveBeenCalledWith(expect.any(Function), INFO_TOAST_MS);
+      } finally {
+        droppedFades.mockRestore();
+      }
+      expect(localStorage.getItem('wbs.project')).toBe('p3');
+      expect(picker()).toHaveValue('Imported exact');
       openPicker();
       expect(document.getElementById('project-option-p3')).not.toBeNull();
       expect(document.querySelectorAll('[data-toasts]')).toHaveLength(1);
@@ -414,9 +494,12 @@ describe('opening an imported project', () => {
         'Imported 40 work items. Created 1 tag (Needs review). Solution reference: none.',
       ]);
       // Proof: moving import reporting back into the keyed `WbsTable` made this
-      // receive no toast after `choose` remounted the table. Observed 2026-09-14.
+      // receive no toast after `choose` remounted the table. Observed 2026-09-14;
+      // on 2026-09-29, with `toastApi` withheld from `WbsTable`, the p3 table
+      // never showed the toast and the test timed out at its 30 s budget.
       // Proof: removing the catalogue reload left the picker value empty and no
-      // `project-option-p3`, although the imported tree was mounted. Observed 2026-09-14.
+      // `project-option-p3`, although the imported tree was mounted. Observed 2026-09-14;
+      // again 2026-09-29 as `expect(element).toHaveValue(Imported exact)`.
     },
   );
 

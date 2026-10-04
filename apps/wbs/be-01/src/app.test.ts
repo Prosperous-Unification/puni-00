@@ -1,11 +1,11 @@
 import type { FailureReporting } from '@shared/failures';
 import type { LogFields, Logger, LogMethod } from '@wbs/contracts';
+import type { AuthService } from '@wbs/core/service/auth.service';
 import { createLogger, type CreateLoggerOptions, LogRecord } from '@wbs/observability';
 import { parseOrThrow } from '@wbs/validation';
 import { describe, expect, it } from 'bun:test';
 
 import { type AppOptions, buildApp } from './app';
-import type { AuthService } from './service/auth.service';
 import { inMemoryUsers, testAuthService } from './testing/auth-fixture';
 import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
 import { testCapacityService } from './testing/capacity-fixture';

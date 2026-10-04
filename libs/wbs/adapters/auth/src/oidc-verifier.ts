@@ -26,7 +26,7 @@ export function buildOidcVerifier(
 }
 
 /** Credential failures only; malformed JWKS, discovery and network faults propagate. */
-function isInvalidCredential(cause: unknown): boolean {
+export function isInvalidCredential(cause: unknown): boolean {
   return (
     cause instanceof errors.JWTClaimValidationFailed ||
     cause instanceof errors.JWTExpired ||

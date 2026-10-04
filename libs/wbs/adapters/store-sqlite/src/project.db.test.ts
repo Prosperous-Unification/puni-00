@@ -120,6 +120,7 @@ describe('ProjectRepository', () => {
     await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
+      '20261001010000_add_browser_credential_revocations',
       '20260929180000_add_project_rank',
       '20260929100000_add_spaces',
       '20260928200000_add_work_item_status_facts',
@@ -894,6 +895,39 @@ describe('organization-scoped writes', () => {
 });
 
 describe('findCrossReferences', () => {
+  it('searches every arm through an index and scans no table', async () => {
+    const path = join(dir, 'test.db');
+    const queries: { sql: string; params: unknown[] }[] = [];
+    const logged = new ProjectRepository(
+      openDrizzle(path, { logQuery: (sql, params) => queries.push({ sql, params }) }),
+      OPEN,
+    );
+    await logged.findCrossReferences('p', 'o');
+    const query = queries.at(-1);
+    if (query === undefined) throw new Error('findCrossReferences issued no statement');
+    const raw = openDatabase(path);
+    try {
+      // Parameters arrive as drizzle logged them: the project and organization ids.
+      const plan = raw
+        .query<{ detail: string }, string[]>(`EXPLAIN QUERY PLAN ${query.sql}`)
+        .all(...(query.params as string[]));
+      expect(plan.length).toBeGreaterThan(0);
+      // Every alias the arms give `work_item` or `dependency`. A scan of the
+      // small `project` table, through its covering index, is allowed: the
+      // parent arm probes `work_item_siblings` once per other project.
+      // Proof, observed 2026-09-29: with the `incoming_parent` arm restored to
+      // its join on `parent.id = w.parent_id`, this listed `SCAN w`; with the
+      // `incoming_dependency` arm restored, `SCAN d`. Each scan ran the whole
+      // `work_item` or `dependency` table on every scoped project read.
+      const scans = plan
+        .map(({ detail }) => detail)
+        .filter((detail) => /^SCAN (w|d|l|pre|suc|parent|work_item|dependency)\b/.test(detail));
+      expect(scans).toEqual([]);
+    } finally {
+      raw.close();
+    }
+  });
+
   it('reports a work item whose parent lies in another project', async () => {
     const raw = openDatabase(join(dir, 'test.db'));
     try {

@@ -450,6 +450,11 @@ describe('the row actions menu', () => {
     openRowMenu('020');
 
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Set status to Draft',
+      'Set status to Ready',
+      'Set status to In progress',
+      'Set status to On hold',
+      'Set status to Blocked',
       'Set status to Done',
       'Add child',
       'Move under…',
@@ -511,6 +516,94 @@ describe('the row actions menu', () => {
       });
     },
   );
+
+  itDom(
+    'puts a row on hold at once, and then offers every status but its own hold (add-work-item-statuses)',
+    async () => {
+      const api = fakeApi();
+      await threeRows(api);
+      const sent = recordCalls(api, 'setStatus', (_id, status) => status);
+
+      openRowMenu('010');
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Set status to On hold' }));
+      await waitFor(() => {
+        expect(sent).toEqual(['on_hold']);
+      });
+      expect(screen.queryByRole('dialog')).toBeNull();
+
+      await waitFor(() => {
+        expect(document.querySelector('tr[data-row-status="on_hold"]')).not.toBeNull();
+      });
+      // The strip's word, for a reader who cannot see its colour — in the default
+      // table, where the Status column is hidden.
+      // Proof: the `aria-describedby` dropped from the drag handle, and this
+      // failed on an empty description; watched 2026-09-29.
+      expect(screen.queryByLabelText('Status of 010')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Reorder 010' })).toHaveAccessibleDescription(
+        'Status: On hold',
+      );
+      openRowMenu('010');
+      expect(
+        screen
+          .getAllByRole('menuitem')
+          .map((item) => item.textContent)
+          .filter((label) => label.startsWith('Set status')),
+      ).toEqual([
+        'Set status to Draft',
+        'Set status to Ready',
+        'Set status to In progress',
+        'Set status to Blocked',
+        'Set status to Done',
+        'Set status to Unknown',
+      ]);
+    },
+  );
+
+  itDom('asks for Started on alone before starting a row, then sends that day', async () => {
+    const api = fakeApi();
+    await threeRows(api);
+    const sent = recordCalls(api, 'setStatus', (_id, status, on, factStart) => [
+      status,
+      on,
+      factStart,
+    ]);
+
+    openRowMenu('020');
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Set status to In progress' }));
+
+    const prompt = await screen.findByRole('dialog', { name: 'Set 020 to In progress' });
+    expect(within(prompt).queryByLabelText('Finished on')).toBeNull();
+    fireEvent.change(within(prompt).getByLabelText('Started on'), {
+      target: { value: '2026-10-01' },
+    });
+    expect(sent).toEqual([]);
+    fireEvent.click(within(prompt).getByRole('button', { name: 'Set to In progress' }));
+    await waitFor(() => {
+      expect(sent).toEqual([['in_progress', '2026-10-01', '2026-10-01']]);
+    });
+  });
+
+  for (const [code, sentence] of [
+    [
+      'readiness_after_progress',
+      'Draft and Ready say whether work can start, and a step of this row has already spoken — nothing was changed.',
+    ],
+    ['cannot_hold_done', 'Finished work cannot be put on hold or blocked — nothing was changed.'],
+    ['no_steps', 'This plan has no steps, so no row can be started or finished yet.'],
+  ] as const) {
+    itDom(`says why be-01 refused a status with ${code}`, async () => {
+      const api = fakeApi();
+      await threeRows(api);
+      api.setStatus = () => Promise.reject(new Error(code));
+
+      openRowMenu('010');
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Set status to Blocked' }));
+
+      await waitFor(() => {
+        expect(toastTexts()).toContain(sentence);
+      });
+    });
+  }
 
   itDom('promotes the children of a parent it deletes', async () => {
     const api = fakeApi();

@@ -79,15 +79,49 @@ function buildPlan(): { rows: PlannedRow[]; edges: DependencyEdge[]; slices: Sli
   return { rows, edges, slices };
 }
 
-/** Whole milliseconds are too coarse for a 20ms budget; `Bun.nanoseconds` is not. */
-const millisecondsFor = (run: () => void): number => {
+/** Measures the pass's CPU work without charging time the host schedules elsewhere. */
+const cpuMillisecondsFor = (run: () => void): number => {
+  const started = process.cpuUsage();
+  run();
+  const used = process.cpuUsage(started);
+  return (used.user + used.system) / 1_000;
+};
+
+/** Retains the original elapsed-time contract for an explicit certification run. */
+const elapsedMillisecondsFor = (run: () => void): number => {
   const started = Bun.nanoseconds();
   run();
   return (Bun.nanoseconds() - started) / 1e6;
 };
 
+const certificationValue = process.env['WBS_PERFORMANCE_CERTIFY'];
+if (certificationValue !== undefined && certificationValue !== '0' && certificationValue !== '1') {
+  throw new Error('WBS_PERFORMANCE_CERTIFY must be 0, 1, or absent');
+}
+const certificationCase = certificationValue === '1' ? it : it.skip;
+
 describe('the leveled pass, at the size of a real plan', () => {
   const plan = buildPlan();
+
+  it('measures CPU work without charging a descheduled interval', () => {
+    // Proof: with Bun.nanoseconds the 30 ms sleep measured 30.118 ms and
+    // failed this case; process CPU measured the sleeping interval below 20 ms.
+    expect(
+      cpuMillisecondsFor(() => {
+        Bun.sleepSync(30);
+      }),
+    ).toBeLessThan(20);
+  });
+
+  it('also measures elapsed time spent blocked inside a schedule call', () => {
+    // Proof: process CPU measured this 30 ms block at 3.492 ms and failed
+    // this case; elapsed time charges the whole blocking interval.
+    expect(
+      elapsedMillisecondsFor(() => {
+        Bun.sleepSync(30);
+      }),
+    ).toBeGreaterThan(20);
+  });
 
   it('is the plan it claims to be, so the budget below measures something', () => {
     // A benchmark over a fixture that turned out to be ten rows and no people
@@ -127,11 +161,12 @@ describe('the leveled pass, at the size of a real plan', () => {
     ).toBe(175);
   });
 
-  it('schedules 600 slices in under 20ms', () => {
+  it('schedules 600 slices in under 20ms of process CPU', () => {
     // The best of five runs after a warm one: the pass is deterministic, so the
-    // spread is the machine's — a shared CI runner descheduling mid-measurement
-    // is not a regression in the algorithm, and a flaky gate is a gate people
-    // learn to ignore.
+    // spread is the machine's. Process CPU time excludes an interval when a
+    // shared CI runner deschedules this process, preserving the 20ms work bound.
+    // The historical CI figures below used elapsed time; they calibrated the
+    // unchanged bound, but are not direct CPU-time observations.
     //
     // 20ms is CI's number, re-derived 2026-08-21 from the runners rather than
     // from a laptop. The five figures below are printed on every run, so 66
@@ -167,12 +202,32 @@ describe('the leveled pass, at the size of a real plan', () => {
     // 2.9ms before the passes were moved off maps and onto node indices.
     schedule(plan.rows, plan.edges, plan.slices);
     const runs = Array.from({ length: 5 }, () =>
-      millisecondsFor(() => {
+      cpuMillisecondsFor(() => {
         schedule(plan.rows, plan.edges, plan.slices);
       }),
     );
 
-    console.log(JSON.stringify(runs));
+    console.log(JSON.stringify({ metric: 'process-cpu-ms', samples: runs }));
+    // Proof: a 25 ms CPU spin inserted at the start of schedule made these
+    // samples 30.171–37.988 ms and failed this unchanged 20 ms assertion.
+    expect(Math.min(...runs)).toBeLessThan(20);
+  });
+
+  certificationCase('certifies 600 slices in under 20ms elapsed', () => {
+    // The original fixture, warmup, five elapsed samples and limit remain
+    // available for a deliberately isolated certification run. A loaded shared
+    // runner exercises the CPU regression above without treating descheduling
+    // as extra algorithmic work.
+    schedule(plan.rows, plan.edges, plan.slices);
+    const runs = Array.from({ length: 5 }, () =>
+      elapsedMillisecondsFor(() => {
+        schedule(plan.rows, plan.edges, plan.slices);
+      }),
+    );
+    console.log(JSON.stringify({ metric: 'elapsed-ms', samples: runs }));
+    // Proof: a 25 ms Bun.sleepSync inserted at schedule entry left the CPU
+    // regression green (best 17.147 ms), while this certification failed with
+    // elapsed samples no lower than 28.518829 ms.
     expect(Math.min(...runs)).toBeLessThan(20);
   });
 });

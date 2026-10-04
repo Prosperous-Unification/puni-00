@@ -12,6 +12,7 @@ export const refusingSpaces: SpaceStore = {
   rename: unused,
   remove: unused,
   membersOf: unused,
+  membersIn: unused,
   addProject: unused,
   removeProject: unused,
   moveProject: unused,

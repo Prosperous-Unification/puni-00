@@ -124,14 +124,26 @@
    */
   --highlight: oklch(0.905 0.147 96);
   /*
-   * The two statuses that are said in colour — on the status strip at a row's
-   * left edge, in the glyph of the Status cell, and (done only) as the tint
-   * across a done row. Unknown has no colour: it is the absence of a saying.
-   * Green for finished and amber for under way are the two readings nobody
-   * has to learn; neither is a shade the grid already uses for anything else.
+   * Each status's colour — on the status strip at a row's left edge, in the
+   * glyph of the Status cell, on a dependency line naming the row, and (done
+   * only) as the tint across a done row. Unknown has no colour: it is the
+   * absence of a saying (`STATUS_TOKEN` in `status-palette.ts`). Green for
+   * finished and amber for under way are the two readings nobody has to
+   * learn; draft and ready are the cool pair before work starts, on hold a
+   * quiet violet, blocked the destructive red, and blocked by proxy that red
+   * muted — muted in chroma and not lightness, since it is read off the graph
+   * rather than said about the row. At L 0.55 it holds 5.07:1 against the page
+   * white, past 3:1 for a strip and 4.5:1 for the Status glyph (Fable review of
+   * #234; at 0.72 it was 2.57:1). In progress is L 0.56, 4.77:1, held by
+   * the browser gate in `e2e/status.spec.ts`; at 0.72 it was 2.54:1 (task 6.4).
    */
   --status-done: oklch(0.6 0.16 148);
-  --status-in-progress: oklch(0.72 0.15 72);
+  --status-in-progress: oklch(0.56 0.13 72);
+  --status-draft: oklch(0.62 0.05 255);
+  --status-ready: oklch(0.6 0.11 215);
+  --status-on-hold: oklch(0.58 0.1 300);
+  --status-blocked: oklch(0.577 0.245 27.325);
+  --status-blocked-by-proxy: oklch(0.55 0.09 27);
 }
 
 .dark {
@@ -159,6 +171,11 @@
   --highlight: oklch(0.62 0.12 96);
   --status-done: oklch(0.72 0.15 148);
   --status-in-progress: oklch(0.8 0.14 78);
+  --status-draft: oklch(0.72 0.05 255);
+  --status-ready: oklch(0.74 0.11 215);
+  --status-on-hold: oklch(0.72 0.1 300);
+  --status-blocked: oklch(0.704 0.191 22.216);
+  --status-blocked-by-proxy: oklch(0.6 0.09 22);
 
   /*
    * **Nothing re-points a `--grid-*` token here, and that is a rule rather than
@@ -871,6 +888,36 @@
   [data-grid] tbody tr[data-row-status='in_progress'] td[data-column='drag'] {
     box-shadow:
       inset 3px 0 0 var(--status-in-progress),
+      inset -1px -1px 0 var(--border);
+  }
+
+  [data-grid] tbody tr[data-row-status='draft'] td[data-column='drag'] {
+    box-shadow:
+      inset 3px 0 0 var(--status-draft),
+      inset -1px -1px 0 var(--border);
+  }
+
+  [data-grid] tbody tr[data-row-status='ready'] td[data-column='drag'] {
+    box-shadow:
+      inset 3px 0 0 var(--status-ready),
+      inset -1px -1px 0 var(--border);
+  }
+
+  [data-grid] tbody tr[data-row-status='on_hold'] td[data-column='drag'] {
+    box-shadow:
+      inset 3px 0 0 var(--status-on-hold),
+      inset -1px -1px 0 var(--border);
+  }
+
+  [data-grid] tbody tr[data-row-status='blocked'] td[data-column='drag'] {
+    box-shadow:
+      inset 3px 0 0 var(--status-blocked),
+      inset -1px -1px 0 var(--border);
+  }
+
+  [data-grid] tbody tr[data-row-status='blocked_by_proxy'] td[data-column='drag'] {
+    box-shadow:
+      inset 3px 0 0 var(--status-blocked-by-proxy),
       inset -1px -1px 0 var(--border);
   }
 

@@ -599,6 +599,17 @@ export const PLAN_REFUSALS: RefusalWords = {
     // why the sentence has to say what happened rather than name the code.
     has_children:
       'A row with work under it runs no people of its own — set People at once on the rows beneath it.',
+    // The three `setStatus` refusals (`add-work-item-statuses`). The menu and
+    // the Status cell never offer a status be-01 would refuse, so each is
+    // reachable only when the plan moved under an open menu — which is why each
+    // says what happened rather than naming the code.
+    // Proof: all three entries struck, and each `says why be-01 refused a
+    // status with <code>` failed on `expected [ Array(1) ] to include` its
+    // sentence — the toast carried the fallback instead; watched 2026-09-29.
+    readiness_after_progress:
+      'Draft and Ready say whether work can start, and a step of this row has already spoken — nothing was changed.',
+    cannot_hold_done: 'Finished work cannot be put on hold or blocked — nothing was changed.',
+    no_steps: 'This plan has no steps, so no row can be started or finished yet.',
     // {@link INVALID_REQUEST}'s three, worded from the one list that also decides
     // whether the plan is read again.
     ...Object.fromEntries([...INVALID_REQUEST].map((code) => [code, INVALID_REFUSAL])),

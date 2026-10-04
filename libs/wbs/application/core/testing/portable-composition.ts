@@ -2,13 +2,13 @@ import { noopLogger } from '@wbs/contracts';
 import { openMemorySource } from '@wbs/store-memory';
 
 import { composeServices, type RuntimePorts, type SharedComposition } from '../src/compose';
+import { createPlanCommandRunner } from '../src/module/plan-commands/composition';
+import { runCommandBatch } from '../src/module/plan-commands/run-command-batch';
+import { replay } from '../src/module/realtime/realtime.feature';
+import { savePlan } from '../src/module/saved-plans/save-plan';
 import { clockOf } from '../src/ports/clock';
 import { LEGACY_ACCESS } from '../src/ports/organization-access';
-import { PlanCommandRunner } from '../src/service/plan-commands';
 import { fastScheduler } from '../src/testing/scheduler-fixture';
-import { replay } from '../src/use-cases/replay';
-import { runCommandBatch } from '../src/use-cases/run-command-batch';
-import { savePlan } from '../src/use-cases/save-plan';
 
 type OperationName = 'batch' | 'save' | 'replay' | 'retention';
 
@@ -101,7 +101,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
     },
     shared,
   });
-  const runner = new PlanCommandRunner({
+  const runner = createPlanCommandRunner({
     batchServices: graph.batch,
     publicServices: graph,
     uow: graph.uow,

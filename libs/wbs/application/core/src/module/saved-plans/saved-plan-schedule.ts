@@ -12,7 +12,7 @@ import {
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { PlanInputReads } from '../../ports/saved-plan-capture-values';
-import { NO_DEADLINES, slicesOf } from '../../service/work-item.service';
+import { NO_DEADLINES, slicesOf } from '../work-item/work-item.resource';
 import type { SavedPlanResource } from './saved-plan.resource';
 
 /**

@@ -9,6 +9,7 @@ import {
   InMemoryOidcTransactionStore,
   InMemoryTokenStore,
 } from '@wbs/auth';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -17,7 +18,6 @@ import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { UserRepository } from '../repository/user';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { AuthService } from '../service/auth.service';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';

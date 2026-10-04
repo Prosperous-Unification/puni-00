@@ -4,6 +4,11 @@ import { join } from 'node:path';
 
 import { AnnouncementCollector } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
+import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { StepService } from '@wbs/core/module/step/step.resource';
+import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { AuthService } from '@wbs/core/service/auth.service';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
@@ -24,12 +29,7 @@ import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
-import { AuthService } from '../service/auth.service';
-import { DirectoryService } from '../service/directory.service';
 import { fastScheduler } from '../service/optimizer-wiring';
-import { ProjectService } from '../service/project.service';
-import { StepService } from '../service/step.service';
-import { WorkItemService } from '../service/work-item.service';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
@@ -363,7 +363,7 @@ describe('the steps routes are the only spelling', () => {
  * maps `step_added` / `step_renamed` / `step_removed` to `tree-and-steps`, so
  * these are the events the table refetches on. `PlanCommandKind`
  * (`libs/wbs/application/core/src/service/plan-command.ts`) declares no step command and
- * `libs/wbs/application/core/src/service/plan-commands.ts` never references `StepService`, so a step mutation is
+ * `libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts` never references `StepService`, so a step mutation is
  * reachable only through this controller — it is never *inside* a batch, and
  * being captured by one is always wrong.
  *

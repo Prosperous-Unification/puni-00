@@ -82,6 +82,12 @@ export interface SpaceStore {
    */
   membersOf(organizationId: string, spaceId: string): Promise<SpaceMember[] | null>;
   /**
+   * Every space's members in the organization, in {@link membersOf}'s order,
+   * in one read: the space list counts them without one read per space. A
+   * space with no member is absent from the map.
+   */
+  membersIn(organizationId: string): Promise<Map<string, SpaceMember[]>>;
+  /**
    * Adds a project the organization owns after `afterProjectId`, or first on
    * null, by `placeAfter`; a respace rewrites the group in the same write.
    */

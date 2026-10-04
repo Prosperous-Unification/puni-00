@@ -2,10 +2,10 @@ import { inMemoryPlanEvents } from '@wbs/store-memory/history-fixture';
 import { inMemoryEventLog } from '@wbs/store-memory/replay-fixture';
 import { describe, expect, it } from 'bun:test';
 
+import { RetentionTimer, type Swept } from '../module/bounded-replay-sweep/retention-timer';
 import { EventLogService } from '../module/event-log/event-log.resource';
 import { PlanEventService } from '../module/plan-event/plan-event.resource';
 import type { PlanEvent } from '../ports/plan-event-store';
-import { RetentionTimer, type Swept } from './retention-timer';
 
 /**
  * A schedule a test advances by hand.
