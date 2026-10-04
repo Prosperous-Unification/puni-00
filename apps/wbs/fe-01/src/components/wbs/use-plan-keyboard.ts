@@ -23,7 +23,7 @@ import {
 } from './editable-grid';
 import { altMoveIn, type Command, commandChordIn, undoChord } from './keyboard-bindings';
 import { opensCheatSheet } from './keyboard-cheat-sheet';
-import { type CommitOutcome, flushCell, FocusIntent } from './live-editing';
+import { type CommitOutcome, didLand, flushCell, FocusIntent } from './live-editing';
 import type { EstimateGaps } from './plan-completeness';
 import { type Toast, toastKey } from './toasts';
 import { expandBranch } from './use-plan-structure';
@@ -567,7 +567,7 @@ export function usePlanKeyboard({
       if (armedDelete !== null && armedDelete.rowId === row.id && dReleased.current) {
         disarmDelete();
         void deleteRow(row).then((outcome) => {
-          if (outcome !== 'landed') return;
+          if (!didLand(outcome)) return;
           // The way back, in the sentence that says it happened: this is the
           // one chord in the table that takes work away.
           pushToast({

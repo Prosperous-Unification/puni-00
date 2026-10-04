@@ -13,6 +13,7 @@ import { planDocumentFixture } from '../../testing/plan-document-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { installPlanImport } from './check';
 import { PLAN_IMPORT_LABEL } from './contract';
+import { ImportedPlanResource } from './imported-plan.resource';
 import { planImportModule } from './module';
 
 const STAMP_AT = 1_757_851_200_000;
@@ -176,5 +177,16 @@ describe('the Plan import module', () => {
     expect(() => host.resolve('imports')).toThrow(
       `Cannot resolve "${PLAN_IMPORT_LABEL}/importOptions": dependency "batchServices" is not registered. Resolution path: imports -> ${PLAN_IMPORT_LABEL}/importOptions -> batchServices.`,
     );
+  });
+});
+
+describe('ImportedPlanResource', () => {
+  // Proof (2026-09-30): declaring the field `private readonly scope` made this
+  // and the AdmittedScope twin fail (8 pass, 2 fail).
+  it('keeps the raw scope out of reach at run time', () => {
+    const scope = { stores: {} } as Scope;
+    const writes = new ImportedPlanResource(scope);
+    expect(Reflect.ownKeys(writes)).toEqual([]);
+    expect(Reflect.get(writes, 'scope')).toBeUndefined();
   });
 });

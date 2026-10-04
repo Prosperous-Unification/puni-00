@@ -746,6 +746,45 @@ describe('failures you can see', () => {
     },
   );
 
+  itDom(
+    'shows a plan read refused for a status word it does not know as a failed read',
+    async () => {
+      // `add-work-item-statuses`: an unknown status word fails the read's own
+      // schema (`wbs-api.test.ts`), and what reaches the page is that failed
+      // read — never a row drawn with a blank Status glyph.
+      const api = fakeApi();
+      await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip' });
+      api.tree = () =>
+        Promise.reject(
+          new WbsRequestError({
+            kind: 'failure',
+            operation: 'getApiProjectsByIdWork-items',
+            failure: {
+              code: 'invalid_response',
+              reason: 'schema',
+              status: 200,
+              headers: new Headers(),
+            },
+          }),
+        );
+
+      render(<WbsTableOverClient projectId="p1" projectServices={projectServicesOf(api)} />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Retry' })).toBeDefined();
+      });
+      expect(
+        [...document.querySelectorAll('[role="alert"],[role="status"]')].some((each) =>
+          each.textContent.includes('invalid_response'),
+        ),
+      ).toBe(true);
+      expect(document.querySelector('[data-status]')).toBeNull();
+      await waitFor(() => {
+        expect(document.querySelector('[data-status]')).toBeNull();
+      });
+    },
+  );
+
   /** Types a dependency list into a row's cell and sends it. */
   const typeDeps = (rowNumber: string, value: string) => {
     const input = screen.getByLabelText(`Add a dependency to ${rowNumber}`);

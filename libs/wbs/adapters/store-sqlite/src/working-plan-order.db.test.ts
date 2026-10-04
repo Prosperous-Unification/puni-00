@@ -7,7 +7,6 @@ import {
   clockOf,
   createWorkingPlan,
   type Decision,
-  PlanCommandRunner,
   type PlanTransactionalStores,
   type Project,
   type Scope,
@@ -17,6 +16,7 @@ import {
   type WriteStamp,
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
+import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
@@ -93,7 +93,7 @@ async function sqliteEstimateRunner(name: string) {
     broadcast: silentBroadcaster,
     scheduler: fastScheduler,
   });
-  const runner = new PlanCommandRunner({
+  const runner = createPlanCommandRunner({
     uow: source.uow,
     announcements: silentBroadcaster,
     publicServices: publicGraph,
@@ -392,7 +392,7 @@ it('advances SQLite assignment and directory cascades before the next runner com
     let retainedAfterRemoval: { revision: number; teamIds: readonly string[] } | undefined;
     let storedAfterRemoval: { revision: number; teamIds: readonly string[] } | undefined;
     const admitted = captureAdmittedStores(source.uow);
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -588,7 +588,7 @@ it('rolls back a successful directory write when its retained reload fails', asy
         scheduler: fastScheduler,
       });
     const publicGraph = compose(source.stores, silentBroadcaster);
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       uow: failingUow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -843,7 +843,7 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
       });
     const publicGraph = compose(source.stores, silentBroadcaster);
     const admitted = captureAdmittedStores(source.uow);
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -984,7 +984,7 @@ it('refreshes a dependency survivor before the next runner command and preserves
     let authoritativeBeforeNext: number | undefined;
     let observeDependencyRemoval = true;
     const admitted = captureAdmittedStores(source.uow);
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -1103,7 +1103,7 @@ it('keeps every SQLite value group in source order after runner sets populate an
     const publicGraph = compose(source.stores, silentBroadcaster);
     let observations = 0;
     const admitted = captureAdmittedStores(source.uow);
-    const runner = new PlanCommandRunner({
+    const runner = createPlanCommandRunner({
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,

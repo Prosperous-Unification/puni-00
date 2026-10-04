@@ -12,8 +12,8 @@ import { inMemoryProjects } from '@wbs/store-memory/project-fixture';
 import { inMemorySubtrees } from '@wbs/store-memory/subtree-fixture';
 import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 
+import type { WorkItemServiceOptions } from '../module/work-item/work-item.resource';
 import { CREATOR_ADMISSION } from '../ports/edit-admission';
-import type { WorkItemServiceOptions } from '../service/work-item.service';
 import { AvailableWorkItemService } from './available-work-item-service';
 import { type RecordingBroadcaster, recordingBroadcaster } from './broadcast-fixture';
 import { testClock } from './clock-fixture';

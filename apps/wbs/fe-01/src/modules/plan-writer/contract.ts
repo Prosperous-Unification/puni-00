@@ -42,8 +42,8 @@ export interface PlanWriterHost {
    * through {@link PlanWriterHost.rereadResources}.
    */
   readRefreshOwner: () => PlanRefresh | null;
-  /** Awaits the covering outcome of an invalidation; failures stay in the feed's own snapshot. */
-  rereadResources: (resources: readonly RefreshResource[]) => Promise<void>;
+  /** True when the covering read installed; failures stay in the feed's own snapshot. */
+  rereadResources: (resources: readonly RefreshResource[]) => Promise<boolean>;
   /**
    * The project's busy state: raised when a gesture starts, and lowered when it
    * ends, however it ended. It is one project runtime's own, so a gesture whose

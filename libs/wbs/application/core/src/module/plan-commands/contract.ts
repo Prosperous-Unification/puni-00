@@ -1,29 +1,24 @@
-import type { PlanCommandRunner, PlanCommandRunnerOptions } from './plan-commands.feature';
+import type { PlanCommandsSource } from './composition';
+import type { PlanCommandRunner } from './plan-commands.feature';
 
 /**
  * What a host must supply to install {@link planCommandsModule}.
  *
- * Exactly {@link PlanCommandRunnerOptions}, unchanged by the move: the
- * per-batch service factory, the public graph used after a batch settles, the
- * unit of work and the direct broadcaster a batch's collected announcements
- * drain into. The runner is installed once for the process; what is per
- * admitted batch — its scope, its announcement collector, its Working plan and
- * the graph built over them — it creates inside every `run`, `runDirectory`,
- * `undo` and `redo`, so no installation holds one.
+ * Composition takes the per-batch service factory, source unit of work,
+ * public graph and direct broadcaster. It binds the first two into a mapped
+ * transaction before constructing the runner. A feature callback receives
+ * command resources and a repair resource, never the source scope.
  *
  * **No K6 debt; K2 and composition debt disclosed.**
  * The feature imports no other feature. It names the Work item, Directory,
  * Capacity and Priority band resource classes through their `service/`
  * compatibility paths rather than through their modules' contracts, and calls
- * no repository port itself: the admitted scope's stores reach it only through
- * its private Working plan. **K3 debt remains in its types:**
- * `plan-commands.feature.ts` imports `Service`, `Tag` and `WorkItemType` from
- * `ports/work-item-store.ts` and handles the store-bearing `Scope`, so
- * `module-boundaries.test.ts` keeps this module in its shrink-only debt ledger
- * beside Plan import (WBS 040.10 found it; closing it is a resource-services
- * follow-up). Delivery is not closed: be-01's `mountedEndpoints`
- * still constructs `PlanCommandRunner` with `new` — the backend module map's
- * "Move construction to composition" hazard — and `http/work-item.routes.ts`
+ * no repository port itself. **No K3 debt:** it receives only the mapped
+ * command admission, which opens its Working plan and answers organization admission, and it
+ * takes entity values from the neutral `ports/*-values.ts` files. WBS 040.11
+ * closed this module's entry in `module-boundaries.test.ts`'s shrink-only debt
+ * ledger (task 7.8 of `openspec/changes/adopt-di-composition/tasks.md`).
+ * be-01's `mountedEndpoints` uses the mapped composition factory, while `http/work-item.routes.ts`
  * takes `WorkItemService` beside the runner; tracked under task 7.4 of
  * `openspec/changes/adopt-di-composition/tasks.md`. The per-batch
  * `AnnouncementCollector` is not this module's: it is an implementation of the
@@ -33,7 +28,7 @@ import type { PlanCommandRunner, PlanCommandRunnerOptions } from './plan-command
  * import it. The backend module map's "Plan commands' private collector" did
  * not see Plan import's use; a copy would be a second class definition (task 1.2).
  */
-export type PlanCommandsRequirements = PlanCommandRunnerOptions;
+export type PlanCommandsRequirements = PlanCommandsSource;
 
 /** What installing {@link planCommandsModule} adds to a host graph. */
 export interface PlanCommandsExports {

@@ -151,6 +151,26 @@ export class SpaceRepository implements SpaceStore {
     );
   }
 
+  membersIn(organizationId: string): Promise<Map<string, SpaceMember[]>> {
+    const rows = this.db
+      .select({
+        spaceId: spaceProject.spaceId,
+        projectId: spaceProject.projectId,
+        position: spaceProject.position,
+      })
+      .from(spaceProject)
+      .where(eq(spaceProject.organizationId, organizationId))
+      .orderBy(asc(spaceProject.spaceId), asc(spaceProject.position), asc(spaceProject.projectId))
+      .all();
+    const members = new Map<string, SpaceMember[]>();
+    for (const { spaceId, projectId, position } of rows) {
+      const group = members.get(spaceId) ?? [];
+      group.push({ projectId, position });
+      members.set(spaceId, group);
+    }
+    return Promise.resolve(members);
+  }
+
   create(
     fresh: Pick<Space, 'id' | 'organizationId' | 'name'>,
     stamp: WriteStamp,

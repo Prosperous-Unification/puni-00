@@ -46,7 +46,7 @@ function recordingHost(): {
       readRefreshOwner: () => owner,
       rereadResources: (resources) => {
         rereads.push(resources);
-        return Promise.resolve();
+        return Promise.resolve(true);
       },
       busy: {
         raise: () => busyChanges.push(true),
@@ -85,7 +85,7 @@ describe('the plan writer', () => {
       readRefreshOwner: () => owner,
       rereadResources: (resources) => {
         rereads.push(resources);
-        return Promise.resolve();
+        return Promise.resolve(true);
       },
       busy: { raise: () => undefined, lower: () => undefined },
       commandsIssued: { publish: () => undefined },
@@ -152,7 +152,7 @@ describe('the plan writer', () => {
         recorded.rereads.push(resources);
         // Withdrawn while its covering read was reading.
         owner = null;
-        return Promise.resolve();
+        return Promise.resolve(true);
       },
     });
 
@@ -162,5 +162,19 @@ describe('the plan writer', () => {
 
     expect(outcome).toBe('refused');
     expect(recorded.rereads).toEqual([['tree']]);
+  });
+
+  it('reports a landed write whose covering reread failed', async () => {
+    const recorded = recordingHost();
+    const writer = createPlanWriter({
+      ...recorded.host,
+      rereadResources: () => Promise.resolve(false),
+    });
+
+    const outcome = await writer.run(async (write) => {
+      await write.perform(['tree'], () => Promise.resolve('renamed'));
+    });
+
+    expect(outcome).toBe('landed-unread');
   });
 });

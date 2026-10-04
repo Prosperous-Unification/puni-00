@@ -1,4 +1,4 @@
-import { type PlanTree, WorkItemService } from '../service/work-item.service';
+import { type PlanTree, WorkItemService } from '../module/work-item/work-item.resource';
 
 /** A test service whose core fixture guarantees that Fast scheduling is available. */
 export class AvailableWorkItemService extends WorkItemService {

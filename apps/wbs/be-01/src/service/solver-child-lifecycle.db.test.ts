@@ -4,6 +4,11 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'bun:test';
 
+import {
+  runSolverChildLifecycle,
+  type SolverChildSlot,
+} from '../module/optimization/solver-child-lifecycle';
+import type { SpawnedSolverLauncher } from '../module/solver-launcher/solver-launcher.repository';
 import { openDatabase, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
@@ -12,8 +17,6 @@ import { createOptimizationRepository } from '../repository/optimization';
 import { bindSolverSlot, reserveSolverSlot } from '../repository/optimization-admission';
 import { allocateGeneration } from '../repository/optimization-generation';
 import { solverSlot } from '../repository/schema';
-import { runSolverChildLifecycle, type SolverChildSlot } from './solver-child-lifecycle';
-import type { SpawnedSolverLauncher } from './solver-launcher-process';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 const CONTRACT = '7+0.1.0';

@@ -9,6 +9,7 @@ import { parseLabRequest, planLabOperation, renderLabKubeconfig } from './lab';
 import {
   ownedQemuPid,
   planQemuMachine,
+  processArguments,
   readQemuLock,
   requireBaseImage,
   requireQemuInstallation,
@@ -511,6 +512,37 @@ describe('the rootless QEMU lab provider', () => {
       runLab(fixture, downArguments);
     }
   }, 60_000);
+});
+
+describe('inspecting a lab process command line', () => {
+  function failRead(code: string): () => Promise<string> {
+    return () => Promise.reject(Object.assign(new Error(`${code}: read`), { code }));
+  }
+
+  it('treats a process that exits before or during the read as gone', async () => {
+    expect(await processArguments(4242, failRead('ENOENT'))).toBeUndefined();
+    expect(await processArguments(4242, failRead('ESRCH'))).toBeUndefined();
+  });
+
+  it('throws with the pid as context for any other read failure', async () => {
+    const failure = await processArguments(4242, failRead('EACCES')).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).toMatchObject({
+      message: 'Cannot inspect process 4242',
+      cause: { code: 'EACCES' },
+    });
+  });
+
+  it('splits a live command line on NUL', async () => {
+    expect(await processArguments(4242, () => Promise.resolve('qemu\0--name\0vm'))).toEqual([
+      'qemu',
+      '--name',
+      'vm',
+    ]);
+  });
 });
 
 describe('starting a QEMU lab machine', () => {

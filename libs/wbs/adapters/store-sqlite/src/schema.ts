@@ -654,7 +654,8 @@ export const workItem = sqliteTable(
      * waits. Clamped down by the team's own size, so an item cannot claim more
      * people than the team has, and overridden to 1 by a named assignee — one
      * human cannot work beside themselves. See `widthFor` in
-     * `libs/wbs/application/core/src/service/work-item.service.ts` for where the three rules meet.
+     * `libs/wbs/application/core/src/module/work-item/work-item.resource.ts` for where the three
+     * rules meet.
      *
      * `NOT NULL DEFAULT 1` rather than `priority`'s nullable shape, because
      * unlike a priority `1` and *unset* are the same fact: one at a time. Two
@@ -3017,6 +3018,19 @@ export const delegationUse = sqliteTable(
     primaryKey({ columns: [t.issuer, t.jti] }),
     index('delegation_use_expires_at').on(t.expiresAt),
   ],
+);
+
+/** Monotonic revocations of exact verified browser access credentials. */
+export const browserCredentialRevocations = sqliteTable(
+  'browser_credential_revocations',
+  {
+    kind: text('kind').notNull(),
+    userId: text('user_id').notNull(),
+    credentialDigest: text('credential_digest').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    revokedAt: integer('revoked_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.kind, t.userId, t.credentialDigest] })],
 );
 
 export const savedPlanOrganization = sqliteTable(

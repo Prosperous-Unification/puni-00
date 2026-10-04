@@ -30,6 +30,22 @@ _Avoid_: tenant, workspace, account
 One user's association with one organization and the role that governs access there. It is separate from a directory person's service-team membership.
 _Avoid_: team membership, IdP group
 
+**Browser credential pair**:
+The verified WBS access credential and organization selection carried together to establish browser organization access.
+_Avoid_: user session, organization cookie alone
+
+**Credential revocation**:
+The decision that one verified browser credential can no longer establish or retain organization authority.
+_Avoid_: user-wide revocation, logout cookie
+
+**Browser lifecycle session**:
+A durable server-side record that orders access-credential issuance, replacement and logout for one correlated browser authentication path; it stores no provider refresh secret.
+_Avoid_: access credential, provider refresh token
+
+**Lifecycle generation**:
+The monotonically increasing version that makes a refresh completion conditional on logout or a newer credential replacement not having committed first.
+_Avoid_: timestamp, provider token version
+
 **Role**:
 The level of authority a membership grants within its organization: super-admin, admin, member or viewer.
 _Avoid_: scope, group

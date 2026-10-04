@@ -3,6 +3,7 @@ import { type CSSProperties, useEffect, useRef, useSyncExternalStore } from 'rea
 
 import type { DepLights } from './dep-light-store';
 import { HoverCard } from './hover-card';
+import { STATUS_TOKEN } from './status-palette';
 import { rowWords } from './work-item-words';
 
 /** One work item another waits for, as the chips have it. */
@@ -15,14 +16,19 @@ export interface DependsEntry {
 }
 
 /**
- * The status strip, on a list line: the same 3px of `--status-done` the row
- * wears at its left edge, so a finished predecessor reads as finished wherever
- * it is named (Dany, 2026-09-13: "in the dependency list mark the done items by
- * a green strip before the item"). Every line carries the border so the text
- * lines up; only a done one colours it.
+ * The status strip, on a list line: the same 3px in the status colour the row
+ * wears at its left edge ({@link STATUS_TOKEN}), so a predecessor's status
+ * reads wherever it is named (Dany, 2026-09-13: "in the dependency list mark
+ * the done items by a green strip before the item"; every status since
+ * `add-work-item-statuses`). Every line carries the border so the text lines
+ * up; an unknown one leaves it transparent.
+ *
+ * Proof: the lookup replaced by the done-only test, and `borders each
+ * predecessor in its own status colour` failed on `3px solid transparent`
+ * where `var(--status-blocked)` was owed; watched 2026-09-29.
  */
 export const statusStripStyle = (status: WorkItemStatus): CSSProperties => ({
-  borderLeft: `3px solid ${status === 'done' ? 'var(--status-done)' : 'transparent'}`,
+  borderLeft: `3px solid ${STATUS_TOKEN[status] ?? 'transparent'}`,
   paddingLeft: 5,
 });
 

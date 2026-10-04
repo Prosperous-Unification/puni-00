@@ -15,11 +15,11 @@ import {
   type WorkdaySpan,
 } from '@wbs/domain';
 
+import type { DirectoryService } from '../module/directory/directory.resource';
+import type { ProjectService } from '../module/project/project.resource';
+import type { WorkItemService } from '../module/work-item/work-item.resource';
 import type { ResourceAccess } from '../ports/organization-access';
 import type { ProjectRankStore } from '../ports/project-rank-store';
-import type { DirectoryService } from './directory.service';
-import type { ProjectService } from './project.service';
-import type { WorkItemService } from './work-item.service';
 
 /** The longest window a load read answers, in calendar days between `from` and `to`. */
 export const LOAD_WINDOW_DAYS = 182;

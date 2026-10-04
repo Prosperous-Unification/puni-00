@@ -135,9 +135,10 @@ export interface ProjectRuntime {
   readonly commandsIssued: Channel<undefined>;
   /**
    * Reads these resources again and awaits the covering outcome, only while this
-   * runtime is current; failures stay in the feed's own snapshot.
+   * runtime is current; true means it installed, while failures stay in the
+   * feed's own snapshot.
    */
-  readonly reread: (resources: readonly RefreshResource[]) => Promise<void>;
+  readonly reread: (resources: readonly RefreshResource[]) => Promise<boolean>;
   readonly markers: CalendarMarkers;
   readonly writer: PlanWriter;
   readonly commands: PlanCommands;

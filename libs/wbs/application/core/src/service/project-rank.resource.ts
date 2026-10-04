@@ -1,7 +1,7 @@
+import type { ProjectService } from '../module/project/project.resource';
 import type { Clock } from '../ports/clock';
 import type { ResourceAccess } from '../ports/organization-access';
 import type { ProjectRankStore, RankedProject } from '../ports/project-rank-store';
-import type { ProjectService } from './project.service';
 
 /** One project in rank order, named as the caller's project list names it. */
 export interface RankedProjectView extends RankedProject {

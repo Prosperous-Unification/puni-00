@@ -2,6 +2,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import {
+  bodySha256,
+  UnknownSavedPlanBodyVersionError,
+} from '@wbs/core/module/saved-plans/saved-plan-integrity';
+import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -21,8 +26,6 @@ import { WorkItemRepository } from '../repository/work-item';
 import { nodeDigest } from '../runtime/bun-runtime';
 import { projectRow } from '../testing/project-fixture';
 import { fastScheduler } from './optimizer-wiring';
-import { SavedPlanService } from './saved-plan.service';
-import { bodySha256, UnknownSavedPlanBodyVersionError } from './saved-plan-integrity';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 

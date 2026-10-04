@@ -190,6 +190,18 @@ const configPath = `${coreRoot}tsconfig.lib.json`;
  * Proof (2026-09-24): independently prepending `import '../../http/endpoint';` to the same
  * file failed this suite with exactly one violation, `"module/plan-commands/run-command-batch.ts:
  * '../../http/endpoint' reaches http/endpoint.ts"` (0 pass, 1 fail).
+ *
+ * The ordinals above count the rows as they stood on 2026-09-24. On 2026-09-29 the
+ * fifth and eighteenth rows were deleted with the `service/plan-document.ts` and
+ * `service/calendar-marker.service.ts` shims they named, whose importers now reach
+ * the modules directly; the nineteenth row keeps preparation 3 for every file of
+ * Plan document's module.
+ *
+ * Proof (2026-09-29): prepending `import '../calendar-marker/calendar-marker.resource';`
+ * to `module/plan-document/plan-document.resource.ts` failed this suite with exactly one
+ * violation, `"module/plan-document/plan-document.resource.ts:
+ * '../calendar-marker/calendar-marker.resource' reaches
+ * module/calendar-marker/calendar-marker.resource.ts"` (0 pass, 1 fail).
  */
 const routes = [
   { reaches: 'service/auth.service.ts', from: (path: string) => path.startsWith('use-cases/') },
@@ -201,10 +213,6 @@ const routes = [
   {
     reaches: 'http/endpoint.ts',
     from: (path: string) => path.startsWith('module/bounded-replay-sweep/'),
-  },
-  {
-    reaches: 'service/calendar-marker.service.ts',
-    from: (path: string) => path === 'service/plan-document.ts',
   },
   {
     reaches: 'service/auth.service.ts',
@@ -253,10 +261,6 @@ const routes = [
   {
     reaches: 'http/endpoint.ts',
     from: (path: string) => path.startsWith('module/saved-plans/'),
-  },
-  {
-    reaches: 'service/calendar-marker.service.ts',
-    from: (path: string) => path.startsWith('module/plan-document/'),
   },
   {
     reaches: 'module/calendar-marker/calendar-marker.resource.ts',

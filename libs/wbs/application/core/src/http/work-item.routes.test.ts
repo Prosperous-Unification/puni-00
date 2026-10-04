@@ -1,6 +1,6 @@
 import { expect, spyOn, test } from 'bun:test';
 
-import { PlanCommandRunner } from '../service/plan-commands';
+import { createPlanCommandRunner } from '../module/plan-commands/composition';
 import { inMemoryServices } from '../testing/harness';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { batchServices, testWrites } from '../testing/writes-fixture';
@@ -9,7 +9,7 @@ import { workItemRoutes } from './work-item.routes';
 function fixture() {
   const plan = inMemoryServices();
   const writes = testWrites(undefined, batchServices(plan));
-  const runner = new PlanCommandRunner({
+  const runner = createPlanCommandRunner({
     batchServices: writes.batch,
     publicServices: batchServices(plan),
     uow: writes.uow,

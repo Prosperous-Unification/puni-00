@@ -49,7 +49,13 @@ import type { PriorityBand } from '@wbs/domain/priority-band';
 // build time. It is here rather than restated as `string` because a marker's
 // date being absolute — never a workday number — is the whole of task 7.4, and
 // a `string` on this seam would be the one place that claim is not written down.
-import type { SettableStatus, WorkItemStatus } from '@wbs/domain/progress';
+import type {
+  Hold,
+  Readiness,
+  SettableStatus,
+  StepState,
+  WorkItemStatus,
+} from '@wbs/domain/progress';
 import type { IsoDate } from '@wbs/domain/workday';
 
 import { browserClient, unreachable } from './http';
@@ -342,6 +348,21 @@ export interface WorkItemView {
    * {@link ProjectApi.setStatus}.
    */
   status: WorkItemStatus;
+  /**
+   * Whether somebody has said this work is defined well enough to start, or
+   * null where nobody has. Stored on a leaf only; a parent always reads null
+   * and folds its children's. The row menu reads it to leave out a status
+   * whose write would change nothing.
+   */
+  readiness: Readiness | null;
+  /** Whether this leaf is parked or stopped by the world, or null. A parent reads null. */
+  hold: Hold | null;
+  /**
+   * What each step has said about this row, by step id; a step with nothing
+   * said is absent. Read by the row menu, which offers Draft and Ready only
+   * where no step of any leaf beneath has spoken.
+   */
+  progress: Record<string, StepState>;
   /**
    * The day work on this item actually began, or null where nobody has said.
    * Date-only like the two constraints above it; read by no engine, drawn as the
