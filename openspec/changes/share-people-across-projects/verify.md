@@ -918,3 +918,69 @@ user instruction; it is a distinct check from the implementation gate.
 
 No source fault remains injected. The implementation and independent review are ready for
 integration; the exact-head gate and CI checks remain outstanding.
+
+## Runtime 6.1c / 6.2c — incoming-calendar cache identity
+
+The mounted person-load RED was observed first on `c5f16573`: `bun test
+apps/wbs/be-01/src/controller/person-load.controller.db.test.ts --test-name-pattern
+'refreshes a warm target booking'` exited 1, returning Billing start `2026-10-08` after
+Platform grew to five days, where `2026-10-12` was required. After the batch observation
+implementation the same test passed. The mounted isolated-mode switch RED likewise exited 1:
+warm shared Billing `2026-10-08` persisted after mode returned to isolated, instead of
+`2026-10-05`; the isolated memo discriminator then made it pass.
+
+The null-basis mounted RED used two isolated 40,000,000-workday estimates and warmed both
+person-load and space roll-up caches. After `shared_people` became 1, the live Billing tree
+reported `calendar_range`, but load still returned Billing as available. The test now passes:
+shared load reports Billing unavailable with `calendar_range`, shared roll-up carries that
+error, and both isolated outputs recover when the mode returns to 0 without another write.
+
+The aggregate read uses one owned SQLite read transaction for authority, mode, rank, project
+captures, selected optimization, revision, sequence and tree metadata. Captured plans and
+scheduler reads are reused across target closures; one aggregate test observed exactly four
+scheduler calls for four targets with overlapping chains. Shared load and space inspect captured
+availability before held entries, compare the adapter-owned SHA-256 incoming-calendar basis
+alongside existing cache dimensions, and project misses from the same captured tree. The domain
+canonicalizer is shared with the full scheduler input and preserves absent/empty calendar bytes.
+Mounted tests cover person and organization load, roll-ups and in-progress after upstream-only
+estimate/date edits, exact-key ready upstream publication, unavailable influencer and target,
+recovery, whole-request typed revocation and second-connection coherence. A rank/name fixture
+kept both basis and full input hash stable; an upstream date changed both. Holder and interval
+dimensions have the domain canonicalizer test. Isolated cache reuse, access separation and TTL
+retain their prior tests.
+
+Each fault below was injected independently on the production path, tested with Bun, and
+restored in `finally`; every listed command exited 1. The log paths contain the full output.
+
+| Fault and exact command                                                                                                                                                                                                                                     | Observed failure                                                                                                                                                                                                                                               |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Omit load basis comparison: `bun test apps/wbs/be-01/src/controller/person-load.controller.db.test.ts --test-name-pattern 'refreshes a warm target booking'` (`/tmp/shared-people-cache-proof-load-basis.log`)                                              | Billing remained `2026-10-08`, expected `2026-10-12`.                                                                                                                                                                                                          |
+| Omit space basis on both lookup and storage: `bun test apps/wbs/be-01/src/controller/person-load.controller.db.test.ts --test-name-pattern 'refreshes warm space'` (`/tmp/shared-people-cache-proof-space-basis.log`)                                       | Warm roll-up remained `2026-10-08`, expected `2026-10-12`; the same case asserts in-progress dates.                                                                                                                                                            |
+| Accept held load before availability: `bun test apps/wbs/be-01/src/controller/person-load.controller.db.test.ts --test-name-pattern 'marks a warm target unavailable'` (`/tmp/shared-people-cache-proof-availability.log`)                                  | Billing remained an available booking, expected absent from projects and listed unavailable.                                                                                                                                                                   |
+| Bypass only the aggregate owned transaction: `bun test apps/wbs/be-01/src/controller/person-load.controller.db.test.ts --test-name-pattern 'overlapping target chains'` (`/tmp/shared-people-cache-proof-aggregate-snapshot.log`)                           | The response mixed Platform's old `2026-10-05` start with Billing's after-write `2026-10-05`, expected old coherent pair `2026-10-05`/`2026-10-08`. A preliminary mutation of the shared transaction begin failed fixture setup at ROLLBACK and was discarded. |
+| Ignore aggregate membership revalidation: `bun test apps/wbs/be-01/src/controller/person-load.controller.db.test.ts --test-name-pattern 'between route admission and aggregate'` (`/tmp/shared-people-cache-proof-aggregate-authority.log`)                 | Revocation between route admission and snapshot returned 200 with dates, expected 403/not_a_member.                                                                                                                                                            |
+| Ignore aggregate scoped activation recheck: `bun test apps/wbs/be-01/src/controller/person-load.controller.db.test.ts --test-name-pattern 'activation reset between route admission'` (`/tmp/shared-people-cache-proof-aggregate-activation.log`)           | Marker reset after route admission returned 200 with dates, expected 403/no_active_organization.                                                                                                                                                               |
+| Ignore aggregate legacy activation recheck: `bun test libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts --test-name-pattern 'refuses a legacy aggregate read'` (`/tmp/shared-people-cache-proof-aggregate-legacy-activation.log`)                | The adapter answered isolated after activation, expected access_refused/no_active_organization. The mounted route still returned 403 through an earlier route gate, so the adapter-path test proves this guard.                                                |
+| Omit load null-basis lookup guard: `bun test apps/wbs/be-01/src/controller/person-load.controller.db.test.ts -t 'does not reuse isolated load or roll-up entries when a shared chain has no basis'` (`/tmp/shared-people-cache-proof-load-null-lookup.log`) | Shared load kept Billing available after live `calendar_range`; expected absent from projects.                                                                                                                                                                 |
+| Omit load null-basis storage guard: same command (`/tmp/shared-people-cache-proof-load-null-storage.log`)                                                                                                                                                   | Return to isolated omitted Billing because the shared error replaced the isolated memo entry.                                                                                                                                                                  |
+| Omit space null-basis lookup guard: same command (`/tmp/shared-people-cache-proof-space-null-lookup.log`)                                                                                                                                                   | Shared roll-up reported `scheduleError: null` where `calendar_range` was required.                                                                                                                                                                             |
+| Omit space null-basis storage guard: same command (`/tmp/shared-people-cache-proof-space-null-storage.log`)                                                                                                                                                 | Return to isolated kept `scheduleError: calendar_range` where null was required.                                                                                                                                                                               |
+
+Adjacent `Proof:` comments identify these faults in the cache and transaction code. No fault
+remains injected. This task does not run the exact-head host gate: the worktree is uncommitted,
+and the coordinator owns the integration gate. Tasks 6.1/6.2 remain unchecked; 6.1d–f and
+activation remain pending.
+
+Final scoped checks:
+
+| Command                                                                                                                                                          | Observed result                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test` with the person-load, space-organization, schedule-organization, chain-snapshot, PersonLoad, SpaceResource and canonical-schedule-input test files    | Exit 0; 172 passed, 0 failed, 504 assertions. Full log: `/tmp/shared-people-cache-final-tests.log`.                                                                                             |
+| `bun test libs/wbs/domain/domain/src/canonical-schedule-input.test.ts` after the final optional-argument type correction                                         | Exit 0; 36 passed, 0 failed, 77 assertions.                                                                                                                                                     |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-domain,wbs-core,wbs-store-sqlite,wbs-be-01 --skip-nx-cache --output-style=static` | Exit 0; four projects and two dependencies passed. The first run exposed a required parameter used without an argument in the new domain test; the signature was corrected and this run passed. |
+| `bunx eslint` on the 13 changed TypeScript files                                                                                                                 | Exit 0 after import ordering and test fixture corrections.                                                                                                                                      |
+| `bunx prettier --check` on the changed TypeScript and OpenSpec files; `git diff --check`                                                                         | Both exit 0.                                                                                                                                                                                    |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                         | Exit 0; 146 passed, 0 failed.                                                                                                                                                                   |
+
+The canonical host gate, full Nx test/lint/build, CI secrets and migration checks, deployment
+and live solver binding were not run in this bounded, uncommitted worktree.

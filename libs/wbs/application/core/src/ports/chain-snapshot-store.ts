@@ -5,10 +5,12 @@ import type {
   OrganizationPrincipal,
   ResourceAccess,
 } from './organization-access';
+import type { Project } from './project-values';
 import type { PlanInputReads } from './saved-plan-capture-values';
 import type { Scheduler } from './scheduler';
 import type {
   ChainAccess,
+  LivePlanAggregate,
   LivePlanExportRead,
   LivePlanRead,
   SharedPeopleRead,
@@ -18,7 +20,10 @@ import type {
 export interface ChainSnapshot {
   readonly access: ChainAccess;
   readonly mode: CapacityMode;
-  readonly projects: readonly Pick<PlanInputReads, 'project' | 'assignments'>[];
+  readonly projects: readonly {
+    readonly project: Project;
+    readonly assignments: PlanInputReads['assignments'];
+  }[];
   capturePlan(projectId: string): Promise<PlanInputReads>;
   /** Capture-mode reads select cache entries without admitting solver work. */
   readonly scheduler: Scheduler;
@@ -48,4 +53,6 @@ export interface LivePlanStore {
   readExport(projectId: string, access: ResourceAccess): Promise<LivePlanExportRead>;
   /** Project-owned command/background authority, distinct from human observation. */
   readProject(projectId: string): Promise<Exclude<LivePlanRead, { kind: 'access_refused' }>>;
+  /** Captures all readable shared projects in one authorized observation. */
+  readAggregate(actorId: string, access: ResourceAccess): Promise<LivePlanAggregate>;
 }

@@ -81,3 +81,16 @@ export interface PlanDocumentReads {
 export type LivePlanExportRead =
   | Exclude<LivePlanRead, { kind: 'shared' }>
   | (Extract<LivePlanRead, { kind: 'shared' }> & { readonly document: PlanDocumentReads });
+
+/** One detached aggregate observation; entries share authority, rank and schedule evidence. */
+export type LivePlanAggregate =
+  | AccessRefused
+  | { readonly kind: 'isolated' }
+  | {
+      readonly kind: 'shared';
+      readonly entries: readonly {
+        readonly rank: number;
+        readonly basis: string | null;
+        readonly plan: Extract<LivePlanRead, { kind: 'shared' }>;
+      }[];
+    };
