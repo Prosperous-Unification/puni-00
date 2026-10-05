@@ -2,14 +2,19 @@ import type {
   ChainAccess,
   ChainSnapshot,
   ChainSnapshotStore,
+  LivePlanRead,
+  LivePlanStore,
   OptimizedScheduleAdapter,
   OrganizationPrincipal,
   PlanInputReads,
+  ResourceAccess,
   Scheduler,
   SharedPeopleRead,
 } from '@wbs/core';
+import { readChain } from '@wbs/core';
 import { eq } from 'drizzle-orm';
 
+import { CalendarMarkerRepository } from './calendar-marker';
 import type { CaptureReadSeam } from './capture-read-seam';
 import {
   capturedOptimizationReaderOf,
@@ -22,6 +27,7 @@ import {
   openReadOnlyConnection,
 } from './db';
 import { DirectoryRepository } from './directory';
+import { DrizzleEventLogStore } from './event-log';
 import { OPEN } from './gate';
 import { type ActiveOrganizationOf, SqliteOrganizationAccess } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
@@ -30,6 +36,7 @@ import { ProjectRankRepository } from './project-rank';
 import { readPlanInputIn } from './saved-plan-capture';
 import { projectOrganization } from './schema';
 import { readCapacityMode } from './shared-people-mode';
+import { WorkItemRepository } from './work-item';
 
 export interface ChainSnapshotOptions {
   /** A dedicated openReadOnlyConnection, closed on every outcome. */
@@ -254,4 +261,149 @@ function requireOwnership(owner: { organizationId: string } | undefined): string
   // Proof: removing this guard failed `refuses corrupt mode and broken background ownership`.
   if (owner === undefined) throw new Error('project ownership is absent');
   return owner.organizationId;
+}
+
+/** Binds both reader lifetimes to one scheduling configuration without exposing connections to core. */
+export function createLivePlanStore(
+  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'> &
+    (
+      | { readonly kind: 'owned'; readonly openConnection: () => Connection }
+      | { readonly kind: 'borrowed'; readonly db: Drizzle }
+    ),
+): LivePlanStore {
+  async function observe<T>(read: (db: Drizzle) => Promise<T>): Promise<T> {
+    if (options.kind === 'borrowed') {
+      // Proof: replacing this borrowed db with a fresh snapshot fails mounted staged arrangement/preflight.
+      return read(options.db);
+    }
+    const connection = options.openConnection();
+    try {
+      const transaction = drizzleReadTransaction(connection.db);
+      // Proof: omitting the transaction failed mounted metadata/cache cases by observing newer writes in the first response.
+      transaction.begin();
+      try {
+        const captured = await read(connection.db);
+        // Proof: omitting commit failed owned success/refusal close-time BEGIN assertions (transaction still active).
+        transaction.commit();
+        return captured;
+      } catch (failure) {
+        // Proof: omitting rollback failed owned dependency-failure close-time BEGIN assertion.
+        transaction.rollback();
+        throw failure;
+      }
+    } finally {
+      // Proof: omitting close failed all three owned lifecycle cases (0 closes instead of 1).
+      connection.close();
+    }
+  }
+  return {
+    read: (projectId, access) => observe((db) => readLivePlanIn(db, projectId, access, options)),
+    readExport: (projectId, access) =>
+      observe(async (db) => {
+        const captured = await readLivePlanIn(db, projectId, access, options);
+        if (captured.kind !== 'shared') return captured;
+        const directory = new DirectoryRepository(db, OPEN);
+        // Proof: separate post-snapshot directory and marker rereads each failed mounted structured-export coherence.
+        const [teams, people, tags, services, types, externalSystems, markers] = await Promise.all([
+          directory.listInOrganization('teams', captured.organizationId),
+          directory.listInOrganization('people', captured.organizationId),
+          directory.listInOrganization('tags', captured.organizationId),
+          directory.listInOrganization('services', captured.organizationId),
+          directory.listInOrganization('workItemTypes', captured.organizationId),
+          directory.listInOrganization('externalSystems', captured.organizationId),
+          new CalendarMarkerRepository(db, OPEN).listFor(projectId),
+        ]);
+        return {
+          ...captured,
+          document: {
+            directory: { teams, people, tags, services, types, externalSystems },
+            markers,
+          },
+        };
+      }),
+    readProject: (projectId) =>
+      observe((db) => readLiveProjectIn(db, projectId, undefined, options)),
+  };
+}
+
+async function readLivePlanIn(
+  db: Drizzle,
+  projectId: string,
+  admitted: ResourceAccess,
+  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'>,
+): Promise<LivePlanRead> {
+  if (admitted.kind === 'legacy') {
+    // Proof: bypassing this recheck failed mounted `refuses activation between legacy admission and snapshot` (403 became 200).
+    if (readOrganizationActivation(db) !== 'pre_activation')
+      return { kind: 'access_refused', refusal: 'no_active_organization' };
+  } else {
+    // Proof: bypassing this check failed mounted reset-marker-after-admission (403 became 200).
+    if (readOrganizationActivation(db) === 'pre_activation')
+      return { kind: 'access_refused', refusal: 'no_active_organization' };
+    // Recheck the actual admitted human identity on this observation's connection.
+    const resolved = await new SqliteOrganizationAccess(db, () =>
+      Promise.resolve(admitted.scope.organizationId),
+    ).resolve({ id: admitted.scope.userId });
+    // Proof: ignoring this refusal failed mounted six-route revocation (403 became 200 with updated upstream rows).
+    if (!resolved.ok) return { kind: 'access_refused', refusal: resolved.refusal };
+  }
+  return readLiveProjectIn(db, projectId, admitted, options);
+}
+
+async function readLiveProjectIn(
+  db: Drizzle,
+  projectId: string,
+  admitted: ChainAccess | undefined,
+  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'>,
+): Promise<Exclude<LivePlanRead, { kind: 'access_refused' }>> {
+  const projects = new ProjectRepository(db, OPEN);
+  const project = await projects.findById(projectId);
+  if (project === null) return { kind: 'not_found' };
+  const access: ChainAccess =
+    admitted ??
+    (readOrganizationActivation(db) === 'pre_activation'
+      ? { kind: 'legacy' }
+      : {
+          kind: 'scoped',
+          scope: {
+            organizationId: requireOwnership(
+              db
+                .select({ organizationId: projectOrganization.organizationId })
+                .from(projectOrganization)
+                .where(eq(projectOrganization.resourceId, projectId))
+                .get(),
+            ),
+          },
+        });
+  if (access.kind === 'legacy') return { kind: 'isolated' };
+  const owned = await projects.findInOrganization(projectId, access.scope.organizationId);
+  if (owned === null) return { kind: 'not_found' };
+  if (readCapacityMode(db, access.scope.organizationId) === 'isolated') return { kind: 'isolated' };
+  const readable = await Promise.all(
+    (await new ProjectRankRepository(db, OPEN).orderIn(access.scope.organizationId)).map(
+      async (ranked) => {
+        const visible = await projects.findInOrganization(
+          ranked.projectId,
+          access.scope.organizationId,
+        );
+        // Proof: removing this guard failed the broken ranked-project live read with an unrelated null dereference.
+        if (visible === null) throw new Error('rank names an unreadable project');
+        return visible;
+      },
+    ),
+  );
+  const snapshot = await readChainSnapshotIn(db, access, readable, projectId, options);
+  const chain = await readChain(snapshot, projectId);
+  // Proof: removing this guard made the omitted-target rank dependency resolve instead of rejecting trusted state.
+  if (chain.kind === 'not_found') throw new Error('live target disappeared inside its snapshot');
+  return {
+    kind: 'shared',
+    organizationId: access.scope.organizationId,
+    chain,
+    project: owned,
+    steps: await projects.stepsOf(projectId),
+    workItems: await new WorkItemRepository(db, OPEN).listByProject(projectId),
+    // Proof: reading the bare project ID failed mounted metadata cases with seq -1 instead of 11.
+    seq: await new DrizzleEventLogStore(db, OPEN).latestSeq(`project:${projectId}`),
+  };
 }

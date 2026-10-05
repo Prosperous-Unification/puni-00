@@ -171,6 +171,42 @@ export function projectRoutes(
         // for a foreign and an absent project, and changes nothing` in
         // `project-organization.controller.db.test.ts` answer 200 with the
         // foreign project's Markdown; watched 2026-09-27.
+        const captured = await workItems.exportWithin(params.id, resolved.access);
+        if (captured.kind === 'access_refused') return organizationRefusal(captured.refusal);
+        if (captured.kind === 'not_found')
+          return { ok: false, status: 404, body: { error: 'not_found' } };
+        if (captured.kind === 'engine_unavailable')
+          return {
+            ok: false,
+            status: 409,
+            body: { error: captured.error, engine: captured.engine },
+          };
+        if (captured.kind === 'shared') {
+          if (query.format === 'markdown')
+            return {
+              ok: true,
+              status: 200,
+              text: projectMarkdown(captured.project, captured.tree.workItems),
+            };
+          // Proof: independent project/catalog/marker rereads each failed mounted structured-export coherence.
+          const exported = planDocuments.exportCaptured(
+            captured.project,
+            captured.tree,
+            captured.document,
+          );
+          if (!exported.ok)
+            return {
+              ok: false,
+              status: 409,
+              body: { error: exported.error, steps: exported.steps, command: exported.command },
+            };
+          return {
+            ok: true,
+            status: 200,
+            body: exported.value,
+            headers: [['content-type', 'application/json; charset=utf-8']],
+          };
+        }
         const found = await projects.readWithin(params.id, resolved.access);
         if (found === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         // Proof: reading the tree unscoped made `fails the export and the
@@ -180,6 +216,9 @@ export function projectRoutes(
         if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         // Proof: removing this branch made both mounted unavailable export cases
         // receive 500 instead of 409, before either could inspect media or body.
+        // Proof: removing this mapping failed mounted revocation: expected 403 became 500.
+        if ('kind' in tree && tree.kind === 'access_refused')
+          return organizationRefusal(tree.refusal);
         if ('kind' in tree)
           return {
             ok: false,

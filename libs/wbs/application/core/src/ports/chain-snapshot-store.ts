@@ -1,9 +1,18 @@
 import type { CapacityMode } from '@wbs/domain';
 
-import type { OrganizationAccessRefusal, OrganizationPrincipal } from './organization-access';
+import type {
+  OrganizationAccessRefusal,
+  OrganizationPrincipal,
+  ResourceAccess,
+} from './organization-access';
 import type { PlanInputReads } from './saved-plan-capture-values';
 import type { Scheduler } from './scheduler';
-import type { ChainAccess, SharedPeopleRead } from './shared-people-values';
+import type {
+  ChainAccess,
+  LivePlanExportRead,
+  LivePlanRead,
+  SharedPeopleRead,
+} from './shared-people-values';
 
 /** Capabilities borrowed only while one authorized, rank-ordered read snapshot is open. */
 export interface ChainSnapshot {
@@ -30,4 +39,13 @@ export interface ChainSnapshotStore {
     | { readonly ok: true; readonly value: SharedPeopleRead }
     | { readonly ok: false; readonly refusal: OrganizationAccessRefusal }
   >;
+}
+
+/** Detached live evidence; SQLite owns the distinction between ordinary and command lifetimes. */
+export interface LivePlanStore {
+  read(projectId: string, access: ResourceAccess): Promise<LivePlanRead>;
+  /** Adds detached export-only catalogs and markers before the same observation closes. */
+  readExport(projectId: string, access: ResourceAccess): Promise<LivePlanExportRead>;
+  /** Project-owned command/background authority, distinct from human observation. */
+  readProject(projectId: string): Promise<Exclude<LivePlanRead, { kind: 'access_refused' }>>;
 }

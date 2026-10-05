@@ -2,6 +2,7 @@ import { DiBag } from 'di-bag';
 
 import type { ActualStore } from '../../ports/actual-store';
 import type { CapacityStore } from '../../ports/capacity-store';
+import type { LivePlanStore } from '../../ports/chain-snapshot-store';
 import type { Clock } from '../../ports/clock';
 import type { CommandJournalStore } from '../../ports/command-journal-store';
 import type { DependencyStore } from '../../ports/dependency-store';
@@ -40,6 +41,7 @@ export const workItemModule = DiBag.createBuilder()
   .withServices({
     workItemOptions: DiBag.createProvider(
       ({
+        livePlans,
         workItemStore,
         projectStore,
         estimateStore,
@@ -58,6 +60,7 @@ export const workItemModule = DiBag.createBuilder()
         scheduler,
         clock,
       }: {
+        livePlans: LivePlanStore | undefined;
         workItemStore: WorkItemStore;
         projectStore: ProjectStore;
         estimateStore: EstimateStore;
@@ -76,6 +79,7 @@ export const workItemModule = DiBag.createBuilder()
         scheduler: Scheduler;
         clock: Clock;
       }): WorkItemServiceOptions => ({
+        ...(livePlans === undefined ? {} : { livePlans }),
         workItems: workItemStore,
         projects: projectStore,
         estimates: estimateStore,

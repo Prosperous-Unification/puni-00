@@ -58,6 +58,7 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
 import type { CapacityStore, TeamCapacity } from '../../ports/capacity-store';
+import type { LivePlanStore } from '../../ports/chain-snapshot-store';
 import type { Clock } from '../../ports/clock';
 import type {
   CommandJournalStore,
@@ -83,7 +84,13 @@ import type {
   OptimizationVariantState,
   OptimizedScheduleRead,
   Scheduler,
+  ScheduleRead,
 } from '../../ports/scheduler';
+import type {
+  AccessRefused,
+  LivePlanRead,
+  PlanDocumentReads,
+} from '../../ports/shared-people-values';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeStore } from '../../ports/subtree-store';
 import type {
@@ -464,7 +471,7 @@ function canonicalScheduleParts(
   project: Project,
   rows: readonly LabelledWorkItem[],
   estimates: readonly StoredEstimate[],
-  edges: readonly StoredDependency[],
+  edges: readonly Pick<StoredDependency, 'predecessorId' | 'successorId'>[],
   typed: readonly TypedDependency[],
   assignments: readonly Assignment[],
   steps: readonly Step[],
@@ -659,6 +666,7 @@ export type WorkItemRefusal =
    * behind saying which engine decided it. ADR 0022's reasoning, applied to a
    * write.
    */
+  | 'calendar_range'
   | 'schedule_not_ready'
   /** The selected engine's adapter is not installed in this deployment. */
   | 'engine_unavailable'
@@ -906,6 +914,7 @@ export interface MoveWorkItem {
 }
 
 export interface WorkItemServiceOptions {
+  livePlans?: LivePlanStore;
   workItems: WorkItemStore;
   projects: ProjectStore;
   estimates: EstimateStore;
@@ -1561,10 +1570,39 @@ export class WorkItemService {
     return this.opts.broadcast.latestSeq(projectId);
   }
 
+  /** Internal detached export bundle from the same authorized observation as its catalogs and markers. */
+  async exportWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<
+    | { kind: 'isolated' }
+    | { kind: 'not_found' }
+    | AccessRefused
+    | EngineUnavailable
+    | { kind: 'shared'; project: Project; tree: PlanTree; document: PlanDocumentReads }
+  > {
+    if (this.opts.livePlans === undefined) return { kind: 'isolated' };
+    const captured = await this.opts.livePlans.readExport(projectId, access);
+    if (captured.kind !== 'shared') return captured;
+    const tree = projectSharedTree(captured);
+    if ('kind' in tree) return tree;
+    return { kind: 'shared', project: captured.project, tree, document: captured.document };
+  }
+
   /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */
-  async treeWithin(projectId: string, access: ResourceAccess): ReturnType<WorkItemService['tree']> {
+  async treeWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<Awaited<ReturnType<WorkItemService['tree']>> | AccessRefused> {
+    if (this.opts.livePlans !== undefined) {
+      const captured = await this.opts.livePlans.read(projectId, access);
+      if (captured.kind !== 'isolated') return projectSharedTree(captured);
+    }
     if (!(await this.admits(projectId, access))) return null;
-    const tree = await this.tree(projectId);
+    // Proof: bypassing the public isolated fixture read failed mounted disappearance (200 vs 404) and malformed-core export (200 vs 500).
+    const tree = await (this.opts.livePlans === undefined
+      ? this.tree(projectId)
+      : this.treeIsolated(projectId));
     if (access.kind === 'legacy' || tree === null || 'kind' in tree) return tree;
     // Assignees under their organization-local names, as the scoped people
     // list shows them; the tree read itself knows only the legacy name.
@@ -1798,6 +1836,7 @@ export class WorkItemService {
          * two for any slice.
          */
         waitingForCapacity: number;
+        waitingElsewhere?: number;
         /**
          * Every slice the schedule placed, in the order the engine placed them.
          *
@@ -1925,6 +1964,14 @@ export class WorkItemService {
     | EngineUnavailable
     | null
   > {
+    if (this.opts.livePlans !== undefined) {
+      const captured = await this.opts.livePlans.readProject(projectId);
+      if (captured.kind !== 'isolated') return projectSharedTree(captured);
+    }
+    return this.treeIsolated(projectId);
+  }
+
+  private async treeIsolated(projectId: string): Promise<PlanTree | EngineUnavailable | null> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return null;
     const seq = await this.opts.broadcast.latestSeq(projectId);
@@ -1951,349 +1998,55 @@ export class WorkItemService {
     // fail on 41 materialized people, expected at most 1, with the same payload.
     const { assignments: assigned, people: assignedPeople } =
       await this.opts.directory.assignmentsInProject(projectId);
-    const numbers = deriveNumbers(rows);
-    const totals = rollUp(rows, stored);
-    const recordedTotals = rollUpActuals(rows, recorded);
-    // Three folds over a tree already in memory, one per metric, because adding
-    // a token to an hour is the thing `rollUpMeasures` exists to make
-    // impossible. Built as a map of metric to the whole fold rather than as a
-    // per-row object here, so the recursion runs once per metric for the project
-    // instead of once per metric per row.
-    const measuredTotals = new Map(
-      MEASURE_METRICS.map((metric) => [metric, rollUpMeasures(rows, measured, metric)] as const),
-    );
-    // Which steps have work on each leaf: the ones with an estimate, the ones
-    // with a recorded day, and the ones somebody has already spoken about.
-    //
-    // This set is what makes `done` mean anything. A leaf where Dev says done
-    // and QA holds an estimate nobody has spoken about is **in progress**, not
-    // finished — and the only way the fold can know QA exists on that row is for
-    // the estimate to put it here. See `rollUpProgress`.
-    const statedTotals = rollUpProgress(rows, stated, workedStepsOf(stored, recorded, stated));
-    // The row's own reading, folded over its **children** rather than over its
-    // rolled-up steps — see `rollUpWorkItemStatuses` for why the two differ and which
-    // one is true.
-    // A legacy edge naming a work item from another project is stored state
-    // the schema does not prevent and the read already hides (`dependsOn`
-    // below); it cannot hold a leaf of this plan back, so the status fold is
-    // handed only edges between rows it holds. Typed dependencies are checked
-    // against the project when written, so a stray one there throws.
-    const rowIds = new Set(rows.map((row) => row.id));
-    const itemStatuses = workItemStatusesOf(rows, rollUpWorkItemStatuses(rows, statedTotals), {
-      edges: edges.filter((edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId)),
-      typed: authored,
-    });
-    // The write path refuses an edge that would close a cycle, but two clients
-    // drawing conflicting edges at the same instant are each checked against the
-    // graph as they read it. If one ever lands, every read of this project must
-    // still work: the rows are there, and a plan nobody can open is worse than
-    // one with no dates in it. The dates go, the rows stay, and the reason is
-    // reported rather than left as a page of zeroes.
-    // Step order comes from the project, because the order the steps are read
-    // in is the order the work runs in — see `ProjectRepository.stepsOf`.
     const steps = await this.opts.projects.stepsOf(projectId);
-    // How many slots this project may take of each team, read here rather than
-    // inside `slicesOf` so the adapter stays a pure function of what it is
-    // handed.
-    //
-    // `slotsOf` in name and in shape, and the seam C1 built is now doing the job
-    // it was built for. C1's own comment here predicted "one additive table and a
-    // first lookup, with this as the fallback"; `capacity-per-project` (Dany,
-    // 2026-08-13) kept the first half and refused the second, so this is the one
-    // lookup and there is **no fallback to `serviceTeam.size`** — a team this
-    // project has stated nothing about is absent from the map, and an absent key
-    // is unconstrained.
-    //
-    // Keyed on the team alone, not on the (project, team) pair: this is called
-    // once per project, so a project component inside the map would be constant
-    // for the whole call and every engine test would have to spell it. The pair
-    // is the key in the **store**. design.md D3.
     const slotsOf = await this.opts.capacity.slotsFor(projectId);
-    // The ladder, read here and handed straight to the payload. It is passed to
-    // nothing — not `slicesOf`, not `schedule` — and that is the change's whole
-    // claim about itself: `git diff` on this file shows one read and one field.
     const priorityBands = await this.opts.priorityBands.listFor(projectId);
     const canonical = canonicalScheduleParts(
       project,
       rows,
       stored,
       edges,
-      await this.opts.typedDependencies.listByProject(projectId),
+      authored,
       assigned,
       steps,
       slotsOf,
     );
-    const { assigneesOf, hasChildren, rule } = canonical;
-    const scheduledIds = new Set(canonical.input.rows.map((row) => row.id));
-    // What each row is **charged**, per step: a leaf's own estimate uplifted by
-    // its step's allowance and rounded, a parent's the sum of its descendants'
-    // charged figures. Not `totals` put through the method — see `rollUpFinals`.
-    const charged = rollUpFinals(
-      rows,
-      stored,
-      rule,
-      new Map(steps.map((step) => [step.id, step.allowancePercent])),
-    );
-    let optimization: PlanOptimization | undefined;
-    let timing = new Map<string, Scheduled>();
-    let scheduleError: ScheduleError = null;
-    /**
-     * How many work items are waiting for a person rather than for the plan.
-     *
-     * Zero when there is no schedule at all, which is honest rather than
-     * convenient: a plan that could not be computed has nobody queueing in it,
-     * and the banner about the cycle is what that reader needs.
-     */
-    let waitingForPerson = 0;
-    /**
-     * How many work items are waiting for a slot of their team rather than for
-     * the plan. Zero with no schedule, for {@link waitingForPerson}'s reason.
-     */
-    let waitingForCapacity = 0;
-    /**
-     * The engine's own output, kept: a plan that could not be scheduled leaves
-     * this empty and the rows keep their {@link UNSCHEDULED} spans.
-     */
-    let scheduledSlices: IdentifiedSlice[] = [];
+    let scheduling: TreeSchedule;
     try {
-      // The projection **and** the slices: a row's column shows its own span,
-      // and a chart draws the slices the span is a projection of.
-      // The reach comes off the project being scheduled, read beside the ladder
-      // and the capacity above and handed straight to the engine. It is
-      // deliberately **not** a request parameter: the schedule is the server's
-      // answer, and a client-supplied scheduling rule is a rule two clients can
-      // disagree about while looking at the same plan.
-      //
-      // Read from `project`, which is this call's own row, so two projects on
-      // different reaches in one process each get their own.
-      //
-      // Proof: `project.depReach` replaced by a module-level `let heldReach`
-      // memoised on the first plan read — the read hoisted out of the run — and
-      // `each project is scheduled by its own reach` failed on `Expected: 5 /
-      // Received: 3` for the second project's successor; watched 2026-08-29.
-      const scheduleRead = this.opts.scheduler.read({
-        projectId: project.id,
+      scheduling = this.opts.scheduler.read({
+        projectId,
         input: canonical.input,
-        // Proof: forcing `fast` here made the unavailable service fixture
-        // return a full Fast tree with one dated slice instead of this refusal.
         engine: project.scheduleEngine,
         objective: project.scheduleObjective,
         enabled: project.optimizationEnabled,
         mode: 'live',
       });
-      if (scheduleRead.kind === 'engine_unavailable') return scheduleRead;
-      const fast = scheduleRead.fast;
-      const optimizationRead = scheduleRead.optimization;
-      let optimized: Schedule | null = null;
-      if (
-        optimizationRead !== null &&
-        project.optimizationEnabled &&
-        project.scheduleEngine === 'optimized' &&
-        optimizationRead.variants[project.scheduleObjective].state === 'ready'
-      ) {
-        const selected = optimizationRead.schedules[project.scheduleObjective];
-        if (selected === null) {
-          throw new Error('optimized plan reader reported ready without a schedule');
-        }
-        optimized = selected;
-      }
-      const planned = optimized ?? fast;
-      // `selectedSchedule` states the same rule this block applies, and is what
-      // `arrangeBySchedule` asks so a press can never arrange by a schedule the
-      // chart is not drawing. Kept as an assertion rather than replacing the
-      // lines above: this read builds `optimized` on its way to `displayed` and
-      // the optimization payload, and rewriting it to call the helper would
-      // move four more decisions for no gain.
-      const selected = selectedSchedule(project, fast, optimizationRead);
-      if (selected.schedule !== planned) {
-        throw new Error('the plan read and `selectedSchedule` disagree about the drawn schedule');
-      }
-      if (optimizationRead !== null) {
-        const displayed = optimized === null ? 'fast' : project.scheduleObjective;
-        optimization = {
-          enabled: project.optimizationEnabled,
-          engine: project.scheduleEngine,
-          objective: project.scheduleObjective,
-          inputHash: optimizationRead.inputHash,
-          generation: optimizationRead.generation,
-          contractVersion: optimizationRead.contractVersion,
-          budgetMs: optimizationRead.budgetMs,
-          displayed,
-          variants: optimizationRead.variants,
-          // Unconditional, and that is the change: the figures used to be
-          // computed only for the variant on screen, so a project sitting on
-          // Fast — the state a project spends its first solve in, and the state
-          // the toggle leaves it in — had nothing to compare and the indicator
-          // drew nothing at all.
-          ...comparedWithFast(fast, optimizationRead),
-        };
-      }
-      // Scheduling uses dimensionless workday offsets and may remain valid
-      // beyond the finite calendar ECMAScript can represent. Name that state
-      // before any row calls `datesOf`, which would otherwise surface a 500.
-      // Proof: remove this preflight and the mounted controller case
-      // `models a plan beyond the calendar range without partial dates` fails
-      // on the unhandled invalid-Date projection.
-      if (project.startDate !== null) {
-        let projectFinish = 0;
-        for (const placed of planned.workItems.values()) {
-          if (placed.earliestFinish > projectFinish) projectFinish = placed.earliestFinish;
-        }
-        addWorkdays(project.startDate, lastWorkdayOf(0, projectFinish));
-      }
-      timing = planned.workItems;
-      waitingForPerson = planned.waitingForPerson;
-      waitingForCapacity = planned.waitingForCapacity;
-      // Spread rather than rebuilt field by field, and never put through any
-      // arithmetic: the engine's numbers are the answer, and this is the layer
-      // that would otherwise quietly round them.
-      //
-      // Proof: `({ id, ...placed })` mapped through `Math.round` on every
-      // number and `reports the engine's fractional numbers verbatim` failed —
-      // a slice of 3.6666666666666665 days came back as 4, a whole day of bar
-      // against the same plan's Start column; watched 2026-08-09.
-      //
-      // Proof: `resourcePredecessorId` left out of the entry — the spread
-      // replaced by the other twelve fields written out — and `names the slice
-      // the person was finishing, under the engine's own id` failed on
-      // `undefined`; the hand-off a person link is drawn from would have been
-      // absent from the payload with nothing to say it ever existed; watched
-      // 2026-08-09.
-      scheduledSlices = [...planned.slices].map(([id, placed]) => ({ id, ...placed }));
-    } catch (err) {
-      // Only the modeled failure. An unqualified catch here turned every
-      // exception in this block — a stack overflow on a pathological tree, a
-      // future mistake in `slicesOf` — into "your dependencies run in a
-      // circle", which is a lie told confidently. R5: unknown is not OK.
-      if (err instanceof ScheduleCycleError) scheduleError = 'cycle';
-      else if (err instanceof CalendarRangeError) scheduleError = 'calendar_range';
-      else throw err;
+    } catch (failure) {
+      if (failure instanceof ScheduleCycleError)
+        scheduling = { kind: 'unavailable', reason: 'cycle' };
+      else if (failure instanceof CalendarRangeError)
+        scheduling = { kind: 'unavailable', reason: 'calendar_range' };
+      else throw failure;
     }
-    const waitingFor = new Map<string, string[]>();
-    for (const found of edges) {
-      waitingFor.set(found.successorId, [
-        ...(waitingFor.get(found.successorId) ?? []),
-        found.predecessorId,
-      ]);
-    }
-    // The project's own ids, once. `dependsOn` below filters every row's stored
-    // predecessors down to the ones on this plan, and it did that with
-    // `rows.some(...)` **inside** the map over `rows` — O(rows × edges × rows),
-    // on the read every write and every socket frame performs.
-    const idsOnThisPlan = new Set(rows.map((row) => row.id));
-    const workItems = rows
-      .map((row) => ({
-        ...row,
-        number: numbers.get(row.id) ?? '',
-        estimates: Object.fromEntries(totals.get(row.id) ?? []),
-        // The days recorded against this row: its own if it is a leaf, the sum
-        // of its descendants' if it is not — the same fold, one table over.
-        //
-        // A step nobody has recorded days for is **absent from this object**,
-        // and an empty object means nobody has recorded anything on this row.
-        // Neither is a zero, and a face that renders a missing key as `0` is
-        // saying somebody stated the work took no time. See `actual` in
-        // `schema.ts`.
-        actuals: Object.fromEntries(recordedTotals.get(row.id) ?? []),
-        // The figures that are not days, metric first. A metric with no steps
-        // under this row is **struck from the object** rather than carried as
-        // `{}`, which is the same absence rule one level up: an empty object
-        // would say somebody looked at that unit on this row.
-        measures: Object.fromEntries(
-          [...measuredTotals]
-            .map(([metric, byItem]) => [metric, byItem.get(row.id) ?? new Map()] as const)
-            .filter(([, byStep]) => byStep.size > 0)
-            .map(([metric, byStep]) => [metric, Object.fromEntries(byStep)]),
-        ),
-        // Where each step's work on this row has got to: its own if it is a
-        // leaf, `agree` across its descendants' if it is not.
-        //
-        // **A step reading `unknown` is absent from this object**, exactly
-        // as an unestimated step is absent from `estimates` — the absence of a
-        // statement is how "nobody has said" is spelled everywhere in this tool,
-        // including on the wire. So an empty object means nobody has said
-        // anything about this row, and a step that is not a key has not been
-        // spoken about.
-        progress: Object.fromEntries(
-          [...(statedTotals.get(row.id) ?? [])].filter(
-            (entry): entry is [string, StepState] => entry[1] !== UNKNOWN,
-          ),
-        ),
-        // The row's own reading, **derived and never stored**: a leaf's from
-        // its steps' progress, its hold, its readiness and its predecessors, a
-        // parent's from its children — `workItemStatusesOf`.
-        status: statusOfRow(itemStatuses, row.id),
-        // A parent's charged days are the **sum of its descendants' rounded
-        // figures**, not its rolled-up triple put through the method once. The
-        // two agreed while days were fractional and part company the moment a
-        // step is rounded: two children holding half a day each are charged one
-        // day apiece, and a parent computed from the triples would say one day
-        // for the pair. `rollUpFinals` holds that decision and its proof.
-        ...finalsOf(charged.get(row.id) ?? new Map()),
-        rolledUp: hasChildren.has(row.id),
-        // Only predecessors that are in this project. A stored edge naming a
-        // work item from elsewhere — which the schema does not prevent — would
-        // otherwise be reported as a dependency on a number nobody can see.
-        dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => idsOnThisPlan.has(id)),
-        ...assignmentFieldsOf(assigneesOf.get(row.id) ?? {}),
-        // A row the hold reduction took out has no schedule and no dates: it
-        // takes no part in the plan, and a placeholder span would draw it.
-        // Proof: the placeholder kept here made `lets a successor start at day
-        // zero…` fail on a zero-length schedule where `null` was owed; watched
-        // 2026-09-29.
-        schedule: scheduledIds.has(row.id) ? (timing.get(row.id) ?? UNSCHEDULED) : null,
-        dates: scheduledIds.has(row.id)
-          ? datesOf(project.startDate, timing.get(row.id) ?? UNSCHEDULED, scheduleError !== null)
-          : null,
-      }))
-      // **Tree order, not the number string** (ADR 0023). The two agreed for as
-      // long as a frozen work item could not move — `deriveNumbers` built
-      // labels so a byte-wise sort equalled this walk — and a frozen number is
-      // a name now, so a row frozen `030` and dragged to the top is drawn at
-      // the top. Sorting by the label would draw it third, where its old name
-      // says it used to be.
-      .sort(byTreeOrder(treeOrder(rows)));
-    return {
-      workItems,
-      typedDependencies: authored.map(({ id, predecessor, successor, type }) => ({
-        id,
-        predecessor:
-          predecessor.scope === 'node'
-            ? { ...predecessor, stepNodeId: formatStepNodeId(predecessor) }
-            : predecessor,
-        successor:
-          successor.scope === 'node'
-            ? { ...successor, stepNodeId: formatStepNodeId(successor) }
-            : successor,
-        type,
-      })),
-      seq,
-      scheduleError,
-      waitingForPerson,
-      waitingForCapacity,
-      slices: scheduledSlices,
-      // The very array `slicesOf` was handed the ids of, so a slice's `stepId`
-      // is a step this list has and its place in the list is the order the
-      // engine placed the bars in. Neither is true of a step list fetched
-      // separately.
-      steps,
-      assignedPeople,
-      // Built from `slotsOf` rather than read a second time, so the numbers a
-      // client renders and the numbers these dates came out of cannot be answers
-      // to two different questions. Team-id order, as `listFor` gives, so the
-      // array does not reshuffle between two reads of an unchanged plan.
-      teamCapacities: [...slotsOf]
-        .map(([serviceTeamId, size]) => ({ serviceTeamId, size }))
-        .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
-      priorityBands,
-      estimateMethod: project.estimateMethod,
-      pertWeights: project.pertWeights,
-      estimateRounding: project.estimateRounding,
-      depReach: project.depReach,
-      startDate: project.startDate,
-      projectRevision: project.revision,
-      ...(optimization === undefined ? {} : { optimization }),
-    };
+    return projectTree(
+      {
+        project,
+        rows,
+        stored,
+        recorded,
+        stated,
+        measured,
+        edges,
+        authored,
+        assigned,
+        assignedPeople,
+        seq,
+        steps,
+        slotsOf,
+        priorityBands,
+      },
+      scheduling,
+    );
   }
 
   /**
@@ -3711,16 +3464,28 @@ export class WorkItemService {
       slotsOf,
     );
 
+    const captured =
+      this.opts.livePlans === undefined
+        ? undefined
+        : await this.opts.livePlans.readProject(projectId);
+    if (captured?.kind === 'not_found') return { ok: false, reason: 'not_found' };
+    const shared = captured?.kind === 'shared' ? captured.chain : undefined;
+    if (shared?.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
+    if (shared?.kind === 'unavailable') return { ok: false, reason: shared.reason };
+    const input = shared?.kind === 'scheduled' ? shared.input : canonical.input;
     let selected;
     try {
-      const read = this.opts.scheduler.read({
-        projectId: project.id,
-        input: canonical.input,
-        engine: project.scheduleEngine,
-        objective: project.scheduleObjective,
-        enabled: project.optimizationEnabled,
-        mode: 'live',
-      });
+      const read =
+        shared?.kind === 'scheduled'
+          ? shared.scheduled
+          : this.opts.scheduler.read({
+              projectId: project.id,
+              input: canonical.input,
+              engine: project.scheduleEngine,
+              objective: project.scheduleObjective,
+              enabled: project.optimizationEnabled,
+              mode: 'live',
+            });
       if (read.kind === 'engine_unavailable') return { ok: false, reason: 'engine_unavailable' };
       selected = selectedSchedule(project, read.fast, read.optimization);
     } catch (err) {
@@ -3737,10 +3502,7 @@ export class WorkItemService {
     // Proof: the full `rows` passed here made `arranges a plan holding an
     // on-hold leaf, and leaves the held row where it was` fail on `no
     // scheduled start for work item …`; watched 2026-09-29.
-    const arrangement = arrangeSiblingsBySchedule(
-      canonical.input.rows,
-      selected.schedule.workItems,
-    );
+    const arrangement = arrangeSiblingsBySchedule(input.rows, selected.schedule.workItems);
     // Nothing to arrange. Not an error and not a write: the project already
     // reads in the order it is drawn in.
     if (arrangement.placements.length === 0) return { ok: true, value: null };
@@ -6103,3 +5865,425 @@ export class WorkItemService {
   }
 }
 export type { NumberedWorkItem } from '../../service/numbered-work-item';
+
+interface TreeReads {
+  project: Project;
+  rows: LabelledWorkItem[];
+  stored: readonly StoredEstimate[];
+  recorded: readonly StoredActual[];
+  stated: readonly StoredProgress[];
+  measured: readonly StoredMeasure[];
+  edges: readonly Pick<StoredDependency, 'predecessorId' | 'successorId'>[];
+  authored: readonly TypedDependency[];
+  assigned: readonly Assignment[];
+  assignedPeople: { id: string; name: string }[];
+  seq: number;
+  steps: Step[];
+  slotsOf: ReadonlyMap<string, number>;
+  priorityBands: PriorityBand[];
+}
+
+/** Projects detached shared rows and captured schedules without reading stores or admitting work. */
+function projectSharedTree(
+  captured: Extract<LivePlanRead, { readonly kind: 'shared' }>,
+): PlanTree | EngineUnavailable;
+function projectSharedTree(
+  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' | 'access_refused' }>,
+): PlanTree | EngineUnavailable | null;
+function projectSharedTree(
+  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' }>,
+): PlanTree | EngineUnavailable | AccessRefused | null;
+function projectSharedTree(
+  captured: Exclude<LivePlanRead, { readonly kind: 'isolated' }>,
+): PlanTree | EngineUnavailable | AccessRefused | null {
+  if (captured.kind === 'access_refused') return captured;
+  if (captured.kind === 'not_found') return null;
+  const { chain, project, workItems: rows, steps, seq } = captured;
+  if (chain.kind === 'engine_unavailable') return chain;
+  const reads = chain.reads;
+  const people = new Set(reads.assignments.map((assignment) => assignment.personId));
+  return projectTree(
+    {
+      project,
+      rows,
+      steps,
+      seq,
+      stored: reads.estimates,
+      recorded: reads.actuals,
+      stated: reads.progress,
+      measured: reads.measures,
+      edges: reads.dependencies,
+      authored: reads.typedDependencies,
+      assigned: reads.assignments,
+      assignedPeople: reads.people
+        .filter((person) => people.has(person.id))
+        .map(({ id, name }) => ({ id, name })),
+      slotsOf: reads.capacity,
+      priorityBands: [...reads.priorityBands],
+    },
+    chain.kind === 'scheduled' ? chain.scheduled : { kind: 'unavailable', reason: chain.reason },
+  );
+}
+
+/** Pure live projection shared by isolated reads and coherent shared observations. */
+type TreeSchedule =
+  ScheduleRead | { readonly kind: 'unavailable'; readonly reason: Exclude<ScheduleError, null> };
+
+function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | EngineUnavailable {
+  const {
+    project,
+    rows,
+    stored,
+    recorded,
+    stated,
+    measured,
+    edges,
+    authored,
+    assigned,
+    assignedPeople,
+    seq,
+    steps,
+    slotsOf,
+    priorityBands,
+  } = reads;
+  const numbers = deriveNumbers(rows);
+  const totals = rollUp(rows, stored);
+  const recordedTotals = rollUpActuals(rows, recorded);
+  // Three folds over a tree already in memory, one per metric, because adding
+  // a token to an hour is the thing `rollUpMeasures` exists to make
+  // impossible. Built as a map of metric to the whole fold rather than as a
+  // per-row object here, so the recursion runs once per metric for the project
+  // instead of once per metric per row.
+  const measuredTotals = new Map(
+    MEASURE_METRICS.map((metric) => [metric, rollUpMeasures(rows, measured, metric)] as const),
+  );
+  // Which steps have work on each leaf: the ones with an estimate, the ones
+  // with a recorded day, and the ones somebody has already spoken about.
+  //
+  // This set is what makes `done` mean anything. A leaf where Dev says done
+  // and QA holds an estimate nobody has spoken about is **in progress**, not
+  // finished — and the only way the fold can know QA exists on that row is for
+  // the estimate to put it here. See `rollUpProgress`.
+  const statedTotals = rollUpProgress(rows, stated, workedStepsOf(stored, recorded, stated));
+  // The row's own reading, folded over its **children** rather than over its
+  // rolled-up steps — see `rollUpWorkItemStatuses` for why the two differ and which
+  // one is true.
+  // A legacy edge naming a work item from another project is stored state
+  // the schema does not prevent and the read already hides (`dependsOn`
+  // below); it cannot hold a leaf of this plan back, so the status fold is
+  // handed only edges between rows it holds. Typed dependencies are checked
+  // against the project when written, so a stray one there throws.
+  const rowIds = new Set(rows.map((row) => row.id));
+  const itemStatuses = workItemStatusesOf(rows, rollUpWorkItemStatuses(rows, statedTotals), {
+    edges: edges.filter((edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId)),
+    typed: authored,
+  });
+  // The write path refuses an edge that would close a cycle, but two clients
+  // drawing conflicting edges at the same instant are each checked against the
+  // graph as they read it. If one ever lands, every read of this project must
+  // still work: the rows are there, and a plan nobody can open is worse than
+  // one with no dates in it. The dates go, the rows stay, and the reason is
+  // reported rather than left as a page of zeroes.
+  // Step order comes from the project, because the order the steps are read
+  // in is the order the work runs in — see `ProjectRepository.stepsOf`.
+
+  // How many slots this project may take of each team, read here rather than
+  // inside `slicesOf` so the adapter stays a pure function of what it is
+  // handed.
+  //
+  // `slotsOf` in name and in shape, and the seam C1 built is now doing the job
+  // it was built for. C1's own comment here predicted "one additive table and a
+  // first lookup, with this as the fallback"; `capacity-per-project` (Dany,
+  // 2026-08-13) kept the first half and refused the second, so this is the one
+  // lookup and there is **no fallback to `serviceTeam.size`** — a team this
+  // project has stated nothing about is absent from the map, and an absent key
+  // is unconstrained.
+  //
+  // Keyed on the team alone, not on the (project, team) pair: this is called
+  // once per project, so a project component inside the map would be constant
+  // for the whole call and every engine test would have to spell it. The pair
+  // is the key in the **store**. design.md D3.
+
+  // The ladder, read here and handed straight to the payload. It is passed to
+  // nothing — not `slicesOf`, not `schedule` — and that is the change's whole
+  // claim about itself: `git diff` on this file shows one read and one field.
+
+  const canonical = canonicalScheduleParts(
+    project,
+    rows,
+    stored,
+    edges,
+    authored,
+    assigned,
+    steps,
+    slotsOf,
+  );
+  const { assigneesOf, hasChildren, rule } = canonical;
+  const scheduledIds = new Set(canonical.input.rows.map((row) => row.id));
+  // What each row is **charged**, per step: a leaf's own estimate uplifted by
+  // its step's allowance and rounded, a parent's the sum of its descendants'
+  // charged figures. Not `totals` put through the method — see `rollUpFinals`.
+  const charged = rollUpFinals(
+    rows,
+    stored,
+    rule,
+    new Map(steps.map((step) => [step.id, step.allowancePercent])),
+  );
+  let optimization: PlanOptimization | undefined;
+  let timing = new Map<string, Scheduled>();
+  let scheduleError: ScheduleError = scheduling.kind === 'unavailable' ? scheduling.reason : null;
+  /**
+   * How many work items are waiting for a person rather than for the plan.
+   *
+   * Zero when there is no schedule at all, which is honest rather than
+   * convenient: a plan that could not be computed has nobody queueing in it,
+   * and the banner about the cycle is what that reader needs.
+   */
+  let waitingForPerson = 0;
+  /**
+   * How many work items are waiting for a slot of their team rather than for
+   * the plan. Zero with no schedule, for {@link waitingForPerson}'s reason.
+   */
+  let waitingForCapacity = 0;
+  let waitingElsewhere: number | undefined;
+  /**
+   * The engine's own output, kept: a plan that could not be scheduled leaves
+   * this empty and the rows keep their {@link UNSCHEDULED} spans.
+   */
+  let scheduledSlices: IdentifiedSlice[] = [];
+  try {
+    if (scheduling.kind !== 'unavailable') {
+      const scheduleRead = scheduling;
+      // The projection **and** the slices: a row's column shows its own span,
+      // and a chart draws the slices the span is a projection of.
+      // The reach comes off the project being scheduled, read beside the ladder
+      // and the capacity above and handed straight to the engine. It is
+      // deliberately **not** a request parameter: the schedule is the server's
+      // answer, and a client-supplied scheduling rule is a rule two clients can
+      // disagree about while looking at the same plan.
+      //
+      // Read from `project`, which is this call's own row, so two projects on
+      // different reaches in one process each get their own.
+      //
+      // Proof: `project.depReach` replaced by a module-level `let heldReach`
+      // memoised on the first plan read — the read hoisted out of the run — and
+      // `each project is scheduled by its own reach` failed on `Expected: 5 /
+      // Received: 3` for the second project's successor; watched 2026-08-29.
+      if (scheduleRead.kind === 'engine_unavailable') return scheduleRead;
+      const fast = scheduleRead.fast;
+      const optimizationRead = scheduleRead.optimization;
+      let optimized: Schedule | null = null;
+      if (
+        optimizationRead !== null &&
+        project.optimizationEnabled &&
+        project.scheduleEngine === 'optimized' &&
+        optimizationRead.variants[project.scheduleObjective].state === 'ready'
+      ) {
+        const selected = optimizationRead.schedules[project.scheduleObjective];
+        if (selected === null) {
+          throw new Error('optimized plan reader reported ready without a schedule');
+        }
+        optimized = selected;
+      }
+      const planned = optimized ?? fast;
+      // `selectedSchedule` states the same rule this block applies, and is what
+      // `arrangeBySchedule` asks so a press can never arrange by a schedule the
+      // chart is not drawing. Kept as an assertion rather than replacing the
+      // lines above: this read builds `optimized` on its way to `displayed` and
+      // the optimization payload, and rewriting it to call the helper would
+      // move four more decisions for no gain.
+      const selected = selectedSchedule(project, fast, optimizationRead);
+      if (selected.schedule !== planned) {
+        throw new Error('the plan read and `selectedSchedule` disagree about the drawn schedule');
+      }
+      if (optimizationRead !== null) {
+        const displayed = optimized === null ? 'fast' : project.scheduleObjective;
+        optimization = {
+          enabled: project.optimizationEnabled,
+          engine: project.scheduleEngine,
+          objective: project.scheduleObjective,
+          inputHash: optimizationRead.inputHash,
+          generation: optimizationRead.generation,
+          contractVersion: optimizationRead.contractVersion,
+          budgetMs: optimizationRead.budgetMs,
+          displayed,
+          variants: optimizationRead.variants,
+          // Unconditional, and that is the change: the figures used to be
+          // computed only for the variant on screen, so a project sitting on
+          // Fast — the state a project spends its first solve in, and the state
+          // the toggle leaves it in — had nothing to compare and the indicator
+          // drew nothing at all.
+          ...comparedWithFast(fast, optimizationRead),
+        };
+      }
+      // Scheduling uses dimensionless workday offsets and may remain valid
+      // beyond the finite calendar ECMAScript can represent. Name that state
+      // before any row calls `datesOf`, which would otherwise surface a 500.
+      // Proof: remove this preflight and the mounted controller case
+      // `models a plan beyond the calendar range without partial dates` fails
+      // on the unhandled invalid-Date projection.
+      if (project.startDate !== null) {
+        let projectFinish = 0;
+        for (const placed of planned.workItems.values()) {
+          if (placed.earliestFinish > projectFinish) projectFinish = placed.earliestFinish;
+        }
+        addWorkdays(project.startDate, lastWorkdayOf(0, projectFinish));
+      }
+      timing = planned.workItems;
+      waitingForPerson = planned.waitingForPerson;
+      waitingForCapacity = planned.waitingForCapacity;
+      // Proof: omitting this projection fails mounted shared tree/export waiting count.
+      waitingElsewhere = planned.waitingElsewhere;
+      // Spread rather than rebuilt field by field, and never put through any
+      // arithmetic: the engine's numbers are the answer, and this is the layer
+      // that would otherwise quietly round them.
+      //
+      // Proof: `({ id, ...placed })` mapped through `Math.round` on every
+      // number and `reports the engine's fractional numbers verbatim` failed —
+      // a slice of 3.6666666666666665 days came back as 4, a whole day of bar
+      // against the same plan's Start column; watched 2026-08-09.
+      //
+      // Proof: `resourcePredecessorId` left out of the entry — the spread
+      // replaced by the other twelve fields written out — and `names the slice
+      // the person was finishing, under the engine's own id` failed on
+      // `undefined`; the hand-off a person link is drawn from would have been
+      // absent from the payload with nothing to say it ever existed; watched
+      // 2026-08-09.
+      scheduledSlices = [...planned.slices].map(([id, placed]) => ({ id, ...placed }));
+    }
+  } catch (err) {
+    // Only the modeled failure. An unqualified catch here turned every
+    // exception in this block — a stack overflow on a pathological tree, a
+    // future mistake in `slicesOf` — into "your dependencies run in a
+    // circle", which is a lie told confidently. R5: unknown is not OK.
+    if (err instanceof ScheduleCycleError) scheduleError = 'cycle';
+    else if (err instanceof CalendarRangeError) scheduleError = 'calendar_range';
+    else throw err;
+  }
+  const waitingFor = new Map<string, string[]>();
+  for (const found of edges) {
+    waitingFor.set(found.successorId, [
+      ...(waitingFor.get(found.successorId) ?? []),
+      found.predecessorId,
+    ]);
+  }
+  // The project's own ids, once. `dependsOn` below filters every row's stored
+  // predecessors down to the ones on this plan, and it did that with
+  // `rows.some(...)` **inside** the map over `rows` — O(rows × edges × rows),
+  // on the read every write and every socket frame performs.
+  const idsOnThisPlan = new Set(rows.map((row) => row.id));
+  const workItems = rows
+    .map((row) => ({
+      ...row,
+      number: numbers.get(row.id) ?? '',
+      estimates: Object.fromEntries(totals.get(row.id) ?? []),
+      // The days recorded against this row: its own if it is a leaf, the sum
+      // of its descendants' if it is not — the same fold, one table over.
+      //
+      // A step nobody has recorded days for is **absent from this object**,
+      // and an empty object means nobody has recorded anything on this row.
+      // Neither is a zero, and a face that renders a missing key as `0` is
+      // saying somebody stated the work took no time. See `actual` in
+      // `schema.ts`.
+      actuals: Object.fromEntries(recordedTotals.get(row.id) ?? []),
+      // The figures that are not days, metric first. A metric with no steps
+      // under this row is **struck from the object** rather than carried as
+      // `{}`, which is the same absence rule one level up: an empty object
+      // would say somebody looked at that unit on this row.
+      measures: Object.fromEntries(
+        [...measuredTotals]
+          .map(([metric, byItem]) => [metric, byItem.get(row.id) ?? new Map()] as const)
+          .filter(([, byStep]) => byStep.size > 0)
+          .map(([metric, byStep]) => [metric, Object.fromEntries(byStep)]),
+      ),
+      // Where each step's work on this row has got to: its own if it is a
+      // leaf, `agree` across its descendants' if it is not.
+      //
+      // **A step reading `unknown` is absent from this object**, exactly
+      // as an unestimated step is absent from `estimates` — the absence of a
+      // statement is how "nobody has said" is spelled everywhere in this tool,
+      // including on the wire. So an empty object means nobody has said
+      // anything about this row, and a step that is not a key has not been
+      // spoken about.
+      progress: Object.fromEntries(
+        [...(statedTotals.get(row.id) ?? [])].filter(
+          (entry): entry is [string, StepState] => entry[1] !== UNKNOWN,
+        ),
+      ),
+      // The row's own reading, **derived and never stored**: a leaf's from
+      // its steps' progress, its hold, its readiness and its predecessors, a
+      // parent's from its children — `workItemStatusesOf`.
+      status: statusOfRow(itemStatuses, row.id),
+      // A parent's charged days are the **sum of its descendants' rounded
+      // figures**, not its rolled-up triple put through the method once. The
+      // two agreed while days were fractional and part company the moment a
+      // step is rounded: two children holding half a day each are charged one
+      // day apiece, and a parent computed from the triples would say one day
+      // for the pair. `rollUpFinals` holds that decision and its proof.
+      ...finalsOf(charged.get(row.id) ?? new Map()),
+      rolledUp: hasChildren.has(row.id),
+      // Only predecessors that are in this project. A stored edge naming a
+      // work item from elsewhere — which the schema does not prevent — would
+      // otherwise be reported as a dependency on a number nobody can see.
+      dependsOn: (waitingFor.get(row.id) ?? []).filter((id) => idsOnThisPlan.has(id)),
+      ...assignmentFieldsOf(assigneesOf.get(row.id) ?? {}),
+      // A row the hold reduction took out has no schedule and no dates: it
+      // takes no part in the plan, and a placeholder span would draw it.
+      // Proof: the placeholder kept here made `lets a successor start at day
+      // zero…` fail on a zero-length schedule where `null` was owed; watched
+      // 2026-09-29.
+      schedule: scheduledIds.has(row.id) ? (timing.get(row.id) ?? UNSCHEDULED) : null,
+      dates: scheduledIds.has(row.id)
+        ? datesOf(project.startDate, timing.get(row.id) ?? UNSCHEDULED, scheduleError !== null)
+        : null,
+    }))
+    // **Tree order, not the number string** (ADR 0023). The two agreed for as
+    // long as a frozen work item could not move — `deriveNumbers` built
+    // labels so a byte-wise sort equalled this walk — and a frozen number is
+    // a name now, so a row frozen `030` and dragged to the top is drawn at
+    // the top. Sorting by the label would draw it third, where its old name
+    // says it used to be.
+    .sort(byTreeOrder(treeOrder(rows)));
+  return {
+    workItems,
+    typedDependencies: authored.map(({ id, predecessor, successor, type }) => ({
+      id,
+      predecessor:
+        predecessor.scope === 'node'
+          ? { ...predecessor, stepNodeId: formatStepNodeId(predecessor) }
+          : predecessor,
+      successor:
+        successor.scope === 'node'
+          ? { ...successor, stepNodeId: formatStepNodeId(successor) }
+          : successor,
+      type,
+    })),
+    seq,
+    scheduleError,
+    waitingForPerson,
+    waitingForCapacity,
+    ...(waitingElsewhere === undefined ? {} : { waitingElsewhere }),
+    slices: scheduledSlices,
+    // The very array `slicesOf` was handed the ids of, so a slice's `stepId`
+    // is a step this list has and its place in the list is the order the
+    // engine placed the bars in. Neither is true of a step list fetched
+    // separately.
+    steps,
+    assignedPeople,
+    // Built from `slotsOf` rather than read a second time, so the numbers a
+    // client renders and the numbers these dates came out of cannot be answers
+    // to two different questions. Team-id order, as `listFor` gives, so the
+    // array does not reshuffle between two reads of an unchanged plan.
+    teamCapacities: [...slotsOf]
+      .map(([serviceTeamId, size]) => ({ serviceTeamId, size }))
+      .sort((a, b) => a.serviceTeamId.localeCompare(b.serviceTeamId)),
+    priorityBands,
+    estimateMethod: project.estimateMethod,
+    pertWeights: project.pertWeights,
+    estimateRounding: project.estimateRounding,
+    depReach: project.depReach,
+    startDate: project.startDate,
+    projectRevision: project.revision,
+    ...(optimization === undefined ? {} : { optimization }),
+  };
+}

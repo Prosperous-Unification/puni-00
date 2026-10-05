@@ -950,6 +950,10 @@ const declaration: SourceDeclaration = {
   revision: sourceRevision(),
   historyAdmission: 'independent-write',
   capabilities: {
+    livePlans: {
+      kind: 'absent',
+      reason: 'Memory fixtures offer isolated stores without the SQLite shared snapshot reader.',
+    },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
     users: { kind: 'offered', gaps: [], open: openers.users },
     capacity: {
@@ -5698,9 +5702,19 @@ describe('memory existing source conformance', () => {
     ).toEqual(
       expected
         .map(({ caseId }) => caseId)
-        .filter((caseId) => !knownGaps.some((gap) => gap.caseId === caseId))
+        .filter(
+          (caseId) =>
+            caseId !== 'livePlans.read:legacy-and-absence' &&
+            !knownGaps.some((gap) => gap.caseId === caseId),
+        )
         .toSorted(),
     );
+    expect(failedCase(report, 'livePlans.read:legacy-and-absence')).toMatchObject({
+      family: 'livePlans',
+      caseId: 'livePlans.read:legacy-and-absence',
+      status: 'not-offered',
+      executed: false,
+    });
     expect(
       knownGaps.map((gap) => {
         const execution = failedCase(report, gap.caseId);

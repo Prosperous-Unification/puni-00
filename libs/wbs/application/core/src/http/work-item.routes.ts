@@ -408,6 +408,9 @@ export function workItemRoutes(
       if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
       // Proof: removing this branch made the mounted unavailable work-item read
       // receive 500 instead of the required 409.
+      // Proof: removing this mapping failed mounted revocation: expected 403 became 500.
+      if ('kind' in tree && tree.kind === 'access_refused')
+        return organizationRefusal(tree.refusal);
       if ('kind' in tree)
         return {
           ok: false,

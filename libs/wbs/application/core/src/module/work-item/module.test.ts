@@ -54,6 +54,7 @@ const hostRequirements = () => {
     workItemStore: DiBag.createProvider(() => stores.workItems, {
       factoryReturnKind: 'sync-value',
     }),
+    livePlans: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
     projectStore: DiBag.createProvider(() => stores.projects, { factoryReturnKind: 'sync-value' }),
     estimateStore: DiBag.createProvider(() => stores.estimates, {
       factoryReturnKind: 'sync-value',
