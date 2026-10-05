@@ -1,6 +1,6 @@
 {
-  "$comment": "The shared golden corpus both suites run (2.1). Each entry names the branch of solver-wire.v2.json to validate against — #/$defs/<branch> — and whether the schema must accept it. A consumer that accepts a message the schema rejects, or rejects one it accepts, fails the contract test. Every slice key here contains a real U+0000, written as the \\u0000 escape: the escape parses to the exact character, so the corpus is verbatim while the files stay text to git and grep.",
-  "schema": "../solver-wire.v2.json",
+  "$comment": "The shared golden corpus both suites run (2.1). Each entry names the branch of solver-wire.v3.json to validate against — #/$defs/<branch> — and whether the schema must accept it. A consumer that accepts a message the schema rejects, or rejects one it accepts, fails the contract test. Every slice key here contains a real U+0000, written as the \\u0000 escape: the escape parses to the exact character, so the corpus is verbatim while the files stay text to git and grep.",
+  "schema": "../solver-wire.v3.json",
   "fixtures": [
     {
       "file": "request/valid-ff-quantization.json",

@@ -16,7 +16,7 @@ import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { solverSlot } from '../repository/schema';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
-const CONTRACT = '7+0.1.0';
+const CONTRACT = '7+0.2.0';
 const BUDGET_MS = 60_000;
 const INPUT: ScheduleInput = {
   rows: [{ id: 'w-1', parentId: null, position: 10, frozenNumber: null, priority: null }],
@@ -152,7 +152,7 @@ describe('the two-coordinator spawn handshake', () => {
         repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
         hashInput: scheduleInputHash,
         contractVersion: CONTRACT,
-        solverVersion: '0.1.0',
+        solverVersion: '0.2.0',
         budgetMs: BUDGET_MS,
         ownerId: owner,
         now: () => now,

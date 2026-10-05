@@ -59,7 +59,7 @@ function requestFor(input: SolverRequestPlan) {
   );
   const built = buildSolverRequest(input, 'time', {
     baselineOffsets,
-    solverVersion: '0.1.4',
+    solverVersion: '0.2.0',
     budgetMs: 1_000,
   });
   if (!built.ok) throw new Error(`the request refused: ${JSON.stringify(built)}`);
@@ -73,7 +73,7 @@ const term = (value: number): SolverObjectiveValues[SolverObjectiveTerm] => ({
   status: 'feasible',
 });
 const feasible = (offsets: Record<string, number>): SolverResponse => ({
-  wireVersion: 2,
+  wireVersion: 3,
   status: 'feasible',
   offsets,
   objectiveValues: { makespan: term(0), priority: term(0), movement: term(0) },

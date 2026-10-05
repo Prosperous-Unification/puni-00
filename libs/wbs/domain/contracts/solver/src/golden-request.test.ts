@@ -120,7 +120,7 @@ const requestOf = () => {
       plan.reach,
       [],
     ),
-    solverVersion: '0.1.4',
+    solverVersion: '0.2.0',
     budgetMs: 30_000,
   });
   if (!built.ok) throw new Error(`expected a request, got ${built.failure}: ${built.detail}`);
@@ -173,7 +173,7 @@ describe('the golden request corpus', () => {
     );
     const built = buildSolverRequest(ffPlan, 'time', {
       baselineOffsets,
-      solverVersion: '0.1.4',
+      solverVersion: '0.2.0',
       budgetMs: 1_000,
     });
     if (!built.ok) throw new Error(built.detail);
@@ -181,7 +181,7 @@ describe('the golden request corpus', () => {
     expect(
       revalidateSolverResult(
         built.request,
-        { wireVersion: 2, status: 'unknown' },
+        { wireVersion: 3, status: 'unknown' },
         ffPlan.slices,
         ffPlan,
       ),
@@ -234,7 +234,7 @@ describe('the golden request corpus', () => {
         const expected = peers.every((slice) => slice.durationUnits === 0);
         expect(peers.every((slice) => slice.workItemIsMilestone === expected)).toBe(true);
       }
-      expect(revalidateSolverResult(request, { wireVersion: 2, status: 'unknown' })).toEqual({
+      expect(revalidateSolverResult(request, { wireVersion: 3, status: 'unknown' })).toEqual({
         ok: true,
         published: false,
       });

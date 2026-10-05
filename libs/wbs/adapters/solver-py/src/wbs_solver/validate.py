@@ -2,7 +2,7 @@
 
 THE SCHEMA IS NOT A COPY OF THE RULES, IT IS THE RULES
 ------------------------------------------------------
-`solver-wire.v2.json` is the single normative definition of both messages
+`solver-wire.v3.json` is the single normative definition of both messages
 (design.md "Solver wire contract — one versioned schema, four consumers"). This
 module is the third of that file's four consumers. It validates against the copy
 installed **beside** the package, because a wheel deployed into the be-01 image
@@ -76,7 +76,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
-SCHEMA_FILENAME = "solver-wire.v2.json"
+SCHEMA_FILENAME = "solver-wire.v3.json"
 SCHEMA_PATH = Path(__file__).resolve().parent / SCHEMA_FILENAME
 
 
@@ -155,7 +155,11 @@ def validate_against_schema(message: dict[str, Any], branch: str = "request") ->
 
 
 def check_cross_field(request: dict[str, Any]) -> None:
-    """The six invariants this receiver states for itself. See the module docstring."""
+    """Check receiver invariants, including ordered person calendars within the horizon.
+
+    Fixed bookings are half-open positive intervals. Adjacent intervals are legal;
+    overlapping or unsorted intervals and finishes past the horizon raise RequestRejected.
+    """
     slice_keys = [s["key"] for s in request["slices"]]
     key_set = set(slice_keys)
     if len(key_set) != len(slice_keys):
@@ -172,6 +176,19 @@ def check_cross_field(request: dict[str, Any]) -> None:
             )
 
     horizon = request["horizonUnits"]
+    # Proof: removing this block made the production-boundary malformed-bookings test
+    # accept zero/reversed spans, an end past the horizon, unsorted spans and overlap
+    # (five failing subcases). The schema cannot compare these fields.
+    for person, bookings in request["elsewhere"].items():
+        previous_end = 0
+        for index, (start, end) in enumerate(bookings):
+            if start >= end:
+                raise RequestRejected(f"elsewhere[{person!r}][{index}] must have start < end")
+            if end > horizon:
+                raise RequestRejected(f"elsewhere[{person!r}][{index}] ends past horizonUnits {horizon}")
+            if start < previous_end:
+                raise RequestRejected(f"elsewhere[{person!r}] must be sorted without overlap")
+            previous_end = end
     for field in ("baselineOffsets", "fastHint"):
         for key, value in request[field].items():
             if value > horizon:
@@ -301,6 +318,11 @@ def check_cross_field(request: dict[str, Any]) -> None:
 def validate_request(raw: bytes) -> dict[str, Any]:
     """Parse, validate, cross-check. The entrypoint's whole front door."""
     request = parse_request(raw)
+    # Proof: replacing the bundled schema's elsewhere $ref with {} made the production
+    # malformed-bookings test accept an empty person key, bool and fractional ends;
+    # its malformed tuple raised ValueError instead of RequestRejected. Removing required
+    # elsewhere made test_missing_elsewhere_is_refused raise KeyError; removing wireVersion's
+    # const made test_wire_two_with_elsewhere_is_still_refused accept wire 2. All restored.
     validate_against_schema(request, "request")
     check_cross_field(request)
     return request

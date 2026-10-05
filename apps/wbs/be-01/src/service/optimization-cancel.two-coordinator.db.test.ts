@@ -231,7 +231,7 @@ describe('cross-coordinator cancellation', () => {
       repository: createOptimizationRepository(blue, new DrizzleEventLogStore(blue, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,

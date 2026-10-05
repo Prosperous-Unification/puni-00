@@ -27,7 +27,7 @@ const INPUT: ScheduleInput = {
 
 const built = buildSolverRequest(INPUT, 'pri', {
   baselineOffsets: { 'w-1\u0000dev': 0 },
-  solverVersion: '0.1.0',
+  solverVersion: '0.2.0',
   budgetMs: 60_000,
 });
 if (!built.ok) throw new Error('fixture request refused');
@@ -39,14 +39,14 @@ const DEADLINED_INPUT: ScheduleInput = {
 };
 const deadlined = buildSolverRequest(DEADLINED_INPUT, 'pri', {
   baselineOffsets: { 'w-1\u0000dev': 0 },
-  solverVersion: '0.1.0',
+  solverVersion: '0.2.0',
   budgetMs: 60_000,
 });
 if (!deadlined.ok) throw new Error('fixture deadline request refused');
 
-const response = (offset = 0, reportedOffset = offset): string =>
+const response = (offset = 0, reportedOffset = offset, movement = reportedOffset): string =>
   `${JSON.stringify({
-    wireVersion: 2,
+    wireVersion: 3,
     status: 'feasible',
     offsets: { 'w-1\u0000dev': offset },
     objectiveValues: {
@@ -63,8 +63,8 @@ const response = (offset = 0, reportedOffset = offset): string =>
         status: 'optimal',
       },
       movement: {
-        value: reportedOffset,
-        stageValue: reportedOffset,
+        value: movement,
+        stageValue: movement,
         bound: 0,
         status: 'optimal',
       },
@@ -107,19 +107,19 @@ describe('evaluateSolverOutcome', () => {
     expect(
       evaluateSolverOutcome(INPUT, REQUEST, {
         kind: 'response',
-        stdout: '{"wireVersion":2,"status":"unknown"}\n',
+        stdout: '{"wireVersion":3,"status":"unknown"}\n',
       }),
     ).toEqual({ kind: 'failed', reason: 'no-solution' });
     expect(
       evaluateSolverOutcome(INPUT, REQUEST, {
         kind: 'response',
-        stdout: '{"wireVersion":2,"status":"infeasible"}\n',
+        stdout: '{"wireVersion":3,"status":"infeasible"}\n',
       }),
     ).toEqual({ kind: 'failed', reason: 'invalid-output' });
     expect(
       evaluateSolverOutcome(DEADLINED_INPUT, deadlined.request, {
         kind: 'response',
-        stdout: '{"wireVersion":2,"status":"infeasible"}\n',
+        stdout: '{"wireVersion":3,"status":"infeasible"}\n',
       }),
     ).toEqual({
       kind: 'plan-infeasible',
@@ -171,7 +171,7 @@ describe('evaluateSolverOutcome', () => {
     expect(
       evaluateSolverOutcome(DEADLINED_INPUT, withDeadline(1), {
         kind: 'response',
-        stdout: '{"wireVersion":2,"status":"infeasible"}\n',
+        stdout: '{"wireVersion":3,"status":"infeasible"}\n',
       }),
     ).toEqual({ kind: 'failed', reason: 'internal-error' });
 
@@ -191,7 +191,7 @@ describe('evaluateSolverOutcome', () => {
     expect(
       evaluateSolverOutcome(DEADLINED_INPUT, withDeadline(48), {
         kind: 'response',
-        stdout: '{"wireVersion":2,"status":"infeasible"}\n',
+        stdout: '{"wireVersion":3,"status":"infeasible"}\n',
       }).kind,
     ).toBe('plan-infeasible');
 
@@ -200,7 +200,7 @@ describe('evaluateSolverOutcome', () => {
     expect(
       evaluateSolverOutcome(DEADLINED_INPUT, withDeadline(1), {
         kind: 'response',
-        stdout: '{"wireVersion":2,"status":"unknown"}\n',
+        stdout: '{"wireVersion":3,"status":"unknown"}\n',
       }),
     ).toEqual({ kind: 'failed', reason: 'internal-error' });
   });
@@ -250,7 +250,7 @@ describe('evaluateSolverOutcome', () => {
     );
     const built = buildSolverRequest(input, 'time', {
       baselineOffsets,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: 60_000,
     });
     if (!built.ok) throw new Error('feasible-order fixture request refused');
@@ -273,4 +273,39 @@ describe('evaluateSolverOutcome', () => {
     expect(outcome.optimized.schedule.slices.get('a\u0000')?.earliestStart).toBe(2);
     expect(outcome.optimized.schedule.slices.get('a\u0000')?.lateBy).toBeNull();
   });
+});
+
+it('refuses publication when a solver ignores the fixed booking and preserves original holders otherwise', () => {
+  const input: ScheduleInput = {
+    ...INPUT,
+    slices: INPUT.slices.map((slice) => ({ ...slice, personId: 'ana' })),
+    elsewhere: new Map([['ana', [{ start: 0, end: 1, projectId: 'higher', workItemId: 'held' }]]]),
+  };
+  const built = buildSolverRequest(input, 'pri', {
+    baselineOffsets: { 'w-1\u0000dev': 48 },
+    solverVersion: '0.2.0',
+    budgetMs: 1000,
+  });
+  if (!built.ok) throw new Error(built.detail);
+  expect(
+    evaluateSolverOutcome(input, built.request, { kind: 'response', stdout: response(0) }),
+  ).toEqual({ kind: 'failed', reason: 'invalid-output' });
+  const outcome = evaluateSolverOutcome(input, built.request, {
+    kind: 'response',
+    stdout: response(48, 48, 0),
+  });
+  expect(outcome.kind).toBe('ok');
+  if (outcome.kind !== 'ok') throw new Error('expected published schedule');
+  expect(outcome.optimized.schedule.slices.get('w-1\u0000dev')).toMatchObject({
+    earliestStart: 1,
+    boundBy: 'elsewhere',
+    elsewhereHolder: { projectId: 'higher', workItemId: 'held' },
+  });
+  expect(
+    evaluateSolverOutcome(
+      input,
+      { ...built.request, elsewhere: {} },
+      { kind: 'response', stdout: response(0) },
+    ),
+  ).toEqual({ kind: 'failed', reason: 'internal-error' });
 });

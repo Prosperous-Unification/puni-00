@@ -512,7 +512,7 @@ describe('buildServices', () => {
     // launch arrives here.
     const spawned: ReservedSpawnRequest[] = [];
     const { db, services } = bootstrap({
-      solverVersion: '0.1.4',
+      solverVersion: '0.2.0',
       budgetMs: 60_000,
       spawn: (request) => {
         spawned.push(request);
@@ -557,13 +557,13 @@ describe('buildServices', () => {
       ]),
     ).toEqual([
       // The current solver release composes with the current scheduler contract.
-      ['0.1.4', '15+0.1.4', 60_000],
-      ['0.1.4', '15+0.1.4', 60_000],
+      ['0.2.0', '15+0.2.0', 60_000],
+      ['0.2.0', '15+0.2.0', 60_000],
     ]);
   });
 
   it('starts current solves instead of reading a pre-fix failed pair', async () => {
-    const legacyContract = '7+0.1.0';
+    const legacyContract = '7+0.2.0';
     const currentSolver = readRuntimeSolverVersion('development');
     const spawned: ReservedSpawnRequest[] = [];
     const { db, services } = bootstrap({
@@ -623,12 +623,12 @@ describe('buildServices', () => {
     await services.workItems.tree(projectId);
     await services.optimizer?.drain();
 
-    expect(currentSolver).toBe('0.1.4');
-    // Proof: hard-coding `services.ts`'s coordinator key to `7+0.1.0` read the
+    expect(currentSolver).toBe('0.2.0');
+    // Proof: hard-coding `services.ts`'s coordinator key to `7+0.2.0` read the
     // seeded failed pair and failed here with `Expected ["pri", "time"] /
     // Received []`; watched 2026-09-07.
     expect(spawned.map(({ objective }) => objective)).toEqual(['pri', 'time']);
-    expect(spawned.map(({ key }) => key.contractVersion)).toEqual(['15+0.1.4', '15+0.1.4']);
+    expect(spawned.map(({ key }) => key.contractVersion)).toEqual(['15+0.2.0', '15+0.2.0']);
     expect(
       db
         .select({ contractVersion: optimizedScheduleCache.contractVersion })

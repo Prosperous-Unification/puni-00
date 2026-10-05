@@ -1,6 +1,7 @@
 import {
   SOLVER_HORIZON_UNITS_MAX,
   type SolverEdge,
+  type SolverElsewhere,
   type SolverOffsetMap,
   type SolverSlice,
 } from './wire-types';
@@ -21,7 +22,11 @@ import {
  * and because the failure token is the thing the cached row records.
  */
 
-export const SOLVER_PREFLIGHT_FAILURES = ['horizon-overflow', 'objective-overflow'] as const;
+export const SOLVER_PREFLIGHT_FAILURES = [
+  'horizon-overflow',
+  'objective-overflow',
+  'incompatible-solver',
+] as const;
 export type SolverPreflightFailure = (typeof SOLVER_PREFLIGHT_FAILURES)[number];
 
 export type SolverPreflight =
@@ -38,7 +43,7 @@ const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
  * `horizonUnits` and the two preflights, in the order they can be answered.
  *
  * **The horizon is a constructive serial bound**: latest floor plus every
- * duration plus every positive FF start-weight excess over its predecessor's
+ * duration, after the latest booking end, plus every positive FF start-weight excess over its predecessor's
  * duration. Place slices in topological order, starting no earlier than the
  * serial cursor and all predecessor bounds. An FS bound is paid by the
  * predecessor duration; SS costs no extra time; an FF bound can advance the
@@ -71,7 +76,7 @@ const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
  * builder computed.
  *
  * **It is the FINISH, not the horizon, and the difference is load-bearing.**
- * `horizonUnits` bounds a slice's *start* (`solver-wire.v2.json` clause 1, and
+ * `horizonUnits` bounds a slice's *start* (`solver-wire.v3.json` clause 1, and
  * `model.py` builds the start domain from it); PRIORITY is `Σ w(s) · finish(s)`
  * and a finish past the horizon is legal — the makespan's business, not an
  * error. So the true ceiling exceeds `Σ w(s) × horizonUnits` by exactly
@@ -103,6 +108,7 @@ export function preflightSolverRequest(
   slices: readonly SolverSlice[],
   baselineOffsets: SolverOffsetMap,
   edges: readonly SolverEdge[],
+  elsewhere: SolverElsewhere = {},
 ): SolverPreflight {
   let latestFloor = 0n;
   let totalDuration = 0n;
@@ -121,6 +127,14 @@ export function preflightSolverRequest(
     // still computing. In `bigint` for the same reason everything else is: the
     // product of two safe integers is routinely not one.
     weightedDuration += weight * duration;
+  }
+
+  // Proof: ignoring booking ends made `extends the serial horizon past a
+  // booking end` return 48 instead of 4849 (0 pass / 1 fail).
+  for (const bookings of Object.values(elsewhere)) {
+    for (const [, end] of bookings) {
+      if (BigInt(end) > latestFloor) latestFloor = BigInt(end);
+    }
   }
 
   let placementGaps = 0n;

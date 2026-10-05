@@ -379,6 +379,8 @@ export class OptimizationCoordinator {
             now: Math.max(this.options.now(), next.admission.startedAt),
           });
         } finally {
+          // Proof: skipping preflight slot release failed all nine initial,
+          // queued and manual Retry refusal cases (0 pass / 9 fail).
           this.options.repository.releaseSlot(slot);
         }
         continue;
@@ -456,6 +458,8 @@ export class OptimizationCoordinator {
             now: Math.max(now, decision.admission.startedAt),
           });
         } finally {
+          // Proof: skipping preflight slot release failed all nine initial,
+          // queued and manual Retry refusal cases (0 pass / 9 fail).
           this.options.repository.releaseSlot(slot);
           this.requestPump();
         }
@@ -569,6 +573,8 @@ export class OptimizationCoordinator {
               now,
             });
           } finally {
+            // Proof: skipping preflight slot release failed all nine initial,
+            // queued and manual Retry refusal cases (0 pass / 9 fail).
             this.options.repository.releaseSlot(slot);
             this.requestPump();
           }
