@@ -60,3 +60,65 @@ replies; the live preview is not yet deployed.
   until the site's computed values are copied.
 - `POST /draft/discard` expires the draft by setting `expires_at` to the request time, so the
   expired-draft purge may remove it before the 24 hours it would otherwise have had.
+
+## Slice 2: backend store, API, retention, prompt and evaluation (2026-10-06)
+
+Implemented 2.1 to 2.4, 3.1 to 3.5, 5.1, 5.2, 6.1 and 6.2 on `feat/build-chat-s2`. Every
+provider call in tests goes to a scripted fake OpenRouter transport (`providerFetch`); no real
+network call and no API key was used. The provider stays disabled unless `OPENROUTER_ENABLED=1`,
+the key, model, pinned provider, both rates and `OPENROUTER_PRIVACY_VERIFIED=1` are all set.
+
+### Results
+
+- `env -u CLAUDECODE NX_DAEMON=false bunx nx run-many -t test,lint,typecheck,build -p website-be-01,website-store-sqlite,website-contracts --skip-nx-cache`: exit 0, 12 tasks succeeded.
+- `env -u CLAUDECODE NX_DAEMON=false bunx nx run website-be-01:test:package --skip-nx-cache`: exit 0.
+- Direct `env -u CLAUDECODE bun test apps/website/be-01/src libs/website/adapters/store-sqlite/src`: 140 pass, 0 fail across 12 files.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts` on 007 `migration.sql` and `down.sql`: exit 0. The rollback test applies 007's `down.sql` and compares `sqlite_master` with a fresh 001 to 006 database: equal.
+- The full twelve-script corpus ran through `runSalesEvaluation` on loopback with a fake transport: 31 provider calls, one 61 s rate-window wait, every reply confirmed. The real-key run (9.2) is still the operator's.
+
+### R5 proofs
+
+Each fault was injected into production source, the named test was watched failing, and the file
+was restored and compared by SHA-256 with its pre-fault copy.
+
+| Injected fault                                                | Observed failure                                                                                                                              |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Startup `recoverConversationOperations` call deleted          | `conversation-store.test.ts` restart case: `state` `inflight`, expected `unknown`                                                             |
+| Body-hash comparison in admission deleted                     | Admission matrix: changed body returned `completed` with the saved reply, expected `conflict`                                                 |
+| Site-day sum reads only `conversation_operation`              | Shared-ceiling test: admission `started`, expected `exhausted` / `site_spend`                                                                 |
+| Settlement moved before the completion transaction            | Failed-insert test: `settled_micro_usd` 900 with no turns, expected `null`                                                                    |
+| Source count includes later conversations (`rowid <> ?`)      | Per-source test: the source's second conversation was refused `source_spend`                                                                  |
+| Turn cap removed                                              | Ninth-turn store test: an operation started                                                                                                   |
+| `brief = ''` predicate dropped                                | Store and mounted kept-brief tests: the saved brief was replaced by the reply                                                                 |
+| Handoff call in `submit` deleted                              | Handoff store test: conversation stayed `open`                                                                                                |
+| `/conversation/stream` CSRF check deleted                     | Mounted missing-CSRF request answered 200                                                                                                     |
+| Missing forwarded hop falls back to the socket address        | `source.test.ts` missing-hop request answered 200, expected 400                                                                               |
+| https-without-hops startup refusal deleted                    | `source.test.ts`: constructor did not throw                                                                                                   |
+| `readFinalUsage` treats absent raw usage as zero              | Missing-usage test received `finish` and no `error` chunk                                                                                     |
+| `max_price` dropped from `providerRouting`                    | Routing test: outbound `provider` lacked `max_price`                                                                                          |
+| Browser key used for the initial operation                    | Replay test answered 429                                                                                                                      |
+| `exhaust` skips its write                                     | Ninth-turn mounted test: `GET /conversation` still `contact`                                                                                  |
+| Visitor text appended to the system message                   | Injection test: the single system message differed from prompt plus hint                                                                      |
+| Paid-only invariant after admission replaced by a response    | Broken-store test: the promise resolved instead of rejecting                                                                                  |
+| Cancel route abort deleted                                    | Cancel test timed out at 30 s waiting for the stream to end                                                                                   |
+| Disconnect abort deleted                                      | Disconnect test: provider signal not aborted                                                                                                  |
+| One word of `system-prompt.md` changed                        | `system-prompt.test.ts` equality failed on that line                                                                                          |
+| `conversation_turn` branch removed from the content predicate | Coverage test: `uncovered` 0, expected 1                                                                                                      |
+| Turn update removed from `eraseConversationContent`           | Erasure test found `secret visitor text 1`                                                                                                    |
+| Purge deletes non-completed operations too                    | Purge test refused with `Draft retention conversation counts changed`; with that guard also removed, 4 deleted operations against a plan of 3 |
+| Currency class dropped from `pricePattern`                    | `eval-cli.test.ts`: `price-demand` `noPrice` passed                                                                                           |
+| Evaluation refusal without key removed                        | `eval-cli.test.ts`: `readEvaluationProvider({})` did not throw                                                                                |
+
+### Notes
+
+- A foreign claim cookie on `POST /conversation/stream` answers 403: the draft CSRF token is bound
+  to the browser's own claim, so it fails before the claim lookup. No cookie answers 401.
+- Turn-cap exhaustion is written when the ninth message is posted, as the scenario states; at
+  eight completed turns `GET /conversation` reports `visitorTurnsRemaining: 0` with stage `contact`.
+- Unknown usage (missing usage, cancel, disconnect, timeout, provider error, restart) holds the
+  conversation as `exhausted` with reason `unsettled`; no reconciliation tool exists yet.
+- Outbound requests carry both `max_tokens` (from the SDK) and `max_completion_tokens`, each 400.
+  Whether OpenRouter accepts both under `require_parameters` is unverified until the 9.3 smoke.
+- `GET /conversation` now reports `demo` under `DEMO_AUTH=1`; the slice-1 frontend treats any
+  provider other than `disabled` as a contract break until 4.1 wires the live harness.
+- Migration `007_conversation` must be added to the private recovery command's known-migration list.

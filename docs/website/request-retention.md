@@ -24,6 +24,9 @@ bun apps/website/be-01/dist/request-retention-cli.js resolve /path/to/website.sq
 
 - `unanchored_content`: content exists without a linked draft or recorded first write. Examples are migration 004's copied `account_request` rows, placeholder chat, or a blank request that an older API process filled during a blue/green swap.
 - `content_predates_anchor`: chat, operation or preview rows are older than the linked draft.
+
+Anonymous conversation turns and operation text count as content of the subject whose `draft_id` owns the conversation (`conversationContentTimes` in `request-retention.ts`); `eraseConversationContent` blanks that text and keeps the accounting columns for the later erasure slice.
+
 - `overlapping_lineage`: the linked draft also belongs to another account's legacy row, or a submission shares the draft without being that request's own submission.
 
 Migration 004 placeholders stay `pending_content` until their first nonempty write. Their copied `created_at` is never used as an anchor.
