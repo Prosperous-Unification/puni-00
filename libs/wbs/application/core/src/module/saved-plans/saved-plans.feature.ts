@@ -251,8 +251,9 @@ export class SavedPlanService {
    * Spec's stored-schedule bound lawfully permits returning `unavailable` here,
    * and that would answer "no schedule was saved" about the live side of this
    * feature's primary direction. So the schedule is `schedule()`'s return over
-   * the values just captured — computed **outside** the read snapshot, as
-   * {@link captureAndAttempt} already arranges for the save path — labelled
+   * the values just captured — computed outside the read snapshot under isolated
+   * capture, or selected coherently within the shared chain snapshot by
+   * {@link captureSharedPlan}, as {@link captureAndAttempt} arranges for the save path — labelled
    * with the algorithm identity currently in force, with a `ScheduleCycleError`
    * mapping to `infeasible` on the same derivation a save records.
    *

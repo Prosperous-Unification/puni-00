@@ -313,7 +313,7 @@ portions of 6.1/6.2 are implemented, so those umbrella tasks remain unchecked.
 No mode migration, activation route/environment switch, rollback vocabulary, fan-out,
 notification or UI change ships. `SCHEDULE_ALGORITHM_ID` remains `slice-leveling-v4`.
 
-**Rulings.** The downward closure follows shared-person edges only toward higher ranks.
+**Rulings.** The influencer closure follows shared-person edges only toward higher ranks.
 A lower-ranked neighbor of an influencer cannot displace it and is excluded; this is
 not undirected component reachability. Undated projects stop traversal and neither
 consume nor supply bookings. Cyclic/calendar-range influencers supply no bookings and
@@ -421,3 +421,55 @@ live shared-mode activation, Solver image/binding installation, or trusted Tool 
 was performed in this slice. The existing isolated outside-snapshot negative remains in its
 prior suite; the unchanged isolated capture lifecycle and saved-service policy suites above
 were rerun here. The umbrella change is not complete.
+
+### Independent review corrections: whole-calendar preflight and contracts
+
+The live-tree preflight reads the maximum `earliestFinish` of every scheduled work item,
+then calls `addWorkdays(date, lastWorkdayOf(0, projectFinish))`. The original chain projection
+checked only assigned slices and could miss an independent unassigned item beyond the
+ECMAScript calendar range. The chain now performs that same whole-work-item preflight on
+the selected displayed schedule before filtering persons or zero-time slices. It replaces
+the earlier assigned-slice calendar check; the earlier mutation observation describes the
+previous implementation, and the new proof covers the replacement.
+
+Three new real-domain regressions were watched RED: an independent unassigned 80,000,000-day
+item left its influencer marked available, both with assigned slices and with the assigned
+work on hold (no assigned slices); a target without assignments returned a schedule instead
+of `calendar_range`. After the fix all fourteen chain unit tests passed (37 assertions).
+R5 mutation: removing only `addWorkdays(date, lastWorkdayOf(0, projectFinish))` made all three
+new regressions fail again (0 pass / 3 fail); the production bytes were restored. Both
+influencer cases now book nothing and leave the downstream target's start at zero.
+
+The glossary, application JSDoc, design and rulings now call upward traversal **Influencer
+closure**. The mode delta explicitly describes future fan-out to lower-ranked projects by
+shared-person edges following rank downward; no `Downward closure` references remain.
+The normative `openspec/specs/saved-plans/spec.md` retains typed-dependency history and adds
+only the shared capture/current exception plus isolated ordering. The original saved-plans
+wbs-domain delta and current-comparison JSDoc are qualified consistently. Shared schedule
+bytes remain historical display evidence; replay provenance remains outside this slice.
+
+Follow-up focused command:
+
+```sh
+bun test \
+  libs/wbs/application/core/src/service/shared-people.test.ts \
+  libs/wbs/application/core/src/service/saved-plan-input.test.ts \
+  libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts \
+  libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts \
+  libs/wbs/adapters/store-sqlite/src/captured-optimization-reader.db.test.ts \
+  apps/wbs/be-01/src/service/saved-plan.service.db.test.ts \
+  apps/wbs/be-01/src/service/saved-plan-current.db.test.ts \
+  apps/wbs/be-01/src/service/saved-plan-schedule.db.test.ts
+```
+
+| Check                                                                                                                                            | Observed outcome                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| Focused command above, including isolated save/current connection-order negatives                                                                | 104 pass / 0 fail; 353 assertions across eight files (10.69s), exit 0 |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p wbs-core,wbs-store-sqlite --skip-nx-cache --output-style=static` | All five tasks passed, exit 0 (33.9s)                                 |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:build --skip-nx-cache --output-style=static`                                     | Backend plus solver-protocol dependency passed, exit 0 (1.5s)         |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                         | 146 passed / 0 failed, exit 0                                         |
+| Repository reference search for the removed glossary term                                                                                        | No matches                                                            |
+
+Canonical exact-hash h2puni gate, substantive CI and independent rereview remain required
+before merge. The activation, portable/browser, Solver installation and other deferred
+checks listed above remain unperformed in this bounded follow-up.

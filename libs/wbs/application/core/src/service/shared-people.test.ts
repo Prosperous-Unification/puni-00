@@ -228,6 +228,70 @@ describe('readSharedPeople', () => {
     }
   });
 
+  for (const held of [false, true]) {
+    it(`rejects an unassigned out-of-range influencer item with ${held ? 'no' : 'some'} assigned slices`, () => {
+      const authored = plan('A', ['ana']);
+      const assigned = authored.workItems.at(0);
+      if (assigned === undefined) throw new Error('fixture has no work item');
+      const ranged: PlanInputReads = {
+        ...authored,
+        workItems: [
+          { ...assigned, hold: held ? 'on_hold' : null },
+          { ...assigned, id: 'unassigned', name: 'unassigned', position: 20 },
+        ],
+        estimates: [
+          ...authored.estimates,
+          {
+            workItemId: 'unassigned',
+            stepId: 's0',
+            optimistic: 80_000_000,
+            realistic: 80_000_000,
+            pessimistic: 80_000_000,
+          },
+        ],
+      };
+      let assignedSlices = -1;
+      const chain = readSharedPeople([ranged, plan('B', ['ana'])], 'B', {
+        ...scheduler,
+        read: (ask) => {
+          const scheduled = scheduler.read(ask);
+          if (ask.projectId === 'A' && scheduled.kind === 'scheduled')
+            assignedSlices = [...scheduled.fast.slices.values()].filter(
+              (slice) => slice.personId !== null,
+            ).length;
+          return scheduled;
+        },
+      });
+      if (chain.kind !== 'scheduled' || chain.scheduled.kind !== 'scheduled')
+        throw new Error('expected target');
+      expect(assignedSlices).toBe(held ? 0 : 1);
+      expect(chain.influencers).toEqual([
+        { projectId: 'A', name: 'A', engine: 'fast', unavailable: 'calendar_range' },
+      ]);
+      expect(chain.input.elsewhere?.size ?? 0).toBe(0);
+      expect(chain.scheduled.fast.slices.get(sliceKey('B', 's0'))?.earliestStart).toBe(0);
+    });
+  }
+
+  it('rejects an out-of-range target with no assigned slices', () => {
+    const authored = plan('A', ['ana']);
+    const ranged = {
+      ...authored,
+      assignments: [],
+      estimates: authored.estimates.map((each) => ({
+        ...each,
+        optimistic: 80_000_000,
+        realistic: 80_000_000,
+        pessimistic: 80_000_000,
+      })),
+    };
+    expect(readSharedPeople([ranged], 'A', scheduler)).toMatchObject({
+      kind: 'unavailable',
+      reason: 'calendar_range',
+      influencers: [],
+    });
+  });
+
   it('refuses an optimized capability that returns no optimization state', () => {
     const authored = plan('A', ['ana']);
     const first = {

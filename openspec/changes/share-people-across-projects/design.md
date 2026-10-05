@@ -89,7 +89,7 @@ shared-mode activation remain pending; `SCHEDULE_ALGORITHM_ID` stays `slice-leve
 
 ## D8. Coherent chain capture (bounded slice 6)
 
-The application owns the downward closure, displayed-engine selection and booking projection.
+The application owns the influencer closure, displayed-engine selection and booking projection.
 A narrow chain snapshot port resolves current organization access, obtains authorized rank order,
 and supplies captures and a non-admitting scheduler. SQLite opens a dedicated read-only connection,
 holds one `drizzleReadTransaction` through application scheduling and closes on every outcome.

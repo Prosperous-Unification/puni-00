@@ -2,7 +2,6 @@ import {
   addWorkdays,
   CalendarRangeError,
   type Elsewhere,
-  firstWorkdayOf,
   lastWorkdayOf,
   type Schedule,
   ScheduleCycleError,
@@ -38,7 +37,7 @@ export class SharedPeopleReader {
 }
 
 /**
- * Schedules the downward closure in rank order, converting displayed bookings through the
+ * Schedules the influencer closure in rank order, converting displayed bookings through the
  * absolute workday axis. Undated projects stop traversal. Only engine unavailability refuses
  * a required influencer; cycle/calendar range remain explicit unavailable load evidence.
  * Uses capture reads exclusively: generations, slots, queues and events are outside this read.
@@ -161,14 +160,17 @@ function projectBookings(reads: PlanInputReads, planned: Schedule) {
   >();
   const date = reads.project.startDate;
   if (date === null) return calendar;
+  // A displayed project must fit the calendar even when its last work item has no person.
+  // Proof: omitting this preflight made all three unassigned out-of-range negatives return available schedules.
+  let projectFinish = 0;
+  for (const placed of planned.workItems.values()) {
+    if (placed.earliestFinish > projectFinish) projectFinish = placed.earliestFinish;
+  }
+  addWorkdays(date, lastWorkdayOf(0, projectFinish));
   const anchor = workdayOrdinalOf(date);
   for (const slice of planned.slices.values()) {
     // Proof: admitting zero-time assigned slices made the zero-duration negative throw on a booking holding no time.
     if (slice.personId === null || slice.earliestFinish <= slice.earliestStart) continue;
-    // The displayed row's date conversion also proves that the absolute booking is renderable.
-    // Proof: dropping date conversion made the calendar-range influencer supply bookings in its negative.
-    addWorkdays(date, firstWorkdayOf(slice.earliestStart));
-    addWorkdays(date, lastWorkdayOf(slice.earliestStart, slice.earliestFinish));
     const intervals = calendar.get(slice.personId) ?? [];
     intervals.push({
       start: anchor + slice.earliestStart,

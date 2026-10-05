@@ -1284,7 +1284,7 @@ A readable, dated project above another in project rank that shares a person wit
 or a higher project reached through it. Its displayed bookings can move the lower project.
 _Avoid_: upstream dependency
 
-**Downward closure**:
+**Influencer closure**:
 The influencers reached by repeatedly following shared-person edges toward higher project ranks.
 An undated project stops traversal because it neither consumes nor supplies bookings.
 _Avoid_: recursive project dependencies

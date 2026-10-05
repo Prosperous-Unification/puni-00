@@ -68,7 +68,8 @@
 - [ ] 6.1 Influencers, the chain read, `shared_people`, the guarded `down.sql`, the rollback CLI,
       `capacityModes`, and `elsewhere_changed`.
       Chain-reader portion implemented in slice 6: directed influencers, coherent read-only snapshot,
-      displayed booking projection and shared saved capture/current comparison. Mode storage,
+      displayed booking projection, whole-schedule calendar preflight and shared saved capture/current
+      comparison. Mode storage,
       guarded rollback, capacity vocabulary and fan-out remain pending.
 - [ ] 6.2 Negatives: closure made non-transitive → C behind B behind A takes A's slot; mode
       check removed → an isolated organization moves dates; hash compare removed → a rename

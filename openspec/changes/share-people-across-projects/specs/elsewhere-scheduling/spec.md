@@ -78,7 +78,10 @@ and schedule P last, in one read transaction. An influencer that reports `engine
 SHALL make P's read report `engine_unavailable`, naming the influencer; it SHALL never fall back
 to Fast silently. An undated project SHALL neither book nor see bookings and SHALL stop influencer traversal.
 An influencer with a dependency cycle or calendar-range error SHALL supply no bookings and SHALL
-be recorded explicitly as unavailable with that reason. Unexpected failures SHALL throw.
+be recorded explicitly as unavailable with that reason. Before filtering out unassigned or
+zero-duration slices, the selected displayed schedule's maximum work-item finish SHALL fit the
+calendar range, using the same preflight as the live tree. This applies to both influencers and
+the target, including schedules with no assigned slices. Unexpected failures SHALL throw.
 Pending or failed optimization SHALL contribute the displayed Fast schedule; selected ready
 optimization SHALL contribute its published schedule. Reads SHALL NOT allocate generations,
 reserve solver slots, queue work or publish events. The chain SHALL return detached captured
@@ -107,3 +110,10 @@ values and schedules, and close its dedicated read connection on success, refusa
 - **GIVEN** a shared chain is captured and its target schedule saved
 - **WHEN** an influencer is edited or deleted
 - **THEN** the saved target schedule bytes remain unchanged; target input alone is not a replay guarantee
+
+#### Scenario: an unassigned work item exceeds the calendar
+
+- **GIVEN** influencer A has an independent unassigned work item finishing at 80,000,000 workdays,
+  and a lower target B shares an assigned person with A
+- **WHEN** B is read, including when A's assigned work is on hold and its schedule has no assigned slices
+- **THEN** A is listed as unavailable with `calendar_range`, A supplies no bookings and B starts at 0
