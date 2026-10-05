@@ -244,7 +244,7 @@ The TS wire command is `bun test libs/wbs/domain/contracts/solver/src/elsewhere-
 | Round starts up, round ends down, remove clipping, retain expired intervals, or disable rounded overlap union | outward-rounding regression: each 0 pass / 1 fail                                                                                              |
 | Omit booking ends from horizon                                                                                | horizon 48 instead of 4849: 0 pass / 1 fail                                                                                                    |
 | Drop Bun fixed-overlap guard                                                                                  | solver answer across booking accepted: 0 pass / 1 fail                                                                                         |
-| Drop Bun interval shape or empty-person/list checks                                                           | malformed fixed intervals or empty person admitted: each 0 pass / 1 fail                                                                       |
+| Drop Bun interval shape or empty-person checks                                                                | malformed fixed intervals or empty person admitted: each 0 pass / 1 fail                                                                       |
 | Drop canonical-booking equality                                                                               | publication path records invalid-output instead of internal-error for a request that dropped authored bookings: 0 pass / 1 fail                |
 | Drop compatibility preflight                                                                                  | all three SQLite initial/queued/Retry negatives fail: 0 pass / 3 fail                                                                          |
 | Bypass early request-pair arithmetic preflight                                                                | oversized baseline throws instead of typed refusal: 0 pass / 1 fail                                                                            |
@@ -266,3 +266,17 @@ immutable image and installed binding before deployment resets the checkout.
 Canonical h2puni SHA-gate evidence follows after the reviewable branch is committed and pushed.
 SSH access was verified; its gate must use `TMPDIR=/home/puni1/.cache/puni00-gate-tmp` so the
 hardlink-sensitive devsync tests stay on the ext4 device.
+
+### Review correction: empty person calendars
+
+Astra identified a receiver parity mismatch: schema and Python accepted `{"ana": []}`
+while Bun rejected it. **Ruling:** An empty list under a non-empty person key is legal
+and occupies nothing, consistent with the existing schema/Python boundary. Builders may
+omit these entries during canonicalization. Bun now follows this rule, both schema
+copies state it explicitly, and the shared valid-two-slices fixture carries an empty
+calendar for its selected person.
+
+The new production Bun boundary regression was watched RED against the old list-length
+refusal: 0 pass / 1 fail, returning `malformed-request` instead of accepting the empty
+calendar. The restored non-empty-person check remains covered by its previous injected-fault
+negative. Focused Bun wire suite: 13 pass / 0 fail (126ms). Python `test_elsewhere.py`: 16 tests, OK (0.387s). Both production receivers now accept the empty-calendar case. The contracts target rerun passed 446 tests across 44 files (2.51s).

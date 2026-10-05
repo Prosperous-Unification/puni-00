@@ -118,7 +118,6 @@ describe('bookings on solver wire 3', () => {
         [2, 4],
       ],
       [[0, 9999]],
-      [],
     ] as const) {
       expect(
         revalidateSolverResult(
@@ -127,6 +126,16 @@ describe('bookings on solver wire 3', () => {
         ),
       ).toMatchObject({ ok: false, failure: 'malformed-request' });
     }
+  });
+  it('accepts an empty person calendar at the wire boundary', () => {
+    const built = build(inputOf(new Map()));
+    if (!built.ok) throw new Error(built.detail);
+    expect(
+      revalidateSolverResult(
+        { ...built.request, elsewhere: { ana: [] } },
+        { wireVersion: 3, status: 'unknown' },
+      ),
+    ).toEqual({ ok: true, published: false });
   });
   it('refuses malformed tuple arity and empty person keys', () => {
     const built = build(inputOf(new Map()));

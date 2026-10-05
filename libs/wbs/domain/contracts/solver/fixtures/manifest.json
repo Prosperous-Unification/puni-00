@@ -12,7 +12,7 @@
       "file": "request/valid-two-slices.json",
       "branch": "request",
       "valid": true,
-      "why": "Two slices under one predecessor edge; both keys carry a real U+0000. personId null and an empty poolIds are legal states, not omissions."
+      "why": "Two slices under one predecessor edge; both keys carry a real U+0000. personId null, empty poolIds and an empty person booking calendar are legal states, not omissions."
     },
     {
       "file": "request/valid-quantised-baseline.json",

@@ -12,7 +12,7 @@
       "type": "FS"
     }
   ],
-  "elsewhere": {},
+  "elsewhere": { "p-1": [] },
   "fastHint": {
     "wi-1\u0000step-a": 0,
     "wi-2\u0000": 10

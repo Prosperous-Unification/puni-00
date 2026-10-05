@@ -446,10 +446,11 @@ export const revalidateSolverResult = (
   // list and failed the unbooked-person case with TypeError (0 pass / 1 fail).
   const bookingsByPerson = new Map(Object.entries(request.elsewhere));
   for (const [personId, bookings] of bookingsByPerson) {
-    // Proof: disabling the empty-person/list guard admitted an empty person
+    // Proof: disabling the empty-person guard admitted an empty person
     // key (0 pass / 1 fail in the tuple-arity production negative).
-    if (personId.length === 0 || bookings.length === 0)
-      return refuse('malformed-request', 'empty person booking');
+    // Proof: the removed empty-list refusal made the wire boundary acceptance
+    // regression fail (0 pass / 1 fail); schema and Python allow empty calendars.
+    if (personId.length === 0) return refuse('malformed-request', 'empty person booking');
     let previousEnd = 0;
     for (const interval of bookings) {
       const endpoints: readonly number[] = interval;

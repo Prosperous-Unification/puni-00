@@ -385,7 +385,7 @@
           "$ref": "#/$defs/bookingInterval"
         }
       },
-      "$comment": "Fixed bookings per person, independent of pool capacity. Required even when empty. Both receivers reject duplicate JSON members, and enforce positive-length intervals sorted by start with no overlap; adjacency is legal. Every end is within horizonUnits. Zero-duration selected slices occupy nothing."
+      "$comment": "Fixed bookings per person, independent of pool capacity. Required even when empty; an empty interval list for a non-empty person key is legal and occupies nothing. Both receivers reject duplicate JSON members, and enforce positive-length intervals sorted by start with no overlap; adjacency is legal. Every end is within horizonUnits. Zero-duration selected slices occupy nothing."
     }
   }
 }
