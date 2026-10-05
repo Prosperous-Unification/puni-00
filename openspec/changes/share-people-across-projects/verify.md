@@ -284,3 +284,22 @@ The new production Bun boundary regression was watched RED against the old list-
 refusal: 0 pass / 1 fail, returning `malformed-request` instead of accepting the empty
 calendar. The restored non-empty-person check remains covered by its previous injected-fault
 negative. Focused Bun wire suite: 13 pass / 0 fail (126ms). Python `test_elsewhere.py`: 16 tests, OK (0.387s). Both production receivers now accept the empty-calendar case. The contracts target rerun passed 446 tests across 44 files (2.51s).
+
+### CI correction: supervisor wire boundary
+
+Workspace CI on `ac84a180` failed its Solver image smoke because the host supervisor's
+start-frame parser still admitted only wire 1/2, rejecting the new wire 3 before the
+Python image could validate it. The supervisor now admits 1/2/3 for rolling backend
+compatibility and delegates exact wire-schema/version refusal to the selected solver image.
+The production-boundary fixed-calendar test was watched RED under the old allow-list:
+0 pass / 1 fail, `request wireVersion 3 is not supported`, matching CI's failure.
+Injecting wire 4 into the production allow-list also failed the unknown-version negative:
+0 pass / 1 fail. Both faults restored, protocol suite: 11 pass / 0 fail (14ms).
+Its four Nx targets test/lint/typecheck/build passed (2.2s). Supervisor service and
+fake-Docker image-smoke tests passed: 11 pass / 0 fail, two files (8.60s).
+
+The canonical gate on the original implementation head passed all 121 main-workspace tasks
+(35 projects plus dependencies, 18m48s) and is continuing through the isolated Twilight
+suite. Its successor was queued and refused with exit 75 after 30 minutes, then queued
+again; that is a lock-budget refusal rather than a validation verdict. Latest-head gate
+and CI evidence must still pass before integration. No live binding or activation occurred.
