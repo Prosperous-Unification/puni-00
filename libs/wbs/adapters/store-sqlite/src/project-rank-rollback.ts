@@ -54,7 +54,7 @@ function readRank(candidate: unknown): SavedProjectRank {
 }
 
 /** Validates the versioned file at the CLI boundary, before any transaction. */
-function readSaved(saved: unknown): SavedProjectRanks {
+export function readSavedProjectRanks(saved: unknown): SavedProjectRanks {
   if (
     !isRecord(saved) ||
     saved['format'] !== 'project-rank-save' ||
@@ -91,7 +91,7 @@ const isSameRank = (left: SavedProjectRank, right: SavedProjectRank): boolean =>
   left.createdBy === right.createdBy;
 
 /** Captures every rank row in project id order. */
-export function saveProjectRanks(db: Drizzle): SavedProjectRanks {
+export function saveProjectRanks(db: Reader): SavedProjectRanks {
   return { format: 'project-rank-save', version: 1, ranks: currentRanks(db) };
 }
 
@@ -104,8 +104,8 @@ export function saveProjectRanks(db: Drizzle): SavedProjectRanks {
  * a save that no longer matches, deleting nothing` in
  * `project-rank.db.test.ts` deleted every rank instead of throwing.
  */
-export function removeSavedProjectRanks(db: Drizzle, saved: unknown): number {
-  const { ranks } = readSaved(saved);
+export function removeSavedProjectRanks(db: Pick<Drizzle, 'transaction'>, saved: unknown): number {
+  const { ranks } = readSavedProjectRanks(saved);
   return db.transaction(
     (tx) => {
       const current = currentRanks(tx);
@@ -138,8 +138,8 @@ export function removeSavedProjectRanks(db: Drizzle, saved: unknown): number {
  * a user, refuses the whole restore naming it; the references would refuse it
  * too, but without saying which.
  */
-export function restoreProjectRanks(db: Drizzle, saved: unknown): number {
-  const { ranks } = readSaved(saved);
+export function restoreProjectRanks(db: Pick<Drizzle, 'transaction'>, saved: unknown): number {
+  const { ranks } = readSavedProjectRanks(saved);
   return db.transaction(
     (tx) => {
       for (const rank of ranks) {

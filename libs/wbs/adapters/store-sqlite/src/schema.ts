@@ -2705,6 +2705,7 @@ export const organization = sqliteTable(
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     legacy: integer('legacy', { mode: 'boolean' }).notNull().default(false),
+    sharedPeople: integer('shared_people').notNull().default(0),
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
   },
@@ -2713,6 +2714,7 @@ export const organization = sqliteTable(
       .on(t.legacy)
       .where(sql`${t.legacy} = 1`),
     check('organization_legacy', sql`${t.legacy} IN (0, 1)`),
+    check('organization_shared_people', sql`${t.sharedPeople} IN (0, 1)`),
   ],
 );
 

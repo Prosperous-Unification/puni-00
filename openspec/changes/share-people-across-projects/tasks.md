@@ -69,8 +69,10 @@
       `capacityModes`, and `elsewhere_changed`.
       Chain-reader portion implemented in slice 6: directed influencers, coherent read-only snapshot,
       displayed booking projection, whole-schedule calendar preflight and shared saved capture/current
-      comparison. Mode storage,
-      guarded rollback, capacity vocabulary and fan-out remain pending.
+      comparison. Storage/downgrade portion implemented next: constrained encoding, strict reads,
+      coherent exclusive combined backup, atomic remove/restore, guarded down migration and truthful
+      swap capability checks. Intermediate runtime support remains exactly isolated; runtime/cache
+      integration, fan-out and activation remain pending.
 - [ ] 6.2 Negatives: closure made non-transitive → C behind B behind A takes A's slot; mode
       check removed → an isolated organization moves dates; hash compare removed → a rename
       fans out; vocabulary entry removed → the swap accepts a pre-feature image over a shared
@@ -78,7 +80,8 @@
 
 Chain-only negatives proved in slice 6: transitive closure, typed influencer refusal,
 coherent snapshot, non-admitting reads, scoped captures and lifecycle cleanup. Remaining
-mode/hash-fan-out/swap vocabulary obligations keep this umbrella unchecked.
+mode runtime/hash-fan-out obligations keep this umbrella unchecked. Storage/swap negatives are
+recorded separately in verify.md; they do not establish runtime mode activation.
 
 ## 7. fe
 

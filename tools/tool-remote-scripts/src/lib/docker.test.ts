@@ -1,4 +1,12 @@
-import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 import { renderTemplate, tierComposeTmpl } from '@tools/compose';
@@ -11,6 +19,7 @@ import {
   assertOidcEnvAllowed,
   assertTierEnvAllowed,
   assertTierEnvComplete,
+  capacityModesCommand,
   composeUpArgs,
   containerName,
   deriveTierSecrets,
@@ -32,6 +41,7 @@ import {
   SHARED_ENV_PATH,
   SOLVER_SUPERVISOR_CONTAINER_DIRECTORY,
   SOLVER_SUPERVISOR_HOST_DIRECTORY,
+  storedCapacityModesCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
@@ -1241,4 +1251,116 @@ it('retains an explicitly configured HTTP scheme and port for a local Caddy addr
   expect(Object.values(compose.services)[0].environment['APP_ORIGIN']).toBe(
     'http://localhost:8080',
   );
+});
+
+describe('capacity modes commands', () => {
+  it('advertises only isolated on this intermediate release and on a readable older release', async () => {
+    const root = new URL('../../../../', import.meta.url).pathname;
+    const current = Bun.spawn(capacityModesCommand('green').slice(2), {
+      cwd: join(root, 'apps/wbs/be-01'),
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(await current.exited).toBe(0);
+    expect(JSON.parse(await new Response(current.stdout).text())).toEqual(['isolated']);
+    const directory = scratchSync('wbs-capacity-old-');
+    try {
+      mkdirSync(join(directory, 'src'));
+      const older = Bun.spawn(capacityModesCommand('green').slice(2), {
+        cwd: directory,
+        stdout: 'pipe',
+      });
+      expect(await older.exited).toBe(0);
+      expect(JSON.parse(await new Response(older.stdout).text())).toEqual(['isolated']);
+      rmSync(join(directory, 'src'), { recursive: true });
+      const missing = Bun.spawn(capacityModesCommand('green').slice(2), {
+        cwd: directory,
+        stderr: 'pipe',
+      });
+      expect(await missing.exited).toBe(74);
+      mkdirSync(join(directory, 'src/capacity-modes-cli.ts'), { recursive: true });
+      const nonregular = Bun.spawn(capacityModesCommand('green').slice(2), {
+        cwd: directory,
+        stderr: 'pipe',
+      });
+      expect(await nonregular.exited).toBe(73);
+      rmSync(join(directory, 'src/capacity-modes-cli.ts'), { recursive: true });
+      symlinkSync('missing.ts', join(directory, 'src/capacity-modes-cli.ts'));
+      const dangling = Bun.spawn(capacityModesCommand('green').slice(2), {
+        cwd: directory,
+        stderr: 'pipe',
+      });
+      expect(await dangling.exited).toBe(73);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('reads actual mode counts and only treats an absent old-schema column as isolated', async () => {
+    const directory = scratchSync('wbs-capacity-stored-');
+    const path = join(directory, 'test.db');
+    const db = new Database(path, { create: true });
+    async function probe() {
+      const child = Bun.spawn(storedCapacityModesCommand('green').slice(2), {
+        env: { ...process.env, DB_PATH: path },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+      const [exit, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      return { exit, stdout, stderr };
+    }
+    try {
+      const missingTable = await probe();
+      expect(missingTable.exit).not.toBe(0);
+      expect(missingTable.stderr).toContain('organization table is missing');
+      db.run('CREATE TABLE organization(id text PRIMARY KEY)');
+      db.run("INSERT INTO organization(id) VALUES('a'),('b'),('c')");
+      expect(JSON.parse((await probe()).stdout)).toEqual([{ mode: 'isolated', count: 3 }]);
+      db.run('ALTER TABLE organization ADD COLUMN shared_people integer DEFAULT 0');
+      db.run("UPDATE organization SET shared_people=1 WHERE id='b'");
+      expect(JSON.parse((await probe()).stdout)).toEqual([
+        { mode: 'isolated', count: 2 },
+        { mode: 'shared', count: 1 },
+      ]);
+      for (const value of ['2', '0.5', 'NULL', "'invalid'"]) {
+        db.run(`UPDATE organization SET shared_people=${value} WHERE id='a'`);
+        const invalid = await probe();
+        expect(invalid.exit).not.toBe(0);
+        expect(invalid.stderr).toContain('invalid stored shared_people');
+      }
+    } finally {
+      db.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses missing, unreadable or malformed databases and missing DB_PATH', async () => {
+    const directory = scratchSync('wbs-capacity-missing-');
+    const malformed = join(directory, 'invalid.db');
+    writeFileSync(malformed, 'not SQLite');
+    try {
+      for (const path of [join(directory, 'absent.db'), directory, malformed]) {
+        const child = Bun.spawn(storedCapacityModesCommand('green').slice(2), {
+          env: { ...process.env, DB_PATH: path },
+          stderr: 'pipe',
+        });
+        expect(await child.exited).not.toBe(0);
+      }
+      expect(existsSync(join(directory, 'absent.db'))).toBe(false);
+      const environment = { ...process.env };
+      delete environment['DB_PATH'];
+      const child = Bun.spawn(storedCapacityModesCommand('green').slice(2), {
+        env: environment,
+        stderr: 'pipe',
+      });
+      expect(await child.exited).not.toBe(0);
+      expect(await new Response(child.stderr).text()).toContain('DB_PATH must be set');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 });

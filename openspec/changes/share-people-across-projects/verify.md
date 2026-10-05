@@ -507,3 +507,115 @@ The classification suite passed after insertion (17 pass / 0 fail, 208ms). Follo
 
 The canonical
 exact-hash gate remains required for the pushed head; the earlier failure is not a gate pass.
+
+## Slice 6 — dormant storage and downgrade safety
+
+Based on exact main `281f18e62e9b260bdc9d2bf4f5feeb34266c2521` in isolated branch
+`feat/shared-people-storage`. This release supports runtime modes exactly `['isolated']`;
+encoding shared mode does not activate it. No setter, runtime/cache switch, fan-out, mode route
+or UI is included. Umbrella tasks 6.1/6.2 remain unchecked. Migration history is preserved;
+complete-history test inventories include the new additive migration.
+
+TDD: the new column/default/independent rollback negatives failed before migration code.
+Combined recovery tests failed before their implementation. Parent architecture review then
+produced four RED cases for semantic backup modes and additional/missing organization restore
+behavior. Dedicated-save write injection and existing-file overwrite both failed before the
+physical read-only opener and exclusive `0600` file creation. Physical missing-table and dangling
+CLI symlink probes subsequently failed (1 pass/2 fail) before fail-closed corrections.
+
+R5 mutation runs restored the exact production bytes after every injected fault. Each row below
+was observed to fail its named production-path test with exit 1; no parse/load errors count as
+proof. Adjacent `Proof:` comments identify the safety boundaries.
+
+| Injected production fault | Observed failing production-path proof                      |
+| ------------------------- | ----------------------------------------------------------- |
+| sql-encoding              | stored encoding constraint                                  |
+| nonnull                   | stored null encoding constraint                             |
+| down-shared               | shared organization refuses downgrade                       |
+| down-ranks                | rank independently refuses downgrade                        |
+| strict-decode             | corrupt trusted row read                                    |
+| missing-organization      | missing trusted organization read                           |
+| backup-header             | malformed/duplicate complete backup refuses before mutation |
+| backup-mode               | malformed/duplicate complete backup refuses before mutation |
+| backup-org-unique         | malformed/duplicate complete backup refuses before mutation |
+| backup-rank-unique        | malformed/duplicate complete backup refuses before mutation |
+| snapshot-transaction      | coherent concurrent mode/rank capture                       |
+| physical-readonly         | injected write on dedicated save connection                 |
+| snapshot-close            | close after injected snapshot read throw                    |
+| remove-complete-match     | stale mode, rank and organization identities                |
+| remove-atomic             | late remove failure leaves all prior state                  |
+| restore-supported         | shared restore refuses before first-write trap              |
+| restore-saved-exists      | missing saved organization named refusal                    |
+| restore-empty-ranks       | nonempty current ranks refusal                              |
+| restore-isolated-current  | additional shared organization refusal                      |
+| cli-environment           | real CLI names missing DB_PATH                              |
+| cli-arguments             | real CLI names invalid arguments with usage refusal         |
+| cli-exclusive             | existing recovery bytes stay unchanged                      |
+| cli-private               | created backup permissions are 0600                         |
+| capability-advertise      | physical current release advertises isolated only           |
+| probe-invalid-path        | physical dangling CLI symlink refuses                       |
+| probe-missing-source      | physical missing source refuses                             |
+| probe-missing-table       | physical missing organization table refuses                 |
+| probe-invalid-encoding    | physical corrupt SQLite encoding refuses                    |
+| probe-physical-readonly   | physical missing database remains absent                    |
+| probe-column-truth        | physical counts reveal shared state                         |
+| swap-registration         | swap refuses before migration and after outgoing stop       |
+| restore-atomic            | concurrent restore eligibility writer stays locked          |
+
+The initial atomic-remove mutation had a syntax error and was discarded; the corrected callback
+without a transaction failed on partial database state. Initial physical read-only mutation still
+refused through the missing-table guard, so the negative was strengthened to assert that the
+absent database is never created, then observed failing with the mutable opener.
+
+Focused validation before the final rerun: five-file mode/recovery/rank/Docker/swap command
+passed 227 tests, 636 assertions, exit 0. OpenSpec validation passed all 146 artifacts. Initial
+scoped typecheck found widened map inference and an unknown SQL-row reflection; both were
+corrected with precise return typing and an explicit object boundary. Scoped lint required
+import sorting, non-void callback braces, nondeprecated SQLite writes and an explicit all-row
+delete predicate. Existing migration tests initially exposed their complete-history inventories;
+only those expectations are extended for the new migration. Final validation follows below.
+
+Canonical exact-head gate, substantive CI and independent Astra review remain required before
+merge. Runtime shared activation, solver installation, cache/fan-out, UI and mode-route checks
+remain outside this bounded release and unperformed.
+
+Final scoped commands (fresh, cache bypassed):
+
+| Command                                                                                                                                                                                             | Observed outcome                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `bun test` with mode, combined recovery, rank, Docker and swap files                                                                                                                                | 227 pass / 0 fail; 636 assertions across five files, exit 0 (14.48s)           |
+| `bun test libs/wbs/adapters/store-sqlite/src/migrate-down.db.test.ts libs/wbs/adapters/store-sqlite/src/migrate.db.test.ts`                                                                         | 90 pass / 0 fail; 414 assertions, exit 0 (11.40s)                              |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint,typecheck,build -p wbs-store-sqlite,wbs-domain,tool-remote-scripts,wbs-be-01 --parallel=2 --skip-nx-cache --output-style=static` | All targets for four projects and four dependency tasks passed; exit 0 (38.4s) |
+| `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts apps/wbs/be-01/drizzle/20261005110000_add_shared_people/migration.sql`                                                                    | exit 0                                                                         |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                            | 146 passed / 0 failed, exit 0                                                  |
+| `git diff --check`                                                                                                                                                                                  | exit 0                                                                         |
+
+The broader root path-filter command was discarded because Bun also discovered generated
+`dist/out-tsc` test files. A correct adapter-cwd run then identified the partial recovery audit
+obligation. Independent Astra review confirmed the existing full-row INSERT recovery exceptions
+do not apply to mode+id organization UPDATEs. Both remove and restore now take an explicit
+operator instant and apply `auditOnUpdate({ at })`; the CLI supplies `Date.now()`. No audit test
+or exemption is changed. The fixed-instant behavior case failed before the correction, then
+combined recovery and production audit suites passed 29 tests / 102 assertions, exit 0 (3.40s).
+Late failures assert entire organization rows unchanged, including audit fields; additional
+isolated organizations stay byte-for-byte untouched, and restored ranks retain historical audit
+fields. The in-flight adapter-cwd run imported the pre-correction production module, so its two
+audit/stamp failures do not establish the corrected head; exact-head canonical verification remains
+required. Root-generated output discovery and sandbox stdin failures are tooling limits, not
+accepted product degradation.
+
+Audit follow-up final verification: independently dropping the remove stamp and restore stamp
+failed the fixed-instant production-path recovery test (exit 1 in each case), then exact bytes
+were restored. Final fresh scoped lint/typecheck/build command above passed all targets and four
+dependency tasks again, exit 0 (37.3s), after the explicit audit API change. The correct adapter-cwd
+run completed 1256 pass / 2 fail / 10645 assertions across 95 files (147.87s), with exactly the
+two pre-correction audit/stamp failures; it is superseded for those two cases by the corrected
+29-test GREEN run and must not be presented as a complete final-head pass. Canonical exact-head
+verification will replace that incomplete broad evidence before merge.
+
+Corrected final-head focused command adds `audit.test.ts` to the five mode/recovery/rank/Docker/
+swap files: 234 pass / 0 fail, 648 assertions across six files, exit 0 (14.67s). Fresh migration
+lint and OpenSpec all-validation passed again. Explicit changed/new-path Nx format write/check
+passed after the audit correction, and `git diff --check` is clean. Self-review confirms the
+remaining historical test edits only update complete migration inventories or the newest-name
+expectation; existing migration scripts and rank recovery semantics are unchanged.

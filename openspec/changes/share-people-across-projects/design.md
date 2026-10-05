@@ -114,3 +114,38 @@ remain outside the read transaction. `SCHEDULE_ALGORITHM_ID` stays `slice-leveli
 
 Mode storage, activation, rollback vocabulary, fan-out and UI are still pending in umbrella tasks
 6.1/6.2 and slices 7/8; this slice adds the dormant chain capability.
+
+## D9. Storage and downgrade safety before runtime activation
+
+This intermediate release stores `organization.shared_people` as a non-null integer constrained
+to 0/1, default 0. Strict adapter reads decode only those two encodings into `isolated`/`shared`;
+missing organizations and malformed trusted encodings throw. Encoding support is not runtime
+capability: the release advertises `SUPPORTED_CAPACITY_MODES = ['isolated']` exactly until the
+runtime, cache and UI work is complete. There is no setter, mode route or activation wiring.
+
+A versioned combined backup contains every organization's id and semantic `isolated`/`shared`
+mode, including isolated, and every column of every project-rank row, each array sorted by stable
+id. Save owns a dedicated physically read-only connection and captures both sets in one read
+transaction, closing on success or throw. It exclusively creates a private backup file; an existing
+file is never overwritten. Remove validates the complete file and requires exact equality
+with the current complete state under one immediate transaction before resetting all modes to
+zero and deleting all ranks. A stale mode, organization added/deleted, changed rank, duplicate
+identity, missing state or unreadable/malformed file refuses without partial changes.
+
+Restore validates all saved values against this release's supported modes before mutation, so
+any `shared` organization refuses even though the schema encodes it. It then requires every saved
+organization to exist, permits additional isolated organizations untouched, requires all current
+modes isolated and an empty current rank table; verifies rank ownership and authors; and restores the combined state in one immediate transaction. Partial
+organization updates use the operator instant for `updated_at`; rank rows retain every saved
+audit field. Late failures roll back audit fields as well as modes and ranks. Existing
+rank rollback history and CLI remain intact. `shared-people-rollback-cli.ts save|remove|restore`
+is the combined procedure for the new column's guarded downgrade.
+
+The new forward migration is additive. Its down script refuses independently while a shared
+organization or any project rank exists, preserving the column and applied-migration ledger.
+It names the combined CLI and recovery runbook. The swap registers `capacityModes` and queries
+actual stored mode encodings, refusing a missing organization table, malformed state and an incoming release unable to read
+stored shared mode both before migration and after the outgoing color stops. An absent old-schema
+column explicitly means all organizations are isolated; a present unreadable/malformed column
+never does. Only an absent capability CLI under readable source is an older isolated release;
+a directory, dangling symlink or missing source refuses. Task 6.1/6.2 stay unchecked: runtime/cache integration, fan-out and activation remain.
