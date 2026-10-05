@@ -88,7 +88,7 @@ recorded separately in verify.md; they do not establish runtime mode activation.
 Planning baseline: merged main `8bccd93bc537cffac85b53ea056a79f786558eda`. Implementation
 progress remains **17/23**. The steps below refine the existing two unchecked umbrella tasks;
 they are not additional completion checkboxes. Steps 6.1a/6.2a are implemented and proved below;
-6.1b/6.2b are implemented and proved below; 6.1c–f and their paired proofs remain pending. Evidence is recorded by step id in verify.md.
+6.1b/6.2b and 6.1c/6.2c are implemented and proved below; 6.1d–f and their paired proofs remain pending. Evidence is recorded by step id in verify.md.
 
 1. **6.1a — Mode-aware coherent read.** Test, then implement strict snapshot mode selection,
    human scope and project-owned background reads around the existing chain capability.
@@ -119,6 +119,9 @@ they are not additional completion checkboxes. Steps 6.1a/6.2a are implemented a
    comparison or availability refusal and observe stale dates. Verify rename/unrelated rank
    edits with unchanged incoming bookings retain basis/input identity and empty calendars retain
    existing canonical bytes.
+   **6.1c/6.2c complete:** one authorized aggregate observation supplies current shared basis,
+   availability and detached projections before load/space cache hits; mounted warm-read,
+   publication, coherence, identity and independent fault evidence is in verify.md.
 4. **6.1d — Optimizer admission and Retry.** Test, then route initial live admission, debounce,
    queued restart and Retry through coherent input/settings. Admit only after snapshot close;
    preserve the response's captured display. Test `all optimizer admissions use the shared input`,

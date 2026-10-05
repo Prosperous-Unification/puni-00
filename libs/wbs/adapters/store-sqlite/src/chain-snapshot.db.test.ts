@@ -691,6 +691,49 @@ describe('detached live snapshot guards', () => {
     kind: 'scoped',
     scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
   } as const;
+  it('refuses a legacy aggregate read after activation', async () => {
+    expect(await livePlans().readAggregate('ada', { kind: 'legacy' })).toEqual({
+      kind: 'access_refused',
+      refusal: 'no_active_organization',
+    });
+  });
+  it('reuses captured scheduling across aggregate target closures', async () => {
+    let schedules = 0;
+    const store = createLivePlanStore({
+      kind: 'owned',
+      openConnection: () => openReadOnlyConnection(path),
+      schedulerOf: () => ({
+        supports: (engine) => fast.supports(engine),
+        read: (ask) => {
+          schedules++;
+          return fast.read(ask);
+        },
+      }),
+    });
+    const observed = await store.readAggregate('ada', access);
+    expect(observed.kind).toBe('shared');
+    if (observed.kind !== 'shared') throw new Error('aggregate observation unavailable');
+    expect(observed.entries.map(({ plan }) => plan.project.id)).toEqual(['a1', 'a2', 'a3', 'a4']);
+    expect(schedules).toBe(4);
+  });
+  it('keeps the incoming basis and full input identity across rename and unrelated rank changes', async () => {
+    const store = livePlans();
+    const target = async () => {
+      const observed = await store.readAggregate('ada', access);
+      if (observed.kind !== 'shared') throw new Error('aggregate observation unavailable');
+      const entry = observed.entries.find(({ plan }) => plan.project.id === 'a3');
+      if (entry?.plan.chain.kind !== 'scheduled') throw new Error('target schedule unavailable');
+      return { basis: entry.basis, inputHash: scheduleInputHash(entry.plan.chain.input) };
+    };
+    const before = await target();
+    write("UPDATE project SET name = 'Renamed A' WHERE id = 'a1'");
+    write("UPDATE project_rank SET position = 25 WHERE project_id = 'a4'");
+    expect(await target()).toEqual(before);
+    write("UPDATE project SET start_date = '2026-10-06' WHERE id = 'a1'");
+    const moved = await target();
+    expect(moved.basis).not.toBe(before.basis);
+    expect(moved.inputHash).not.toBe(before.inputHash);
+  });
   it('closes its owned connection after successful detached projection', async () => {
     expect((await livePlans().read('a3', access)).kind).toBe('shared');
     expect(closed).toBe(1);

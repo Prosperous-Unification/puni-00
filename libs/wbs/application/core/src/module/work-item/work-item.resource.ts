@@ -1625,6 +1625,43 @@ export class WorkItemService {
     };
   }
 
+  /** Private aggregate projection for load and space cache admission. */
+  async sharedTreesWithin(
+    actorId: string,
+    access: ResourceAccess,
+  ): Promise<
+    | AccessRefused
+    | { readonly kind: 'isolated' }
+    | {
+        readonly kind: 'shared';
+        readonly entries: readonly {
+          readonly projectId: string;
+          readonly name: string;
+          readonly rank: number;
+          readonly revision: number;
+          readonly seq: number;
+          readonly basis: string | null;
+          readonly tree: PlanTree | EngineUnavailable;
+        }[];
+      }
+  > {
+    if (this.opts.livePlans === undefined) return { kind: 'isolated' };
+    const captured = await this.opts.livePlans.readAggregate(actorId, access);
+    if (captured.kind !== 'shared') return captured;
+    return {
+      kind: 'shared',
+      entries: captured.entries.map(({ rank, basis, plan }) => ({
+        projectId: plan.project.id,
+        name: plan.project.name,
+        rank,
+        revision: plan.project.revision,
+        seq: plan.seq,
+        basis,
+        tree: projectSharedTree(plan),
+      })),
+    };
+  }
+
   /**
    * Whether the caller's access reaches the project, and, under scoped access,
    * that nothing the schedule read follows leaves the project or the

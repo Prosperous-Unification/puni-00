@@ -2,11 +2,13 @@ import type {
   ChainAccess,
   ChainSnapshot,
   ChainSnapshotStore,
+  LivePlanAggregate,
   LivePlanRead,
   LivePlanStore,
   OptimizedScheduleAdapter,
   OrganizationPrincipal,
   PlanInputReads,
+  Project,
   ResourceAccess,
   Scheduler,
   SharedPeopleRead,
@@ -34,6 +36,7 @@ import { readOrganizationActivation } from './organization-activation';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
 import { readPlanInputIn } from './saved-plan-capture';
+import { incomingCalendarHash, scheduleInputHash } from './schedule-input-hash';
 import { projectOrganization } from './schema';
 import { readCapacityMode } from './shared-people-mode';
 import { WorkItemRepository } from './work-item';
@@ -85,7 +88,7 @@ export class ChainSnapshotRepository implements ChainSnapshotStore {
         // Proof: reading mode on a fresh connection failed the authority-bound concurrent-mode test.
         const mode =
           access.kind === 'legacy' ? 'isolated' : readCapacityMode(db, access.scope.organizationId);
-        let readable: readonly PlanInputReads['project'][];
+        let readable: readonly Project[];
         // Proof: removing target selection failed `never materializes upstream assignments for isolated or legacy targets`.
         if (mode === 'isolated') {
           const project =
@@ -207,7 +210,7 @@ export function createChainSnapshotStore(
 export async function readChainSnapshotIn(
   db: Drizzle,
   access: ChainAccess,
-  readable: readonly PlanInputReads['project'][],
+  readable: readonly Project[],
   projectId: string,
   options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'>,
   captureRead?: CaptureReadSeam,
@@ -227,7 +230,7 @@ export async function readChainSnapshotIn(
       .filter((each) => mode === 'shared' || each.id === projectId)
       .map((each) => [each.id, each]),
   );
-  const candidates: Pick<PlanInputReads, 'project' | 'assignments'>[] = [];
+  const candidates: ChainSnapshot['projects'][number][] = [];
   for (const projectId of order) {
     const project = visible.get(projectId);
     // Proof: removing this check made the broken readable-list negative accept inconsistent rank.
@@ -298,6 +301,10 @@ export function createLivePlanStore(
   }
   return {
     read: (projectId, access) => observe((db) => readLivePlanIn(db, projectId, access, options)),
+    // Proof: bypassing this observation transaction for aggregate reads made the mounted
+    // concurrent-write test combine A's old start with B's new chain (10-05/10-05).
+    readAggregate: (actorId, access) =>
+      observe((db) => readLiveAggregateIn(db, actorId, access, options)),
     readExport: (projectId, access) =>
       observe(async (db) => {
         const captured = await readLivePlanIn(db, projectId, access, options);
@@ -324,6 +331,80 @@ export function createLivePlanStore(
     readProject: (projectId) =>
       observe((db) => readLiveProjectIn(db, projectId, undefined, options)),
   };
+}
+
+/** One read transaction owns access, rank, captures, cache selection and detached projections. */
+async function readLiveAggregateIn(
+  db: Drizzle,
+  actorId: string,
+  access: ResourceAccess,
+  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'>,
+): Promise<LivePlanAggregate> {
+  if (access.kind === 'legacy') {
+    // Proof: omitting this check made a real aggregate read after activation
+    // answer isolated rather than access_refused/no_active_organization.
+    if (readOrganizationActivation(db) !== 'pre_activation')
+      return { kind: 'access_refused', refusal: 'no_active_organization' };
+    return { kind: 'isolated' };
+  }
+  // Proof: bypassing the aggregate activation recheck after an injected durable
+  // marker reset returned 200 with dates instead of 403/no_active_organization.
+  if (readOrganizationActivation(db) === 'pre_activation')
+    return { kind: 'access_refused', refusal: 'no_active_organization' };
+  const resolved = await new SqliteOrganizationAccess(db, () =>
+    Promise.resolve(access.scope.organizationId),
+  ).resolve({ id: access.scope.userId });
+  // Proof: bypassing this check made revocation between route admission and the
+  // aggregate snapshot answer 200 with held dates instead of 403/not_a_member.
+  if (!resolved.ok) return { kind: 'access_refused', refusal: resolved.refusal };
+  if (readCapacityMode(db, access.scope.organizationId) === 'isolated') return { kind: 'isolated' };
+
+  const projects = new ProjectRepository(db, OPEN);
+  const readable = await projects.listForInOrganization(actorId, access.scope.organizationId);
+  const snapshot = await readChainSnapshotIn(db, access, readable, '', options);
+  const captures = new Map<string, PlanInputReads>();
+  const scheduling = new Map<string, ReturnType<Scheduler['read']>>();
+  const shared: ChainSnapshot = {
+    ...snapshot,
+    capturePlan: async (projectId) => {
+      const captured = captures.get(projectId);
+      if (captured !== undefined) return captured;
+      const fresh = await snapshot.capturePlan(projectId);
+      captures.set(projectId, fresh);
+      return fresh;
+    },
+    scheduler: {
+      supports: (engine) => snapshot.scheduler.supports(engine),
+      read: (request) => {
+        const key = `${request.projectId}:${scheduleInputHash(request.input)}:${request.engine}:${request.objective}:${String(request.enabled)}`;
+        const held = scheduling.get(key);
+        if (held !== undefined) return held;
+        const scheduled = snapshot.scheduler.read(request);
+        scheduling.set(key, scheduled);
+        return scheduled;
+      },
+    },
+  };
+  const entries: Extract<LivePlanAggregate, { kind: 'shared' }>['entries'][number][] = [];
+  for (const [index, { project }] of snapshot.projects.entries()) {
+    const chain = await readChain(shared, project.id);
+    if (chain.kind === 'not_found')
+      throw new Error('ranked target disappeared inside aggregate snapshot');
+    entries.push({
+      rank: index + 1,
+      basis: chain.kind === 'scheduled' ? incomingCalendarHash(chain.input.elsewhere) : null,
+      plan: {
+        kind: 'shared',
+        organizationId: access.scope.organizationId,
+        chain,
+        project,
+        steps: await projects.stepsOf(project.id),
+        workItems: await new WorkItemRepository(db, OPEN).listByProject(project.id),
+        seq: await new DrizzleEventLogStore(db, OPEN).latestSeq(`project:${project.id}`),
+      },
+    });
+  }
+  return { kind: 'shared', entries };
 }
 
 async function readLivePlanIn(
