@@ -1,4 +1,4 @@
-import type { PlanInputReads, ResourceAccess, SavedPlanCaptureStore } from '@wbs/core';
+import type { ChainAccess, PlanInputReads, SavedPlanCaptureStore } from '@wbs/core';
 
 import { ActualRepository } from './actual';
 import { CapacityRepository } from './capacity';
@@ -154,7 +154,7 @@ export async function readPlanInputIn(
   db: Drizzle,
   projectId: string,
   captureRead: CaptureReadSeam = inertSqliteCaptureReadSeam,
-  access?: ResourceAccess,
+  access?: ChainAccess,
 ): Promise<PlanInputReads | null> {
   const projects = new ProjectRepository(db, OPEN);
   const directory = new DirectoryRepository(db, OPEN);

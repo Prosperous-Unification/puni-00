@@ -149,3 +149,111 @@ stored shared mode both before migration and after the outgoing color stops. An 
 column explicitly means all organizations are isolated; a present unreadable/malformed column
 never does. Only an absent capability CLI under readable source is an older isolated release;
 a directory, dangling symlink or missing source refuses. Task 6.1/6.2 stay unchecked: runtime/cache integration, fan-out and activation remain.
+
+## D10. Runtime reads and cache freshness before activation
+
+### Context and scope
+
+The runtime slice follows storage PR #265, merged at
+`8bccd93bc537cffac85b53ea056a79f786558eda`. The chain foundation is installed by no production
+composition yet. Live trees and optimizer input rebuilds still use project-local inputs; load and
+space cache hits know only local revision/sequence. The saved-plan feature's shared callback also
+needs to cross its module installer and composition boundary.
+
+This slice wires coherent scheduling reads, transactional consumers, optimizer admission inputs,
+shared saved/current capture and cache freshness. It does not complete 6.1/6.2. Durable fan-out,
+UI 7, mode route 8, trusted activation and live solver deployment/binding remain required later.
+The release continues advertising exactly `['isolated']` and refusing shared restores. There is
+no activation setter, route or environment override. Shared-mode production paths are exercised
+with explicitly seeded SQLite fixtures while supported activation remains closed.
+
+### One derivation, two transaction owners
+
+The application owns mode-aware scheduling over borrowed readers. Authorization, stored mode,
+rank, assignments, plan rows/settings and optimized cache selection belong to one observation.
+Legacy access selects isolated behavior. Scoped reads strictly decode the organization's mode
+inside that observation; missing or malformed trusted state throws. Isolated behavior, empty
+`elsewhere` canonical bytes and isolated saved-capture ordering stay unchanged.
+
+Ordinary shared reads and saved/current captures own a dedicated physically read-only snapshot.
+Arrange-by-schedule and command calendar preflight instead borrow the command's existing
+transaction, including its staged writes. Factor transaction-bound readers from lifecycle
+ownership: a borrowed reader never begins, commits or closes its caller's transaction. Neither
+form recursively calls live `treeWithin`, admits solver work or publishes events during chain
+derivation. The selected target schedule and influencer evidence detach before returning.
+
+The live tree projection consumes detached rows and the selected schedule. Its revision, event
+sequence, actuals, progress, measures and organization-local names come from the same observation.
+`PlanInputReads` remains a saved-input value shape; its captured project omits live revision and
+sequence, so it is not cast into a live tree. Expose the needed live metadata explicitly and reuse
+pure projection logic. Preserve the existing narrow isolated assigned-person read. Tree responses
+carry slice holders and `waitingElsewhere` when present without adding it to isolated responses.
+
+Human reads, saves and Retry retain their principal or admitted scope. Background optimizer work
+uses an explicit project-owned read which resolves current ownership and activation state in its
+snapshot; it never fabricates a user or treats a missing scope as legacy. Values stay in core
+value ports; SQLite connection capabilities stay in the adapter. The saved-plan callback must
+pass through `module/saved-plans/{check,module}.ts` and the composition root, not only a direct
+feature constructor.
+
+### Three identities with separate purposes
+
+The **schedule input hash** remains `canonicalScheduleInput` over local scheduling facts and
+nonempty, holder-bearing, target-relative `elsewhere`. Rank numbers, display names and mode are
+not additional scheduler inputs. Empty calendars keep the old bytes and address.
+
+The **basis hash** is the canonical identity of the incoming `elsewhere` alone, including person,
+interval and holder. Shared load and space caches add it to their existing access, revision,
+sequence and version dimensions. Derive current input/availability before accepting a cache hit;
+an unavailable influencer is not an empty calendar and cannot reuse a previous available entry.
+Reuse request-local chain results when load or spaces read several projects. For one aggregate
+shared response, derive its required projects from one coherent observation, not independent
+snapshots that can depict mutually inconsistent bookings.
+
+The later fan-out **bookings hash** describes outgoing displayed bookings on the absolute axis:
+person, project, work item, step and fractional interval, excluding labels, rank numbers and
+process counters. It is not the incoming basis or the whole scheduler input hash. This slice
+does not add unused bookings-hash persistence or a booking ledger. A target start-date edit can
+change its incoming relative calendar and its outgoing absolute bookings independently.
+
+### Admission and immutable cache addresses
+
+Initial live admission, edit debounce, queued rebuild after restart and manual Retry consume the
+same coherent input/settings contract. Chain derivation and shared saved/current reads are
+non-admitting; an ordinary live use case can request target optimization after releasing the
+read snapshot, without replacing the displayed capture with a second independently read chain.
+The first response may show captured `idle` while that subsequent admission starts work; it must
+not claim that newly admitted work was already pending in the captured observation.
+
+Queue capture happens after a reservation today. If input is absent, typed unavailable, stale or
+throws before launch, release the unlaunched reservation on every path. Keep expected absence,
+modeled engine unavailability and unexpected exceptions distinct. Preserve existing preflight
+refusals, Retry authority/hash checks and process lifecycle fencing; never apply unlaunched-seat
+cleanup to a child whose terminal state is unknown.
+
+Publication continues validating the result against the admitted request and enforcing slot,
+generation, cancellation and enablement fences in its existing write transaction. An eligible
+old-input outcome can be stored only at its original immutable cache address. Every reader
+derives its current shared input and performs the existing exact hash/version/budget/generation
+lookup, so an old-address result cannot become a current result for a different basis. Do not
+replace the existing blue/green multi-input cache policy with a latest-input-only policy.
+
+A detached current-chain recheck before storage would still race; this slice does not present
+one as atomic publication validation. Durable fan-out owns the later atomic comparison of
+displayed bookings, cache publication and downstream event evidence. Preserve the existing
+cache-outcome/event atomicity now. Storage of an old-address result alone does not prove that
+current displayed bookings changed and must not later be used as that proof.
+
+### Risks, sequencing and open questions
+
+Snapshot lifetime includes Fast derivation over the required closure. Shared aggregate reads
+reuse that work within a request; transaction-bound command reads must not admit children while
+holding the writer. Retain lifecycle, scoped-cross-reference and materialized-row regressions.
+Warm-cache correctness must not depend on future `elsewhere_changed` delivery or a TTL.
+
+No new migration, domain term or ADR is required: these identities are implementation contracts
+for the existing Booking and Elsewhere terms and preserve ADR 0034. Keep scheduler contract 15,
+cache DTO 3 and `slice-leveling-v4` unless implementation discovers a separate incompatible
+contract change requiring review. There is no unresolved product decision in this bounded slice.
+Fan-out must subsequently cover topology removals, cold processes, replay and crash recovery;
+completing runtime reads does not narrow that obligation or authorize activation.

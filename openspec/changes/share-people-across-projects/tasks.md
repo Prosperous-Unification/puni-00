@@ -69,7 +69,7 @@
       `capacityModes`, and `elsewhere_changed`.
       Chain-reader portion implemented in slice 6: directed influencers, coherent read-only snapshot,
       displayed booking projection, whole-schedule calendar preflight and shared saved capture/current
-      comparison. Storage/downgrade portion implemented next: constrained encoding, strict reads,
+      comparison. Storage/downgrade portion merged in PR #265: constrained encoding, strict reads,
       coherent exclusive combined backup, atomic remove/restore, guarded down migration and truthful
       swap capability checks. Intermediate runtime support remains exactly isolated; runtime/cache
       integration, fan-out and activation remain pending.
@@ -82,6 +82,76 @@ Chain-only negatives proved in slice 6: transitive closure, typed influencer ref
 coherent snapshot, non-admitting reads, scoped captures and lifecycle cleanup. Remaining
 mode runtime/hash-fan-out obligations keep this umbrella unchecked. Storage/swap negatives are
 recorded separately in verify.md; they do not establish runtime mode activation.
+
+### Ordered runtime/cache work within 6.1 and its 6.2 proofs
+
+Planning baseline: merged main `8bccd93bc537cffac85b53ea056a79f786558eda`. Implementation
+progress remains **17/23**. The steps below refine the existing two unchecked umbrella tasks;
+they are not additional completion checkboxes. Steps 6.1a/6.2a are implemented and proved below;
+6.1b–f and their paired proofs remain pending. Evidence is recorded by step id in verify.md.
+
+1. **6.1a — Mode-aware coherent read.** Test, then implement strict snapshot mode selection,
+   human scope and project-owned background reads around the existing chain capability.
+   Test `shared runtime selects mode within its authorized snapshot`: mounted shared A→B
+   displacement, byte-identical isolated/legacy input, malformed mode refusal, foreign rows
+   excluded and concurrent mode/rank/assignment/date changes seen coherently. **6.2a:** remove
+   mode dispatch, scope validation or snapshot ownership independently and watch those production
+   cases fail; preserve lifecycle cleanup and read-only connection proofs.
+   **6.1a/6.2a complete:** strict target-first mode dispatch, project-owned and borrowed readers;
+   observed proof commands and outcomes are recorded in verify.md.
+2. **6.1b — Live projection and transactional consumers.** Test, then thread detached rows,
+   live revision/sequence, selected schedule, slice holders and optional `waitingElsewhere`
+   through tree/export. Extract only the pure projection seam needed; preserve actual/progress/
+   measures/local-name behavior and the narrow isolated directory read. Bind arrange and calendar
+   preflight to the command transaction. Tests `shared tree and export agree` and
+   `shared command preflight sees staged writes`. **6.2b:** replace the borrowed transaction
+   with a fresh connection, or omit elsewhere from the live projection, and watch the staged
+   refusal/arrangement or displaced-date assertions fail. No solver admission during the read.
+3. **6.1c — Incoming-calendar cache identity.** Test, then derive current shared basis and
+   availability before load and space hits. Preserve existing key dimensions and reuse one
+   coherent observation for an aggregate response. Tests:
+   `warm shared load and space follow an upstream-only edit`,
+   `selected upstream publication refreshes a warm cache` and
+   `unavailable influencer defeats a warm hit`; target revision/sequence stay fixed. **6.2c:** omit basis
+   comparison or availability refusal and observe stale dates. Verify rename/unrelated rank
+   edits with unchanged incoming bookings retain basis/input identity and empty calendars retain
+   existing canonical bytes.
+4. **6.1d — Optimizer admission and Retry.** Test, then route initial live admission, debounce,
+   queued restart and Retry through coherent input/settings. Admit only after snapshot close;
+   preserve the response's captured display. Test `all optimizer admissions use the shared input`,
+   upstream-only `stale-input-hash`, and typed refusal/exception after queue reservation.
+   **6.2d:** omit elsewhere, release or snapshot-close ordering independently and observe wrong
+   request/hash, a leaked unlaunched slot or admission inside the read. Unexpected exceptions
+   throw after cleanup; retain terminal-evidence rules for already launched children.
+5. **6.1e — Installed saved/current capture.** Test, then pass scoped shared capture through
+   the saved-plan installer and composition root. Test
+   `mounted shared save and current retain their own chain`,
+   including an upstream edit/delete, immutable saved bytes and target S4
+   pending/infeasible/unavailable states. **6.2e:** drop the module binding or use live admission
+   during capture and watch missing displacement or changed generation/slot/queue state.
+   Preserve the isolated outside-snapshot capture test.
+6. **6.1f — Exact cache addresses and release boundary.** Test
+   `old-address publication never serves a new shared basis`
+   while retaining existing generation/token/cancel/enablement fences
+   and outcome/event atomicity. Do not add a detached latest-chain publication guard or change
+   blue/green multi-input cache semantics. **6.2f:** omit the current full-key lookup and watch
+   the stale optimized schedule return. Rerun cycle/calendar-range/unavailable/transitive and
+   undated-bridge regressions, the isolated-only capability CLI and shared-restore refusal.
+   Advertising shared must fail the release capability negative. Record all newly introduced
+   safety checks' observed failures before the exact-head gate.
+
+### Remaining work after runtime/cache
+
+6.1/6.2 stay open after 6.1a–f: durable `elsewhere_changed` fan-out is a separate implementation
+slice. It must cover every booking-changing commit and displayed optimized transition, topology
+removals, cold processes, durable replay and crash recovery. It owns atomic displayed-booking
+comparison and downstream event evidence around publication; merely storing an old-address
+result is not evidence that the current display changed. Prove rename/no-booking-change does
+not fan out and affected lower projects do, including removal of a formerly connecting edge.
+No booking ledger is introduced. UI 7 and mode route 8 remain required in their stated order.
+Trusted activation and live solver image publication/binding installation remain deferred;
+this runtime slice provides no setter, activation route or environment override and continues
+advertising `['isolated']` and refusing shared restore.
 
 ## 7. fe
 

@@ -3,18 +3,26 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { encodeOptimizedResult } from '@wbs/contracts/solver/optimized-result';
-import { scheduleInputOfCaptured, SharedPeopleReader } from '@wbs/core';
+import { readChain, scheduleInputOfCaptured, SharedPeopleReader } from '@wbs/core';
 import { SavedPlanResource } from '@wbs/core/module/saved-plans/saved-plan.resource';
 import { SavedPlanService } from '@wbs/core/module/saved-plans/saved-plans.feature';
 import { schedule, sliceKey } from '@wbs/domain';
+import { canonicalScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { createScheduler } from '@wbs/runtime-portable';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
-import { ChainSnapshotRepository, createChainSnapshotStore } from './chain-snapshot';
-import { openConnection, openDatabase, openReadOnlyConnection } from './db';
+import {
+  ChainSnapshotRepository,
+  createChainSnapshotStore,
+  readChainSnapshotIn,
+} from './chain-snapshot';
+import { drizzleReadTransaction, openConnection, openDatabase, openReadOnlyConnection } from './db';
+import { DirectoryRepository } from './directory';
+import { OPEN } from './gate';
 import { allocateGeneration } from './optimization-generation';
 import { ProjectRepository } from './project';
+import { ProjectRankRepository } from './project-rank';
 import { SavedPlanRepository } from './saved-plan';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { scheduleInputHash } from './schedule-input-hash';
@@ -44,6 +52,7 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-chain-'));
   path = await openSpaceDatabase(dir);
   closed = 0;
+  write("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
   write(
     "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'member', 1)",
   );
@@ -85,7 +94,10 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-function snapshots(afterFirstRead = () => Promise.resolve()): ChainSnapshotRepository {
+function snapshots(
+  afterFirstRead = () => Promise.resolve(),
+  afterAuthority = () => Promise.resolve(),
+): ChainSnapshotRepository {
   return new ChainSnapshotRepository(
     {
       openConnection: () => {
@@ -93,12 +105,17 @@ function snapshots(afterFirstRead = () => Promise.resolve()): ChainSnapshotRepos
         return {
           db: connection.db,
           close: () => {
+            connection.db.run(sql`BEGIN`);
+            connection.db.run(sql`ROLLBACK`);
             closed++;
             connection.close();
           },
         };
       },
-      activeOrganizationOf: () => () => Promise.resolve('org-a'),
+      activeOrganizationOf: () => async () => {
+        await afterAuthority();
+        return 'org-a';
+      },
       optimization: { contractVersion: '15+0.2.0', budgetMs: 1000, now: () => 100 },
       schedulerOf: (readCaptured) =>
         createScheduler(
@@ -170,6 +187,209 @@ async function failureOf(operation: Promise<unknown>): Promise<Error> {
 }
 
 describe('the chain snapshot', () => {
+  it('shared runtime selects mode within its authorized snapshot', async () => {
+    expect(await start()).toBe(3);
+    write("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
+    const isolated = await new SharedPeopleReader(snapshots()).read('a3', principal);
+    if (!isolated.ok || isolated.value.kind !== 'scheduled') throw new Error('expected isolated');
+    expect(isolated.value.influencers).toEqual([]);
+    expect(canonicalScheduleInput(isolated.value.input)).toBe(
+      canonicalScheduleInput(scheduleInputOfCaptured(isolated.value.reads)),
+    );
+    expect(await start()).toBe(2);
+    write("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    write('DROP TRIGGER organization_activation_no_revert');
+    write("UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL");
+    const legacy = await new SharedPeopleReader(snapshots()).read('a3', principal);
+    if (!legacy.ok || legacy.value.kind !== 'scheduled') throw new Error('expected legacy');
+    expect(legacy.value.influencers).toEqual([]);
+    expect(canonicalScheduleInput(legacy.value.input)).toBe(
+      canonicalScheduleInput(isolated.value.input),
+    );
+  });
+
+  it('resolves background reads from actual ownership and activation', async () => {
+    const reader = new SharedPeopleReader(snapshots());
+    write("DELETE FROM organization_membership WHERE user_id = 'ada'");
+    expect(await reader.read('a3', principal)).toEqual({ ok: false, refusal: 'not_a_member' });
+    const shared = await reader.readProject('a3');
+    if (shared.kind !== 'scheduled' || shared.scheduled.kind !== 'scheduled')
+      throw new Error('expected shared');
+    expect(shared.influencers.map((each) => each.projectId)).toEqual(['a1', 'a2']);
+    expect(await reader.readProject('absent')).toEqual({ kind: 'not_found' });
+    write('DROP TRIGGER project_organization_frozen_update');
+    write("UPDATE project_organization SET organization_id = 'org-b' WHERE resource_id = 'a3'");
+    expect((await failureOf(reader.readProject('a3'))).message).toContain(
+      'references outside its organization',
+    );
+    write('DROP TRIGGER organization_activation_no_revert');
+    write("UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL");
+    const legacy = await reader.readProject('a3');
+    if (legacy.kind !== 'scheduled') throw new Error('expected legacy');
+    expect(legacy.influencers).toEqual([]);
+    expect(canonicalScheduleInput(legacy.input)).toBe(
+      canonicalScheduleInput(scheduleInputOfCaptured(legacy.reads)),
+    );
+  });
+
+  it('refuses corrupt mode and broken background ownership', async () => {
+    const reader = new SharedPeopleReader(snapshots());
+    expect(await start(reader)).toBe(3);
+    const client = openDatabase(path);
+    try {
+      client.run('PRAGMA ignore_check_constraints = ON');
+      client.run("UPDATE organization SET shared_people = 7 WHERE id = 'org-a'");
+    } finally {
+      client.close();
+    }
+    expect((await failureOf(reader.read('a3', principal))).message).toContain(
+      'invalid stored shared_people',
+    );
+    expect((await failureOf(reader.readProject('a3'))).message).toContain(
+      'invalid stored shared_people',
+    );
+    write("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    write('DROP TRIGGER project_organization_frozen_delete');
+    write("DELETE FROM project_organization WHERE resource_id = 'a3'");
+    expect((await failureOf(reader.readProject('a3'))).message).toContain(
+      'project ownership is absent',
+    );
+  });
+
+  it('borrows staged mode without committing or closing the caller transaction', async () => {
+    const connection = openConnection(path);
+    const transaction = drizzleReadTransaction(connection.db);
+    transaction.begin();
+    try {
+      connection.db.run(sql`UPDATE organization SET shared_people = 0 WHERE id = 'org-a'`);
+      const readable = await new ProjectRepository(connection.db, OPEN).listForInOrganization(
+        'ada',
+        'org-a',
+      );
+      const snapshot = await readChainSnapshotIn(
+        connection.db,
+        { kind: 'scoped', scope: { organizationId: 'org-a' } },
+        readable,
+        'a3',
+        { schedulerOf: () => fast },
+      );
+      const isolated = await readChain(snapshot, 'a3');
+      if (isolated.kind !== 'scheduled') throw new Error('expected isolated staged read');
+      expect(isolated.influencers).toEqual([]);
+      expect(canonicalScheduleInput(isolated.input)).toBe(
+        canonicalScheduleInput(scheduleInputOfCaptured(isolated.reads)),
+      );
+      transaction.rollback();
+      expect(await start()).toBe(3);
+    } finally {
+      connection.close();
+    }
+  });
+
+  it('refuses a broken project-owned readable dependency', async () => {
+    const broken = spyOn(ProjectRepository.prototype, 'findInOrganization').mockResolvedValue(null);
+    try {
+      expect(
+        (await failureOf(new SharedPeopleReader(snapshots()).readProject('a3'))).message,
+      ).toContain('rank names an unreadable project');
+      expect(closed).toBe(1);
+    } finally {
+      broken.mockRestore();
+    }
+  });
+
+  it('never materializes upstream assignments for isolated or legacy targets', async () => {
+    write("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
+    const original = Object.getOwnPropertyDescriptor(
+      DirectoryRepository.prototype,
+      'assignmentsInProject',
+    )?.value as DirectoryRepository['assignmentsInProject'];
+    const blocked = spyOn(DirectoryRepository.prototype, 'assignmentsInProject').mockImplementation(
+      function (this: DirectoryRepository, projectId) {
+        if (projectId !== 'a3') throw new Error('upstream isolated assignment read');
+        return original.call(this, projectId);
+      },
+    );
+    try {
+      expect(await start()).toBe(2);
+      const background = await new SharedPeopleReader(snapshots()).readProject('a3');
+      expect(background.kind).toBe('scheduled');
+      write('DROP TRIGGER organization_activation_no_revert');
+      write("UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL");
+      expect(await start()).toBe(2);
+      expect((await new SharedPeopleReader(snapshots()).readProject('a3')).kind).toBe('scheduled');
+    } finally {
+      blocked.mockRestore();
+    }
+  });
+
+  it('never lists organization projects or ranks for isolated or legacy targets', async () => {
+    write("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
+    const blocked = ['list', 'listFor', 'listForInOrganization'].map((method) =>
+      spyOn(ProjectRepository.prototype, method as 'list').mockImplementation(() => {
+        throw new Error('isolated project list');
+      }),
+    );
+    const rank = spyOn(ProjectRankRepository.prototype, 'orderIn').mockImplementation(() => {
+      throw new Error('isolated rank list');
+    });
+    try {
+      expect(await start()).toBe(2);
+      expect((await new SharedPeopleReader(snapshots()).readProject('a3')).kind).toBe('scheduled');
+      write('DROP TRIGGER organization_activation_no_revert');
+      write("UPDATE organization_activation SET state = 'pre_activation', activated_at = NULL");
+      expect(await start()).toBe(2);
+      expect((await new SharedPeopleReader(snapshots()).readProject('a3')).kind).toBe('scheduled');
+    } finally {
+      for (const blockedList of blocked) blockedList.mockRestore();
+      rank.mockRestore();
+    }
+  });
+
+  it('reads mode on the authorized connection before a concurrent authority-bound edit', async () => {
+    let edited = false;
+    const reader = new SharedPeopleReader(
+      snapshots(undefined, () => {
+        if (!edited) {
+          edited = true;
+          write("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
+        }
+        return Promise.resolve();
+      }),
+    );
+    expect(await start(reader)).toBe(3);
+    expect(await start()).toBe(2);
+  });
+
+  it('keeps background mode assignments and dates coherent and closes on throw', async () => {
+    let edited = false;
+    const reader = new SharedPeopleReader(
+      snapshots(() => {
+        if (!edited) {
+          edited = true;
+          write("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
+          write("UPDATE assignment SET person_id = 'ben' WHERE work_item_id = 'a1'");
+          write("UPDATE project SET start_date = '2026-10-12' WHERE id = 'a2'");
+        }
+        return Promise.resolve();
+      }),
+    );
+    const shared = await reader.readProject('a3');
+    if (shared.kind !== 'scheduled' || shared.scheduled.kind !== 'scheduled')
+      throw new Error('expected shared background');
+    expect(shared.scheduled.fast.slices.get(sliceKey('a3', 'a3-s0'))?.earliestStart).toBe(3);
+    expect(closed).toBe(1);
+    const broken = new SharedPeopleReader(
+      snapshots(() => {
+        throw new Error('background capture fault');
+      }),
+    );
+    expect((await failureOf(broken.readProject('a3'))).message).toContain(
+      'background capture fault',
+    );
+    expect(closed).toBe(2);
+  });
+
   it('refuses writes through the production read-only factory', async () => {
     const store = createChainSnapshotStore({
       dbPath: path,
@@ -180,8 +400,8 @@ describe('the chain snapshot', () => {
       },
     });
     expect(
-      await failureOf(store.withSnapshot(principal, () => ({ kind: 'not_found' }))),
-    ).toBeInstanceOf(Error);
+      (await failureOf(store.withSnapshot(principal, 'a3', () => ({ kind: 'not_found' })))).cause,
+    ).toMatchObject({ code: 'SQLITE_READONLY' });
     const client = openDatabase(path);
     try {
       expect(client.query("SELECT name FROM project WHERE id = 'a4'").get()).toEqual({
@@ -196,7 +416,7 @@ describe('the chain snapshot', () => {
     expect(
       (
         await failureOf(
-          snapshots().withSnapshot(principal, (snapshot) =>
+          snapshots().withSnapshot(principal, 'a3', (snapshot) =>
             snapshot.capturePlan('b1').then(() => ({ kind: 'not_found' as const })),
           ),
         )
@@ -211,7 +431,7 @@ describe('the chain snapshot', () => {
     );
     try {
       expect(
-        (await failureOf(snapshots().withSnapshot(principal, () => ({ kind: 'not_found' }))))
+        (await failureOf(snapshots().withSnapshot(principal, 'a3', () => ({ kind: 'not_found' }))))
           .message,
       ).toContain('rank names an unreadable project');
       expect(closed).toBe(1);
@@ -250,6 +470,7 @@ describe('the chain snapshot', () => {
       snapshots(() => {
         if (edited) return Promise.resolve();
         edited = true;
+        write("UPDATE organization SET shared_people = 0 WHERE id = 'org-a'");
         write("UPDATE assignment SET person_id = 'ben' WHERE work_item_id = 'a1'");
         write("UPDATE project SET start_date = '2026-10-12' WHERE id = 'a2'");
         write(

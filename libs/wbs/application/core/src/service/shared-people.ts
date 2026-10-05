@@ -8,7 +8,7 @@ import {
   workdayOrdinalOf,
 } from '@wbs/domain';
 
-import type { ChainSnapshotStore } from '../ports/chain-snapshot-store';
+import type { ChainSnapshot, ChainSnapshotStore } from '../ports/chain-snapshot-store';
 import type { OrganizationPrincipal } from '../ports/organization-access';
 import type { PlanInputReads } from '../ports/saved-plan-capture-values';
 import type { EngineUnavailable, Scheduler, ScheduleRead } from '../ports/scheduler';
@@ -20,16 +20,28 @@ export class SharedPeopleReader {
   constructor(private readonly snapshots: ChainSnapshotStore) {}
 
   read(projectId: string, principal: OrganizationPrincipal) {
-    return this.snapshots.withSnapshot(principal, async (snapshot) => {
-      const selected =
-        snapshot.access.kind === 'legacy'
-          ? snapshot.projects.filter((each) => each.project.id === projectId)
-          : selectInfluencers(snapshot.projects, projectId);
-      const plans: PlanInputReads[] = [];
-      for (const project of selected) plans.push(await snapshot.capturePlan(project.project.id));
-      return readSharedPeople(plans, projectId, snapshot.scheduler);
-    });
+    return this.snapshots.withSnapshot(principal, projectId, (snapshot) =>
+      readChain(snapshot, projectId),
+    );
   }
+
+  /** Reads for background optimizer work under current project ownership, never a synthetic user. */
+  readProject(projectId: string) {
+    return this.snapshots.withProjectSnapshot(projectId, (snapshot) =>
+      readChain(snapshot, projectId),
+    );
+  }
+}
+
+/** Derives detached scheduling evidence using a caller-owned observation. */
+export async function readChain(
+  snapshot: ChainSnapshot,
+  projectId: string,
+): Promise<SharedPeopleRead> {
+  const selected = selectInfluencers(snapshot.projects, projectId);
+  const plans: PlanInputReads[] = [];
+  for (const project of selected) plans.push(await snapshot.capturePlan(project.project.id));
+  return readSharedPeople(plans, projectId, snapshot.scheduler);
 }
 
 /**
