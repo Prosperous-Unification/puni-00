@@ -164,8 +164,11 @@ read snapshot and writes a record of a plan that did exist at that instant. What
 is forbidden is a second save _waiting on_ the first — that is the serialisation
 that holds live edits behind two body writes.
 
-`schedule()` SHALL run over values already read out of that snapshot, never
-inside it, so scheduling work holds no database read.
+In isolated mode, `schedule()` SHALL run over values already read out of that snapshot,
+never inside it, so scheduling work holds no database read. In shared mode only, the
+`saved-plans` requirement "Saved and current schedules preserve capture mode" governs
+coherent influencer scheduling within a dedicated read-only snapshot; scheduling SHALL
+not admit solver work, and persistence SHALL follow snapshot closure.
 
 #### Scenario: an edit lands between two of the capture's reads
 
@@ -319,7 +322,9 @@ no change: the feature's motivating question answered wrongly.
 bounds each side by its _stored_ schedule and `current` stores nothing, so this
 requirement states what the live side carries. `current`'s schedule SHALL be
 `schedule()`'s return over the values the same read snapshot captured, computed
-outside that snapshot exactly as the save path computes its own, labelled with
+outside that snapshot in isolated mode exactly as the save path computes its own. In
+shared mode only, it SHALL use the same detached chain schedule as shared save capture,
+selected within the dedicated non-admitting snapshot. Both modes SHALL label it with
 the scheduling algorithm identity **currently** in force rather than any stored
 one. A plan whose dependencies form a cycle SHALL yield the same `infeasible`
 absent reason a save records, on the same derivation. `current` SHALL NOT be

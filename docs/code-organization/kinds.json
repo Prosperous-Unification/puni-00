@@ -140,6 +140,12 @@
       "rationale": "The sealed Saved plans feature uses SavedPlanResource, while direct callers still construct SavedPlanService with capture and plans stores."
     },
     {
+      "path": "libs/wbs/application/core/src/service/shared-people.ts",
+      "kind": "resource",
+      "term": "Influencer closure",
+      "rationale": "SharedPeopleReader reads the authorized influencer closure through ChainSnapshotStore, selecting displayed schedules and projecting bookings within one coherent read snapshot."
+    },
+    {
       "path": "libs/wbs/application/core/src/service/smoke.service.ts",
       "kind": "support",
       "disposition": "pure domain code; move to the domain library",

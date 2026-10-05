@@ -26,8 +26,8 @@ this change SHALL move a date. Pre-activation (legacy) access SHALL read `isolat
 ### Requirement: Booking changes fan out down the rank
 
 When a commit or a published optimized outcome changes a project's bookings hash, the process
-SHALL publish `elsewhere_changed {projectId, causeProjectId}` to every project in the cause's
-downward closure. A change that does not move the hash, such as a rename, SHALL publish nothing.
+SHALL publish `elsewhere_changed {projectId, causeProjectId}` to every lower-ranked project
+reachable from the cause by shared-person edges that follow rank downward. A change that does not move the hash, such as a rename, SHALL publish nothing.
 
 #### Scenario: a rename
 
