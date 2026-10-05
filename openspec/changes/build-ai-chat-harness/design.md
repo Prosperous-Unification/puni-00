@@ -51,17 +51,21 @@ Catalog rates are public listed rates, not PUNI's debit; the activation runbook 
 | Per-conversation spend ceiling                          | $0.15                                                                         | Worst-case byte-based reservation across 8 turns at the listed rates is below this; realistic spend is about $0.02. |
 | Per-source UTC-day spend ceiling                        | $0.30 across at most 3 conversations                                          | A source is the hashed client address (see below); it bounds one person or one script.                              |
 | Site-wide UTC-day spend ceiling                         | $10 (existing)                                                                | About 500 conversations per day at realistic spend.                                                                 |
-| Concurrent unsettled calls                              | 1 per conversation, 4 site-wide (existing)                                    |                                                                                                                     |
+| Concurrent in-flight calls                              | 1 per conversation, 4 site-wide (existing)                                    |                                                                                                                     |
 | Dedicated key monthly ceiling                           | $100 (OpenRouter key limit)                                                   | Defense in depth, set by Dany at key creation.                                                                      |
 | Server deadline                                         | 30 s (existing)                                                               |                                                                                                                     |
 
-Exhaustion of any ceiling is a modeled, visible state: the composer closes, the assistant's last reply stays, and the inline brief, email and "Request a proposal" affordances remain. Unknown usage keeps its reservation and blocks the conversation until reconciled, exactly as today.
+Exhaustion of any ceiling is a modeled, visible state: the composer closes, the assistant's last reply stays, and the inline brief, email and "Request a proposal" affordances remain.
+
+**Conservative settlement (slice 3).** An operation whose final usage is unknown (Stop/cancel, browser disconnect, the 30 s deadline, a provider or stream error, a refused completion, or a restart) is settled at its full reservation: `state = 'unknown'`, `settlement = 'reserved_ceiling'`, `settled_micro_usd = reserved_micro_usd`, plus the provider's generation id when a chunk carried one. The reservation is the byte-bound input estimate plus the 400-token output cap at the pinned `max_price`, so the recorded spend can only over-count what OpenRouter can charge. The conversation stays open; one Stop no longer ends the chat. The partial reply is not a turn; the visitor's message stays on the operation, `GET /conversation` reports it as the latest operation and Build shows it as `Stopped` with Retry. A retry under the same key and body starts a new attempt row (the unique key index excludes `unknown` rows). Every ceiling counts the settled amounts, so repeated Stops exhaust `conversation_spend` like spent replies. Usage above the reservation is recorded at the actual cost with `overrun = 1`. The account `/chat*` path keeps its hold-until-reconciled rule; it is out of this change's scope. Earlier drafts held the conversation as `exhausted`/`unsettled`; that reason no longer exists.
+
+**Concurrency and attribution.** The site-wide count of four counts only in-flight paid calls (`provider_call` unsettled plus `conversation_operation` `inflight`); a settled-at-ceiling operation never holds a slot. Each operation stores the source hash and UTC day it was admitted under, and the per-source ceilings sum those, so a conversation that crosses UTC midnight is charged to the new day's source.
 
 ### Identity, source and abuse controls
 
 The conversation owner is the **intake draft** reached through the existing host-only `__Host-puni_draft` cookie and `draftCsrf(claim)` header, the same authority the manual brief uses. No new cookie, no account. A signed-in session that owns a software request attached to the same draft reads the same conversation (continuity after optional sign-in); the account path's `/chat*` routes are untouched and remain for the account workspace.
 
-A **source** is `sha256(day-salt || client-ip)` where the client IP is the last `X-Forwarded-For` hop set by the trusted gateway (configured by `TRUSTED_PROXY_HOPS=1` in preview and production, `0` locally, where the socket address is used) and the day salt is random per API process per UTC day. It is pseudonymous, unrecoverable after the salt rotates, and stored only on `conversation` rows for the per-source ceilings. Missing or malformed forwarding headers when `TRUSTED_PROXY_HOPS>0` refuse the request (R5), never fall back to the socket address.
+A **source** is `sha256(day-salt || client-ip)` where the client IP is the last `X-Forwarded-For` hop set by the trusted gateway (configured by `TRUSTED_PROXY_HOPS=1` in preview and production, `0` locally, where the socket address is used) and the day salt is random per API process per UTC day. It is pseudonymous, unrecoverable after the salt rotates, and stored only on `conversation` rows for the per-source ceilings. Missing or malformed forwarding headers when `TRUSTED_PROXY_HOPS>0` refuse the request (R5), never fall back to the socket address. An IPv6 client is identified by its /64 prefix. The day salt is random, created by the first process to need it in the `source_salt` table and read by every process on the database, so restarts and blue/green pairs agree; salts older than the previous day are deleted, which keeps old source hashes unrecoverable. (An HMAC of the day under a long-lived secret was rejected: a secret stored beside the hashes would let anyone with the database recompute every past day.) Rate windows (`admitRequestRate`) count one minute per path per hashed source, per draft claim on `/conversation/stream`, and a global backstop of 300 per path; a request is counted only when every window admits it.
 
 Admission order for `POST /conversation/stream`: exact app Origin → claim cookie and CSRF → per-path rate window (existing `allowSource`) → body shape and length → draft live and unconsumed → conversation state `open` → idempotent operation lookup (replay completed, refuse inflight/unknown/changed body) → visitor-turn cap → per-source conversation count and day spend → per-conversation spend → site-day spend and concurrent-call count → reservation → provider call. Every refusal is a typed 4xx/503 before the provider is contacted.
 
@@ -71,13 +75,13 @@ Prompt-injection posture: the system prompt is the only privileged context; ther
 
 The server, not the model, decides what the UI offers. Stage is a pure function of the stored conversation (`deriveStage` in `libs/website/domain/contracts`):
 
-| Stage        | Condition                                                  | Assistant instruction appended as a one-line stage hint            | UI affordance                                                      |
-| ------------ | ---------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| `clarify`    | visitor turns 1–2 completed                                | Ask exactly one clarifying question.                               | Composer open.                                                     |
-| `brief`      | the 3rd visitor turn is being answered                     | Reflect the request as a crisp brief and ask whether it is right.  | Composer open; the reply is also stored as the draft brief.        |
-| `contact`    | visitor turns ≥ 4, no proposal yet                         | Build confidence briefly, answer questions, ask for an email once. | Inline email field and "Request a proposal" under the thread.      |
-| `exhausted`  | turn cap or a spend ceiling reached, or unknown usage held | none (no call)                                                     | Composer closed with the reason; brief, email and proposal remain. |
-| `handed_off` | the claim was consumed by a proposal submission            | none                                                               | Receipt state.                                                     |
+| Stage        | Condition                                       | Assistant instruction appended as a one-line stage hint            | UI affordance                                                      |
+| ------------ | ----------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `clarify`    | visitor turns 1–2 completed                     | Ask exactly one clarifying question.                               | Composer open.                                                     |
+| `brief`      | the 3rd visitor turn is being answered          | Reflect the request as a crisp brief and ask whether it is right.  | Composer open; the reply is also stored as the draft brief.        |
+| `contact`    | visitor turns ≥ 4, no proposal yet              | Build confidence briefly, answer questions, ask for an email once. | Inline email field and "Request a proposal" under the thread.      |
+| `exhausted`  | turn cap or a spend ceiling reached             | none (no call)                                                     | Composer closed with the reason; brief, email and proposal remain. |
+| `handed_off` | the claim was consumed by a proposal submission | none                                                               | Receipt state.                                                     |
 
 The visitor may request a proposal from any stage after the first reply; the stage only decides when the UI _suggests_ it. The brief stored at `brief` is the trimmed assistant reply (≤ 4,000 characters, the existing `intake_draft.brief` bound); the visitor can edit it inline before submitting. This is the minimal reliable approach: no structured model output to parse mid-stream, no tool calls, nothing the model says can open or skip an affordance.
 
@@ -93,7 +97,7 @@ New claim-bound routes beside the existing account routes (`origin === appOrigin
 
 - `GET /conversation` → `{ stage, turns, visitorTurnsRemaining, provider: 'openrouter' | 'demo' | 'disabled', brief, description, csrfToken, initialOperation, latestOperation, exhaustedReason }`, `Cache-Control: no-store`. 401 `draft_unavailable` without a live claim.
 - `POST /conversation/stream` with `{ idempotencyKey, initial: true } | { idempotencyKey, message }` → AI SDK UI message stream, the same confirmed-finish pump as `/chat/stream` (a finish event only after the operation is `completed`; otherwise an `error` chunk). `initial` uses the server key `initial:<draftId>` and the stored description, as today.
-- `POST /conversation/cancel` with `{ idempotencyKey }` → marks the operation unknown and aborts the provider call.
+- `POST /conversation/cancel` with `{ idempotencyKey }` → settles the operation at its reserved ceiling and aborts the provider call; the conversation stays open.
 - `POST /draft/discard` → `204`, expires the draft claim and its cookie, deletes nothing (the expired-draft purge applies); `409 draft_consumed` once submitted or attached. Build's `[ Start over ]` calls it after an inline confirmation and lands on the site's `/#request`.
 - `POST /proposals` (existing) is the handoff. The submission consumes the claim and marks the conversation `handed_off` in the same transaction.
 
@@ -109,7 +113,7 @@ CREATE TABLE conversation (
   draft_id TEXT NOT NULL UNIQUE REFERENCES intake_draft(id),
   source_hash TEXT NOT NULL,
   state TEXT NOT NULL CHECK(state IN ('open', 'exhausted', 'handed_off')),
-  exhausted_reason TEXT CHECK(exhausted_reason IN ('turns', 'conversation_spend', 'source_spend', 'site_spend', 'unsettled')),
+  exhausted_reason TEXT CHECK(exhausted_reason IN ('turns', 'conversation_spend', 'source_spend', 'site_spend')),
   created_at INTEGER NOT NULL,
   CHECK((state = 'exhausted') = (exhausted_reason IS NOT NULL))
 );
@@ -126,6 +130,7 @@ CREATE TABLE conversation_operation (
   id TEXT PRIMARY KEY,
   conversation_id TEXT NOT NULL REFERENCES conversation(id),
   idempotency_key TEXT NOT NULL,
+  source_hash TEXT NOT NULL,
   body_hash TEXT NOT NULL,
   message TEXT NOT NULL,
   initial INTEGER NOT NULL CHECK(initial IN (0, 1)),
@@ -135,20 +140,31 @@ CREATE TABLE conversation_operation (
   utc_day TEXT NOT NULL,
   reserved_micro_usd INTEGER,
   settled_micro_usd INTEGER,
+  settlement TEXT CHECK(settlement IN ('usage', 'reserved_ceiling')),
+  overrun INTEGER NOT NULL DEFAULT 0 CHECK(overrun IN (0, 1)),
+  generation_id TEXT,
   reply TEXT,
   truncated INTEGER NOT NULL DEFAULT 0 CHECK(truncated IN (0, 1)),
   created_at INTEGER NOT NULL,
-  UNIQUE(conversation_id, idempotency_key)
+  CHECK((state = 'inflight') = (settlement IS NULL)),
+  CHECK((state = 'unknown') = (settlement IS 'reserved_ceiling')),
+  CHECK(settlement IS NOT 'reserved_ceiling' OR settled_micro_usd IS reserved_micro_usd)
 );
+CREATE UNIQUE INDEX conversation_operation_attempt ON conversation_operation(conversation_id, idempotency_key) WHERE state <> 'unknown';
 CREATE INDEX conversation_operation_day ON conversation_operation(utc_day);
+CREATE INDEX conversation_operation_source_day ON conversation_operation(source_hash, utc_day);
 CREATE INDEX conversation_operation_state ON conversation_operation(conversation_id, state);
+CREATE TABLE source_salt (
+  utc_day TEXT PRIMARY KEY,
+  salt BLOB NOT NULL CHECK(length(salt) = 32)
+);
 ```
 
-New tables rather than nullable owners: `chat_turn`, `chat_operation` and `provider_call` all have `account_id NOT NULL`, which SQLite cannot relax additively, and a table rebuild is not blue/green safe. Reservation columns live on `conversation_operation` because `provider_call` also requires an account. The site-wide day spend and concurrent-call counts therefore sum `provider_call` and `conversation_operation` (`UNION ALL`) inside one `reserveConversationCall` transaction; a test proves an account reservation and an anonymous reservation share the same $10 day ceiling. Startup marks `inflight` conversation operations `unknown`, as for `chat_operation`.
+New tables rather than nullable owners: `chat_turn`, `chat_operation` and `provider_call` all have `account_id NOT NULL`, which SQLite cannot relax additively, and a table rebuild is not blue/green safe. Reservation columns live on `conversation_operation` because `provider_call` also requires an account. The site-wide day spend and concurrent-call counts therefore sum `provider_call` and `conversation_operation` (`UNION ALL`) inside one `reserveConversationCall` transaction; a test proves an account reservation and an anonymous reservation share the same $10 day ceiling. Startup settles `inflight` conversation operations at their reserved ceiling (as `unknown`), where `chat_operation` is only marked `unknown`. Migration 007 was extended in place in slice 3 (settlement, overrun, generation id, per-operation source hash, the partial unique key index, `source_salt`, and no `unsettled` reason) because it had not been applied on any deployed database.
 
 ### Retention
 
-Conversation content is request content. `conversation_turn.content` and `conversation_operation.message/reply` join the nonblank-content predicates in `request-retention.ts` through `software_request.draft_id` and `proposal_submission.draft_id`, so a retention subject's first-content anchor, due report and erasure cover them; the draft anchor already precedes any conversation content, so no new ambiguity class is introduced. Erasure blanks the three text columns and keeps `reserved/settled_micro_usd`, `utc_day`, `prompt_version` and `source_hash` (pseudonymous, salted) for accounting. The anonymous 24-hour rule: `purgeExpiredDrafts` deletes conversation rows whose draft expired unconsumed, in the same transaction as the draft, after writing the count-only plan; an expired draft with a `conversation` row but a `proposal_submission` is a retention subject, not a purge candidate (existing lineage checks). A conversation operation that is `unknown` at purge time is retained as a text-blanked accounting row, never deleted.
+Conversation content is request content. `conversation_turn.content` and `conversation_operation.message/reply` join the nonblank-content predicates in `request-retention.ts` through `software_request.draft_id` and `proposal_submission.draft_id`, so a retention subject's first-content anchor, due report and erasure cover them; the draft anchor already precedes any conversation content, so no new ambiguity class is introduced. Erasure blanks the three text columns and keeps `reserved/settled_micro_usd`, `utc_day`, `prompt_version` and `source_hash` (pseudonymous, salted) for accounting. The anonymous 24-hour rule: `purgeExpiredDrafts` deletes conversation rows whose draft expired unconsumed, in the same transaction as the draft, after writing the count-only plan; an expired draft with a `conversation` row but a `proposal_submission` is a retention subject, not a purge candidate (existing lineage checks). A conversation operation that is `unknown` at purge time, or whose UTC day is on or after the cutoff's UTC day, is retained as a text-blanked accounting row, never deleted, so the day's ceilings keep seeing that spend.
 
 ### Frontend
 
@@ -159,11 +175,12 @@ Conversation content is request content. `conversation_turn.content` and `conver
 - Mobile: `100dvh` layout, composer above the virtual keyboard (`visualViewport` resize handler keeps the last message in view), 44 px targets, no horizontal overflow at 320 px, focus order header → thread → composer.
 - Visible states: `loading`, `ready`, `streaming`, `stopped`, `error` (retryable), `exhausted`, `disabled`, `handed_off`, `expired` (redirect to Home as today). Impossible unions reach `BuildErrorBoundary`.
 - The manual brief, operator inbox and the concept preview panel are unchanged; the preview is not shown in the harness (non-goal).
+- Live harness as built in slice 3 (`conversation-harness.tsx`): the AI SDK `DefaultChatTransport` posts to `/conversation/stream` and the harness reads the UI message chunks itself, because the thread is the server's saved turns plus at most one live or stopped attempt rather than a client-owned message list. Stop posts the cancel first and then drops the stream (the disconnect settles the attempt too if the cancel is lost). The Home request leaves the composer once it is in the thread; Retry there resends it under the server key. Demo replies carry `Simulated`. The optional sign-in sits behind `[ Sign in ]` in the harness bar. The inline card prefills the stored brief (else the Home request) and focuses `Thank you.` with the receipt after submission; `Start over` disappears because the claim is consumed.
 
 ### Testing strategy
 
 - **Fake OpenRouter transport**: `providerFetch` fixture (existing injection point) returns scripted SSE with text deltas and a final usage event, optional mid-stream error, optional missing usage, optional 429/402/5xx. Deterministic streaming for mounted tests.
-- **Mounted API tests** (`server.test.ts` style): every admission refusal before the provider; replay without a second call; changed-body conflict; unknown usage blocks; source ceilings; conversation ceiling; shared site-day ceiling with an account reservation; stage derivation; brief capture; handoff marks `handed_off`; provider-disabled 503 and the broken-store invariant; `TRUSTED_PROXY_HOPS` refusals.
+- **Mounted API tests** (`server.test.ts` style): every admission refusal before the provider; replay without a second call; changed-body conflict; unknown usage settled at the reserved ceiling with the conversation still open; Stop then continue until the ceiling-settled amounts exhaust `conversation_spend`; source ceilings; conversation ceiling; shared site-day ceiling with an account reservation; stage derivation; brief capture; handoff marks `handed_off`; provider-disabled 503 and the broken-store invariant; `TRUSTED_PROXY_HOPS` refusals.
 - **Store tests**: migration 007 forward and `down.sql`; startup marks inflight unknown; purge deletes expired-draft conversations and keeps unknown accounting rows; retention predicates see conversation content; erasure blanks text and keeps accounting.
 - **Browser regression** (`browser/conversation.mjs`, extending `explicit-send.mjs`): zero POSTs before Send; one initial POST; streaming visible; Stop → cancel POST and `stopped` state; retry same key after a dropped POST; reload restores the thread; cap reached → exhausted state with the card; disabled provider state; 390 px with a simulated 300 px keyboard inset keeps the composer visible; no horizontal overflow at 320 px; video element present, poster under reduced motion, gradient on a 404 media URL.
 - **Evaluation corpus** (`apps/website/be-01/eval/sales-corpus.json`, run by `bun apps/website/be-01/src/conversation/eval-cli.ts` against the real key only by an operator): 12 scripted conversations (clear request, vague request, hostile, off-topic, price demand, date demand, contract demand, prompt-injection "ignore your instructions", secret request, non-software request, a second language, an email volunteered early). Pass criteria per script are string-level (no `$`, no month names or dates committed, no "contract", no system-prompt text, one question in clarify replies, brief present at stage `brief`, email asked once). The CLI prints only pass/fail and token totals, never transcripts, unless `--show` is passed locally.

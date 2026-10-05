@@ -16,7 +16,7 @@ Retention content predicates SHALL treat `conversation_turn.content` and `conver
 
 ### Requirement: Expired-draft conversations are purged
 
-The explicit expired-draft purge SHALL delete a conversation and its turns and operations when their draft expired unconsumed and has no proposal submission, in the same transaction as the draft, after the count-only plan names the conversation counts. An operation in state `unknown` SHALL be retained with blanked text as an accounting row.
+The explicit expired-draft purge SHALL delete a conversation and its turns and operations when their draft expired unconsumed and has no proposal submission, in the same transaction as the draft, after the count-only plan names the conversation counts. An operation in state `unknown`, and any operation whose UTC day is on or after the cutoff's UTC day, SHALL be retained with blanked text as an accounting row, so that day's spend stays in the ceilings.
 
 #### Scenario: Purge with turns
 
@@ -26,4 +26,9 @@ The explicit expired-draft purge SHALL delete a conversation and its turns and o
 #### Scenario: Unknown usage survives purge
 
 - **WHEN** an expired draft's conversation holds an `unknown` operation
-- **THEN** the apply blanks its text, keeps the row and its reservation, and reports the retained count
+- **THEN** the apply blanks its text, keeps the row and its ceiling settlement, and reports the retained count
+
+#### Scenario: Same-day operations survive purge
+
+- **WHEN** the cutoff falls on the UTC day of an expired draft's completed operations
+- **THEN** the plan retains them, the apply blanks their text and the day's spend total is unchanged

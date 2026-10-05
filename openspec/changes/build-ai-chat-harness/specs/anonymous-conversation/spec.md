@@ -35,7 +35,7 @@ The API SHALL expose `GET /conversation`, `POST /conversation/stream` and `POST 
 
 ### Requirement: Conversation allowance
 
-Before any provider call the API SHALL enforce, atomically in one store transaction: at most 8 visitor turns per conversation including the Home request; 400 completion tokens per reply; one unsettled operation per conversation and four site-wide; a $0.15 per-conversation spend ceiling; a $0.30 per-source UTC-day ceiling across at most 3 conversations per source; and the $10 site-wide UTC-day ceiling shared with account reservations in `provider_call`. Reservations SHALL use the configured rates and a conservative byte-based input bound plus the 400-token output cap. A refusal SHALL be a typed 429 before the provider call, SHALL set the conversation to `exhausted` with its reason when the cause is the turn or spend ceiling, and SHALL preserve saved turns.
+Before any provider call the API SHALL enforce, atomically in one store transaction: at most 8 visitor turns per conversation including the Home request; 400 completion tokens per reply; one in-flight operation per conversation and four in-flight paid calls site-wide (operations settled at their ceiling never count); a $0.15 per-conversation spend ceiling; a $0.30 per-source UTC-day ceiling across at most 3 conversations per source; and the $10 site-wide UTC-day ceiling shared with account reservations in `provider_call`. Each operation SHALL record the source hash and UTC day it was admitted under, and the per-source ceilings SHALL sum those, so a conversation crossing midnight is charged to the new day's source. Spend SHALL count settled usage, the full reservation of an operation settled at its ceiling, and in-flight reservations. Usage above the reservation SHALL be recorded as the actual cost with an `overrun` flag. Reservations SHALL use the configured rates and a conservative byte-based input bound plus the 400-token output cap. A refusal SHALL be a typed 429 before the provider call, SHALL set the conversation to `exhausted` with its reason when the cause is the turn or spend ceiling, and SHALL preserve saved turns.
 
 #### Scenario: Ninth visitor turn
 
@@ -52,6 +52,21 @@ Before any provider call the API SHALL enforce, atomically in one store transact
 - **WHEN** one source has 3 open conversations today and a fourth draft from the same source posts its initial operation
 - **THEN** the API answers 429 `source_limit` and the conversation is `exhausted` with reason `source_spend`
 
+#### Scenario: Stopped replies do not hold concurrency
+
+- **WHEN** four conversations each have one operation settled at its ceiling and a fifth posts its initial operation
+- **THEN** the fifth is admitted and an account reservation is also admitted
+
+#### Scenario: Midnight crossing
+
+- **WHEN** a conversation started yesterday continues after UTC midnight from a source whose operations today already sum near $0.30
+- **THEN** its new operation is charged to today's source hash and another conversation from that source is refused `source_spend`
+
+#### Scenario: Usage above the reservation
+
+- **WHEN** the final usage of a reply costs more than its reservation
+- **THEN** the operation completes with the actual cost settled and `overrun` set
+
 #### Scenario: Concurrent reservations
 
 - **WHEN** two stream requests for different conversations race while the site-day ceiling allows only one
@@ -59,36 +74,51 @@ Before any provider call the API SHALL enforce, atomically in one store transact
 
 ### Requirement: Source identification behind the gateway
 
-The API SHALL derive the source from the client address: when `TRUSTED_PROXY_HOPS` is greater than zero, from the corresponding `X-Forwarded-For` hop, otherwise from the socket address. A request lacking the expected forwarded hop when hops are configured SHALL be refused with 400 `source_unavailable`, never attributed to the socket address. Startup SHALL refuse an `https` app origin without `TRUSTED_PROXY_HOPS`. The stored source SHALL be a salted hash with a per-process per-UTC-day random salt and SHALL never be the raw address.
+The API SHALL derive the source from the client address: when `TRUSTED_PROXY_HOPS` is greater than zero, from the corresponding `X-Forwarded-For` hop, otherwise from the socket address. A request lacking the expected forwarded hop when hops are configured SHALL be refused with 400 `source_unavailable`, never attributed to the socket address. Startup SHALL refuse an `https` app origin without `TRUSTED_PROXY_HOPS`. An IPv6 address SHALL be identified by its /64 prefix and an IPv4-mapped address by its IPv4 address. The stored source SHALL be a hash under a random salt per UTC day that every API process on the database shares through the store, so restarts and blue/green pairs agree; salts older than the previous day SHALL be deleted; a missing or malformed stored salt SHALL throw. The source SHALL never be the raw address. Rate-limited routes SHALL count one-minute windows per hashed source (and per claim on `/conversation/stream`) under a larger global backstop, and a request counts against a window only when every window admits it.
 
 #### Scenario: Missing forwarded hop
 
 - **WHEN** `TRUSTED_PROXY_HOPS=1` and a stream request arrives without `X-Forwarded-For`
 - **THEN** the API answers 400 and creates no conversation or reservation
 
+#### Scenario: Shared daily salt
+
+- **WHEN** two API processes on one database hash the same address on the same UTC day
+- **THEN** both store the same source hash
+
+#### Scenario: One source's window
+
+- **WHEN** one source has used its intake window for the minute
+- **THEN** its next intake answers 429 `rate_limited` and another source's intake is still accepted
+
 #### Scenario: Startup without hops on https
 
 - **WHEN** the API is constructed with an `https` app origin and no `trustedProxyHops`
 - **THEN** the constructor throws naming the setting
 
-### Requirement: Streaming with confirmed settlement
+### Requirement: Streaming with conservative settlement
 
-The API SHALL stream the reply as an AI SDK UI message stream and SHALL emit the finish event only after the operation is completed with final provider usage. Cancellation, disconnect, timeout, stream failure, missing or malformed final usage SHALL mark the operation `unknown`, keep its reservation, emit an error chunk if the client is still connected, and block further paid admission for that conversation until reconciled. A `length` finish with usage SHALL complete and mark the reply truncated. Startup SHALL mark every in-flight operation `unknown`.
+The API SHALL stream the reply as an AI SDK UI message stream and SHALL emit the finish event only after the operation is completed with final provider usage. Cancellation, disconnect, timeout, stream failure, missing or malformed final usage SHALL mark the operation `unknown` and settle it at its full reservation (priced at the pinned `max_price` with the full output cap) with `settlement = 'reserved_ceiling'` and the provider's generation id when one was seen, and SHALL emit an error chunk if the client is still connected. Spend accounting SHALL only ever over-count. The partial reply SHALL NOT be saved as a turn; the visitor's message SHALL stay on the operation. The conversation SHALL stay open, and a later request under the same key with the same body SHALL start a new attempt while the allowances permit. A `length` finish with usage SHALL complete and mark the reply truncated. Startup SHALL settle every in-flight operation the same way.
 
 #### Scenario: Missing final usage
 
 - **WHEN** the fake provider closes the stream without a usage event
-- **THEN** the operation is `unknown`, the reservation remains, the client receives an error chunk and the next stream request answers 409 `chat_unsettled`
+- **THEN** the operation is `unknown` and settled at its reservation, the client receives an error chunk, the conversation stays open and posting the same key again reaches the provider as a new attempt
 
 #### Scenario: Cancel
 
 - **WHEN** the owner posts `/conversation/cancel` with the in-flight key
-- **THEN** the provider request is aborted, the operation is `unknown` and the reservation is retained
+- **THEN** the provider request is aborted and the operation is `unknown`, settled at its reservation with the generation id recorded
+
+#### Scenario: Stop then continue under the ceilings
+
+- **WHEN** two replies are stopped and one completes in a conversation whose reservations are about $0.06 each
+- **THEN** each stop counts its full reservation, `GET /conversation` still offers the composer, and the next paid call is refused `conversation_spend`
 
 #### Scenario: Provider 429 or 5xx
 
 - **WHEN** the fake provider answers 429 or 502 before streaming
-- **THEN** the API reports a typed failure, the operation is `unknown` and saved turns are unchanged
+- **THEN** the API reports a typed failure, the operation is `unknown` and settled at its reservation and saved turns are unchanged
 
 ### Requirement: Server-owned stages and brief capture
 

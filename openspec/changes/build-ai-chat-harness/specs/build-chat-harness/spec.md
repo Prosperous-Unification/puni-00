@@ -36,7 +36,12 @@ Build SHALL present the conversation as a full-height thread with user and assis
 #### Scenario: Stop
 
 - **WHEN** the visitor presses Stop mid-stream
-- **THEN** the client aborts the stream, posts the cancel request with the operation identity, shows the `stopped` state and leaves the partial text visibly marked as interrupted
+- **THEN** the client posts the cancel request with the operation identity, stops reading the stream, shows `Stopped` with Retry and leaves the partial text visibly marked as interrupted
+
+#### Scenario: Retry after Stop
+
+- **WHEN** the visitor presses Retry on a stopped reply, before or after a reload
+- **THEN** exactly one stream request is sent with the stopped operation's identity and the same message
 
 #### Scenario: Mobile keyboard
 
@@ -95,6 +100,11 @@ When the server reports stage `contact`, `exhausted` or a completed brief, Build
 - **WHEN** `GET /conversation` reports stage `exhausted` with reason `turns`
 - **THEN** the composer is replaced by the limit line and the brief card with the proposal action remains usable
 
+#### Scenario: Exhausted reasons
+
+- **WHEN** the reason is `turns`, `conversation_spend`, `source_spend` or `site_spend`
+- **THEN** the closed line names that limit in its own words and always points to sending the brief to a person
+
 #### Scenario: Proposal submitted from the harness
 
 - **WHEN** the visitor submits a valid email and brief from the card
@@ -102,7 +112,7 @@ When the server reports stage `contact`, `exhausted` or a completed brief, Build
 
 ### Requirement: Disabled provider state
 
-When `GET /conversation` reports `provider: 'disabled'`, Build SHALL show the Home request as the first message, one clearly labelled system row stating that AI chat is not switched on and that a person reads every brief, a `Shape your brief` link to the manual brief, and no composer. It SHALL NOT label anything as a live AI reply.
+When `GET /conversation` reports `provider: 'disabled'`, Build SHALL show the Home request as the first message, one clearly labelled system row stating that AI chat is not switched on and that a person reads every brief, a `Shape your brief` link to the manual brief, and no composer. It SHALL NOT label anything as a live AI reply. When it reports `provider: 'demo'`, Build SHALL run the live harness and label the conversation and every reply `Simulated`.
 
 #### Scenario: No key configured
 

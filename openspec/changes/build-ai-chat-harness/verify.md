@@ -117,8 +117,115 @@ was restored and compared by SHA-256 with its pre-fault copy.
   eight completed turns `GET /conversation` reports `visitorTurnsRemaining: 0` with stage `contact`.
 - Unknown usage (missing usage, cancel, disconnect, timeout, provider error, restart) holds the
   conversation as `exhausted` with reason `unsettled`; no reconciliation tool exists yet.
+  Superseded in slice 3 by conservative settlement at the reserved ceiling.
 - Outbound requests carry both `max_tokens` (from the SDK) and `max_completion_tokens`, each 400.
   Whether OpenRouter accepts both under `require_parameters` is unverified until the 9.3 smoke.
 - `GET /conversation` now reports `demo` under `DEMO_AUTH=1`; the slice-1 frontend treats any
   provider other than `disabled` as a contract break until 4.1 wires the live harness.
 - Migration `007_conversation` must be added to the private recovery command's known-migration list.
+
+## Slice 3: conservative settlement, review fixes, live harness and docs (2026-10-06)
+
+Implemented 3.6 (conservative settlement), 3.7 (the slice 2 review fixes), 4.1 to 4.3 and 7.1 on
+`feat/build-chat-s3`. Every provider call in tests and browser runs goes to a scripted fake
+OpenRouter stream; no real network call and no API key was used.
+
+### Backend
+
+- Unknown usage is settled at the full reservation (`settlement = 'reserved_ceiling'`,
+  `settled_micro_usd = reserved_micro_usd`, the generation id when a raw chunk carried one). The
+  conversation stays open, the visitor message stays on the operation, and the same key and body
+  start a new attempt row. Restart recovery does the same. `unsettled` is no longer an
+  exhaustion reason.
+- Review fixes: the site-wide concurrency count reads only `inflight` operations in both
+  `refuseReservation` and `reserveProviderCall`; rate windows are per path per hashed source (and
+  per claim on `/conversation/stream`) under a 300-per-minute global backstop, and a refused
+  request does not consume the global window; IPv6 sources hash their /64; the daily salt lives
+  in `source_salt` and is shared by every process on the database (older than yesterday deleted);
+  usage above the reservation completes at the actual cost with `overrun = 1`; the purge keeps
+  operations on or after the cutoff's UTC day as blanked accounting rows; operations carry their
+  own source hash and UTC day for the per-source ceilings.
+- Migration 007 was edited in place (no deployed database has applied it; it is not on `main`).
+  `down.sql` still restores the exact 006 schema in `conversation-store.test.ts`.
+- The account `/chat*` path keeps hold-until-reconciled. Its unsettled `provider_call` rows still
+  count toward the site-wide four forever, so four lost account calls would still block paid AI
+  site-wide; that path is outside this change and is recorded here as a known gap.
+
+### Frontend
+
+`conversation-harness.tsx` streams `/conversation/stream` through the AI SDK
+`DefaultChatTransport`: the read-only Home request with Send under `initial:<draftId>`, a typing
+indicator then a streaming caret, Stop (cancel first, then the stream is dropped), `Stopped` with
+Retry under the same identity (also after reload, from `latestOperation`), `n of 8 messages left`,
+one closed line per exhaustion reason, `Simulated` labels for the demo provider, the optional
+sign-in behind `[ Sign in ]`, and the inline glass proposal card (stored brief, else the Home
+request; email; `Request a proposal` through `POST /proposals`; receipt with focus on
+`Thank you.`). The disabled provider keeps the slice 1 notice.
+
+A bug found by the browser run and fixed: React reused the Stop button's DOM node for the submit
+button, so the click's default action submitted the draft again after Stop. The buttons now carry
+distinct keys.
+
+### Local stacks
+
+Three loopback stacks with fresh SQLite files under the session scratchpad: `DEMO_AUTH=1` (API
+3118, app 4218), `DEMO_AUTH=0` (API 3119, app 4219), and the scripted-provider fixture
+`bun apps/website/fe-01/browser/conversation-api.mjs` (API 3120, app 4220, trusted hops 1, each
+browser context a distinct forwarded source). Apps: `VITE_API_ORIGIN=... VITE_SITE_ORIGIN=...
+bunx vite --host localhost --port <app> --strictPort` in `apps/website/fe-01`.
+
+### Results
+
+- `env -u CLAUDECODE NX_DAEMON=false bunx nx run-many -t test,lint,typecheck,build -p website-fe-01,website-be-01,website-store-sqlite,website-contracts --skip-nx-cache`: exit 0, 16 tasks. Direct `bun test` counts: fe-01 57 pass, be-01 92 pass, store-sqlite 59 pass, 0 fail.
+- `env -u CLAUDECODE NX_DAEMON=false bunx nx run website-be-01:test:package --skip-nx-cache`: exit 0.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts` on 007 `migration.sql` and `down.sql`: exit 0.
+- `bun apps/website/fe-01/browser/conversation.mjs` (fixture stack, Chrome): exit 0. One initial POST after Send and none on mount or reload; Shift+Enter inserts a newline and Enter sends; Stop posted one cancel with the streaming key; reload kept `Stopped`; Retry reused the key; three saved turns restored after reload without a POST; the brief card after the third reply; a dropped initial POST kept the read-only Home request after reload and Send reused `initial:<draftId>`; 390×544 composer at y 448–502 with the latest message in view; no overflow or target under 44 px at 320; an eight-turn conversation showed the limit line, no composer, and submitted the edited brief to a 32-hex receipt with focus on `Thank you.` and no stream POST.
+- `bun apps/website/fe-01/browser/explicit-send.mjs` (demo stack, anonymous flow): exit 0, 0 POSTs before Send, 1 after, an ordinary later turn, same-key recovery after a dropped initial POST. The signed-in pending-write case was removed with the anonymous move; the server owns the initial identity.
+- `PUNI_SCREENS_STRICT=1 bun apps/website/fe-01/browser/screens.mjs`: exit 0, 47/47 OK. The workspace state now opens `[ Sign in ]` first. Maximum CLS 0.045 on the untouched manual pages at 768; Build captures 0.000.
+- `bunx prettier --check` on the touched trees and `bunx @fission-ai/openspec@1.12.0 validate --all` (145 passed, 0 failed).
+
+### R5 proofs
+
+Each fault was injected into production source, the named check was watched failing, and the file
+was restored and compared with `cmp` against its pre-fault copy.
+
+| Injected fault                                                         | Observed failure                                                                                            |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Ceiling settlement writes 0 (schema CHECK also removed)                | Mounted stop-then-continue: expected 429, received 200; store ceiling-settled test admitted the source call |
+| Ceiling settlement writes 0 with the CHECK present                     | The same tests fail on the CHECK constraint                                                                 |
+| Restart recovery matches no rows                                       | Store restart test found `inflight`, unsettled                                                              |
+| `recordGeneration` call dropped                                        | Mounted cancel test: `generation_id` null, expected `gen-1`                                                 |
+| Concurrency counts every non-completed operation (`refuseReservation`) | Stopped-operations test: fifth admission `busy`                                                             |
+| Same fault in `reserveProviderCall`                                    | Stopped-operations test: account reservation refused                                                        |
+| Per-source spend summed by `conversation.source_hash`                  | Midnight-crossing test admitted the over-ceiling call                                                       |
+| Source conversation count includes the conversation itself             | Per-source test refused the source's own next turn                                                          |
+| Rate window keyed only on the path                                     | Per-source rate test: the second source's intake answered 429                                               |
+| Global request window removed                                          | Backstop test: the 301st intake answered 201                                                                |
+| Random per-process salt instead of the stored salt                     | Two-process test stored different sources                                                                   |
+| Full IPv6 address hashed                                               | IPv6 test received `2001:db8:1:2::1`, expected the /64                                                      |
+| Usage above the reservation refused                                    | Overrun test: completion returned false                                                                     |
+| Purge plans same-day completed operations                              | Same-day purge test plan mismatch                                                                           |
+| `offersProposal` returns true unconditionally                          | Two no-brief rows of the card table failed                                                                  |
+| Ordinary composer before the initial completes                         | Two live-harness unit cases and `conversation.mjs`: "not shown read-only before Send"                       |
+| Enter branch of the composer key handler disabled                      | `conversation.mjs`: "Keyboard check: Enter inserted a newline instead of sending"                           |
+| Initial operation sent from a mount effect                             | `conversation.mjs`: "Mount or reload sent 2 stream POSTs before Send"                                       |
+
+### Screens
+
+Session scratchpad `build-chat-s3/`: `harness-awaiting-send`, `harness-streaming`,
+`harness-reply`, `harness-stopped`, `harness-card`, `harness-card-focus`, `harness-receipt`,
+`harness-exhausted` and `harness-disabled`, each at 1440×900 and 390×844, captured with installed
+Chrome and the site media from `https://dev.puni.dev` by `shots.mjs` in the same folder. Replies
+come from the scripted fixture, not a model.
+
+### Notes and deferrals
+
+- 4.4, 8 and 9 (gate, snapshot refresh, preview deploy, private privacy wording and Compose,
+  activation) remain with the operator. Migration 007 must still join the private recovery
+  command's known-migration list.
+- Playwright cannot shrink the visual viewport, so the keyboard check uses a 390×544 layout
+  viewport, as in slice 1.
+- A later visitor message whose POST never reached the API is retryable in the page but not
+  after a reload (no client-side pending store for later turns); the initial operation is
+  server-owned and survives reload.
+- `/conversation/cancel` has no rate window; it only settles the caller's own in-flight attempt.

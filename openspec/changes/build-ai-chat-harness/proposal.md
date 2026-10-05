@@ -17,7 +17,7 @@ No concept-preview change, model tools, attachments, model chooser, generated co
 
 ## Constraints
 
-Public repository: the video is referenced, never committed. Additive migrations with paired `down.sql`. Server-only key, pinned provider, ZDR, data-collection denial, atomic reservations; unsettled usage blocks spend. The privacy notice names the processors before chat is enabled. Chat content anchors retention. Bun, Nx, the h2puni gate; prompt text never in logs.
+Public repository: the video is referenced, never committed. Additive migrations with paired `down.sql`. Server-only key, pinned provider, ZDR, data-collection denial, atomic reservations; unknown usage is settled at its full reservation, so spend can only over-count. The privacy notice names the processors before chat is enabled. Chat content anchors retention. Bun, Nx, the h2puni gate; prompt text never in logs.
 
 ## Capabilities
 
