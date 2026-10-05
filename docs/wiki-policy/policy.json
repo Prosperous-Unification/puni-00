@@ -470,6 +470,42 @@
         }
       },
       {
+        "path": "experiments/r6b-timeline/evidence/ambiguity-1440.png",
+        "format": "image/png",
+        "consumer": "docs/wbs/research/2026-10-05-day-to-minute-gantt-experiment.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "experiments/r6b-timeline/browser.ts"
+        }
+      },
+      {
+        "path": "experiments/r6b-timeline/evidence/ambiguity-390.png",
+        "format": "image/png",
+        "consumer": "docs/wbs/research/2026-10-05-day-to-minute-gantt-experiment.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "experiments/r6b-timeline/browser.ts"
+        }
+      },
+      {
+        "path": "experiments/r6b-timeline/evidence/batch-1440.png",
+        "format": "image/png",
+        "consumer": "docs/wbs/research/2026-10-05-day-to-minute-gantt-experiment.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "experiments/r6b-timeline/browser.ts"
+        }
+      },
+      {
+        "path": "experiments/r6b-timeline/evidence/batch-390.png",
+        "format": "image/png",
+        "consumer": "docs/wbs/research/2026-10-05-day-to-minute-gantt-experiment.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "experiments/r6b-timeline/browser.ts"
+        }
+      },
+      {
         "path": "infra/platform/charts/cert-manager-v1.21.2.tgz",
         "format": "application/gzip",
         "consumer": "infra/platform/networking/cert-manager.yaml",
