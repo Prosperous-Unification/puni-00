@@ -289,15 +289,21 @@ export function drizzleReadTransaction(db: Drizzle): {
  * throws.
  */
 export function openReadOnlyConnection(dbPath: string): Connection {
-  // Proof: opening without `readonly` made `refuses every write through the
-  // read-only connection` in `organization-selection-preview.db.test.ts`
-  // delete the memberships; watched 2026-09-28.
-  const client = new Database(dbPath, { readonly: true, create: false });
-  client.run(`PRAGMA busy_timeout = ${String(BUSY_TIMEOUT_MS)};`);
+  const client = openReadOnlyDatabase(dbPath);
   return {
     db: drizzle({ client }),
     close: () => {
       client.close();
     },
   };
+}
+
+/** Open an existing SQLite file without creating it or changing its journal mode. */
+export function openReadOnlyDatabase(dbPath: string): Database {
+  // Proof: opening without `readonly` made `refuses every write through the
+  // read-only connection` in `organization-selection-preview.db.test.ts`
+  // delete the memberships; watched 2026-09-28.
+  const client = new Database(dbPath, { readonly: true, create: false });
+  client.run(`PRAGMA busy_timeout = ${String(BUSY_TIMEOUT_MS)};`);
+  return client;
 }

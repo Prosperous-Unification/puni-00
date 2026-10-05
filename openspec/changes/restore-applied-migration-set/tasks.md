@@ -8,7 +8,7 @@ migration identity. No dependency on host enrollment or completion of 070.09.
 
 ## 1. Capture and exact-set CLI
 
-- [ ] 1.1 Add a failing real-CLI regression for an older newly introduced migration after a
+- [x] 1.1 Add a failing real-CLI regression for an older newly introduced migration after a
       newer baseline, then implement versioned capture and exact-set rollback beside
       `libs/wbs/adapters/store-sqlite/src/migrate-down.ts` and in the stable backend migration
       CLIs. Reuse existing per-migration transactions. Tests:

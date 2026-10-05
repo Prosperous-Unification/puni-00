@@ -11,21 +11,32 @@
 // additive, so the old colour keeps working while green migrates; the reverse
 // is not additive by nature, which is why this runs only on an abort, when
 // green is being taken away and blue is the release that will keep serving.
-import { ROLLBACK_ALL, rollbackTo } from '@wbs/store-sqlite/migrate-down';
+import { readFileSync } from 'node:fs';
+
+import { rollbackTo } from '@wbs/store-sqlite/migrate-down';
+import {
+  parseMigrationSetCapture,
+  restoreAppliedMigrationSet,
+} from '@wbs/store-sqlite/migration-set';
+
+import { downModeOf } from './migration-cli-options';
 
 const dbPath = process.env['DB_PATH'];
 if (dbPath === undefined || dbPath === '') throw new Error('DB_PATH must be set');
 
-const arg = process.argv.slice(2).find((a) => a.startsWith('--to='));
-if (arg === undefined) {
-  throw new Error(
-    'refusing: --to=<migration-name|none> is required.\n' +
-      '  Without it there is no way to tell which migrations this deploy added,\n' +
-      '  and rolling back the wrong number is worse than rolling back none.',
+const mode = downModeOf(process.argv.slice(2));
+if (mode.kind === 'capture') {
+  const capture: unknown = JSON.parse(readFileSync(mode.path, 'utf8'));
+  const reversed = restoreAppliedMigrationSet(
+    dbPath,
+    './drizzle',
+    parseMigrationSetCapture(capture, mode.identity),
   );
+  console.log(`restored captured migration set: ${reversed.join(', ') || '(already restored)'}`);
+  process.exit(0);
 }
-const target = arg.slice('--to='.length);
-if (target === '') throw new Error(`--to must name a migration, or "${ROLLBACK_ALL}"`);
+
+const target = mode.target;
 
 const reversed = rollbackTo(dbPath, './drizzle', target);
 if (reversed.length === 0) {

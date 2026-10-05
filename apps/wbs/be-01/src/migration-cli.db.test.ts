@@ -1,4 +1,12 @@
-import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,8 +24,12 @@ afterEach(() => {
 });
 
 async function runCli(file: string, dbPath: string, ...args: string[]) {
-  const child = Bun.spawn([process.execPath, 'run', `src/${file}`, ...args], {
-    cwd: APP_ROOT,
+  return runCliFrom(APP_ROOT, file, dbPath, ...args);
+}
+
+async function runCliFrom(root: string, file: string, dbPath: string, ...args: string[]) {
+  const child = Bun.spawn([process.execPath, 'run', join(APP_ROOT, 'src', file), ...args], {
+    cwd: root,
     env: { ...process.env, DB_PATH: dbPath },
     stdout: 'pipe',
     stderr: 'pipe',
@@ -28,6 +40,32 @@ async function runCli(file: string, dbPath: string, ...args: string[]) {
     new Response(child.stderr).text(),
   ]);
   return { exitCode, stdout, stderr };
+}
+
+function migrationLedgerAt(dbPath: string): { name: string; hash: string; created_at: number }[] {
+  const sqlite = openDatabase(dbPath);
+  try {
+    const exists = sqlite
+      .query<{ name: string }, []>(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = '__drizzle_migrations'",
+      )
+      .get();
+    if (exists === null) return [];
+    return sqlite
+      .query<{ name: string; hash: string; created_at: number }, []>(
+        'SELECT name, hash, created_at FROM __drizzle_migrations ORDER BY created_at, name',
+      )
+      .all();
+  } finally {
+    sqlite.close();
+  }
+}
+
+function addMigration(root: string, name: string, up: string, down: string): void {
+  const folder = join(root, 'drizzle', name);
+  mkdirSync(folder);
+  writeFileSync(join(folder, 'migration.sql'), up);
+  writeFileSync(join(folder, 'down.sql'), down);
 }
 
 function schemaAt(dbPath: string): string[] {
@@ -47,6 +85,427 @@ function schemaAt(dbPath: string): string[] {
 }
 
 describe('migration deploy entrypoints', () => {
+  it('restores an older newly introduced migration after a newer shared-people baseline', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-migration-set-cli-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    const migrations = join(root, 'drizzle');
+    const capturePath = join(root, 'capture.json');
+    const candidateName = '20261001020000_add_browser_auth_lifecycle';
+    cpSync(MIGRATIONS, migrations, { recursive: true });
+    runMigrations(dbPath, MIGRATIONS);
+    const baselineLedger = migrationLedgerAt(dbPath);
+    expect(baselineLedger.at(-1)?.name).toBe('20261005110000_add_shared_people');
+    const baselineSchema = schemaAt(dbPath);
+    const sqlite = openDatabase(dbPath);
+    try {
+      sqlite.run(
+        "INSERT INTO users (id,username,password_hash,created_at) VALUES ('sentinel','owner','x',1)",
+      );
+    } finally {
+      sqlite.close();
+    }
+
+    addMigration(
+      root,
+      candidateName,
+      'CREATE TABLE browser_auth_lifecycle (id text PRIMARY KEY);',
+      'DROP TABLE browser_auth_lifecycle;',
+    );
+    const identity = ['--target=wbs-be-01', '--attempt=abort-test', '--candidate=deadbeef'];
+    const capture = await runCliFrom(
+      root,
+      'migrate-status-cli.ts',
+      dbPath,
+      '--capture',
+      ...identity,
+    );
+    expect(capture.exitCode).toBe(0);
+    const captured: unknown = JSON.parse(capture.stdout);
+    expect(captured).toMatchObject({
+      format: 'applied-migration-set',
+      version: 1,
+      target: 'wbs-be-01',
+      attempt: 'abort-test',
+      candidate: 'deadbeef',
+      applied: baselineLedger.map(({ name, hash }) => ({ name, hash })),
+      pending: [{ name: candidateName }],
+    });
+    writeFileSync(capturePath, capture.stdout);
+
+    expect(await runCliFrom(root, 'migrate-cli.ts', dbPath)).toEqual({
+      exitCode: 0,
+      stdout: 'migrations applied\n',
+      stderr: '',
+    });
+    expect(schemaAt(dbPath).some((ddl) => ddl.includes('browser_auth_lifecycle'))).toBe(true);
+    expect(migrationLedgerAt(dbPath)).toHaveLength(baselineLedger.length + 1);
+
+    const restored = await runCliFrom(
+      root,
+      'migrate-down-cli.ts',
+      dbPath,
+      `--capture-file=${capturePath}`,
+      ...identity,
+    );
+    expect(restored.exitCode).toBe(0);
+    expect(restored.stderr).toBe('');
+    expect(restored.stdout).toContain(candidateName);
+    expect(schemaAt(dbPath)).toEqual(baselineSchema);
+    expect(migrationLedgerAt(dbPath)).toEqual(baselineLedger);
+    const after = openDatabase(dbPath);
+    try {
+      expect(after.query("SELECT id FROM users WHERE id = 'sentinel'").all()).toEqual([
+        { id: 'sentinel' },
+      ]);
+    } finally {
+      after.close();
+    }
+  }, 60_000);
+
+  it('preserves an older migration already captured and repeats exact restoration safely', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-migration-set-preserve-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    const capturePath = join(root, 'capture.json');
+    const lifecycle = '20261001020000_add_browser_auth_lifecycle';
+    const addition = '20261006010000_add_after_lifecycle';
+    cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
+    addMigration(
+      root,
+      lifecycle,
+      'CREATE TABLE browser_auth_lifecycle (id text PRIMARY KEY);',
+      'DROP TABLE browser_auth_lifecycle;',
+    );
+    runMigrations(dbPath, join(root, 'drizzle'));
+    const sqlite = openDatabase(dbPath);
+    try {
+      sqlite.run("INSERT INTO browser_auth_lifecycle (id) VALUES ('retained')");
+    } finally {
+      sqlite.close();
+    }
+    const baseline = migrationLedgerAt(dbPath);
+    addMigration(
+      root,
+      addition,
+      'CREATE TABLE after_lifecycle (id text PRIMARY KEY);',
+      'DROP TABLE after_lifecycle;',
+    );
+    const identity = ['--target=wbs-be-01', '--attempt=preserve-test', '--candidate=feedbeef'];
+    const capture = await runCliFrom(
+      root,
+      'migrate-status-cli.ts',
+      dbPath,
+      '--capture',
+      ...identity,
+    );
+    expect(capture.exitCode).toBe(0);
+    const captured: unknown = JSON.parse(capture.stdout);
+    expect(captured).toMatchObject({
+      applied: baseline.map(({ name, hash }) => ({ name, hash })),
+      pending: [{ name: addition }],
+    });
+    writeFileSync(capturePath, capture.stdout);
+    expect((await runCliFrom(root, 'migrate-cli.ts', dbPath)).exitCode).toBe(0);
+    const args = [`--capture-file=${capturePath}`, ...identity];
+    expect((await runCliFrom(root, 'migrate-down-cli.ts', dbPath, ...args)).stdout).toContain(
+      addition,
+    );
+    expect(migrationLedgerAt(dbPath)).toEqual(baseline);
+    const restored = openDatabase(dbPath);
+    try {
+      expect(restored.query('SELECT id FROM browser_auth_lifecycle').all()).toEqual([
+        { id: 'retained' },
+      ]);
+      expect(
+        restored.query("SELECT name FROM sqlite_master WHERE name = 'after_lifecycle'").all(),
+      ).toEqual([]);
+    } finally {
+      restored.close();
+    }
+    expect((await runCliFrom(root, 'migrate-down-cli.ts', dbPath, ...args)).stdout).toContain(
+      '(already restored)',
+    );
+    expect(migrationLedgerAt(dbPath)).toEqual(baseline);
+  }, 60_000);
+
+  it('restores an explicitly empty captured set', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-migration-set-empty-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    const capturePath = join(root, 'capture.json');
+    const candidate = '20260101000000_add_first';
+    mkdirSync(join(root, 'drizzle'));
+    addMigration(
+      root,
+      candidate,
+      'CREATE TABLE first_migration (id text PRIMARY KEY);',
+      'DROP TABLE first_migration;',
+    );
+    openDatabase(dbPath).close();
+    const identity = ['--target=wbs-be-01', '--attempt=empty-test', '--candidate=cafebabe'];
+    const capture = await runCliFrom(
+      root,
+      'migrate-status-cli.ts',
+      dbPath,
+      '--capture',
+      ...identity,
+    );
+    expect(capture.exitCode).toBe(0);
+    expect(JSON.parse(capture.stdout)).toMatchObject({
+      applied: [],
+      pending: [{ name: candidate }],
+    });
+    writeFileSync(capturePath, capture.stdout);
+    expect((await runCliFrom(root, 'migrate-cli.ts', dbPath)).exitCode).toBe(0);
+    expect(migrationLedgerAt(dbPath)).toHaveLength(1);
+    expect(
+      (
+        await runCliFrom(
+          root,
+          'migrate-down-cli.ts',
+          dbPath,
+          `--capture-file=${capturePath}`,
+          ...identity,
+        )
+      ).exitCode,
+    ).toBe(0);
+    expect(migrationLedgerAt(dbPath)).toEqual([]);
+    expect(schemaAt(dbPath).some((ddl) => ddl.includes('first_migration'))).toBe(false);
+  }, 60_000);
+
+  it('refuses capture when its database is absent without creating a file', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-migration-set-missing-'));
+    roots.push(root);
+    const dbPath = join(root, 'absent.db');
+    cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
+    const capture = await runCliFrom(
+      root,
+      'migrate-status-cli.ts',
+      dbPath,
+      '--capture',
+      '--target=wbs-be-01',
+      '--attempt=missing-test',
+      '--candidate=cafebabe',
+    );
+    expect(capture.exitCode).not.toBe(0);
+    expect(capture.stdout).toBe('');
+    expect(readdirSync(root)).not.toContain('absent.db');
+  }, 60_000);
+
+  it('refuses a zero-error down script when the ledger still records the addition', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-migration-set-ledger-fault-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    const capturePath = join(root, 'capture.json');
+    const candidate = '20260101000000_add_candidate';
+    mkdirSync(join(root, 'drizzle'));
+    addMigration(
+      root,
+      candidate,
+      'CREATE TABLE candidate_table (id text);',
+      'DROP TABLE candidate_table;',
+    );
+    openDatabase(dbPath).close();
+    const identity = ['--target=wbs-be-01', '--attempt=ledger-test', '--candidate=cafebabe'];
+    const capture = await runCliFrom(
+      root,
+      'migrate-status-cli.ts',
+      dbPath,
+      '--capture',
+      ...identity,
+    );
+    expect(capture.exitCode).toBe(0);
+    writeFileSync(capturePath, capture.stdout);
+    expect((await runCliFrom(root, 'migrate-cli.ts', dbPath)).exitCode).toBe(0);
+    const sqlite = openDatabase(dbPath);
+    try {
+      sqlite.run(`CREATE TRIGGER retain_candidate AFTER DELETE ON __drizzle_migrations
+        WHEN old.name = '${candidate}' BEGIN
+          INSERT INTO __drizzle_migrations (hash, created_at, name)
+          VALUES (old.hash, old.created_at, old.name);
+        END`);
+    } finally {
+      sqlite.close();
+    }
+    const refused = await runCliFrom(
+      root,
+      'migrate-down-cli.ts',
+      dbPath,
+      `--capture-file=${capturePath}`,
+      ...identity,
+    );
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stderr).toContain('migration ledger differs from captured applied set');
+    expect(migrationLedgerAt(dbPath).map((row) => row.name)).toEqual([candidate]);
+  }, 60_000);
+
+  it('refuses conflicting exact-set and legacy rollback modes before changing the ledger', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-migration-set-conflict-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    const capturePath = join(root, 'capture.json');
+    const candidate = '20260101000000_add_candidate';
+    mkdirSync(join(root, 'drizzle'));
+    addMigration(
+      root,
+      candidate,
+      'CREATE TABLE candidate_table (id text);',
+      'DROP TABLE candidate_table;',
+    );
+    openDatabase(dbPath).close();
+    const identity = ['--target=wbs-be-01', '--attempt=mixed-test', '--candidate=cafebabe'];
+    const capture = await runCliFrom(
+      root,
+      'migrate-status-cli.ts',
+      dbPath,
+      '--capture',
+      ...identity,
+    );
+    expect(capture.exitCode).toBe(0);
+    writeFileSync(capturePath, capture.stdout);
+    expect((await runCliFrom(root, 'migrate-cli.ts', dbPath)).exitCode).toBe(0);
+    const before = migrationLedgerAt(dbPath);
+
+    const refused = await runCliFrom(
+      root,
+      'migrate-down-cli.ts',
+      dbPath,
+      `--capture-file=${capturePath}`,
+      '--to=none',
+      ...identity,
+    );
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stderr).toContain('mutually exclusive');
+    expect(migrationLedgerAt(dbPath)).toEqual(before);
+    expect(schemaAt(dbPath).some((ddl) => ddl.includes('candidate_table'))).toBe(true);
+  }, 60_000);
+
+  it('refuses duplicate capture identity flags before reading the database', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-migration-set-duplicate-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    mkdirSync(join(root, 'drizzle'));
+    addMigration(
+      root,
+      '20260101000000_add_candidate',
+      'CREATE TABLE candidate_table (id text);',
+      'DROP TABLE candidate_table;',
+    );
+    openDatabase(dbPath).close();
+    const refused = await runCliFrom(
+      root,
+      'migrate-status-cli.ts',
+      dbPath,
+      '--capture',
+      '--target=wbs-be-01',
+      '--target=other',
+      '--attempt=duplicate-test',
+      '--candidate=cafebabe',
+    );
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stderr).toContain('duplicate --target');
+    expect(migrationLedgerAt(dbPath)).toEqual([]);
+  }, 60_000);
+
+  it('refuses reordered pending migrations before one down script can commit', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-migration-set-order-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    const capturePath = join(root, 'capture.json');
+    const first = '20260101000000_add_first';
+    const second = '20260101000001_add_second';
+    mkdirSync(join(root, 'drizzle'));
+    addMigration(
+      root,
+      first,
+      'CREATE TABLE first_candidate (id text);',
+      'DROP TABLE first_candidate;',
+    );
+    addMigration(
+      root,
+      second,
+      'CREATE TABLE second_candidate (id text);',
+      "INSERT INTO first_candidate (id) VALUES ('cleanup');\n--> statement-breakpoint\nDROP TABLE second_candidate;",
+    );
+    openDatabase(dbPath).close();
+    const identity = ['--target=wbs-be-01', '--attempt=order-test', '--candidate=cafebabe'];
+    const capture = await runCliFrom(
+      root,
+      'migrate-status-cli.ts',
+      dbPath,
+      '--capture',
+      ...identity,
+    );
+    expect(capture.exitCode).toBe(0);
+    const parsed: unknown = JSON.parse(capture.stdout);
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      !('pending' in parsed) ||
+      !Array.isArray(parsed.pending)
+    ) {
+      throw new Error('capture does not contain pending migrations');
+    }
+    const pending = parsed.pending as unknown[];
+    writeFileSync(capturePath, JSON.stringify({ ...parsed, pending: [...pending].reverse() }));
+    expect((await runCliFrom(root, 'migrate-cli.ts', dbPath)).exitCode).toBe(0);
+    const before = migrationLedgerAt(dbPath);
+    const refused = await runCliFrom(
+      root,
+      'migrate-down-cli.ts',
+      dbPath,
+      `--capture-file=${capturePath}`,
+      ...identity,
+    );
+    expect(refused.exitCode).not.toBe(0);
+    expect(migrationLedgerAt(dbPath)).toEqual(before);
+    expect(schemaAt(dbPath).some((ddl) => ddl.includes('first_candidate'))).toBe(true);
+    expect(schemaAt(dbPath).some((ddl) => ddl.includes('second_candidate'))).toBe(true);
+    expect(refused.stderr).toContain('pending migration order');
+  }, 60_000);
+
+  it('resumes exact restoration after one down script and ledger deletion committed', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-migration-set-resume-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    const capturePath = join(root, 'capture.json');
+    const first = '20261006010000_first_after_baseline';
+    const second = '20261006020000_second_after_baseline';
+    cpSync(MIGRATIONS, join(root, 'drizzle'), { recursive: true });
+    runMigrations(dbPath, MIGRATIONS);
+    const baseline = migrationLedgerAt(dbPath);
+    addMigration(root, first, 'CREATE TABLE first_after (id text);', 'DROP TABLE first_after;');
+    addMigration(root, second, 'CREATE TABLE second_after (id text);', 'DROP TABLE second_after;');
+    const identity = ['--target=wbs-be-01', '--attempt=resume-test', '--candidate=cafebabe'];
+    const capture = await runCliFrom(
+      root,
+      'migrate-status-cli.ts',
+      dbPath,
+      '--capture',
+      ...identity,
+    );
+    expect(capture.exitCode).toBe(0);
+    writeFileSync(capturePath, capture.stdout);
+    expect((await runCliFrom(root, 'migrate-cli.ts', dbPath)).exitCode).toBe(0);
+    expect(
+      (await runCliFrom(root, 'migrate-down-cli.ts', dbPath, `--to=${first}`)).stdout,
+    ).toContain(second);
+    const resumed = await runCliFrom(
+      root,
+      'migrate-down-cli.ts',
+      dbPath,
+      `--capture-file=${capturePath}`,
+      ...identity,
+    );
+    expect(resumed.exitCode).toBe(0);
+    expect(resumed.stdout).toContain(first);
+    expect(resumed.stdout).not.toContain(second);
+    expect(migrationLedgerAt(dbPath)).toEqual(baseline);
+    expect(schemaAt(dbPath).some((ddl) => ddl.includes('first_after'))).toBe(false);
+    expect(schemaAt(dbPath).some((ddl) => ddl.includes('second_after'))).toBe(false);
+  }, 60_000);
+
   it('import the SQLite source runners without moving their app paths', () => {
     const expectedImports = new Map<string, readonly string[]>([
       ['migrate-cli.ts', ["from '@wbs/store-sqlite/migrate'"]],

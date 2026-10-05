@@ -9,9 +9,18 @@
 // abort path would read as "roll back everything".
 import { openDatabase } from '@wbs/store-sqlite/db';
 import { type AppliedMigration, ROLLBACK_ALL } from '@wbs/store-sqlite/migrate-down';
+import { captureAppliedMigrationSet } from '@wbs/store-sqlite/migration-set';
+
+import { statusModeOf } from './migration-cli-options';
 
 const dbPath = process.env['DB_PATH'];
 if (dbPath === undefined || dbPath === '') throw new Error('DB_PATH must be set');
+
+const mode = statusModeOf(process.argv.slice(2));
+if (mode.kind === 'capture') {
+  console.log(JSON.stringify(captureAppliedMigrationSet(dbPath, './drizzle', mode.identity)));
+  process.exit(0);
+}
 
 const db = openDatabase(dbPath);
 try {
