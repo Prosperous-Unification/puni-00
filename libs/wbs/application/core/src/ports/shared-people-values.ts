@@ -10,6 +10,11 @@ export interface InfluencerRead {
   readonly unavailable: 'cycle' | 'calendar_range' | null;
 }
 
+/** Organization-only read authority; background scheduling carries no human write role. */
+export type ChainAccess =
+  | { readonly kind: 'legacy' }
+  | { readonly kind: 'scoped'; readonly scope: { readonly organizationId: string } };
+
 /** Historical display evidence; the target's input alone cannot replay upstream bookings. */
 export type SharedPeopleRead =
   | { readonly kind: 'not_found' }

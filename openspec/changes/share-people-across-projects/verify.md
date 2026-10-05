@@ -649,39 +649,39 @@ Typecheck/build were not repeated for this test-input-only metadata correction; 
 behavior and TypeScript are unchanged. The coordinator will rerun the canonical exact-head
 h2puni gate on the corrected commit before merge. Trusted activation remains deferred.
 
-## Runtime/cache planning — implementation not started
+## Runtime/cache progress — 6.1a/6.2a implemented; 6.1b–f pending
 
 Architecture baseline is merged main `8bccd93bc537cffac85b53ea056a79f786558eda`, after storage
-PR #265. This artifact update is documentation only on `feat/shared-people-runtime`.
-Implementation remains **17/23**, with 6.1/6.2 and UI/mode-route 7/8 unchecked. Steps 6.1a–f
-refine the existing umbrella tasks without claiming new implementation. Intent remains unchanged
-at 379 words. No new glossary term, ADR, source code, migration or release capability is added.
+PR #265. Bounded 6.1a/6.2a implementation on `feat/shared-people-runtime` is recorded below.
+The parser count remains **17/23**, with 6.1/6.2 and UI/mode-route 7/8 unchecked. Steps 6.1b–f,
+durable fan-out and activation remain pending. Intent remains 379 words; no new glossary term,
+ADR, migration or release capability is added.
 
-### Runtime proof plan — every row pending
+### Runtime proof status — 6.2a observed; 6.2b–f pending
 
-These are required future production-path negatives, not observed evidence. For each row, Sol
-must record the real test/file, injected production fault, observed assertion failure and restored
-GREEN run, then add the adjacent production `Proof:` comment. A parse/load error does not count.
+The 6.2a rows below were injected separately and observed RED; final focused restoration is
+37 pass / 0 fail. Exact tests and faults are recorded in the implementation evidence below.
+Rows 6.2b–f remain required future production-path negatives. A parse/load error does not count.
 
-| Step | Production fault to inject                               | Required production-path test and expected failure                                   | Observation |
-| ---- | -------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------- |
-| 6.2a | Force shared scheduling for isolated/legacy access       | Mounted mode read moves an isolated date or changes its input hash                   | Not run     |
-| 6.2a | Remove scoped ownership/cross-reference validation       | Foreign project/person enters the chain or corrupt crossing input is accepted        | Not run     |
-| 6.2a | Read mode/rank/assignments outside the owned snapshot    | Concurrent combined edit returns a mixed chain                                       | Not run     |
-| 6.2a | Default malformed mode or skip snapshot close            | Corrupt mode returns dates, or refusal/throw leaks the read connection               | Not run     |
-| 6.2b | Omit target elsewhere or its response projection         | Mounted tree/export loses displaced dates, holder or waiting count                   | Not run     |
-| 6.2b | Replace command-bound readers with a fresh connection    | Arrange/preflight ignores staged writes and accepts or arranges the wrong plan       | Not run     |
-| 6.2c | Remove incoming basis from memo acceptance               | Warm load/space returns old B dates after only A changes                             | Not run     |
-| 6.2c | Check cache before required influencer availability      | Warm available dates survive an engine-unavailable influencer                        | Not run     |
-| 6.2c | Read aggregate projects from incompatible snapshots      | Concurrent upstream edit produces mutually inconsistent shared load/space bookings   | Not run     |
-| 6.2d | Rebuild queue/debounce/Retry input without elsewhere     | Solver input differs from live shared input or old Retry hash is accepted            | Not run     |
-| 6.2d | Skip unlaunched reservation release on refusal/throw     | Queued capture negative leaves a counted slot or launches a refused input            | Not run     |
-| 6.2d | Admit target work before snapshot close                  | Read-only capture oracle observes generation/slot/queue mutation during derivation   | Not run     |
-| 6.2e | Drop shared capture at installer/composition boundary    | Mounted save/current misses upstream displacement                                    | Not run     |
-| 6.2e | Reread live influencers for a historical saved display   | Upstream edit/delete changes saved schedule bytes                                    | Not run     |
-| 6.2f | Replace current full-key cache lookup with old-key reuse | H1 outcome serves after B's incoming calendar becomes H2                             | Not run     |
-| 6.2f | Swallow unavailable/unknown chain outcomes               | Target returns unmarked Fast dates or hides an unexpected failure                    | Not run     |
-| 6.2f | Advertise shared before deferred prerequisites           | Physical capability probe no longer equals isolated-only; shared restore is admitted | Not run     |
+| Step | Production fault to inject                               | Required production-path test and expected failure                                   | Observation                                                                                     |
+| ---- | -------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| 6.2a | Force shared scheduling for isolated/legacy access       | Mounted mode read moves an isolated date or changes its input hash                   | Observed exit 1: isolated influencers a1/a2 instead of []                                       |
+| 6.2a | Remove scoped ownership/cross-reference validation       | Foreign project/person enters the chain or corrupt crossing input is accepted        | Observed exit 1: foreign person exposed; removed ownership/rank checks lost named refusal       |
+| 6.2a | Read mode/rank/assignments outside the owned snapshot    | Concurrent combined edit returns a mixed chain                                       | Observed exit 1: target start 2 instead of 3; separate mode connection tore rank/readable state |
+| 6.2a | Default malformed mode or skip snapshot close            | Corrupt mode returns dates, or refusal/throw leaks the read connection               | Observed exit 1: corrupt mode accepted; background close count 0 instead of 1                   |
+| 6.2b | Omit target elsewhere or its response projection         | Mounted tree/export loses displaced dates, holder or waiting count                   | Not run                                                                                         |
+| 6.2b | Replace command-bound readers with a fresh connection    | Arrange/preflight ignores staged writes and accepts or arranges the wrong plan       | Not run                                                                                         |
+| 6.2c | Remove incoming basis from memo acceptance               | Warm load/space returns old B dates after only A changes                             | Not run                                                                                         |
+| 6.2c | Check cache before required influencer availability      | Warm available dates survive an engine-unavailable influencer                        | Not run                                                                                         |
+| 6.2c | Read aggregate projects from incompatible snapshots      | Concurrent upstream edit produces mutually inconsistent shared load/space bookings   | Not run                                                                                         |
+| 6.2d | Rebuild queue/debounce/Retry input without elsewhere     | Solver input differs from live shared input or old Retry hash is accepted            | Not run                                                                                         |
+| 6.2d | Skip unlaunched reservation release on refusal/throw     | Queued capture negative leaves a counted slot or launches a refused input            | Not run                                                                                         |
+| 6.2d | Admit target work before snapshot close                  | Read-only capture oracle observes generation/slot/queue mutation during derivation   | Not run                                                                                         |
+| 6.2e | Drop shared capture at installer/composition boundary    | Mounted save/current misses upstream displacement                                    | Not run                                                                                         |
+| 6.2e | Reread live influencers for a historical saved display   | Upstream edit/delete changes saved schedule bytes                                    | Not run                                                                                         |
+| 6.2f | Replace current full-key cache lookup with old-key reuse | H1 outcome serves after B's incoming calendar becomes H2                             | Not run                                                                                         |
+| 6.2f | Swallow unavailable/unknown chain outcomes               | Target returns unmarked Fast dates or hides an unexpected failure                    | Not run                                                                                         |
+| 6.2f | Advertise shared before deferred prerequisites           | Physical capability probe no longer equals isolated-only; shared restore is admitted | Not run                                                                                         |
 
 ### Planned implementation validation
 
@@ -728,3 +728,67 @@ runtime correctness. Nx format write/check used the six changed paths: `design.m
 Full `format:check --all`, runtime tests, mutation proofs, lint/typecheck/build and the canonical
 implementation gate are intentionally unperformed for this docs-only planning commit. Their
 future commands and obligations remain above; the earlier storage evidence is not runtime proof.
+
+## Runtime 6.1a / paired 6.2a — mode-aware coherent read
+
+Implemented on `feat/shared-people-runtime`, starting exactly at
+`54708c0f13c6d6da84d1671bbdf6054b0ee53c42`. Umbrella 6.1/6.2 remain unchecked.
+Owned human and project-owned readers require a target; isolated/legacy materialize only that
+project, without rank or project-list reads. The application retains influencer closure,
+scheduling and booking projection; the adapter chooses the mode's readable candidate capability
+before materialization. `ChainAccess` is an organization-only value, never a synthetic user/role.
+`readChainSnapshotIn` borrows an authorized transaction and `readChain` returns detached values;
+it does not begin, commit or close that transaction. No live tree/consumer/cache/admission wiring
+from 6.1b–f, setter, fan-out, mode route or activation was added.
+
+Observed RED before behavior: `bun test libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts
+--test-name-pattern 'shared runtime selects mode'` exited 1: isolated influencers expected `[]`,
+received `a1/a2`. Background entrypoint RED exited 1 with missing `withProjectSnapshot`.
+Target-first refinement RED exited 1 in `never materializes upstream assignments for isolated or
+legacy targets` with `upstream isolated assignment read`.
+
+Final commands (2026-10-05):
+
+- `bun test libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts
+libs/wbs/application/core/src/service/shared-people.test.ts`: 37 pass, 0 fail,
+  115 assertions, exit 0, after all final code changes.
+- The same two files plus `saved-plan-capture.db.test.ts`, `shared-people-mode.db.test.ts` and
+  `testing/source-conformance.db.test.ts` under store-sqlite: 140 pass, 0 fail,
+  6690 assertions, exit 0 (29.82 s).
+- `bunx eslint` on the six changed TypeScript files: exit 0, no output, with Nx's project graph
+  present. An earlier import-sort failure was fixed. The earlier graphless invocation reported
+  a skipped module-boundary check and was not accepted as verification.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-store-sqlite:typecheck`:
+  actual target ran, exit 0, `Successfully ran target typecheck`, 3.2 s, cache 0/1.
+  Earlier direct Nx returned socket diagnostics without running the target; ignored as proof.
+  One intermediate test callback implicit-this error was corrected before this final pass.
+- `git diff --check`: exit 0.
+
+Each mutation below was run separately against the production SQLite test path with its source
+restored immediately afterward; each exited 1. Logs are session-local
+`/tmp/shared-people-runtime-proof-<fault>.log`.
+
+| Injected fault                                            | Observed production-path failure                                                                                      |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Strict mode decoder always returns shared                 | mode-selection test returned a1/a2 influencers under isolated instead of []                                           |
+| Human isolated target selection disabled                  | narrow project-list test threw `isolated project list`                                                                |
+| Background isolated target selection disabled             | narrow project/rank test threw `isolated rank list` after human read succeeded                                        |
+| Isolated rank selection bypassed                          | narrow project/rank test threw `isolated rank list`                                                                   |
+| Capture receives legacy instead of scoped authority       | scoped cross-reference/directory test exposed `foreign` person                                                        |
+| Human transaction replaced by no-op begin/commit/rollback | concurrent mode/rank/assignment/date test read target start 2 instead of 3                                            |
+| Mode read on another connection                           | authority-bound concurrent mode test threw rank/readable disagreement, demonstrating mixed states                     |
+| Missing project-ownership guard removed                   | corrupt-mode/broken-ownership test got undefined dereference instead of named ownership refusal                       |
+| Project-owned ranked-project null guard removed           | broken-readable dependency test got null dereference instead of named rank refusal                                    |
+| Background transaction replaced by no-op                  | background concurrent mode/assignment/date test read target start 2 instead of 3                                      |
+| Background commit omitted                                 | background lifecycle test refused nested BEGIN in close-time transaction-release assertion                            |
+| Background close omitted                                  | background lifecycle test observed 0 closes instead of 1                                                              |
+| Malformed-mode decoder guard removed                      | corrupt-mode test got expected-operation-to-throw instead of strict mode refusal                                      |
+| Factory opens writable connection (with real import)      | readonly-factory test's unsafe UPDATE succeeded instead of throwing; final test asserts wrapped SQLITE_READONLY cause |
+
+The early core-dispatch removal was observed before target-first refinement; final mode dispatch
+proof is the strict decoder mutation above, because isolated capabilities now contain only the
+target. That redundant core branch was removed rather than keeping an unbreakable safety check.
+
+Full canonical gate, build, live deployment and broader runtime/cache consumers were not run for
+this bounded task. The controller owns exact-head integration gate and independent review.
+`SUPPORTED_CAPACITY_MODES` and all activation boundaries remain isolated-only.

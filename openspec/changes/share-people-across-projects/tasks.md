@@ -87,8 +87,8 @@ recorded separately in verify.md; they do not establish runtime mode activation.
 
 Planning baseline: merged main `8bccd93bc537cffac85b53ea056a79f786558eda`. Implementation
 progress remains **17/23**. The steps below refine the existing two unchecked umbrella tasks;
-they are not additional completion checkboxes. None is implemented or proved by this planning
-update. Record implementation and observed RED/GREEN evidence by step id in verify.md.
+they are not additional completion checkboxes. Steps 6.1a/6.2a are implemented and proved below;
+6.1b–f and their paired proofs remain pending. Evidence is recorded by step id in verify.md.
 
 1. **6.1a — Mode-aware coherent read.** Test, then implement strict snapshot mode selection,
    human scope and project-owned background reads around the existing chain capability.
@@ -97,6 +97,8 @@ update. Record implementation and observed RED/GREEN evidence by step id in veri
    excluded and concurrent mode/rank/assignment/date changes seen coherently. **6.2a:** remove
    mode dispatch, scope validation or snapshot ownership independently and watch those production
    cases fail; preserve lifecycle cleanup and read-only connection proofs.
+   **6.1a/6.2a complete:** strict target-first mode dispatch, project-owned and borrowed readers;
+   observed proof commands and outcomes are recorded in verify.md.
 2. **6.1b — Live projection and transactional consumers.** Test, then thread detached rows,
    live revision/sequence, selected schedule, slice holders and optional `waitingElsewhere`
    through tree/export. Extract only the pure projection seam needed; preserve actual/progress/
