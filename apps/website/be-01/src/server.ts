@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import type { ConceptTemplate, ConceptView, DraftView } from '@website/contracts';
+import type { ConceptTemplate, ConceptView, ConversationView, DraftView } from '@website/contracts';
 import { WebsiteStore } from '@website/store-sqlite';
 import {
   createUIMessageStream,
@@ -928,6 +928,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         ),
       );
     }
+    // Proof: deleting this guard made the mounted /conversation and /draft/discard foreign-origin tests return 200 and 204.
     if (origin !== config.appOrigin) return failure('origin_forbidden', 403);
     if (path === '/draft' && request.method === 'GET') {
       const session = prospectSession(request, now);
@@ -953,6 +954,43 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         expiresAt: new Date(draft.expiresAt).toISOString(),
       };
       return attachCors(json(view, 200, { 'Cache-Control': 'no-store' }), origin);
+    }
+    if (path === '/conversation' && request.method === 'GET') {
+      const claim = draftClaim(request);
+      const draft = claim ? store.findDraft(digest(claim), now) : null;
+      if (!claim || !draft) return attachCors(failure('draft_unavailable', 401), origin);
+      // Until the claim-bound stream exists, no anonymous turn can be admitted, so the provider
+      // is `disabled` whatever the OpenRouter or demo settings say.
+      const view: ConversationView = {
+        stage: 'clarify',
+        turns: [],
+        visitorTurnsRemaining: 8,
+        provider: 'disabled',
+        brief: draft.brief,
+        description: draft.description,
+        csrfToken: draftCsrf(claim),
+        initialOperation: null,
+        latestOperation: null,
+        exhaustedReason: null,
+      };
+      return attachCors(json(view, 200, { 'Cache-Control': 'no-store' }), origin);
+    }
+    if (path === '/draft/discard' && request.method === 'POST') {
+      const claim = draftClaim(request);
+      if (!claim) return attachCors(failure('draft_unavailable', 401), origin);
+      // Proof: removing this CSRF check made the missing-CSRF discard test return 204.
+      if (!validDraftCsrf(request, claim))
+        return attachCors(failure('csrf_forbidden', 403), origin);
+      const outcome = store.discardDraft(digest(claim), now);
+      if (outcome === 'missing') return attachCors(failure('draft_unavailable', 401), origin);
+      if (outcome === 'consumed') return attachCors(failure('draft_consumed', 409), origin);
+      return attachCors(
+        new Response(null, {
+          status: 204,
+          headers: { 'Set-Cookie': cookie(draftCookie, '', 0), 'Cache-Control': 'no-store' },
+        }),
+        origin,
+      );
     }
     if (path === '/brief' && request.method === 'PATCH') {
       const session = prospectSession(request, now);

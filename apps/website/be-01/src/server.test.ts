@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -2218,5 +2219,145 @@ test('existing session claims a new intake on draft resume when public POST lack
   expect(((await resumed.json()) as { description: string }).description).toBe(
     'Second dashboard request',
   );
+  api.close();
+});
+
+test('GET /conversation reads only the claimed draft and reports the disabled provider', async () => {
+  const { config } = fixture();
+  // Demo replies and a full OpenRouter flag still report disabled until the conversation stream exists.
+  const api = createWebsiteApi({ ...config, demoAuth: true, openRouterEnabled: true });
+  const { cookie, csrf } = await beginDraft(api);
+  const owner = await api.fetch(
+    request('/conversation', 'GET', config.appOrigin, undefined, cookie),
+  );
+  expect(owner.status).toBe(200);
+  expect(owner.headers.get('cache-control')).toBe('no-store');
+  expect(owner.headers.get('set-cookie')).toBeNull();
+  expect(await owner.json()).toEqual({
+    stage: 'clarify',
+    turns: [],
+    visitorTurnsRemaining: 8,
+    provider: 'disabled',
+    brief: '',
+    description: 'A booking tool for a local studio',
+    csrfToken: csrf,
+    initialOperation: null,
+    latestOperation: null,
+    exhaustedReason: null,
+  });
+  const foreignCookie = `${cookie.split('=')[0]}=${'b'.repeat(64)}`;
+  const foreign = await api.fetch(
+    request('/conversation', 'GET', config.appOrigin, undefined, foreignCookie),
+  );
+  expect(foreign.status).toBe(401);
+  expect(await foreign.json()).toEqual({ code: 'draft_unavailable' });
+  expect((await api.fetch(request('/conversation', 'GET', config.appOrigin))).status).toBe(401);
+  // Proof: removing the app-origin guard in server.ts made this foreign-origin read return 200.
+  const forged = await api.fetch(
+    request('/conversation', 'GET', 'https://foreign.example', undefined, cookie),
+  );
+  expect(forged.status).toBe(403);
+  expect(
+    (await api.fetch(request('/conversation', 'GET', config.publicOrigin, undefined, cookie)))
+      .status,
+  ).toBe(403);
+  api.close();
+});
+
+test('POST /draft/discard expires the claim and its cookie and is refused after submission', async () => {
+  const { api, config } = fixture();
+  const { cookie, csrf } = await beginDraft(api);
+  const discarded = await api.fetch(
+    request('/draft/discard', 'POST', config.appOrigin, {}, cookie, csrf),
+  );
+  expect(discarded.status).toBe(204);
+  expect(discarded.headers.get('cache-control')).toBe('no-store');
+  expect(discarded.headers.get('set-cookie')).toBe(
+    `${cookie.split('=')[0]}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
+  );
+  expect(
+    (await api.fetch(request('/draft', 'GET', config.appOrigin, undefined, cookie))).status,
+  ).toBe(401);
+  expect(
+    await (
+      await api.fetch(request('/entry', 'GET', config.publicOrigin, undefined, cookie))
+    ).json(),
+  ).toEqual({ available: false, reason: 'expired' });
+  const again = await api.fetch(
+    request('/draft/discard', 'POST', config.appOrigin, {}, cookie, csrf),
+  );
+  expect(again.status).toBe(204);
+
+  const submitted = await beginDraft(api);
+  const proposal = await api.fetch(
+    request(
+      '/proposals',
+      'POST',
+      config.appOrigin,
+      { email: 'owner@example.test', brief: 'Calendar', idempotencyKey: 'submit-discard' },
+      submitted.cookie,
+      submitted.csrf,
+    ),
+  );
+  expect(proposal.status).toBe(201);
+  const refused = await api.fetch(
+    request('/draft/discard', 'POST', config.appOrigin, {}, submitted.cookie, submitted.csrf),
+  );
+  expect(refused.status).toBe(409);
+  expect(await refused.json()).toEqual({ code: 'draft_consumed' });
+  expect(refused.headers.get('set-cookie')).toBeNull();
+  const replay = await api.fetch(
+    request(
+      '/proposals',
+      'POST',
+      config.appOrigin,
+      { email: 'owner@example.test', brief: 'Calendar', idempotencyKey: 'submit-discard' },
+      submitted.cookie,
+      submitted.csrf,
+    ),
+  );
+  expect(replay.status).toBe(200);
+  expect(((await replay.json()) as { receipt: string }).receipt).toBe(
+    ((await proposal.json()) as { receipt: string }).receipt,
+  );
+  api.close();
+});
+
+test('POST /draft/discard refuses a foreign origin, missing CSRF and a foreign claim without change', async () => {
+  const { api, config } = fixture();
+  const { cookie, csrf } = await beginDraft(api);
+  const foreignCookie = `${cookie.split('=')[0]}=${'c'.repeat(64)}`;
+  const foreignCsrf = createHash('sha256')
+    .update(`draft-csrf:${'c'.repeat(64)}`)
+    .digest('hex');
+  const attempts = [
+    // Proof: removing the app-origin guard in server.ts made this discard return 204.
+    {
+      response: request('/draft/discard', 'POST', 'https://foreign.example', {}, cookie, csrf),
+      status: 403,
+    },
+    // Proof: removing the draft CSRF check in the discard route made this discard return 204.
+    { response: request('/draft/discard', 'POST', config.appOrigin, {}, cookie), status: 403 },
+    {
+      response: request('/draft/discard', 'POST', config.appOrigin, {}, cookie, 'f'.repeat(64)),
+      status: 403,
+    },
+    {
+      response: request('/draft/discard', 'POST', config.appOrigin, {}, foreignCookie, csrf),
+      status: 403,
+    },
+    {
+      response: request('/draft/discard', 'POST', config.appOrigin, {}, foreignCookie, foreignCsrf),
+      status: 401,
+    },
+    { response: request('/draft/discard', 'POST', config.appOrigin, {}), status: 401 },
+  ];
+  for (const attempt of attempts) {
+    const refused = await api.fetch(attempt.response);
+    expect(refused.status).toBe(attempt.status);
+    expect(refused.headers.get('set-cookie')).toBeNull();
+  }
+  const draft = await api.fetch(request('/draft', 'GET', config.appOrigin, undefined, cookie));
+  expect(draft.status).toBe(200);
   api.close();
 });

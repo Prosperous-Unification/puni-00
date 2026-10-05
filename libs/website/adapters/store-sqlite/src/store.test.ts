@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
 
 import { WebsiteStore } from './store';
@@ -21,6 +22,42 @@ test('applies all migrations and preserves a draft across reopen until expiry', 
     });
     expect(reopened.findDraft('claim-1', 200)).toBeNull();
     reopened.close();
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('discarding a draft expires it without deleting content and refuses a consumed one', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'puni-website-discard-'));
+  try {
+    const store = new WebsiteStore(join(directory, 'website.sqlite'));
+    store.createDraft('draft-1', 'Build a booking app', 'claim-1', 100, 1_000);
+    expect(store.discardDraft('claim-1', 150)).toBe('discarded');
+    expect(store.findDraft('claim-1', 151)).toBeNull();
+    expect(store.discardDraft('claim-1', 160)).toBe('discarded');
+    expect(store.discardDraft('claim-unknown', 160)).toBe('missing');
+    store.createDraft('draft-2', 'Build a dashboard', 'claim-2', 100, 1_000);
+    expect(
+      store.submit('claim-2', 'key-12345678', 'hash', 'a@example.test', 'b', 'r', 150),
+    ).toEqual({
+      kind: 'created',
+      receipt: 'r',
+    });
+    // Proof: dropping the consumed branch in discardDraft made this return 'discarded'.
+    expect(store.discardDraft('claim-2', 160)).toBe('consumed');
+    store.close();
+    const database = new Database(join(directory, 'website.sqlite'));
+    expect(
+      database
+        .query<{ id: string; description: string; expires_at: number }, []>(
+          'SELECT id, description, expires_at FROM intake_draft ORDER BY id',
+        )
+        .all(),
+    ).toEqual([
+      { id: 'draft-1', description: 'Build a booking app', expires_at: 150 },
+      { id: 'draft-2', description: 'Build a dashboard', expires_at: 1_000 },
+    ]);
+    database.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

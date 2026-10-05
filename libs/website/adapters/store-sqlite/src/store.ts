@@ -375,6 +375,28 @@ export class WebsiteStore {
       : null;
   }
 
+  /**
+   * Expires a live or already-expired draft at `now` so its claim stops granting access; the row
+   * and its content stay for the normal expired-draft purge. Repeating it keeps the first expiry.
+   * A consumed draft belongs to a submission or an account request and is never discarded.
+   */
+  discardDraft(claimHash: string, now: number): 'discarded' | 'consumed' | 'missing' {
+    return this.database.transaction(() => {
+      const draft = this.database
+        .query<Pick<DraftRow, 'id' | 'expires_at' | 'consumed_at'>, [string]>(
+          'SELECT id, expires_at, consumed_at FROM intake_draft WHERE claim_hash = ?',
+        )
+        .get(claimHash);
+      if (!draft) return 'missing';
+      if (draft.consumed_at !== null) return 'consumed';
+      if (draft.expires_at > now)
+        this.database
+          .query('UPDATE intake_draft SET expires_at = ? WHERE id = ? AND consumed_at IS NULL')
+          .run(now, draft.id);
+      return 'discarded';
+    })();
+  }
+
   updateBrief(claimHash: string, brief: string, now: number): boolean {
     const write = this.database
       .query(

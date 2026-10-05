@@ -7,6 +7,35 @@ export interface DraftView {
   expiresAt: string;
 }
 
+/** Server-owned conversation stage; the UI offers affordances by stage, never by model text. */
+export type ConversationStage = 'clarify' | 'brief' | 'contact' | 'exhausted' | 'handed_off';
+
+/** Who answers the anonymous conversation; `disabled` means no stream request is admitted. */
+export type ConversationProvider = 'openrouter' | 'demo' | 'disabled';
+
+export type ConversationExhaustedReason =
+  'turns' | 'conversation_spend' | 'source_spend' | 'site_spend' | 'unsettled';
+
+export interface ConversationOperationView {
+  state: 'not-started' | 'inflight' | 'completed' | 'unknown';
+  idempotencyKey: string;
+  truncated: boolean;
+}
+
+/** `GET /conversation`: the claim-bound anonymous conversation over one intake draft. */
+export interface ConversationView {
+  stage: ConversationStage;
+  turns: { role: 'user' | 'assistant'; content: string }[];
+  visitorTurnsRemaining: number;
+  provider: ConversationProvider;
+  brief: string;
+  description: string;
+  csrfToken: string;
+  initialOperation: ConversationOperationView | null;
+  latestOperation: (ConversationOperationView & { message: string }) | null;
+  exhaustedReason: ConversationExhaustedReason | null;
+}
+
 export interface SubmissionView {
   id: string;
   description: string;
