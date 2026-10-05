@@ -8,15 +8,11 @@ import {
   workdayOrdinalOf,
 } from '@wbs/domain';
 
-import type {
-  ChainSnapshotStore,
-  InfluencerRead,
-  SharedPeopleRead,
-} from '../ports/chain-snapshot-store';
-export type { InfluencerRead, SharedPeopleRead } from '../ports/chain-snapshot-store';
+import type { ChainSnapshotStore } from '../ports/chain-snapshot-store';
 import type { OrganizationPrincipal } from '../ports/organization-access';
-import type { PlanInputReads } from '../ports/saved-plan-capture-store';
+import type { PlanInputReads } from '../ports/saved-plan-capture-values';
 import type { EngineUnavailable, Scheduler, ScheduleRead } from '../ports/scheduler';
+import type { InfluencerRead, SharedPeopleRead } from '../ports/shared-people-values';
 import { scheduleInputOfCaptured } from './saved-plan-schedule';
 
 /** Reads the closure inside the adapter's snapshot and returns detached evidence by value. */

@@ -1,12 +1,11 @@
-import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
-
 import type {
   OrganizationAccessRefusal,
   OrganizationPrincipal,
   ResourceAccess,
 } from './organization-access';
-import type { PlanInputReads } from './saved-plan-capture-store';
-import type { EngineUnavailable, Scheduler, ScheduleRead } from './scheduler';
+import type { PlanInputReads } from './saved-plan-capture-values';
+import type { Scheduler } from './scheduler';
+import type { SharedPeopleRead } from './shared-people-values';
 
 /** Capabilities borrowed only while one authorized, rank-ordered read snapshot is open. */
 export interface ChainSnapshot {
@@ -27,32 +26,3 @@ export interface ChainSnapshotStore {
     | { readonly ok: false; readonly refusal: OrganizationAccessRefusal }
   >;
 }
-
-export interface InfluencerRead {
-  readonly projectId: string;
-  readonly name: string;
-  readonly engine: 'fast' | 'optimized';
-  readonly unavailable: 'cycle' | 'calendar_range' | null;
-}
-
-/** Historical display evidence; the target's input alone cannot replay upstream bookings. */
-export type SharedPeopleRead =
-  | { readonly kind: 'not_found' }
-  | (EngineUnavailable & {
-      readonly projectId: string;
-      readonly name: string;
-      readonly reads: PlanInputReads;
-    })
-  | {
-      readonly kind: 'unavailable';
-      readonly reason: 'cycle' | 'calendar_range';
-      readonly reads: PlanInputReads;
-      readonly influencers: readonly InfluencerRead[];
-    }
-  | {
-      readonly kind: 'scheduled';
-      readonly reads: PlanInputReads;
-      readonly input: ScheduleInput;
-      readonly scheduled: ScheduleRead;
-      readonly influencers: readonly InfluencerRead[];
-    };

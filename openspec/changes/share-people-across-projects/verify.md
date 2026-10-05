@@ -473,3 +473,37 @@ bun test \
 Canonical exact-hash h2puni gate, substantive CI and independent rereview remain required
 before merge. The activation, portable/browser, Solver installation and other deferred
 checks listed above remain unperformed in this bounded follow-up.
+
+### Canonical-gate correction: detached value ownership and reader kind
+
+The canonical gate exposed two omitted architecture checks. Fresh direct reproduction:
+`bun test libs/wbs/application/core/src/module-boundaries.test.ts` failed the closed-feature
+production audit (14 pass / 1 fail, 30.93s), naming the saved-plan import and uses of
+`SharedPeopleRead`. `bun test tools/tool-devsync/src/service-kinds.test.ts` failed the
+production classification inventory (16 pass / 1 fail, 189ms), naming `shared-people.ts`.
+
+Following independent Astra architecture review, `InfluencerRead` and `SharedPeopleRead`
+now live in `ports/shared-people-values.ts`. That detached contract imports `PlanInputReads`
+directly from `saved-plan-capture-values.ts`; `ChainSnapshot` and `ChainSnapshotStore` remain
+repository capabilities in `chain-snapshot-store.ts`. The saved-plans feature imports the
+values directly, and the service re-export is removed. The core public barrel exports the
+pure values so adapter callers keep their existing import surface. No audit is relaxed.
+
+The reader is classified as `resource` with the exact glossary term `Influencer closure` and
+a rationale naming `ChainSnapshotStore` and its coherent displayed-schedule/booking read.
+Only its policy entry is inserted, between saved-plan.service.ts and smoke.service.ts;
+existing entries keep their order. The shared capture callback and runtime behavior are unchanged.
+
+The previously failing closed-feature case passed after the split (1 pass / 0 fail, 5.86s).
+The classification suite passed after insertion (17 pass / 0 fail, 208ms). Follow-up verification:
+
+| Command                                                                                                                                          | Observed outcome                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| Eight-file focused command in the review-correction section above                                                                                | 104 pass / 0 fail, 353 assertions (12.73s), exit 0            |
+| `bun test libs/wbs/application/core/src/module-boundaries.test.ts tools/tool-devsync/src/service-kinds.test.ts`                                  | 32 pass / 0 fail, 39 assertions (41.57s), exit 0              |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p wbs-core,wbs-store-sqlite --skip-nx-cache --output-style=static` | All five tasks passed (37.9s), exit 0                         |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:build --skip-nx-cache --output-style=static`                                     | Backend plus solver-protocol dependency passed (1.6s), exit 0 |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                         | 146 passed / 0 failed, exit 0                                 |
+
+The canonical
+exact-hash gate remains required for the pushed head; the earlier failure is not a gate pass.
