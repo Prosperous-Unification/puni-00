@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { mkdirSync } from 'node:fs';
 import { env } from 'node:process';
 
@@ -14,6 +15,10 @@ const oidc = {
   api: 'http://localhost:3119',
   site: 'http://localhost:4319',
 };
+// The site origins serve no files locally; site media is fetched from this origin instead.
+const mediaOrigin = env['PUNI_MEDIA_ORIGIN'] ?? 'https://dev.puni.dev';
+// Bundled Chromium cannot decode the site's H.264 video; installed Google Chrome can.
+const channel = env['PUNI_BROWSER_CHANNEL'] ?? 'chrome';
 const outDir = env['PUNI_SCREENS_DIR'];
 if (!outDir) throw new Error('PUNI_SCREENS_DIR is required');
 const strict = env['PUNI_SCREENS_STRICT'] === '1';
@@ -51,26 +56,92 @@ async function createDraftCookie(stack) {
 
 const states = [
   {
-    name: 'saved',
-    check: async (page) => {
+    name: 'build-disabled',
+    check: async (page, _consoleTexts, stack) => {
       const problems = [];
       const main = await page.locator('main').innerText();
       if (/not configured/i.test(main)) problems.push('"not configured" wording shown');
-      if ((await page.locator('main .build-request-card, main .build-signin-card').count()) !== 1)
-        problems.push('expected one card while sign-in is unavailable');
+      if ((await page.locator('main .build-disabled-row').count()) !== 1)
+        problems.push('missing the disabled row');
       if ((await page.getByRole('link', { name: /Shape your brief/ }).count()) !== 1)
         problems.push('missing Shape your brief action');
+      if ((await page.locator('main textarea, main .harness-composer').count()) !== 0)
+        problems.push('a composer is shown while the provider is disabled');
+      const live = await page
+        .locator('[aria-live], [role="status"], [role="alert"]')
+        .allInnerTexts();
+      if (live.some((text) => /\bAI\b|PUNI (is|replied)|thinking|writing/i.test(text)))
+        problems.push(`live region claims AI: ${JSON.stringify(live)}`);
       if ((await page.locator('nav[aria-label="Primary"] a[aria-current="page"]').count()) !== 1)
         problems.push('Build is not marked as the current page');
       // Proof: restoring the header pill made this report at all four widths.
       if ((await page.locator('header.site-header a', { hasText: /request/i }).count()) !== 0)
         problems.push('header carries a request link');
+      const video = page.locator('.hero-media video');
+      if ((await video.count()) !== 1) problems.push('no background video');
+      else {
+        if ((await video.getAttribute('src')) !== `${stack.site}/media/hero/background.mp4`)
+          problems.push(`video src ${String(await video.getAttribute('src'))}`);
+        if ((await video.getAttribute('crossorigin')) !== null)
+          problems.push('video carries crossorigin');
+      }
+      const moon = await page
+        .locator('.wordmark-moon img')
+        .evaluate((image) => ({ src: image.currentSrc, width: image.naturalWidth }))
+        .catch(() => null);
+      if (!moon?.src.startsWith(`${stack.site}/media/brand/moon.`) || moon.width === 0)
+        problems.push(`moon not loaded from the site origin: ${JSON.stringify(moon)}`);
       return problems;
     },
     stack: oidc,
     path: '/',
     cookie: true,
-    ready: (page) => page.locator('h1').first().waitFor(),
+    ready: (page) => page.locator('.build-disabled-row').waitFor(),
+  },
+  {
+    name: 'build-reduced-motion',
+    reducedMotion: 'reduce',
+    check: async (page, _consoleTexts, stack) => {
+      const problems = [];
+      if ((await page.locator('.hero-media video').count()) !== 0)
+        problems.push('video rendered under reduced motion');
+      if (
+        (await page.locator('.hero-media-poster img').getAttribute('src')) !==
+        `${stack.site}/media/hero/poster.jpg`
+      )
+        problems.push('poster missing under reduced motion');
+      return problems;
+    },
+    stack: oidc,
+    path: '/',
+    cookie: true,
+    ready: (page) => page.locator('.build-disabled-row').waitFor(),
+  },
+  {
+    name: 'build-media-failed',
+    abortMedia: true,
+    allowed: ['net::ERR_FAILED'],
+    // Proof: deleting HeroMedia's onError handlers made this report the missing gradient at all four widths.
+    check: async (page) => {
+      const problems = [];
+      if ((await page.locator('.hero-media-gradient').count()) !== 1)
+        problems.push('media failure did not switch to the gradient');
+      if ((await page.locator('.wordmark-dot').count()) !== 1)
+        problems.push('moon failure did not show the dot');
+      if ((await page.locator('main .build-disabled-row').count()) !== 1)
+        problems.push('media failure hid the conversation');
+      return problems;
+    },
+    stack: oidc,
+    path: '/',
+    cookie: true,
+    ready: async (page) => {
+      await page.locator('.build-disabled-row').waitFor();
+      await page
+        .locator('.hero-media-gradient')
+        .waitFor({ timeout: 5000 })
+        .catch(() => undefined);
+    },
   },
   {
     name: 'manual',
@@ -164,7 +235,22 @@ const states = [
     path: '/',
     cookie: true,
     demoSignIn: true,
-    ready: (page) => page.getByRole('heading', { name: 'Shape the work together.' }).waitFor(),
+    check: async (page) => {
+      const problems = [];
+      if (!(await page.locator('#build-message[readonly]').isVisible()))
+        problems.push('the Home request is not pre-filled in the composer');
+      if ((await page.getByRole('button', { name: /^Send/ }).count()) !== 1)
+        problems.push('expected one Send action');
+      const composer = await page.locator('.harness-composer').boundingBox();
+      const viewport = page.viewportSize();
+      if (!composer || !viewport || composer.y + composer.height > viewport.height)
+        problems.push('composer is not pinned inside the viewport');
+      return problems;
+    },
+    ready: async (page) => {
+      await page.getByRole('heading', { name: 'Shape the work together.' }).waitFor();
+      await page.locator('#build-message').waitFor();
+    },
   },
 ];
 if (operatorPassword)
@@ -250,12 +336,44 @@ async function auditFocus(page) {
 const only = env['PUNI_SCREENS_ONLY']?.split(',');
 const selected = only ? states.filter((state) => only.includes(state.name)) : states;
 const failures = [];
-const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+const mediaCache = new Map();
+
+/** Fetches one site media file from {@link mediaOrigin} once, without the app's cookies. */
+async function fetchSiteMedia(pathname) {
+  if (!mediaCache.has(pathname))
+    mediaCache.set(
+      pathname,
+      globalThis.fetch(`${mediaOrigin}${pathname}`).then(async (response) => {
+        if (!response.ok)
+          throw new Error(`Media fixture ${pathname} answered ${String(response.status)}`);
+        return {
+          contentType: response.headers.get('content-type') ?? 'application/octet-stream',
+          body: Buffer.from(await response.arrayBuffer()),
+        };
+      }),
+    );
+  return mediaCache.get(pathname);
+}
+
+/** Serves the stack's site media from {@link mediaOrigin}, or aborts it to model a media outage. */
+async function routeSiteMedia(context, stack, abort) {
+  await context.route(`${stack.site}/media/**`, async (route) => {
+    if (abort) return route.abort('failed');
+    const media = await fetchSiteMedia(new globalThis.URL(route.request().url()).pathname);
+    return route.fulfill({ status: 200, contentType: media.contentType, body: media.body });
+  });
+}
+
+const browser = await chromium.launch({ channel, headless: true, args: ['--no-sandbox'] });
 try {
   for (const state of selected) {
     for (const viewport of viewports) {
       const label = `${state.name}-${String(viewport.width)}`;
-      const context = await browser.newContext({ viewport });
+      const context = await browser.newContext({
+        viewport,
+        ...(state.reducedMotion ? { reducedMotion: state.reducedMotion } : {}),
+      });
+      await routeSiteMedia(context, state.stack, state.abortMedia === true);
       if (state.cookie) await context.addCookies([await createDraftCookie(state.stack)]);
       const page = await context.newPage();
       const consoleErrors = [];
@@ -322,7 +440,7 @@ try {
           h1Focused: h1 !== null && globalThis.document.activeElement === h1,
         };
       });
-      const problems = state.check ? await state.check(page, consoleTexts) : [];
+      const problems = state.check ? await state.check(page, consoleTexts, state.stack) : [];
       problems.push(...(await auditFocus(page)));
       if (audit.overflow > 0) problems.push(`horizontal overflow ${String(audit.overflow)}px`);
       if (audit.small.length > 0) problems.push(`small targets: ${audit.small.join('; ')}`);
@@ -332,18 +450,21 @@ try {
         `${label}: title="${audit.title}" h1Focused=${String(audit.h1Focused)} cls=${audit.cls.toFixed(3)} ${problems.length === 0 ? 'OK' : problems.join(' / ')}`,
       );
       if (problems.length > 0) failures.push(label);
+      await context.unrouteAll({ behavior: 'ignoreErrors' });
       await context.close();
     }
   }
 
   if (!only || only.includes('menu')) {
     const context = await browser.newContext({ viewport: viewports[2] });
+    await routeSiteMedia(context, oidc, false);
     await context.addCookies([await createDraftCookie(oidc)]);
     const page = await context.newPage();
     await page.goto(oidc.app, { waitUntil: 'domcontentloaded' });
     // Wait for the loaded state: its h1 focus would otherwise reset the focus start point.
-    await page.locator('.build-request-card').waitFor();
-    await page.waitForLoadState('networkidle');
+    await page.locator('.build-disabled-row').waitFor();
+    // The looping background video keeps the network busy, so networkidle never settles here.
+    await page.waitForTimeout(800);
     // Clicking the header's empty middle sets the sequential focus start before its controls.
     await page.mouse.click(195, 34);
     const order = [];
@@ -377,11 +498,57 @@ try {
     await context.close();
   }
 
+  if (!only || only.includes('start-over')) {
+    const context = await browser.newContext({ viewport: viewports[3] });
+    await routeSiteMedia(context, oidc, false);
+    await context.route(
+      (url) => url.origin === oidc.site && !url.pathname.startsWith('/media/'),
+      (route) =>
+        route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Home</title>' }),
+    );
+    await context.addCookies([await createDraftCookie(oidc)]);
+    const page = await context.newPage();
+    await page.goto(oidc.app, { waitUntil: 'domcontentloaded' });
+    await page.locator('.build-disabled-row').waitFor();
+    const problems = [];
+    const activeText = () =>
+      page.evaluate(() => globalThis.document.activeElement?.textContent?.trim() ?? '');
+    await page.getByRole('button', { name: /Start over/ }).focus();
+    await page.keyboard.press('Enter');
+    if (!(await activeText()).includes('Keep')) problems.push('confirmation did not focus Keep');
+    for (const name of [/Keep/, /Discard/]) {
+      const box = await page.getByRole('button', { name }).boundingBox();
+      if (!box || box.height < 44 || box.width < 44)
+        problems.push(`small ${String(name)} target ${JSON.stringify(box)}`);
+    }
+    await page.screenshot({ path: `${outDir}/app-start-over-confirm-320.png` });
+    await page.keyboard.press('Enter');
+    if (!(await activeText()).includes('Start over')) problems.push('Keep did not return focus');
+    if ((await page.locator('main .build-disabled-row').count()) !== 1)
+      problems.push('Keep changed the conversation');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Tab');
+    if (!(await activeText()).includes('Discard')) problems.push('Tab did not reach Discard');
+    await page.keyboard.press('Enter');
+    await page.waitForURL(`${oidc.site}/#request`);
+    const cookies = await context.cookies(oidc.app);
+    if (cookies.some((cookie) => cookie.name.endsWith('puni_draft')))
+      problems.push(`draft cookie kept: ${JSON.stringify(cookies.map((cookie) => cookie.name))}`);
+    await page.goto(oidc.app, { waitUntil: 'domcontentloaded' });
+    await page.waitForURL(`${oidc.site}/?entry=missing#request`);
+    globalThis.console.log(
+      `start-over-320: ${problems.length === 0 ? 'OK' : problems.join(' / ')}`,
+    );
+    if (problems.length > 0) failures.push('start-over-320');
+    await context.close();
+  }
+
   for (const viewport of only ? [] : [viewports[0], viewports[2]]) {
     const context = await browser.newContext({
       viewport,
       recordVideo: { dir: `${outDir}/video-${String(viewport.width)}`, size: viewport },
     });
+    await routeSiteMedia(context, oidc, false);
     await context.addCookies([await createDraftCookie(oidc)]);
     const page = await context.newPage();
     await page.goto(oidc.app, { waitUntil: 'domcontentloaded' });

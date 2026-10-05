@@ -39,7 +39,7 @@ try {
       streamPosts.push(request.postDataJSON());
   });
   await page.goto(appOrigin, { waitUntil: 'domcontentloaded' });
-  await page.getByText('It’s here when you’re ready.').waitFor();
+  await page.locator('#demo-email').waitFor();
   await page.locator('#demo-email').fill(`send-${String(Date.now())}@example.test`);
   await page.getByRole('button', { name: 'Enter local demo' }).click();
   await page.getByRole('heading', { name: 'Shape the work together.' }).waitFor();
@@ -113,7 +113,7 @@ try {
       recoveryPosts.push(request.postDataJSON());
   });
   await recoveryPage.goto(appOrigin, { waitUntil: 'domcontentloaded' });
-  await recoveryPage.getByText('It’s here when you’re ready.').waitFor();
+  await recoveryPage.locator('#demo-email').waitFor();
   await recoveryPage.locator('#demo-email').fill(`recovery-${String(Date.now())}@example.test`);
   await recoveryPage.getByRole('button', { name: 'Enter local demo' }).click();
   await recoveryPage.getByRole('heading', { name: 'Shape the work together.' }).waitFor();
@@ -175,7 +175,7 @@ try {
       pendingPosts.push(request.postDataJSON());
   });
   await pendingPage.goto(appOrigin, { waitUntil: 'domcontentloaded' });
-  await pendingPage.getByText('It’s here when you’re ready.').waitFor();
+  await pendingPage.locator('#demo-email').waitFor();
   await pendingPage.locator('#demo-email').fill(`pending-${String(Date.now())}@example.test`);
   await pendingPage.getByRole('button', { name: 'Enter local demo' }).click();
   await pendingPage.getByRole('heading', { name: 'Shape the work together.' }).waitFor();

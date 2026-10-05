@@ -32,3 +32,23 @@ export async function requestJson<T>(path: string, init: RequestInit = {}): Prom
   // The API response is the trust boundary; callers use the declared route contract.
   return payload as T;
 }
+
+/**
+ * Sends a credentialed command whose success is `204 No Content`.
+ * @throws ApiFailure for any other status, with the API's typed code when the body carries one.
+ */
+export async function sendCommand(path: string, init: RequestInit): Promise<void> {
+  const headers = new Headers(init.headers);
+  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  const response = await fetch(`${apiOrigin}${path}`, { ...init, credentials: 'include', headers });
+  if (response.status === 204) return;
+  const payload: unknown = await response.json();
+  const code =
+    typeof payload === 'object' &&
+    payload !== null &&
+    'code' in payload &&
+    typeof payload.code === 'string'
+      ? payload.code
+      : `HTTP ${String(response.status)}`;
+  throw new ApiFailure(response.status, code);
+}

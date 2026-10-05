@@ -10,21 +10,22 @@ import {
 import type { UIMessage } from 'ai';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import { ApiFailure, apiOrigin, requestJson } from './api';
+import { ApiFailure, apiOrigin, requestJson, sendCommand } from './api';
 import { describeFailure, signInRoute } from './app-flow';
 import {
   buildReturnUrl,
   chatRequestBody,
+  type Conversation,
   countPriorTurns,
   parseEntry,
   parsePendingOperation,
   type PendingOperation,
+  resolveAnonymousHarness,
   savedOperationCompleted,
   shouldRegeneratePending,
+  startOverUrl,
 } from './build-contract';
-import { SiteFooter, SiteHeader, siteOrigin, useHeadingFocus, usePageTitle } from './chrome';
-import { type Concept, parseConcept } from './concept';
-import { ConceptPreview } from './concept-preview';
+import { HeroMedia, SiteHeader, siteOrigin, useHeadingFocus, usePageTitle } from './chrome';
 const pendingChatKey = 'puni_build_pending_chat';
 
 /** Renders corrupt local recovery state explicitly instead of treating it as a missing request. */
@@ -41,7 +42,7 @@ export class BuildErrorBoundary extends React.Component<
   override render(): React.ReactNode {
     if (this.state.message === null) return this.props.children;
     return (
-      <main className="build-layout" role="alert" id="main">
+      <main className="build-layout boundary" role="alert" id="main">
         <div className="build-state">
           <p className="eyebrow">Build</p>
           <h1>Build needs your attention.</h1>
@@ -96,13 +97,8 @@ interface ChatHistory {
 
 type BuildLoad =
   | { kind: 'loading' }
-  | {
-      kind: 'ready';
-      session: Session;
-      draft: Draft;
-      history: ChatHistory | null;
-      concept: Concept | null;
-    }
+  | { kind: 'account'; session: Session; draft: Draft; history: ChatHistory }
+  | { kind: 'anonymous'; session: Session; conversation: Conversation }
   | { kind: 'error'; message: string };
 
 function failureMessage(error: unknown): string {
@@ -340,53 +336,55 @@ function Conversation({
     }
   }
 
+  const status =
+    chat.status === 'submitted' ? 'Thinking…' : chat.status === 'streaming' ? 'Writing…' : message;
+  const isBusy = pendingIdentity !== null || chat.status === 'submitted';
+
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <section className="build-chat" aria-label="Conversation with PUNI">
-        <div className="build-section-head">
-          <span className="eyebrow">01 / Conversation</span>
-          <h2>Shape the work together.</h2>
-          <p>
-            Ask about the people, workflow and useful first release. PUNI cannot agree to a price or
-            delivery date.
-          </p>
-        </div>
-        {history.provider === 'demo' && (
-          <p className="build-notice">Local demo replies are simulated. They are not OpenRouter.</p>
-        )}
-        {initialOperation?.state === 'inflight' && (
-          <p className="build-notice">
-            Your opening request is still being processed.{' '}
-            <button
-              className="button secondary compact"
-              type="button"
-              onClick={() =>
-                void chat.sendMessage({ text: draft.description }, { body: { initial: true } })
-              }
-            >
-              Check the same attempt
-            </button>
-          </p>
-        )}
-        {initialOperation?.state === 'unknown' && (
-          <p className="build-notice">
-            The first AI call has unconfirmed usage. New paid turns are paused while it is reviewed.
-          </p>
-        )}
-        {history.latestOperation?.state === 'unknown' &&
-          history.latestOperation.idempotencyKey !== initialOperation?.idempotencyKey && (
-            <p className="build-notice">
-              The last AI call has unconfirmed usage. New paid turns are paused while it is
-              reviewed.
-            </p>
-          )}
-        {history.latestOperation?.truncated && (
-          <p className="build-notice">The last response stopped at the provider’s output limit.</p>
-        )}
-        <ThreadPrimitive.Root className="build-thread">
-          <ThreadPrimitive.Viewport className="build-messages">
+      <ThreadPrimitive.Root className="harness-root">
+        <ThreadPrimitive.Viewport className="harness-thread" aria-label="Conversation with PUNI">
+          <div className="harness-column">
+            <HarnessEyebrow />
+            {history.provider === 'demo' && (
+              <p className="harness-notice">
+                Local demo replies are simulated. They are not OpenRouter.
+              </p>
+            )}
+            {initialOperation?.state === 'inflight' && (
+              <div className="harness-notice">
+                <p>Your opening request is still being processed.</p>
+                <button
+                  className="harness-text-button"
+                  type="button"
+                  onClick={() =>
+                    void chat.sendMessage({ text: draft.description }, { body: { initial: true } })
+                  }
+                >
+                  [ Check the same attempt ]
+                </button>
+              </div>
+            )}
+            {initialOperation?.state === 'unknown' && (
+              <p className="harness-notice">
+                The first AI call has unconfirmed usage. New paid turns are paused while it is
+                reviewed.
+              </p>
+            )}
+            {history.latestOperation?.state === 'unknown' &&
+              history.latestOperation.idempotencyKey !== initialOperation?.idempotencyKey && (
+                <p className="harness-notice">
+                  The last AI call has unconfirmed usage. New paid turns are paused while it is
+                  reviewed.
+                </p>
+              )}
+            {history.latestOperation?.truncated && (
+              <p className="harness-notice">
+                The last response stopped at the provider’s output limit.
+              </p>
+            )}
             <AuiIf condition={(state) => state.thread.isEmpty}>
-              <p className="chat-empty">
+              <p className="harness-empty">
                 {initialOperation?.state === 'not-started' && !recoverable
                   ? 'Your Home request is ready below. Press Send when you want to start the conversation.'
                   : 'Your opening request is shown below. Check its status before sending another message.'}
@@ -397,39 +395,69 @@ function Conversation({
                 <MessagePrimitive.Root
                   className={`build-message ${turn.role === 'user' ? 'user' : 'assistant'}`}
                 >
-                  <span>{turn.role === 'user' ? 'YOU' : 'PUNI'}</span>
+                  <span className="message-label">{turn.role === 'user' ? 'YOU' : 'PUNI'}</span>
                   <MessagePrimitive.Parts />
                 </MessagePrimitive.Root>
               )}
             </ThreadPrimitive.Messages>
-          </ThreadPrimitive.Viewport>
-          <div className="build-compose">
-            <ComposerPrimitive.Root>
-              {awaitingInitialCompletion ? (
-                <>
-                  <label htmlFor="build-message">Your request</label>
-                  <textarea id="build-message" value={draft.description} readOnly rows={3} />
-                </>
-              ) : (
-                <>
-                  <label htmlFor="build-message">Your message</label>
-                  <ComposerPrimitive.Input
-                    id="build-message"
-                    placeholder="What should the first version help people do?"
-                    maxLength={4000}
-                  />
-                </>
-              )}
-              <div className="build-compose-actions">
-                <span>{remainingTurns} turns available</span>
+          </div>
+        </ThreadPrimitive.Viewport>
+        <div className="harness-dock">
+          <div className="harness-column">
+            <p className="harness-status" role="status">
+              {status}
+            </p>
+            {recoverable && !pendingIdentity && chat.status !== 'streaming' && (
+              <button className="harness-text-button" type="button" onClick={retryPending}>
+                Retry the same message
+              </button>
+            )}
+            <ComposerPrimitive.Root className="harness-composer">
+              <div
+                className={
+                  awaitingInitialCompletion && !pendingIdentity
+                    ? 'glass-field has-pill'
+                    : 'glass-field'
+                }
+              >
                 {awaitingInitialCompletion ? (
+                  <>
+                    <label className="visually-hidden" htmlFor="build-message">
+                      Your request
+                    </label>
+                    <textarea id="build-message" value={draft.description} readOnly rows={3} />
+                  </>
+                ) : (
+                  <>
+                    <label className="visually-hidden" htmlFor="build-message">
+                      Your message
+                    </label>
+                    <ComposerPrimitive.Input
+                      id="build-message"
+                      placeholder="Reply to PUNI…"
+                      maxLength={4000}
+                      minRows={1}
+                      maxRows={3}
+                    />
+                  </>
+                )}
+                {pendingIdentity ? (
                   <button
-                    className="button"
+                    type="button"
+                    className="composer-round composer-stop"
+                    aria-label="Stop response"
+                    onClick={() => void cancel()}
+                  >
+                    <span className="stop-glyph" aria-hidden="true"></span>
+                  </button>
+                ) : awaitingInitialCompletion ? (
+                  <button
+                    className="composer-send-pill"
                     type="button"
                     disabled={
                       initialOperation.state !== 'not-started' ||
                       remainingTurns === 0 ||
-                      pendingIdentity !== null ||
+                      isBusy ||
                       recoverable !== null
                     }
                     onClick={sendInitial}
@@ -438,42 +466,190 @@ function Conversation({
                   </button>
                 ) : (
                   <ComposerPrimitive.Send
-                    className="button"
+                    className="composer-round"
+                    aria-label="Send message"
                     disabled={
                       remainingTurns === 0 ||
                       initialOperation?.state === 'unknown' ||
                       history.latestOperation?.state === 'unknown'
                     }
                   >
-                    Send <span aria-hidden="true">↗</span>
+                    <SendArrow />
                   </ComposerPrimitive.Send>
                 )}
-                {pendingIdentity && (
-                  <button
-                    type="button"
-                    className="button secondary compact"
-                    onClick={() => void cancel()}
-                  >
-                    Stop response
-                  </button>
-                )}
               </div>
+              <p className="harness-meta">
+                <span>{remainingTurns} turns available</span>
+                <span className="harness-shortcut">
+                  Enter to send · Shift + Enter for a new line
+                </span>
+              </p>
             </ComposerPrimitive.Root>
           </div>
-        </ThreadPrimitive.Root>
-        {recoverable && !pendingIdentity && chat.status !== 'streaming' && (
-          <button className="button secondary compact" type="button" onClick={retryPending}>
-            Retry the same message
-          </button>
-        )}
-        {message && (
-          <p className="feedback" role="status">
-            {message}
-          </p>
-        )}
-      </section>
+        </div>
+      </ThreadPrimitive.Root>
     </AssistantRuntimeProvider>
   );
+}
+
+function SendArrow() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">
+      <path
+        d="M12 19V5m-6 6 6-6 6 6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function HarnessEyebrow() {
+  return <p className="harness-eyebrow">[ AI can do everything. It doesn’t want anything. ]</p>;
+}
+
+/**
+ * Discards the browser's saved request after an inline confirmation, then lands on the site's
+ * empty Home prompt. Only an anonymous draft can be discarded; the API refuses a consumed one.
+ */
+function StartOver({ csrfToken }: { csrfToken: string }) {
+  const [isConfirming, setConfirming] = useState(false);
+  const [isPending, setPending] = useState(false);
+  const [failure, setFailure] = useState('');
+  const keep = useRef<HTMLButtonElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const hasOpened = useRef(false);
+
+  useEffect(() => {
+    if (isConfirming) {
+      hasOpened.current = true;
+      keep.current?.focus();
+    } else if (hasOpened.current) trigger.current?.focus();
+  }, [isConfirming]);
+
+  async function discard(): Promise<void> {
+    setPending(true);
+    setFailure('');
+    try {
+      await sendCommand('/draft/discard', {
+        method: 'POST',
+        headers: { 'X-Puni-CSRF': csrfToken },
+        body: JSON.stringify({}),
+      });
+      window.location.assign(startOverUrl(siteOrigin));
+    } catch (error) {
+      setFailure(describeFailure(error));
+      setPending(false);
+    }
+  }
+
+  if (!isConfirming)
+    return (
+      <button
+        ref={trigger}
+        type="button"
+        className="harness-text-button"
+        onClick={() => {
+          setConfirming(true);
+        }}
+      >
+        [ Start over ]
+      </button>
+    );
+  return (
+    <div className="start-over-confirm" role="group" aria-label="Start over">
+      <span>Discard this request?</span>
+      <button
+        ref={keep}
+        type="button"
+        className="harness-text-button"
+        disabled={isPending}
+        onClick={() => {
+          setConfirming(false);
+        }}
+      >
+        [ Keep ]
+      </button>
+      <button
+        type="button"
+        className="harness-text-button danger"
+        disabled={isPending}
+        onClick={() => void discard()}
+      >
+        [ Discard ]
+      </button>
+      {failure && (
+        <span className="start-over-failure" role="alert">
+          {failure}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The anonymous harness while the provider is disabled: the Home request as the first message,
+ * one labelled system row and the manual path. There is no composer, so nothing can be sent.
+ * A configured optional sign-in still opens the account conversation.
+ */
+function DisabledHarness({
+  conversation,
+  route,
+  signIn,
+}: {
+  conversation: Conversation;
+  route: 'google' | 'demo' | 'unavailable';
+  signIn: React.ReactNode;
+}) {
+  return (
+    <div className="harness-root">
+      <section className="harness-thread" aria-label="Conversation with PUNI">
+        <div className="harness-column">
+          <HarnessEyebrow />
+          <div className="build-message user">
+            <span className="message-label">YOU</span>
+            <p>{conversation.description}</p>
+          </div>
+          <div className="build-message system build-disabled-row">
+            <span className="message-label">PUNI · NOTICE</span>
+            <p>AI chat isn’t switched on yet. A person still reads every brief.</p>
+            <a className="harness-link" href="/manual">
+              Shape your brief <span aria-hidden="true">→</span>
+            </a>
+          </div>
+          {route !== 'unavailable' && signIn}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/**
+ * Keeps the composer above an on-screen keyboard where the browser shrinks only the visual
+ * viewport (iOS Safari): the uncovered height becomes `--keyboard-inset` on the root. Browsers
+ * without `visualViewport` resize the layout viewport instead, so the inset stays zero there.
+ */
+function useKeyboardInset(): void {
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const root = document.documentElement;
+    function update(): void {
+      if (!viewport) return;
+      const inset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+      root.style.setProperty('--keyboard-inset', `${String(Math.round(inset))}px`);
+    }
+    update();
+    viewport.addEventListener('resize', update);
+    viewport.addEventListener('scroll', update);
+    return () => {
+      viewport.removeEventListener('resize', update);
+      viewport.removeEventListener('scroll', update);
+      root.style.removeProperty('--keyboard-inset');
+    };
+  }, []);
 }
 
 export function BuildPage() {
@@ -482,8 +658,7 @@ export function BuildPage() {
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState('');
   const [remainingTurns, setRemainingTurns] = useState(0);
-  const [revisionFeedback, setRevisionFeedback] = useState('');
-  const [panel, setPanel] = useState<'chat' | 'brief'>('chat');
+  useKeyboardInset();
 
   async function loadBuild(): Promise<void> {
     setLoad({ kind: 'loading' });
@@ -499,24 +674,23 @@ export function BuildPage() {
         return;
       }
       const session = await requestJson<Session>('/session', { signal: controller.signal });
-      if (session.account && !session.csrfToken)
-        throw new Error('Account session lacks a CSRF token');
-      const draft: Draft = session.draft
-        ? { ...session.draft, csrfToken: session.csrfToken ?? '' }
-        : await requestJson<Draft>('/draft', { signal: controller.signal });
-      const history = session.account
-        ? await requestJson<ChatHistory>('/chat', { signal: controller.signal })
-        : null;
-      const concept = session.account
-        ? await requestJson<unknown>('/concept', { signal: controller.signal })
-            .then(parseConcept)
-            .catch((error: unknown) => {
-              if (error instanceof ApiFailure && error.status === 404) return null;
-              throw error;
-            })
-        : null;
-      setRemainingTurns(history?.remainingTurns ?? 0);
-      setLoad({ kind: 'ready', session, draft, history, concept });
+      if (session.account) {
+        if (!session.csrfToken) throw new Error('Account session lacks a CSRF token');
+        const draft: Draft = session.draft
+          ? { ...session.draft, csrfToken: session.csrfToken }
+          : await requestJson<Draft>('/draft', { signal: controller.signal });
+        const history = await requestJson<ChatHistory>('/chat', { signal: controller.signal });
+        setRemainingTurns(history.remainingTurns);
+        setLoad({ kind: 'account', session, draft, history });
+        return;
+      }
+      const harness = resolveAnonymousHarness(
+        siteOrigin,
+        entry,
+        await requestJson<unknown>('/conversation', { signal: controller.signal }),
+      );
+      if (harness.kind !== 'disabled') throw new Error(`Unexpected harness state ${harness.kind}`);
+      setLoad({ kind: 'anonymous', session, conversation: harness.conversation });
     } catch (error) {
       setLoad({
         kind: 'error',
@@ -539,8 +713,6 @@ export function BuildPage() {
     try {
       await requestJson('/session/demo', { method: 'POST', body: JSON.stringify({ email }) });
       await loadBuild();
-      // The workspace replaces the sign-in form; start it at its heading, not mid-page.
-      window.scrollTo({ top: 0 });
     } catch (error) {
       setMessage(failureMessage(error));
     } finally {
@@ -548,304 +720,109 @@ export function BuildPage() {
     }
   }
 
-  async function generateConcept(session: Session): Promise<void> {
-    setPending(true);
-    setMessage('');
-    try {
-      const concept = parseConcept(
-        await requestJson<unknown>('/concept', {
-          method: 'POST',
-          headers: { 'X-Puni-CSRF': session.csrfToken ?? '' },
-          body: JSON.stringify({}),
-        }),
-      );
-      setLoad((current) => (current.kind === 'ready' ? { ...current, concept } : current));
-    } catch (error) {
-      setMessage(failureMessage(error));
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function reviseConcept(
-    event: React.SubmitEvent<HTMLFormElement>,
-    session: Session,
-  ): Promise<void> {
-    event.preventDefault();
-    setPending(true);
-    setMessage('');
-    try {
-      const concept = parseConcept(
-        await requestJson<unknown>('/concept/revision', {
-          method: 'POST',
-          headers: { 'X-Puni-CSRF': session.csrfToken ?? '' },
-          body: JSON.stringify({ feedback: revisionFeedback }),
-        }),
-      );
-      setLoad((current) => (current.kind === 'ready' ? { ...current, concept } : current));
-      setRevisionFeedback('');
-    } catch (error) {
-      setMessage(failureMessage(error));
-    } finally {
-      setPending(false);
-    }
-  }
-
-  const signedIn = load.kind === 'ready' && load.session.account !== null;
   const route =
-    load.kind === 'ready'
+    load.kind === 'anonymous'
       ? signInRoute({
           mode: load.session.mode,
           configured: load.session.configured,
-          signedIn,
+          signedIn: false,
         })
-      : null;
-  const heading = useHeadingFocus(`${load.kind}-${String(signedIn)}`);
+      : 'unavailable';
+  const heading = useHeadingFocus(load.kind);
   usePageTitle(load.kind === 'error' ? 'Build unavailable' : 'Build');
 
+  const signIn = (
+    <section className="harness-signin" aria-labelledby="signin-heading">
+      <h2 id="signin-heading" className="message-label">
+        Optional · explore with AI
+      </h2>
+      {route === 'google' ? (
+        <>
+          <p>Sign in with Google to keep this request with your account before any AI call.</p>
+          <a className="glass-button" href={`${apiOrigin}/session/oidc/start`}>
+            Continue with Google <span aria-hidden="true">→</span>
+          </a>
+        </>
+      ) : (
+        <>
+          <p>This local test sign-in does not verify your identity.</p>
+          <form onSubmit={(event) => void signInDemo(event)}>
+            <label htmlFor="demo-email">Demo email</label>
+            <div className="glass-field has-pill">
+              <input
+                id="demo-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                }}
+                required
+              />
+              <button className="composer-send-pill" disabled={pending}>
+                Enter local demo
+              </button>
+            </div>
+          </form>
+        </>
+      )}
+    </section>
+  );
+
   return (
-    <div className="page-shell build-page">
-      <SiteHeader buildCurrent="page" />
-      <main className={signedIn ? 'build-layout workspace-active' : 'build-layout'} id="main">
-        <div className="build-intro">
-          <p className="eyebrow">PUNI / Build</p>
-          <h1 ref={heading} tabIndex={-1}>
-            Let’s build what matters.
-          </h1>
-          <p className="lead">
-            {route === 'unavailable' && !signedIn
-              ? 'Your request is saved in this browser. Shape it into a brief and a person at PUNI will take it forward.'
-              : 'Your request stays with you. Explore it with PUNI, preview an interface, or ask a person to take it forward.'}
-          </p>
-        </div>
+    <div className="page-shell build-page night-shell">
+      <HeroMedia />
+      <SiteHeader buildCurrent="page" tone="night" />
+      <main className="harness" id="main">
+        <h1 ref={heading} tabIndex={-1} className="visually-hidden">
+          {load.kind === 'anonymous' || load.kind === 'account'
+            ? 'Shape the work together.'
+            : 'Build'}
+        </h1>
+        {load.kind === 'anonymous' && (
+          <div className="harness-bar">
+            <StartOver csrfToken={load.conversation.csrfToken} />
+          </div>
+        )}
         {load.kind === 'loading' && (
-          <div className="build-state build-loading" role="status">
+          <div className="harness-state" role="status">
             <div className="spinner" aria-hidden="true" />
             <p>Checking your request…</p>
           </div>
         )}
         {load.kind === 'error' && (
-          <div className="build-state" role="alert">
+          <div className="harness-state" role="alert">
             <h2>We couldn’t load Build.</h2>
-            <p className="lead">{load.message}</p>
-            <div className="actions">
-              <button type="button" className="button" onClick={() => void loadBuild()}>
+            <p>{load.message}</p>
+            <div className="harness-actions">
+              <button type="button" className="glass-button" onClick={() => void loadBuild()}>
                 Try again
               </button>
-              <a className="button secondary" href={`${siteOrigin}/`}>
+              <a className="glass-button quiet" href={`${siteOrigin}/`}>
                 Back to Home
               </a>
             </div>
           </div>
         )}
-        {load.kind === 'ready' && !load.session.account && route === 'unavailable' && (
-          <div className="build-entry-grid">
-            <section className="build-request-card" aria-labelledby="request-heading">
-              <p className="eyebrow">Your request</p>
-              <h2 id="request-heading">It’s here when you’re ready.</h2>
-              <blockquote className="request-quote">{load.draft.description}</blockquote>
-              <div className="actions">
-                <a className="button" href="/manual">
-                  Shape your brief <span aria-hidden="true">→</span>
-                </a>
-              </div>
-            </section>
-            <aside className="how-it-works" aria-labelledby="how-heading">
-              <p className="eyebrow" id="how-heading">
-                How it works
-              </p>
-              <ol>
-                <li>
-                  <span aria-hidden="true">[1]</span>
-                  <div>
-                    <strong>Shape your brief</strong>
-                    <p>Add who it helps, what should change and the systems it touches.</p>
-                  </div>
-                </li>
-                <li>
-                  <span aria-hidden="true">[2]</span>
-                  <div>
-                    <strong>A person reviews it</strong>
-                    <p>
-                      Someone at PUNI reads the whole brief. Nothing here commits you to a price.
-                    </p>
-                  </div>
-                </li>
-                <li>
-                  <span aria-hidden="true">[3]</span>
-                  <div>
-                    <strong>We reply by email</strong>
-                    <p>With a proposal, or with the questions we need answered first.</p>
-                  </div>
-                </li>
-              </ol>
-            </aside>
-          </div>
+        {load.kind === 'anonymous' && (
+          <DisabledHarness conversation={load.conversation} route={route} signIn={signIn} />
         )}
-        {load.kind === 'ready' && !load.session.account && route !== 'unavailable' && (
-          <div className="build-entry-grid">
-            <section className="build-request-card" aria-labelledby="request-heading">
-              <p className="eyebrow">Your request</p>
-              <h2 id="request-heading">It’s here when you’re ready.</h2>
-              <blockquote className="request-quote">{load.draft.description}</blockquote>
-              <a className="arrow-link" href="/manual">
-                Continue with a manual brief <span aria-hidden="true">→</span>
-              </a>
-            </section>
-            <section className="build-signin-card" aria-labelledby="signin-heading">
-              <p className="eyebrow">Next step</p>
-              <h2 id="signin-heading">Make it yours.</h2>
-              {route === 'google' ? (
-                <>
-                  <p>
-                    Sign in with Google to keep this request with your account before any AI call.
-                  </p>
-                  <div className="actions">
-                    <a className="button inverse" href={`${apiOrigin}/session/oidc/start`}>
-                      Continue with Google <span aria-hidden="true">→</span>
-                    </a>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p>
-                    This local test sign-in does not verify your identity. The provider is shown in
-                    the conversation after sign-in.
-                  </p>
-                  <form onSubmit={(event) => void signInDemo(event)}>
-                    <label htmlFor="demo-email">Demo email</label>
-                    <input
-                      id="demo-email"
-                      type="email"
-                      autoComplete="email"
-                      value={email}
-                      onChange={(event) => {
-                        setEmail(event.target.value);
-                      }}
-                      required
-                    />
-                    <button className="button inverse" disabled={pending}>
-                      Enter local demo
-                    </button>
-                  </form>
-                </>
-              )}
-            </section>
-          </div>
-        )}
-        {load.kind === 'ready' && load.session.account && load.history && (
-          <>
-            <div className="build-mobile-switch" role="group" aria-label="Build panels">
-              <button
-                type="button"
-                aria-pressed={panel === 'chat'}
-                onClick={() => {
-                  setPanel('chat');
-                }}
-              >
-                Conversation
-              </button>
-              <button
-                type="button"
-                aria-pressed={panel === 'brief'}
-                onClick={() => {
-                  setPanel('brief');
-                }}
-              >
-                Brief & preview
-              </button>
-            </div>
-            <div className="build-workspace">
-              <div className={panel === 'chat' ? 'build-panel active' : 'build-panel'}>
-                <Conversation
-                  key={load.history.requestId ?? 'current'}
-                  session={load.session}
-                  draft={load.draft}
-                  history={load.history}
-                  remainingTurns={remainingTurns}
-                  onAllowance={setRemainingTurns}
-                />
-              </div>
-              <aside
-                className={
-                  panel === 'brief' ? 'build-panel active build-side' : 'build-panel build-side'
-                }
-              >
-                <div className="build-section-head">
-                  <span className="eyebrow">02 / Your brief</span>
-                  <h2>What we heard.</h2>
-                  <p>{load.draft.description}</p>
-                  {load.draft.brief && load.draft.brief !== load.draft.description && (
-                    <p>{load.draft.brief}</p>
-                  )}
-                </div>
-                <div className="build-allowance">
-                  <span>{remainingTurns} AI turns left</span>
-                  <span>
-                    {load.history.provider === 'demo' ? 'Local demo reply' : 'AI assisted'}
-                  </span>
-                </div>
-                <section className="build-concept">
-                  <span className="eyebrow">03 / Concept</span>
-                  <h2>See a possible shape.</h2>
-                  <p>Illustrative preview. Actions here do not create real bookings or accounts.</p>
-                  {!load.concept && (
-                    <button
-                      type="button"
-                      className="button secondary compact"
-                      disabled={pending}
-                      onClick={() => void generateConcept(load.session)}
-                    >
-                      Create concept preview <span aria-hidden="true">→</span>
-                    </button>
-                  )}
-                  {load.concept && (
-                    <>
-                      <ConceptPreview concept={load.concept} />
-                      {load.concept.revision === 0 && (
-                        <form
-                          className="revision-form"
-                          onSubmit={(event) => void reviseConcept(event, load.session)}
-                        >
-                          <label htmlFor="revision-feedback">What would you change?</label>
-                          <input
-                            id="revision-feedback"
-                            maxLength={300}
-                            value={revisionFeedback}
-                            onChange={(event) => {
-                              setRevisionFeedback(event.target.value);
-                            }}
-                            required
-                          />
-                          <button
-                            className="button secondary compact"
-                            disabled={pending || !revisionFeedback.trim()}
-                          >
-                            Request one revision
-                          </button>
-                        </form>
-                      )}
-                    </>
-                  )}
-                </section>
-                <div className="build-followup">
-                  <h2>Ready to talk?</h2>
-                  <p>Human follow-up is available even if you don’t use the AI allowance.</p>
-                  <a className="button inverse" href="/manual">
-                    Discuss this project with PUNI <span aria-hidden="true">→</span>
-                  </a>
-                </div>
-              </aside>
-            </div>
-          </>
+        {load.kind === 'account' && (
+          <Conversation
+            key={load.history.requestId ?? 'current'}
+            session={load.session}
+            draft={load.draft}
+            history={load.history}
+            remainingTurns={remainingTurns}
+            onAllowance={setRemainingTurns}
+          />
         )}
         {message && (
-          <p className="feedback" role="status">
+          <p className="harness-status" role="status">
             {message}
           </p>
         )}
       </main>
-      <SiteFooter />
     </div>
   );
 }
