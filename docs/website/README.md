@@ -31,6 +31,7 @@ Manual submission does not require a visitor account. The planned [Build AI chat
 - [Build AI chat harness](../../openspec/changes/build-ai-chat-harness/proposal.md): the planned redesign ([design](../../openspec/changes/build-ai-chat-harness/design.md), [system prompt](../../openspec/changes/build-ai-chat-harness/system-prompt.md), [slices](../../openspec/changes/build-ai-chat-harness/tasks.md)).
 - [Build app screen polish](../../openspec/changes/polish-build-app-screens/proposal.md) and its [verification](../../openspec/changes/polish-build-app-screens/verify.md); `apps/website/fe-01/browser/screens.mjs` audits every app state at four widths.
 - [Domain language](CONTEXT.md), [OpenRouter research](openrouter-research.md), and [frontend agent libraries](frontend-agent-libraries.md).
+- [Build app icons](app-icons.md): the NASA-derived moon favicons, their source and checksums.
 - [Anonymous draft retention operator procedure](draft-retention.md) records the explicit inspect/apply command and its backup limitation.
 - [Request retention deadlines](request-retention.md) records the count-only report, activation coverage and ambiguous-anchor resolution commands.
 - [Interactive local walkthrough](prototypes/funnel.html) and [instructions](prototypes/README.md). Open the HTML file directly; it uses no accounts, network, model or real submission.
