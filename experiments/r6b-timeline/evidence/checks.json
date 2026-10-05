@@ -1,0 +1,73 @@
+{
+  "checks": [
+    {
+      "command": "BUN_TMPDIR=/tmp bun install --frozen-lockfile",
+      "exit": 0,
+      "note": "sandbox EROFS first; authorized unsandboxed locked rerun no changes"
+    },
+    {
+      "command": "bun test experiments/r6b-timeline/model.test.ts",
+      "exit": 0,
+      "passed": 6,
+      "failed": 0,
+      "assertions": 48
+    },
+    {
+      "command": "bun experiments/r6b-timeline/browser.ts --measure",
+      "exit": 0,
+      "viewports": 2,
+      "conditions": 24,
+      "repetitionsPerCondition": 5,
+      "note": "authoritative final actual-control run after fit fix"
+    },
+    {
+      "command": "bun experiments/r6b-timeline/audit.ts",
+      "exit": 0
+    },
+    {
+      "command": "bun experiments/r6b-timeline/proofs.ts --browser",
+      "exit": 0,
+      "injectedFaultsObservedExit1": 13,
+      "restored": true
+    },
+    {
+      "command": "bunx tsc -p experiments/r6b-timeline/tsconfig.json",
+      "exit": 0
+    },
+    {
+      "command": "bunx eslint experiments/r6b-timeline/*.{js,ts}",
+      "exit": 0
+    },
+    {
+      "command": "bunx prettier --check experiments/r6b-timeline docs/wbs/research/2026-10-05-day-to-minute-gantt-experiment.md",
+      "exit": 0
+    },
+    {
+      "command": "bun build experiments/r6b-timeline/app.js --target browser --outdir /tmp/r6b-timeline-build",
+      "exit": 0,
+      "modules": 2,
+      "entryKB": 14.29
+    },
+    {
+      "command": "bunx @fission-ai/openspec@1.12.0 validate --all --json",
+      "exit": 0,
+      "passed": 146,
+      "failed": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit": 0
+    }
+  ],
+  "pending": ["exact-head canonical h2puni gate", "CI", "independent review", "merge"],
+  "unmeasured": [
+    "human task times/errors/preference",
+    "real phone/other browser",
+    "exclusive CPU benchmark",
+    "sustained continuous gesture",
+    "production React or production calendar/scheduling integration"
+  ],
+  "correctedFailures": [
+    "root staged hook ignored the first local ESLint config; replaced it with file-scoped browser ambient declarations, no rules disabled"
+  ]
+}

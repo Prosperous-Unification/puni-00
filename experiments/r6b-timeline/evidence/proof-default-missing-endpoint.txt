@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+experiments/r6b-timeline/model.test.ts:
+112 |       end: '2026-09-20T00:00:00Z',
+113 |     },
+114 |     { id: 'open', packet: 'synthetic', slice: 'open', start: '2026-09-20T00:00:00Z', end: null },
+115 |   ]);
+116 |   expect(attempts[0].end).toBe(attempts[0].start);
+117 |   expect(attempts[1].end).toBeNull();
+                                ^
+error: expect(received).toBeNull()
+
+Received: 1789862400000
+
+      at <anonymous> (<experiment>/model.test.ts:117:27)
+(fail) zero duration and missing end stay distinct without an invented endpoint [0.76ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [8.00ms]
