@@ -678,15 +678,15 @@ describe('buildServices', () => {
 
     const treePromise = services.workItems.tree(projectId);
     await entered.promise;
-    let settled = false;
-    void treePromise.then(() => {
-      settled = true;
-    });
-    await Promise.resolve();
-    // Proof: inserting `await services.optimizer.drain()` between the admitted
-    // spawn and this read left `settled` false until `release.resolve()`.
-    expect(settled).toBe(true);
-    release.resolve();
+    let tree: Awaited<typeof treePromise>;
+    try {
+      // Proof: keeping the spawned solver unresolved while awaiting this read fails by test timeout
+      // if the read waits for solver completion.
+      tree = await treePromise;
+    } finally {
+      release.resolve();
+    }
+    expect(tree).not.toBeNull();
     await services.optimizer?.drain();
   });
 });

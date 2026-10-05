@@ -896,5 +896,25 @@ Final post-correction validation:
 | `bunx prettier --write $(git diff --name-only)` and `git diff --check`                                                                                                                                                          | Exit 0; final artifact formatting checked separately.           |
 | `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                                                        | Exit 0; 146 passed, 0 failed after D10/task/verification edits. |
 
+The first GitHub workspace gate run exposed two follow-up defects. The independent source
+conformance inventory omitted `livePlans.read:legacy-and-absence`, and the staged database
+regression relied on a single microtask to prove a detached read completed while the solver was
+blocked. Both failures reproduced locally before the corrections. The inventory now includes the
+case in its independent catalog and expected list; the regression awaits the read while the fake
+solver remains unresolved and releases it in `finally`.
+
+| Follow-up command                                                                                                                                    | Fresh output                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `bun test apps/wbs/be-01/src/services.db.test.ts --test-name-pattern 'returns a live plan read while its newly admitted solver is still unresolved'` | Exit 0; 1 passed, 0 failed, 2 assertions.                                                                       |
+| `bun test libs/wbs/application/conformance/src/stores/existing.test.ts libs/wbs/application/conformance/src/case-manifest.test.ts`                   | Exit 0; 4 passed, 0 failed.                                                                                     |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test -p wbs-conformance wbs-be-01 --skip-nx-cache --output-style=static`               | Exit 0 with approved socket/process access; conformance 35 passed, backend 1,651 passed / 1 skipped / 0 failed. |
+| `bunx prettier --check` on the three changed TypeScript files and this verification record; `git diff --check`                                       | Exit 0; formatting clean and no whitespace errors.                                                              |
+
+The follow-up edits are not included in the implementation commit yet. GitHub status could not
+be refreshed from this environment because `api.github.com` was unreachable. The canonical
+`bin/h2puni-gate.sh <sha>` also remains unrun for the follow-up because this workspace lacks the
+required `/home/puni1/.cache` host-wide lock location. Trusted activation CI remains deferred by
+user instruction; it is a distinct check from the implementation gate.
+
 No source fault remains injected. The implementation and independent review are ready for
 integration; the exact-head gate and CI checks remain outstanding.
