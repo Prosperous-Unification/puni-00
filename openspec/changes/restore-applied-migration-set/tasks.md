@@ -17,7 +17,7 @@ migration identity. No dependency on host enrollment or completion of 070.09.
       `restores an explicit empty set`. Compare schema, complete name/hash ledger and sentinel
       rows; preserve legacy `--to=` behavior. Negative: reintroduce timestamp-cutoff selection
       and watch the actual CLI leave the older migration/table behind.
-- [ ] 1.2 Test then enforce capture/script/ledger integrity and bounded recovery in the same
+- [x] 1.2 Test then enforce capture/script/ledger integrity and bounded recovery in the same
       runner/CLI: `refuses missing capture`, `refuses unreadable capture`, `refuses malformed or duplicate identities`, `refuses another attempt`, `refuses an unexpected addition`,
       `refuses changed baseline identity`, `refuses changed forward or down bytes before any reversal`, `resumes after one committed reversal`, and `rolls back a failed down script with its ledger deletion`. Also cover partial forward application and repeated no-op
       recovery. Remove each safety comparison separately and record the corresponding

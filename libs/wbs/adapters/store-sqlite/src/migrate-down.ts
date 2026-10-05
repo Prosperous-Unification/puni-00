@@ -212,6 +212,8 @@ export function rollbackAppliedRows(
     }
     const rebuild = folder.downSql.includes(FOREIGN_KEYS_OFF_MARKER);
     if (rebuild) db.run('PRAGMA foreign_keys = OFF;');
+    // Proof: committing the first down statement before this per-migration transaction
+    // ended made the failed-down CLI test retain its inserted marker while the ledger row remained.
     db.run('BEGIN');
     try {
       for (const statement of folder.downSql.split('--> statement-breakpoint')) {

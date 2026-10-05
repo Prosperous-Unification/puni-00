@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   cpSync,
   mkdirSync,
   mkdtempSync,
@@ -82,6 +83,69 @@ function schemaAt(dbPath: string): string[] {
   } finally {
     sqlite.close();
   }
+}
+
+async function prepareIntegrityFixture(): Promise<{
+  root: string;
+  dbPath: string;
+  capturePath: string;
+  identity: string[];
+  baseline: string;
+  first: string;
+  second: string;
+  captured: {
+    format: string;
+    version: number;
+    target: string;
+    attempt: string;
+    candidate: string;
+    applied: { name: string; hash: string }[];
+    pending: { name: string; hash: string; downHash: string }[];
+  };
+}> {
+  const root = mkdtempSync(join(tmpdir(), 'wbs-migration-set-integrity-'));
+  roots.push(root);
+  const dbPath = join(root, 'plan.db');
+  const capturePath = join(root, 'capture.json');
+  const baseline = '20260101000000_baseline';
+  const first = '20260101000001_add_first';
+  const second = '20260101000002_add_second';
+  mkdirSync(join(root, 'drizzle'));
+  addMigration(
+    root,
+    baseline,
+    'CREATE TABLE baseline_table (id text);',
+    'DROP TABLE baseline_table;',
+  );
+  runMigrations(dbPath, join(root, 'drizzle'));
+  addMigration(root, first, 'CREATE TABLE first_table (id text);', 'DROP TABLE first_table;');
+  addMigration(root, second, 'CREATE TABLE second_table (id text);', 'DROP TABLE second_table;');
+  const identity = ['--target=wbs-be-01', '--attempt=integrity-test', '--candidate=cafebabe'];
+  const capture = await runCliFrom(root, 'migrate-status-cli.ts', dbPath, '--capture', ...identity);
+  expect(capture.exitCode).toBe(0);
+  writeFileSync(capturePath, capture.stdout);
+  const captured = JSON.parse(capture.stdout) as {
+    format: string;
+    version: number;
+    target: string;
+    attempt: string;
+    candidate: string;
+    applied: { name: string; hash: string }[];
+    pending: { name: string; hash: string; downHash: string }[];
+  };
+  expect(captured.applied.map((entry) => entry.name)).toEqual([baseline]);
+  expect(captured.pending.map((entry) => entry.name)).toEqual([first, second]);
+  return { root, dbPath, capturePath, identity, baseline, first, second, captured };
+}
+
+async function restoreFixture(fixture: Awaited<ReturnType<typeof prepareIntegrityFixture>>) {
+  return runCliFrom(
+    fixture.root,
+    'migrate-down-cli.ts',
+    fixture.dbPath,
+    `--capture-file=${fixture.capturePath}`,
+    ...fixture.identity,
+  );
 }
 
 describe('migration deploy entrypoints', () => {
@@ -504,6 +568,317 @@ describe('migration deploy entrypoints', () => {
     expect(migrationLedgerAt(dbPath)).toEqual(baseline);
     expect(schemaAt(dbPath).some((ddl) => ddl.includes('first_after'))).toBe(false);
     expect(schemaAt(dbPath).some((ddl) => ddl.includes('second_after'))).toBe(false);
+  }, 60_000);
+
+  it('refuses a missing capture before reversing either applied addition', async () => {
+    const fixture = await prepareIntegrityFixture();
+    expect((await runCliFrom(fixture.root, 'migrate-cli.ts', fixture.dbPath)).exitCode).toBe(0);
+    const before = migrationLedgerAt(fixture.dbPath);
+    rmSync(fixture.capturePath);
+    const refused = await restoreFixture(fixture);
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stderr).toContain('ENOENT');
+    expect(migrationLedgerAt(fixture.dbPath)).toEqual(before);
+  }, 60_000);
+
+  it('refuses an unreadable capture in a nonprivileged CLI process', async () => {
+    if (process.getuid?.() === 0)
+      throw new Error('unreadability proof needs a nonprivileged runner');
+    const fixture = await prepareIntegrityFixture();
+    expect((await runCliFrom(fixture.root, 'migrate-cli.ts', fixture.dbPath)).exitCode).toBe(0);
+    const before = migrationLedgerAt(fixture.dbPath);
+    chmodSync(fixture.capturePath, 0o000);
+    const refused = await restoreFixture(fixture);
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stderr).toContain('EACCES');
+    expect(migrationLedgerAt(fixture.dbPath)).toEqual(before);
+  }, 60_000);
+
+  it.each([
+    ['malformed JSON', '{'],
+    ['unsupported capture version', { version: 2 }],
+    ['duplicate migration identity', { pending: 'duplicate' }],
+  ])(
+    'refuses %s before reversing an addition',
+    async (label, mutation) => {
+      const fixture = await prepareIntegrityFixture();
+      expect((await runCliFrom(fixture.root, 'migrate-cli.ts', fixture.dbPath)).exitCode).toBe(0);
+      const before = migrationLedgerAt(fixture.dbPath);
+      const contents =
+        typeof mutation === 'string'
+          ? mutation
+          : JSON.stringify({
+              ...fixture.captured,
+              ...mutation,
+              applied:
+                'pending' in mutation && mutation.pending === 'duplicate'
+                  ? [fixture.captured.applied[0], fixture.captured.applied[0]]
+                  : fixture.captured.applied,
+              pending: fixture.captured.pending,
+            });
+      writeFileSync(fixture.capturePath, contents);
+      const refused = await restoreFixture(fixture);
+      expect(refused.exitCode).not.toBe(0);
+      expect(migrationLedgerAt(fixture.dbPath)).toEqual(before);
+      expect(schemaAt(fixture.dbPath).some((ddl) => ddl.includes('first_table'))).toBe(true);
+      expect(schemaAt(fixture.dbPath).some((ddl) => ddl.includes('second_table'))).toBe(true);
+    },
+    60_000,
+  );
+
+  it.each(['target', 'attempt', 'candidate'] as const)(
+    'refuses a capture belonging to another %s before reversing an addition',
+    async (field) => {
+      const fixture = await prepareIntegrityFixture();
+      expect((await runCliFrom(fixture.root, 'migrate-cli.ts', fixture.dbPath)).exitCode).toBe(0);
+      const before = migrationLedgerAt(fixture.dbPath);
+      writeFileSync(fixture.capturePath, JSON.stringify({ ...fixture.captured, [field]: 'other' }));
+      const refused = await restoreFixture(fixture);
+      expect(refused.exitCode).not.toBe(0);
+      expect(refused.stderr).toContain('another target, attempt or candidate');
+      expect(migrationLedgerAt(fixture.dbPath)).toEqual(before);
+    },
+    60_000,
+  );
+
+  it('refuses an unexpected applied migration before reversing a candidate', async () => {
+    const fixture = await prepareIntegrityFixture();
+    expect((await runCliFrom(fixture.root, 'migrate-cli.ts', fixture.dbPath)).exitCode).toBe(0);
+    const sqlite = openDatabase(fixture.dbPath);
+    try {
+      sqlite.run(
+        "INSERT INTO __drizzle_migrations (hash, created_at, name) VALUES (?, ?, 'other_migration')",
+        ['a'.repeat(64), 20260101000003],
+      );
+    } finally {
+      sqlite.close();
+    }
+    const before = migrationLedgerAt(fixture.dbPath);
+    const refused = await restoreFixture(fixture);
+    expect(refused.exitCode).not.toBe(0);
+    expect(migrationLedgerAt(fixture.dbPath)).toEqual(before);
+    expect(refused.stderr).toContain('unexpected or changed migration other_migration');
+  }, 60_000);
+
+  it('refuses a changed pending ledger identity before reversing either candidate', async () => {
+    const fixture = await prepareIntegrityFixture();
+    expect((await runCliFrom(fixture.root, 'migrate-cli.ts', fixture.dbPath)).exitCode).toBe(0);
+    const sqlite = openDatabase(fixture.dbPath);
+    try {
+      sqlite.run('UPDATE __drizzle_migrations SET hash = ? WHERE name = ?', [
+        'c'.repeat(64),
+        fixture.first,
+      ]);
+    } finally {
+      sqlite.close();
+    }
+    const before = migrationLedgerAt(fixture.dbPath);
+    const refused = await restoreFixture(fixture);
+    expect(refused.exitCode).not.toBe(0);
+    expect(migrationLedgerAt(fixture.dbPath)).toEqual(before);
+    expect(schemaAt(fixture.dbPath).some((ddl) => ddl.includes('second_table'))).toBe(true);
+    expect(refused.stderr).toContain(`unexpected or changed migration ${fixture.first}`);
+  }, 60_000);
+
+  it('refuses capture when the applied baseline ledger has duplicate names', async () => {
+    const fixture = await prepareIntegrityFixture();
+    const sqlite = openDatabase(fixture.dbPath);
+    try {
+      sqlite.run(
+        'INSERT INTO __drizzle_migrations (hash, created_at, name) SELECT hash, created_at, name FROM __drizzle_migrations WHERE name = ?',
+        [fixture.baseline],
+      );
+    } finally {
+      sqlite.close();
+    }
+    const before = migrationLedgerAt(fixture.dbPath);
+    const refused = await runCliFrom(
+      fixture.root,
+      'migrate-status-cli.ts',
+      fixture.dbPath,
+      '--capture',
+      ...fixture.identity,
+    );
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stdout).toBe('');
+    expect(refused.stderr).toContain(`duplicate applied migration ${fixture.baseline}`);
+    expect(migrationLedgerAt(fixture.dbPath)).toEqual(before);
+  }, 60_000);
+
+  it.each(['baseline', 'pending'] as const)(
+    'refuses a duplicate observed %s ledger name before reversing either candidate',
+    async (kind) => {
+      const fixture = await prepareIntegrityFixture();
+      expect((await runCliFrom(fixture.root, 'migrate-cli.ts', fixture.dbPath)).exitCode).toBe(0);
+      const duplicated = kind === 'baseline' ? fixture.baseline : fixture.first;
+      const sqlite = openDatabase(fixture.dbPath);
+      try {
+        sqlite.run(
+          'INSERT INTO __drizzle_migrations (hash, created_at, name) SELECT hash, created_at, name FROM __drizzle_migrations WHERE name = ?',
+          [duplicated],
+        );
+      } finally {
+        sqlite.close();
+      }
+      const before = migrationLedgerAt(fixture.dbPath);
+      const beforeSchema = schemaAt(fixture.dbPath);
+      const refused = await restoreFixture(fixture);
+      expect(refused.exitCode).not.toBe(0);
+      expect(migrationLedgerAt(fixture.dbPath)).toEqual(before);
+      expect(schemaAt(fixture.dbPath)).toEqual(beforeSchema);
+      expect(refused.stderr).toContain(`duplicate applied migration ${duplicated}`);
+    },
+    60_000,
+  );
+
+  it('refuses a malformed captured migration hash before reversing an addition', async () => {
+    const fixture = await prepareIntegrityFixture();
+    expect((await runCliFrom(fixture.root, 'migrate-cli.ts', fixture.dbPath)).exitCode).toBe(0);
+    const before = migrationLedgerAt(fixture.dbPath);
+    writeFileSync(
+      fixture.capturePath,
+      JSON.stringify({
+        ...fixture.captured,
+        applied: [{ name: fixture.baseline, hash: 'not-a-sha256' }],
+      }),
+    );
+    const refused = await restoreFixture(fixture);
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stderr).toContain('Invalid string');
+    expect(migrationLedgerAt(fixture.dbPath)).toEqual(before);
+  }, 60_000);
+
+  it.each(['missing', 'changed'] as const)(
+    'refuses a %s captured baseline ledger identity before reversing a candidate',
+    async (fault) => {
+      const fixture = await prepareIntegrityFixture();
+      expect((await runCliFrom(fixture.root, 'migrate-cli.ts', fixture.dbPath)).exitCode).toBe(0);
+      const sqlite = openDatabase(fixture.dbPath);
+      try {
+        sqlite.run(
+          fault === 'missing'
+            ? 'DELETE FROM __drizzle_migrations WHERE name = ?'
+            : 'UPDATE __drizzle_migrations SET hash = ? WHERE name = ?',
+          fault === 'missing' ? [fixture.baseline] : ['b'.repeat(64), fixture.baseline],
+        );
+      } finally {
+        sqlite.close();
+      }
+      const before = migrationLedgerAt(fixture.dbPath);
+      const refused = await restoreFixture(fixture);
+      expect(refused.exitCode).not.toBe(0);
+      expect(migrationLedgerAt(fixture.dbPath)).toEqual(before);
+      expect(refused.stderr).toContain(
+        `captured migration ${fixture.baseline} is absent or changed`,
+      );
+    },
+    60_000,
+  );
+
+  it.each(['migration.sql', 'down.sql'] as const)(
+    'refuses changed %s bytes before reversing either candidate',
+    async (script) => {
+      const fixture = await prepareIntegrityFixture();
+      expect((await runCliFrom(fixture.root, 'migrate-cli.ts', fixture.dbPath)).exitCode).toBe(0);
+      const before = migrationLedgerAt(fixture.dbPath);
+      const path = join(fixture.root, 'drizzle', fixture.first, script);
+      writeFileSync(path, `${readFileSync(path, 'utf8')}\n-- changed after capture`);
+      const refused = await restoreFixture(fixture);
+      expect(refused.exitCode).not.toBe(0);
+      expect(migrationLedgerAt(fixture.dbPath)).toEqual(before);
+      expect(schemaAt(fixture.dbPath).some((ddl) => ddl.includes('second_table'))).toBe(true);
+      expect(refused.stderr).toContain(script === 'down.sql' ? 'down script' : 'migration script');
+    },
+    60_000,
+  );
+
+  it.each(['migration.sql', 'down.sql'] as const)(
+    'refuses missing %s before reversing either candidate',
+    async (script) => {
+      const fixture = await prepareIntegrityFixture();
+      expect((await runCliFrom(fixture.root, 'migrate-cli.ts', fixture.dbPath)).exitCode).toBe(0);
+      const before = migrationLedgerAt(fixture.dbPath);
+      rmSync(join(fixture.root, 'drizzle', fixture.first, script));
+      const refused = await restoreFixture(fixture);
+      expect(refused.exitCode).not.toBe(0);
+      expect(migrationLedgerAt(fixture.dbPath)).toEqual(before);
+      expect(schemaAt(fixture.dbPath).some((ddl) => ddl.includes('second_table'))).toBe(true);
+    },
+    60_000,
+  );
+
+  it.each(['migration.sql', 'down.sql'] as const)(
+    'refuses unreadable %s in a nonprivileged CLI before reversing either candidate',
+    async (script) => {
+      if (process.getuid?.() === 0)
+        throw new Error('unreadability proof needs a nonprivileged runner');
+      const fixture = await prepareIntegrityFixture();
+      expect((await runCliFrom(fixture.root, 'migrate-cli.ts', fixture.dbPath)).exitCode).toBe(0);
+      const before = migrationLedgerAt(fixture.dbPath);
+      chmodSync(join(fixture.root, 'drizzle', fixture.first, script), 0o000);
+      const refused = await restoreFixture(fixture);
+      expect(refused.exitCode).not.toBe(0);
+      expect(refused.stderr).toContain('EACCES');
+      expect(migrationLedgerAt(fixture.dbPath)).toEqual(before);
+      expect(schemaAt(fixture.dbPath).some((ddl) => ddl.includes('second_table'))).toBe(true);
+    },
+    60_000,
+  );
+
+  it('restores a partial forward application and repeats as a verified no-op', async () => {
+    const fixture = await prepareIntegrityFixture();
+    const firstOnly = join(fixture.root, 'first-only');
+    mkdirSync(firstOnly);
+    cpSync(join(fixture.root, 'drizzle', fixture.first), join(firstOnly, fixture.first), {
+      recursive: true,
+    });
+    runMigrations(fixture.dbPath, firstOnly);
+    expect(migrationLedgerAt(fixture.dbPath).map((row) => row.name)).toEqual([
+      fixture.baseline,
+      fixture.first,
+    ]);
+    const restored = await restoreFixture(fixture);
+    expect(restored.exitCode).toBe(0);
+    expect(restored.stdout).toContain(fixture.first);
+    expect(restored.stdout).not.toContain(fixture.second);
+    expect(migrationLedgerAt(fixture.dbPath).map((row) => row.name)).toEqual([fixture.baseline]);
+    expect((await restoreFixture(fixture)).stdout).toContain('(already restored)');
+  }, 60_000);
+
+  it('rolls back a failed down statement and its ledger deletion, then retries with the same capture', async () => {
+    const fixture = await prepareIntegrityFixture();
+    const down = join(fixture.root, 'drizzle', fixture.first, 'down.sql');
+    writeFileSync(
+      down,
+      "INSERT INTO first_table (id) VALUES ('marker');\n--> statement-breakpoint\nDROP TABLE missing_cleanup;\n--> statement-breakpoint\nDROP TABLE first_table;",
+    );
+    const recaptured = await runCliFrom(
+      fixture.root,
+      'migrate-status-cli.ts',
+      fixture.dbPath,
+      '--capture',
+      ...fixture.identity,
+    );
+    expect(recaptured.exitCode).toBe(0);
+    writeFileSync(fixture.capturePath, recaptured.stdout);
+    expect((await runCliFrom(fixture.root, 'migrate-cli.ts', fixture.dbPath)).exitCode).toBe(0);
+    const refused = await restoreFixture(fixture);
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stderr).toContain(`rolling back ${fixture.first} failed`);
+    expect(migrationLedgerAt(fixture.dbPath).map((row) => row.name)).toEqual([
+      fixture.baseline,
+      fixture.first,
+    ]);
+    const sqlite = openDatabase(fixture.dbPath);
+    try {
+      expect(sqlite.query('SELECT id FROM first_table').all()).toEqual([]);
+      sqlite.run('CREATE TABLE missing_cleanup (id text)');
+    } finally {
+      sqlite.close();
+    }
+    const retried = await restoreFixture(fixture);
+    expect(retried.exitCode).toBe(0);
+    expect(migrationLedgerAt(fixture.dbPath).map((row) => row.name)).toEqual([fixture.baseline]);
   }, 60_000);
 
   it('import the SQLite source runners without moving their app paths', () => {

@@ -7,6 +7,8 @@ import { type AppliedMigration, readMigrationFolders, rollbackAppliedRows } from
 
 const migrationIdentity = z.object({
   name: z.string().min(1),
+  // Proof: removing the sha256 shape check made the malformed-hash CLI test
+  // reach script preflight instead of refusing the capture as malformed.
   hash: z.string().regex(/^[0-9a-f]{64}$/),
 });
 const pendingIdentity = migrationIdentity.extend({ downHash: z.string().regex(/^[0-9a-f]{64}$/) });
@@ -32,11 +34,19 @@ function appliedRows(db: ReturnType<typeof openDatabase>): AppliedMigration[] {
   // Proof: throwing for the missing ledger table made the real CLI empty-capture test exit 1;
   // an existing empty database must record an explicit empty applied set.
   if (ledger.length === 0) return [];
-  return db
+  const rows = db
     .query<AppliedMigration, []>(
       'SELECT id, name, hash, created_at FROM __drizzle_migrations ORDER BY created_at, name',
     )
     .all();
+  const names = new Set<string | null>();
+  for (const row of rows) {
+    // Proof: removing this guard let capture emit a duplicate baseline and let the
+    // baseline/pending duplicate restore tests reverse additions before final refusal.
+    if (names.has(row.name)) throw new Error(`duplicate applied migration ${String(row.name)}`);
+    names.add(row.name);
+  }
+  return rows;
 }
 
 /** Capture the full applied set and the candidate's ordered migration scripts without writing SQLite. */
@@ -81,7 +91,10 @@ export function parseMigrationSetCapture(
   raw: unknown,
   identity: MigrationSetIdentity,
 ): MigrationSetCapture {
+  // Proof: bypassing schema validation let the unsupported-version CLI test exit 0.
   const capture = captureSchema.parse(raw);
+  // Proof: removing caller-identity comparison let the target, attempt and candidate
+  // mismatch CLI cases each exit 0 and reverse both additions.
   if (
     capture.target !== identity.target ||
     capture.attempt !== identity.attempt ||
@@ -90,6 +103,8 @@ export function parseMigrationSetCapture(
     throw new Error('migration capture belongs to another target, attempt or candidate');
   }
   const names = [...capture.applied, ...capture.pending].map((entry) => entry.name);
+  // Proof: without this guard, the duplicate-identity CLI test reversed both additions
+  // before final equality refused the now-duplicated baseline set.
   if (new Set(names).size !== names.length)
     throw new Error('migration capture has duplicate names');
   const pendingOrder = capture.pending.map((entry) => entry.name);
@@ -114,9 +129,13 @@ export function restoreAppliedMigrationSet(
   );
   for (const entry of [...capture.applied, ...capture.pending]) {
     const folder = folders.get(entry.name);
+    // Proof: disabling this preflight let changed forward bytes reach the per-row guard
+    // after the later migration had already committed its reversal in the real CLI test.
     if (folder?.hash !== entry.hash) {
       throw new Error(`migration script ${entry.name} is absent or changed`);
     }
+    // Proof: disabling this comparison made the changed down.sql CLI test exit 0 and
+    // reverse both additions despite the capture's different down-script hash.
     if ('downHash' in entry && folder.downHash !== entry.downHash) {
       throw new Error(`down script ${entry.name} is changed`);
     }
@@ -129,11 +148,16 @@ export function restoreAppliedMigrationSet(
     const observedByName = new Map(observed.map((row) => [row.name, row]));
     for (const [name, hash] of applied) {
       const row = observedByName.get(name);
+      // Proof: removing this check let the missing-baseline CLI test reverse the
+      // additions before final equality refused the incomplete ledger.
       if (row?.hash !== hash) throw new Error(`captured migration ${name} is absent or changed`);
     }
     for (const row of observed) {
       if (row.name === null) throw new Error('applied migration has no name');
       const expected = applied.get(row.name) ?? pending.get(row.name);
+      // Proof: removing this check let the unexpected-addition CLI test reverse
+      // captured candidates before final equality detected the unrelated row;
+      // the changed-pending-hash test likewise reversed the later migration first.
       if (expected === undefined || row.hash !== expected) {
         throw new Error(`unexpected or changed migration ${row.name}`);
       }
@@ -144,6 +168,8 @@ export function restoreAppliedMigrationSet(
     // before reporting its new migration; the retained lifecycle row was targeted.
     const doomed = [...capture.pending].reverse().flatMap((entry) => {
       const row = observedByName.get(entry.name);
+      // Proof: treating an absent pending row as still applied made the partial-forward
+      // CLI recovery test fail instead of restoring and repeating as a no-op.
       return row === undefined ? [] : [row];
     });
     const reversed = rollbackAppliedRows(db, folders, doomed);

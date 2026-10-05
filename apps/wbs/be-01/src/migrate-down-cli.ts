@@ -26,6 +26,8 @@ if (dbPath === undefined || dbPath === '') throw new Error('DB_PATH must be set'
 
 const mode = downModeOf(process.argv.slice(2));
 if (mode.kind === 'capture') {
+  // Proof: replacing capture read/parse errors with legacy rollback-to-none made the
+  // missing, unreadable and malformed-capture CLI tests exit 0 and reverse additions.
   const capture: unknown = JSON.parse(readFileSync(mode.path, 'utf8'));
   const reversed = restoreAppliedMigrationSet(
     dbPath,
