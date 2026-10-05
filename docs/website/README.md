@@ -20,7 +20,7 @@ The website introduces Prosperous Unification's software services and turns a vi
 | M2: AI scoping           | Sign in after the first prompt, clarify the request, review a brief | Cross-host draft claim, account access, OpenRouter adapter, reservations/accounting, policy evaluations and operational controls |
 | M3: concept preview      | Explore an illustrative interface and request one revision          | Typed component schema, safe renderer, generation allowance and the same cost controls                                           |
 
-Manual submission does not require a visitor account. Choosing AI requires sign-in before any model call. Proposal submission is always an explicit action, available before using every turn or generating a preview. The AI cannot agree to a price, delivery date or contract.
+Manual submission does not require a visitor account. The planned [Build AI chat harness](../../openspec/changes/build-ai-chat-harness/proposal.md) supersedes the earlier "choosing AI requires sign-in before any model call" line: the conversation is bound to the browser draft claim under the conversation allowance, and sign-in stays optional (orchestrator assumption, see [ADR 0034](../adr/0034-anonymous-paid-chat-bound-to-the-browser-claim.md)). Proposal submission is always an explicit action, available before using every turn or generating a preview. The AI cannot agree to a price, delivery date or contract.
 
 ## Planning and evidence
 
@@ -28,6 +28,7 @@ Manual submission does not require a visitor account. Choosing AI requires sign-
 - [Intent](../../openspec/changes/puni-website-funnel/proposal.md), [technical design](../../openspec/changes/puni-website-funnel/design.md), [implementation slices](../../openspec/changes/puni-website-funnel/tasks.md), and [verification](../../openspec/changes/puni-website-funnel/verify.md).
 - [WBS work-item mapping](../../openspec/changes/puni-website-funnel/evidence/wbs-mapping.md) and [verified write receipt](../../openspec/changes/puni-website-funnel/evidence/wbs-verification.json).
 - [Build app change](../../openspec/changes/assistant-ui-build/proposal.md), [implementation tasks](../../openspec/changes/assistant-ui-build/tasks.md), [verification](../../openspec/changes/assistant-ui-build/verify.md), and [Google/OpenRouter runtime setup](build-runtime.md).
+- [Build AI chat harness](../../openspec/changes/build-ai-chat-harness/proposal.md): the planned redesign ([design](../../openspec/changes/build-ai-chat-harness/design.md), [system prompt](../../openspec/changes/build-ai-chat-harness/system-prompt.md), [slices](../../openspec/changes/build-ai-chat-harness/tasks.md)).
 - [Build app screen polish](../../openspec/changes/polish-build-app-screens/proposal.md) and its [verification](../../openspec/changes/polish-build-app-screens/verify.md); `apps/website/fe-01/browser/screens.mjs` audits every app state at four widths.
 - [Domain language](CONTEXT.md), [OpenRouter research](openrouter-research.md), and [frontend agent libraries](frontend-agent-libraries.md).
 - [Anonymous draft retention operator procedure](draft-retention.md) records the explicit inspect/apply command and its backup limitation.

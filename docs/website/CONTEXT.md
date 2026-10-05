@@ -30,6 +30,22 @@ _Avoid_: Delivery agent
 The editable summary of a software request that can be reviewed apart from any conversation.
 _Avoid_: Transcript, specification
 
+**Conversation stage**:
+The server-derived point a scoping conversation has reached: clarify, brief, contact, exhausted or handed off. It decides which affordances the app offers; the model never sets it.
+_Avoid_: Funnel step, intent state
+
+**Visitor turn**:
+One message the visitor sends in a scoping conversation, counting the request description as the first.
+_Avoid_: User turn, prompt
+
+**Conversation allowance**:
+The set of ceilings a scoping conversation runs under: visitor turns, completion tokens, and spend per conversation, per source and site-wide per UTC day.
+_Avoid_: Quota, budget
+
+**Source**:
+The pseudonymous, daily-salted hash of the client address behind the gateway, used only to bound how many conversations and how much spend one address may start in a day.
+_Avoid_: IP, visitor id
+
 **Concept preview**:
 An optional interactive illustration of a possible interface, rendered from constrained components. It makes no claim that the software has been built.
 _Avoid_: Prototype delivery

@@ -8,6 +8,10 @@ Start with **`openai/gpt-4.1-mini` on the exact `azure/swedencentral` endpoint**
 
 The [OpenAI GPT-4.1 family guide](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-4.1) describes the family as low-latency models without an internal reasoning step. That suits short scoping replies under PUNI's 30-second abort better than a default-reasoning model. [GPT-5 Mini](https://openrouter.ai/openai/gpt-5-mini) lists $0.25/$2.00 per million tokens and reasoning behavior; the [newer GPT-6 Luna](https://openrouter.ai/openai/gpt-6-luna) lists $0.10/$0.50, but [OpenAI says it defaults to medium reasoning](https://developers.openai.com/api/docs/guides/reasoning). Their lower input prices do not establish better completion time or usable visible output within PUNI's 1,024-token and 30-second limits. GPT-4.1 Mini is the conservative first paid candidate; compare quality and latency later with representative PUNI prompts.
 
+## Recheck on 2026-10-05
+
+The live ZDR catalog still listed `openai/gpt-4.1-mini` on `azure/swedencentral` at $0.44/$1.76 per million tokens with `max_completion_tokens`, `response_format` and `structured_outputs` and no reasoning parameters. Cheaper ZDR endpoints seen the same day: `openai/gpt-4.1-nano` `azure/swedencentral` ($0.11/$0.44, no reasoning; the named fallback), `openai/gpt-5-nano` `azure/swedencentral` ($0.055/$0.44) and `openai/gpt-6-luna` `azure` ($0.10/$0.50), both with default reasoning, and `google/gemini-2.5-flash-lite` `google-vertex/eu` ($0.10/$0.40, reasoning parameters present). The [Build AI chat harness](../../openspec/changes/build-ai-chat-harness/design.md) keeps GPT-4.1 Mini and lowers the completion cap to 400 tokens for its short replies.
+
 ## Proposed nonsecret preview settings
 
 ```dotenv

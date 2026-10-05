@@ -1,0 +1,110 @@
+## ADDED Requirements
+
+### Requirement: Site background and monotext header on Build
+
+The Build route SHALL render the site's background video behind the whole page, streamed from the configured site origin at `/media/hero/background.mp4` with `/media/hero/poster.jpg` as poster, under a dark scrim. Under `prefers-reduced-motion: reduce` it SHALL show the poster instead of the video. When the media fails to load it SHALL show the page's own night gradient; the media is optional decoration and its failure SHALL NOT throw or block the conversation. The video element SHALL NOT carry a `crossorigin` attribute and the repository SHALL NOT contain the video or poster files. The header SHALL render the `[n]` numbered monotext navigation, the PUNI wordmark followed by the moon image from the site origin (`/media/brand/moon.avif` with `/media/brand/moon.webp`), falling back to the existing dot when the image fails. The manual brief and operator routes SHALL keep their light look.
+
+#### Scenario: Normal motion
+
+- **WHEN** Build loads in a browser without a reduced-motion preference and the site origin serves the media
+- **THEN** a muted, looping, autoplaying video sourced from the site origin is present under a scrim and the conversation remains readable
+
+#### Scenario: Reduced motion
+
+- **WHEN** Build loads with `prefers-reduced-motion: reduce`
+- **THEN** no video element is rendered and the poster image from the site origin is shown under the scrim
+
+#### Scenario: Media unavailable
+
+- **WHEN** the site origin answers 404 for the video and poster
+- **THEN** the layer switches to the gradient class, no page error is reported, and the conversation is unaffected
+
+#### Scenario: Moon fallback
+
+- **WHEN** the moon image fails to load
+- **THEN** the wordmark shows the dot and the header keeps its layout
+
+### Requirement: Conversation harness layout
+
+Build SHALL present the conversation as a full-height thread with user and assistant messages, a status row for thinking, streaming, stopped and error states, and a composer pinned to the bottom in the site's liquid-glass style: transparent with blur and a hairline border, never a white fill. `Enter` SHALL send and `Shift+Enter` SHALL insert a newline. While a reply streams, the composer SHALL show a Stop control. The layout SHALL work from 320 px up without horizontal overflow, keep the composer visible above a mobile virtual keyboard, keep every interactive target at least 44 px, and move focus to the thread heading on load.
+
+#### Scenario: Streaming reply
+
+- **WHEN** a reply is streaming
+- **THEN** the assistant message grows as deltas arrive, the status row shows a streaming indicator, Stop is available and Send is not
+
+#### Scenario: Stop
+
+- **WHEN** the visitor presses Stop mid-stream
+- **THEN** the client aborts the stream, posts the cancel request with the operation identity, shows the `stopped` state and leaves the partial text visibly marked as interrupted
+
+#### Scenario: Mobile keyboard
+
+- **WHEN** the viewport is 390 px wide and the visual viewport shrinks by 300 px
+- **THEN** the composer remains fully visible and the latest message stays in view
+
+#### Scenario: Narrow screen
+
+- **WHEN** the viewport is 320 px wide
+- **THEN** no element overflows horizontally and every control is at least 44 px tall
+
+### Requirement: Explicit first Send
+
+Build SHALL show the saved Home request pre-filled and read-only in the composer with a single Send action. Mounting, reloading, returning from optional sign-in or any passive event SHALL NOT send a stream request. Pressing Send SHALL send exactly one initial operation with the server-owned identity and show the Home request as the first user message. A failed initial request SHALL remain retryable under the same identity after reload, and no different first message SHALL be possible until the initial operation completes.
+
+#### Scenario: Nothing before Send
+
+- **WHEN** Build mounts and is reloaded with a saved Home request whose initial operation has not started
+- **THEN** zero `POST /conversation/stream` requests occur
+
+#### Scenario: One initial POST
+
+- **WHEN** the visitor presses Send
+- **THEN** exactly one `POST /conversation/stream` with `initial: true` occurs and the thread shows the Home request as the first user message
+
+#### Scenario: Dropped initial POST
+
+- **WHEN** the initial POST fails before reaching the API and the page reloads
+- **THEN** the composer still shows the read-only Home request, the ordinary composer is unavailable, and Retry resends the same identity
+
+### Requirement: Reload, retry and visible states
+
+Build SHALL restore the saved conversation from the API on reload without another paid call. A retry of a pending operation SHALL reuse its identity. Build SHALL render distinct states for `loading`, `ready`, `streaming`, `stopped`, `error` (with Retry and Back to Home), `exhausted`, `disabled`, `handed_off` and `expired` (redirect to Home with the existing reason). Network failures SHALL use the existing plain unreachable copy. An impossible state SHALL reach the error boundary.
+
+#### Scenario: Reload after a reply
+
+- **WHEN** the page reloads after one completed reply
+- **THEN** both saved messages reappear, no stream request is sent and the composer is ready
+
+#### Scenario: Stream error
+
+- **WHEN** the stream ends with an error chunk
+- **THEN** the error state names that the response could not be confirmed, offers Retry, and the saved history is unchanged
+
+### Requirement: Inline conversion affordances
+
+When the server reports stage `contact`, `exhausted` or a completed brief, Build SHALL show, under the thread, an editable `[ YOUR BRIEF ]` card pre-filled with the server-stored brief, an email field and a `Request a proposal` action that uses the existing proposal submission with the draft claim and CSRF. At stage `exhausted` the composer SHALL be replaced by one line naming the reason and the card SHALL remain. After submission Build SHALL show the receipt state. The card SHALL never show a price, date or contract field.
+
+#### Scenario: Contact stage
+
+- **WHEN** `GET /conversation` reports stage `contact` with a stored brief
+- **THEN** the brief card, email field and proposal action are rendered under the thread and the composer stays open
+
+#### Scenario: Exhausted
+
+- **WHEN** `GET /conversation` reports stage `exhausted` with reason `turns`
+- **THEN** the composer is replaced by the limit line and the brief card with the proposal action remains usable
+
+#### Scenario: Proposal submitted from the harness
+
+- **WHEN** the visitor submits a valid email and brief from the card
+- **THEN** one proposal is stored through the existing route, the receipt is shown and no further stream request is possible
+
+### Requirement: Disabled provider state
+
+When `GET /conversation` reports `provider: 'disabled'`, Build SHALL show the Home request as the first message, one clearly labelled system row stating that AI chat is not switched on and that a person reads every brief, a `Shape your brief` link to the manual brief, and no composer. It SHALL NOT label anything as a live AI reply.
+
+#### Scenario: No key configured
+
+- **WHEN** the API runs with `OPENROUTER_ENABLED=0` and `DEMO_AUTH=0`
+- **THEN** Build shows the disabled row and the manual link, and no stream request is sent on Send because there is no Send
