@@ -1,4 +1,6 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
+
+import { locateHeroMedia, selectHeroLayer } from './hero-media';
 
 export const siteOrigin = import.meta.env['VITE_SITE_ORIGIN'] ?? 'http://localhost:4321';
 
@@ -23,13 +25,98 @@ export function useHeadingFocus(stateKey: string): React.RefObject<HTMLHeadingEl
   return heading;
 }
 
-function Wordmark() {
+const reducedMotionQuery = '(prefers-reduced-motion: reduce)';
+
+function subscribeReducedMotion(onChange: () => void): () => void {
+  const query = window.matchMedia(reducedMotionQuery);
+  query.addEventListener('change', onChange);
+  return () => {
+    query.removeEventListener('change', onChange);
+  };
+}
+
+function prefersReducedMotion(): boolean {
+  return window.matchMedia(reducedMotionQuery).matches;
+}
+
+/**
+ * The site's background video as a fixed full-viewport layer under a dark scrim, painted behind
+ * a `.night-shell` page whose own background is the night gradient. A load error switches the
+ * class to `hero-media-gradient`, which hides the layer and leaves that gradient. The video has
+ * no `crossorigin` attribute, so the site origin needs no CORS and receives no draft cookie.
+ */
+export function HeroMedia() {
+  const isReducedMotion = useSyncExternalStore(subscribeReducedMotion, prefersReducedMotion);
+  const [isMediaFailed, setMediaFailed] = useState(false);
+  const layer = selectHeroLayer(isReducedMotion, isMediaFailed);
+  const media = locateHeroMedia(siteOrigin);
+  function markFailed(): void {
+    setMediaFailed(true);
+  }
+  // Proof: deleting both onError handlers made screens.mjs `build-media-failed` report "media
+  // failure did not switch to the gradient" at all four widths.
+  return (
+    <div className={`hero-media hero-media-${layer}`} aria-hidden="true">
+      {layer === 'video' && (
+        <video
+          src={media.video}
+          poster={media.poster}
+          muted
+          playsInline
+          loop
+          autoPlay
+          preload="metadata"
+          onError={markFailed}
+        />
+      )}
+      {layer === 'poster' && <img src={media.poster} alt="" onError={markFailed} />}
+      {layer !== 'gradient' && <div className="hero-scrim" />}
+    </div>
+  );
+}
+
+/**
+ * The site's moon after the wordmark, served by the site origin. The image is decoration (empty
+ * alt); when it fails to load, the wordmark falls back to the orange dot.
+ */
+function Moon() {
+  const [isFailed, setFailed] = useState(false);
+  // Proof: deleting this fallback branch made the chrome.test.ts dot case still find the picture.
+  if (isFailed) return <span className="wordmark-dot" aria-hidden="true"></span>;
+  return (
+    <picture className="wordmark-moon">
+      <source srcSet={`${siteOrigin}/media/brand/moon.avif`} type="image/avif" />
+      <img
+        src={`${siteOrigin}/media/brand/moon.webp`}
+        alt=""
+        width={96}
+        height={96}
+        decoding="async"
+        onError={() => {
+          setFailed(true);
+        }}
+      />
+    </picture>
+  );
+}
+
+function Wordmark({ tone = 'light' }: { tone?: HeaderTone }) {
+  if (tone === 'night')
+    return (
+      <span className="wordmark wordmark-night">
+        PUNI
+        <Moon />
+      </span>
+    );
   return (
     <span className="wordmark">
       PUNI<span className="wordmark-dot" aria-hidden="true"></span>
     </span>
   );
 }
+
+/** `night` is the site's dark, video-backed header; `light` is the manual brief's paper header. */
+export type HeaderTone = 'light' | 'night';
 
 const navigation = [
   { index: 1, label: 'Home', href: `${siteOrigin}/` },
@@ -42,9 +129,16 @@ const navigation = [
  * Public header: numbered navigation at left and a centered wordmark; the right column stays
  * empty so the wordmark holds the center. Below 900px the navigation collapses behind a Menu
  * disclosure that takes the right slot. `buildCurrent` marks Build as the current page
- * (`page`) or as the section the manual brief belongs to (`true`).
+ * (`page`) or as the section the manual brief belongs to (`true`). The `night` tone adds the
+ * site's `[-] Navigation` rail label and the moon after the wordmark.
  */
-export function SiteHeader({ buildCurrent }: { buildCurrent: 'page' | 'true' }) {
+export function SiteHeader({
+  buildCurrent,
+  tone = 'light',
+}: {
+  buildCurrent: 'page' | 'true';
+  tone?: HeaderTone;
+}) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -63,7 +157,7 @@ export function SiteHeader({ buildCurrent }: { buildCurrent: 'page' | 'true' }) 
   }, [open]);
 
   return (
-    <header className="site-header">
+    <header className={tone === 'night' ? 'site-header site-header-night' : 'site-header'}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
@@ -71,7 +165,7 @@ export function SiteHeader({ buildCurrent }: { buildCurrent: 'page' | 'true' }) 
           placement keeps it centered on desktop. Proof: moving it after the toggle made the
           screens.mjs tab-order-390 check report skip-link,menu-toggle,brand. */}
       <a className="brand" href={`${siteOrigin}/`} aria-label="PUNI home">
-        <Wordmark />
+        <Wordmark tone={tone} />
       </a>
       <button
         ref={menuButton}
@@ -87,6 +181,11 @@ export function SiteHeader({ buildCurrent }: { buildCurrent: 'page' | 'true' }) 
         <span className="menu-glyph" aria-hidden="true" data-open={open}></span>
       </button>
       <nav aria-label="Primary" className="site-nav" id={panelId} data-open={open}>
+        {tone === 'night' && (
+          <span className="nav-rail-label" aria-hidden="true">
+            [-] Navigation
+          </span>
+        )}
         <ul>
           {navigation.map((entry) => (
             <li key={entry.index}>
