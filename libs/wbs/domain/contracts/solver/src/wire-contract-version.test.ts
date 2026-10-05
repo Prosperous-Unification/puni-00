@@ -14,7 +14,7 @@ interface ManifestEntry {
  * The pin between `SCHEDULER_CONTRACT_VERSION` and the corpus that already
  * spends it.
  *
- * Every request fixture carries `"14+0.1.4"`, so a domain or solver bump that
+ * Every request fixture carries `"15+0.1.4"`, so a domain or solver bump that
  * forgets the corpus makes every one of them wrong. They were checked in at
  * `"7+0.1.0"` before the constant existed, and this test is what has moved them
  * with it since. Written as a

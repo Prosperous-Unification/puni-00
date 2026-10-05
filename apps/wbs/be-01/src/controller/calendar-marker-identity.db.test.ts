@@ -371,6 +371,8 @@ describe('the schedule identity guarantee', () => {
       'ask.input.deadlines',
       // The eighth since typed dependencies (WBS 010.4.6).
       'ask.input.typed',
+      // The ninth since bookings elsewhere (WBS 010.4.16).
+      'ask.input.elsewhere ?? NOWHERE',
     ]);
 
     // (b) The engine itself. Both halves matter: an import of the marker module

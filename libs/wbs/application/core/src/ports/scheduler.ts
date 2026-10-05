@@ -2,6 +2,7 @@ import type { PlanInfeasibleItem } from '@wbs/contracts/solver/plan-infeasible';
 import type {
   DependencyEdge,
   DependencyReach,
+  Elsewhere,
   PlannedRow,
   PoolSizes,
   Schedule,
@@ -88,7 +89,13 @@ export type ScheduleRead =
       readonly optimization: OptimizedScheduleRead | null;
     };
 
-/** Synchronous Fast scheduling over the canonical input's eight fields. */
+/**
+ * Synchronous Fast scheduling over the canonical input's fields: the eight it
+ * always carried, then the bookings elsewhere (empty for every plan nothing
+ * outranks). `schedule()` itself takes pinned starts between the two, which a
+ * Fast read never supplies, so this is the adapted shape rather than
+ * `schedule` verbatim — `optimizer-wiring.ts` adapts it.
+ */
 export type FastScheduler = (
   rows: readonly PlannedRow[],
   edges: readonly DependencyEdge[],
@@ -98,6 +105,7 @@ export type FastScheduler = (
   reach: DependencyReach,
   deadlines: ReadonlyMap<string, number>,
   typed: readonly TypedDependency[],
+  elsewhere: Elsewhere,
 ) => Schedule;
 
 /** Installed scheduling capabilities and their non-waiting read. */

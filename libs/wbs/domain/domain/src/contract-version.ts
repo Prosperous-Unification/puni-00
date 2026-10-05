@@ -124,7 +124,7 @@
  * reddens until the number moves. On a direct push the lint reports after the
  * commit has landed, which is detection and not prevention.
  */
-export const SCHEDULER_CONTRACT_VERSION = 14;
+export const SCHEDULER_CONTRACT_VERSION = 15;
 
 /**
  * The composite the **wire** carries and the **cache key** stores, from one

@@ -106,6 +106,18 @@ const requestOf = (plan: SolverRequestPlan, spawn: SolverSpawn = spawnOf(plan)) 
 };
 
 describe('buildSolverRequest', () => {
+  it('refuses a plan whose people are booked elsewhere, which wire 2 cannot carry', () => {
+    const plan = planOf({
+      elsewhere: new Map([
+        ['ann', [{ start: 0, end: 5, projectId: 'platform', workItemId: 'x1' }]],
+      ]),
+    });
+    expect(() => buildSolverRequest(plan, 'pri', spawnOf(planOf()))).toThrow(
+      /carries no bookings elsewhere/,
+    );
+    expect(requestOf(planOf({ elsewhere: new Map() }))).toBeDefined();
+  });
+
   it('fills every member the schema requires, and no other', () => {
     // The schema's `required` lists all thirteen and the branch is
     // `additionalProperties: false`, so a missing one and an invented one are

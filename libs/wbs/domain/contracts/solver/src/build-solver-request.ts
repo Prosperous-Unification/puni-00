@@ -2,6 +2,7 @@ import {
   contractVersionOf,
   type DependencyEdge,
   type DependencyReach,
+  type Elsewhere,
   expandToLeaves,
   groupSlicesByLeaf,
   indexTree,
@@ -56,6 +57,12 @@ export interface SolverRequestPlan {
   readonly deadlines: ReadonlyMap<string, number>;
   /** The typed dependencies, resolved into edges beside the legacy ones. */
   readonly typed: readonly TypedDependency[];
+  /**
+   * Bookings elsewhere, as `ScheduleInput.elsewhere`. Wire 2 has no field
+   * for them, so a plan holding one is refused rather than solved as if its
+   * people were free (`share-people-across-projects` slice 5 adds wire 3).
+   */
+  readonly elsewhere?: Elsewhere;
 }
 
 /**
@@ -162,6 +169,16 @@ export function buildSolverRequest(
 ): BuiltSolverRequest {
   if (plan.slices.length === 0) {
     throw new Error('a canonical input with no slices spawns nothing and has no request');
+  }
+  // Proof: this refusal removed made `refuses a plan whose people are booked
+  // elsewhere, which wire 2 cannot carry` (`build-solver-request.test.ts`)
+  // build a request placing Ann across her booking; watched 2026-09-29.
+  // A listed person always holds a booking (`checkElsewhere`), so a map with
+  // anyone in it is a plan wire 2 cannot carry.
+  if ((plan.elsewhere?.size ?? 0) > 0) {
+    throw new Error(
+      'solver wire 2 carries no bookings elsewhere; a shared-people plan needs wire 3',
+    );
   }
 
   const index = indexTree(plan.rows);
