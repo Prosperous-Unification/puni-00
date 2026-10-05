@@ -38,7 +38,7 @@ export type {
   ConversationTurn,
 } from './conversation-store';
 export { conversationAllowance } from './conversation-store';
-export type { DraftCleanupPlan } from './draft-retention';
+export type { DraftCleanupOutcome, DraftCleanupPlan } from './draft-retention';
 export { inspectExpiredDrafts, purgeExpiredDrafts } from './draft-retention';
 export type {
   AmbiguousRetentionSubject,

@@ -86,17 +86,33 @@ function nonblank(expression: string): string {
 const turnContent = nonblank('content');
 const operationContent = `(${nonblank('message')} OR ${nonblank("coalesce(reply, '')")})`;
 const previewContent = nonblank('body');
+/**
+ * Conversation text is request content of the subject whose `draft_id` owns the conversation:
+ * the anonymous turns and operations written before sign-in or a proposal submission.
+ */
+function conversationContentTimes(draftId: string): string {
+  return `SELECT turn.created_at FROM conversation AS talk
+      JOIN conversation_turn AS turn ON turn.conversation_id = talk.id
+      WHERE talk.draft_id = ${draftId} AND ${nonblank('turn.content')}
+    UNION ALL SELECT step.created_at FROM conversation AS talk
+      JOIN conversation_operation AS step ON step.conversation_id = talk.id
+      WHERE talk.draft_id = ${draftId}
+        AND (${nonblank('step.message')} OR ${nonblank("coalesce(step.reply, '')")})`;
+}
+// Proof: removing the conversation_turn branch left the turn-only draft request uncovered in the coverage test.
 const requestHasContent = `(
   ${nonblank('request.description')} OR ${nonblank('request.brief')}
   OR EXISTS (SELECT 1 FROM chat_turn WHERE request_id = request.id AND ${turnContent})
   OR EXISTS (SELECT 1 FROM chat_operation WHERE request_id = request.id AND ${operationContent})
   OR EXISTS (SELECT 1 FROM request_concept_preview WHERE request_id = request.id AND ${previewContent})
+  OR EXISTS (${conversationContentTimes('request.draft_id')})
   OR EXISTS (SELECT 1 FROM proposal_submission WHERE draft_id = request.draft_id))`;
 const requestEarliestContent = `(
   SELECT min(created_at) FROM (
     SELECT created_at FROM chat_turn WHERE request_id = request.id AND ${turnContent}
     UNION ALL SELECT created_at FROM chat_operation WHERE request_id = request.id AND ${operationContent}
-    UNION ALL SELECT created_at FROM request_concept_preview WHERE request_id = request.id AND ${previewContent}))`;
+    UNION ALL SELECT created_at FROM request_concept_preview WHERE request_id = request.id AND ${previewContent}
+    UNION ALL ${conversationContentTimes('request.draft_id')}))`;
 const pendingWithContent = `
   UPDATE retention_subject SET resolution = 'ambiguous', ambiguity = 'unanchored_content'
   WHERE subject_kind = 'software_request' AND resolution = 'pending_content'
@@ -162,12 +178,14 @@ const survivingContentBound = {
         JOIN intake_draft AS draft ON draft.id = request.draft_id WHERE request.id = ?1
       UNION ALL SELECT submission.created_at FROM software_request AS request
         JOIN proposal_submission AS submission ON submission.draft_id = request.draft_id
-        WHERE request.id = ?1)`,
+        WHERE request.id = ?1
+      UNION ALL ${conversationContentTimes('(SELECT draft_id FROM software_request WHERE id = ?1)')})`,
   proposal_submission: `
     SELECT min(created_at) AS bound FROM (
       SELECT submission.created_at FROM proposal_submission AS submission WHERE submission.id = ?1
       UNION ALL SELECT draft.created_at FROM proposal_submission AS submission
-        JOIN intake_draft AS draft ON draft.id = submission.draft_id WHERE submission.id = ?1)`,
+        JOIN intake_draft AS draft ON draft.id = submission.draft_id WHERE submission.id = ?1
+      UNION ALL ${conversationContentTimes('(SELECT draft_id FROM proposal_submission WHERE id = ?1)')})`,
 } as const;
 
 /**

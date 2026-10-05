@@ -4,22 +4,55 @@ import { statSync } from 'node:fs';
 import { Database } from 'bun:sqlite';
 
 import { existingDatabasePath, validateDatabase } from './checked-database';
+import { eraseConversationContent } from './conversation-store';
 
 interface CandidateRow {
   id: string;
   expires_at: number;
+  conversation_id: string | null;
+  turns: number;
+  completed_operations: number;
+  retained_operations: number;
 }
 
+/**
+ * Count-only plan for one expired-draft cohort. A draft whose conversation still holds an
+ * operation that is not completed (`unknown`, or `inflight` in a live process) is retained
+ * with its text blanked, so the reservation stays accountable; every other candidate is
+ * deleted with its conversation, turns and completed operations.
+ */
 export interface DraftCleanupPlan {
   cutoff: number;
   eligibleDrafts: number;
+  retainedDrafts: number;
+  conversations: number;
+  conversationTurns: number;
+  completedOperations: number;
+  retainedOperations: number;
   fingerprint: string;
 }
 
+export interface DraftCleanupOutcome {
+  deletedDrafts: number;
+  retainedDrafts: number;
+  deletedConversations: number;
+  deletedConversationTurns: number;
+  deletedConversationOperations: number;
+  retainedOperations: number;
+}
+
+// A retained draft is blanked, and intake never stores a blank description, so `description <> ''`
+// keeps an already-retained draft out of later cohorts.
 const candidateQuery = `
-  SELECT draft.id, draft.expires_at
+  SELECT draft.id, draft.expires_at, talk.id AS conversation_id,
+    (SELECT count(*) FROM conversation_turn WHERE conversation_id = talk.id) AS turns,
+    (SELECT count(*) FROM conversation_operation
+      WHERE conversation_id = talk.id AND state = 'completed') AS completed_operations,
+    (SELECT count(*) FROM conversation_operation
+      WHERE conversation_id = talk.id AND state <> 'completed') AS retained_operations
   FROM intake_draft AS draft
-  WHERE draft.expires_at <= ? AND draft.consumed_at IS NULL
+  LEFT JOIN conversation AS talk ON talk.draft_id = draft.id
+  WHERE draft.expires_at <= ? AND draft.consumed_at IS NULL AND draft.description <> ''
     AND NOT EXISTS (SELECT 1 FROM proposal_submission WHERE draft_id = draft.id)
     AND NOT EXISTS (SELECT 1 FROM software_request WHERE draft_id = draft.id)
     AND NOT EXISTS (SELECT 1 FROM account_request WHERE draft_id = draft.id)
@@ -49,11 +82,34 @@ function planFor(
         identity.dev,
         identity.ino,
         cutoff,
-        candidates.map(({ id, expires_at }) => [id, expires_at]),
+        candidates.map((candidate) => [
+          candidate.id,
+          candidate.expires_at,
+          candidate.turns,
+          candidate.completed_operations,
+          candidate.retained_operations,
+        ]),
       ]),
     )
     .digest('hex');
-  return { plan: { cutoff, eligibleDrafts: candidates.length, fingerprint }, candidates };
+  const total = (pick: (candidate: CandidateRow) => number) =>
+    candidates.reduce((sum, candidate) => sum + pick(candidate), 0);
+  const retained = candidates.filter((candidate) => candidate.retained_operations > 0);
+  return {
+    plan: {
+      cutoff,
+      eligibleDrafts: candidates.length,
+      retainedDrafts: retained.length,
+      conversations: candidates.filter(
+        (candidate) => candidate.conversation_id !== null && candidate.retained_operations === 0,
+      ).length,
+      conversationTurns: total((candidate) => candidate.turns),
+      completedOperations: total((candidate) => candidate.completed_operations),
+      retainedOperations: total((candidate) => candidate.retained_operations),
+      fingerprint,
+    },
+    candidates,
+  };
 }
 
 /** Inspects an existing website database without migrating or recovering any chat operation. */
@@ -73,7 +129,7 @@ export function purgeExpiredDrafts(
   cutoff: number,
   expectedFingerprint: string,
   now: number,
-): { deletedDrafts: number } {
+): DraftCleanupOutcome {
   // Proof: the future-cutoff fixture fails when this guard is removed and then deletes a live draft.
   if (cutoff > now) throw new Error('Draft retention cutoff is in the future');
   const path = existingDatabasePath(databasePath, true, 'Draft retention');
@@ -87,14 +143,54 @@ export function purgeExpiredDrafts(
       if (plan.fingerprint !== expectedFingerprint)
         throw new Error('Draft retention plan changed; inspect again');
       const remove = database.query('DELETE FROM intake_draft WHERE id = ?');
+      const removeTurns = database.query('DELETE FROM conversation_turn WHERE conversation_id = ?');
+      const removeCompleted = database.query(
+        "DELETE FROM conversation_operation WHERE conversation_id = ? AND state = 'completed'",
+      );
+      const removeConversation = database.query('DELETE FROM conversation WHERE id = ?');
+      const blankDraft = database.query(
+        "UPDATE intake_draft SET description = '', brief = '' WHERE id = ?",
+      );
+      const outcome: DraftCleanupOutcome = {
+        deletedDrafts: 0,
+        retainedDrafts: 0,
+        deletedConversations: 0,
+        deletedConversationTurns: 0,
+        deletedConversationOperations: 0,
+        retainedOperations: 0,
+      };
       for (const candidate of candidates) {
+        if (candidate.conversation_id !== null) {
+          outcome.deletedConversationTurns += removeTurns.run(candidate.conversation_id).changes;
+          outcome.deletedConversationOperations += removeCompleted.run(
+            candidate.conversation_id,
+          ).changes;
+          if (candidate.retained_operations > 0) {
+            eraseConversationContent(database, candidate.id);
+            blankDraft.run(candidate.id);
+            outcome.retainedDrafts += 1;
+            outcome.retainedOperations += candidate.retained_operations;
+            continue;
+          }
+          outcome.deletedConversations += removeConversation.run(candidate.conversation_id).changes;
+        }
         const deletion = remove.run(candidate.id);
         // Proof: a patched second statement returning zero changes fails this guard and rolls back the first deletion.
         if (deletion.changes !== 1) throw new Error('Draft retention deletion count changed');
+        outcome.deletedDrafts += 1;
       }
+      // Proof: deleting non-completed operations too made the conversation purge test fail here with
+      // "Draft retention conversation counts changed"; with this guard also removed it reported 4
+      // deleted operations against a plan of 3.
+      if (
+        outcome.deletedConversations !== plan.conversations ||
+        outcome.deletedConversationTurns !== plan.conversationTurns ||
+        outcome.deletedConversationOperations !== plan.completedOperations
+      )
+        throw new Error('Draft retention conversation counts changed');
       // Proof: a second-delete statement fault leaves both drafts after rollback; removing BEGIN/ROLLBACK leaves the first deleted.
       database.run('COMMIT');
-      return { deletedDrafts: candidates.length };
+      return outcome;
     } catch (error) {
       database.run('ROLLBACK');
       throw error;

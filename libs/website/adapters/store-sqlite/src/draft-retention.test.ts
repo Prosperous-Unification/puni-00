@@ -111,6 +111,11 @@ test('unchanged explicit plan removes only its cohort', () => {
     const plan = inspectExpiredDrafts(databasePath, 200);
     expect(purgeExpiredDrafts(databasePath, plan.cutoff, plan.fingerprint, 200)).toEqual({
       deletedDrafts: 2,
+      retainedDrafts: 0,
+      deletedConversations: 0,
+      deletedConversationTurns: 0,
+      deletedConversationOperations: 0,
+      retainedOperations: 0,
     });
     expect(draftIds(databasePath)).toEqual([
       'consumed',

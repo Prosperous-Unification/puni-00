@@ -38,7 +38,14 @@ test('source command inspects and explicitly applies a reviewed plan', () => {
     expect(inspected.output).not.toMatch(/private|expired/);
     const applied = command('apply', databasePath, String(plan.cutoff), plan.fingerprint);
     expect(applied.exitCode).toBe(0);
-    expect(JSON.parse(applied.output)).toEqual({ deletedDrafts: 1 });
+    expect(JSON.parse(applied.output)).toEqual({
+      deletedDrafts: 1,
+      retainedDrafts: 0,
+      deletedConversations: 0,
+      deletedConversationTurns: 0,
+      deletedConversationOperations: 0,
+      retainedOperations: 0,
+    });
     const database = new Database(databasePath, { readonly: true });
     expect(
       database.query<{ count: number }, []>('SELECT count(*) AS count FROM intake_draft').get()
