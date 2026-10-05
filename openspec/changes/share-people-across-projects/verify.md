@@ -619,3 +619,32 @@ lint and OpenSpec all-validation passed again. Explicit changed/new-path Nx form
 passed after the audit correction, and `git diff --check` is clean. Self-review confirms the
 remaining historical test edits only update complete migration inventories or the newest-name
 expectation; existing migration scripts and rank recovery semantics are unchanged.
+
+### Canonical-gate correction: recovery CLI declared test inputs
+
+At committed head `8f273875d2895b18fddf6835b65612dadb950540`, the gate's existing
+outside-project read audit correctly refused `wbs-store-sqlite:test` because it omitted
+`apps/wbs/be-01/src/shared-people-rollback-cli.ts`. `shared-people-rollback.db.test.ts`
+intentionally resolves that source with `new URL` and launches it with `Bun.spawn` to test
+real-process recovery, exclusive/private file creation, environment/argument refusal and backup
+read failures. Both `test` and `test:api` execute this DB test, so both now explicitly declare
+the single CLI source input. Unit and conformance-only targets do not execute it. Runtime code,
+audit logic and safety checks are unchanged; no mirrored test is added.
+
+The exact missing-input production audit was watched RED (0 pass / 1 fail, exit 1), then GREEN
+(1 pass / 0 fail, two assertions, exit 0, 1.74s) after declaration. Its existing negative proves
+that removing this input is detected; this is a dependency declaration fix, not a new check.
+
+| Command                                                                                                                                                                                      | Observed outcome                                |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| From `tools/tool-devsync`: `NX_DAEMON=false bun test --preload ../test/scratch/preload.ts --timeout=30000 --test-name-pattern 'names every file a suite reads from outside its own project'` | RED before / GREEN after as above               |
+| From `tools/tool-devsync`: `NX_DAEMON=false bun test --preload ../test/scratch/preload.ts --timeout=30000 src/workspace-targets.test.ts`                                                     | 22 pass / 0 fail, 74 assertions, exit 0 (2.52s) |
+| From `libs/wbs/adapters/store-sqlite`: `bun test src/shared-people-rollback.db.test.ts --test-name-pattern 'combined recovery CLI'`                                                          | 4 pass / 0 fail, 30 assertions, exit 0 (2.50s)  |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-store-sqlite:lint --skip-nx-cache --output-style=static`                                                                           | passed, exit 0 (14.0s)                          |
+| `git diff --check`                                                                                                                                                                           | exit 0                                          |
+
+Changed-path Nx format write/check passed for `project.json` and this verification artifact, exit 0.
+
+Typecheck/build were not repeated for this test-input-only metadata correction; application
+behavior and TypeScript are unchanged. The coordinator will rerun the canonical exact-head
+h2puni gate on the corrected commit before merge. Trusted activation remains deferred.
