@@ -97,6 +97,51 @@ test.describe('the project settings control, in a browser', () => {
     await page.unrouteAll({ behavior: 'wait' });
   });
 
+  test('waits for the initial plan read before opening settings and keeps priority drafts', async ({
+    page,
+  }) => {
+    let releaseRead = (): void => {
+      throw new Error('the read promise executor did not run');
+    };
+    const readHeld = new Promise<void>((resolve) => {
+      releaseRead = resolve;
+    });
+    await page.route('**/api/projects/*/work-items', async (route) => {
+      if (route.request().method() === 'GET') await readHeld;
+      await route.continue();
+    });
+
+    try {
+      await freshProject(page);
+      const control = page.getByRole('button', { name: 'Project settings' });
+      await expect(control).toBeDisabled();
+      await control.click({ force: true });
+      await expect(page.getByRole('dialog', { name: 'Project settings' })).toHaveCount(0);
+
+      const readCompleted = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'GET' &&
+          /\/api\/projects\/[^/]+\/work-items$/.test(response.url()) &&
+          response.ok(),
+      );
+      releaseRead();
+      await readCompleted;
+      await expect(control).toBeEnabled();
+      await control.click();
+      const dialog = page.getByRole('dialog', { name: 'Project settings' });
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole('tab', { name: 'Priorities' }).click();
+      await expect(dialog.getByLabel('Name of band 1')).toHaveValue('Critical');
+      await expect(dialog.getByLabel('Name of band 5')).toHaveValue('Lowest');
+      await dialog.getByLabel('Name of band 1').fill('Release blockers');
+      await dialog.getByRole('tab', { name: 'Steps' }).click();
+      await dialog.getByRole('tab', { name: 'Priorities' }).click();
+      await expect(dialog.getByLabel('Name of band 1')).toHaveValue('Release blockers');
+    } finally {
+      releaseRead();
+    }
+  });
+
   test('the toolbar keeps its 1280 budget with one settings control', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await freshProject(page);
