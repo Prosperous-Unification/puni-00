@@ -143,6 +143,7 @@ export class ChainSnapshotRepository implements ChainSnapshotStore {
             access.kind === 'legacy'
               ? 'isolated'
               : readCapacityMode(db, access.scope.organizationId);
+          // Proof: disabling target selection failed `never lists organization projects or ranks for isolated or legacy targets` after the human read succeeded.
           const readable =
             mode === 'isolated'
               ? [target]

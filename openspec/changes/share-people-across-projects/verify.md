@@ -792,3 +792,8 @@ target. That redundant core branch was removed rather than keeping an unbreakabl
 Full canonical gate, build, live deployment and broader runtime/cache consumers were not run for
 this bounded task. The controller owns exact-head integration gate and independent review.
 `SUPPORTED_CAPACITY_MODES` and all activation boundaries remain isolated-only.
+
+Review follow-up: added the missing adjacent `Proof:` comment to background isolated target
+selection, referencing its already-observed independent mutation. No behavior changed. Repeated
+the exact six-file ESLint command (exit 0), actual store-sqlite Nx typecheck (exit 0) and focused
+chain/application suite (37 pass, 0 fail, 115 assertions, exit 0).
