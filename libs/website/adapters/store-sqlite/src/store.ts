@@ -6,12 +6,38 @@ import type { ChatTurn, ProposalStatus, SubmissionView } from '@website/contract
 import { Database } from 'bun:sqlite';
 
 import { busyTimeoutMilliseconds } from './checked-database';
+import {
+  admitConversationOperation,
+  completeConversationOperation,
+  type ConversationAdmission,
+  type ConversationAdmissionRequest,
+  conversationAllowance,
+  type ConversationOperationRecord,
+  type ConversationRecord,
+  type ConversationTurn,
+  findConversation,
+  findConversationOperation,
+  findLatestConversationOperation,
+  handOffConversation,
+  listConversationTurns,
+  markConversationOperationUnknown,
+  recoverConversationOperations,
+} from './conversation-store';
 import { websiteMigrations } from './migration-catalogue';
 import {
   anchorRequestContent,
   backfillRetentionSubjects,
   insertRetentionSubject,
 } from './request-retention';
+export type {
+  ConversationAdmission,
+  ConversationAdmissionRequest,
+  ConversationOperationRecord,
+  ConversationPricing,
+  ConversationRecord,
+  ConversationTurn,
+} from './conversation-store';
+export { conversationAllowance } from './conversation-store';
 export type { DraftCleanupPlan } from './draft-retention';
 export { inspectExpiredDrafts, purgeExpiredDrafts } from './draft-retention';
 export type {
@@ -153,6 +179,48 @@ export class WebsiteStore {
     // Proof: removing this restart update made the paid in-flight restart test retain a resumable operation.
     // An interrupted server process cannot prove final provider usage or safely resume its old stream.
     this.database.run("UPDATE chat_operation SET state = 'unknown' WHERE state = 'inflight'");
+    // Proof: deleting this recovery made the conversation restart test find `inflight`.
+    recoverConversationOperations(this.database);
+  }
+
+  /** See {@link admitConversationOperation}. */
+  admitConversationOperation(request: ConversationAdmissionRequest): ConversationAdmission {
+    return admitConversationOperation(this.database, request);
+  }
+
+  /** See {@link completeConversationOperation}. */
+  completeConversationOperation(
+    id: string,
+    reply: string,
+    actualMicroUsd: number | null,
+    now: number,
+    truncated: boolean,
+  ): boolean {
+    return completeConversationOperation(this.database, id, reply, actualMicroUsd, now, truncated);
+  }
+
+  /** See {@link markConversationOperationUnknown}. */
+  markConversationOperationUnknown(id: string): boolean {
+    return markConversationOperationUnknown(this.database, id);
+  }
+
+  findConversation(draftId: string): ConversationRecord | null {
+    return findConversation(this.database, draftId);
+  }
+
+  listConversationTurns(conversationId: string): ConversationTurn[] {
+    return listConversationTurns(this.database, conversationId);
+  }
+
+  findConversationOperation(
+    conversationId: string,
+    idempotencyKey: string,
+  ): ConversationOperationRecord | null {
+    return findConversationOperation(this.database, conversationId, idempotencyKey);
+  }
+
+  findLatestConversationOperation(conversationId: string): ConversationOperationRecord | null {
+    return findLatestConversationOperation(this.database, conversationId);
   }
 
   /** Admits one account-owned, request-scoped chat operation and its optional provider reservation. */
@@ -464,6 +532,8 @@ export class WebsiteStore {
         .query('UPDATE intake_draft SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL')
         .run(now, draft.id);
       if (consumed.changes !== 1) throw new Error('Draft consumption was not atomic');
+      // Proof: removing this handoff left the conversation `open` in the handoff test.
+      handOffConversation(this.database, draft.id);
       this.database
         .query(
           'INSERT INTO submission_replay (claim_hash, idempotency_key, body_hash, receipt, expires_at) VALUES (?, ?, ?, ?, ?)',
@@ -620,7 +690,7 @@ export class WebsiteStore {
         .get(accountId);
       const activeSite = this.database
         .query<{ count: number }, []>(
-          'SELECT count(*) AS count FROM provider_call WHERE settled_micro_usd IS NULL',
+          'SELECT (SELECT count(*) FROM provider_call WHERE settled_micro_usd IS NULL) + (SELECT count(*) FROM conversation_operation WHERE reserved_micro_usd IS NOT NULL AND settled_micro_usd IS NULL) AS count',
         )
         .get();
       // Proof: summing by account instead of request made the second-request allowance test fail.
@@ -634,19 +704,20 @@ export class WebsiteStore {
           'SELECT COALESCE(SUM(COALESCE(settled_micro_usd, reserved_micro_usd)), 0) AS total FROM provider_call WHERE account_id = ? AND utc_day = ?',
         )
         .get(accountId, utcDay);
+      // The site-day ceiling is shared with anonymous conversation reservations.
       const siteDay = this.database
         .query<{ total: number }, [string]>(
-          'SELECT COALESCE(SUM(COALESCE(settled_micro_usd, reserved_micro_usd)), 0) AS total FROM provider_call WHERE utc_day = ?',
+          'SELECT (SELECT COALESCE(SUM(COALESCE(settled_micro_usd, reserved_micro_usd)), 0) FROM provider_call WHERE utc_day = ?1) + (SELECT COALESCE(SUM(COALESCE(settled_micro_usd, reserved_micro_usd)), 0) FROM conversation_operation WHERE utc_day = ?1) AS total',
         )
         .get(utcDay);
       if (!activeAccount || !activeSite || !brief || !accountDay || !siteDay)
         throw new Error('Provider reservation query failed');
       if (
         activeAccount.count >= 1 ||
-        activeSite.count >= 4 ||
+        activeSite.count >= conversationAllowance.siteUnsettledCalls ||
         brief.total + reservedMicroUsd > 500_000 ||
         accountDay.total + reservedMicroUsd > 1_000_000 ||
-        siteDay.total + reservedMicroUsd > 10_000_000
+        siteDay.total + reservedMicroUsd > conversationAllowance.siteDayMicroUsd
       )
         return null;
       const id = crypto.randomUUID();
