@@ -1,9 +1,29 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
-import type { ConceptTemplate, ConceptView, ConversationView, DraftView } from '@website/contracts';
-import { WebsiteStore } from '@website/store-sqlite';
+import {
+  type ConceptTemplate,
+  type ConceptView,
+  type ConversationProvider,
+  conversationTurnLimit,
+  type ConversationView,
+  deriveStage,
+  type DraftView,
+} from '@website/contracts';
+import {
+  type ConversationAdmission,
+  type ConversationPricing,
+  WebsiteStore,
+} from '@website/store-sqlite';
 import { createLocalJWKSet, errors, jwtVerify } from 'jose';
 
+import {
+  composeConversationRequest,
+  conversationReplyTokens,
+  priceConversationRequest,
+  simulateReply,
+  visitorMessageLimit,
+} from './conversation/request';
+import { createSourceHasher, selectClientAddress } from './conversation/source';
 import {
   type ProviderFetch,
   type ProviderRates,
@@ -11,6 +31,7 @@ import {
   replayReply,
   streamConfirmedReply,
 } from './conversation/stream';
+import { salesPromptVersion } from './conversation/system-prompt';
 
 export interface WebsiteApiConfig {
   databasePath: string;
@@ -29,6 +50,11 @@ export interface WebsiteApiConfig {
   openRouterInputUsdPerMillion?: number;
   openRouterOutputUsdPerMillion?: number;
   openRouterPrivacyVerified?: boolean;
+  /**
+   * Gateway hops in front of the API whose `X-Forwarded-For` entries are trusted; required for an
+   * `https` app origin. Zero (or absent on plain-HTTP loopback) uses the socket address.
+   */
+  trustedProxyHops?: number;
   providerFetch?: ProviderFetch;
   oidcIssuer?: string;
   oidcClientId?: string;
@@ -133,9 +159,15 @@ function readCookie(request: Request, name: string): string | null {
   return null;
 }
 
-/** Request handler for the private website API. The store is closed with close(). */
+/**
+ * Request handler for the private website API. The store is closed with close().
+ * `clientAddress` is the socket address, used as the conversation source when no proxy hops
+ * are trusted.
+ *
+ * @throws when origins, redirects, demo auth or `trustedProxyHops` are misconfigured.
+ */
 export function createWebsiteApi(config: WebsiteApiConfig): {
-  fetch(request: Request): Promise<Response>;
+  fetch(request: Request, clientAddress?: string): Promise<Response>;
   close(): void;
 } {
   if (!config.publicOrigin || !config.appOrigin || !config.appManualUrl)
@@ -169,6 +201,16 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     )
       throw new Error('Build redirect must be fixed to the app root or /studio route');
   }
+  if (
+    config.trustedProxyHops !== undefined &&
+    (!Number.isSafeInteger(config.trustedProxyHops) || config.trustedProxyHops < 0)
+  )
+    throw new Error('trustedProxyHops (TRUSTED_PROXY_HOPS) must be a nonnegative integer');
+  // Proof: removing this refusal let the https-without-hops startup test construct the API.
+  if (new URL(config.appOrigin).protocol === 'https:' && config.trustedProxyHops === undefined)
+    throw new Error('trustedProxyHops (TRUSTED_PROXY_HOPS) is required for an https app origin');
+  const trustedProxyHops = config.trustedProxyHops ?? 0;
+  const hashSource = createSourceHasher();
   const store = new WebsiteStore(config.databasePath);
   const draftCookie = config.secureCookies ? '__Host-puni_draft' : 'puni_draft';
   const replayCookie = config.secureCookies ? '__Host-puni_replay' : 'puni_replay';
@@ -177,6 +219,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
   const oidcCookie = config.secureCookies ? '__Host-puni_oidc' : 'puni_oidc';
   const admission = new Map<string, AdmissionWindow>();
   const chatAborts = new Map<string, AbortController>();
+  const conversationAborts = new Map<string, AbortController>();
   let operatorPasswordHash: Promise<string> | undefined;
 
   function cookie(name: string, value: string, maxAge: number): string {
@@ -527,6 +570,49 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     );
   }
 
+  /** Who may answer a new anonymous conversation turn under the current configuration. */
+  function selectConversationProvider():
+    { kind: 'paid'; rates: ProviderRates } | { kind: 'demo' | 'unconfigured' | 'disabled' } {
+    if (config.openRouterEnabled) {
+      const rates = readProviderRates();
+      return providerReady(rates) ? { kind: 'paid', rates } : { kind: 'unconfigured' };
+    }
+    return config.demoAuth ? { kind: 'demo' } : { kind: 'disabled' };
+  }
+
+  /** Maps a refused or replayed conversation admission to its typed response. */
+  function conversationRefusal(
+    admitted: Exclude<ConversationAdmission, { kind: 'started' }>,
+    unconfigured: boolean,
+  ): Response {
+    if (admitted.kind === 'completed') return replayReply(admitted.reply);
+    if (admitted.kind === 'exhausted') {
+      const reason = admitted.reason;
+      if (reason === 'unsettled') return failure('chat_unsettled', 409);
+      const code =
+        reason === 'turns'
+          ? 'turn_limit'
+          : reason === 'conversation_spend'
+            ? 'conversation_limit'
+            : reason === 'source_spend'
+              ? 'source_limit'
+              : 'site_limit';
+      return json({ code, exhaustedReason: reason }, 429);
+    }
+    const refusals = {
+      draft_unavailable: ['draft_unavailable', 401],
+      conflict: ['idempotency_conflict', 409],
+      inflight: ['chat_inflight', 409],
+      unknown: ['chat_unsettled', 409],
+      turn_limit: ['turn_limit', 429],
+      initial_required: ['initial_required', 409],
+      busy: ['provider_busy', 429],
+      provider_unavailable: [unconfigured ? 'provider_unconfigured' : 'provider_unavailable', 503],
+    } as const;
+    const [code, status] = refusals[admitted.kind];
+    return failure(code, status);
+  }
+
   /** Maps durable replay and refusal outcomes without starting another provider call. */
   function resolveChatAdmission(
     admitted: ReturnType<WebsiteStore['admitChatOperation']>,
@@ -693,7 +779,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     return csrf !== null && equal(digest(csrf), csrfHash);
   }
 
-  async function fetch(request: Request): Promise<Response> {
+  async function fetch(request: Request, clientAddress?: string): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
     const origin = request.headers.get('origin');
@@ -914,21 +1000,168 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const claim = draftClaim(request);
       const draft = claim ? store.findDraft(digest(claim), now) : null;
       if (!claim || !draft) return attachCors(failure('draft_unavailable', 401), origin);
-      // Until the claim-bound stream exists, no anonymous turn can be admitted, so the provider
-      // is `disabled` whatever the OpenRouter or demo settings say.
+      // No conversation row means no turn was ever admitted for this draft.
+      const conversation = store.findConversation(draft.id);
+      const turns = conversation
+        ? store.listConversationTurns(conversation.id).map(({ role, content }) => ({
+            role,
+            content,
+          }))
+        : [];
+      const visitorTurns = turns.filter((turn) => turn.role === 'user').length;
+      const initialKey = `initial:${draft.id}`;
+      const initialRecord = conversation
+        ? store.findConversationOperation(conversation.id, initialKey)
+        : null;
+      const latest = conversation ? store.findLatestConversationOperation(conversation.id) : null;
+      const selected = selectConversationProvider().kind;
+      const provider: ConversationProvider =
+        selected === 'paid' ? 'openrouter' : selected === 'demo' ? 'demo' : 'disabled';
       const view: ConversationView = {
-        stage: 'clarify',
-        turns: [],
-        visitorTurnsRemaining: 8,
-        provider: 'disabled',
+        stage: deriveStage(conversation?.state ?? 'open', visitorTurns),
+        turns,
+        visitorTurnsRemaining: Math.max(0, conversationTurnLimit - visitorTurns),
+        provider,
         brief: draft.brief,
         description: draft.description,
         csrfToken: draftCsrf(claim),
-        initialOperation: null,
-        latestOperation: null,
-        exhaustedReason: null,
+        initialOperation: {
+          state: initialRecord?.state ?? 'not-started',
+          idempotencyKey: initialKey,
+          truncated: initialRecord?.truncated ?? false,
+        },
+        latestOperation: latest
+          ? {
+              state: latest.state,
+              idempotencyKey: latest.idempotencyKey,
+              truncated: latest.truncated,
+              message: latest.message,
+            }
+          : null,
+        exhaustedReason: conversation?.exhaustedReason ?? null,
       };
       return attachCors(json(view, 200, { 'Cache-Control': 'no-store' }), origin);
+    }
+    if (path === '/conversation/stream' && request.method === 'POST') {
+      const claim = draftClaim(request);
+      if (!claim) return attachCors(failure('draft_unavailable', 401), origin);
+      // Proof: removing this CSRF check made the missing-CSRF conversation stream test answer 200.
+      if (!validDraftCsrf(request, claim))
+        return attachCors(failure('csrf_forbidden', 403), origin);
+      if (!allowSource('/conversation/stream', now))
+        return attachCors(failure('rate_limited', 429), origin);
+      const address = selectClientAddress(
+        request.headers.get('x-forwarded-for'),
+        clientAddress,
+        trustedProxyHops,
+      );
+      if (address === null) return attachCors(failure('source_unavailable', 400), origin);
+      const body = await readBody(request);
+      const suppliedKey = body?.['idempotencyKey'];
+      if (typeof suppliedKey !== 'string' || !/^[A-Za-z0-9:_-]{8,120}$/.test(suppliedKey))
+        return attachCors(failure('invalid_idempotency_key', 400), origin);
+      const initial = body?.['initial'] === true;
+      const draft = store.findDraft(digest(claim), now);
+      if (!draft) return attachCors(failure('draft_unavailable', 401), origin);
+      const message = initial
+        ? draft.description
+        : textField(body?.['message'], visitorMessageLimit);
+      if (!message) return attachCors(failure('invalid_message', 400), origin);
+      // Proof: using the browser's key for an initial operation made the replay test answer 429.
+      const idempotencyKey = initial ? `initial:${draft.id}` : suppliedKey;
+      const provider = selectConversationProvider();
+      const pricing: ConversationPricing =
+        provider.kind === 'paid'
+          ? {
+              kind: 'paid',
+              price: (history, stage) =>
+                priceConversationRequest(
+                  composeConversationRequest(history, message, stage),
+                  provider.rates,
+                ),
+            }
+          : provider.kind === 'demo'
+            ? { kind: 'free' }
+            : { kind: 'closed' };
+      const admitted = store.admitConversationOperation({
+        claimHash: digest(claim),
+        sourceHash: hashSource(address, now),
+        idempotencyKey,
+        bodyHash: digest(`${initial ? 'initial' : 'message'}:${message}`),
+        message,
+        initial,
+        promptVersion: salesPromptVersion,
+        pricing,
+        now,
+      });
+      if (admitted.kind !== 'started') {
+        const response = conversationRefusal(admitted, provider.kind === 'unconfigured');
+        response.headers.set('Cache-Control', 'no-store');
+        return attachCors(response, origin);
+      }
+      if (provider.kind === 'demo') {
+        const reply = simulateReply(admitted.stage, draft.description);
+        if (!store.completeConversationOperation(admitted.id, reply, null, Date.now(), false))
+          throw new Error('Demo conversation operation failed to complete');
+        const response = replayReply(reply);
+        response.headers.set('Cache-Control', 'no-store');
+        return attachCors(response, origin);
+      }
+      // Proof: the injected broken-store conversation test fails when this invariant is removed.
+      if (provider.kind !== 'paid')
+        throw new Error('Unavailable provider admitted a new conversation operation');
+      const outbound = composeConversationRequest(admitted.history, message, admitted.stage);
+      const response = streamConfirmedReply({
+        pin: {
+          key: String(config.openRouterKey),
+          model: String(config.openRouterModel),
+          provider: String(config.openRouterProvider),
+          fetch: config.providerFetch,
+        },
+        rates: provider.rates,
+        system: outbound.system,
+        messages: outbound.messages,
+        maxOutputTokens: conversationReplyTokens,
+        extraBody: { max_completion_tokens: conversationReplyTokens },
+        operationId: admitted.id,
+        aborts: conversationAborts,
+        abortOnDisconnect: true,
+        complete: (reply, actualMicroUsd, truncated) =>
+          store.completeConversationOperation(
+            admitted.id,
+            reply,
+            actualMicroUsd,
+            Date.now(),
+            truncated,
+          ),
+        markUnknown: () => {
+          store.markConversationOperationUnknown(admitted.id);
+        },
+        isCompleted: () =>
+          store.findConversationOperation(admitted.conversationId, idempotencyKey)?.state ===
+          'completed',
+      });
+      return attachCors(response, origin);
+    }
+    if (path === '/conversation/cancel' && request.method === 'POST') {
+      const claim = draftClaim(request);
+      if (!claim) return attachCors(failure('draft_unavailable', 401), origin);
+      if (!validDraftCsrf(request, claim))
+        return attachCors(failure('csrf_forbidden', 403), origin);
+      const body = await readBody(request);
+      const key = body?.['idempotencyKey'];
+      if (typeof key !== 'string' || !/^[A-Za-z0-9:_-]{8,120}$/.test(key))
+        return attachCors(failure('invalid_idempotency_key', 400), origin);
+      const draft = store.findDraft(digest(claim), now);
+      if (!draft) return attachCors(failure('draft_unavailable', 401), origin);
+      const conversation = store.findConversation(draft.id);
+      const operation = conversation ? store.findConversationOperation(conversation.id, key) : null;
+      if (!operation) return attachCors(failure('chat_unavailable', 404), origin);
+      if (operation.state !== 'inflight' || !store.markConversationOperationUnknown(operation.id))
+        return attachCors(failure('chat_not_running', 409), origin);
+      // Proof: dropping this abort left the provider signal live in the mounted cancel test.
+      conversationAborts.get(operation.id)?.abort();
+      return attachCors(json({ state: 'unknown' }, 200, { 'Cache-Control': 'no-store' }), origin);
     }
     if (path === '/draft/discard' && request.method === 'POST') {
       const claim = draftClaim(request);

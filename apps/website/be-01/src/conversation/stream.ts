@@ -221,6 +221,7 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     },
     cancel() {
       connected = false;
+      // Proof: dropping this abort left the provider call running in the mounted disconnect test.
       if (options.abortOnDisconnect) abort.abort();
     },
   });

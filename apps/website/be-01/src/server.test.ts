@@ -2224,7 +2224,7 @@ test('existing session claims a new intake on draft resume when public POST lack
 
 test('GET /conversation reads only the claimed draft and reports the disabled provider', async () => {
   const { config } = fixture();
-  // Demo replies and a full OpenRouter flag still report disabled until the conversation stream exists.
+  // The OpenRouter flag without its key, pins, rates and privacy flag reports disabled, even with demo auth.
   const api = createWebsiteApi({ ...config, demoAuth: true, openRouterEnabled: true });
   const { cookie, csrf } = await beginDraft(api);
   const owner = await api.fetch(
@@ -2241,7 +2241,11 @@ test('GET /conversation reads only the claimed draft and reports the disabled pr
     brief: '',
     description: 'A booking tool for a local studio',
     csrfToken: csrf,
-    initialOperation: null,
+    initialOperation: {
+      state: 'not-started',
+      idempotencyKey: expect.stringMatching(/^initial:[0-9a-f-]{36}$/) as unknown as string,
+      truncated: false,
+    },
     latestOperation: null,
     exhaustedReason: null,
   });

@@ -63,7 +63,13 @@ export interface ConversationAdmissionRequest {
 }
 
 export type ConversationAdmission =
-  | { kind: 'started'; id: string; stage: ConversationReplyStage; history: ConversationTurn[] }
+  | {
+      kind: 'started';
+      id: string;
+      conversationId: string;
+      stage: ConversationReplyStage;
+      history: ConversationTurn[];
+    }
   | { kind: 'completed'; reply: string }
   | { kind: 'exhausted'; reason: ConversationExhaustedReason }
   | {
@@ -382,7 +388,7 @@ export function admitConversationOperation(
           reservedMicroUsd,
           request.now,
         );
-      return { kind: 'started', id, stage, history };
+      return { kind: 'started', id, conversationId: conversation.id, stage, history };
     })
     .immediate();
 }
