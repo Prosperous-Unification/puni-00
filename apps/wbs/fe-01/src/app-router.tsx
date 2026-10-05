@@ -13,6 +13,8 @@ import { OrganizationPage } from '@/components/organization/organization-page';
 import { loadWindowFrom, localToday } from '@/components/people/load-window';
 import { PersonLoadSummary, usePeopleLoad } from '@/components/people/people-load-summary';
 import type { Roster } from '@/components/presence/presence-panel';
+import { SpacePage } from '@/components/spaces/space-page';
+import { SpacesPage } from '@/components/spaces/spaces-page';
 import { ProjectPage } from '@/components/wbs/project-page';
 import type { SessionRuntime } from '@/runtime/session-runtime';
 
@@ -132,6 +134,27 @@ const organizationRoute = createRoute({
   },
 });
 
+/** The organization's spaces, at `/spaces` (`add-spaces`). */
+const spacesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/spaces',
+  component: function SpacesRoute() {
+    const { account, nav } = spacesRoute.useRouteContext();
+    return <SpacesPage nav={nav} account={account} />;
+  },
+});
+
+/** One space, at `/spaces/$spaceId`; `all` is the virtual All projects. */
+const spaceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/spaces/$spaceId',
+  component: function SpaceRoute() {
+    const { account, nav } = spaceRoute.useRouteContext();
+    const { spaceId } = spaceRoute.useParams();
+    return <SpacePage key={spaceId} spaceId={spaceId} nav={nav} account={account} />;
+  },
+});
+
 const PersonLoadPage = lazy(async () => ({
   default: (await import('@/components/people/person-load-page')).PersonLoadPage,
 }));
@@ -160,6 +183,8 @@ const routeTree = rootRoute.addChildren([
   projectRoute,
   directoryRoute,
   organizationRoute,
+  spacesRoute,
+  spaceRoute,
   personLoadRoute,
 ]);
 

@@ -528,7 +528,6 @@ export function ProjectPage({
     };
   }, [projectOwner, selected]);
   const toastApi = useToasts();
-  const pushToast = toastApi.pushToast;
   /**
    * The rename in progress, or null while the picker is showing.
    *
@@ -595,18 +594,22 @@ export function ProjectPage({
   const installProjects = useCallback(
     (found: ProjectListEntry[]) => {
       const url = new URL(window.location.href);
-      const linkedProject = url.searchParams.has('stepNode')
-        ? url.searchParams.get('project')
-        : null;
+      // `/?project=<id>` opens a project (a space row links here); with
+      // `stepNode` it also focuses a step node.
+      const linkedProject = url.searchParams.get('project');
       const hasLinkedProject =
         linkedProject !== null && found.some((project) => project.id === linkedProject);
+      const brokenLink = linkedProject !== null && !hasLinkedProject;
       // Proof: bypassing this refusal changed the alert to "Step link is invalid."
       // while the missing project's URL was consumed by p1 (2026-09-27).
-      if (linkedProject !== null && !hasLinkedProject) {
+      if (brokenLink) {
+        const naming = url.searchParams.has('stepNode') ? 'Step link' : 'Project link';
         url.searchParams.delete('project');
         url.searchParams.delete('stepNode');
         window.history.replaceState(window.history.state, '', url.href);
-        pushToast({ kind: 'error', text: 'Step link names a project you cannot open.' });
+        // Said on the page rather than as a toast: toasts are drawn by the
+        // table, and a link that opens nothing leaves no table to draw them.
+        setError(`${naming} names a project you cannot open.`);
       }
       // The link's selection is a real choice. Keep it across a later reload,
       // just as choosing the project from the picker does.
@@ -622,6 +625,13 @@ export function ProjectPage({
         if (hasLinkedProject) {
           return linkedProject;
         }
+        // A link to a project the caller cannot open selects nothing: the page
+        // shows its empty state and the toast says why, rather than opening a
+        // project the link did not name.
+        // Proof, observed 2026-09-29: with this branch removed, `shows the
+        // empty state for a link to a project it cannot open` in
+        // `project-page.test.tsx` selected the remembered project instead.
+        if (brokenLink) return null;
         // The current selection and the remembered id are both claims, honoured
         // only while the list still contains them — a project deleted elsewhere
         // must not stay "selected" into a table asking for its tree. Then,
@@ -644,7 +654,7 @@ export function ProjectPage({
         return found.length === 1 ? (found[0]?.id ?? null) : null;
       });
     },
-    [readServices, pushToast],
+    [readServices],
   );
 
   const fetchProjects = useCallback(() => catalog.list(), [catalog]);
@@ -820,6 +830,8 @@ export function ProjectPage({
     rememberLastProject(readServices(), id);
     setSelected(id);
     setSearch(null);
+    // A choice answers whatever the page last said, such as a broken link.
+    setError(null);
     pickerBox.current?.blur();
   };
 

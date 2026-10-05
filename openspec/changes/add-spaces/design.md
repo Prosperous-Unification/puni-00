@@ -62,6 +62,12 @@ recorded here as known hints. Every membership write already gates the member an
 
 ## D4 — Resource, roll-ups, in progress now, fe
 
+**Cache TTL against the poll (Fable review of slice 5).** fe-01 polls every 60 s, so a 60 s TTL
+made every poll recompute every tree. The TTL is 5 min: a poll between writes is served from the
+cache, and a write this process commits still invalidates at once through the sequence or the
+revision. What the TTL alone bounds (another process's write mid-swap, a directory rename) is
+now stale for at most 5 min rather than 60 s. Rows and roll-ups keep one poll interval.
+
 **Cold roll-ups after a deploy.** Only optimized variants are cached; Fast has no schedule cache,
 so the first read of each project after a deploy computes its tree. Measured over 300-row
 projects, a cold chunk of 20 takes about 480 ms and 30 projects about 660 ms. That is accepted:
@@ -71,7 +77,7 @@ whole tables, fixed separately (#235).
 
 As the specs state. Roll-ups: `rollUpProject(tree)` over `WorkItemResource.tree()`; a
 per-process LRU of 2,000 entries keyed `(projectId, seq, project revision, reader access, SCHEDULER_CONTRACT_VERSION,
-ROLLUP_DTO_VERSION)` with a 60 s TTL; chunks of at most 20 from fe, 50 at the route. Rejected
+ROLLUP_DTO_VERSION)` with a 5 min TTL; chunks of at most 20 from fe, 50 at the route. Rejected
 there: a shared cache table, roll-ups inside the space read, and keying on `project.revision`
 alone (work items are not its satellites). The key carries both: the sequence moves on every
 plan write, the revision on project settings writes that publish no event.
