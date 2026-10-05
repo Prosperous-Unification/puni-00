@@ -131,3 +131,22 @@ A proposal submission through the existing route with the conversation's claim S
 
 - **WHEN** `OPENROUTER_ENABLED=0` and `DEMO_AUTH=0`
 - **THEN** `GET /conversation` reports `disabled` and a stream request answers 503 with no operation row created
+
+### Requirement: Draft discard
+
+The API SHALL expose `POST /draft/discard` to the exact configured app Origin, authorized by the browser draft claim cookie and the draft CSRF header. It SHALL expire the draft at the request time, answer `204` with the draft cookie expired (`Max-Age=0`, same attributes) and `Cache-Control: no-store`, and delete nothing: the stored content is left to the expired-draft purge and retention rules. Repeating it SHALL answer `204`. A consumed draft (submitted or attached to an account request) SHALL answer `409 draft_consumed` and change nothing. A foreign Origin SHALL answer 403, a missing or foreign CSRF header 403, and a missing or unknown claim 401, each without a cookie change.
+
+#### Scenario: Discard then read
+
+- **WHEN** the owner discards the draft and then reads `GET /draft`
+- **THEN** the read answers 401 and `GET /entry` reports the claim `expired`
+
+#### Scenario: Submitted draft
+
+- **WHEN** the claim's draft was already submitted as a proposal
+- **THEN** discard answers `409 draft_consumed` and the receipt replay still returns the same receipt
+
+#### Scenario: Forged discard
+
+- **WHEN** the discard arrives from a foreign Origin, without CSRF, or with another browser's claim
+- **THEN** it is refused and the owner's draft stays readable

@@ -108,3 +108,17 @@ When `GET /conversation` reports `provider: 'disabled'`, Build SHALL show the Ho
 
 - **WHEN** the API runs with `OPENROUTER_ENABLED=0` and `DEMO_AUTH=0`
 - **THEN** Build shows the disabled row and the manual link, and no stream request is sent on Send because there is no Send
+
+### Requirement: Start over
+
+Build SHALL offer a quiet `[ Start over ]` action for a saved anonymous request. Activating it SHALL ask inline, without a browser dialog, `Discard this request?` with `[ Keep ]` and `[ Discard ]`, move focus to `Keep`, and return focus to `Start over` on `Keep`. `Discard` SHALL call the draft discard route and then navigate to the site's `/#request` Home prompt. Every control SHALL be keyboard operable and at least 44 px. A refused discard SHALL show its reason and keep the conversation.
+
+#### Scenario: Discard
+
+- **WHEN** the visitor confirms `Discard`
+- **THEN** the draft cookie is gone, the browser lands on the site's `/#request`, and reopening Build redirects to Home with `entry=missing`
+
+#### Scenario: Keep
+
+- **WHEN** the visitor chooses `Keep`
+- **THEN** nothing is sent, the conversation is unchanged and focus returns to `Start over`
