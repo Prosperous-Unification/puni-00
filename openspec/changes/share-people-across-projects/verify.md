@@ -272,7 +272,11 @@ hardlink-sensitive devsync tests stay on the ext4 device.
 Astra identified a receiver parity mismatch: schema and Python accepted `{"ana": []}`
 while Bun rejected it. **Ruling:** An empty list under a non-empty person key is legal
 and occupies nothing, consistent with the existing schema/Python boundary. Builders may
-omit these entries during canonicalization. Bun now follows this rule, both schema
+omit these entries during canonicalization. Wire validation accepts an empty calendar;
+publication with `canonicalInput` additionally requires the exact canonical projection.
+Thus a superfluous empty entry against canonical `{}` is refused by the existing
+canonical-booking equality check, whose dropped-authored-bookings injected-fault proof
+already establishes that this check can fail. Bun now follows this rule, both schema
 copies state it explicitly, and the shared valid-two-slices fixture carries an empty
 calendar for its selected person.
 
