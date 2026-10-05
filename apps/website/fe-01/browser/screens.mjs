@@ -404,6 +404,8 @@ try {
         await page.route(`${state.stack.api}/session`, (route) => route.abort());
       await page.goto(`${state.stack.app}${state.path}`, { waitUntil: 'domcontentloaded' });
       if (state.demoSignIn) {
+        // The live anonymous harness keeps the optional sign-in behind a bar control.
+        await page.getByRole('button', { name: '[ Sign in ]' }).click();
         await page.locator('#demo-email').fill(`screens-${String(Date.now())}@example.test`);
         await page.getByRole('button', { name: /Enter local demo/ }).click();
       }
