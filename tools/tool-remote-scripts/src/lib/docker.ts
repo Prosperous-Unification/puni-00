@@ -907,3 +907,49 @@ export function migrateDownCommand(container: string, baseline: string): string[
   }
   return ['exec', container, 'bun', 'run', 'src/migrate-down-cli.ts', `--to=${baseline}`];
 }
+
+/**
+ * Incoming runtime capability; only an absent CLI under readable source denotes an isolated older release.
+ * Proof: removing the symlink or source guard fails the physical dangling-link/missing-source negatives.
+ */
+export function capacityModesCommand(container: string): string[] {
+  return [
+    'exec',
+    container,
+    'sh',
+    '-c',
+    'if test -f src/capacity-modes-cli.ts; then bun run src/capacity-modes-cli.ts; elif test -e src/capacity-modes-cli.ts || test -L src/capacity-modes-cli.ts; then exit 73; elif test -d src && test -r src && test -x src; then printf \'["isolated"]\\n\'; else exit 74; fi',
+  ];
+}
+
+/**
+ * Reads real SQLite encodings without relying on the incoming release's decoder. An absent old
+ * column denotes isolated mode; a present malformed encoding or unreadable database throws.
+ * Proof: forcing old-column detection hides real shared counts; mutable opening creates the absent database.
+ */
+export function storedCapacityModesCommand(container: string): string[] {
+  return [
+    'exec',
+    container,
+    'bun',
+    '-e',
+    `import { Database } from 'bun:sqlite';
+const path = process.env.DB_PATH;
+if (!path) throw new Error('DB_PATH must be set');
+const db = new Database(path, { readonly: true });
+try {
+  // Proof: treating a missing table as empty fails the physical malformed-schema negative.
+  const table = db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='organization'").get();
+  if (table === null) throw new Error('organization table is missing');
+  const column = db.query("SELECT name FROM pragma_table_info('organization') WHERE name='shared_people'").get();
+  const rows = column === null
+      ? db.query("SELECT 'isolated' AS mode, count(*) AS count FROM organization HAVING count(*) > 0").all()
+      : db.query('SELECT shared_people AS encoding, count(*) AS count FROM organization GROUP BY shared_people ORDER BY shared_people').all().map((row) => {
+          // Proof: bypassing decoding accepts corrupt modes in the physical SQLite probe test.
+          if (row.encoding !== 0 && row.encoding !== 1) throw new Error('invalid stored shared_people');
+          return { mode: row.encoding === 0 ? 'isolated' : 'shared', count: row.count };
+        });
+  console.log(JSON.stringify(rows));
+} finally { db.close(); }`,
+  ];
+}

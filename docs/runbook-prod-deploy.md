@@ -305,3 +305,38 @@ when a saved project is no longer owned by its organization or an author is no l
 ```sh
 docker exec be-01-<colour> bun run src/project-rank-rollback-cli.ts restore /data/project-ranks-<date>.json
 ```
+
+## Shared people rollback
+
+The intermediate storage release encodes isolated and shared modes but supports only isolated
+runtime operation. The swap reads actual stored encodings and refuses an isolated-only incoming
+release while any organization is shared, before migration and again after the outgoing color
+stops. A missing old-schema column means isolated; missing tables or malformed state refuse.
+
+The new column's down migration refuses while any shared organization **or any project rank**
+exists. Use the combined recovery procedure instead of removing ranks alone. It preserves all
+organization identities and semantic modes, including isolated, and every rank field:
+
+```sh
+docker exec be-01-<colour> bun run src/shared-people-rollback-cli.ts save /data/shared-people-<date>.json
+```
+
+Save holds one dedicated read-only snapshot and exclusively creates a private file. Choose a new
+path when a file already exists; existing recovery bytes are never overwritten. Secure the backup
+before removing state. Remove compares the complete saved state with the database under one
+immediate transaction, so any intervening mode, organization identity or rank change refuses:
+
+```sh
+docker exec be-01-<colour> bun run src/shared-people-rollback-cli.ts remove /data/shared-people-<date>.json
+docker exec be-01-<colour> bun run src/migrate-down-cli.ts --to=<baseline>
+```
+
+After forwarding the migration again, restore using a release that supports every saved mode.
+This intermediate release refuses backups containing shared mode before writing anything. Restore
+requires every saved organization still exists, all current modes isolated, no current ranks, and
+valid rank ownership and authors. Additional isolated organizations remain untouched; additional
+shared organizations refuse. Modes and ranks restore atomically:
+
+```sh
+docker exec be-01-<colour> bun run src/shared-people-rollback-cli.ts restore /data/shared-people-<date>.json
+```

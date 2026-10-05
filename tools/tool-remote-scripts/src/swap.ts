@@ -27,6 +27,7 @@ import {
   assertTierEnvComplete,
   backupDbCommand,
   backupSnapshotPath,
+  capacityModesCommand,
   composeUpArgs,
   containerName,
   CURRENT_ENV,
@@ -47,6 +48,7 @@ import {
   revokeAliasCommands,
   ROOT,
   SHARED_ENV_PATH,
+  storedCapacityModesCommand,
   storedHoldsCommand,
   storedReadinessesCommand,
   storedRelationshipTypesCommand,
@@ -557,7 +559,7 @@ const PRODUCTION_SWAP_IO: SwapExecutionIo = { sh, readPhase, writePhase, writeAt
  */
 interface StoredVocabulary {
   name: string;
-  key: 'type' | 'kind';
+  key: 'type' | 'kind' | 'mode';
   supportedCommand: (container: string) => string[];
   storedCommand: (container: string) => string[];
   recoveryCli: string;
@@ -603,6 +605,16 @@ const READINESS_VOCABULARY: StoredVocabulary = {
   runbookAnchor: 'work-item-status-facts-rollback',
 };
 
+/** Release-supported organization capacity modes, independent of stored numeric encoding. */
+const CAPACITY_MODES_VOCABULARY: StoredVocabulary = {
+  name: 'capacity modes',
+  key: 'mode',
+  supportedCommand: capacityModesCommand,
+  storedCommand: storedCapacityModesCommand,
+  recoveryCli: 'shared-people-rollback-cli.ts',
+  runbookAnchor: 'shared-people-rollback',
+};
+
 // Proof: `HOLD_KINDS_VOCABULARY` left out of this list made four cases fail,
 // among them `refuses an image that reads no holds while holds are stored, and
 // stops green` and `refuses a hold written after the first check once blue
@@ -614,6 +626,8 @@ const STORED_VOCABULARIES: readonly StoredVocabulary[] = [
   RELATIONSHIP_TYPES_VOCABULARY,
   HOLD_KINDS_VOCABULARY,
   READINESS_VOCABULARY,
+  // Proof: omitting this entry fails shared-mode refusal before migration and after outgoing stop.
+  CAPACITY_MODES_VOCABULARY,
 ];
 
 /** Parses the incoming release's supported values at the Docker output boundary. */
