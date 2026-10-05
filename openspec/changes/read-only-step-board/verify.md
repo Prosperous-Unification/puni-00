@@ -56,7 +56,14 @@ Vitest prints the existing native-config warning for extensionless imports and _
 
 `openspec validate read-only-step-board --strict --json` could not run locally:
 exit 127, openspec command missing. No dependency installation was performed.
-Required OpenSpec validation remains pending in the coordinator's canonical
+
+Subsequent targeted validation succeeded with the pinned CLI:
+`OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.12.0 validate read-only-step-board --strict --json`:
+exit 0; 1 passed, 0 failed, valid true, no issues.
+Astra's independent read-only review found no Important or Critical issues;
+the Minor missing validation evidence is recorded here.
+
+Full OpenSpec validation remains pending in the coordinator's canonical
 exact-SHA h2puni gate, along with full format/test/lint/typecheck/build and exact-head CI.
 Mounted UI, browser, build, full node/conformance suites and gate were not run for
 this pure slice. This artifact does not claim overall board acceptance.
