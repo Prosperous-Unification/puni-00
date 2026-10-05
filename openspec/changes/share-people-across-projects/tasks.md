@@ -88,7 +88,7 @@ recorded separately in verify.md; they do not establish runtime mode activation.
 Planning baseline: merged main `8bccd93bc537cffac85b53ea056a79f786558eda`. Implementation
 progress remains **17/23**. The steps below refine the existing two unchecked umbrella tasks;
 they are not additional completion checkboxes. Steps 6.1a/6.2a are implemented and proved below;
-6.1b–f and their paired proofs remain pending. Evidence is recorded by step id in verify.md.
+6.1b/6.2b are implemented and proved below; 6.1c–f and their paired proofs remain pending. Evidence is recorded by step id in verify.md.
 
 1. **6.1a — Mode-aware coherent read.** Test, then implement strict snapshot mode selection,
    human scope and project-owned background reads around the existing chain capability.
@@ -107,6 +107,9 @@ they are not additional completion checkboxes. Steps 6.1a/6.2a are implemented a
    `shared command preflight sees staged writes`. **6.2b:** replace the borrowed transaction
    with a fresh connection, or omit elsewhere from the live projection, and watch the staged
    refusal/arrangement or displaced-date assertions fail. No solver admission during the read.
+   **6.1b/6.2b complete:** coherent live tree and JSON/Markdown export values, snapshot human
+   revalidation with typed whole-request refusal, and borrowed staged arrangement/calendar reads;
+   independent displacement, borrower, authorization, export-reread and lifecycle proofs in verify.md.
 3. **6.1c — Incoming-calendar cache identity.** Test, then derive current shared basis and
    availability before load and space hits. Preserve existing key dimensions and reuse one
    coherent observation for an aggregate response. Tests:

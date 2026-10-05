@@ -58,8 +58,9 @@ describe('the closed case manifest', () => {
     }).toThrow('duplicate registered cases');
   });
 
-  it('contains the twenty source families and exact history mechanisms', () => {
+  it('contains the twenty-one source families and exact history mechanisms', () => {
     expect(Object.keys(CASE_MANIFEST)).toEqual([
+      'livePlans',
       'projects',
       'users',
       'directory',

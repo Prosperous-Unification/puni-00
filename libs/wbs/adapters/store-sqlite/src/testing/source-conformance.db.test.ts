@@ -60,7 +60,8 @@ import type {
   WriteStamp,
 } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
-import { DEFAULT_ESTIMATE_RULE } from '@wbs/domain';
+import { DEFAULT_ESTIMATE_RULE, schedule } from '@wbs/domain';
+import { createScheduler } from '@wbs/runtime-portable';
 import { describe, expect, it } from 'bun:test';
 import { asc, eq, sql } from 'drizzle-orm';
 
@@ -713,6 +714,32 @@ async function seedSubtreeRecords(source: SqliteSource): Promise<void> {
 }
 
 const openers: ExistingStoreOpeners = {
+  livePlans: async (caseId) => {
+    const { source, directory } = await seedSqliteSource();
+    const configured = source.bindLivePlans({
+      schedulerOf: () =>
+        createScheduler((rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
+          schedule(
+            rows,
+            edges,
+            slices,
+            floors,
+            pools,
+            reach,
+            deadlines,
+            typed,
+            undefined,
+            elsewhere,
+          ),
+        ),
+    });
+    return sqliteFixture(
+      withStores(source, { livePlans: configured.stores.livePlans }),
+      directory,
+      'livePlans',
+      caseId,
+    );
+  },
   projects: (caseId) => openSqliteCase('projects', caseId),
   users: (caseId) => openSqliteCase('users', caseId),
   capacity: (caseId) => openSqliteCase('capacity', caseId),
@@ -742,6 +769,15 @@ const declaration: SourceDeclaration = {
   revision: sourceRevision(),
   historyAdmission: 'immediate-busy',
   capabilities: {
+    livePlans: {
+      kind: 'offered',
+      gaps: [],
+      open: (caseId) => {
+        if (caseId !== 'livePlans.read:legacy-and-absence' || openers.livePlans === undefined)
+          throw new Error('unexpected live plan case');
+        return openers.livePlans(caseId);
+      },
+    },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
     users: { kind: 'offered', gaps: [], open: openers.users },
     capacity: { kind: 'offered', gaps: [], open: openers.capacity },

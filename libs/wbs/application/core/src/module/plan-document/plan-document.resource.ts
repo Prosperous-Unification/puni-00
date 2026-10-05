@@ -31,6 +31,7 @@ import type {
 } from '../../ports/directory-store';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Project } from '../../ports/project-store';
+import type { PlanDocumentReads } from '../../ports/shared-people-values';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
 
 type TreeEndpoint = NonNullable<WorkItemTree['typedDependencies']>[number]['predecessor'];
@@ -115,36 +116,37 @@ export class PlanDocumentService {
     tree: WorkItemTree,
     access: ResourceAccess,
   ): Promise<PlanDocumentExport> {
-    const coded: PlanDocument['steps'] = [];
-    const uncoded: { id: string; name: string }[] = [];
-    for (const step of tree.steps) {
-      // Proof: with this throw removed, `throws on a step read without a code
-      // key` received an export instead of an Error (2026-09-27).
-      if (step.code === undefined) throw new Error(`step "${step.id}" was read without a code`);
-      // Proof: with this branch removed, `refuses to export a project holding
-      // an uncoded step, naming it` received ok: true, and the mounted be-01
-      // export received 500 instead of 409 (2026-09-27).
-      if (step.code === null) uncoded.push({ id: step.id, name: step.name });
-      else coded.push({ ...step, code: step.code });
-    }
-    if (uncoded.length > 0)
-      return {
-        ok: false,
-        error: 'uncoded_steps',
-        steps: uncoded,
-        command: STEP_CODE_BACKFILL_COMMAND,
-      };
+    const coded = codedTree(tree);
+    if (!coded.ok) return coded;
     return {
       ok: true,
-      value: await this.buildDocument(project, { ...tree, steps: coded }, access),
+      value: buildDocument(
+        project,
+        coded.value,
+        await this.readDocumentReads(project, access),
+        this.options.clock.now(),
+      ),
     };
   }
 
-  private async buildDocument(
+  /** Builds from detached export evidence and performs no store reads. */
+  exportCaptured(
     project: Project,
-    tree: WorkItemTree & { steps: PlanDocument['steps'] },
+    tree: WorkItemTree,
+    reads: PlanDocumentReads,
+  ): PlanDocumentExport {
+    const coded = codedTree(tree);
+    if (!coded.ok) return coded;
+    return {
+      ok: true,
+      value: buildDocument(project, coded.value, reads, this.options.clock.now()),
+    };
+  }
+
+  private async readDocumentReads(
+    project: Project,
     access: ResourceAccess,
-  ): Promise<PlanDocument> {
+  ): Promise<PlanDocumentReads> {
     const directory = this.options.directory;
     const read = <C extends DirectoryCatalog>(
       catalog: C,
@@ -163,69 +165,102 @@ export class PlanDocumentService {
       this.options.markers.list(project.id),
     ]);
     if (!markerRead.ok) throw new Error(`project "${project.id}" disappeared during export`);
-    const closure = referencedDirectory(tree, {
-      teams,
-      people,
-      tags,
-      services,
-      types,
-      externalSystems,
-    });
-    // Proof (2026-09-28): removing this guard made the missing-list export
-    // test receive a TypeError from .map instead of the named trusted-state error.
-    if (tree.typedDependencies === undefined)
-      throw new Error(`project "${project.id}" tree was read without typed dependencies`);
     return {
-      project,
-      ...tree,
-      typedDependencies: tree.typedDependencies.map(({ id, predecessor, successor, type }) => {
-        // Proof (2026-09-28): omitting this guard let the unknown-type tree
-        // export succeed; its trusted-relationship test failed.
-        if (type !== 'FS' && type !== 'SS' && type !== 'FF')
-          throw new Error(`unknown typed dependency type ${type}`);
-        return {
-          id,
-          predecessor: documentEndpoint(predecessor),
-          successor: documentEndpoint(successor),
-          // Proof: forcing FF to FS here made the memory import/export round
-          // trip expect FF but receive FS (1 failing test, 2026-09-28).
-          type,
-        };
-      }),
-      stepNodes: spellStepNodes(tree),
-      document: {
-        format: 'wbs-plan',
-        version: PLAN_DOCUMENT_VERSION,
-        exportedAt: new Date(this.options.clock.now()).toISOString(),
-      },
-      settings: {
-        name: project.name,
-        restricted: project.restricted,
-        estimateMethod: project.estimateMethod,
-        depReach: project.depReach,
-        pertWeights: project.pertWeights,
-        // Proof: dropping estimateRounding made the mounted JSON export return
-        // 500 instead of 200 before its unchanged project/workItems controls.
-        estimateRounding: project.estimateRounding,
-        startDate: project.startDate,
-        solutionRef: project.solutionRef,
-        optimizationEnabled: project.optimizationEnabled,
-        scheduleEngine: project.scheduleEngine,
-        scheduleObjective: project.scheduleObjective,
-      },
-      capacity: tree.teamCapacities.map(({ serviceTeamId, size }) => ({
-        teamId: serviceTeamId,
-        size,
-      })),
-      calendarMarkers: markerRead.value.map(({ id, date, name, color }) => ({
-        id,
-        date,
-        name,
-        color,
-      })),
-      directory: closure,
+      directory: { teams, people, tags, services, types, externalSystems },
+      markers: markerRead.value,
     };
   }
+}
+
+function codedTree(
+  tree: WorkItemTree,
+):
+  | { ok: true; value: WorkItemTree & { steps: PlanDocument['steps'] } }
+  | Extract<PlanDocumentExport, { ok: false }> {
+  const coded: PlanDocument['steps'] = [];
+  const uncoded: { id: string; name: string }[] = [];
+  for (const step of tree.steps) {
+    // Proof: with this throw removed, `throws on a step read without a code
+    // key` received an export instead of an Error (2026-09-27).
+    if (step.code === undefined) throw new Error(`step "${step.id}" was read without a code`);
+    // Proof: with this branch removed, `refuses to export a project holding
+    // an uncoded step, naming it` received ok: true, and the mounted be-01
+    // export received 500 instead of 409 (2026-09-27).
+    if (step.code === null) uncoded.push({ id: step.id, name: step.name });
+    else coded.push({ ...step, code: step.code });
+  }
+  if (uncoded.length > 0)
+    return {
+      ok: false,
+      error: 'uncoded_steps',
+      steps: uncoded,
+      command: STEP_CODE_BACKFILL_COMMAND,
+    };
+  return { ok: true, value: { ...tree, steps: coded } };
+}
+
+/** Serializes detached evidence without following any store capability. */
+function buildDocument(
+  project: Project,
+  tree: WorkItemTree & { steps: PlanDocument['steps'] },
+  reads: PlanDocumentReads,
+  exportedAt: number,
+): PlanDocument {
+  const closure = referencedDirectory(tree, reads.directory);
+  // Proof (2026-09-28): removing this guard made the missing-list export
+  // test receive a TypeError from .map instead of the named trusted-state error.
+  if (tree.typedDependencies === undefined)
+    throw new Error(`project "${project.id}" tree was read without typed dependencies`);
+  return {
+    project,
+    ...tree,
+    typedDependencies: tree.typedDependencies.map(({ id, predecessor, successor, type }) => {
+      // Proof (2026-09-28): omitting this guard let the unknown-type tree
+      // export succeed; its trusted-relationship test failed.
+      if (type !== 'FS' && type !== 'SS' && type !== 'FF')
+        throw new Error(`unknown typed dependency type ${type}`);
+      return {
+        id,
+        predecessor: documentEndpoint(predecessor),
+        successor: documentEndpoint(successor),
+        // Proof: forcing FF to FS here made the memory import/export round
+        // trip expect FF but receive FS (1 failing test, 2026-09-28).
+        type,
+      };
+    }),
+    stepNodes: spellStepNodes(tree),
+    document: {
+      format: 'wbs-plan',
+      version: PLAN_DOCUMENT_VERSION,
+      exportedAt: new Date(exportedAt).toISOString(),
+    },
+    settings: {
+      name: project.name,
+      restricted: project.restricted,
+      estimateMethod: project.estimateMethod,
+      depReach: project.depReach,
+      pertWeights: project.pertWeights,
+      // Proof: dropping estimateRounding made the mounted JSON export return
+      // 500 instead of 200 before its unchanged project/workItems controls.
+      estimateRounding: project.estimateRounding,
+      startDate: project.startDate,
+      solutionRef: project.solutionRef,
+      optimizationEnabled: project.optimizationEnabled,
+      scheduleEngine: project.scheduleEngine,
+      scheduleObjective: project.scheduleObjective,
+    },
+    capacity: tree.teamCapacities.map(({ serviceTeamId, size }) => ({
+      teamId: serviceTeamId,
+      size,
+    })),
+    calendarMarkers: reads.markers.map(({ id, date, name, color }) => ({
+      id,
+      date,
+      name,
+      color,
+    })),
+    directory: closure,
+  };
 }
 
 /**

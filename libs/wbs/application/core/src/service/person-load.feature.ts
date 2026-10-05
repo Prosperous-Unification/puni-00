@@ -20,6 +20,7 @@ import type { ProjectService } from '../module/project/project.resource';
 import type { WorkItemService } from '../module/work-item/work-item.resource';
 import type { ResourceAccess } from '../ports/organization-access';
 import type { ProjectRankStore } from '../ports/project-rank-store';
+import type { AccessRefused } from '../ports/shared-people-values';
 
 /** The longest window a load read answers, in calendar days between `from` and `to`. */
 export const LOAD_WINDOW_DAYS = 182;
@@ -168,12 +169,13 @@ export class PersonLoad {
     window: LoadWindow,
     actorId: string,
     access: ResourceAccess,
-  ): Promise<PersonLoadRead | null> {
+  ): Promise<PersonLoadRead | AccessRefused | null> {
     const person = (await this.opts.directory.listWithin('people', access)).find(
       (candidate) => candidate.id === personId,
     );
     if (person === undefined) return null;
     const readings = await this.readProjects(actorId, access);
+    if ('kind' in readings) return readings;
     const projects: PersonLoadRead['projects'][number][] = [];
     const theirs: Booking[] = [];
     for (const { project, rank, reading } of readings) {
@@ -212,9 +214,10 @@ export class PersonLoad {
     window: LoadWindow,
     actorId: string,
     access: ResourceAccess,
-  ): Promise<OrganizationLoadRead> {
+  ): Promise<OrganizationLoadRead | AccessRefused> {
     const people = await this.opts.directory.listWithin('people', access);
     const readings = await this.readProjects(actorId, access);
+    if ('kind' in readings) return readings;
     const byPerson = new Map<string, Booking[]>();
     for (const { reading } of readings) {
       if (reading.kind !== 'dated') continue;
@@ -258,7 +261,7 @@ export class PersonLoad {
   private async readProjects(
     actorId: string,
     access: ResourceAccess,
-  ): Promise<{ project: NamedProject; rank: number; reading: ProjectReading }[]> {
+  ): Promise<{ project: NamedProject; rank: number; reading: ProjectReading }[] | AccessRefused> {
     const listed = await this.opts.projects.listWithin(actorId, access);
     const byCreation = [...listed].sort(
       (a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
@@ -280,6 +283,7 @@ export class PersonLoad {
     const read: { project: NamedProject; rank: number; reading: ProjectReading }[] = [];
     for (const [index, { project }] of ordered.entries()) {
       const reading = await this.reading(project.id, project.revision, access);
+      if (reading?.kind === 'access_refused') return reading;
       if (reading !== null) {
         read.push({
           project: { projectId: project.id, name: project.name },
@@ -315,7 +319,7 @@ export class PersonLoad {
     projectId: string,
     revision: number,
     access: ResourceAccess,
-  ): Promise<ProjectReading | null> {
+  ): Promise<ProjectReading | AccessRefused | null> {
     const key = `${access.kind === 'scoped' ? `org:${access.scope.organizationId}` : 'legacy'}\u0000${projectId}`;
     const seq = await this.opts.workItems.latestSeq(projectId);
     const held = this.memo.get(key);
@@ -336,6 +340,8 @@ export class PersonLoad {
     if (tree === null) return null;
     // Never memoized: it holds no bookings worth keeping, and a memo entry
     // would outlive the reason it was refused.
+    // Proof: removing this branch failed mounted revocation: 403 became 200 with unavailable project output.
+    if ('kind' in tree && tree.kind === 'access_refused') return tree;
     if ('kind' in tree) return { kind: 'engine_unavailable' };
     const reading = readingOf(projectId, tree);
     this.memo.delete(key);

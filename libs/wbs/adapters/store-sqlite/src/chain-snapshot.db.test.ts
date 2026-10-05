@@ -15,6 +15,7 @@ import { sql } from 'drizzle-orm';
 import {
   ChainSnapshotRepository,
   createChainSnapshotStore,
+  createLivePlanStore,
   readChainSnapshotIn,
 } from './chain-snapshot';
 import { drizzleReadTransaction, openConnection, openDatabase, openReadOnlyConnection } from './db';
@@ -660,6 +661,95 @@ describe('the chain snapshot', () => {
       });
     } finally {
       client.close();
+    }
+  });
+});
+
+describe('detached live snapshot guards', () => {
+  function livePlans() {
+    return createLivePlanStore({
+      kind: 'owned',
+      openConnection: () => {
+        const connection = openReadOnlyConnection(path);
+        return {
+          ...connection,
+          close() {
+            try {
+              connection.db.run(sql`BEGIN`);
+              connection.db.run(sql`ROLLBACK`);
+              closed++;
+            } finally {
+              connection.close();
+            }
+          },
+        };
+      },
+      schedulerOf: () => fast,
+    });
+  }
+  const access = {
+    kind: 'scoped',
+    scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+  } as const;
+  it('closes its owned connection after successful detached projection', async () => {
+    expect((await livePlans().read('a3', access)).kind).toBe('shared');
+    expect(closed).toBe(1);
+  });
+  it('closes its owned connection after authorization refusal', async () => {
+    write("DELETE FROM organization_membership WHERE user_id = 'ada'");
+    expect(await livePlans().read('a3', access)).toEqual({
+      kind: 'access_refused',
+      refusal: 'not_a_member',
+    });
+    expect(closed).toBe(1);
+  });
+  it('closes its owned connection after dependency failure', async () => {
+    const broken = spyOn(ProjectRankRepository.prototype, 'orderIn').mockImplementation(() =>
+      Promise.reject(new Error('injected rank failure')),
+    );
+    try {
+      expect((await failureOf(livePlans().read('a3', access))).message).toBe(
+        'injected rank failure',
+      );
+      expect(closed).toBe(1);
+    } finally {
+      broken.mockRestore();
+    }
+  });
+  it('rejects an unreadable ranked live project', async () => {
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- fault calls original with the actual repository receiver.
+    const original = ProjectRepository.prototype.findInOrganization;
+    const broken = spyOn(ProjectRepository.prototype, 'findInOrganization').mockImplementation(
+      function (this: ProjectRepository, projectId, organizationId) {
+        return projectId === 'a1'
+          ? Promise.resolve(null)
+          : original.call(this, projectId, organizationId);
+      },
+    );
+    try {
+      expect((await failureOf(livePlans().read('a3', access))).message).toBe(
+        'rank names an unreadable project',
+      );
+    } finally {
+      broken.mockRestore();
+    }
+  });
+  it('rejects a live target omitted by its rank dependency', async () => {
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- fault calls original with the actual repository receiver.
+    const original = ProjectRankRepository.prototype.orderIn;
+    const broken = spyOn(ProjectRankRepository.prototype, 'orderIn').mockImplementation(
+      async function (this: ProjectRankRepository, organizationId) {
+        return (await original.call(this, organizationId)).filter(
+          (ranked) => ranked.projectId !== 'a3',
+        );
+      },
+    );
+    try {
+      expect((await failureOf(livePlans().read('a3', access))).message).toBe(
+        'live target disappeared inside its snapshot',
+      );
+    } finally {
+      broken.mockRestore();
     }
   });
 });

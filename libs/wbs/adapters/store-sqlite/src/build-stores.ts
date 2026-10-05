@@ -1,3 +1,5 @@
+import type { LivePlanStore } from '@wbs/core/ports/chain-snapshot-store';
+
 import { ActualRepository } from './actual';
 import { CalendarMarkerRepository } from './calendar-marker';
 import { CapacityRepository } from './capacity';
@@ -24,8 +26,10 @@ export function buildStores(
   db: Drizzle,
   gate: Gate,
   lateWrite: SqliteLateWriteSeam = inertSqliteLateWriteSeam,
+  livePlans?: LivePlanStore,
 ) {
   return {
+    ...(livePlans === undefined ? {} : { livePlans }),
     projects: new ProjectRepository(db, gate),
     users: new UserRepository(db, gate),
     directory: new DirectoryRepository(db, gate),

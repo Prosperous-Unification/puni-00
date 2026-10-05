@@ -1,4 +1,5 @@
 import type { Stores, TransactionalStores } from '@wbs/core';
+import { expect } from 'bun:test';
 
 import type { CaseId, CaseRegistration } from './case-manifest';
 import type { CaseFixture, SourceDeclaration } from './source-declaration';
@@ -12,6 +13,7 @@ import { eventLogRegistrations } from './stores/event-log';
 import { journalRegistrations } from './stores/journal';
 import { measureRegistrations } from './stores/measures';
 import { planEventRegistrations } from './stores/plan-events';
+import { type OpenCase, storeCase } from './stores/store-case';
 import { typedDependencyRegistrations } from './stores/typed-dependencies';
 export { DEPENDENCY_SURVIVOR_IDS } from './stores/dependencies';
 import { progressRegistrations } from './stores/progress';
@@ -27,6 +29,7 @@ import { userRegistrations } from './stores/users';
 import { workItemRegistrations } from './stores/work-items';
 
 export interface ExistingStoreOpeners {
+  readonly livePlans?: OpenCase<'livePlans'>;
   readonly projects: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['projects']>>;
   readonly users: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['users']>>;
   readonly capacity: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['capacity']>>;
@@ -66,6 +69,32 @@ export function existingStoreRegistrations(
   openers: ExistingStoreOpeners,
 ): readonly CaseRegistration[] {
   return [
+    ...(openers.livePlans === undefined
+      ? [{ family: 'livePlans' as const, caseId: 'livePlans.read:legacy-and-absence' as const }]
+      : [
+          storeCase(
+            'livePlans',
+            'livePlans.read:legacy-and-absence',
+            openers.livePlans,
+            async ({ port, seed }) => {
+              if (port === undefined) throw new Error('declared live plan capability is absent');
+              expect(await port.read(seed.projectIds[0], { kind: 'legacy' })).toEqual({
+                kind: 'isolated',
+              });
+              expect(await port.read('missing-project', { kind: 'legacy' })).toEqual({
+                kind: 'not_found',
+              });
+              expect(await port.readProject(seed.projectIds[0])).toEqual({ kind: 'isolated' });
+              expect(await port.readProject('missing-project')).toEqual({ kind: 'not_found' });
+              expect(await port.readExport(seed.projectIds[0], { kind: 'legacy' })).toEqual({
+                kind: 'isolated',
+              });
+              expect(await port.readExport('missing-project', { kind: 'legacy' })).toEqual({
+                kind: 'not_found',
+              });
+            },
+          ),
+        ]),
     ...projectRegistrations(openers.projects),
     ...userRegistrations(openers.users),
     ...capacityRegistrations(openers.capacity),

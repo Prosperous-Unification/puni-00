@@ -49,6 +49,7 @@ describe('the migrated existing store kits', () => {
     // Proof: before savedPlanRegistrations joined the production catalog, this
     // failed with exactly the two Task 6.1 IDs absent (`Expected - 2 / Received + 0`).
     expect(registrations.map(({ caseId }) => caseId)).toEqual([
+      'livePlans.read:legacy-and-absence',
       'projects.create:steps',
       'projects.update:scope',
       'projects.recordOpen:reader-order',

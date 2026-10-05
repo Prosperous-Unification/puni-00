@@ -3,7 +3,12 @@ import type { Logger } from 'drizzle-orm';
 
 import { buildStores } from './build-stores';
 import { type CaptureReadSeam, inertSqliteCaptureReadSeam } from './capture-read-seam';
-import { type Connection, openConnection as openDatabaseConnection } from './db';
+import { type ChainSnapshotOptions, createLivePlanStore } from './chain-snapshot';
+import {
+  type Connection,
+  openConnection as openDatabaseConnection,
+  openReadOnlyConnection,
+} from './db';
 import { OPEN, WriteCoordinator } from './gate';
 import { probeSchema } from './health-probe';
 import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
@@ -15,6 +20,10 @@ import { sqliteUnitOfWork } from './sqlite-unit-of-work';
 export interface SqliteSource extends Source<TransactionalStores> {
   readonly db: Connection['db'];
   readonly gate: WriteCoordinator;
+  /** Installs public and command readers together over this source's two transaction owners. */
+  bindLivePlans(
+    options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'>,
+  ): Source<TransactionalStores>;
 }
 
 /** Options that own every connection in one SQLite source lifetime. */
@@ -63,6 +72,23 @@ function openSqliteSourceWithSeams(
     db: process.db,
     gate: coordinator,
     stores,
+    bindLivePlans(scheduling) {
+      const publicPlans = createLivePlanStore({
+        ...scheduling,
+        kind: 'owned',
+        openConnection: () => openReadOnlyConnection(options.dbPath),
+      });
+      const commandPlans = createLivePlanStore({ ...scheduling, kind: 'borrowed', db: process.db });
+      return {
+        ...this,
+        stores: buildStores(process.db, coordinator, lateWrite, publicPlans),
+        uow: sqliteUnitOfWork(
+          process.db,
+          coordinator,
+          buildStores(process.db, OPEN, lateWrite, commandPlans),
+        ),
+      };
+    },
     history: {
       savedPlans: new SavedPlanRepository(
         {

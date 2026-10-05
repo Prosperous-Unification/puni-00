@@ -649,19 +649,20 @@ Typecheck/build were not repeated for this test-input-only metadata correction; 
 behavior and TypeScript are unchanged. The coordinator will rerun the canonical exact-head
 h2puni gate on the corrected commit before merge. Trusted activation remains deferred.
 
-## Runtime/cache progress — 6.1a/6.2a implemented; 6.1b–f pending
+## Runtime/cache progress — 6.1a–b/6.2a–b implemented; 6.1c–f pending
 
 Architecture baseline is merged main `8bccd93bc537cffac85b53ea056a79f786558eda`, after storage
 PR #265. Bounded 6.1a/6.2a implementation on `feat/shared-people-runtime` is recorded below.
-The parser count remains **17/23**, with 6.1/6.2 and UI/mode-route 7/8 unchecked. Steps 6.1b–f,
-durable fan-out and activation remain pending. Intent remains 379 words; no new glossary term,
-ADR, migration or release capability is added.
+The parser count remains **17/23**, with umbrella 6.1/6.2 and UI/mode-route 7/8 unchecked.
+Steps 6.1a–b/6.2a–b are implemented and proved; 6.1c–f, durable fan-out and activation remain
+pending. Intent remains 379 words; no new glossary term, ADR, migration or release capability is added.
 
-### Runtime proof status — 6.2a observed; 6.2b–f pending
+### Runtime proof status — 6.2a–b observed; 6.2c–f pending
 
 The 6.2a rows below were injected separately and observed RED; final focused restoration is
-37 pass / 0 fail. Exact tests and faults are recorded in the implementation evidence below.
-Rows 6.2b–f remain required future production-path negatives. A parse/load error does not count.
+37 pass / 0 fail. The 6.2b proof rows were also injected separately and observed RED; see the
+6.1b/6.2b evidence section below for exact commands and outcomes. Rows 6.2c–f remain required
+future production-path negatives. A parse/load error does not count.
 
 | Step | Production fault to inject                               | Required production-path test and expected failure                                   | Observation                                                                                     |
 | ---- | -------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
@@ -669,8 +670,8 @@ Rows 6.2b–f remain required future production-path negatives. A parse/load err
 | 6.2a | Remove scoped ownership/cross-reference validation       | Foreign project/person enters the chain or corrupt crossing input is accepted        | Observed exit 1: foreign person exposed; removed ownership/rank checks lost named refusal       |
 | 6.2a | Read mode/rank/assignments outside the owned snapshot    | Concurrent combined edit returns a mixed chain                                       | Observed exit 1: target start 2 instead of 3; separate mode connection tore rank/readable state |
 | 6.2a | Default malformed mode or skip snapshot close            | Corrupt mode returns dates, or refusal/throw leaks the read connection               | Observed exit 1: corrupt mode accepted; background close count 0 instead of 1                   |
-| 6.2b | Omit target elsewhere or its response projection         | Mounted tree/export loses displaced dates, holder or waiting count                   | Not run                                                                                         |
-| 6.2b | Replace command-bound readers with a fresh connection    | Arrange/preflight ignores staged writes and accepts or arranges the wrong plan       | Not run                                                                                         |
+| 6.2b | Omit target elsewhere or its response projection         | Mounted tree/export loses displaced dates, holder or waiting count                   | Observed RED; see 6.1b/6.2b evidence below                                                      |
+| 6.2b | Replace command-bound readers with a fresh connection    | Arrange/preflight ignores staged writes and accepts or arranges the wrong plan       | Observed RED; see 6.1b/6.2b evidence below                                                      |
 | 6.2c | Remove incoming basis from memo acceptance               | Warm load/space returns old B dates after only A changes                             | Not run                                                                                         |
 | 6.2c | Check cache before required influencer availability      | Warm available dates survive an engine-unavailable influencer                        | Not run                                                                                         |
 | 6.2c | Read aggregate projects from incompatible snapshots      | Concurrent upstream edit produces mutually inconsistent shared load/space bookings   | Not run                                                                                         |
@@ -704,10 +705,12 @@ the task ids and cases above are the acceptance contract, not claims that tests 
   typecheck, build and `format:check --all`; do not substitute a raw full Nx gate. Then record
   substantive exact-head CI and independent review.
 
-Runtime tests, mutation runs, scoped implementation checks, the implementation gate and live
-solver deployment/binding were not run for this documentation update. Delta sync/archive is
-pending because the end-state change is incomplete. Durable fan-out/event evidence, UI 7,
-mode route 8 and activation remain deferred requirements, not removed scope.
+For remaining 6.1c–f work, runtime tests, mutation runs, scoped implementation checks and the
+implementation gate have not run. This 6.1b slice's scoped checks and mutation evidence are
+recorded below; its canonical exact-head gate remains pending. Live solver deployment/binding
+was not run. Delta sync/archive is pending because the end-state change is incomplete. Durable
+fan-out/event evidence, UI 7, mode route 8 and activation remain deferred requirements, not
+removed scope.
 
 ### Planning-artifact validation
 
@@ -797,3 +800,121 @@ Review follow-up: added the missing adjacent `Proof:` comment to background isol
 selection, referencing its already-observed independent mutation. No behavior changed. Repeated
 the exact six-file ESLint command (exit 0), actual store-sqlite Nx typecheck (exit 0) and focused
 chain/application suite (37 pass, 0 fail, 115 assertions, exit 0).
+
+## Runtime 6.1b / 6.2b — detached live and export projection
+
+Bounded to live tree, JSON/Markdown export and borrowed arrange/calendar preflight. Core holds
+pure detached values; source composition binds ordinary read-only and admitted command readers
+with the same scheduler factory and optimization options. A human scope retains user identity
+and revalidates activation/membership on the snapshot DB before project/rank reads. Project-owned
+commands use a distinct method. Access refusal propagates as whole-request 403 through tree,
+export, load and space, without unavailable output or memo publication. Export captures full
+scoped catalogs only for export because saved-input `CapturedPerson` omits the live person's
+required `kind`; public tree payloads contain no export context. `exportedAt` stays generation time.
+
+Initial mounted REDs were observed before implementation: `shared tree and export agree`
+expected start/finish 3/4 but returned 0/1; staged arrange expected other/lower but returned
+lower/other. The first oversized preflight fixture (80m single estimate) received boundary 400
+and was discarded; valid three 30m estimates then exercised actual calendar 422 and rollback.
+The independent date and estimate tests separate arrangement from preflight.
+
+Authorization RED: `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts
+--test-name-pattern 'refuses revocation between'` returned 200 with concurrently edited upstream
+rows (start 7) instead of 403/not_a_member; 0 pass, 1 fail. After fixing the scope boundary, all six
+cold-cache callers refused. Revocation after snapshot authority preserves its authorized captured
+response; the next request refuses. Legacy activation races refuse; missing, unreadable or
+malformed marker and malformed stored role return 500 rather than legacy success.
+
+Structured export RED: `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts
+--test-name-pattern 'keeps structured export'` exited 1 (0 pass, 1 fail, 2 assertions): project/settings
+were the earlier project while catalogs/markers were later values. Removing the preliminary
+project lookup moved that fixture's repository hook inside BEGIN; it was moved to the actual
+`afterResolve` boundary, retaining expected Captured project/revision 7. JSON and Markdown then
+passed (2 pass, 5 assertions). Snapshot-adjacent project/directory/marker edits remain in the fixture.
+
+Observed independent R5 faults (each Bun child exit 1, source bytes restored in `finally`):
+
+| Guard or dependency              | Injected fault and observed failure                                                                                                                                  |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Target incoming calendar         | Omit target elsewhere input: mounted target start/finish 0/1 instead of 3/4.                                                                                         |
+| Optional waiting count           | Omit live waitingElsewhere projection: undefined instead of 1.                                                                                                       |
+| Borrowed command DB              | Replace borrower with dedicated fresh DB: staged order and staged-date order wrong; independent calendar expected 422, received 200.                                 |
+| Production installation          | Omit source.bindLivePlans: mounted target starts 0 instead of 3.                                                                                                     |
+| Captured optimized cache binding | Substitute process-bound cache reader: first response starts 4 instead of captured 3.                                                                                |
+| Owned BEGIN observation          | Omit owned transaction: metadata and cache-publication fixtures both mix newer writes.                                                                               |
+| Owned COMMIT                     | Omit commit: success/refusal close-time BEGIN fails because transaction remains active.                                                                              |
+| Owned ROLLBACK                   | Omit rollback: dependency-failure close-time BEGIN fails because transaction remains active.                                                                         |
+| Owned CLOSE                      | Omit close: all three lifecycle cases observe zero closes instead of one.                                                                                            |
+| Ranked live project              | Make repository return null for a ranked project, then remove guard: unrelated null dereference replaces named trusted-state refusal.                                |
+| Ranked live target               | Rank dependency omits target, then remove guard: live read resolves instead of throwing.                                                                             |
+| Legacy activation recheck        | Remove recheck: admission-to-snapshot activation yields 200 instead of 403.                                                                                          |
+| Scoped activation recheck        | Remove recheck after injected durable-marker reset: 200 instead of 403.                                                                                              |
+| Snapshot membership refusal      | Ignore refusal after concurrent removal: 200 with new upstream rows instead of 403.                                                                                  |
+| Tree/export wire refusal         | Remove each mapping independently: 500 instead of declared 403.                                                                                                      |
+| Load/space refusal projection    | Restore generic kind-to-unavailable conversion separately: 200 with unavailable output instead of 403.                                                               |
+| Export project evidence          | Reread project after snapshot: Later project/revision 8 instead of Captured project/revision 7.                                                                      |
+| Export directory evidence        | Reread people after snapshot: Later Ana instead of Local Ana.                                                                                                        |
+| Export marker evidence           | Reread markers after snapshot: Later marker instead of Captured marker.                                                                                              |
+| Isolated public fixture contract | Bypass public isolated tree: mounted disappearance returned 200 instead of 404; malformed core fields returned 200 instead of 500. Public fixture dispatch restored. |
+
+Fault logs are `/tmp/shared-people-live-proof-<fault>.log`; the implementer report records exact
+filenames. Marker/role parser guards are reused unchanged and retain their existing adjacent
+proofs; export's uncoded-step, missing-reference and typed-dependency guards are retained in the
+pure assembler and their 27 existing tests passed (68 assertions).
+
+Checks before the final isolated fixture correction:
+
+| Command                                                                                                                                                               | Fresh output                                                                                             |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `bun test` schedule-organization, chain-snapshot, person-load.feature, space.resource, work-item/module and module-boundaries test files                              | 118 passed, 0 failed, 293 assertions.                                                                    |
+| `bun test` both SQLite/memory source-conformance files and core module-boundaries test                                                                                | 161 passed, 0 failed, 11514 assertions after explicit memory absent-capability inventory correction.     |
+| `bun test libs/wbs/adapters/store-sqlite/src/assignment-scope.db.test.ts --test-name-pattern 'materializes only assigned'`                                            | 1 passed, 0 failed, 5 assertions. An earlier search in services.db matched zero tests and was discarded. |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-core,wbs-store-sqlite,wbs-conformance,wbs-be-01 --skip-nx-cache --output-style=static` | All 4 projects + 2 module dependencies passed, 39.8s.                                                    |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:build --skip-nx-cache --output-style=static`                                                          | Actual build + dependency passed, 5.2s.                                                                  |
+| `bunx eslint $(git diff --name-only -- '*.ts')`                                                                                                                       | Exit 0 after import/fixture fixes.                                                                       |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                              | Exit 0, 146 passed, 0 failed.                                                                            |
+
+The first broad export validation reported 121 passed / 2 failed because two isolated controller
+fixtures override public tree reads. Their expectations were preserved, dispatch fixed, and the
+focused two-case rerun passed. Final post-correction check output is recorded below.
+
+Fresh independent Astra review found no remaining important correctness issue; its focused rerun
+passed 96 tests / 349 assertions. The canonical exact-head host gate, CI secrets/migration checks,
+deployment and live solver binding remain unrun. Tasks 6.1/6.2 remain unchecked at 17/23; only
+inline 6.1b/6.2b are complete. c–f, shared activation, cache-basis/fan-out/admission/saved
+callback/UI behavior remain pending; supported modes still advertise isolated only. No migration,
+algorithm, saved hash address or stored-byte change.
+
+Final post-correction validation:
+
+| Command                                                                                                                                                                                                                         | Fresh output                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts apps/wbs/be-01/src/controller/project.controller.test.ts` | Exit 0; 123 passed, 0 failed, 417 assertions.                   |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-core,wbs-be-01 --skip-nx-cache --output-style=static`                                                                                            | Exit 0; both projects + both module dependencies passed, 33.1s. |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:build --skip-nx-cache --output-style=static`                                                                                                                    | Exit 0; build + dependency passed, 2.4s.                        |
+| `bunx eslint $(git diff --name-only -- '*.ts')`                                                                                                                                                                                 | Exit 0; no errors.                                              |
+| `bunx prettier --write $(git diff --name-only)` and `git diff --check`                                                                                                                                                          | Exit 0; final artifact formatting checked separately.           |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                                                        | Exit 0; 146 passed, 0 failed after D10/task/verification edits. |
+
+The first GitHub workspace gate run exposed two follow-up defects. The independent source
+conformance inventory omitted `livePlans.read:legacy-and-absence`, and the staged database
+regression relied on a single microtask to prove a detached read completed while the solver was
+blocked. Both failures reproduced locally before the corrections. The inventory now includes the
+case in its independent catalog and expected list; the regression awaits the read while the fake
+solver remains unresolved and releases it in `finally`.
+
+| Follow-up command                                                                                                                                    | Fresh output                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `bun test apps/wbs/be-01/src/services.db.test.ts --test-name-pattern 'returns a live plan read while its newly admitted solver is still unresolved'` | Exit 0; 1 passed, 0 failed, 2 assertions.                                                                       |
+| `bun test libs/wbs/application/conformance/src/stores/existing.test.ts libs/wbs/application/conformance/src/case-manifest.test.ts`                   | Exit 0; 4 passed, 0 failed.                                                                                     |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test -p wbs-conformance wbs-be-01 --skip-nx-cache --output-style=static`               | Exit 0 with approved socket/process access; conformance 35 passed, backend 1,651 passed / 1 skipped / 0 failed. |
+| `bunx prettier --check` on the three changed TypeScript files and this verification record; `git diff --check`                                       | Exit 0; formatting clean and no whitespace errors.                                                              |
+
+The follow-up edits are not included in the implementation commit yet. GitHub status could not
+be refreshed from this environment because `api.github.com` was unreachable. The canonical
+`bin/h2puni-gate.sh <sha>` also remains unrun for the follow-up because this workspace lacks the
+required `/home/puni1/.cache` host-wide lock location. Trusted activation CI remains deferred by
+user instruction; it is a distinct check from the implementation gate.
+
+No source fault remains injected. The implementation and independent review are ready for
+integration; the exact-head gate and CI checks remain outstanding.

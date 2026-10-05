@@ -137,6 +137,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
     }).steps,
     directory: installDirectory({ clock, directory: stores.directory, broadcast }).directory,
     workItems: installWorkItem({
+      ...(stores.livePlans === undefined ? {} : { livePlans: stores.livePlans }),
       clock,
       workItems: stores.workItems,
       projects: stores.projects,

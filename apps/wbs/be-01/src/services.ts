@@ -104,7 +104,30 @@ export function buildServices(options: ServicesOptions): BeServices {
         };
   const scheduler = optimizerWiring(optimized).scheduler;
   const graph = composeServices({
-    source,
+    // Proof: omitting installation failed mounted `shared tree and export agree` (start 0 instead of 3).
+    source: source.bindLivePlans({
+      schedulerOf: (readCaptured) =>
+        optimizerWiring(
+          readCaptured === undefined
+            ? undefined
+            : {
+                // Proof: using the process reader failed captured publication: first start 4 instead of 3.
+                readCaptured,
+                readLive: () => {
+                  throw new Error('live optimizer admission inside chain snapshot');
+                },
+              },
+        ).scheduler,
+      ...(options.optimizer === undefined
+        ? {}
+        : {
+            optimization: {
+              contractVersion: contractVersionOf(options.optimizer.solverVersion),
+              budgetMs: options.optimizer.budgetMs,
+              now: Date.now,
+            },
+          }),
+    }),
     runtime: {
       clock,
       digest: nodeDigest,

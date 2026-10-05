@@ -16,6 +16,7 @@ import type { Clock } from '../ports/clock';
 import type { ResourceAccess } from '../ports/organization-access';
 import type { Broadcaster } from '../ports/project-event';
 import type { ProjectWithAccess } from '../ports/project-store';
+import type { AccessRefused } from '../ports/shared-people-values';
 import type { Space, SpaceStore } from '../ports/space-store';
 
 /** The address of the virtual All projects space (spec `space-read`). */
@@ -285,10 +286,11 @@ export class SpaceResource {
     spaceId: string,
     projectIds: readonly string[],
   ): Promise<
-    SpaceAnswer<
-      Record<string, ProjectRollUp | UnavailableRollUp>,
-      'organization_required' | 'not_found'
-    >
+    | SpaceAnswer<
+        Record<string, ProjectRollUp | UnavailableRollUp>,
+        'organization_required' | 'not_found'
+      >
+    | AccessRefused
   > {
     const projects = await this.opts.projects.listWithin(actorId, access);
     const revisions = new Map(projects.map(({ id, revision }) => [id, revision]));
@@ -314,6 +316,7 @@ export class SpaceResource {
       if (revision === undefined) return { ok: false, refusal: 'not_found' };
       const rolled = await this.rolledOf(projectId, revision, access);
       if (rolled === null) return { ok: false, refusal: 'not_found' };
+      if ('kind' in rolled && rolled.kind === 'access_refused') return rolled;
       rollUps[projectId] = 'kind' in rolled ? rolled : rolled.rollUp;
     }
     return { ok: true, value: rollUps };
@@ -339,7 +342,7 @@ export class SpaceResource {
     projectId: string,
     revision: number,
     access: ResourceAccess,
-  ): Promise<RolledProject | UnavailableRollUp | null> {
+  ): Promise<RolledProject | UnavailableRollUp | AccessRefused | null> {
     const seq = await this.opts.sequences.latestSeq(projectId);
     // Proof, observed 2026-09-29: with the sequence left out of this key,
     // `answers a command's new total on the next read, and serves an unchanged
@@ -357,6 +360,8 @@ export class SpaceResource {
     const tree = await this.opts.trees.treeWithin(projectId, access);
     if (tree === null) return null;
     // An unavailable engine is not cached: it can recover with no write.
+    // Proof: removing this branch failed mounted revocation: 403 became 200 with unavailable project output.
+    if ('kind' in tree && tree.kind === 'access_refused') return tree;
     if ('kind' in tree) return { kind: 'unavailable' };
     const rollUp = rollUpProject({
       workItems: tree.workItems.map((row) => ({
@@ -405,10 +410,11 @@ export class SpaceResource {
     spaceId: string,
     limit: number,
   ): Promise<
-    SpaceAnswer<
-      { items: InProgressItem[]; truncated: boolean; unavailable: string[] },
-      'organization_required' | 'not_found'
-    >
+    | SpaceAnswer<
+        { items: InProgressItem[]; truncated: boolean; unavailable: string[] },
+        'organization_required' | 'not_found'
+      >
+    | AccessRefused
   > {
     const projects = await this.opts.projects.listWithin(actorId, access);
     const readable = new Map(projects.map((project) => [project.id, project]));
@@ -438,6 +444,7 @@ export class SpaceResource {
       const rolled = await this.rolledOf(projectId, project.revision, access);
       // Deleted since the list was read: nothing of it is in progress.
       if (rolled === null) continue;
+      if ('kind' in rolled && rolled.kind === 'access_refused') return rolled;
       if ('kind' in rolled) {
         unavailable.push(projectId);
         continue;

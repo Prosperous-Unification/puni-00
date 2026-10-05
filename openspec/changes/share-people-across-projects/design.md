@@ -189,6 +189,14 @@ sequence, so it is not cast into a live tree. Expose the needed live metadata ex
 pure projection logic. Preserve the existing narrow isolated assigned-person read. Tree responses
 carry slice holders and `waitingElsewhere` when present without adding it to isolated responses.
 
+Shared export uses an explicit `readExport` purpose on the same observation owner. It detaches
+the full live project, tree evidence, scoped catalogs and calendar markers before close;
+`PlanDocumentService.exportCaptured` assembles the document from these values without store
+reads. The archival catalog needs the live person's kind, which the saved-input value shape
+does not declare, so export captures full scoped catalogs only for this purpose. Markdown uses
+the captured project header too. Export-only context never enters the public tree DTO; isolated
+export retains its existing reads. `exportedAt` remains serialization time.
+
 Human reads, saves and Retry retain their principal or admitted scope. Background optimizer work
 uses an explicit project-owned read which resolves current ownership and activation state in its
 snapshot; it never fabricates a user or treats a missing scope as legacy. Values stay in core

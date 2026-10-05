@@ -23,9 +23,11 @@ export const PORT_NAMES = [
   'journal',
   'savedPlans',
   'savedPlanCapture',
+  'livePlans',
 ] as const satisfies readonly PortName[];
 
 export const CASE_MANIFEST = {
+  livePlans: ['livePlans.read:legacy-and-absence'],
   projects: ['projects.create:steps', 'projects.update:scope', 'projects.recordOpen:reader-order'],
   users: [
     'users.create:unique-name',

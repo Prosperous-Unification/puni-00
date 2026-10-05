@@ -1,6 +1,7 @@
 import type { ActualStore } from './actual-store';
 import type { CalendarMarkerStore } from './calendar-marker-store';
 import type { CapacityStore } from './capacity-store';
+import type { LivePlanStore } from './chain-snapshot-store';
 import type { CommandJournalStore } from './command-journal-store';
 import type { DependencyStore } from './dependency-store';
 import type { DirectoryStore } from './directory-store';
@@ -21,6 +22,8 @@ import type { WorkItemStore } from './work-item-store';
 
 /** Every store a command batch may use. Account and history stores are absent. */
 export interface PlanTransactionalStores {
+  /** Optional only for legacy fixture adapters; production SQLite installs it explicitly. */
+  livePlans?: LivePlanStore;
   projects: ProjectStore;
   directory: DirectoryStore;
   capacity: CapacityStore;

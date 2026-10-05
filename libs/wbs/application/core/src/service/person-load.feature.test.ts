@@ -69,6 +69,7 @@ describe('PersonLoad', () => {
       solved: () => datedTree('ana', 3, 'makespan'),
     });
     const read = await load.readPerson('ana', WINDOW, 'u', LEGACY_ACCESS);
+    if (read !== null && 'kind' in read) throw new Error(read.refusal);
     expect(read?.projects.map(({ projectId, engine }) => [projectId, engine])).toEqual([
       ['fast', 'fast'],
       ['solved', 'optimized'],
@@ -81,10 +82,12 @@ describe('PersonLoad', () => {
         ({ kind: 'engine_unavailable', error: 'engine_unavailable', engine: 'optimized' }) as const,
     });
     const read = await load.readPerson('ana', WINDOW, 'u', LEGACY_ACCESS);
+    if (read !== null && 'kind' in read) throw new Error(read.refusal);
     expect(read?.unavailable).toEqual([
       { projectId: 'missing', name: 'missing', reason: 'engine_unavailable' },
     ]);
     const organization = await load.readOrganization(WINDOW, 'u', LEGACY_ACCESS);
+    if ('kind' in organization) throw new Error(organization.refusal);
     expect(organization.unavailable).toHaveLength(1);
   });
 
@@ -96,8 +99,12 @@ describe('PersonLoad', () => {
         slices: [],
       }) as unknown as TreeRead;
     const { load } = loadOver({ cycle });
-    expect((await load.readPerson('ana', WINDOW, 'u', LEGACY_ACCESS))?.unavailable).toEqual([]);
-    expect((await load.readOrganization(WINDOW, 'u', LEGACY_ACCESS)).unavailable).toEqual([
+    const read = await load.readPerson('ana', WINDOW, 'u', LEGACY_ACCESS);
+    if (read !== null && 'kind' in read) throw new Error(read.refusal);
+    expect(read?.unavailable).toEqual([]);
+    const organization = await load.readOrganization(WINDOW, 'u', LEGACY_ACCESS);
+    if ('kind' in organization) throw new Error(organization.refusal);
+    expect(organization.unavailable).toEqual([
       { projectId: 'cycle', name: 'cycle', reason: 'cycle' },
     ]);
   });
