@@ -6,12 +6,22 @@ The board SHALL draw exactly one card for every leaf work item and project step
 in the same delivered plan, keyed by the existing step-node ID. Parents SHALL
 have no cards. Cards SHALL remain present for held, unestimated and unscheduled
 leaves. Titles, numbers and step names SHALL be labels, never identity.
+Within each column, cards SHALL preserve delivered work-item order, followed
+by that delivered tree's step array order within each leaf.
 
 #### Scenario: Held and unestimated work remains visible
 
 - **WHEN** a delivered plan has two leaves, one held and one unestimated, and two steps
 - **THEN** four cards appear even if the schedule contains no slices
 - **AND** a parent of those leaves has no card
+
+#### Scenario: Cards in one column preserve nonalphabetic delivered order
+
+- **WHEN** the delivered leaves are `z-leaf` numbered `020`, then `a-leaf` numbered `010`, and the delivered steps are `qa` named QA, then `dev` named Development
+- **AND** all four nodes have absent progress
+- **THEN** Unknown contains exactly `sn1.z-leaf.qa`, `sn1.z-leaf.dev`, `sn1.a-leaf.qa`, `sn1.a-leaf.dev` in that order
+- **WHEN** a later tree delivers the same leaves and reverses the step array
+- **THEN** Unknown contains exactly `sn1.z-leaf.dev`, `sn1.z-leaf.qa`, `sn1.a-leaf.dev`, `sn1.a-leaf.qa` in that order, with the same card identities
 
 #### Scenario: Rename and recreate have different identity effects
 
