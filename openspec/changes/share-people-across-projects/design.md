@@ -86,3 +86,31 @@ ADR 0025's preparation and binding boundary stays intact. The non-disruptive pre
 binding tests run in this slice. Live image publication, binding installation and the shared
 supervisor restart are deferred by the coordinator until merged integration. Slices 6–8 and
 shared-mode activation remain pending; `SCHEDULE_ALGORITHM_ID` stays `slice-leveling-v4`.
+
+## D8. Coherent chain capture (bounded slice 6)
+
+The application owns the downward closure, displayed-engine selection and booking projection.
+A narrow chain snapshot port resolves current organization access, obtains authorized rank order,
+and supplies captures and a non-admitting scheduler. SQLite opens a dedicated read-only connection,
+holds one `drizzleReadTransaction` through application scheduling and closes on every outcome.
+The optimized reader is bound to that connection; recursive `treeWithin` and live optimizer reads
+are excluded because they can tear the snapshot or admit solver work.
+
+Only dated projects connect the closure: an undated target receives no bookings, and an undated
+project neither supplies bookings nor leads traversal to higher projects. Cyclic or calendar-range
+influencers supply no bookings and remain explicit unavailable load evidence; only a required
+`engine_unavailable` refuses the target with the influencer identity. Unexpected faults throw.
+Pending and failed influencers contribute their displayed Fast schedule; a selected ready variant
+contributes its optimized schedule. Bookings move through the absolute workday axis and then into
+each target's anchor, retaining fractions and half-open adjacency.
+
+Shared saved capture and current comparison are the narrow exception to saved-plans' scheduling
+outside the snapshot: the chain must select upstream schedules coherently before it detaches.
+The detached target schedule is historical display; target input alone cannot replay upstream
+bookings. Existing saved schedule bytes persist unchanged, with no booking ledger or upstream
+history. Durable replay/provenance is outside this slice. Isolated capture retains its existing
+outside-snapshot ordering. Solver admission, events, hashes for persistence, quota and serialization
+remain outside the read transaction. `SCHEDULE_ALGORITHM_ID` stays `slice-leveling-v4`.
+
+Mode storage, activation, rollback vocabulary, fan-out and UI are still pending in umbrella tasks
+6.1/6.2 and slices 7/8; this slice adds the dormant chain capability.

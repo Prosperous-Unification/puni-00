@@ -62,15 +62,22 @@
 
 ## 6. Chain, mode, guard, fan-out
 
-- [ ] 6.0 Obligation from Fable's review of #250: thread `elsewhere` into
+- [x] 6.0 Obligation from Fable's review of #250: thread `elsewhere` into
       `scheduleInputOfCaptured` / `schedulePlanInput` (`saved-plan-schedule.ts`).
       `SCHEDULE_ALGORITHM_ID` stays `slice-leveling-v4` through this slice (Fable's decision).
 - [ ] 6.1 Influencers, the chain read, `shared_people`, the guarded `down.sql`, the rollback CLI,
       `capacityModes`, and `elsewhere_changed`.
+      Chain-reader portion implemented in slice 6: directed influencers, coherent read-only snapshot,
+      displayed booking projection and shared saved capture/current comparison. Mode storage,
+      guarded rollback, capacity vocabulary and fan-out remain pending.
 - [ ] 6.2 Negatives: closure made non-transitive → C behind B behind A takes A's slot; mode
       check removed → an isolated organization moves dates; hash compare removed → a rename
       fans out; vocabulary entry removed → the swap accepts a pre-feature image over a shared
       organization; `engine_unavailable` swallowed → unmarked Fast dates below.
+
+Chain-only negatives proved in slice 6: transitive closure, typed influencer refusal,
+coherent snapshot, non-admitting reads, scoped captures and lifecycle cleanup. Remaining
+mode/hash-fan-out/swap vocabulary obligations keep this umbrella unchecked.
 
 ## 7. fe
 

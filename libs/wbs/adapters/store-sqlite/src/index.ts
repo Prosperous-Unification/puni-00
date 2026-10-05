@@ -5,6 +5,7 @@ export * from './build-stores';
 export * from './calendar-marker';
 export * from './capacity';
 export * from './captured-optimization-reader';
+export * from './chain-snapshot';
 export * from './changes';
 export * from './command-journal';
 export * from './constraint';

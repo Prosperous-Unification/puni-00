@@ -303,3 +303,121 @@ The canonical gate on the original implementation head passed all 121 main-works
 suite. Its successor was queued and refused with exit 75 after 30 minutes, then queued
 again; that is a lock-budget refusal rather than a validation verdict. Latest-head gate
 and CI evidence must still pass before integration. No live binding or activation occurred.
+
+## Slice 6 — coherent chain reader (bounded)
+
+Implemented on `feat/shared-people-slice6-chain` in the isolated worktree
+`.worktrees/shared-people-slice6`, from exact merged main
+`711a0d51687f3153580190989981ca20b6ee5790`. Task 6.0 is complete; only chain-reader
+portions of 6.1/6.2 are implemented, so those umbrella tasks remain unchecked.
+No mode migration, activation route/environment switch, rollback vocabulary, fan-out,
+notification or UI change ships. `SCHEDULE_ALGORITHM_ID` remains `slice-leveling-v4`.
+
+**Rulings.** The downward closure follows shared-person edges only toward higher ranks.
+A lower-ranked neighbor of an influencer cannot displace it and is excluded; this is
+not undirected component reachability. Undated projects stop traversal and neither
+consume nor supply bookings. Cyclic/calendar-range influencers supply no bookings and
+remain explicit unavailable load evidence; required `engine_unavailable` carries the
+influencer identity, and unexpected failures throw. Pending/failed influencers supply
+Fast display bookings; selected ready variants supply their published bookings.
+
+The SQLite adapter opens a dedicated read-only connection, binds organization/session
+reads and the existing optimized-cache reader to it, and holds one deferred transaction
+through application scheduling. Only required influencers and the target are fully captured.
+Returned values are detached, and the port's callback can return only chain evidence, not
+borrowed scheduling/database capabilities. The application owns closure, booking projection
+and display selection. No live scheduling admission is used.
+
+Shared saved capture/current comparison consume the same detached chain evidence through
+the existing S4 policy: a pending optimized target remains absent `pending`, and an
+unrepresentable calendar target remains absent `infeasible`. Historical target schedule
+bytes survive upstream edits/deletion. Captured target inputs alone are not replayable
+provenance; no upstream history or booking ledger is persisted. The isolated capture path
+still releases its snapshot before scheduling. The exception is recorded in D8 and
+`saved-plans/design.md`.
+
+### Verification
+
+Commands ran locally with Bun 1.4.2, `NX_DAEMON=false`, `NX_ISOLATE_PLUGINS=false` for Nx,
+and uncached scoped targets. The six-file focused command below is one command; paths are
+listed on separate lines here for readability:
+
+```sh
+bun test \
+  libs/wbs/application/core/src/service/shared-people.test.ts \
+  libs/wbs/application/core/src/service/saved-plan-input.test.ts \
+  libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts \
+  libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts \
+  libs/wbs/adapters/store-sqlite/src/captured-optimization-reader.db.test.ts \
+  apps/wbs/be-01/src/service/saved-plan.service.db.test.ts
+```
+
+| Command                                                                                                 | Observed outcome                                                   |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Focused command above                                                                                   | 87 pass / 0 fail; 309 assertions across six files (6.54s)          |
+| `bunx nx run-many -t lint -p wbs-core,wbs-store-sqlite --skip-nx-cache --output-style=static`           | Both targets passed, exit 0 (23.3s)                                |
+| `bunx nx run-many -t lint typecheck -p wbs-core,wbs-store-sqlite --skip-nx-cache --output-style=static` | All five tasks passed, exit 0 (33.2s)                              |
+| `bunx nx run wbs-be-01:build --skip-nx-cache --output-style=static`                                     | Backend and solver-protocol dependency passed again, exit 0 (1.6s) |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                | 146 passed / 0 failed, exit 0                                      |
+| `git diff --check`                                                                                      | Exit 0                                                             |
+
+The first new fixture runs exposed schema assumptions (`created_at`, rounding `exact`,
+and required rank `created_by`), corrected from the production schema. Cache-test initial
+expectations overlooked a legal half-open gap: C fit before a later booking. The fixture's
+manual floors were adjusted to intersect the published booking; production required no
+fix. A calendar fixture at year 9999 plus ten days stayed inside JavaScript Date's supported
+extended-year range; the negative now uses the existing workday suite's 80-million-workday
+TimeClip boundary. Lint/typecheck first exposed test-only adapter dependency cycling,
+opaque JSON comparison typing, Bun matcher return typing and import/export ordering;
+these were corrected before rerunning the scoped targets. Shared calendar S4 was watched
+RED (`unavailable` instead of `infeasible`) and aligned with the existing isolated policy.
+
+### R5 failure proofs
+
+Every fault below was injected in production, the named test watched failing, and the
+original bytes restored before the next run. Each named test runs with `bun test <file>
+-t '<case>'`; adjacent production `Proof:` comments identify these observations.
+The captured-input regression was first watched RED with `undefined` instead of the
+booking map, then GREEN with the authored assigned slice at day 5. The optimized null-state
+negative was watched RED returning Fast dates before its guard was added.
+
+| Production fault                                | Production-path negative / observed failure                                                    |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Stop person expansion after a direct influencer | `shared-people.test.ts`: transitive Ana→Ben chain excludes A / C starts 2 instead of 3         |
+| Admit an undated bridge                         | Same file: undated bridge returns influencers instead of none                                  |
+| Use `mode: live`                                | `chain-snapshot.db.test.ts`: real cache publication hits the forbidden live-admission callback |
+| Swallow required engine refusal                 | Unit influencer identity negative fails instead of receiving typed `engine_unavailable`        |
+| Swallow unexpected scheduler fault              | Unit unexpected-fault negative returns dates instead of throwing                               |
+| Remove booking date conversion                  | Unit calendar-range influencer becomes bookable instead of explicitly unavailable              |
+| Remove deferred snapshot                        | SQLite concurrent rank/assignment/date negative starts C at 2 instead of 3                     |
+| Omit connection close                           | SQLite capture-throw negative observes 0 closes instead of 1                                   |
+| Omit cross-reference check                      | SQLite crossing-assignee negative accepts a foreign person's assignment                        |
+| Read global people instead of scoped directory  | SQLite directory evidence names `foreign`                                                      |
+| Ignore shared saved capture                     | SQLite saved bytes contain target start 2 instead of 3                                         |
+| Omit captured `elsewhere` projection            | `saved-plan-input.test.ts`: booking map is undefined                                           |
+| Omit booking argument from saved scheduling     | Same test: assigned slice starts 0 instead of 5                                                |
+| Open writable connection in production factory  | SQLite factory negative commits injected unsafe rename instead of refusing                     |
+| Omit capture readable-list guard                | SQLite borrowed foreign-project negative loses its named refusal                               |
+| Omit missing captured-project guard             | SQLite broken capture dependency loses its trusted-state refusal                               |
+| Omit ready optimized schedule null guard        | Unit ready-variant negative receives a null dereference instead of the trusted-state refusal   |
+| Admit zero-time assigned bookings               | Unit zero-duration negative throws on a booking holding no time                                |
+| Omit missing rank-slot guard                    | Unit broken rank-array dependency throws a property dereference instead of its named refusal   |
+| Omit rank/readable-list agreement guard         | SQLite broken readable-list dependency is accepted instead of throwing                         |
+
+The cache concurrency scenario publishes ready optimized A on a separate connection after
+the chain snapshot begins: that read retains displayed Fast and C starts 3; the next read
+uses optimized A and C starts 4. A failed cache outcome returns to displayed Fast and C starts 3. Rank ties precede the unranked tail. Fractional bookings retain the offset across different
+anchors, touching intervals stay free, and foreign targets/current membership refusal never
+name foreign projects. State-table assertions prove no generation, solver-slot, solver-queue
+or event-log writes from normal/pending chain reads. Capture throw preserves a stranger's
+concurrent committed edit and closes the reader.
+
+### Unverified and deferred checks
+
+The canonical h2puni exact-hash gate, substantive GitHub CI and independent Astra review
+remain required before merge. The gate must use ext4
+`TMPDIR=/home/puni1/.cache/puni00-gate-tmp`. No full workspace gate, browser/portable suite,
+live shared-mode activation, Solver image/binding installation, or trusted Tool Wiki activation
+was performed in this slice. The existing isolated outside-snapshot negative remains in its
+prior suite; the unchanged isolated capture lifecycle and saved-service policy suites above
+were rerun here. The umbrella change is not complete.

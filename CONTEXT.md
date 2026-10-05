@@ -1279,6 +1279,16 @@ The organization's total order over its projects; a higher project books a share
 first. Ranked projects by position, then every unranked one by creation.
 _Avoid_: project priority
 
+**Influencer**:
+A readable, dated project above another in project rank that shares a person with that project
+or a higher project reached through it. Its displayed bookings can move the lower project.
+_Avoid_: upstream dependency
+
+**Downward closure**:
+The influencers reached by repeatedly following shared-person edges toward higher project ranks.
+An undated project stops traversal because it neither consumes nor supplies bookings.
+_Avoid_: recursive project dependencies
+
 **Elsewhere**:
 The bookings a project's scheduler works around: those of the people it names, made by the
 projects that outrank it. Named as the `elsewhere` floor on a slice that waited for one.

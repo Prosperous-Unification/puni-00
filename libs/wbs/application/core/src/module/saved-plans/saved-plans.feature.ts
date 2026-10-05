@@ -26,6 +26,7 @@ import { planInputRowsOf } from '../../service/saved-plan-input';
 import type { SavedPlanQuota, SavedPlanQuotaRefusal } from '../../service/saved-plan-quota';
 import { bodyBytesRefusal, DEFAULT_SAVED_PLAN_QUOTA } from '../../service/saved-plan-quota';
 import { buildScheduleBody, serialiseScheduleBody } from '../../service/saved-plan-schedule-body';
+import type { SharedPeopleRead } from '../../service/shared-people';
 import type { SavedPlanResource } from './saved-plan.resource';
 import { bodyByteLength } from './saved-plan-integrity';
 import { scheduleInputOfCaptured } from './saved-plan-schedule';
@@ -151,6 +152,8 @@ export interface SavedPlanServiceOptions {
   readonly quota?: SavedPlanQuota;
   /** The installed scheduling capability used after captured reads detach. */
   readonly scheduler: Scheduler;
+  /** Shared-mode capture keeps upstream selection coherent; omitted for isolated captures. */
+  readonly captureSharedPlan?: (projectId: string) => Promise<SharedPeopleRead>;
 }
 
 /**
@@ -532,8 +535,10 @@ export class SavedPlanService {
 
   /**
    * Captures one detached input and asks the shared scheduler for that exact input.
+   * Explicit shared capture borrows {@link SharedPeopleReader}'s coherent chain selection;
+   * the same detached evidence feeds save and current comparison through the S4 policy below.
    *
-   * {@link SavedPlanResource.capturePlan} closes its snapshot before it
+   * Under isolated capture, {@link SavedPlanResource.capturePlan} closes its snapshot before it
    * returns, so both Fast scheduling and optimized-cache selection happen with
    * no capture connection held. The scheduler receives `mode: 'capture'`: it
    * may read an already-computed optimized answer, but it cannot mutate live
@@ -546,18 +551,34 @@ export class SavedPlanService {
    * `infeasible`. A missing project remains distinct as `null`.
    */
   private async captureAndAttempt(projectId: string): Promise<ScheduleAttempt | null> {
-    const reads = await this.opts.resource.capturePlan(projectId);
+    // Proof: ignoring shared capture stored start 2 instead of 3 in the upstream-edit/delete negative.
+    const shared = await this.opts.captureSharedPlan?.(projectId);
+    if (shared?.kind === 'not_found') return null;
+    const reads =
+      shared === undefined ? await this.opts.resource.capturePlan(projectId) : shared.reads;
     if (reads === null) return null;
-    const input = scheduleInputOfCaptured(reads);
+    if (shared?.kind === 'engine_unavailable')
+      return { reads, schedule: { present: false, absentReason: 'unavailable' } };
+    if (shared?.kind === 'unavailable')
+      return {
+        reads,
+        schedule: {
+          present: false,
+          absentReason: 'infeasible',
+        },
+      };
+    const input = shared?.input ?? scheduleInputOfCaptured(reads);
     try {
-      const scheduled = this.opts.scheduler.read({
-        projectId,
-        input,
-        engine: reads.project.scheduleEngine,
-        objective: reads.project.scheduleObjective,
-        enabled: reads.project.optimizationEnabled,
-        mode: 'capture',
-      });
+      const scheduled =
+        shared?.scheduled ??
+        this.opts.scheduler.read({
+          projectId,
+          input,
+          engine: reads.project.scheduleEngine,
+          objective: reads.project.scheduleObjective,
+          enabled: reads.project.optimizationEnabled,
+          mode: 'capture',
+        });
       if (scheduled.kind === 'engine_unavailable')
         return { reads, schedule: { present: false, absentReason: 'unavailable' } };
       if (!reads.project.optimizationEnabled || reads.project.scheduleEngine === 'fast') {
@@ -641,8 +662,9 @@ function planSideOfRead(plan: SavedPlanRead): PlanSide {
  * to decide which is right.
  *
  * `inputSha256` is this save's own input hash, stored so a reader can *check*
- * that these dates were computed from these rows and refuse to render them
- * against an input that did not produce them.
+ * that this historical display was saved beside these target rows and refuse
+ * to render it against another captured target. Shared-mode dates also reflect
+ * detached upstream bookings, whose durable replay provenance is out of scope.
  */
 async function scheduleWrite(
   digest: Digest,

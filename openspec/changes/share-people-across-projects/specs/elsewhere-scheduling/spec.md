@@ -71,14 +71,39 @@ its holder) only when it is non-empty. A plan that nothing outranks SHALL keep i
 ### Requirement: The chain reads influencers in rank order
 
 Under `shared`, reading P SHALL first compute P's influencers. These are the transitive closure,
-within the organization, of projects that outrank P and share a person with P or with another
-influencer. The read SHALL schedule the influencers in rank order with a running booking map,
+within the readable organization projects, following shared-person edges only toward higher
+project ranks from P or from an already reached influencer. A lower-ranked neighbor of an
+influencer that cannot displace it SHALL NOT join the closure. The read SHALL schedule the influencers in rank order with a running booking map,
 and schedule P last, in one read transaction. An influencer that reports `engine_unavailable`
 SHALL make P's read report `engine_unavailable`, naming the influencer; it SHALL never fall back
-to Fast silently. An undated project SHALL neither book nor see bookings.
+to Fast silently. An undated project SHALL neither book nor see bookings and SHALL stop influencer traversal.
+An influencer with a dependency cycle or calendar-range error SHALL supply no bookings and SHALL
+be recorded explicitly as unavailable with that reason. Unexpected failures SHALL throw.
+Pending or failed optimization SHALL contribute the displayed Fast schedule; selected ready
+optimization SHALL contribute its published schedule. Reads SHALL NOT allocate generations,
+reserve solver slots, queue work or publish events. The chain SHALL return detached captured
+values and schedules, and close its dedicated read connection on success, refusal and throw.
 
 #### Scenario: transitivity
 
 - **GIVEN** A above B above C, where A and B share Ana and B and C share Ben
 - **WHEN** C is read
 - **THEN** B's bookings reflect A's, and C works around B's bookings of Ben
+
+#### Scenario: an undated bridge
+
+- **GIVEN** dated A shares Ana with undated B, and B shares Ben with dated C below both
+- **WHEN** C is read
+- **THEN** B supplies no booking and does not cause A to be read as C's influencer
+
+#### Scenario: an unavailable influencer
+
+- **GIVEN** A outranks B and shares Ana, and A requires an unavailable optimized engine
+- **WHEN** B is read
+- **THEN** the chain returns `engine_unavailable` with A's identity and no unmarked target dates
+
+#### Scenario: historical shared schedule
+
+- **GIVEN** a shared chain is captured and its target schedule saved
+- **WHEN** an influencer is edited or deleted
+- **THEN** the saved target schedule bytes remain unchanged; target input alone is not a replay guarantee
