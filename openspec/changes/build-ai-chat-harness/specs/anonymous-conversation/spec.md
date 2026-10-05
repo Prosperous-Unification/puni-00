@@ -122,12 +122,27 @@ The API SHALL stream the reply as an AI SDK UI message stream and SHALL emit the
 
 ### Requirement: Server-owned stages and brief capture
 
-The API SHALL derive the conversation stage from stored turns: `clarify` for the first two visitor turns, `brief` when answering the third, `contact` from the fourth onward, `exhausted` and `handed_off` from conversation state. The stage hint for the current stage SHALL be appended to the system prompt and the stage recorded on the operation. The completed `brief` reply, trimmed to at most 4,000 characters, SHALL be stored as the draft brief unless the visitor has already edited the brief. The browser SHALL NOT be able to choose a stage.
+The API SHALL derive the conversation stage from stored turns: `clarify` for the first two visitor turns, `brief` when answering the third, `contact` from the fourth onward, `exhausted` and `handed_off` from conversation state. The stage hint for the current stage SHALL be appended to the system prompt and the stage recorded on the operation. From the completed `brief` reply, only the text between a line that is exactly `[brief]` and a later line that is exactly `[/brief]`, trimmed and cut to at most 4,000 characters, SHALL be stored as the draft brief unless the visitor has already edited the brief. Without both markers the API SHALL store the reply minus marker lines, a leading line ending with `:` and a trailing line ending with `?`. A blank body SHALL store nothing. The operation SHALL record the capture as `marked`, `fallback` or `empty`. Only the assistant reply SHALL be parsed; markers in visitor text SHALL never set the brief. The browser SHALL NOT be able to choose a stage.
 
 #### Scenario: Third turn writes the brief
 
 - **WHEN** the third visitor turn completes
-- **THEN** the operation records stage `brief`, the outbound request's system text ends with the `brief` hint, and `GET /draft` returns the reply as the brief
+- **THEN** the operation records stage `brief`, the outbound request's system text ends with the `brief` hint, and `GET /draft` returns the marked body as the brief, without the framing before `[brief]` or the question after `[/brief]`
+
+#### Scenario: Unmarked brief reply
+
+- **WHEN** the `brief` reply has no marker pair
+- **THEN** the stored brief is the reply without a leading line ending with `:` and a trailing question line, and the operation records `fallback`
+
+#### Scenario: Empty marked brief
+
+- **WHEN** the `brief` reply has the markers around a blank body
+- **THEN** no brief is stored and the operation records `empty`
+
+#### Scenario: Markers in visitor text
+
+- **WHEN** the visitor's third message contains a `[brief]` … `[/brief]` block
+- **THEN** the stored brief comes only from the assistant reply
 
 #### Scenario: Edited brief is kept
 

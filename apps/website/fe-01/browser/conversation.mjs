@@ -211,6 +211,13 @@ try {
     fail(`Reload did not restore three saved turns without a POST: ${JSON.stringify(users)}`);
   if (!(await page.locator('.proposal-card').count()))
     fail('The brief card is missing after the third reply stored a brief');
+  // Proof: rendering saved assistant turns without `displayReply` failed here with "The rendered thread shows brief markers".
+  const thread = await page.locator('.harness-thread').innerText();
+  if (thread.includes('[brief]') || thread.includes('[/brief]'))
+    fail('The rendered thread shows brief markers');
+  const card = await page.locator('#proposal-brief').inputValue();
+  if (!card.startsWith('- Users:') || card.includes('Here is the brief') || card.includes('?'))
+    fail(`The card holds more than the marked brief body: ${JSON.stringify(card)}`);
   summary.main = {
     initialKey,
     streamPosts: main.streamPosts.length,

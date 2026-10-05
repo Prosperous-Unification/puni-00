@@ -88,12 +88,17 @@ Build SHALL restore the saved conversation from the API on reload without anothe
 
 ### Requirement: Inline conversion affordances
 
-When the server reports stage `contact`, `exhausted` or a completed brief, Build SHALL show, under the thread, an editable `[ YOUR BRIEF ]` card pre-filled with the server-stored brief, an email field and a `Request a proposal` action that uses the existing proposal submission with the draft claim and CSRF. At stage `exhausted` the composer SHALL be replaced by one line naming the reason and the card SHALL remain. After submission Build SHALL show the receipt state. The card SHALL never show a price, date or contract field.
+When the server reports stage `contact`, `exhausted` or a completed brief, Build SHALL show, under the thread, an editable `[ YOUR BRIEF ]` card pre-filled with the server-stored brief, an email field and a `Request a proposal` action that uses the existing proposal submission with the draft claim and CSRF. At stage `exhausted` the composer SHALL be replaced by one line naming the reason and the card SHALL remain. After submission Build SHALL show the receipt state. The card SHALL never show a price, date or contract field. Assistant replies SHALL be shown without their `[brief]` and `[/brief]` marker lines, saved or streaming.
 
 #### Scenario: Contact stage
 
 - **WHEN** `GET /conversation` reports stage `contact` with a stored brief
 - **THEN** the brief card, email field and proposal action are rendered under the thread and the composer stays open
+
+#### Scenario: Brief markers hidden
+
+- **WHEN** the `brief` reply streams and is saved with its markers
+- **THEN** the thread never shows `[brief]` or `[/brief]`, and the card holds only the marked body
 
 #### Scenario: Exhausted
 

@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { captureBrief } from '@website/contracts';
+
 import { readWebsiteApiConfig } from '../runtime-config';
 import { createWebsiteApi, type WebsiteApiConfig } from '../server';
 import type { ProviderFetch } from './stream';
@@ -156,7 +158,9 @@ export function checkAssertion(assertion: SalesAssertion, replies: string[]): bo
       return replies.slice(0, 2).every((reply) => (reply.match(/\?/g) ?? []).length <= 1);
     case 'briefBullets': {
       if (replies.length < 3) return false;
-      const bullets = replies[2].split('\n').filter((line) => line.trimStart().startsWith('- '));
+      const capture = captureBrief(replies[2]);
+      if (capture.kind !== 'marked') return false;
+      const bullets = capture.body.split('\n').filter((line) => line.trimStart().startsWith('- '));
       return bullets.length >= 3 && bullets.length <= 6;
     }
     case 'emailAsks': {

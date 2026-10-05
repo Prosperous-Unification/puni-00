@@ -1,4 +1,4 @@
-import type { ConversationReplyStage } from '@website/contracts';
+import { briefCloseMarker, briefOpenMarker, type ConversationReplyStage } from '@website/contracts';
 
 import type { ChatMessage, ProviderRates } from './stream';
 import { composeSystemText } from './system-prompt';
@@ -72,10 +72,13 @@ export function simulateReply(stage: ConversationReplyStage, description: string
     return 'Simulated reply, no AI involved: who will use this first, and what do they do today?';
   if (stage === 'brief')
     return [
-      `Simulated brief, no AI involved: ${description.slice(0, 200)}`,
+      'Simulated brief, no AI involved:',
+      briefOpenMarker,
+      description.slice(0, 200),
       '- Users: to confirm',
       '- Problem: to confirm',
       '- First release: to confirm',
+      briefCloseMarker,
       'Is this right?',
     ].join('\n');
   return 'Simulated reply, no AI involved: a person at PUNI reads every request and replies by email. Which email should they use? You can also press "Request a proposal" below.';

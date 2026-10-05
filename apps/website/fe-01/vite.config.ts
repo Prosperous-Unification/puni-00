@@ -6,6 +6,14 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   root: fileURLToPath(new URL('.', import.meta.url)),
   plugins: [react()],
+  // The dev server does not read tsconfig paths; the contracts barrel is dependency-free.
+  resolve: {
+    alias: {
+      '@website/contracts': fileURLToPath(
+        new URL('../../../libs/website/domain/contracts/src/index.ts', import.meta.url),
+      ),
+    },
+  },
   server: { port: 4201, host: 'localhost' },
   build: { outDir: 'dist', emptyOutDir: true, license: { fileName: 'licenses.md' } },
 });

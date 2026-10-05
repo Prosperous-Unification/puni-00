@@ -21,7 +21,7 @@
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx tsc -p libs/website/domain/contracts/tsconfig.json --noEmit"
+        "command": "bun test libs/website/domain/contracts/src && bunx tsc -p libs/website/domain/contracts/tsconfig.json --noEmit"
       }
     },
     "lint": {

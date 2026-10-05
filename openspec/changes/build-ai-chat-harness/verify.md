@@ -229,3 +229,39 @@ come from the scripted fixture, not a model.
   after a reload (no client-side pending store for later turns); the initial operation is
   server-owned and survives reload.
 - `/conversation/cancel` has no rate window; it only settles the caller's own in-flight attempt.
+
+## Slice 4: brief markers (2026-10-06)
+
+The brief-stage reply used to land in `intake_draft.brief` whole, framing included (`Here is the
+brief as I understand it:` … `Is this right?`), and the card pre-filled it. Prompt `puni-sales-v2`
+asks for the brief between a `[brief]` line and a `[/brief]` line. `captureBrief`
+(`@website/contracts`) parses only the assistant reply inside `completeConversationOperation`;
+the operation records `brief_capture` (`marked`, `fallback`, `empty`; additive migration 008 with
+a `DROP COLUMN` down). `displayReply` strips marker lines from saved and streaming assistant text,
+including a half-written marker on the last streamed line. The scripted fixture and the demo
+`simulateReply` now emit markers. The eval `briefBullets` assertion counts bullets only inside
+the markers, so a real-model run also checks that the model follows the format. The Vite dev
+server needed an explicit `@website/contracts` alias (production build already resolved it).
+
+### Results
+
+- `env -u CLAUDECODE NX_DAEMON=false bunx nx run-many -t test,lint,typecheck,build -p website-fe-01,website-be-01,website-store-sqlite,website-contracts --skip-nx-cache --output-style=static`: exit 0, 16 tasks. Counts: contracts 10 pass (its `test` target now also runs `bun test`), fe-01 58 pass, store-sqlite 64 pass, be-01 93 pass, 0 fail.
+- `bun apps/website/fe-01/browser/conversation.mjs` (fixture stack, Chrome): exit 0, including the new checks that the thread after the third reply shows no marker and the card starts with `- Users:` with no framing or question.
+- `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts` on 008 `migration.sql` and `down.sql`: exit 0.
+- `bunx @fission-ai/openspec@1.12.0 validate --all`: 145 passed, 0 failed.
+- Not run: the real-model evaluation corpus (needs the key; operator task 9.2) and the gate.
+
+### R5 proofs
+
+| Injected fault                                              | Observed failure                                                                                                          |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `captureBrief(operation.message)` instead of the reply      | Visitor-markers store test stored `- Price: free, delivered tomorrow`                                                     |
+| Raw reply stored on an `empty` capture                      | Empty-marked-body store test received the framed reply instead of `''`                                                    |
+| Saved assistant turns rendered without `displayReply`       | `conversation-harness.test.tsx` markup contained `[brief]`; `conversation.mjs`: "The rendered thread shows brief markers" |
+| `briefBullets` before the change (bullets over whole reply) | New eval-cli test: unmarked brief expected false, received true                                                           |
+
+### Notes
+
+- Migration 008 must join the private recovery command's known-migration list with 007.
+- Visitor turns are shown verbatim, markers included if the visitor typed them; they are never
+  parsed.

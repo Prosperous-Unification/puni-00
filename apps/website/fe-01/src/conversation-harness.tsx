@@ -1,3 +1,4 @@
+import { displayReply } from '@website/contracts';
 import { DefaultChatTransport, type UIMessage } from 'ai';
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
@@ -250,7 +251,7 @@ export function LiveHarness({
           {conversation.turns.map((turn, index) => (
             <div key={index} className={`build-message ${turn.role}`}>
               <span className="message-label">{turn.role === 'user' ? 'YOU' : assistantLabel}</span>
-              <p>{turn.content}</p>
+              <p>{turn.role === 'assistant' ? displayReply(turn.content) : turn.content}</p>
             </div>
           ))}
           {conversation.latestOperation?.truncated && live === null && (
@@ -281,7 +282,7 @@ export function LiveHarness({
               ) : (
                 live.text && (
                   <p>
-                    {live.text}
+                    {displayReply(live.text)}
                     {live.phase === 'streaming' && <span className="caret" aria-hidden="true" />}
                   </p>
                 )

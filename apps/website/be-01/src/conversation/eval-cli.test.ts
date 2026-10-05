@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test } from 'bun:test';
 
 import {
+  checkAssertion,
   parseSalesCorpus,
   readEvaluationProvider,
   runSalesEvaluation,
@@ -158,4 +159,17 @@ test('the shipped corpus holds the twelve reviewed scripts', () => {
   expect(() =>
     parseSalesCorpus('{"scripts":[{"name":"x","turns":["a"],"assertions":[{"kind":"guess"}]}]}'),
   ).toThrow('malformed assertion');
+});
+
+test('the brief assertion counts bullets only inside the brief markers', () => {
+  const clarify = ['Who uses it?', 'What do they do today?'];
+  const bullets = ['- Users: volunteers', '- Problem: paper', '- First release: booking'];
+  const marked = ['Here it is:', '[brief]', ...bullets, '[/brief]', 'Is this right?'].join('\n');
+  expect(checkAssertion({ kind: 'briefBullets' }, [...clarify, marked])).toBe(true);
+  // Proof: counting bullets over the whole reply passed this unmarked brief.
+  expect(
+    checkAssertion({ kind: 'briefBullets' }, [...clarify, ['Here it is:', ...bullets].join('\n')]),
+  ).toBe(false);
+  const outside = ['[brief]', 'A booking tool.', '[/brief]', ...bullets].join('\n');
+  expect(checkAssertion({ kind: 'briefBullets' }, [...clarify, outside])).toBe(false);
 });

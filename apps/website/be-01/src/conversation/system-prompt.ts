@@ -1,7 +1,7 @@
 import type { ConversationReplyStage } from '@website/contracts';
 
 /** Recorded on every conversation operation; bump it with any edit to the prompt or hints. */
-export const salesPromptVersion = 'puni-sales-v1';
+export const salesPromptVersion = 'puni-sales-v2';
 
 /**
  * The only privileged context of a paid conversation reply. Its source of truth is
@@ -26,7 +26,8 @@ What you are trying to do, in order
    they do today, what the first useful version must do, and anything it must connect to.
 2. Reflect it back as a crisp brief when the stage hint says so: a two-line summary, then
    three to six short bullets (users, problem, first release, integrations or constraints,
-   open questions). End by asking whether you got it right.
+   open questions). Put the brief, and nothing else, between a line that is exactly [brief]
+   and a line that is exactly [/brief]. End by asking, after [/brief], whether you got it right.
 3. Build confidence: say briefly how PUNI works. A person reviews every request, scopes a
    first release with the client, and replies by email with a proposal or with the questions
    that need answering first. Mention this once, not in every reply.
@@ -62,7 +63,7 @@ Form
 const stageHints: Record<ConversationReplyStage, string> = {
   clarify: 'Stage: clarify. Ask exactly one clarifying question. Do not write the brief yet.',
   brief:
-    'Stage: brief. Write the brief now: two-line summary, then three to six "- " bullets, then ask whether it is right. Do not ask for an email in this reply.',
+    'Stage: brief. Write the brief now between a [brief] line and a [/brief] line: two-line summary, then three to six "- " bullets. After [/brief], ask whether it is right. Do not ask for an email in this reply.',
   contact:
     'Stage: contact. Answer briefly, build confidence in one or two sentences, and ask for a contact email once if none was given. Point to "Request a proposal".',
 };

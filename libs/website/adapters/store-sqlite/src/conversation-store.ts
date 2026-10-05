@@ -1,4 +1,5 @@
 import {
+  captureBrief,
   type ConversationExhaustedReason,
   type ConversationReplyStage,
   type ConversationState,
@@ -413,8 +414,9 @@ export function admitConversationOperation(
  * Settles final usage, adds the visitor and assistant turns and marks the operation completed
  * (`truncated` for a length finish) in one transaction. Usage above the reservation is recorded
  * as the actual cost with `overrun` set, so every ceiling sees the real spend. A completed
- * `brief` reply, trimmed to 4,000 characters, becomes the draft brief unless the visitor already
- * saved one. Returns false, changing nothing, when the operation is not in flight or the usage is
+ * `brief` reply is parsed by {@link captureBrief}; its body, cut to 4,000 characters, becomes the
+ * draft brief unless the visitor already saved one or nothing was captured, and the capture kind
+ * is recorded as the operation's `brief_capture`. Returns false, changing nothing, when the operation is not in flight or the usage is
  * missing for a reserved operation or present for a free one.
  */
 export function completeConversationOperation(
@@ -448,24 +450,28 @@ export function completeConversationOperation(
       actualMicroUsd !== null &&
       actualMicroUsd > operation.reserved_micro_usd;
     // Proof: settling before this transaction left settled usage with no turns in the failed-insert test.
+    // Only the assistant reply is parsed, so brief markers in visitor text never reach the draft.
+    // Proof: parsing `operation.message` here stored the visitor's injected brief in the markers-in-visitor-text test.
+    const capture = operation.stage === 'brief' ? captureBrief(reply) : null;
     const settled = database
       .query(
-        "UPDATE conversation_operation SET state = 'completed', reply = ?, truncated = ?, settled_micro_usd = ?, settlement = 'usage', overrun = ? WHERE id = ? AND state = 'inflight'",
+        "UPDATE conversation_operation SET state = 'completed', reply = ?, truncated = ?, settled_micro_usd = ?, settlement = 'usage', overrun = ?, brief_capture = ? WHERE id = ? AND state = 'inflight'",
       )
-      .run(reply, truncated ? 1 : 0, actualMicroUsd, overrun ? 1 : 0, id);
+      .run(reply, truncated ? 1 : 0, actualMicroUsd, overrun ? 1 : 0, capture?.kind ?? null, id);
     if (settled.changes !== 1) throw new Error('Conversation completion was not atomic');
     const insertTurn = database.query(
       'INSERT INTO conversation_turn (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)',
     );
     insertTurn.run(crypto.randomUUID(), operation.conversation_id, 'user', operation.message, now);
     insertTurn.run(crypto.randomUUID(), operation.conversation_id, 'assistant', reply, now + 1);
-    if (operation.stage === 'brief')
+    // Proof: storing the raw reply for an `empty` capture failed the empty-marked-body test.
+    if (capture && capture.kind !== 'empty')
       // Proof: dropping `brief = ''` overwrote the visitor's saved brief in the kept-brief test.
       database
         .query(
           "UPDATE intake_draft SET brief = ? WHERE id = (SELECT draft_id FROM conversation WHERE id = ?) AND consumed_at IS NULL AND brief = ''",
         )
-        .run(reply.trim().slice(0, 4_000), operation.conversation_id);
+        .run(capture.body.slice(0, 4_000), operation.conversation_id);
     return true;
   })();
 }

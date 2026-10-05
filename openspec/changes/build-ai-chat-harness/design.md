@@ -89,7 +89,7 @@ Why not structured outputs or tool calls: both move control to model text, need 
 
 ### System prompt
 
-The full draft lives in [system-prompt.md](system-prompt.md) and ships as `apps/website/be-01/src/conversation/system-prompt.ts` exporting `salesPromptVersion = 'puni-sales-v1'` and `salesSystemPrompt`. Each operation records `prompt_version`, so a later prompt change is visible in evaluation and accounting. The prompt is never logged.
+The full draft lives in [system-prompt.md](system-prompt.md) and ships as `apps/website/be-01/src/conversation/system-prompt.ts` exporting `salesPromptVersion` (`puni-sales-v2` since the brief markers) and `salesSystemPrompt`. Each operation records `prompt_version`, so a later prompt change is visible in evaluation and accounting. The prompt is never logged.
 
 ### API
 

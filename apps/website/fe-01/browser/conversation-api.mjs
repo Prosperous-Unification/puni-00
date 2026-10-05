@@ -22,9 +22,11 @@ const replies = {
     'Thanks, that helps. Who will use the booking tool first, and how do they book a repair slot today?',
   brief: [
     'Here is the brief as I understand it:',
+    '[brief]',
     '- Users: workshop volunteers and members who bring bikes for repair.',
     '- Problem: paper slots get double-booked and nobody sees the week at a glance.',
     '- First release: a shared calendar of repair slots that members can book online.',
+    '[/brief]',
     'Is this right?',
   ].join('\n'),
   contact:

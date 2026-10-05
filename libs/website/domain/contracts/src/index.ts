@@ -98,3 +98,4 @@ export interface ConceptView {
   subject: string;
   revision: 0 | 1;
 }
+export * from './brief';
