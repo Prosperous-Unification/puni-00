@@ -139,7 +139,7 @@ test('erasure blanks a due subject conversation and keeps its accounting', () =>
   ]);
 });
 
-test('the expired-draft purge removes conversations and retains unknown usage blanked', () => {
+test('the expired-draft purge removes earlier days and retains unknown usage blanked', () => {
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
   store.createDraft('draft-a', 'secret a', 'claim-a', day, day + 1_000);
@@ -161,7 +161,7 @@ test('the expired-draft purge removes conversations and retains unknown usage bl
   store.markConversationOperationUnknown(unknown.id);
   store.close();
 
-  const cutoff = day + 2_000;
+  const cutoff = day + 86_400_000;
   const plan = inspectExpiredDrafts(databasePath, cutoff);
   expect(plan).toMatchObject({
     eligibleDrafts: 2,
@@ -200,8 +200,42 @@ test('the expired-draft purge removes conversations and retains unknown usage bl
       message: '',
       reply: null,
       reserved_micro_usd: 1_000,
-      settled_micro_usd: null,
+      settled_micro_usd: 1_000,
     },
   ]);
   expect(inspectExpiredDrafts(databasePath, cutoff).eligibleDrafts).toBe(0);
+});
+
+test('the purge keeps the cutoff day’s completed operations as blanked accounting rows', () => {
+  const databasePath = databaseFile();
+  const store = new WebsiteStore(databasePath);
+  store.createDraft('draft-a', 'secret a', 'claim-a', day, day + 1_000);
+  converse(store, 'claim-a', 2);
+  store.close();
+  const spend =
+    "SELECT COALESCE(SUM(COALESCE(settled_micro_usd, reserved_micro_usd)), 0) AS total FROM conversation_operation WHERE utc_day = '2026-10-06'";
+  const cutoff = day + 2_000;
+  const plan = inspectExpiredDrafts(databasePath, cutoff);
+  expect(plan).toMatchObject({
+    eligibleDrafts: 1,
+    retainedDrafts: 1,
+    conversations: 0,
+    conversationTurns: 4,
+    completedOperations: 0,
+    retainedOperations: 2,
+  });
+  expect(purgeExpiredDrafts(databasePath, cutoff, plan.fingerprint, cutoff)).toMatchObject({
+    deletedDrafts: 0,
+    retainedDrafts: 1,
+    deletedConversationOperations: 0,
+    retainedOperations: 2,
+  });
+  expect(query(databasePath, spend)).toEqual([{ total: 800 }]);
+  expect(query(databasePath, 'SELECT state, message, reply FROM conversation_operation')).toEqual([
+    { state: 'completed', message: '', reply: '' },
+    { state: 'completed', message: '', reply: '' },
+  ]);
+  expect(query(databasePath, 'SELECT description, brief FROM intake_draft')).toEqual([
+    { description: '', brief: '' },
+  ]);
 });

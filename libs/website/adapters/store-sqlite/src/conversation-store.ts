@@ -77,7 +77,6 @@ export type ConversationAdmission =
         | 'draft_unavailable'
         | 'conflict'
         | 'inflight'
-        | 'unknown'
         | 'turn_limit'
         | 'initial_required'
         | 'provider_unavailable'
@@ -99,6 +98,10 @@ interface OperationRow {
   reply: string | null;
 }
 
+/**
+ * Spend in micro-USD: settled usage, the full reservation of an operation settled at its ceiling
+ * or still in flight. It can only over-count what the provider charged, never under-count.
+ */
 const spentMicroUsd = 'COALESCE(SUM(COALESCE(settled_micro_usd, reserved_micro_usd)), 0)';
 
 function utcDayOf(now: number): string {
@@ -176,6 +179,7 @@ function toOperationRecord(row: {
   };
 }
 
+/** The latest attempt under one idempotency key; earlier attempts were settled at their ceiling. */
 export function findConversationOperation(
   database: Database,
   conversationId: string,
@@ -192,7 +196,7 @@ export function findConversationOperation(
       },
       [string, string]
     >(
-      'SELECT id, idempotency_key, state, truncated, message FROM conversation_operation WHERE conversation_id = ? AND idempotency_key = ?',
+      'SELECT id, idempotency_key, state, truncated, message FROM conversation_operation WHERE conversation_id = ? AND idempotency_key = ? ORDER BY rowid DESC LIMIT 1',
     )
     .get(conversationId, idempotencyKey);
   return row ? toOperationRecord(row) : null;
@@ -227,30 +231,32 @@ export function findLatestConversationOperation(
 function refuseReservation(
   database: Database,
   conversation: ConversationRow,
+  sourceHash: string,
   reservedMicroUsd: number,
   now: number,
 ): ConversationAdmission | null {
   const utcDay = utcDayOf(now);
-  const dayStart = Date.parse(`${utcDay}T00:00:00.000Z`);
-  // Proof: counting every same-day conversation instead of earlier ones refused the first conversation once a fourth existed (source-ceiling test).
-  const earlierFromSource = single(
+  // Each operation carries the source hash and UTC day it was admitted under, so a conversation
+  // crossing midnight is charged to the new day's source rather than the old day's.
+  // Proof: summing by conversation.source_hash instead admitted the over-ceiling call in the midnight-crossing test.
+  const otherConversationsFromSource = single(
     database
-      .query<{ count: number }, [string, number, number]>(
-        'SELECT count(*) AS count FROM conversation WHERE source_hash = ? AND created_at >= ? AND rowid < ?',
+      .query<{ count: number }, [string, string, string]>(
+        'SELECT count(DISTINCT conversation_id) AS count FROM conversation_operation WHERE source_hash = ? AND utc_day = ? AND conversation_id <> ?',
       )
-      .get(conversation.source_hash, dayStart, conversation.rowid),
+      .get(sourceHash, utcDay, conversation.id),
     'source conversation',
   ).count;
   const sourceSpend = single(
     database
       .query<{ total: number }, [string, string]>(
-        `SELECT ${spentMicroUsd} AS total FROM conversation_operation JOIN conversation ON conversation.id = conversation_operation.conversation_id WHERE conversation.source_hash = ? AND conversation_operation.utc_day = ?`,
+        `SELECT ${spentMicroUsd} AS total FROM conversation_operation WHERE source_hash = ? AND utc_day = ?`,
       )
-      .get(conversation.source_hash, utcDay),
+      .get(sourceHash, utcDay),
     'source spend',
   ).total;
   if (
-    earlierFromSource >= conversationAllowance.sourceDayConversations ||
+    otherConversationsFromSource >= conversationAllowance.sourceDayConversations ||
     sourceSpend + reservedMicroUsd > conversationAllowance.sourceDayMicroUsd
   )
     return exhaust(database, conversation.id, 'source_spend');
@@ -275,23 +281,25 @@ function refuseReservation(
   ).total;
   if (siteSpend + reservedMicroUsd > conversationAllowance.siteDayMicroUsd)
     return exhaust(database, conversation.id, 'site_spend');
-  const unsettled = single(
+  // Proof: counting every non-completed operation instead of in-flight ones made four stopped conversations refuse the fifth as busy.
+  const running = single(
     database
       .query<{ count: number }, []>(
-        'SELECT (SELECT count(*) FROM provider_call WHERE settled_micro_usd IS NULL) + (SELECT count(*) FROM conversation_operation WHERE reserved_micro_usd IS NOT NULL AND settled_micro_usd IS NULL) AS count',
+        `SELECT (SELECT count(*) FROM provider_call WHERE settled_micro_usd IS NULL) + (SELECT count(*) FROM conversation_operation WHERE state = 'inflight' AND reserved_micro_usd IS NOT NULL) AS count`,
       )
       .get(),
-    'unsettled call',
+    'running call',
   ).count;
-  if (unsettled >= conversationAllowance.siteUnsettledCalls) return { kind: 'busy' };
+  if (running >= conversationAllowance.siteUnsettledCalls) return { kind: 'busy' };
   return null;
 }
 
 /**
  * Admits one claim-bound conversation operation in a single immediate transaction, so a
  * concurrent writer in another process waits for the lock instead of reading stale totals.
- * Order: live draft, conversation state, idempotent lookup (replay, conflict, in-flight,
- * unknown), the initial-once and turn rules, the per-conversation in-flight rule, then the
+ * Order: live draft, conversation state, idempotent lookup of the key's latest attempt (replay,
+ * conflict, in-flight; an `unknown` attempt was settled at its ceiling and may be retried under
+ * the same key as a new attempt), the initial-once and turn rules, the per-conversation in-flight rule, then the
  * priced ceilings. A turn or spend refusal stores the conversation as `exhausted` with its
  * reason; saved turns never change. The conversation row is created on the first admitted
  * attempt and carries the salted source hash.
@@ -332,7 +340,7 @@ export function admitConversationOperation(
       const visitorTurns = countVisitorTurns(database, conversation.id);
       const existing = database
         .query<OperationRow, [string, string]>(
-          'SELECT id, body_hash, state, reply FROM conversation_operation WHERE conversation_id = ? AND idempotency_key = ?',
+          'SELECT id, body_hash, state, reply FROM conversation_operation WHERE conversation_id = ? AND idempotency_key = ? ORDER BY rowid DESC LIMIT 1',
         )
         .get(conversation.id, request.idempotencyKey);
       if (existing) {
@@ -344,7 +352,8 @@ export function admitConversationOperation(
             throw new Error('Completed conversation operation has no reply');
           return { kind: 'completed', reply: existing.reply };
         }
-        return { kind: existing.state };
+        if (existing.state === 'inflight') return { kind: 'inflight' };
+        // An `unknown` attempt was settled at its ceiling; the same key may start a new attempt.
       }
       if (request.pricing.kind === 'closed') return { kind: 'provider_unavailable' };
       if (request.initial && visitorTurns > 0) return { kind: 'turn_limit' };
@@ -367,18 +376,25 @@ export function admitConversationOperation(
         reservedMicroUsd = request.pricing.price(history, stage);
         if (!Number.isSafeInteger(reservedMicroUsd) || reservedMicroUsd <= 0)
           throw new Error('Conversation reservation must be a positive integer of micro-USD');
-        const refusal = refuseReservation(database, conversation, reservedMicroUsd, request.now);
+        const refusal = refuseReservation(
+          database,
+          conversation,
+          request.sourceHash,
+          reservedMicroUsd,
+          request.now,
+        );
         if (refusal) return refusal;
       }
       const id = crypto.randomUUID();
       database
         .query(
-          "INSERT INTO conversation_operation (id, conversation_id, idempotency_key, body_hash, message, initial, stage, prompt_version, state, utc_day, reserved_micro_usd, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'inflight', ?, ?, ?)",
+          "INSERT INTO conversation_operation (id, conversation_id, idempotency_key, source_hash, body_hash, message, initial, stage, prompt_version, state, utc_day, reserved_micro_usd, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'inflight', ?, ?, ?)",
         )
         .run(
           id,
           conversation.id,
           request.idempotencyKey,
+          request.sourceHash,
           request.bodyHash,
           request.message,
           request.initial ? 1 : 0,
@@ -394,11 +410,12 @@ export function admitConversationOperation(
 }
 
 /**
- * Settles usage within the reservation, adds the visitor and assistant turns and marks the
- * operation completed (`truncated` for a length finish) in one transaction. A completed `brief`
- * reply, trimmed to 4,000 characters, becomes the draft brief unless the visitor already saved
- * one. Returns false, changing nothing, when the operation is not in flight or the usage is
- * missing, unexpected or above the reservation.
+ * Settles final usage, adds the visitor and assistant turns and marks the operation completed
+ * (`truncated` for a length finish) in one transaction. Usage above the reservation is recorded
+ * as the actual cost with `overrun` set, so every ceiling sees the real spend. A completed
+ * `brief` reply, trimmed to 4,000 characters, becomes the draft brief unless the visitor already
+ * saved one. Returns false, changing nothing, when the operation is not in flight or the usage is
+ * missing for a reserved operation or present for a free one.
  */
 export function completeConversationOperation(
   database: Database,
@@ -424,18 +441,18 @@ export function completeConversationOperation(
       )
       .get(id);
     if (operation?.state !== 'inflight') return false;
-    if (
-      operation.reserved_micro_usd === null
-        ? actualMicroUsd !== null
-        : actualMicroUsd === null || actualMicroUsd > operation.reserved_micro_usd
-    )
-      return false;
+    if ((operation.reserved_micro_usd === null) !== (actualMicroUsd === null)) return false;
+    // Proof: refusing usage above the reservation made the overrun test's completion return false.
+    const overrun =
+      operation.reserved_micro_usd !== null &&
+      actualMicroUsd !== null &&
+      actualMicroUsd > operation.reserved_micro_usd;
     // Proof: settling before this transaction left settled usage with no turns in the failed-insert test.
     const settled = database
       .query(
-        "UPDATE conversation_operation SET state = 'completed', reply = ?, truncated = ?, settled_micro_usd = ? WHERE id = ? AND state = 'inflight'",
+        "UPDATE conversation_operation SET state = 'completed', reply = ?, truncated = ?, settled_micro_usd = ?, settlement = 'usage', overrun = ? WHERE id = ? AND state = 'inflight'",
       )
-      .run(reply, truncated ? 1 : 0, actualMicroUsd, id);
+      .run(reply, truncated ? 1 : 0, actualMicroUsd, overrun ? 1 : 0, id);
     if (settled.changes !== 1) throw new Error('Conversation completion was not atomic');
     const insertTurn = database.query(
       'INSERT INTO conversation_turn (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)',
@@ -454,37 +471,75 @@ export function completeConversationOperation(
 }
 
 /**
- * Marks an in-flight operation `unknown`, keeping its reservation, and holds the conversation as
- * `exhausted` with reason `unsettled` until reconciled. Returns false when it was not in flight.
+ * Records the provider's generation id of an in-flight operation once it is first seen, so a
+ * later ceiling settlement can still be reconciled against the provider's own record.
+ */
+export function recordConversationGeneration(
+  database: Database,
+  id: string,
+  generationId: string,
+): void {
+  database
+    .query(
+      "UPDATE conversation_operation SET generation_id = ? WHERE id = ? AND state = 'inflight' AND generation_id IS NULL",
+    )
+    .run(generationId, id);
+}
+
+/**
+ * Conservative settlement for an in-flight operation whose final usage is unknown (stop,
+ * disconnect, timeout, provider or stream error, refused completion): it becomes `unknown` and
+ * is settled at its full reservation with `settlement = 'reserved_ceiling'`. The reservation was
+ * priced at the pinned `max_price` with the full output cap, so the recorded spend can only
+ * over-count the provider's charge. The conversation stays open; the partial reply is not saved
+ * and the visitor's message stays on the operation for a retry. Returns false when it was not in
+ * flight.
  */
 export function markConversationOperationUnknown(database: Database, id: string): boolean {
-  return database.transaction(() => {
-    const marked = database
-      .query(
-        "UPDATE conversation_operation SET state = 'unknown' WHERE id = ? AND state = 'inflight'",
-      )
-      .run(id);
-    if (marked.changes !== 1) return false;
+  // Proof: settling at 0 (schema CHECK removed too) let the stopped-reply and ceiling-settled tests admit another paid call; with the CHECK present the same fault raises a constraint error.
+  return (
     database
       .query(
-        "UPDATE conversation SET state = 'exhausted', exhausted_reason = 'unsettled' WHERE id = (SELECT conversation_id FROM conversation_operation WHERE id = ?) AND state = 'open'",
+        "UPDATE conversation_operation SET state = 'unknown', settlement = 'reserved_ceiling', settled_micro_usd = reserved_micro_usd WHERE id = ? AND state = 'inflight'",
       )
-      .run(id);
-    return true;
-  })();
+      .run(id).changes === 1
+  );
 }
 
 /**
  * Startup recovery: an interrupted process cannot prove final usage, so every in-flight
- * operation becomes `unknown` and its open conversation is held as `unsettled`.
+ * operation is settled at its reserved ceiling as by {@link markConversationOperationUnknown}.
  */
 export function recoverConversationOperations(database: Database): void {
-  database.transaction(() => {
-    database.run(
-      "UPDATE conversation SET state = 'exhausted', exhausted_reason = 'unsettled' WHERE state = 'open' AND id IN (SELECT conversation_id FROM conversation_operation WHERE state = 'inflight')",
-    );
-    database.run("UPDATE conversation_operation SET state = 'unknown' WHERE state = 'inflight'");
-  })();
+  // Proof: matching no rows here left the restart test's operation `inflight` and unsettled.
+  database.run(
+    "UPDATE conversation_operation SET state = 'unknown', settlement = 'reserved_ceiling', settled_micro_usd = reserved_micro_usd WHERE state = 'inflight'",
+  );
+}
+
+/**
+ * The random salt of one UTC day, created by the first process to ask and shared through the
+ * database by every process on it, so restarts and blue/green pairs agree on a day's sources.
+ * Salts older than the previous day are deleted, so an old source hash cannot be recomputed.
+ *
+ * @throws when the stored salt is absent after creation or is not 32 bytes.
+ */
+export function readSourceSalt(database: Database, utcDay: string): Uint8Array {
+  return database
+    .transaction(() => {
+      const previousDay = utcDayOf(Date.parse(`${utcDay}T00:00:00.000Z`) - 86_400_000);
+      database.query('DELETE FROM source_salt WHERE utc_day < ?').run(previousDay);
+      database
+        .query('INSERT OR IGNORE INTO source_salt (utc_day, salt) VALUES (?, ?)')
+        .run(utcDay, crypto.getRandomValues(new Uint8Array(32)));
+      const row = database
+        .query<{ salt: unknown }, [string]>('SELECT salt FROM source_salt WHERE utc_day = ?')
+        .get(utcDay);
+      if (!(row?.salt instanceof Uint8Array) || row.salt.length !== 32)
+        throw new Error(`Source salt for ${utcDay} is missing or malformed`);
+      return row.salt;
+    })
+    .immediate();
 }
 
 /** Marks the draft's conversation, if any, `handed_off`; call inside the claim-consuming transaction. */

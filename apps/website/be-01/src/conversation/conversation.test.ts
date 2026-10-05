@@ -10,6 +10,17 @@ import { createWebsiteApi, type WebsiteApiConfig } from '../server';
 import type { ProviderFetch } from './stream';
 import { composeSystemText, salesPromptVersion, stageHint } from './system-prompt';
 
+/** Mounts the API as served from a loopback socket, which is the request source unless a test names one. */
+function mountApi(config: WebsiteApiConfig): ReturnType<typeof createWebsiteApi> {
+  const api = createWebsiteApi(config);
+  return {
+    fetch: (request, clientAddress = '127.0.0.1') => api.fetch(request, clientAddress),
+    close: () => {
+      api.close();
+    },
+  };
+}
+
 const directories: string[] = [];
 afterEach(() => {
   for (const directory of directories.splice(0))
@@ -218,11 +229,13 @@ function operations(databasePath: string) {
           prompt_version: string;
           reserved_micro_usd: number | null;
           settled_micro_usd: number | null;
+          settlement: string | null;
+          generation_id: string | null;
           truncated: number;
         },
         []
       >(
-        'SELECT state, stage, prompt_version, reserved_micro_usd, settled_micro_usd, truncated FROM conversation_operation ORDER BY rowid',
+        'SELECT state, stage, prompt_version, reserved_micro_usd, settled_micro_usd, settlement, generation_id, truncated FROM conversation_operation ORDER BY rowid',
       )
       .all();
   } finally {
@@ -249,7 +262,7 @@ function fillSiteDay(databasePath: string, remaining: number): void {
 test('the owner streams the initial reply, reads it back and replays it without a second call', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Who will book the repairs?' }));
   const config = paidConfig(fake.providerFetch);
-  const api = createWebsiteApi(config);
+  const api = mountApi(config);
   const visitor = await beginVisitor(api);
   const before = await readConversation(api, visitor.cookie);
   expect(before).toMatchObject({
@@ -319,7 +332,7 @@ test('the owner streams the initial reply, reads it back and replays it without 
 test('foreign claims, origins and a missing CSRF header create nothing and call nothing', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
   const config = paidConfig(fake.providerFetch);
-  const api = createWebsiteApi(config);
+  const api = mountApi(config);
   const visitor = await beginVisitor(api);
   const body = { idempotencyKey: visitor.initialKey, initial: true };
   // Proof: removing the conversation stream CSRF check made this request answer 200.
@@ -366,7 +379,7 @@ test('foreign claims, origins and a missing CSRF header create nothing and call 
 
 test('every paid request carries the pinned routing, the reply cap and one system message', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Who uses it today?' }));
-  const api = createWebsiteApi(paidConfig(fake.providerFetch));
+  const api = mountApi(paidConfig(fake.providerFetch));
   const visitor = await beginVisitor(api);
   await (await sendInitial(api, visitor)).text();
   const injection =
@@ -409,7 +422,7 @@ test('stages follow the turns, the third reply becomes the brief and the ninth t
         : `Reply ${String(call)}?`,
   }));
   const config = paidConfig(fake.providerFetch);
-  const api = createWebsiteApi(config);
+  const api = mountApi(config);
   const visitor = await beginVisitor(api);
   await (await sendInitial(api, visitor)).text();
   for (let turn = 2; turn <= 8; turn += 1) {
@@ -470,7 +483,7 @@ test('stages follow the turns, the third reply becomes the brief and the ninth t
 
 test('a brief the visitor saved before the third reply is kept', async () => {
   const fake = fakeOpenRouter((call) => ({ reply: `Reply ${String(call)}` }));
-  const api = createWebsiteApi(paidConfig(fake.providerFetch));
+  const api = mountApi(paidConfig(fake.providerFetch));
   const visitor = await beginVisitor(api);
   await (await sendInitial(api, visitor)).text();
   await (await sendMessage(api, visitor, 'turn-key-2', 'Volunteers')).text();
@@ -493,10 +506,25 @@ test('a brief the visitor saved before the third reply is kept', async () => {
   api.close();
 });
 
-test('missing final usage holds the reservation and blocks the conversation', async () => {
-  const fake = fakeOpenRouter(() => ({ reply: 'Unbilled?', usage: null }));
+/** Asserts that every listed operation is settled at exactly its full reservation. */
+function expectCeilingSettled(databasePath: string, indexes: number[]): void {
+  const rows = operations(databasePath);
+  for (const index of indexes) {
+    const row = rows[index];
+    expect(row).toMatchObject({ state: 'unknown', settlement: 'reserved_ceiling' });
+    expect(row.reserved_micro_usd).toBeGreaterThan(0);
+    expect(row.settled_micro_usd).toBe(row.reserved_micro_usd ?? -1);
+  }
+}
+
+test('missing final usage settles at the reserved ceiling and the same key can retry', async () => {
+  let call = 0;
+  const fake = fakeOpenRouter(() => {
+    call += 1;
+    return call === 1 ? { reply: 'Unbilled?', usage: null } : { reply: 'Who books repairs?' };
+  });
   const config = paidConfig(fake.providerFetch);
-  const api = createWebsiteApi(config);
+  const api = mountApi(config);
   const visitor = await beginVisitor(api);
   const first = await sendInitial(api, visitor);
   expect(first.status).toBe(200);
@@ -504,27 +532,36 @@ test('missing final usage holds the reservation and blocks the conversation', as
   const types = chunkTypes(await first.text());
   expect(types).toContain('error');
   expect(types).not.toContain('finish');
-  expect(operations(config.databasePath)).toMatchObject([
-    { state: 'unknown', settled_micro_usd: null },
-  ]);
-  expect(operations(config.databasePath)[0]?.reserved_micro_usd).toBeGreaterThan(0);
-  const next = await sendInitial(api, visitor);
-  expect(next.status).toBe(409);
-  expect(await next.json()).toEqual({ code: 'chat_unsettled' });
+  expectCeilingSettled(config.databasePath, [0]);
   expect(await readConversation(api, visitor.cookie)).toMatchObject({
-    stage: 'exhausted',
-    exhaustedReason: 'unsettled',
+    stage: 'clarify',
+    exhaustedReason: null,
     turns: [],
     initialOperation: { state: 'unknown' },
+    latestOperation: { state: 'unknown', message: 'A booking tool for a bike workshop' },
   });
-  expect(fake.bodies).toHaveLength(1);
+  const retried = await sendInitial(api, visitor);
+  expect(chunkTypes(await retried.text())).toContain('finish');
+  expect(fake.bodies).toHaveLength(2);
+  expect(operations(config.databasePath)).toMatchObject([
+    { state: 'unknown', settlement: 'reserved_ceiling' },
+    { state: 'completed', settlement: 'usage' },
+  ]);
+  expect(await readConversation(api, visitor.cookie)).toMatchObject({
+    stage: 'clarify',
+    turns: [
+      { role: 'user', content: 'A booking tool for a bike workshop' },
+      { role: 'assistant', content: 'Who books repairs?' },
+    ],
+    initialOperation: { state: 'completed' },
+  });
   api.close();
 });
 
 test('a length finish with usage completes and records a truncated reply', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'A long answer', finish: 'length' }));
   const config = paidConfig(fake.providerFetch);
-  const api = createWebsiteApi(config);
+  const api = mountApi(config);
   const visitor = await beginVisitor(api);
   expect(chunkTypes(await (await sendInitial(api, visitor)).text())).toContain('finish');
   expect(operations(config.databasePath)).toMatchObject([{ state: 'completed', truncated: 1 }]);
@@ -533,32 +570,39 @@ test('a length finish with usage completes and records a truncated reply', async
 });
 
 for (const status of [429, 502]) {
-  test(`a provider ${String(status)} before streaming leaves the operation unknown`, async () => {
+  test(`a provider ${String(status)} before streaming settles the operation at its ceiling`, async () => {
     const fake = fakeOpenRouter(() => ({ status }));
     const config = paidConfig(fake.providerFetch);
-    const api = createWebsiteApi(config);
+    const api = mountApi(config);
     const visitor = await beginVisitor(api);
     const response = await sendInitial(api, visitor);
     const types = chunkTypes(await response.text());
     expect(types).toContain('error');
     expect(types).not.toContain('finish');
-    expect(operations(config.databasePath)).toMatchObject([
-      { state: 'unknown', settled_micro_usd: null },
-    ]);
-    expect((await readConversation(api, visitor.cookie)).turns).toEqual([]);
+    expectCeilingSettled(config.databasePath, [0]);
+    expect(await readConversation(api, visitor.cookie)).toMatchObject({
+      turns: [],
+      exhaustedReason: null,
+    });
     api.close();
   });
 }
 
-test('cancel aborts the provider call, marks the operation unknown and keeps the reservation', async () => {
+test('cancel aborts the provider call and settles the operation at its reserved ceiling', async () => {
   const fake = fakeOpenRouter(() => ({ hang: 'Partial' }));
   const config = paidConfig(fake.providerFetch);
-  const api = createWebsiteApi(config);
+  const api = mountApi(config);
   const visitor = await beginVisitor(api);
   const streaming = await sendInitial(api, visitor);
   const reader = streaming.body?.getReader();
   if (!reader) throw new Error('Missing stream body');
-  await reader.read();
+  // Read until the partial text arrives, so the provider's generation id has been seen.
+  let partial = '';
+  while (!partial.includes('text-delta')) {
+    const chunk = await reader.read();
+    if (chunk.done) throw new Error('Stream ended before the partial reply');
+    partial += new TextDecoder().decode(chunk.value);
+  }
   const inflight = await sendInitial(api, visitor);
   expect(inflight.status).toBe(409);
   expect(await inflight.json()).toEqual({ code: 'chat_inflight' });
@@ -575,10 +619,8 @@ test('cancel aborts the provider call, marks the operation unknown and keeps the
   }
   expect(chunkTypes(rest)).toContain('error');
   expect(fake.signals[0]?.aborted).toBe(true);
-  expect(operations(config.databasePath)).toMatchObject([
-    { state: 'unknown', settled_micro_usd: null },
-  ]);
-  expect(operations(config.databasePath)[0]?.reserved_micro_usd).toBeGreaterThan(0);
+  expectCeilingSettled(config.databasePath, [0]);
+  expect(operations(config.databasePath)[0]?.generation_id).toBe('gen-1');
   const again = await api.fetch(
     post('/conversation/cancel', visitor, { idempotencyKey: visitor.initialKey }),
   );
@@ -589,7 +631,7 @@ test('cancel aborts the provider call, marks the operation unknown and keeps the
 test('a browser disconnect mid-stream aborts the call and leaves the operation unknown', async () => {
   const fake = fakeOpenRouter(() => ({ hang: 'Partial' }));
   const config = paidConfig(fake.providerFetch);
-  const api = createWebsiteApi(config);
+  const api = mountApi(config);
   const visitor = await beginVisitor(api);
   const streaming = await sendInitial(api, visitor);
   const reader = streaming.body?.getReader();
@@ -598,14 +640,68 @@ test('a browser disconnect mid-stream aborts the call and leaves the operation u
   await reader.cancel();
   await Bun.sleep(20);
   expect(fake.signals[0]?.aborted).toBe(true);
-  expect(operations(config.databasePath)).toMatchObject([{ state: 'unknown' }]);
+  expectCeilingSettled(config.databasePath, [0]);
+  api.close();
+});
+
+/** Starts a hanging reply under `key`, reads its first chunk, cancels it and drains the stream. */
+async function stopReply(api: Api, visitor: Visitor, request: Promise<Response>, key: string) {
+  const reader = (await request).body?.getReader();
+  if (!reader) throw new Error('Missing stream body');
+  await reader.read();
+  const cancelled = await api.fetch(post('/conversation/cancel', visitor, { idempotencyKey: key }));
+  expect(cancelled.status).toBe(200);
+  while (!(await reader.read()).done);
+}
+
+test('a stopped reply keeps the conversation open and counts its full reservation', async () => {
+  let call = 0;
+  const fake = fakeOpenRouter(() => {
+    call += 1;
+    return call === 2 ? { reply: 'Who books repairs?' } : { hang: 'Partial' };
+  });
+  // At $10 per million tokens each reservation is about $0.06 and a completed reply about
+  // $0.01, so two stops and one reply leave less than one more reservation under $0.15.
+  const config = paidConfig(fake.providerFetch, {
+    openRouterInputUsdPerMillion: 10,
+    openRouterOutputUsdPerMillion: 10,
+  });
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  await stopReply(api, visitor, sendInitial(api, visitor), visitor.initialKey);
+  expect(chunkTypes(await (await sendInitial(api, visitor)).text())).toContain('finish');
+  const afterStop = await readConversation(api, visitor.cookie);
+  expect(afterStop).toMatchObject({ stage: 'clarify', exhaustedReason: null });
+  expect(afterStop.turns).toHaveLength(2);
+  await stopReply(
+    api,
+    visitor,
+    sendMessage(api, visitor, 'turn-two-key', 'Repairs and rentals'),
+    'turn-two-key',
+  );
+  expect(await readConversation(api, visitor.cookie)).toMatchObject({
+    stage: 'clarify',
+    turns: afterStop.turns,
+    latestOperation: { state: 'unknown', message: 'Repairs and rentals' },
+  });
+  // Proof: settling a stopped operation at zero (with the schema CHECK also removed) admitted this third paid call.
+  const refused = await sendMessage(api, visitor, 'turn-two-key', 'Repairs and rentals');
+  expect(refused.status).toBe(429);
+  expect(await refused.json()).toEqual({
+    code: 'conversation_limit',
+    exhaustedReason: 'conversation_spend',
+  });
+  expect(fake.bodies).toHaveLength(3);
+  expectCeilingSettled(config.databasePath, [0, 2]);
+  const [stopped, completed] = operations(config.databasePath);
+  expect(completed.settled_micro_usd).toBeLessThan(stopped.reserved_micro_usd ?? 0);
   api.close();
 });
 
 test('the site-day ceiling is shared with account reservations', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
   const config = paidConfig(fake.providerFetch);
-  const api = createWebsiteApi(config);
+  const api = mountApi(config);
   fillSiteDay(config.databasePath, 1_000);
   const visitor = await beginVisitor(api);
   const refused = await sendInitial(api, visitor);
@@ -619,7 +715,7 @@ test('the site-day ceiling is shared with account reservations', async () => {
 test('two racing conversations under a ceiling for one reach the provider once', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Who uses it?' }));
   const config = paidConfig(fake.providerFetch);
-  const api = createWebsiteApi(config);
+  const api = mountApi(config);
   fillSiteDay(config.databasePath, 5_000);
   const first = await beginVisitor(api);
   const second = await beginVisitor(api);
@@ -635,7 +731,7 @@ test('two racing conversations under a ceiling for one reach the provider once',
 
 test('a fourth conversation from one source today is refused', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Who uses it?' }));
-  const api = createWebsiteApi(paidConfig(fake.providerFetch));
+  const api = mountApi(paidConfig(fake.providerFetch));
   for (let index = 0; index < 3; index += 1) {
     const visitor = await beginVisitor(api);
     const response = await sendInitial(api, visitor);
@@ -661,7 +757,7 @@ test('a fourth conversation from one source today is refused', async () => {
 test('a proposal submission hands the conversation off and closes the stream', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Who uses it?' }));
   const config = paidConfig(fake.providerFetch);
-  const api = createWebsiteApi(config);
+  const api = mountApi(config);
   const visitor = await beginVisitor(api);
   await (await sendInitial(api, visitor)).text();
   await (await sendMessage(api, visitor, 'turn-key-2', 'Volunteers')).text();
@@ -688,7 +784,7 @@ test('a proposal submission hands the conversation off and closes the stream', a
 test('a disabled or unconfigured provider is reported and admits no operation', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
   const disabledConfig = paidConfig(fake.providerFetch, { openRouterEnabled: false });
-  const disabled = createWebsiteApi(disabledConfig);
+  const disabled = mountApi(disabledConfig);
   const visitor = await beginVisitor(disabled);
   expect((await readConversation(disabled, visitor.cookie)).provider).toBe('disabled');
   const refused = await sendInitial(disabled, visitor);
@@ -696,7 +792,7 @@ test('a disabled or unconfigured provider is reported and admits no operation', 
   expect(await refused.json()).toEqual({ code: 'provider_unavailable' });
   disabled.close();
 
-  const unconfigured = createWebsiteApi({
+  const unconfigured = mountApi({
     ...disabledConfig,
     openRouterEnabled: true,
     openRouterKey: '',
@@ -712,7 +808,7 @@ test('a disabled or unconfigured provider is reported and admits no operation', 
 
 test('an unavailable provider refuses a broken store admission without contacting the provider', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
-  const api = createWebsiteApi(paidConfig(fake.providerFetch, { openRouterEnabled: false }));
+  const api = mountApi(paidConfig(fake.providerFetch, { openRouterEnabled: false }));
   const visitor = await beginVisitor(api);
   const admission = Reflect.get(WebsiteStore.prototype, 'admitConversationOperation');
   WebsiteStore.prototype.admitConversationOperation = function () {
@@ -739,7 +835,7 @@ test('an unavailable provider refuses a broken store admission without contactin
 test('loopback demo replies are labelled simulated and reserve nothing', async () => {
   const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
   const config = paidConfig(fake.providerFetch, { openRouterEnabled: false, demoAuth: true });
-  const api = createWebsiteApi(config);
+  const api = mountApi(config);
   const visitor = await beginVisitor(api);
   expect((await readConversation(api, visitor.cookie)).provider).toBe('demo');
   const reply = await (await sendInitial(api, visitor)).text();

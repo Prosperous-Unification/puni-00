@@ -99,7 +99,12 @@ export interface ConfirmedReplyOptions {
   abortOnDisconnect: boolean;
   /** Commits the reply and settled usage; false leaves the operation to be marked unknown. */
   complete(reply: string, actualMicroUsd: number, truncated: boolean): boolean;
+  /** Settles an operation whose final usage is unknown; see the store's ceiling settlement. */
   markUnknown(): void;
+  /** The user-facing `errorText` when the reply ends without confirmed usage. */
+  interruptedText: string;
+  /** Receives the provider's generation id once, from the first raw chunk that carries one. */
+  recordGeneration?(generationId: string): void;
   isCompleted(): boolean;
 }
 
@@ -139,6 +144,7 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     compatibility: 'strict',
     fetch: providerFetch,
   });
+  let generationRecorded = false;
   const inputRate = options.rates.inputUsdPerMillion;
   const outputRate = options.rates.outputUsdPerMillion;
   const streamed = streamText({
@@ -148,6 +154,17 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
     maxOutputTokens: options.maxOutputTokens,
     maxRetries: 0,
     abortSignal: abort.signal,
+    includeRawChunks: options.recordGeneration !== undefined,
+    onChunk: ({ chunk }) => {
+      if (generationRecorded || chunk.type !== 'raw') return;
+      const rawValue: unknown = chunk.rawValue;
+      const generationId: unknown =
+        typeof rawValue === 'object' && rawValue !== null ? Reflect.get(rawValue, 'id') : null;
+      if (typeof generationId !== 'string' || !generationId) return;
+      generationRecorded = true;
+      // Proof: dropping this call left generation_id null in the mounted cancel test.
+      options.recordGeneration?.(generationId);
+    },
     providerOptions: {
       openrouter: {
         provider: providerRouting(options.pin.provider, options.rates),
@@ -202,7 +219,7 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
             else
               controller.enqueue({
                 type: 'error',
-                errorText: 'The response could not be confirmed. Your allowance remains on hold.',
+                errorText: options.interruptedText,
               });
             controller.close();
           }
@@ -212,7 +229,7 @@ export function streamConfirmedReply(options: ConfirmedReplyOptions): Response {
           if (connected) {
             controller.enqueue({
               type: 'error',
-              errorText: 'The response stopped before completion. Your allowance remains on hold.',
+              errorText: options.interruptedText,
             });
             controller.close();
           }

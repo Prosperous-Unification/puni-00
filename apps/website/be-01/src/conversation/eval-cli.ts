@@ -288,7 +288,11 @@ export async function runSalesEvaluation(options: EvaluationOptions): Promise<Sa
         () =>
           new Request(`${base}/intakes`, {
             method: 'POST',
-            headers: { origin: config.publicOrigin, 'content-type': 'application/json' },
+            headers: {
+              origin: config.publicOrigin,
+              'content-type': 'application/json',
+              'x-forwarded-for': visitor,
+            },
             body: JSON.stringify({ description: script.turns[0] }),
           }),
       );

@@ -47,7 +47,7 @@ export function deriveStage(
 export type ConversationProvider = 'openrouter' | 'demo' | 'disabled';
 
 export type ConversationExhaustedReason =
-  'turns' | 'conversation_spend' | 'source_spend' | 'site_spend' | 'unsettled';
+  'turns' | 'conversation_spend' | 'source_spend' | 'site_spend';
 
 export interface ConversationOperationView {
   state: 'not-started' | 'inflight' | 'completed' | 'unknown';

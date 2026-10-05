@@ -7,6 +7,7 @@ import { afterEach, expect, test } from 'bun:test';
 
 import { readWebsiteApiConfig } from '../runtime-config';
 import { createWebsiteApi, type WebsiteApiConfig } from '../server';
+import { createSourceHasher, selectSourcePrefix } from './source';
 
 const directories: string[] = [];
 afterEach(() => {
@@ -32,14 +33,22 @@ function baseConfig(overrides: Partial<WebsiteApiConfig> = {}): WebsiteApiConfig
   };
 }
 
+/** Posts one intake from `forwardedFor` behind a loopback gateway socket. */
+function postIntake(forwardedFor = '198.51.100.200'): Request {
+  return new Request('http://localhost:3101/intakes', {
+    method: 'POST',
+    headers: {
+      origin: publicOrigin,
+      'content-type': 'application/json',
+      'x-forwarded-for': forwardedFor,
+    },
+    body: JSON.stringify({ description: 'A booking tool for a bike workshop' }),
+  });
+}
+
 async function beginConversation(api: ReturnType<typeof createWebsiteApi>) {
-  const intake = await api.fetch(
-    new Request('http://localhost:3101/intakes', {
-      method: 'POST',
-      headers: { origin: publicOrigin, 'content-type': 'application/json' },
-      body: JSON.stringify({ description: 'A booking tool for a bike workshop' }),
-    }),
-  );
+  const intake = await api.fetch(postIntake(), '127.0.0.1');
+  expect(intake.status).toBe(201);
   const cookie = intake.headers.get('set-cookie')?.split(';')[0];
   if (!cookie) throw new Error('Intake set no claim cookie');
   const view = (await (
@@ -160,4 +169,69 @@ test('the runtime configuration refuses malformed provider, flag and hop setting
     openRouterInputUsdPerMillion: 0.44,
     openRouterOutputUsdPerMillion: 1.76,
   });
+});
+
+test('IPv6 sources are their /64 prefix and an IPv4-mapped address is its IPv4 address', () => {
+  expect(selectSourcePrefix('2001:db8:1:2::1')).toBe('2001:0db8:0001:0002::/64');
+  expect(selectSourcePrefix('2001:db8:1:2:ffff:eeee:dddd:cccc')).toBe('2001:0db8:0001:0002::/64');
+  expect(selectSourcePrefix('2001:db8:1:3::1')).toBe('2001:0db8:0001:0003::/64');
+  expect(selectSourcePrefix('::1')).toBe('0000:0000:0000:0000::/64');
+  expect(selectSourcePrefix('fe80::1%eth0')).toBe('fe80:0000:0000:0000::/64');
+  expect(selectSourcePrefix('::ffff:203.0.113.9')).toBe('203.0.113.9');
+  expect(selectSourcePrefix('203.0.113.9')).toBe('203.0.113.9');
+  expect(() => selectSourcePrefix('unknown')).toThrow('not an IP address');
+  const salt = new Uint8Array(32).fill(7);
+  const hash = createSourceHasher(() => salt);
+  const now = Date.UTC(2026, 9, 6, 12);
+  expect(hash('2001:db8:1:2::1', now)).toBe(hash('2001:db8:1:2:aaaa::9', now));
+  expect(hash('2001:db8:1:2::1', now)).not.toBe(hash('2001:db8:1:3::1', now));
+});
+
+test('two API processes on one database derive the same source for one address and day', async () => {
+  const config = baseConfig({ trustedProxyHops: 1 });
+  const blue = createWebsiteApi(config);
+  const green = createWebsiteApi(config);
+  const first = await beginConversation(blue);
+  const second = await beginConversation(green);
+  expect((await blue.fetch(postInitial(first, '203.0.113.9'), '127.0.0.1')).status).toBe(200);
+  expect((await green.fetch(postInitial(second, '203.0.113.9'), '127.0.0.1')).status).toBe(200);
+  const [blueSource, greenSource] = sources(config.databasePath);
+  // Proof: a random per-process salt made the two processes store different sources here.
+  expect(greenSource).toBe(blueSource);
+  blue.close();
+  green.close();
+});
+
+test('one source exhausting its request window leaves other sources admitted', async () => {
+  const config = baseConfig({ trustedProxyHops: 1 });
+  const api = createWebsiteApi(config);
+  for (let index = 0; index < 30; index += 1)
+    expect((await api.fetch(postIntake('203.0.113.9'), '127.0.0.1')).status).toBe(201);
+  const limited = await api.fetch(postIntake('203.0.113.9'), '127.0.0.1');
+  expect(limited.status).toBe(429);
+  expect(await limited.json()).toEqual({ code: 'rate_limited' });
+  // Proof: keying the window only on the path made this other source's intake answer 429.
+  expect((await api.fetch(postIntake('198.51.100.7'), '127.0.0.1')).status).toBe(201);
+  const missing = await api.fetch(
+    new Request('http://localhost:3101/intakes', {
+      method: 'POST',
+      headers: { origin: publicOrigin, 'content-type': 'application/json' },
+      body: JSON.stringify({ description: 'No forwarded hop' }),
+    }),
+    '127.0.0.1',
+  );
+  expect(missing.status).toBe(400);
+  expect(await missing.json()).toEqual({ code: 'source_unavailable' });
+  api.close();
+});
+
+test('the global request backstop refuses every source once it is full', async () => {
+  const config = baseConfig({ trustedProxyHops: 1 });
+  const api = createWebsiteApi(config);
+  for (let index = 0; index < 300; index += 1) {
+    const address = `198.51.${String(Math.floor(index / 250))}.${String(index % 250)}`;
+    expect((await api.fetch(postIntake(address), '127.0.0.1')).status).toBe(201);
+  }
+  expect((await api.fetch(postIntake('192.0.2.1'), '127.0.0.1')).status).toBe(429);
+  api.close();
 });

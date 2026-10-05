@@ -109,7 +109,7 @@ test('migration 007 applies forward and its down.sql restores the exact 006 sche
   }
 });
 
-test('restart marks in-flight conversation operations unknown and holds the conversation', () => {
+test('restart settles in-flight conversation operations at their reserved ceiling', () => {
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
   store.createDraft('draft-1', 'Build a booking app', 'claim-1', day, day + 1_000_000);
@@ -117,11 +117,21 @@ test('restart marks in-flight conversation operations unknown and holds the conv
   store.close();
   // Proof: deleting the startup recovery in WebsiteStore made this read `inflight`.
   new WebsiteStore(databasePath).close();
-  expect(rows(databasePath, 'SELECT state FROM conversation_operation')).toEqual([
-    { state: 'unknown' },
+  expect(
+    rows(
+      databasePath,
+      'SELECT state, settlement, reserved_micro_usd, settled_micro_usd FROM conversation_operation',
+    ),
+  ).toEqual([
+    {
+      state: 'unknown',
+      settlement: 'reserved_ceiling',
+      reserved_micro_usd: 1_000,
+      settled_micro_usd: 1_000,
+    },
   ]);
   expect(rows(databasePath, 'SELECT state, exhausted_reason FROM conversation')).toEqual([
-    { state: 'exhausted', exhausted_reason: 'unsettled' },
+    { state: 'open', exhausted_reason: null },
   ]);
 });
 
@@ -276,7 +286,7 @@ test('per-conversation and per-source spend ceilings exhaust with their reasons'
     state: 'exhausted',
     exhaustedReason: 'source_spend',
   });
-  // Proof: counting every same-day conversation instead of earlier ones refused this one.
+  // Proof: counting this conversation among the source's others refused its own next turn.
   expect(store.admitConversationOperation(ask('claim-2', 'key-2-turn-2', 'More'))).toMatchObject({
     kind: 'started',
   });
@@ -412,7 +422,6 @@ test('completion settles within the reservation and adds both turns atomically',
     store,
     ask('claim-1', 'initial:draft-1', 'Build a booking app', { initial: true }),
   );
-  expect(store.completeConversationOperation(id, 'Too dear', 1_001, day, false)).toBe(false);
   expect(store.completeConversationOperation(id, 'No usage', null, day, false)).toBe(false);
   expect(
     rows(databasePath, 'SELECT state, settled_micro_usd, reply FROM conversation_operation'),
@@ -442,20 +451,39 @@ test('completion settles within the reservation and adds both turns atomically',
   store.close();
 });
 
-test('unknown usage holds the conversation and a demo operation settles without usage', () => {
-  const store = new WebsiteStore(databaseFile());
+test('unknown usage settles at the reserved ceiling and the same key retries', () => {
+  const databasePath = databaseFile();
+  const store = new WebsiteStore(databasePath);
   store.createDraft('draft-1', 'Build a booking app', 'claim-1', day, day + 1_000_000);
-  const id = started(
-    store,
-    ask('claim-1', 'initial:draft-1', 'Build a booking app', { initial: true }),
-  );
+  const initial = ask('claim-1', 'initial:draft-1', 'Build a booking app', { initial: true });
+  const id = started(store, initial);
+  store.recordConversationGeneration(id, 'gen-1');
   expect(store.markConversationOperationUnknown(id)).toBe(true);
   expect(store.markConversationOperationUnknown(id)).toBe(false);
   expect(store.completeConversationOperation(id, 'Late', 500, day, false)).toBe(false);
+  expect(
+    rows(
+      databasePath,
+      'SELECT state, settlement, settled_micro_usd, generation_id FROM conversation_operation',
+    ),
+  ).toEqual([
+    {
+      state: 'unknown',
+      settlement: 'reserved_ceiling',
+      settled_micro_usd: 1_000,
+      generation_id: 'gen-1',
+    },
+  ]);
+  expect(store.findConversation('draft-1')).toMatchObject({ state: 'open', exhaustedReason: null });
   expect(store.admitConversationOperation(ask('claim-1', 'key-later-1', 'Later'))).toEqual({
-    kind: 'exhausted',
-    reason: 'unsettled',
+    kind: 'initial_required',
   });
+  const retry = started(store, initial);
+  expect(retry).not.toBe(id);
+  expect(
+    store.findConversationOperation(store.findConversation('draft-1')?.id ?? '', 'initial:draft-1'),
+  ).toMatchObject({ id: retry, state: 'inflight' });
+  expect(store.admitConversationOperation(initial)).toEqual({ kind: 'inflight' });
 
   store.createDraft('draft-2', 'R', 'claim-2', day, day + 1_000_000);
   const free = started(
@@ -464,6 +492,54 @@ test('unknown usage holds the conversation and a demo operation settles without 
   );
   expect(store.completeConversationOperation(free, 'Simulated', 10, day, false)).toBe(false);
   expect(store.completeConversationOperation(free, 'Simulated', null, day, false)).toBe(true);
+  store.close();
+});
+
+test('ceiling-settled operations count fully against the source and site ceilings', () => {
+  const databasePath = databaseFile();
+  const store = new WebsiteStore(databasePath);
+  store.createDraft('draft-1', 'R', 'claim-1', day, day + 1_000_000);
+  store.markConversationOperationUnknown(
+    started(
+      store,
+      ask('claim-1', 'initial:draft-1', 'R', { initial: true, pricing: paid(140_000) }),
+    ),
+  );
+  store.createDraft('draft-2', 'R', 'claim-2', day, day + 1_000_000);
+  store.markConversationOperationUnknown(
+    started(
+      store,
+      ask('claim-2', 'initial:draft-2', 'R', { initial: true, pricing: paid(140_000) }),
+    ),
+  );
+  store.createDraft('draft-3', 'R', 'claim-3', day, day + 1_000_000);
+  // Proof: settling at zero (schema CHECK removed too) admitted this third conversation's call.
+  expect(
+    store.admitConversationOperation(
+      ask('claim-3', 'initial:draft-3', 'R', { initial: true, pricing: paid(30_000) }),
+    ),
+  ).toEqual({ kind: 'exhausted', reason: 'source_spend' });
+
+  const account = store.createProspect('owner@example.test', day);
+  store.ensureBlankRequest(account.id, day);
+  const request = store.findAccountRequest(account.id);
+  if (!request || !store.reserveProviderCall(account.id, request.id, 1, day))
+    throw new Error('Account reservation refused');
+  const database = new Database(databasePath);
+  database.run(
+    'UPDATE provider_call SET reserved_micro_usd = 9_710_000, settled_micro_usd = 9_710_000',
+  );
+  database.close();
+  store.createDraft('draft-4', 'R', 'claim-4', day, day + 1_000_000);
+  expect(
+    store.admitConversationOperation(
+      ask('claim-4', 'initial:draft-4', 'R', {
+        initial: true,
+        sourceHash: 'source-b',
+        pricing: paid(20_000),
+      }),
+    ),
+  ).toEqual({ kind: 'exhausted', reason: 'site_spend' });
   store.close();
 });
 
@@ -502,4 +578,123 @@ test('a proposal submission hands the conversation off with the claim', () => {
     kind: 'draft_unavailable',
   });
   store.close();
+});
+
+test('usage above the reservation completes at the actual cost and is flagged as an overrun', () => {
+  const databasePath = databaseFile();
+  const store = new WebsiteStore(databasePath);
+  store.createDraft('draft-1', 'Build a booking app', 'claim-1', day, day + 1_000_000);
+  const id = started(
+    store,
+    ask('claim-1', 'initial:draft-1', 'Build a booking app', { initial: true }),
+  );
+  expect(store.completeConversationOperation(id, 'Dear reply', 1_250, day, false)).toBe(true);
+  expect(
+    rows(
+      databasePath,
+      'SELECT state, reserved_micro_usd, settled_micro_usd, settlement, overrun FROM conversation_operation',
+    ),
+  ).toEqual([
+    {
+      state: 'completed',
+      reserved_micro_usd: 1_000,
+      settled_micro_usd: 1_250,
+      settlement: 'usage',
+      overrun: 1,
+    },
+  ]);
+  store.close();
+});
+
+test('stopped operations never hold the site-wide concurrency count', () => {
+  const store = new WebsiteStore(databaseFile());
+  for (const index of [1, 2, 3, 4]) {
+    store.createDraft(`draft-${String(index)}`, 'R', `claim-${String(index)}`, day, day + 1e6);
+    store.markConversationOperationUnknown(
+      started(
+        store,
+        ask(`claim-${String(index)}`, `initial:draft-${String(index)}`, 'R', {
+          initial: true,
+          sourceHash: `source-${String(index)}`,
+        }),
+      ),
+    );
+  }
+  store.createDraft('draft-5', 'R', 'claim-5', day, day + 1e6);
+  // Proof: counting every non-completed operation instead of in-flight ones made this admission `busy`.
+  expect(
+    store.admitConversationOperation(
+      ask('claim-5', 'initial:draft-5', 'R', { initial: true, sourceHash: 'source-5' }),
+    ),
+  ).toMatchObject({ kind: 'started' });
+  const account = store.createProspect('owner@example.test', day);
+  store.ensureBlankRequest(account.id, day);
+  const request = store.findAccountRequest(account.id);
+  if (!request) throw new Error('Missing account request');
+  // Proof: the same fault in reserveProviderCall refused this account reservation.
+  expect(store.reserveProviderCall(account.id, request.id, 1_000, day)).not.toBeNull();
+  store.close();
+});
+
+test('spend is charged to the source of the day each operation was admitted', () => {
+  const store = new WebsiteStore(databaseFile());
+  const nextDay = day + 86_400_000;
+  store.createDraft('draft-1', 'R', 'claim-1', day, nextDay + 1e6);
+  converse(store, 'claim-1', 1, { sourceHash: 'yesterday-source', pricing: paid(1_000) });
+  store.createDraft('draft-2', 'R', 'claim-2', nextDay, nextDay + 1e6);
+  const today = started(
+    store,
+    ask('claim-2', 'initial:draft-2', 'R', {
+      initial: true,
+      sourceHash: 'today-source',
+      now: nextDay,
+      pricing: paid(140_000),
+    }),
+  );
+  store.completeConversationOperation(today, 'reply', 140_000, nextDay, false);
+  // The first conversation continues after midnight under the new day's source hash.
+  const crossing = started(
+    store,
+    ask('claim-1', 'key-claim-1-2', 'After midnight', {
+      sourceHash: 'today-source',
+      now: nextDay,
+      pricing: paid(140_000),
+    }),
+  );
+  store.completeConversationOperation(crossing, 'reply', 140_000, nextDay, false);
+  store.createDraft('draft-3', 'R', 'claim-3', nextDay, nextDay + 1e6);
+  expect(
+    store.admitConversationOperation(
+      ask('claim-3', 'initial:draft-3', 'R', {
+        initial: true,
+        sourceHash: 'today-source',
+        now: nextDay,
+        pricing: paid(30_000),
+      }),
+    ),
+  ).toEqual({ kind: 'exhausted', reason: 'source_spend' });
+  store.close();
+});
+
+test('every store on one database derives the same daily source salt and drops old days', () => {
+  const databasePath = databaseFile();
+  const blue = new WebsiteStore(databasePath);
+  const green = new WebsiteStore(databasePath);
+  const salt = blue.readSourceSalt('2026-10-06');
+  expect(salt).toHaveLength(32);
+  expect(green.readSourceSalt('2026-10-06')).toEqual(salt);
+  expect(green.readSourceSalt('2026-10-07')).not.toEqual(salt);
+  blue.readSourceSalt('2026-10-08');
+  expect(rows(databasePath, 'SELECT utc_day FROM source_salt ORDER BY utc_day')).toEqual([
+    { utc_day: '2026-10-07' },
+    { utc_day: '2026-10-08' },
+  ]);
+  const database = new Database(databasePath);
+  database.run('DROP TABLE source_salt');
+  database.run('CREATE TABLE source_salt (utc_day TEXT PRIMARY KEY, salt BLOB NOT NULL)');
+  database.run("INSERT INTO source_salt VALUES ('2026-10-09', x'00')");
+  database.close();
+  expect(() => blue.readSourceSalt('2026-10-09')).toThrow('missing or malformed');
+  blue.close();
+  green.close();
 });

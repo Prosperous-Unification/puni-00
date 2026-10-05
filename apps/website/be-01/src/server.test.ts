@@ -15,6 +15,17 @@ afterEach(() => {
     rmSync(directory, { recursive: true, force: true });
 });
 
+/** Mounts the API as served from a loopback socket, which is the request source unless a test names one. */
+function mountApi(config: WebsiteApiConfig): ReturnType<typeof createWebsiteApi> {
+  const api = createWebsiteApi(config);
+  return {
+    fetch: (request, clientAddress = '127.0.0.1') => api.fetch(request, clientAddress),
+    close: () => {
+      api.close();
+    },
+  };
+}
+
 function fixture() {
   const directory = mkdtempSync(join(tmpdir(), 'puni-website-'));
   directories.push(directory);
@@ -27,7 +38,7 @@ function fixture() {
     operatorPassword: 'local-test-secret',
     secureCookies: false,
   };
-  return { api: createWebsiteApi(config), config };
+  return { api: mountApi(config), config };
 }
 
 function request(
@@ -79,7 +90,7 @@ test('entry distinguishes missing and expired claims and limits site reads to en
 
 test('native intake uses fixed Build URL when configured', async () => {
   const { config } = fixture();
-  const api = createWebsiteApi({ ...config, appBuildUrl: `${config.appOrigin}/studio` });
+  const api = mountApi({ ...config, appBuildUrl: `${config.appOrigin}/studio` });
   const response = await api.fetch(
     new Request('http://localhost:3101/intakes', {
       method: 'POST',
@@ -99,7 +110,7 @@ test('native intake uses fixed Build URL when configured', async () => {
 test('streamed initial turn persists once and replays without another provider call', async () => {
   const { config } = fixture();
   let calls = 0;
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     demoAuth: true,
     openRouterEnabled: true,
@@ -203,7 +214,7 @@ test('streamed initial turn persists once and replays without another provider c
   expect(saved.initialOperation.state).toBe('completed');
   expect(calls).toBe(1);
   api.close();
-  const unavailable = createWebsiteApi({ ...config, demoAuth: false, openRouterEnabled: false });
+  const unavailable = mountApi({ ...config, demoAuth: false, openRouterEnabled: false });
   const savedReplay = await unavailable.fetch(
     request('/chat/stream', 'POST', config.appOrigin, payload, sessionCookie, csrf),
   );
@@ -231,7 +242,7 @@ test('streamed initial turn persists once and replays without another provider c
 test('missing stream usage leaves reservation unsettled and blocks another paid turn', async () => {
   const { config } = fixture();
   let calls = 0;
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     demoAuth: true,
     openRouterEnabled: true,
@@ -290,7 +301,7 @@ test('missing stream usage leaves reservation unsettled and blocks another paid 
 
 test('output-limit finish with verified usage settles and records a truncated reply', async () => {
   const { config } = fixture();
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     demoAuth: true,
     openRouterEnabled: true,
@@ -358,7 +369,7 @@ test('output-limit finish with verified usage settles and records a truncated re
 test('stream admission rejects missing CSRF, duplicate inflight and changed-body replay before another call', async () => {
   const { config } = fixture();
   let calls = 0;
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     demoAuth: true,
     openRouterEnabled: true,
@@ -491,7 +502,7 @@ test('site JSON intake exposes its credentialed response only to the site origin
 test('Build sign-in refuses a missing request before OIDC discovery', async () => {
   const { config } = fixture();
   let discoveries = 0;
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     appBuildUrl: config.appOrigin,
     oidcIssuer: 'https://identity.example.test',
@@ -513,15 +524,15 @@ test('Build sign-in refuses a missing request before OIDC discovery', async () =
 test('Build redirect rejects a foreign target', () => {
   const { config } = fixture();
   // Proof: relaxing the fixed Build URL guard allows a native intake to redirect off-site.
-  expect(() =>
-    createWebsiteApi({ ...config, appBuildUrl: 'https://foreign.example/studio' }),
-  ).toThrow('Build redirect must be fixed');
+  expect(() => mountApi({ ...config, appBuildUrl: 'https://foreign.example/studio' })).toThrow(
+    'Build redirect must be fixed',
+  );
 });
 
 test('Google prefixed callback exchanges code with secret in form body', async () => {
   const { config } = fixture();
   let exchanged = false;
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     oidcIssuer: 'https://accounts.google.com',
     oidcClientId: 'fixture-client',
@@ -569,7 +580,7 @@ test('Google prefixed callback exchanges code with secret in form body', async (
 test('Google sign-in without a web client secret stays unavailable', async () => {
   const { config } = fixture();
   let discoveries = 0;
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     oidcIssuer: 'https://accounts.google.com',
     oidcClientId: 'fixture-client',
@@ -650,7 +661,7 @@ test('anonymous manual request persists, consumes its claim and replays one rece
     (await api.fetch(request('/proposals', 'POST', config.appOrigin, payload, cookie, csrf)))
       .status,
   ).toBe(401);
-  const reopened = createWebsiteApi(config);
+  const reopened = mountApi(config);
   const login = await reopened.fetch(
     request('/operator/session', 'POST', config.appOrigin, { password: config.operatorPassword }),
   );
@@ -951,7 +962,7 @@ test('operator session reload and ordered status changes require operator CSRF',
 
 test('explicit local demo session persists bounded chat and concept without paid inference', async () => {
   const { config } = fixture();
-  const api = createWebsiteApi({ ...config, demoAuth: true });
+  const api = mountApi({ ...config, demoAuth: true });
   const login = await api.fetch(
     request('/session/demo', 'POST', config.appOrigin, { email: 'prospect@example.test' }),
   );
@@ -989,7 +1000,7 @@ test('explicit local demo session persists bounded chat and concept without paid
 test('paid provider call requires verified configuration and sends privacy controls', async () => {
   const { config } = fixture();
   let calls = 0;
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     demoAuth: true,
     openRouterEnabled: true,
@@ -1099,7 +1110,7 @@ for (const route of ['/chat', '/chat/stream'] as const) {
         );
       },
     };
-    const website = createWebsiteApi(paidConfig);
+    const website = mountApi(paidConfig);
     const login = await website.fetch(
       request('/session/demo', 'POST', config.appOrigin, { email: 'rates@example.test' }),
     );
@@ -1157,7 +1168,7 @@ for (const route of ['/chat', '/chat/stream'] as const) {
 
 test('legacy paid chat leaves usage unsettled if saving its reply fails', async () => {
   const { config } = fixture();
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     demoAuth: true,
     openRouterEnabled: true,
@@ -1207,7 +1218,7 @@ test('legacy paid chat leaves usage unsettled if saving its reply fails', async 
 test('missing provider usage retains reservation and blocks further paid calls', async () => {
   const { config } = fixture();
   let calls = 0;
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     demoAuth: true,
     openRouterEnabled: true,
@@ -1252,7 +1263,7 @@ test('configured OIDC starts PKCE and refuses a forged callback state before tok
   const { config } = fixture();
   let exchanges = 0;
   const issuer = 'https://identity.example.test';
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     oidcIssuer: issuer,
     oidcClientId: 'puni-website',
@@ -1292,11 +1303,11 @@ test('configured OIDC starts PKCE and refuses a forged callback state before tok
 
 test('demo auth refuses a non-loopback server bind even when Host says localhost', () => {
   const { config } = fixture();
-  expect(() => createWebsiteApi({ ...config, demoAuth: true, apiBindHost: '0.0.0.0' })).toThrow(
+  expect(() => mountApi({ ...config, demoAuth: true, apiBindHost: '0.0.0.0' })).toThrow(
     'Demo auth requires loopback',
   );
   expect(() =>
-    createWebsiteApi({
+    mountApi({
       ...config,
       demoAuth: true,
       appOrigin: 'https://app.example.test',
@@ -1321,7 +1332,7 @@ test('OIDC callback verifies signed identity and issues independent prospect ses
   );
   const publicKey = await crypto.subtle.exportKey('jwk', keys.publicKey);
   let nonce = '';
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     oidcIssuer: issuer,
     oidcClientId: 'puni-website',
@@ -1423,7 +1434,7 @@ test('chunked intake body stops reading after its byte cap', async () => {
 
 test('signed-in owner can edit and submit the claimed draft after chat', async () => {
   const { config } = fixture();
-  const api = createWebsiteApi({ ...config, demoAuth: true });
+  const api = mountApi({ ...config, demoAuth: true });
   const { cookie: draftCookie } = await beginDraft(api);
   const login = await api.fetch(
     request(
@@ -1492,7 +1503,7 @@ test('signed-in owner can edit and submit the claimed draft after chat', async (
 
 test('concept selects a fixed template and allows one saved revision', async () => {
   const { config } = fixture();
-  const api = createWebsiteApi({ ...config, demoAuth: true });
+  const api = mountApi({ ...config, demoAuth: true });
   const { cookie: draftCookie } = await beginDraft(api);
   const login = await api.fetch(
     request(
@@ -1551,7 +1562,7 @@ test('concept selects a fixed template and allows one saved revision', async () 
 
 test('paid provider mode refuses demo concept generation', async () => {
   const { config } = fixture();
-  const api = createWebsiteApi({ ...config, demoAuth: true, openRouterEnabled: true });
+  const api = mountApi({ ...config, demoAuth: true, openRouterEnabled: true });
   const login = await api.fetch(
     request('/session/demo', 'POST', config.appOrigin, { email: 'designer@example.test' }),
   );
@@ -1576,7 +1587,7 @@ test('demo concept carries a safe request subject into its fixed template', asyn
   ];
   for (const sample of cases) {
     const { config } = fixture();
-    const api = createWebsiteApi({ ...config, demoAuth: true });
+    const api = mountApi({ ...config, demoAuth: true });
     const intake = await api.fetch(
       request('/intakes', 'POST', config.publicOrigin, { description: sample.description }),
     );
@@ -1606,7 +1617,7 @@ test('demo concept carries a safe request subject into its fixed template', asyn
 test('configured provider concept validates bounded JSON and shares paid reservation', async () => {
   const { config } = fixture();
   let calls = 0;
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     demoAuth: true,
     openRouterEnabled: true,
@@ -1664,7 +1675,7 @@ test('configured provider concept validates bounded JSON and shares paid reserva
 
 test('provider concept refuses remote URLs and executable markup', async () => {
   const { config } = fixture();
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     demoAuth: true,
     openRouterEnabled: true,
@@ -1704,7 +1715,7 @@ test('provider concept refuses remote URLs and executable markup', async () => {
 
 test('signed-in draft writes require the session CSRF token', async () => {
   const { config } = fixture();
-  const api = createWebsiteApi({ ...config, demoAuth: true });
+  const api = mountApi({ ...config, demoAuth: true });
   const { cookie: draftCookie } = await beginDraft(api);
   const login = await api.fetch(
     request(
@@ -1746,7 +1757,7 @@ test('OIDC callback refuses a valid state paired with another browser cookie', a
   const { config } = fixture();
   const issuer = 'https://identity.example.test';
   let tokenCalls = 0;
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     oidcIssuer: issuer,
     oidcClientId: 'puni-website',
@@ -1784,7 +1795,7 @@ test('OIDC callback refuses a valid state paired with another browser cookie', a
 test('enabled inference without vetted rate or privacy configuration never calls provider', async () => {
   const { config } = fixture();
   let calls = 0;
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     demoAuth: true,
     openRouterEnabled: true,
@@ -1816,7 +1827,7 @@ for (const rateName of ['openRouterInputUsdPerMillion', 'openRouterOutputUsdPerM
     test(`paid admission rejects ${rateName} ${String(invalidRate)}`, async () => {
       const { config } = fixture();
       let calls = 0;
-      const api = createWebsiteApi({
+      const api = mountApi({
         ...config,
         demoAuth: true,
         openRouterEnabled: true,
@@ -1857,7 +1868,7 @@ for (const rateName of ['openRouterInputUsdPerMillion', 'openRouterOutputUsdPerM
 test('unavailable stream refuses a broken store admission without contacting provider', async () => {
   const { config } = fixture();
   let calls = 0;
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     demoAuth: true,
     openRouterEnabled: true,
@@ -1912,14 +1923,12 @@ test('edited applied website migration refuses startup', () => {
     .query('UPDATE schema_migration SET checksum = ? WHERE name = ?')
     .run('changed', '001_initial');
   database.close();
-  expect(() => createWebsiteApi(config)).toThrow(
-    'Website migration 001_initial changed after application',
-  );
+  expect(() => mountApi(config)).toThrow('Website migration 001_initial changed after application');
 });
 
 test('returning signed-in prospect starts a fresh request without reviving old chat or concept', async () => {
   const { config } = fixture();
-  const api = createWebsiteApi({ ...config, demoAuth: true });
+  const api = mountApi({ ...config, demoAuth: true });
   const firstIntake = await api.fetch(
     request('/intakes', 'POST', config.publicOrigin, {
       description: 'Appointment booking for pottery studio',
@@ -2070,7 +2079,7 @@ test('returning signed-in prospect starts a fresh request without reviving old c
 test('provider brief allowance resets for a second request while account-day spend remains', async () => {
   const { config } = fixture();
   let calls = 0;
-  const api = createWebsiteApi({
+  const api = mountApi({
     ...config,
     demoAuth: true,
     openRouterEnabled: true,
@@ -2193,7 +2202,7 @@ test('OIDC issuer and subject own identity even when email changes or is reused'
 
 test('existing session claims a new intake on draft resume when public POST lacked the session cookie', async () => {
   const { config } = fixture();
-  const api = createWebsiteApi({ ...config, demoAuth: true });
+  const api = mountApi({ ...config, demoAuth: true });
   const first = await api.fetch(
     request('/intakes', 'POST', config.publicOrigin, { description: 'First booking request' }),
   );
@@ -2225,7 +2234,7 @@ test('existing session claims a new intake on draft resume when public POST lack
 test('GET /conversation reads only the claimed draft and reports the disabled provider', async () => {
   const { config } = fixture();
   // The OpenRouter flag without its key, pins, rates and privacy flag reports disabled, even with demo auth.
-  const api = createWebsiteApi({ ...config, demoAuth: true, openRouterEnabled: true });
+  const api = mountApi({ ...config, demoAuth: true, openRouterEnabled: true });
   const { cookie, csrf } = await beginDraft(api);
   const owner = await api.fetch(
     request('/conversation', 'GET', config.appOrigin, undefined, cookie),

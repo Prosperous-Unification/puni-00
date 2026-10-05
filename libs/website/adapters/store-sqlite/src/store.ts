@@ -21,6 +21,8 @@ import {
   handOffConversation,
   listConversationTurns,
   markConversationOperationUnknown,
+  readSourceSalt,
+  recordConversationGeneration,
   recoverConversationOperations,
 } from './conversation-store';
 import { websiteMigrations } from './migration-catalogue';
@@ -202,6 +204,16 @@ export class WebsiteStore {
   /** See {@link markConversationOperationUnknown}. */
   markConversationOperationUnknown(id: string): boolean {
     return markConversationOperationUnknown(this.database, id);
+  }
+
+  /** See {@link recordConversationGeneration}. */
+  recordConversationGeneration(id: string, generationId: string): void {
+    recordConversationGeneration(this.database, id, generationId);
+  }
+
+  /** See {@link readSourceSalt}. */
+  readSourceSalt(utcDay: string): Uint8Array {
+    return readSourceSalt(this.database, utcDay);
   }
 
   findConversation(draftId: string): ConversationRecord | null {
@@ -690,7 +702,8 @@ export class WebsiteStore {
         .get(accountId);
       const activeSite = this.database
         .query<{ count: number }, []>(
-          'SELECT (SELECT count(*) FROM provider_call WHERE settled_micro_usd IS NULL) + (SELECT count(*) FROM conversation_operation WHERE reserved_micro_usd IS NOT NULL AND settled_micro_usd IS NULL) AS count',
+          // Proof: counting every non-completed conversation operation refused the account reservation in the stopped-operations test.
+          "SELECT (SELECT count(*) FROM provider_call WHERE settled_micro_usd IS NULL) + (SELECT count(*) FROM conversation_operation WHERE state = 'inflight' AND reserved_micro_usd IS NOT NULL) AS count",
         )
         .get();
       // Proof: summing by account instead of request made the second-request allowance test fail.

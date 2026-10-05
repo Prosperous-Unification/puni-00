@@ -68,6 +68,9 @@ interface AdmissionWindow {
   count: number;
 }
 
+/** Request windows per path: per source or claim, and a global backstop across all sources. */
+const requestRate = { windowMilliseconds: 60_000, keyPerMinute: 30, globalPerMinute: 300 };
+
 const draftLifetime = 24 * 60 * 60 * 1000;
 const sessionLifetime = 8 * 60 * 60 * 1000;
 
@@ -210,8 +213,9 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
   if (new URL(config.appOrigin).protocol === 'https:' && config.trustedProxyHops === undefined)
     throw new Error('trustedProxyHops (TRUSTED_PROXY_HOPS) is required for an https app origin');
   const trustedProxyHops = config.trustedProxyHops ?? 0;
-  const hashSource = createSourceHasher();
   const store = new WebsiteStore(config.databasePath);
+  // Proof: a random per-process salt made the two-process source test store different sources.
+  const hashSource = createSourceHasher((utcDay) => store.readSourceSalt(utcDay));
   const draftCookie = config.secureCookies ? '__Host-puni_draft' : 'puni_draft';
   const replayCookie = config.secureCookies ? '__Host-puni_replay' : 'puni_replay';
   const operatorCookie = config.secureCookies ? '__Host-puni_operator' : 'puni_operator';
@@ -226,15 +230,59 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     return `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${String(maxAge)}${config.secureCookies ? '; Secure' : ''}`;
   }
 
-  function allowSource(path: string, now: number): boolean {
-    const window = admission.get(path);
-    if (!window || now - window.openedAt >= 60_000) {
-      admission.set(path, { openedAt: now, count: 1 });
-      return true;
+  let windowsSweptAt = 0;
+
+  /**
+   * Fixed one-minute request windows per path: a global backstop of
+   * {@link requestRate.globalPerMinute} and {@link requestRate.keyPerMinute} for the hashed
+   * source and each extra key (the draft claim on `/conversation/*`). A request counts against
+   * every window only when all of them admit it, so one refused source cannot drain the global
+   * window for everyone else. Returns `source_unavailable`, never a shared fallback key, when the
+   * client address cannot be determined.
+   */
+  function admitRequestRate(
+    path: string,
+    request: Request,
+    clientAddress: string | undefined,
+    now: number,
+    extraKeys: string[] = [],
+  ): 'admitted' | 'limited' | 'source_unavailable' {
+    const address = selectClientAddress(
+      request.headers.get('x-forwarded-for'),
+      clientAddress,
+      trustedProxyHops,
+    );
+    if (address === null) return 'source_unavailable';
+    if (now - windowsSweptAt >= requestRate.windowMilliseconds) {
+      for (const [key, window] of admission)
+        if (now - window.openedAt >= requestRate.windowMilliseconds) admission.delete(key);
+      windowsSweptAt = now;
     }
-    if (window.count >= 30) return false;
-    window.count += 1;
-    return true;
+    // Proof: keying only on the path made the second source's intake answer 429 in the per-source rate test.
+    // Proof: removing the global window let the 301st intake from a new source answer 201 in the backstop test.
+    const limits: [string, number][] = [
+      [`${path}|*`, requestRate.globalPerMinute],
+      [`${path}|source:${hashSource(address, now)}`, requestRate.keyPerMinute],
+      ...extraKeys.map((key): [string, number] => [`${path}|${key}`, requestRate.keyPerMinute]),
+    ];
+    const windows = limits.map(([key, limit]) => {
+      const current = admission.get(key);
+      const window =
+        current && now - current.openedAt < requestRate.windowMilliseconds
+          ? current
+          : { openedAt: now, count: 0 };
+      return { key, limit, window };
+    });
+    if (windows.some(({ limit, window }) => window.count >= limit)) return 'limited';
+    for (const { key, window } of windows)
+      admission.set(key, { ...window, count: window.count + 1 });
+    return 'admitted';
+  }
+
+  function rateRefusal(outcome: 'limited' | 'source_unavailable'): Response {
+    return outcome === 'limited'
+      ? failure('rate_limited', 429)
+      : failure('source_unavailable', 400);
   }
 
   function attachCors(response: Response, origin: string | null): Response {
@@ -588,7 +636,6 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     if (admitted.kind === 'completed') return replayReply(admitted.reply);
     if (admitted.kind === 'exhausted') {
       const reason = admitted.reason;
-      if (reason === 'unsettled') return failure('chat_unsettled', 409);
       const code =
         reason === 'turns'
           ? 'turn_limit'
@@ -603,7 +650,6 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       draft_unavailable: ['draft_unavailable', 401],
       conflict: ['idempotency_conflict', 409],
       inflight: ['chat_inflight', 409],
-      unknown: ['chat_unsettled', 409],
       turn_limit: ['turn_limit', 429],
       initial_required: ['initial_required', 409],
       busy: ['provider_busy', 429],
@@ -940,7 +986,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     if (path === '/intakes' && request.method === 'POST') {
       // Proof: replacing this Origin guard with false made the forged-origin intake test fail.
       if (origin !== config.publicOrigin) return failure('origin_forbidden', 403);
-      if (!allowSource('/intakes', now)) return failure('rate_limited', 429);
+      const rate = admitRequestRate('/intakes', request, clientAddress, now);
+      if (rate !== 'admitted') return rateRefusal(rate);
       const body = await readBody(request);
       const description = body && textField(body['description'], 2000);
       if (!description) return failure('invalid_description', 400);
@@ -1048,8 +1095,10 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       // Proof: removing this CSRF check made the missing-CSRF conversation stream test answer 200.
       if (!validDraftCsrf(request, claim))
         return attachCors(failure('csrf_forbidden', 403), origin);
-      if (!allowSource('/conversation/stream', now))
-        return attachCors(failure('rate_limited', 429), origin);
+      const rate = admitRequestRate('/conversation/stream', request, clientAddress, now, [
+        `claim:${digest(claim)}`,
+      ]);
+      if (rate !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const address = selectClientAddress(
         request.headers.get('x-forwarded-for'),
         clientAddress,
@@ -1137,6 +1186,10 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         markUnknown: () => {
           store.markConversationOperationUnknown(admitted.id);
         },
+        interruptedText: 'The reply stopped before it was confirmed. You can retry.',
+        recordGeneration: (generationId) => {
+          store.recordConversationGeneration(admitted.id, generationId);
+        },
         isCompleted: () =>
           store.findConversationOperation(admitted.conversationId, idempotencyKey)?.state ===
           'completed',
@@ -1193,7 +1246,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           : !claim || !validDraftCsrf(request, claim)
       )
         return attachCors(failure('csrf_forbidden', 403), origin);
-      if (!allowSource('/brief', now)) return attachCors(failure('rate_limited', 429), origin);
+      const rate = admitRequestRate('/brief', request, clientAddress, now);
+      if (rate !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const body = await readBody(request);
       const brief = body && textField(body['brief'], 8000);
       if (!brief) return attachCors(failure('invalid_brief', 400), origin);
@@ -1216,7 +1270,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const replayCsrf = priorClaim !== null && validDraftCsrf(request, priorClaim);
       if (session ? !validSessionCsrf(request, session.csrfHash) : !currentCsrf && !replayCsrf)
         return attachCors(failure('csrf_forbidden', 403), origin);
-      if (!allowSource('/proposals', now)) return attachCors(failure('rate_limited', 429), origin);
+      const rate = admitRequestRate('/proposals', request, clientAddress, now);
+      if (rate !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const body = await readBody(request);
       const email = body && emailField(body['email']);
       const brief = body && textField(body['brief'], 8000);
@@ -1276,8 +1331,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     if (path === '/session/demo' && request.method === 'POST') {
       if (!config.demoAuth || !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
         return attachCors(failure('demo_auth_unavailable', 503), origin);
-      if (!allowSource('/session/demo', now))
-        return attachCors(failure('rate_limited', 429), origin);
+      const rate = admitRequestRate('/session/demo', request, clientAddress, now);
+      if (rate !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const body = await readBody(request);
       const email = body && emailField(body['email']);
       if (!email) return attachCors(failure('invalid_email', 400), origin);
@@ -1346,8 +1401,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       // Proof: the missing-CSRF stream test fails if this check is removed before reservation.
       if (!validSessionCsrf(request, session.csrfHash))
         return attachCors(failure('csrf_forbidden', 403), origin);
-      if (!allowSource('/chat/stream', now))
-        return attachCors(failure('rate_limited', 429), origin);
+      const rate = admitRequestRate('/chat/stream', request, clientAddress, now);
+      if (rate !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const body = await readBody(request);
       const initial = body?.['initial'] === true;
       const suppliedKey = body?.['idempotencyKey'];
@@ -1446,6 +1501,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         markUnknown: () => {
           store.markChatOperationUnknown(admitted.id);
         },
+        interruptedText: 'The response could not be confirmed. Your allowance remains on hold.',
         isCompleted: () =>
           store.findChatOperation(session.id, active.id, idempotencyKey)?.state === 'completed',
       });
@@ -1478,7 +1534,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       // Proof: removing this check makes the missing-CSRF session test persist a forged chat turn.
       if (!validSessionCsrf(request, session.csrfHash))
         return attachCors(failure('csrf_forbidden', 403), origin);
-      if (!allowSource('/chat', now)) return attachCors(failure('rate_limited', 429), origin);
+      const rate = admitRequestRate('/chat', request, clientAddress, now);
+      if (rate !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const body = await readBody(request);
       const message = body && textField(body['message'], 4000);
       if (!message) return attachCors(failure('invalid_message', 400), origin);
@@ -1677,8 +1734,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     if (path === '/operator/session' && request.method === 'POST') {
       const operatorPassword = config.operatorPassword;
       if (!operatorPassword) return attachCors(failure('operator_unconfigured', 503), origin);
-      if (!allowSource('/operator/session', now))
-        return attachCors(failure('rate_limited', 429), origin);
+      const rate = admitRequestRate('/operator/session', request, clientAddress, now);
+      if (rate !== 'admitted') return attachCors(rateRefusal(rate), origin);
       const body = await readBody(request);
       const password = body && textField(body['password'], 256);
       if (!password) return attachCors(failure('invalid_credentials', 401), origin);

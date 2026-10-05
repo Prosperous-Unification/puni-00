@@ -17,9 +17,10 @@ interface CandidateRow {
 
 /**
  * Count-only plan for one expired-draft cohort. A draft whose conversation still holds an
- * operation that is not completed (`unknown`, or `inflight` in a live process) is retained
- * with its text blanked, so the reservation stays accountable; every other candidate is
- * deleted with its conversation, turns and completed operations.
+ * operation that is not completed (`unknown`, or `inflight` in a live process), or any operation
+ * on or after the cutoff's UTC day, is retained with its text blanked, so that day's spend stays
+ * in the ceilings; every other candidate is deleted with its conversation, turns and completed
+ * operations.
  */
 export interface DraftCleanupPlan {
   cutoff: number;
@@ -47,12 +48,12 @@ const candidateQuery = `
   SELECT draft.id, draft.expires_at, talk.id AS conversation_id,
     (SELECT count(*) FROM conversation_turn WHERE conversation_id = talk.id) AS turns,
     (SELECT count(*) FROM conversation_operation
-      WHERE conversation_id = talk.id AND state = 'completed') AS completed_operations,
+      WHERE conversation_id = talk.id AND state = 'completed' AND utc_day < ?2) AS completed_operations,
     (SELECT count(*) FROM conversation_operation
-      WHERE conversation_id = talk.id AND state <> 'completed') AS retained_operations
+      WHERE conversation_id = talk.id AND (state <> 'completed' OR utc_day >= ?2)) AS retained_operations
   FROM intake_draft AS draft
   LEFT JOIN conversation AS talk ON talk.draft_id = draft.id
-  WHERE draft.expires_at <= ? AND draft.consumed_at IS NULL AND draft.description <> ''
+  WHERE draft.expires_at <= ?1 AND draft.consumed_at IS NULL AND draft.description <> ''
     AND NOT EXISTS (SELECT 1 FROM proposal_submission WHERE draft_id = draft.id)
     AND NOT EXISTS (SELECT 1 FROM software_request WHERE draft_id = draft.id)
     AND NOT EXISTS (SELECT 1 FROM account_request WHERE draft_id = draft.id)
@@ -61,7 +62,10 @@ const candidateQuery = `
 
 function eligibleCandidates(database: Database, cutoff: number): CandidateRow[] {
   // Proof: mixed-cohort fixtures fail independently when expiry or any one association exclusion is removed.
-  return database.query<CandidateRow, [number]>(candidateQuery).all(cutoff);
+  // Proof: dropping `utc_day < ?2` made the same-day purge test plan that day's two completed operations for deletion.
+  return database
+    .query<CandidateRow, [number, string]>(candidateQuery)
+    .all(cutoff, new Date(cutoff).toISOString().slice(0, 10));
 }
 
 function planFor(
@@ -145,7 +149,7 @@ export function purgeExpiredDrafts(
       const remove = database.query('DELETE FROM intake_draft WHERE id = ?');
       const removeTurns = database.query('DELETE FROM conversation_turn WHERE conversation_id = ?');
       const removeCompleted = database.query(
-        "DELETE FROM conversation_operation WHERE conversation_id = ? AND state = 'completed'",
+        "DELETE FROM conversation_operation WHERE conversation_id = ? AND state = 'completed' AND utc_day < ?",
       );
       const removeConversation = database.query('DELETE FROM conversation WHERE id = ?');
       const blankDraft = database.query(
@@ -164,6 +168,7 @@ export function purgeExpiredDrafts(
           outcome.deletedConversationTurns += removeTurns.run(candidate.conversation_id).changes;
           outcome.deletedConversationOperations += removeCompleted.run(
             candidate.conversation_id,
+            new Date(cutoff).toISOString().slice(0, 10),
           ).changes;
           if (candidate.retained_operations > 0) {
             eraseConversationContent(database, candidate.id);
