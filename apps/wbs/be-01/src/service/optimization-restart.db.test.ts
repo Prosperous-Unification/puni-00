@@ -20,7 +20,7 @@ import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { solverQueue, solverSlot } from '../repository/schema';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
-const CONTRACT = '7+0.1.0';
+const CONTRACT = '7+0.2.0';
 const BUDGET = 60_000;
 const INPUT: ScheduleInput = {
   rows: [{ id: 'w-1', parentId: null, position: 10, frozenNumber: null, priority: null }],
@@ -106,7 +106,7 @@ function restarted(
     repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
     hashInput: scheduleInputHash,
     contractVersion: CONTRACT,
-    solverVersion: '0.1.0',
+    solverVersion: '0.2.0',
     budgetMs: BUDGET,
     ownerId: 'restarted',
     now: () => 10,

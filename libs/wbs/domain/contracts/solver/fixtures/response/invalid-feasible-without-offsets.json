@@ -5,5 +5,5 @@
     "priority": { "bound": 1, "stageValue": 1, "status": "feasible", "value": 1 }
   },
   "status": "feasible",
-  "wireVersion": 2
+  "wireVersion": 3
 }

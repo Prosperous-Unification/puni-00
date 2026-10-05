@@ -58,3 +58,31 @@ overlaps (`overlapping`).
 Rank storage and routes (slice 3), the `elsewhere` floor and hash (4), wire 3 (5), the chain,
 mode, guard and fan-out (6), fe-01 (2, 7) and the mode route (8) follow the memo's §2–§6 and
 §8 without change. `SCHEDULER_CONTRACT_VERSION` stays 14 until slice 4.
+
+## D7. Solver wire 3 (slice 5)
+
+**Ruling:** Quantise bookings outward: multiply project workday offsets by the quantum,
+round starts down and ends up, clip starts at zero, and omit bookings ending at or before
+zero. Union intervals that overlap after rounding for each person; retain adjacency as two
+half-open intervals. This is conservative for feasibility: the solver cannot claim a gap
+inside time the original booking holds. It may reserve up to one extra quantum at either
+end and report quantum infeasibility where fractional Fast placement could fit. The original
+holder-bearing workday map stays intact for Fast and optimized publication diagnostics.
+
+Wire 3 requires `elsewhere` even when empty. Solver 0.2.0 reads only wire 3; the retained
+0.1.4 wire 2 schema refuses it. `model.py` adds fixed intervals to each person's no-overlap
+constraint, spending no project team capacity. The serial horizon starts after the latest
+manual floor or booking end and includes all slice durations and positive FF excesses.
+
+Bun checks fixed interval shape and canonical booking equality even for non-publishing
+responses, then refuses overlap before materialisation. Materialisation receives the original
+workday bookings. Quantised Fast receives the same outward-rounded booking calendar in both
+its ordinary placement and serial FF fallback. Request preparation checks arithmetic and
+compatibility before baseline arithmetic; each refusal is a typed value. `incompatible-solver`
+is recorded as the existing `internal-error` disposition, without a cache vocabulary migration.
+Initial, queued and manual Retry admissions all persist refusal and release their slot.
+
+ADR 0025's preparation and binding boundary stays intact. The non-disruptive preparation and
+binding tests run in this slice. Live image publication, binding installation and the shared
+supervisor restart are deferred by the coordinator until merged integration. Slices 6–8 and
+shared-mode activation remain pending; `SCHEDULE_ALGORITHM_ID` stays `slice-leveling-v4`.

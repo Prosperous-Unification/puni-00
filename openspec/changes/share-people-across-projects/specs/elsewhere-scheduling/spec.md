@@ -12,8 +12,8 @@ plan's own floor SHALL name the plan's floor; a pool that pushed last SHALL be n
 `capacity` with its blocking set. `waitingElsewhere` SHALL count the work items holding such a
 slice, and SHALL be present exactly when the map is non-empty. With an empty or absent map,
 placement and output SHALL be byte-identical to the placement without the parameter, in the FS
-and the weighted (SS/FF) paths alike. Until solver wire 3, a non-empty map SHALL be refused
-beside pinned (optimized) starts and by the solver request builder.
+and the weighted (SS/FF) paths alike. Pinned optimized starts SHALL obey the original
+workday bookings and SHALL be refused when they overlap a booking.
 
 #### Scenario: a foreign interval
 
@@ -35,6 +35,10 @@ beside pinned (optimized) starts and by the solver request builder.
 ### Requirement: CP-SAT works around elsewhere intervals
 
 Solver wire 3 SHALL carry `elsewhere` as `Record<personId, [startUnits, endUnits][]>`. The
+wire SHALL round starts down and ends up, clip at zero, omit intervals ending at or before
+zero, and union intervals overlapping after rounding per person while preserving adjacency.
+The original holder-bearing workday bookings SHALL be retained for Fast and publication
+diagnostics. The solver horizon SHALL extend past booking ends. The
 model SHALL add each interval as a fixed interval to that person's no-overlap constraint. Before
 publication, Bun SHALL check person no-overlap against `elsewhere` and refuse a violating
 result. Solver 0.2.0 SHALL refuse wire 2, and 0.1.4 SHALL refuse wire 3, each with a typed
@@ -45,6 +49,12 @@ refusal.
 - **GIVEN** a model that drops the fixed intervals
 - **WHEN** its result overlaps Ana's elsewhere interval
 - **THEN** Bun refuses to publish it
+
+#### Scenario: outward quantization and clipping
+
+- **GIVEN** Ana booked on `[-1, 0.01)`, `[0.015, 0.025)`, `[0.03, 0.04)` and `[2/48, 3/48)`
+- **WHEN** a request is built with quantum 48
+- **THEN** her wire intervals are `[0, 2)` and `[2, 3)`, while her original bookings retain their holders and fractions
 
 ### Requirement: The hash moves only when elsewhere does
 

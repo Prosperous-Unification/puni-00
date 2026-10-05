@@ -1864,7 +1864,12 @@ function placeSlices(
     // `boundBy: 'capacity'`, violating the render invariant — and reported
     // `optimizer` for a slice merely pinned at its predecessor floor.
     const { start, boundBy } = pinFloor(node.key, resolved, pinnedStarts?.[taken], (from) => {
-      window = profile.jointWindowFor(poolIds, width, duration, from);
+      // Proof: asking pools alone accepted a later FS pin inside a booking
+      // (1 pass / 1 fail for the FS/SS negatives in elsewhere-wire.test.ts).
+      window =
+        booked === undefined
+          ? profile.jointWindowFor(poolIds, width, duration, from)
+          : windowAroundElsewhere(booked, profile, poolIds, width, duration, from).window;
       return window;
     });
 
@@ -3231,20 +3236,13 @@ export function schedule(
    * always took. `schedule-elsewhere.test.ts` holds the whole golden corpus to
    * that, argument supplied and not.
    *
-   * @throws for a malformed map (see {@link checkElsewhere}), and for a
-   * non-empty map beside `pinnedStarts`: the optimized materialiser learns to
-   * work around bookings with solver wire 3 (slice 5), and until then an
-   * optimized answer placed around none of them is not one to publish.
+   * @throws for a malformed map (see {@link checkElsewhere}), or an invalid
+   * pinned start (see {@link ScheduleInvalidOptimizedStartError}).
    */
   elsewhere: Elsewhere = new Map(),
 ): Schedule {
   checkElsewhere(elsewhere);
-  // Proof: this refusal removed made `refuses to materialise pinned starts
-  // around bookings elsewhere` (`schedule-elsewhere.test.ts`) return a
-  // schedule instead of throwing; watched 2026-09-29.
-  if (pinnedStarts !== undefined && elsewhere.size > 0) {
-    throw new Error('pinned starts cannot yet be materialised around bookings elsewhere');
-  }
+
   const index = indexTree(rows);
   const { leafIds } = index;
   const sliced = groupByWorkItem(leafIds, slices);

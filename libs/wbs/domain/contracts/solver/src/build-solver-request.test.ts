@@ -93,7 +93,7 @@ const baselineOf = (plan: SolverRequestPlan) =>
 
 const spawnOf = (plan: SolverRequestPlan, over: Partial<SolverSpawn> = {}): SolverSpawn => ({
   baselineOffsets: baselineOf(plan),
-  solverVersion: '0.1.0',
+  solverVersion: '0.2.0',
   budgetMs: 30_000,
   ...over,
 });
@@ -106,16 +106,14 @@ const requestOf = (plan: SolverRequestPlan, spawn: SolverSpawn = spawnOf(plan)) 
 };
 
 describe('buildSolverRequest', () => {
-  it('refuses a plan whose people are booked elsewhere, which wire 2 cannot carry', () => {
+  it('carries a plan whose people are booked elsewhere on wire 3', () => {
     const plan = planOf({
       elsewhere: new Map([
         ['ann', [{ start: 0, end: 5, projectId: 'platform', workItemId: 'x1' }]],
       ]),
     });
-    expect(() => buildSolverRequest(plan, 'pri', spawnOf(planOf()))).toThrow(
-      /carries no bookings elsewhere/,
-    );
-    expect(requestOf(planOf({ elsewhere: new Map() }))).toBeDefined();
+    expect(requestOf(plan).elsewhere).toEqual({ ann: [[0, 240]] });
+    expect(requestOf(planOf({ elsewhere: new Map() })).elsewhere).toEqual({});
   });
 
   it('fills every member the schema requires, and no other', () => {
@@ -129,10 +127,10 @@ describe('buildSolverRequest', () => {
     const request = requestOf(planOf());
     expect(request.wireVersion).toBe(SOLVER_WIRE_VERSION);
     expect(request.quantum).toBe(SOLVER_QUANTUM);
-    expect(request.solverVersion).toBe('0.1.0');
+    expect(request.solverVersion).toBe('0.2.0');
     // The solver's version alone would describe none of the durations, the leaf
     // expansion or the baseline — all of which Bun produced.
-    expect(request.contractVersion).toBe(`${String(SCHEDULER_CONTRACT_VERSION)}+0.1.0`);
+    expect(request.contractVersion).toBe(`${String(SCHEDULER_CONTRACT_VERSION)}+0.2.0`);
   });
 
   it('projects the slices, the graph and only the pools the request names', () => {
@@ -252,7 +250,7 @@ describe('buildSolverRequest', () => {
     const plan = planOf({ rows: [rowOf('A', null, null)], edges: [], slices: [long] });
     const built = buildSolverRequest(plan, 'pri', {
       baselineOffsets: { [sliceKey('A', 'design')]: 0 },
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: 30_000,
     });
     expect(built.ok).toBe(false);
@@ -280,7 +278,7 @@ describe('buildSolverRequest', () => {
     expect(() =>
       buildSolverRequest(plan, 'pri', {
         baselineOffsets: {},
-        solverVersion: '0.1.0',
+        solverVersion: '0.2.0',
         budgetMs: 30_000,
       }),
     ).toThrow('slice for P, which is not a leaf of this project');
@@ -383,7 +381,7 @@ describe('buildSolverRequest', () => {
     expect(() =>
       buildSolverRequest(plan, 'pri', {
         baselineOffsets: {},
-        solverVersion: '0.1.0',
+        solverVersion: '0.2.0',
         budgetMs: 30_000,
       }),
     ).toThrow('no slices');

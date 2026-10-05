@@ -279,23 +279,6 @@ describe('a person booked elsewhere', () => {
       expect(() => around(rows, slices, new Map([['ana', bookings]]))).toThrow(message);
     }
   });
-
-  it('refuses to materialise pinned starts around bookings elsewhere', () => {
-    expect(() =>
-      schedule(
-        [leaf('a', 0)],
-        [],
-        [work('a', 1, { personId: 'ana' })],
-        new Map(),
-        new Map(),
-        'whole-item',
-        new Map(),
-        [],
-        new Map([[sliceKey('a', null), 0]]),
-        new Map([['ana', [booking(0, 1)]]]),
-      ),
-    ).toThrow(/cannot yet be materialised around bookings elsewhere/);
-  });
 });
 
 describe('no bookings elsewhere', () => {

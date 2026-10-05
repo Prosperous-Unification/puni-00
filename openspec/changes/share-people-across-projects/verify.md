@@ -175,3 +175,131 @@ The four-test command was `bun test libs/wbs/domain/domain/src/schedule-elsewher
 | stop cyclic relaxation immediately after its first cap                      | cycle regression                                                              | latest starts [10,14,10]; expected [10,9,9]; 0 pass, 1 fail                                |
 | break the interval budget to zero                                           | cycle regression                                                              | throws `backward booking bounds did not converge`; 0 pass, 1 fail                          |
 | zero budget with the convergence refusal removed                            | cycle regression                                                              | returns [10,14,10], violating propagated bounds; 0 pass, 1 fail                            |
+
+## Slice 5 — wire 3 and Solver 0.2.0
+
+Implemented on `feat/shared-people-slice5-wire3`, isolated from exact merged main
+`18d36d71b30ad8bd3c0da55ab78e8e2c5f14151e`. Tasks 5.0–5.2 only; shared mode and slices 6–8
+remain deferred. `SCHEDULE_ALGORITHM_ID` remains `slice-leveling-v4`; contract 15 and DTO 3
+remain unchanged. Historical wire 1/2 schemas remain unchanged.
+
+**Ruling:** Round booking starts down and ends up on the solver-unit axis, clip at zero,
+omit bookings ending at/before zero, and union rounded overlaps per person. Keep adjacency
+as a hand-off and keep the original holder-bearing workday bookings for Fast/publication
+annotations. This conservatively protects feasibility; the cost is up to one extra quantum
+at each endpoint, so a fractional feasible plan can be infeasible at solver resolution.
+`design.md` D7 and the delta spec record the policy.
+
+The old unsupported-wire and pinned-start refusals are removed after coverage of bookings-aware
+quantised Fast (including serial FF fallback), FS/SS materialisation, independent Bun shape,
+canonical-input and no-overlap checks, and SQLite initial/queued/manual Retry cleanup. Current
+schema paths, corpus versions and the two existing tagged request-field enumerations in
+`dual-optimized-scheduler` change together because its vocabulary guard checks the current wire.
+The obsolete pinned-start refusal test is replaced by acceptance and overlap-refusal tests;
+the golden-corpus tests and their fixture declaration are preserved.
+
+Local commands use `BUN_TMPDIR=/tmp`, `NX_DAEMON=false`, `NX_ISOLATE_PLUGINS=false` where Nx
+is invoked. The Python target uses `PATH=/tmp/slice5-python/bin:$PATH`, a test-only venv with
+the pinned solver dependencies; production image/binding preparation remains host-owned.
+
+| Command                                                                                                                                                               | Observed outcome                                                         |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `bun test libs/wbs/domain/contracts/solver/src/elsewhere-wire.test.ts`                                                                                                | initial RED: 0 pass / 8 fail; final 12 pass / 0 fail                     |
+| `bun test apps/wbs/be-01/src/service/solver-request-pair.test.ts apps/wbs/be-01/src/service/solver-exit-outcome.test.ts`                                              | 10 pass / 0 fail                                                         |
+| `bun test apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts --test-name-pattern 'preflight admission cleanup'`                                           | 9 pass / 0 fail; no spawned processes, no slots or queue rows left       |
+| `bunx nx run wbs-contracts:test`                                                                                                                                      | 445 pass / 0 fail, 44 files, exit 0                                      |
+| `bunx nx run wbs-domain:test`                                                                                                                                         | 871 pass / 1 existing performance skip / 0 fail, 69 files, exit 0        |
+| `bunx nx run wbs-be-01:test --output-style=static` (approved socket/process execution)                                                                                | 1,634 pass / 1 existing skip / 0 fail, 137 files, 239.87 seconds, exit 0 |
+| `bunx nx run wbs-solver-py:test`                                                                                                                                      | 243 tests, OK, 33.974 seconds, exit 0                                    |
+| `bun test tools/tool-devsync/src/solver-preparation.test.ts tools/tool-devsync/src/solver-binding-host.test.ts tools/tool-devsync/src/solver-binding-runtime.test.ts` | 31 pass / 0 fail, exit 0                                                 |
+| `bunx nx run-many -t lint typecheck -p wbs-domain wbs-contracts wbs-be-01 --output-style=static`                                                                      | all seven tasks successful, exit 0                                       |
+| `bunx nx run wbs-be-01:build --output-style=static`                                                                                                                   | application build and OpenAPI dependency successful, exit 0              |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                              | 145 passed / 0 failed, exit 0                                            |
+| `cmp` canonical/bundled `solver-wire.v3.json`                                                                                                                         | byte-identical                                                           |
+
+The first full backend target under the local sandbox ran 1,597 pass / 1 skip / 37 fail;
+the failures were socket/listener and subprocess restrictions, including a named Unix-listener
+`EPERM`. It was rerun with approved socket/process access and passed. A first domain run also exposed an
+accidentally removed golden-fixture declaration when replacing the obsolete refusal test; the
+fixture and describe boundary were restored and the project target rerun successfully. Lint
+and typecheck initially identified import ordering, a tuple guard requiring an explicit array
+boundary, and a widened test status literal; all were corrected and their targets rerun.
+
+### R5 failure proofs
+
+Each fault was injected into production, the named production-path negative was watched
+failing, and the original bytes restored. Adjacent `Proof:` comments name the observations.
+The TS wire command is `bun test libs/wbs/domain/contracts/solver/src/elsewhere-wire.test.ts
+--test-name-pattern '<case>'`; service and coordinator cases run their named files above.
+
+| Fault                                                                                                         | Observed case/outcome                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Drop fixed intervals in Python `model.py`                                                                     | model negatives start at 0 instead of 5 and call a booked deadline feasible: 2 failures                                                        |
+| Drop that loop and run the real Python CLI over Bun's bookings-aware Time request                             | Python exits 0, reports feasible `A` at unit 0 with makespan 48; Bun `evaluateSolverOutcome` returns `{kind:'failed',reason:'invalid-output'}` |
+| Feed new wire 3 bytes to original 0.1.4 archived from the exact base                                          | original `--version` prints 0.1.4; CLI exits 64, zero stdout bytes, `RequestRejected` schema refusal                                           |
+| Remove Python booking ordering/length/horizon checks                                                          | 5 malformed-booking negatives accepted                                                                                                         |
+| Replace Python schema booking shape with `{}`                                                                 | empty person, boolean/fractional endpoints accepted; malformed tuple raises wrong exception: 3 failures / 1 error                              |
+| Remove required `elsewhere` or wire version const                                                             | missing field reaches `KeyError`, or wire 2 with bookings is accepted; both tests fail                                                         |
+| Remove booking-end arithmetic bound in `quantiseElsewhere`                                                    | pair and SQLite arithmetic negatives: 4 pass / 3 fail                                                                                          |
+| Round starts up, round ends down, remove clipping, retain expired intervals, or disable rounded overlap union | outward-rounding regression: each 0 pass / 1 fail                                                                                              |
+| Omit booking ends from horizon                                                                                | horizon 48 instead of 4849: 0 pass / 1 fail                                                                                                    |
+| Drop Bun fixed-overlap guard                                                                                  | solver answer across booking accepted: 0 pass / 1 fail                                                                                         |
+| Drop Bun interval shape or empty-person checks                                                                | malformed fixed intervals or empty person admitted: each 0 pass / 1 fail                                                                       |
+| Drop canonical-booking equality                                                                               | publication path records invalid-output instead of internal-error for a request that dropped authored bookings: 0 pass / 1 fail                |
+| Drop compatibility preflight                                                                                  | all three SQLite initial/queued/Retry negatives fail: 0 pass / 3 fail                                                                          |
+| Bypass early request-pair arithmetic preflight                                                                | oversized baseline throws instead of typed refusal: 0 pass / 1 fail                                                                            |
+| Drop baseline bookings                                                                                        | pair hints at unit 0 instead of 49: 0 pass / 1 fail                                                                                            |
+| Drop original materialiser bookings                                                                           | production publication loses original holder: 0 pass / 1 fail                                                                                  |
+| Drop serial FF fallback booking search                                                                        | successor starts inside booking at unit 2 instead of 4: 0 pass / 1 fail                                                                        |
+| Omit preflight slot release                                                                                   | all nine initial/queued/Retry refusal cases retain slots: 0 pass / 9 fail                                                                      |
+| Ask pools alone for an FS pin                                                                                 | later pin inside a booking accepted: FS/SS pair 1 pass / 1 fail                                                                                |
+| Index plain booking record through prototype person name                                                      | unbooked `constructor` raises TypeError: 0 pass / 1 fail; restored Map lookup passes                                                           |
+
+### Deferred operational evidence
+
+By explicit coordinator instruction, live Solver image publication, binding installation and
+the shared prod/dev supervisor restart are deferred until merged integration. ADR 0025's
+non-disruptive preparation/binding tests passed; no live host installation or activation
+workflow was called. A normal integrated preparation must still prove the new target's
+immutable image and installed binding before deployment resets the checkout.
+
+Canonical h2puni SHA-gate evidence follows after the reviewable branch is committed and pushed.
+SSH access was verified; its gate must use `TMPDIR=/home/puni1/.cache/puni00-gate-tmp` so the
+hardlink-sensitive devsync tests stay on the ext4 device.
+
+### Review correction: empty person calendars
+
+Astra identified a receiver parity mismatch: schema and Python accepted `{"ana": []}`
+while Bun rejected it. **Ruling:** An empty list under a non-empty person key is legal
+and occupies nothing, consistent with the existing schema/Python boundary. Builders may
+omit these entries during canonicalization. Wire validation accepts an empty calendar;
+publication with `canonicalInput` additionally requires the exact canonical projection.
+Thus a superfluous empty entry against canonical `{}` is refused by the existing
+canonical-booking equality check, whose dropped-authored-bookings injected-fault proof
+already establishes that this check can fail. Bun now follows this rule, both schema
+copies state it explicitly, and the shared valid-two-slices fixture carries an empty
+calendar for its selected person.
+
+The new production Bun boundary regression was watched RED against the old list-length
+refusal: 0 pass / 1 fail, returning `malformed-request` instead of accepting the empty
+calendar. The restored non-empty-person check remains covered by its previous injected-fault
+negative. Focused Bun wire suite: 13 pass / 0 fail (126ms). Python `test_elsewhere.py`: 16 tests, OK (0.387s). Both production receivers now accept the empty-calendar case. The contracts target rerun passed 446 tests across 44 files (2.51s).
+
+### CI correction: supervisor wire boundary
+
+Workspace CI on `ac84a180` failed its Solver image smoke because the host supervisor's
+start-frame parser still admitted only wire 1/2, rejecting the new wire 3 before the
+Python image could validate it. The supervisor now admits 1/2/3 for rolling backend
+compatibility and delegates exact wire-schema/version refusal to the selected solver image.
+The production-boundary fixed-calendar test was watched RED under the old allow-list:
+0 pass / 1 fail, `request wireVersion 3 is not supported`, matching CI's failure.
+Injecting wire 4 into the production allow-list also failed the unknown-version negative:
+0 pass / 1 fail. Both faults restored, protocol suite: 11 pass / 0 fail (14ms).
+Its four Nx targets test/lint/typecheck/build passed (2.2s). Supervisor service and
+fake-Docker image-smoke tests passed: 11 pass / 0 fail, two files (8.60s).
+
+The canonical gate on the original implementation head passed all 121 main-workspace tasks
+(35 projects plus dependencies, 18m48s) and is continuing through the isolated Twilight
+suite. Its successor was queued and refused with exit 75 after 30 minutes, then queued
+again; that is a lock-budget refusal rather than a validation verdict. Latest-head gate
+and CI evidence must still pass before integration. No live binding or activation occurred.

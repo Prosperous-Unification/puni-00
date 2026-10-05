@@ -331,7 +331,7 @@ describe('quantisedFastBaseline', () => {
  * entrypoint's `jsonschema` validation, which is 2.x's and does not exist yet.
  * So the structural check below is `SOLVER_REQUEST_KEYS` and
  * `SOLVER_SLICE_KEYS` — constants `wire-types.test.ts` pins to
- * `solver-wire.v2.json` member for member — rather than a validator this
+ * `solver-wire.v3.json` member for member — rather than a validator this
  * package does not have. It catches a fixture that has drifted from the schema's
  * shape; it does not catch one that has drifted from its value ranges, and
  * saying otherwise would be claiming a gate that is not there.

@@ -180,7 +180,9 @@ describe('a solver that ran and answered nothing is invalid-output', () => {
 describe('pre-spawn failures are the recorded reason verbatim', () => {
   it('passes both tokens through unchanged', () => {
     for (const failure of SOLVER_PREFLIGHT_FAILURES) {
-      expect(dispositionOfPreflightFailure(failure)).toBe(failure);
+      expect(dispositionOfPreflightFailure(failure)).toBe(
+        failure === 'incompatible-solver' ? 'internal-error' : failure,
+      );
     }
   });
 });

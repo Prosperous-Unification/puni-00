@@ -66,7 +66,7 @@ const requestOf = () => {
       plan.reach,
       [],
     ),
-    solverVersion: '0.1.0',
+    solverVersion: '0.2.0',
     budgetMs: 30_000,
   });
   if (!built.ok) throw new Error(`expected a request, got ${built.failure}: ${built.detail}`);
@@ -132,7 +132,7 @@ describe('the quantised baseline as a solution the solver could publish', () => 
     );
     const built = buildSolverRequest(ffPlan, 'time', {
       baselineOffsets,
-      solverVersion: '0.1.4',
+      solverVersion: '0.2.0',
       budgetMs: 1_000,
     });
     if (!built.ok) throw new Error(built.detail);
@@ -248,7 +248,7 @@ describe('the quantised baseline on a plan whose every constraint is live', () =
         richPlan.reach,
         [],
       ),
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: 30_000,
     });
     if (!built.ok) throw new Error(`expected a request, got ${built.failure}: ${built.detail}`);

@@ -23,7 +23,7 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
-const CONTRACT = '7+0.1.0';
+const CONTRACT = '7+0.2.0';
 const BUDGET = 60_000;
 function sampledScheduler() {
   return fc.sample(fc.scheduler(), { seed: 20260927, numRuns: 1 })[0];
@@ -237,7 +237,7 @@ function coordinator(world: World, owner: Owner): OptimizationCoordinator {
   return new OptimizationCoordinator({
     repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
     contractVersion: CONTRACT,
-    solverVersion: '0.1.0',
+    solverVersion: '0.2.0',
     budgetMs: BUDGET,
     ownerId: owner,
     now: () => world.now,
@@ -735,7 +735,7 @@ class ExitChild implements Command {
         this.disposition === 'failed'
           ? ''
           : JSON.stringify({
-              wireVersion: 2,
+              wireVersion: 3,
               status: 'feasible',
               offsets: { 'w-1\u0000step-dev': 0 },
               objectiveValues: {

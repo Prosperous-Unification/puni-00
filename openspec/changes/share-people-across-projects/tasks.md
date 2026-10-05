@@ -46,7 +46,7 @@
 
 ## 5. Wire v3, solver-py 0.2.0
 
-- [ ] 5.0 Obligations from Fable's review of #250:
+- [x] 5.0 Obligations from Fable's review of #250:
   - Thread `elsewhere` (unit-axis scaled) through `materialise-optimized.ts`'s `schedule()` call
     and through `quantisedFastBaseline` (called in `solver-request-pair.ts`), so that the
     publication guard never compares a bookings-aware Fast baseline against a bookings-blind
@@ -54,9 +54,11 @@
   - Check whether the `buildSolverRequest` refusal's `throw` is caught around
     `optimization.feature.ts` (~369); prefer a preflight `{ ok: false }`.
   - Lift the two slice-4 refusals once wire 3 carries bookings.
-- [ ] 5.1 Wire, model, and Bun re-validation.
-- [ ] 5.2 Negatives: fixed interval dropped in `model.py` → Bun refuses publication; 0.1.4 fed
-      v3 → a typed refusal; the ADR 0025 binding rebuilt.
+- [x] 5.1 Wire, model, and Bun re-validation.
+- [x] 5.2 Negatives: fixed interval dropped in `model.py` → Bun refuses publication; 0.1.4 fed
+      v3 → a typed refusal; non-disruptive ADR 0025 preparation/binding tests pass.
+      Live image publication and binding installation are deferred until merged integration
+      by coordinator instruction, because installation restarts the shared prod/dev supervisor.
 
 ## 6. Chain, mode, guard, fan-out
 

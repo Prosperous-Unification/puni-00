@@ -8,9 +8,9 @@
 # console script in place. The solver reads one JSON request, writes one JSON
 # response, and exits; the package exports nothing callers use as a library.
 #
-# `version` is dynamic and not a placeholder. The current `0.1.4` is read from
+# `version` is dynamic and not a placeholder. The current `0.2.0` is read from
 # `src/wbs_solver/__init__.py`; the golden request corpus carries
-# `solverVersion: "0.1.4"` and `contractVersion: "14+0.1.4"`
+# `solverVersion: "0.2.0"` and `contractVersion: "15+0.2.0"`
 # (libs/wbs/domain/contracts/solver/fixtures/request/*.json,
 # libs/wbs/domain/contracts/solver/src/wire-contract-version.test.ts). Bumping it here
 # without re-keying that corpus is a red test on both sides of the wire, which
@@ -44,7 +44,7 @@ dependencies = [
   # The solver. CP-SAT only; nothing here uses the routing or graph libraries
   # that ship in the same wheel.
   "ortools==9.15.6755",
-  # Request validation against the copy of solver-wire.v2.json installed beside
+  # Request validation against the copy of solver-wire.v3.json installed beside
   # this package (design.md "Solver wire contract — one versioned schema, four
   # consumers"). Pinned because a resolver-chosen jsonschema is a resolver
   # chosen validation verdict.

@@ -31,7 +31,7 @@ import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { eventLog, optimizedScheduleCache, solverQueue, solverSlot } from '../repository/schema';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
-const CONTRACT = '7+0.1.0';
+const CONTRACT = '7+0.2.0';
 const BUDGET = 60_000;
 
 const INPUT: ScheduleInput = {
@@ -54,7 +54,7 @@ const INPUT: ScheduleInput = {
   deadlines: new Map(),
 };
 const FEASIBLE_RESPONSE = `${JSON.stringify({
-  wireVersion: 2,
+  wireVersion: 3,
   status: 'feasible',
   offsets: { 'w-1\u0000step-dev': 0 },
   objectiveValues: {
@@ -163,7 +163,7 @@ function coordinator(
     repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
     hashInput: scheduleInputHash,
     contractVersion: CONTRACT,
-    solverVersion: '0.1.0',
+    solverVersion: '0.2.0',
     budgetMs: BUDGET,
     ownerId,
     now,
@@ -208,7 +208,7 @@ describe('OptimizationCoordinator read', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: BUDGET,
       ownerId: 'restarted',
       now: () => 600,
@@ -256,7 +256,7 @@ describe('OptimizationCoordinator read', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -613,7 +613,7 @@ describe('OptimizationCoordinator read', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -680,7 +680,7 @@ describe('OptimizationCoordinator read', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -1545,7 +1545,7 @@ describe('OptimizationCoordinator Retry admission', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -1645,7 +1645,7 @@ describe('OptimizationCoordinator Retry admission', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.1.0',
+      solverVersion: '0.2.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -1753,4 +1753,119 @@ it('retires an old integer-infeasibility certificate under the current solver ca
       budgetMs: BUDGET,
     }).pri.kind,
   ).toBe('miss');
+});
+
+describe('wire 3 preflight admission cleanup', () => {
+  const refusals = [
+    { name: 'compatibility', version: '0.1.4', reason: 'internal-error', input: INPUT },
+    {
+      name: 'arithmetic',
+      version: '0.2.0',
+      reason: 'horizon-overflow',
+      input: { ...INPUT, slices: INPUT.slices.map((slice) => ({ ...slice, days: 2 ** 52 })) },
+    },
+    {
+      name: 'booking arithmetic',
+      version: '0.2.0',
+      reason: 'horizon-overflow',
+      input: {
+        ...INPUT,
+        elsewhere: new Map([
+          ['ana', [{ start: 0, end: Number.MAX_VALUE, projectId: 'higher', workItemId: 'held' }]],
+        ]),
+      },
+    },
+  ] as const;
+  for (const refusal of refusals) {
+    it.each(['initial', 'queued', 'retry'] as const)(
+      `releases ${refusal.name} refusal after %s admission`,
+      async (pathway) => {
+        const { path, db } = database();
+        const hash = scheduleInputHash(refusal.input);
+        seedProject(path);
+        if (pathway === 'retry') {
+          const generation = allocateGeneration(db, 'p-1', CONTRACT, hash, 2);
+          db.insert(optimizedScheduleCache)
+            .values({
+              projectId: 'p-1',
+              inputHash: hash,
+              objective: 'pri',
+              contractVersion: CONTRACT,
+              budgetMs: BUDGET,
+              generation,
+              status: 'failed',
+              resultJson: null,
+              failureReason: 'timeout',
+              createdAt: 3,
+            })
+            .run();
+        }
+        const calls: ReservedSpawnRequest[] = [];
+        const errors: unknown[] = [];
+        let token = 0;
+        const instance = new OptimizationCoordinator({
+          repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
+          hashInput: scheduleInputHash,
+          contractVersion: CONTRACT,
+          solverVersion: refusal.version,
+          budgetMs: BUDGET,
+          ownerId: 'blue',
+          now: () => 10,
+          attemptToken: () => `preflight-${String(token++)}`,
+          inputOf: () => Promise.resolve(refusal.input),
+          enabledOf: () => Promise.resolve(true),
+          spawn: (request) => {
+            calls.push(request);
+            throw new Error('a refused request reached spawn');
+          },
+          runChild: () => Promise.resolve({ kind: 'exited', code: 0 }),
+          pushRecorded: () => Promise.resolve(),
+          onChildError: (error) => errors.push(error),
+          setInterval: () => 'preflight-timer',
+          clearInterval: () => undefined,
+        });
+        if (pathway === 'queued') {
+          const generation = allocateGeneration(db, 'p-1', CONTRACT, hash, 1);
+          enqueueSolverRequest(db, {
+            projectId: 'p-1',
+            contractVersion: CONTRACT,
+            generation,
+            objective: 'pri',
+            budgetMs: BUDGET,
+            enqueuedAt: 2,
+          });
+        } else if (pathway === 'retry') {
+          expect(
+            await instance.retry({
+              projectId: 'p-1',
+              objective: 'pri',
+              inputHash: hash,
+              input: refusal.input,
+            }),
+          ).toMatchObject({ kind: 'accepted' });
+        } else {
+          instance.readPlan({
+            projectId: 'p-1',
+            objective: 'pri',
+            input: refusal.input,
+            enabled: true,
+          });
+        }
+        instance.start();
+        await instance.stop();
+        expect(errors).toEqual([]);
+        expect(calls).toEqual([]);
+        expect(db.select().from(solverSlot).all()).toEqual([]);
+        expect(db.select().from(solverQueue).all()).toEqual([]);
+        expect(
+          readOptimizedPair(db, {
+            projectId: 'p-1',
+            inputHash: hash,
+            contractVersion: CONTRACT,
+            budgetMs: BUDGET,
+          }).pri,
+        ).toMatchObject({ kind: 'failed', reason: refusal.reason });
+      },
+    );
+  }
 });
