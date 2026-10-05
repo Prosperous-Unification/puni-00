@@ -83,7 +83,7 @@ zero-duration slices, the selected displayed schedule's maximum work-item finish
 calendar range, using the same preflight as the live tree. This applies to both influencers and
 the target, including schedules with no assigned slices. Unexpected failures SHALL throw.
 Pending or failed optimization SHALL contribute the displayed Fast schedule; selected ready
-optimization SHALL contribute its published schedule. Reads SHALL NOT allocate generations,
+optimization SHALL contribute its published schedule. Chain derivation SHALL NOT allocate generations,
 reserve solver slots, queue work or publish events. The chain SHALL return detached captured
 values and schedules, and close its dedicated read connection on success, refusal and throw.
 
@@ -117,3 +117,82 @@ values and schedules, and close its dedicated read connection on success, refusa
   and a lower target B shares an assigned person with A
 - **WHEN** B is read, including when A's assigned work is on hold and its schedule has no assigned slices
 - **THEN** A is listed as unavailable with `calendar_range`, A supplies no bookings and B starts at 0
+
+### Requirement: Runtime consumers use coherent mode-aware inputs
+
+Shared live trees and exports SHALL derive input, displayed schedule, local labels, live revision
+and sequence from the same authorized observation as their influencers. They SHALL preserve
+`elsewhereHolder` and project `waitingElsewhere` when the schedule carries them. Isolated reads
+SHALL retain their existing response shape and scheduler-input bytes. Arrange-by-schedule and
+command calendar preflight SHALL use the command's existing transaction and see staged writes;
+their borrowed readers SHALL NOT commit or close that transaction or admit solver work.
+
+#### Scenario: a shared tree and export
+
+- **GIVEN** A outranks B, both start on the same day and assign Ana, and A books `[0, 3)`
+- **WHEN** B's one-day task is read through the live tree and exported without an intervening edit
+- **THEN** both show B on `[3, 4)`, name A's holding work item and report `waitingElsewhere: 1`
+
+#### Scenario: staged command input
+
+- **GIVEN** a command transaction has changed B's assigned work or estimates without committing
+- **WHEN** arrange-by-schedule or calendar preflight reads B under shared mode
+- **THEN** it sees those staged values with the coherent influencer chain, and a later refusal
+  rolls back the command without solver admission
+
+### Requirement: Optimizer admissions rebuild the same shared input
+
+Initial admission, edit debounce, queue rebuild and manual Retry SHALL obtain canonical input,
+mode and optimization settings coherently. Background rebuilds SHALL resolve the project's current
+organization and activation state without fabricating user access or defaulting absent scope to
+legacy. Ordinary live admission SHALL occur after its chain read snapshot closes and SHALL NOT
+replace that response's captured display. Shared saved/current capture SHALL remain non-admitting.
+A queue capture refusal or exception before launch SHALL release its unlaunched reservation;
+unexpected exceptions SHALL propagate after cleanup. Existing child terminal-evidence rules
+SHALL remain unchanged.
+
+#### Scenario: Retry after an upstream-only edit
+
+- **GIVEN** B was read at hash H and an upstream edit changes only B's incoming bookings
+- **WHEN** the caller retries B with H
+- **THEN** Retry reports the existing stale-input-hash outcome with the current shared input hash
+  and does not launch H
+
+#### Scenario: a queued input becomes unavailable
+
+- **GIVEN** a queue rebuild has reserved a slot and its required influencer is engine-unavailable
+- **WHEN** the queued input is captured
+- **THEN** no child starts, the unlaunched slot is released, and the modeled refusal remains
+  distinct from missing input; an unexpected capture exception likewise releases before throwing
+
+### Requirement: Cached outcomes retain immutable input addresses
+
+Publication SHALL continue validating against the admitted request and enforcing existing slot,
+generation, cancellation and enablement fences. An eligible result for an earlier input SHALL
+retain that input's cache address. Consumers SHALL derive their current shared input before the
+exact input-hash, contract-version, budget and generation lookup. A detached current-chain
+recheck SHALL NOT replace those fences or be treated as atomic publication evidence. Existing
+outcome/event atomicity SHALL remain intact; downstream booking-change evidence belongs to the
+separate durable fan-out transaction work.
+
+#### Scenario: an earlier input finishes after its basis changes
+
+- **GIVEN** a solve for B at H1 is running when A changes B's incoming bookings to H2
+- **WHEN** the still-eligible H1 outcome is stored and B is subsequently read
+- **THEN** the outcome remains addressed by H1 and B's H2 lookup never serves it, even if no
+  downstream event has yet been delivered
+
+### Requirement: Installed shared saved capture preserves historical display
+
+The installed saved-plan service SHALL use the caller's scoped shared chain for both save and
+current comparison. The module installer and composition root SHALL retain that capability.
+Capture SHALL preserve the existing S4 pending, infeasible and unavailable policy and SHALL NOT
+admit solver work. Saved schedule bytes SHALL remain independent of later influencer edits or
+deletion; the target's saved input alone SHALL NOT be represented as replayable upstream history.
+
+#### Scenario: a mounted shared save and current comparison
+
+- **GIVEN** A outranks B and delays B's assigned task
+- **WHEN** B is saved through the installed route, then A changes and B's current side is read
+- **THEN** the saved bytes retain the original displaced schedule, current reflects the new
+  chain, and neither capture allocates a generation, slot or queue entry

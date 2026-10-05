@@ -648,3 +648,83 @@ Changed-path Nx format write/check passed for `project.json` and this verificati
 Typecheck/build were not repeated for this test-input-only metadata correction; application
 behavior and TypeScript are unchanged. The coordinator will rerun the canonical exact-head
 h2puni gate on the corrected commit before merge. Trusted activation remains deferred.
+
+## Runtime/cache planning — implementation not started
+
+Architecture baseline is merged main `8bccd93bc537cffac85b53ea056a79f786558eda`, after storage
+PR #265. This artifact update is documentation only on `feat/shared-people-runtime`.
+Implementation remains **17/23**, with 6.1/6.2 and UI/mode-route 7/8 unchecked. Steps 6.1a–f
+refine the existing umbrella tasks without claiming new implementation. Intent remains unchanged
+at 379 words. No new glossary term, ADR, source code, migration or release capability is added.
+
+### Runtime proof plan — every row pending
+
+These are required future production-path negatives, not observed evidence. For each row, Sol
+must record the real test/file, injected production fault, observed assertion failure and restored
+GREEN run, then add the adjacent production `Proof:` comment. A parse/load error does not count.
+
+| Step | Production fault to inject                               | Required production-path test and expected failure                                   | Observation |
+| ---- | -------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------- |
+| 6.2a | Force shared scheduling for isolated/legacy access       | Mounted mode read moves an isolated date or changes its input hash                   | Not run     |
+| 6.2a | Remove scoped ownership/cross-reference validation       | Foreign project/person enters the chain or corrupt crossing input is accepted        | Not run     |
+| 6.2a | Read mode/rank/assignments outside the owned snapshot    | Concurrent combined edit returns a mixed chain                                       | Not run     |
+| 6.2a | Default malformed mode or skip snapshot close            | Corrupt mode returns dates, or refusal/throw leaks the read connection               | Not run     |
+| 6.2b | Omit target elsewhere or its response projection         | Mounted tree/export loses displaced dates, holder or waiting count                   | Not run     |
+| 6.2b | Replace command-bound readers with a fresh connection    | Arrange/preflight ignores staged writes and accepts or arranges the wrong plan       | Not run     |
+| 6.2c | Remove incoming basis from memo acceptance               | Warm load/space returns old B dates after only A changes                             | Not run     |
+| 6.2c | Check cache before required influencer availability      | Warm available dates survive an engine-unavailable influencer                        | Not run     |
+| 6.2c | Read aggregate projects from incompatible snapshots      | Concurrent upstream edit produces mutually inconsistent shared load/space bookings   | Not run     |
+| 6.2d | Rebuild queue/debounce/Retry input without elsewhere     | Solver input differs from live shared input or old Retry hash is accepted            | Not run     |
+| 6.2d | Skip unlaunched reservation release on refusal/throw     | Queued capture negative leaves a counted slot or launches a refused input            | Not run     |
+| 6.2d | Admit target work before snapshot close                  | Read-only capture oracle observes generation/slot/queue mutation during derivation   | Not run     |
+| 6.2e | Drop shared capture at installer/composition boundary    | Mounted save/current misses upstream displacement                                    | Not run     |
+| 6.2e | Reread live influencers for a historical saved display   | Upstream edit/delete changes saved schedule bytes                                    | Not run     |
+| 6.2f | Replace current full-key cache lookup with old-key reuse | H1 outcome serves after B's incoming calendar becomes H2                             | Not run     |
+| 6.2f | Swallow unavailable/unknown chain outcomes               | Target returns unmarked Fast dates or hides an unexpected failure                    | Not run     |
+| 6.2f | Advertise shared before deferred prerequisites           | Physical capability probe no longer equals isolated-only; shared restore is admitted | Not run     |
+
+### Planned implementation validation
+
+Run focused tests from their owning project directories so generated `dist/out-tsc` copies
+cannot satisfy discovery. Use actual filenames created by 6.1a–f in the execution record;
+the task ids and cases above are the acceptance contract, not claims that tests already exist.
+
+- Focused suites must cover core live projection/transactional consumers, chain and saved-plan
+  module composition, load/space, mounted SQLite routes, optimization coordinator and cache
+  publication. Preserve existing wire-v3/preflight, immutable saved bytes, scoped authority,
+  materialized-row and lifecycle regressions.
+- Run scoped Nx test/lint/typecheck/build for every affected project with `--skip-nx-cache`.
+  Expected owners are `wbs-core`, `wbs-store-sqlite`, `wbs-be-01` and any domain/contracts owner
+  actually changed. Recheck module boundaries, source classification and explicit outside-project
+  test inputs if new source/test files require them; do not exempt an audit to make it green.
+- Run `bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --type change --json`
+  and `bunx @fission-ai/openspec@1.12.0 validate --all --json`.
+- Before implementation completion, run `bin/h2puni-gate.sh <implementation-sha>` under the
+  canonical lock and record the printed SHA and full outcome. That gate owns full test, lint,
+  typecheck, build and `format:check --all`; do not substitute a raw full Nx gate. Then record
+  substantive exact-head CI and independent review.
+
+Runtime tests, mutation runs, scoped implementation checks, the implementation gate and live
+solver deployment/binding were not run for this documentation update. Delta sync/archive is
+pending because the end-state change is incomplete. Durable fan-out/event evidence, UI 7,
+mode route 8 and activation remain deferred requirements, not removed scope.
+
+### Planning-artifact validation
+
+These executed commands establish artifact shape and unchanged implementation counts, not
+runtime correctness. Nx format write/check used the six changed paths: `design.md`, `tasks.md`,
+`verify.md`, and `specs/{elsewhere-scheduling,person-load,shared-people-mode}/spec.md`, each under
+`openspec/changes/share-people-across-projects/`.
+
+| Command                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Observed result                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --type change --json`                                                                                                                                                                                                                                                                                                                                                                                          | 1 passed / 0 failed, no issues, exit 0                |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                                                                                                                                                                                                                                                                                                               | 146 passed / 0 failed (128 changes, 18 specs), exit 0 |
+| `bunx @fission-ai/openspec@1.12.0 instructions apply --change share-people-across-projects --json`                                                                                                                                                                                                                                                                                                                                                                                     | total 23, complete 17, remaining 6, exit 0            |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx format:check --files=openspec/changes/share-people-across-projects/design.md,openspec/changes/share-people-across-projects/tasks.md,openspec/changes/share-people-across-projects/verify.md,openspec/changes/share-people-across-projects/specs/elsewhere-scheduling/spec.md,openspec/changes/share-people-across-projects/specs/person-load/spec.md,openspec/changes/share-people-across-projects/specs/shared-people-mode/spec.md` | no output, exit 0                                     |
+| `git diff --check`                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | no output, exit 0                                     |
+| `wc -w openspec/changes/share-people-across-projects/proposal.md`                                                                                                                                                                                                                                                                                                                                                                                                                      | 379 words; unchanged                                  |
+
+Full `format:check --all`, runtime tests, mutation proofs, lint/typecheck/build and the canonical
+implementation gate are intentionally unperformed for this docs-only planning commit. Their
+future commands and obligations remain above; the earlier storage evidence is not runtime proof.

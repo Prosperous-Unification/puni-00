@@ -48,8 +48,11 @@ The route SHALL ship only after the engines, the chain and fe-01 understand `sha
 
 ### Requirement: Stored encoding does not advertise runtime capability
 
-The intermediate storage-only release SHALL advertise supported `capacityModes` exactly
-`['isolated']`. It SHALL NOT install a shared-mode setter, runtime switch or activation route.
+The intermediate storage and runtime/cache releases SHALL advertise supported `capacityModes`
+exactly `['isolated']` until runtime/cache, durable fan-out and UI prerequisites are complete.
+They SHALL NOT install a shared-mode setter, activation route or environment override, and
+SHALL continue refusing shared restores. A dormant runtime reader exercised with seeded shared
+state SHALL NOT itself authorize production activation.
 The swap SHALL inspect stored encodings truthfully: old schemas lacking the column mean isolated;
 a missing organization table, present unreadable column or value outside 0/1 SHALL refuse.
 Only an absent capability CLI under readable source SHALL denote an older isolated-only release;
@@ -110,3 +113,30 @@ their saved audit fields. A failed transaction SHALL roll back audit fields with
 - **GIVEN** an additional organization is currently shared
 - **WHEN** restore runs
 - **THEN** restore refuses before changing any saved mode or rank
+
+### Requirement: Mode selection shares the scheduling observation
+
+Scoped runtime scheduling SHALL read the organization's stored mode in the same observation as
+authorization, rank, assignments, plan settings and cache selection. Legacy access SHALL use
+isolated semantics. Missing or malformed trusted mode state SHALL throw, never default to
+isolated. Concurrent edits SHALL produce an observation from one coherent state, not a mixture.
+An unavailable required influencer SHALL remain a typed refusal before any cached target dates
+are returned; cycle and calendar-range evidence SHALL retain the chain's existing policy.
+
+#### Scenario: isolated dates stay isolated
+
+- **GIVEN** A outranks B and both assign Ana, but the organization is isolated
+- **WHEN** B is read, including under legacy access
+- **THEN** B retains its existing isolated dates and input hash without reading A as an influencer
+
+#### Scenario: concurrent mode and rank edit
+
+- **GIVEN** a scoped scheduling read has opened its observation
+- **WHEN** another connection changes mode, rank, assignments or start date during capture
+- **THEN** the response agrees with one coherent state and contains no mixed chain
+
+#### Scenario: corrupt mode after a warm read
+
+- **GIVEN** a target has cached dates and its organization's stored mode is malformed
+- **WHEN** the target is read again
+- **THEN** the read throws instead of serving cached dates or defaulting to isolated
