@@ -10,7 +10,7 @@ import {
 import type { UIMessage } from 'ai';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import { ApiFailure, apiOrigin, requestJson, sendCommand } from './api';
+import { ApiFailure, apiOrigin, requestJson, sendCommand, streamFetch } from './api';
 import { describeFailure, signInRoute } from './app-flow';
 import {
   buildReturnUrl,
@@ -26,6 +26,7 @@ import {
   startOverUrl,
 } from './build-contract';
 import { HeroMedia, SiteHeader, siteOrigin, useHeadingFocus, usePageTitle } from './chrome';
+import { LiveHarness } from './conversation-harness';
 const pendingChatKey = 'puni_build_pending_chat';
 
 /** Renders corrupt local recovery state explicitly instead of treating it as a missing request. */
@@ -98,7 +99,12 @@ interface ChatHistory {
 type BuildLoad =
   | { kind: 'loading' }
   | { kind: 'account'; session: Session; draft: Draft; history: ChatHistory }
-  | { kind: 'anonymous'; session: Session; conversation: Conversation }
+  | {
+      kind: 'anonymous';
+      session: Session;
+      harness: 'disabled' | 'live';
+      conversation: Conversation;
+    }
   | { kind: 'error'; message: string };
 
 function failureMessage(error: unknown): string {
@@ -120,25 +126,6 @@ function storedMessages(history: ChatHistory): UIMessage[] {
     parts: [{ type: 'text', text: turn.content }],
   }));
 }
-
-const chatFetch = Object.assign(
-  async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
-    const response = await fetch(input, init);
-    if (!response.ok) {
-      const payload: unknown = await response.json();
-      const code =
-        typeof payload === 'object' &&
-        payload !== null &&
-        'code' in payload &&
-        typeof payload.code === 'string'
-          ? payload.code
-          : `HTTP ${String(response.status)}`;
-      throw new ApiFailure(response.status, code);
-    }
-    return response;
-  },
-  { preconnect: fetch.preconnect },
-);
 
 function Conversation({
   session,
@@ -215,7 +202,7 @@ function Conversation({
           setPendingIdentity(identity);
           return { body: requestBody };
         },
-        fetch: chatFetch,
+        fetch: streamFetch,
       }),
     [
       session.csrfToken,
@@ -658,6 +645,8 @@ export function BuildPage() {
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState('');
   const [remainingTurns, setRemainingTurns] = useState(0);
+  const [isHandedOff, setHandedOff] = useState(false);
+  const [isSignInOpen, setSignInOpen] = useState(false);
   useKeyboardInset();
 
   async function loadBuild(): Promise<void> {
@@ -689,8 +678,14 @@ export function BuildPage() {
         entry,
         await requestJson<unknown>('/conversation', { signal: controller.signal }),
       );
-      if (harness.kind !== 'disabled') throw new Error(`Unexpected harness state ${harness.kind}`);
-      setLoad({ kind: 'anonymous', session, conversation: harness.conversation });
+      if (harness.kind !== 'disabled' && harness.kind !== 'live')
+        throw new Error(`Unexpected harness state ${harness.kind}`);
+      setLoad({
+        kind: 'anonymous',
+        session,
+        harness: harness.kind,
+        conversation: harness.conversation,
+      });
     } catch (error) {
       setLoad({
         kind: 'error',
@@ -779,9 +774,27 @@ export function BuildPage() {
             ? 'Shape the work together.'
             : 'Build'}
         </h1>
-        {load.kind === 'anonymous' && (
+        {load.kind === 'anonymous' && !isHandedOff && (
           <div className="harness-bar">
+            {load.harness === 'live' && route !== 'unavailable' && (
+              <button
+                type="button"
+                className="harness-text-button"
+                aria-expanded={isSignInOpen}
+                aria-controls="harness-signin"
+                onClick={() => {
+                  setSignInOpen(!isSignInOpen);
+                }}
+              >
+                [ Sign in ]
+              </button>
+            )}
             <StartOver csrfToken={load.conversation.csrfToken} />
+          </div>
+        )}
+        {load.kind === 'anonymous' && load.harness === 'live' && isSignInOpen && (
+          <div className="harness-column harness-signin-panel" id="harness-signin">
+            {signIn}
           </div>
         )}
         {load.kind === 'loading' && (
@@ -804,8 +817,17 @@ export function BuildPage() {
             </div>
           </div>
         )}
-        {load.kind === 'anonymous' && (
+        {load.kind === 'anonymous' && load.harness === 'disabled' && (
           <DisabledHarness conversation={load.conversation} route={route} signIn={signIn} />
+        )}
+        {load.kind === 'anonymous' && load.harness === 'live' && (
+          <LiveHarness
+            initial={load.conversation}
+            onReload={() => void loadBuild()}
+            onHandedOff={() => {
+              setHandedOff(true);
+            }}
+          />
         )}
         {load.kind === 'account' && (
           <Conversation

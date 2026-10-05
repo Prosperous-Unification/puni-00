@@ -150,7 +150,7 @@ export function chatRequestBody(
 export type ConversationStage = 'clarify' | 'brief' | 'contact' | 'exhausted' | 'handed_off';
 export type ConversationProvider = 'openrouter' | 'demo' | 'disabled';
 export type ConversationExhaustedReason =
-  'turns' | 'conversation_spend' | 'source_spend' | 'site_spend' | 'unsettled';
+  'turns' | 'conversation_spend' | 'source_spend' | 'site_spend';
 
 export interface ConversationOperation {
   state: 'not-started' | 'inflight' | 'completed' | 'unknown';
@@ -192,7 +192,6 @@ const exhaustedReasons: readonly ConversationExhaustedReason[] = [
   'conversation_spend',
   'source_spend',
   'site_spend',
-  'unsettled',
 ];
 const operationStates: readonly ConversationOperation['state'][] = [
   'not-started',
@@ -307,14 +306,14 @@ export function parseConversation(value: unknown): Conversation {
 export type AnonymousHarness =
   | { kind: 'loading' }
   | { kind: 'redirect'; url: string }
-  | { kind: 'disabled'; conversation: Conversation };
+  | { kind: 'disabled'; conversation: Conversation }
+  | { kind: 'live'; conversation: Conversation };
 
 /**
  * Maps the entry status and the `GET /conversation` body to the anonymous harness state.
  * `entry` is null while it loads; an unavailable entry redirects to Home with its reason.
+ * `openrouter` and `demo` are the live harness; `disabled` has no composer.
  * @throws InvalidConversation when the body breaks the contract.
- * @throws Error for a live provider: the claim-bound stream does not exist yet, so the API
- * reports only `disabled` and any other value is a contract break.
  */
 export function resolveAnonymousHarness(
   siteOrigin: string,
@@ -324,9 +323,93 @@ export function resolveAnonymousHarness(
   if (entry === null) return { kind: 'loading' };
   if (!entry.available) return { kind: 'redirect', url: buildReturnUrl(siteOrigin, entry.reason) };
   const parsed = parseConversation(conversation);
-  if (parsed.provider !== 'disabled')
-    throw new Error(`Anonymous ${parsed.provider} conversation is not available in this release`);
-  return { kind: 'disabled', conversation: parsed };
+  if (parsed.provider === 'disabled') return { kind: 'disabled', conversation: parsed };
+  return { kind: 'live', conversation: parsed };
+}
+
+/** One operation the visitor can send again under the same identity. */
+export interface ConversationAttempt {
+  idempotencyKey: string;
+  message: string;
+  initial: boolean;
+}
+
+/** What the live composer offers; see {@link selectComposerMode}. */
+export type ComposerMode =
+  | { kind: 'initial'; attempt: ConversationAttempt }
+  | { kind: 'open' }
+  | { kind: 'answering' }
+  | { kind: 'closed'; reason: ConversationExhaustedReason };
+
+/**
+ * What the live composer offers for a saved conversation: the read-only Home request with Send
+ * until the initial operation completes, an open composer, a wait while another tab's reply is
+ * still running, or a closed line naming why the conversation ended.
+ * @throws Error for a `handed_off` stage, which a live claim cannot reach.
+ * @throws InvalidConversation when a live conversation has no initial operation identity.
+ */
+export function selectComposerMode(conversation: Conversation): ComposerMode {
+  if (conversation.stage === 'handed_off')
+    throw new Error('A handed-off conversation still has a live claim');
+  if (conversation.stage === 'exhausted') {
+    if (conversation.exhaustedReason === null) throw new InvalidConversation('exhaustedReason');
+    return { kind: 'closed', reason: conversation.exhaustedReason };
+  }
+  if (conversation.latestOperation?.state === 'inflight') return { kind: 'answering' };
+  const initial = conversation.initialOperation;
+  if (initial === null) throw new InvalidConversation('initialOperation');
+  // Proof: opening the ordinary composer before the initial operation completed failed two
+  // build-page.test.ts live-harness cases and conversation.mjs ("not shown read-only before Send").
+  if (initial.state !== 'completed')
+    return {
+      kind: 'initial',
+      attempt: {
+        idempotencyKey: initial.idempotencyKey,
+        message: conversation.description,
+        initial: true,
+      },
+    };
+  if (conversation.visitorTurnsRemaining === 0) return { kind: 'closed', reason: 'turns' };
+  return { kind: 'open' };
+}
+
+/**
+ * The visitor message of the latest attempt whose reply was stopped or failed before its usage
+ * was confirmed. It is not a saved turn, so the thread shows it with Retry under its identity.
+ */
+export function selectStoppedAttempt(conversation: Conversation): ConversationAttempt | null {
+  const latest = conversation.latestOperation;
+  if (latest?.state !== 'unknown') return null;
+  return {
+    idempotencyKey: latest.idempotencyKey,
+    message: latest.message,
+    initial: latest.idempotencyKey === conversation.initialOperation?.idempotencyKey,
+  };
+}
+
+/**
+ * Whether the thread shows the inline proposal card: once the server reaches `contact`, when
+ * the conversation is exhausted, or as soon as a brief exists. Never during clarification
+ * without a brief, so the card does not interrupt the first questions.
+ */
+export function offersProposal(conversation: Conversation): boolean {
+  // Proof: returning true unconditionally failed the two no-brief rows of the build-page.test.ts card table.
+  return (
+    conversation.stage === 'contact' ||
+    conversation.stage === 'exhausted' ||
+    conversation.brief.trim() !== ''
+  );
+}
+
+/** The one line that replaces the composer when a conversation is exhausted. */
+export function describeExhaustion(reason: ConversationExhaustedReason): string {
+  const copy: Record<ConversationExhaustedReason, string> = {
+    turns: 'This conversation reached its limit. Send your brief to a person.',
+    conversation_spend: 'This conversation used its AI allowance. Send your brief to a person.',
+    source_spend: 'AI chat reached today’s limit for your connection. Send your brief to a person.',
+    site_spend: 'AI chat reached today’s limit. Send your brief to a person.',
+  };
+  return copy[reason];
 }
 
 /** Where Start over lands: the site's Home prompt, empty once the draft cookie is expired. */
