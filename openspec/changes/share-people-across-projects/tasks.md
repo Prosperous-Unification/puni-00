@@ -202,7 +202,7 @@ silent`, and `isolated and foreign projects receive no shared fan-out`. Include 
       outcomes. R5: substitute Fast, suppress equal-hash availability, omit old graph, traverse
       mixed edges, remove pair deduplication and remove organization/mode guards independently.
       No adapter/event/route binding, DB writes, generation admission or persistent hash state.
-- [ ] 6h. **Command/UoW atomicity.** Follow the reviewed
+- [x] 6h. **Command/UoW atomicity.** Follow the reviewed
       [architecture checkpoint](6h-architecture.md), including both core and mounted bindings
       and the committed-delivery optimizer reaction. Expire execute/undo/redo command grants
       at UoW settlement before post-commit delivery; retain unconditional failure/refusal cleanup

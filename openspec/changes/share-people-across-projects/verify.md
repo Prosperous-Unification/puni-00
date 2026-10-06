@@ -1750,3 +1750,27 @@ checks passed on all modified/new paths (`/tmp/shared-people-fanout-6h-final-pre
 errors (`/tmp/shared-people-fanout-6h-final-diff-scoped.log`). Exact-SHA host gate, CI,
 publication, merge, 6i–6l and umbrella completion remain outstanding; Astra implementation
 re-review is pending.
+
+## 6h local checkpoint (2026-10-06)
+
+Astra's final exact-byte review cleared the 39-path implementation manifest
+`/tmp/astra-6h-final-cleared-manifest.json` (raw-file SHA256
+`aec95a10445c1a804ebe2cac9bcb93989d0b78a1b50d5146f11ac6e01ad8a8b5`). The
+implementation was committed locally as `f740615d4eccf11d8b503de0f3d7b8c37bd431c5` on
+`feat/shared-people-fanout-6h`; the worktree was clean immediately afterward and all 39
+committed blob hashes matched the cleared manifest. Normal commit hooks passed formatting,
+lint and secret checks; migration lint and doc caps had no matching files, and Tool Wiki
+reported inactive/uncertified. The planning tables above retain their historical Pending
+status as of their documentation-only amendments. The final implementation proof matrix is:
+
+| Boundary                                   | Final witness and watched fault                                                                                                                                                                                                                                                                                |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Grant lifetime, execute/undo/redo          | Held-delivery SQLite writer and retained admission 3/3 GREEN; settlement omission 3/3 RED (`/tmp/shared-people-fanout-6h-grant-lifetime-green.log`, `/tmp/shared-people-fanout-6h-r5-settlement-expiry-omission.log`).                                                                                         |
+| Changed topology endpoints                 | Mounted B assignment removal durably records `(B,A)`, `(C,A)`, `(C,B)`; endpoint omission loses `(B,A)` (`/tmp/shared-people-fanout-6h-mounted-endpoints-green.log`, `/tmp/shared-people-fanout-6h-r5-mounted-endpoint-omission.log`).                                                                         |
+| Scoped recovery timing                     | Separate mounted DELETE 204 and `(B,A)` event; late hook returns 204 but records no row (`/tmp/shared-people-fanout-6h-scoped-late-hook-restored.log`, `/tmp/shared-people-fanout-6h-r5-scoped-late-hook-mounted.log`). The earlier broad `/tmp/shared-people-fanout-6h-r5-scoped-late-hook.log` is bare-only. |
+| Writer release                             | Scoped recovery second SQLite writer enters during held push; inside-UoW delivery fails `SQLITE_BUSY` (`/tmp/shared-people-fanout-6h-recovery-release-restored.log`, `/tmp/shared-people-fanout-6h-r5-recovery-deliver-inside-uow.log`).                                                                       |
+| Capture, authority, atomicity and bindings | Mounted and SQLite proofs with exact fault logs are in the preceding 6h implementation table; final ten-file suite 99/99, 561 assertions and independent Astra review passed.                                                                                                                                  |
+
+The 6h task alone is now checked. This documentation-only
+follow-up has separate final checks and a separate local commit. 6i–6l, 6.1/6.2 umbrella,
+exact-SHA host gate, CI, merge and publication remain open.
