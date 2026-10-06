@@ -2380,10 +2380,13 @@ silence were instead proven on contract retirement (2/2, 8 assertions at
 The after-capture fault restored the complete transaction snapshot (1/1 in
 `/tmp/shared-people-6jc-after-capture-and-cause-green.log`). An attempted
 omission of a `present.has(projectId)` filter was **not** a proof: the mounted
-absent-cause case still passed at
-`/tmp/shared-people-6jc-absent-cause-omission-red.log` because the comparator
-already ignores absent causes. That redundant filter was removed; the
-absent-cause, after-capture and selected-retirement cases then passed 3/3,
+unranked-project case still passed at
+`/tmp/shared-people-6jc-absent-cause-omission-red.log`. Removing A's
+`project_rank` row leaves A in both captured graphs because the rank reader
+includes unranked owned projects. The comparator throws on a truly absent
+direct cause; this fixture therefore cannot prove absent-cause filtering. The
+redundant filter was removed; the unranked-project, after-capture and
+selected-retirement cases then passed 3/3,
 19 assertions at `/tmp/shared-people-6jc-after-capture-and-cause-green.log`.
 The final-byte two-file rerun has the same sole FK failure: 31 pass/1 fail,
 158 assertions at `/tmp/shared-people-6jc-current-two-file-final.log`.

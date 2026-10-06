@@ -716,7 +716,7 @@ describe('buildServices', () => {
     expect(pushUrls).toEqual([]);
   });
 
-  it('does not invent an addressed cause absent from both captured graphs', async () => {
+  it('keeps an unranked-project drain begin silent without displayed displacement', async () => {
     const { db, path, services, pushUrls } = bootstrap();
     seedSharedLifecycle(path);
     db.run(sql`DELETE FROM project_rank WHERE project_id = 'A'`);
