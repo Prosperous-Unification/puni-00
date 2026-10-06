@@ -104,6 +104,35 @@ display SHALL receive the same comparison even without a new optimizer outcome.
 - **WHEN** slot release or reconciliation completes the actual deletion
 - **THEN** surviving old-closure recipients are recorded atomically with that deletion
 
+### Requirement: Command fan-out retains post-commit optimizer notifications
+
+A command batch, undo/redo or admitted route write SHALL compare once around its whole
+successful act, including any prelude, using the originating transaction's captured rank,
+mode, ownership, resource usages and scheduling evidence. Capture SHALL use non-admitting
+scheduler/cache reads and SHALL require no earlier plan read. Refused acts and their
+history-only rollback repairs SHALL produce no shared fan-out.
+
+Committed fan-out delivery SHALL notify the existing optimizer edit policy for each recipient
+after commit and writer release, before transport awaits. It SHALL preserve ordinary
+source-project scheduling announcements, reuse the recorded subscription/sequence/payload
+without reinsertion, and SHALL NOT create fan-out by replaying or delivering an event.
+Transport failure SHALL retain the committed write, event and optimizer notification.
+This does not promise durable optimizer callback recovery across process failure.
+
+#### Scenario: mounted command on a cold process
+
+- **GIVEN** a shared chain is persisted and fresh services have served no plan reads
+- **WHEN** an authorized mounted command changes the higher project's bookings
+- **THEN** its downstream events commit with the command and history
+- **AND** recipient optimizer edit callbacks run after writer release without a second event insert
+
+#### Scenario: transport is slow or unavailable
+
+- **GIVEN** a command has committed its downstream events
+- **WHEN** gateway transport is pending or fails
+- **THEN** recipient edit notifications have already run and another writer can enter
+- **AND** retained events remain replayable at their original sequences
+
 ### Requirement: Publication compares current display rather than cache insertion
 
 A stored optimizer outcome SHALL retain existing validation, generation, slot/token,

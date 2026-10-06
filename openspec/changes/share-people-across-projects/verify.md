@@ -1351,3 +1351,38 @@ is 384 words, below the 400-word limit. Final-byte reruns use the same commands/
 No Nx implementation suite was run for this documentation-only amendment; no new production
 behavior or R5 outcome is claimed. Before committing, self-review checked source ownership,
 scenario/task coverage and that every new implementation checkbox and proof remains pending.
+
+## 6h architecture checkpoint (2026-10-06)
+
+Prepared on `plan/shared-people-fanout-6h-architecture`, based on plan commit
+`24025e6545b36bae8f32e18c078b5b755670211c`. The normative design links
+[6h-architecture.md](6h-architecture.md); the delta spec adds command capture and committed
+optimizer-notification requirements, and task 6h links the exact implementation handoff.
+No product source, migration, runtime capability, WBS record or publication changed.
+
+Inspected real command/undo/redo, admitted-write, SQLite UoW/event-store/borrowed capture,
+core composition, services/boot/mounted app, gateway delivery and optimizer-trigger callers
+and their existing tests. Independently inspected 6g commit
+`6ac0cd4dc8772790c1dafc63c89d10d2a6a8a3db`: `FanoutObservation.projects` now documents
+that input is already in authoritative project-rank order and `rankPosition` is metadata,
+closing its P3 documentation finding. No claim of rerunning unchanged 6g behavior tests.
+
+Validation in the isolated architecture worktree:
+
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`:
+  1 change passed, 0 failed, no issues.
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate --all --json`:
+  148 passed, 0 failed (130 changes, 18 specs); report
+  `/tmp/shared-people-fanout-6h-openspec-all.json`.
+- Prettier write/check of the five touched Markdown files via the existing workspace
+  installation: passed. `git diff --check`: passed.
+
+Tool recovery: `openspec` was absent from PATH. An initial direct cached 1.13.0 invocation
+failed with missing `commander` and is not validation evidence. A Bun invocation without
+`BUN_TMPDIR` failed with EROFS; the repository-pinned 1.12.0 invocation above succeeded using
+writable `/tmp`, with no dependency/lockfile changes.
+
+Not run: product tests, fault injections, lint/typecheck/build, canonical exact-SHA h2puni
+gate or CI. This is a documentation checkpoint, not implemented 6h or integration evidence.
+Every new 6h RED/restored-GREEN production proof in the packet remains pending; 6h and later
+slices remain unchecked. No push or merge.
