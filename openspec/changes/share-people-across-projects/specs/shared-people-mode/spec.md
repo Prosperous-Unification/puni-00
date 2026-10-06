@@ -119,7 +119,7 @@ without reinsertion, and SHALL NOT create fan-out by replaying or delivering an 
 Transport failure SHALL retain the committed write, event and optimizer notification.
 This does not promise durable optimizer callback recovery across process failure.
 
-For admitted project/step routes, observation SHALL require fresh read-only authority within
+For bare admitted project/step writes, observation SHALL require fresh read-only authority within
 the owning UoW before capture. Supplied request scope alone SHALL NOT authorize observation.
 This check SHALL return typed `not_found` or `forbidden`, write no audit, grant or other state,
 and preserve each operation's existing recovery policy. It SHALL NOT replace the repository's
@@ -138,6 +138,27 @@ refusals and before its write, and propagate an observation-authority refusal un
 - **WHEN** a currently authorized super-admin updates a restricted project through an admitted route
 - **THEN** old-state capture precedes the write and exactly the existing store recovery audit commits
 - **AND** the observation-authority check creates no grant or audit and step-removal policy is unchanged
+
+Mounted scoped step removal SHALL retain its existing recovery UoW, fresh auditing admission,
+actor/project grant and successful super-admin restricted-project recovery. Observation SHALL
+use that same granted batch after the step service's preflight refusals and before removal;
+it SHALL neither repeat admission/audit nor open a nested UoW. Successful removal, existing
+recovery audit and downstream event rows/sequences SHALL commit together. Refusal or capture /
+event-recording failure SHALL roll them back together. Delivery SHALL start only after writer
+release. The bare `NO_ADMISSION` path SHALL NOT gain recovery privileges.
+
+#### Scenario: scoped recovery removes a step
+
+- **WHEN** an authorized non-creator super-admin removes a step from a restricted shared project
+- **THEN** the existing recovery boundary grants and audits the successful removal exactly once
+- **AND** old-state capture, removal and downstream recording share that same UoW
+- **AND** recipient notifications and delivery occur after commit and writer release
+
+#### Scenario: scoped recovery capture or recording fails
+
+- **WHEN** capture or downstream recording fails during an otherwise permitted scoped removal
+- **THEN** the step, existing audit, downstream events and sequence advances all roll back
+- **AND** the grant expires and no downstream push or optimizer notification occurs
 
 #### Scenario: mounted command on a cold process
 

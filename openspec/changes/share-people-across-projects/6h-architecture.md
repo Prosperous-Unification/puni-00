@@ -26,7 +26,8 @@ Paths below are relative to the repository root; findings were read at the plann
 | `libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts`, `PlanCommandRunner.execute` | Opens a per-batch collector, admits inside `transaction.run`, applies prelude and commands, records command history, closes Working plan, then sends and announces the tree after return. Capture must precede the prelude and finish after the full batch, not per command. |
 | Same file, `PlanCommandRunner.walk`                                                                        | Undo/redo can refuse after partial writes. `afterRollback` discards stale history against surviving stores; `collector.send` also runs after a refused walk. Failed transaction fan-out must be a separate channel, never this collector.                                    |
 | `module/plan-commands/composition.ts`, `commandTransaction`, `createAdmittedWrites`                        | Own raw `Scope`; runner and route feature receive mapped capabilities. Retain this boundary rather than passing stores into features.                                                                                                                                        |
-| `module/plan-commands/admitted-write.ts`, `admittedWrites`                                                 | Currently wraps `projects.updateWithin` and `steps.removeWithin`, with `NO_ADMISSION`; a false `ok` rolls back. Bind these existing paths in 6h; broader settings routing stays in 6i.                                                                                       |
+| `module/plan-commands/admitted-write.ts`, `admittedWrites`                                                 | Wraps project updates and the bare/legacy step-removal path with `NO_ADMISSION`; a false `ok` rolls back. Mounted scoped step removal uses the recovery boundary below. Broader settings routing stays in 6i.                                                                |
+| `libs/wbs/application/core/src/http/step.routes.ts::write` → `http/recovery-write.ts::runRecoveryWrite`    | Scoped step removal bypasses `createAdmittedWrites`: the existing UoW freshly admits, records any recovery audit and grants its batch. Bind capture/record inside this same granted transaction; preserve restricted super-admin removal.                                    |
 | `libs/wbs/adapters/store-sqlite/src/source.ts`, `bindLivePlans`                                            | Installs owned public readers and borrowed command readers over `process.db` and OPEN-gated stores. Add capture here; public read snapshots are unsuitable for observing staged command writes.                                                                              |
 | `libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts`                                                | Holds writer turn across explicit `BEGIN IMMEDIATE` / awaited act / COMMIT or ROLLBACK, then releases. Its explicit async lifetime is valid; do not copy it into synchronous Drizzle callbacks.                                                                              |
 | `libs/wbs/adapters/store-sqlite/src/event-log.ts`, `recordEvent` / `recordEventIn`                         | `scope.stores.eventLog.recordEvent` already nests under the owning transaction through OPEN gate. Reuse this neutral port; no Drizzle transaction argument belongs in core `EventLogStore`.                                                                                  |
@@ -67,7 +68,9 @@ composition and transaction-boundary type tests valid.
 The numbered admission step above has different owners for commands and admitted route
 services. `ProjectService.updateWithin` first classifies the supplied access, but
 `ProjectRepository.write` later rechecks current membership inside its write transaction.
-`StepService.removeWithin` performs its own project/step gate. A service hook after those
+`StepService.removeWithin` performs its own project/step gate. This subsection covers the
+bare `createAdmittedWrites` graph, which uses `NO_ADMISSION`; mounted scoped step removal
+has the separate, already audited boundary below. A service hook after those
 initial checks alone does not prove current authority before organization capture. Do not
 pre-call `admitEditInOrganization`: it can insert a super-admin recovery audit, duplicating the
 project store's existing recovery record and changing step-removal permissions.
@@ -102,8 +105,9 @@ outer UoW `ok` handling decides rollback/commit as before.
 The callback first performs a **read-only fresh authority check on the borrowed UoW
 connection**: resolve current ownership, actor identity and current membership/role, preserving
 foreign/absent `not_found` equivalence and the exact operation's restriction/recovery policy.
-Project updates may authorize existing super-admin recovery; step removal must not acquire a
-recovery grant it did not already possess. This check records no audit, issues no grant, writes
+Project updates may authorize existing super-admin recovery; bare step removal must not
+acquire a recovery grant. This restriction does not remove the existing grant from mounted
+scoped recovery. This check records no audit, issues no grant, writes
 no state and does not call the auditing admission method. Reuse/extract the existing pure
 classification rules rather than inventing a parallel permission policy. Only after success
 may the callback observe mode and capture old shared fan-out facts, once for the UoW.
@@ -115,6 +119,53 @@ observation; do not open a fresh connection. Never await capture inside the repo
 synchronous Drizzle transaction callback. A later modeled write refusal discards the captured
 before-state; a capture exception rolls back. Only a successful act captures after and records
 events. Successful UoW return is still required before delivery or optimizer notification.
+
+### Mounted scoped step removal: retain the recovery transaction
+
+`app.ts` passes the mapped admitted step service into `stepRoutes`, but the scoped branch of
+`stepRoutes.write` deliberately invokes `runRecoveryWrite` and passes **its own**
+`services.steps` to the operation. Only the legacy branch calls the mapped bare service.
+`runRecoveryWrite` currently admits inside its UoW through `admitEditInOrganization`, returns
+its typed refusal, grants the admitted actor/project, builds the granted batch and expires the
+grant in `finally`. A successful restricted-project removal by a super-admin already commits
+one recovery audit (`step-marker-organization.controller.db.test.ts`, `audits each super-admin
+step and marker recovery while keeping the creator`). Preserve that behavior.
+
+Bind a required, source-neutral fan-out capability at this **existing** recovery boundary for
+scoped step removal. Composition maps the existing `Scope` and granted batch into observation,
+recording and committed delivery; do not expose raw stores to the step service. Bind both
+production boot/app composition and the recovery-route test fixtures. Merely supplying a
+capability to `createAdmittedWrites` cannot cover this branch. Installation must distinguish
+this operation from other recovery callers; do not silently activate new marker/add/rename
+bindings or count them as covered by this slice.
+
+The transaction sequence is:
+
+1. Keep `runRecoveryWrite`'s existing fresh `admitEditInOrganization`, typed `not_found` /
+   `forbidden` return, recovery audit and grant. A refused admission invokes no capture or step
+   mutation. Do not replace this established auditing admission with the bare path's read-only
+   check; do not call it a second time.
+2. Build the batch over the same borrowed `Scope`, held-event collector and existing grant,
+   adding the step-removal observation hook. `StepService.removeWithin` awaits the hook after
+   its existing project/step gate and dependency/cycle/usage refusals, before `steps.remove`.
+   The callback relies on the fresh admission and still-live grant owned by this same UoW;
+   it performs no new admission, issues no second grant and inserts no audit. It captures old
+   shared facts once on that transaction's connection. The existing `BEGIN IMMEDIATE` turn
+   keeps the admitted membership/project state stable through capture and mutation.
+3. If the operation refuses, roll back the staged audit and any mutation; discard the old
+   observation. A capture exception also rolls back the audit. Preserve grant expiry on every
+   outcome. If the operation succeeds, capture after and record downstream rows/sequences
+   through the same scope before returning the commit decision. Event failure rolls back
+   step/domain changes and the existing audit together.
+4. Return committed envelopes with the original typed outcome. Only after UoW success and
+   writer release, run committed delivery, then the existing held announcements. Preserve
+   their source-project optimizer trigger. Nothing is pushed or notified from the open UoW.
+
+Never call `createAdmittedWrites` or start another UoW from the granted recovery operation:
+that would re-enter the writer gate and discard its grant semantics. Never route scoped step
+removal through a `NO_ADMISSION` graph. The bare path's hook still performs its own fresh
+read-only authority check; it receives no recovery grant. These are separate bindings with
+separate omission proofs, sharing projection and committed-delivery semantics.
 
 The adapter capture must provide everything 6g consumes, not merely reuse `readAggregate`'s
 human-facing summary. Capture rank, ownership, mode, assignments, local scheduling facts,
@@ -219,14 +270,44 @@ Additional admitted-route proofs are mandatory:
   throwing capture dependency to prove refusal precedence, not merely response shape).
 - `recovery observes once and audits once`: a permitted super-admin project recovery captures
   old state and commits exactly one existing audit. Replace the read-only check with
-  `admitEditInOrganization`: the extra audit makes this test RED. A restricted step removal
-  retains its previous forbidden outcome and receives no new grant/audit.
+  `admitEditInOrganization`: the extra audit makes this test RED. A bare `NO_ADMISSION` step removal
+  from a restricted project by a non-creator retains its forbidden outcome and receives no new grant/audit. Mounted scoped
+  recovery instead retains its successful audited removal, as specified below.
 - `admitted observation precedes mutation`: inspect the old project settings/step while the
   hook runs and the final recipient event after success. Move the hook after the write: old
   state or expected event assertion fails. Omit project and step hooks/bindings independently.
 - `admitted capture and event failures roll back`: inject capture failure and later event
   insertion failure separately; compare domain, recovery audit, journal where applicable,
   event log and sequence state. The push and optimizer witnesses remain empty.
+
+Additional scoped-recovery proofs are separate from the bare admitted-route proofs:
+
+- `scoped removal retains recovery and fan-out`: invoke the mounted shared-organization DELETE
+  as a non-creator super-admin; expect success, exactly one existing step-removal audit, one
+  UoW entry, and expected downstream rows. Omit the recovery-specific binding: rows disappear.
+  Substitute the bare `NO_ADMISSION` service: the established successful recovery is refused.
+  Add a second auditing admission: audit count becomes two. Retain actor/project/expiry tests
+  for the original grant; the observation callback must not grant authority itself.
+- `scoped refusal never captures`: revoke/demote after request access resolution before the
+  recovery turn, or address a foreign/absent project. Existing admission returns the typed
+  refusal with zero capture, audit, downstream rows or optimizer witnesses. Bypass that fresh
+  admission or capture before it independently; a throwing capture seam proves precedence.
+- `scoped observation precedes removal`: inspect the old step/settings inside its granted hook;
+  move the hook after removal or omit it independently and observe missing old evidence/events.
+  Repeat the late-hook/omission proof through the bare admitted service with a permitted
+  shared-mode creator; a scoped recovery test cannot prove that separate binding.
+- `scoped capture and event failures roll back recovery`: fail capture, then separately a later
+  downstream insert after one event was inserted. Step/domain, audit, event-log and sequencer
+  state equal their before values, grant is expired, and push/optimizer witnesses are empty.
+  Repeat both faults through permitted bare shared-mode removal (which must create no
+  recovery audit).
+- `scoped delivery releases the writer`: hold downstream transport pending after successful
+  mounted recovery; a second writer enters and the recipient edit notification has run. Move
+  delivery before UoW return to observe premature push/notification or blocked writer. Retain
+  the equivalent bare shared-mode test; do not implement a nested UoW to obtain after-commit
+  delivery. Legacy mounted removal must retain its successful creator behavior, with zero
+  organization-capture, fan-out or recipient-trigger calls; plant throwing shared dependencies
+  to prove they are unused. A legacy no-fan-out result alone cannot prove shared hook binding.
 
 Retain existing core `compose.test.ts`, `admitted-write.test.ts`, transaction-boundary types,
 optimizer-trigger and gateway tests; SQLite UoW/event-log/plan-commands tests; mounted
@@ -248,9 +329,12 @@ choose files near their owning boundary rather than introducing a second harness
    and return committed envelopes without exposing `Scope` to the feature; integrate once around
    the whole act and exclude refusal/repair. Add admitted-write RED tests and integrate its two
    existing routes under the same decision boundary. Implement the admitted-route hook and
-   read-only observation-authority check above; retain the sole auditing store path.
+   read-only observation-authority check above for the bare graph. Separately integrate mounted
+   scoped step removal within `runRecoveryWrite`, preserving its original grant/audit and
+   transaction; add its dedicated omission, late-hook, rollback and writer-release proofs.
 4. Add delivery, trigger and mounted RED tests. Wire the required capability through
-   `compose.ts`, `services.ts`, `boot.ts::writes`, `app.ts::mountedEndpoints` and relevant module
+   `compose.ts`, `services.ts`, `boot.ts::writes`, `app.ts::mountedEndpoints`,
+   `http/step.routes.ts` / `http/recovery-write.ts` and relevant module
    checks/fixtures. Add typed event, reuse optimizer reaction policy, then deliver committed rows
    before unrelated announcements. Do not widen legacy `Broadcaster` or leak adapter types.
 5. Watch every fault above independently fail on the actual path, restore it, rerun relevant
