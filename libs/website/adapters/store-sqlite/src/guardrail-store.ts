@@ -85,11 +85,19 @@ export function sweepAdmissionCounts(database: Database, previousDay: string): v
 }
 
 /**
- * The `proposal:email` key: SHA-256 of the day salt and the lower-cased email, so the counter is
- * pseudonymous and cannot be linked to the address once the day's salt is deleted.
+ * The `proposal:email` key: SHA-256 of the day salt and the normalized email, so the counter is
+ * pseudonymous and cannot be linked to the address once the day's salt is deleted. Normalizing
+ * lower-cases the address and drops a `+tag` from the local part, so tagged variants share one
+ * cap; dots stay as written, because only some providers (Gmail) ignore them.
  */
 export function hashEmailKey(daySalt: Uint8Array, email: string): string {
-  return createHash('sha256').update(daySalt).update(email.toLowerCase()).digest('hex');
+  const lowered = email.toLowerCase();
+  const at = lowered.lastIndexOf('@');
+  const local = lowered.slice(0, at);
+  const plus = local.indexOf('+');
+  // Proof: hashing the lower-cased address without dropping the tag admitted a fourth tagged variant.
+  const normalized = `${plus < 0 ? local : local.slice(0, plus)}${lowered.slice(at)}`;
+  return createHash('sha256').update(daySalt).update(normalized).digest('hex');
 }
 
 /**
@@ -213,18 +221,24 @@ function recordScopeFailure(
 }
 
 /**
- * Records one failed operator password in the source scope and the account scope in one
- * transaction. Five failures in 15 minutes lock the source for 15 minutes; twenty in an hour lock
- * the account for an hour. Returns the account window's start when this failure opened the
- * account lock, so the caller can raise one alert per lock.
+ * Admits one operator password attempt in a single immediate transaction: the lock is read and,
+ * when neither the caller's source nor the account is locked, the attempt is counted as a failure
+ * in both scopes before any password verification, so a concurrent burst cannot reach the
+ * verifier more often than the caps allow (five per source per 15 minutes, twenty per account per
+ * hour). A success then calls {@link settleLoginSuccess}. Returns the latest lock end when
+ * refused, or the account window's start when this attempt opened the account lock.
  */
-export function recordLoginFailure(
+export function reserveLoginAttempt(
   database: Database,
   sourceHash: string,
   now: number,
-): { accountLockOpenedAt: number | null } {
+):
+  | { kind: 'locked'; lockedUntil: number }
+  | { kind: 'reserved'; accountLockOpenedAt: number | null } {
   return database
     .transaction(() => {
+      const lockedUntil = readLoginLock(database, sourceHash, now);
+      if (lockedUntil !== null) return { kind: 'locked' as const, lockedUntil };
       recordScopeFailure(database, 'source', sourceHash, now, {
         failures: guardrailAllowance.sourceLoginFailures,
         windowMilliseconds: guardrailAllowance.sourceLoginWindowMilliseconds,
@@ -236,16 +250,33 @@ export function recordLoginFailure(
         windowMilliseconds: guardrailAllowance.accountLoginWindowMilliseconds,
         lockMilliseconds: guardrailAllowance.accountLockMilliseconds,
       });
-      return { accountLockOpenedAt: account.lockOpened ? account.windowOpenedAt : null };
+      return {
+        kind: 'reserved' as const,
+        accountLockOpenedAt: account.lockOpened ? account.windowOpenedAt : null,
+      };
     })
     .immediate();
 }
 
-/** A successful login forgets its source's failures; the account row is left to its window. */
-export function clearSourceLoginFailures(database: Database, sourceHash: string): void {
-  database
-    .query("DELETE FROM login_failure WHERE scope = 'source' AND key_hash = ?")
-    .run(sourceHash);
+/**
+ * A verified login: the source's failures are forgotten and the attempt reserved on the account
+ * is refunded; a lock the refund brings back under the cap is lifted. An account lock that other
+ * failures still justify stays.
+ */
+export function settleLoginSuccess(database: Database, sourceHash: string): void {
+  database.transaction(() => {
+    database
+      .query("DELETE FROM login_failure WHERE scope = 'source' AND key_hash = ?")
+      .run(sourceHash);
+    database
+      .query(
+        "UPDATE login_failure SET failures = failures - 1, locked_until = CASE WHEN failures - 1 < ? THEN NULL ELSE locked_until END WHERE scope = 'account' AND key_hash = ? AND failures > 1",
+      )
+      .run(guardrailAllowance.accountLoginFailures, operatorAccountKey);
+    database
+      .query("DELETE FROM login_failure WHERE scope = 'account' AND key_hash = ? AND failures = 1")
+      .run(operatorAccountKey);
+  })();
 }
 
 /** The operator account lock's end and the number of locked sources at `now`. */

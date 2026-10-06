@@ -28,7 +28,6 @@ import {
   recoverConversationOperations,
 } from './conversation-store';
 import {
-  clearSourceLoginFailures,
   countDeclinedCompletions,
   countDraft,
   countProposal,
@@ -43,12 +42,12 @@ import {
   ProposalCapReached,
   type ProposalCapRefusal,
   readGuardrailOverview,
-  readLoginLock,
   readLoginLocks,
   readSiteSpend,
   recordGuardrailAlert,
-  recordLoginFailure,
+  reserveLoginAttempt,
   resumeInferencePause,
+  settleLoginSuccess,
   tripInferencePause,
   utcDayOf,
 } from './guardrail-store';
@@ -543,19 +542,19 @@ export class WebsiteStore {
     return resumeInferencePause(this.database, now);
   }
 
-  /** See {@link readLoginLock}. */
-  readLoginLock(sourceHash: string, now: number): number | null {
-    return readLoginLock(this.database, sourceHash, now);
+  /** See {@link reserveLoginAttempt}. */
+  reserveLoginAttempt(
+    sourceHash: string,
+    now: number,
+  ):
+    | { kind: 'locked'; lockedUntil: number }
+    | { kind: 'reserved'; accountLockOpenedAt: number | null } {
+    return reserveLoginAttempt(this.database, sourceHash, now);
   }
 
-  /** See {@link recordLoginFailure}. */
-  recordLoginFailure(sourceHash: string, now: number): { accountLockOpenedAt: number | null } {
-    return recordLoginFailure(this.database, sourceHash, now);
-  }
-
-  /** See {@link clearSourceLoginFailures}. */
-  clearSourceLoginFailures(sourceHash: string): void {
-    clearSourceLoginFailures(this.database, sourceHash);
+  /** See {@link settleLoginSuccess}. */
+  settleLoginSuccess(sourceHash: string): void {
+    settleLoginSuccess(this.database, sourceHash);
   }
 
   /** See {@link readLoginLocks}. */

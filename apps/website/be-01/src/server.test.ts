@@ -2795,7 +2795,8 @@ test('the sixth guess from one source is locked out before verification, even wh
   const locked = await api.fetch(login(config.operatorPassword), '203.0.113.9');
   expect(locked.status).toBe(429);
   expect(await locked.json()).toEqual({ code: 'login_locked' });
-  expect(locked.headers.get('retry-after')).toBe('900');
+  // Every lock answers the longest lock's wait, so the scope cannot be inferred.
+  expect(locked.headers.get('retry-after')).toBe('3600');
   expect(locked.headers.get('set-cookie')).toBeNull();
   // Proof: moving the lock check after the verify made this count 6.
   expect(verifier.calls).toBe(5);
@@ -3007,4 +3008,212 @@ test('without injected fetchers, OIDC discovery and the legacy provider call rea
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+/** A lockout API whose verifier is slow, so concurrent guesses overlap inside it. */
+function slowLockoutApi(clock: () => number) {
+  const { config } = fixture();
+  const verifier = { calls: 0 };
+  const api = mountApi({
+    ...config,
+    clock,
+    verifyPassword: async (password) => {
+      verifier.calls += 1;
+      await Bun.sleep(50);
+      return password === config.operatorPassword;
+    },
+  });
+  return { api, config, verifier };
+}
+
+test('a concurrent burst from one source reaches the verifier at most five times', async () => {
+  const now = Date.UTC(2026, 9, 7, 12, 0, 0);
+  const { api, verifier } = slowLockoutApi(() => now);
+  const answers = await Promise.all(
+    Array.from({ length: 30 }, () => api.fetch(login('wrong-password'), '203.0.113.9')),
+  );
+  // Proof: reading the lock and recording the failure around the verify let all 30 reach it.
+  expect(verifier.calls).toBe(5);
+  expect(answers.filter((answer) => answer.status === 401)).toHaveLength(5);
+  expect(answers.filter((answer) => answer.status === 429)).toHaveLength(25);
+  api.close();
+});
+
+test('a concurrent multi-source burst reaches the verifier at most twenty times', async () => {
+  const now = Date.UTC(2026, 9, 7, 12, 0, 0);
+  const { api, verifier } = slowLockoutApi(() => now);
+  await Promise.all(
+    Array.from({ length: 40 }, (_unused, index) =>
+      api.fetch(login('wrong-password'), `198.51.100.${String(index)}`),
+    ),
+  );
+  expect(verifier.calls).toBe(20);
+  api.close();
+});
+
+test('a successful login refunds its reserved account attempt', async () => {
+  const now = Date.UTC(2026, 9, 7, 12, 0, 0);
+  const { api, config } = slowLockoutApi(() => now);
+  for (let index = 0; index < 19; index += 1)
+    expect((await api.fetch(login('wrong-password'), `198.51.100.${String(index)}`)).status).toBe(
+      401,
+    );
+  expect((await api.fetch(login(config.operatorPassword), '192.0.2.1')).status).toBe(201);
+  expect(loginRows(config.databasePath).find((row) => row.scope === 'account')).toMatchObject({
+    failures: 19,
+    locked_until: null,
+  });
+  expect((await api.fetch(login(config.operatorPassword), '192.0.2.2')).status).toBe(201);
+  api.close();
+});
+
+test('the lock answer does not reveal which scope locked', async () => {
+  const now = Date.UTC(2026, 9, 7, 12, 0, 0);
+  const source = slowLockoutApi(() => now);
+  for (let index = 0; index < 5; index += 1)
+    await source.api.fetch(login('wrong-password'), '203.0.113.9');
+  const bySource = await source.api.fetch(login('wrong-password'), '203.0.113.9');
+  const account = slowLockoutApi(() => now);
+  for (let index = 0; index < 20; index += 1)
+    await account.api.fetch(login('wrong-password'), `198.51.100.${String(index)}`);
+  const byAccount = await account.api.fetch(login('wrong-password'), '192.0.2.9');
+  expect([bySource.status, byAccount.status]).toEqual([429, 429]);
+  expect(await bySource.json()).toEqual(await byAccount.json());
+  // Proof: answering the remaining time of the lock gave 900 here and 3600 for the account.
+  expect(bySource.headers.get('retry-after')).toBe(byAccount.headers.get('retry-after'));
+  source.api.close();
+  account.api.close();
+});
+
+test('a failing delivery record is reported, never an unhandled rejection', async () => {
+  const { config } = fixture();
+  const reported: unknown[][] = [];
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => {
+    unhandled.push(reason);
+  };
+  process.on('unhandledRejection', onUnhandled);
+  const realError = console.error;
+  console.error = (...parts: unknown[]) => {
+    reported.push(parts);
+  };
+  try {
+    const api = mountApi({
+      ...config,
+      guardrailWebhookUrl: 'https://ntfy.example.test/puni',
+      alertFetch: () => new Response(''),
+      openStore: (path) =>
+        new Proxy(new WebsiteStore(path), {
+          get(target, property, receiver) {
+            const value: unknown = Reflect.get(target, property, receiver);
+            if (property === 'markAlertDelivery')
+              return () => {
+                throw new Error('Injected delivery record failure');
+              };
+            if (typeof value !== 'function') return value;
+            return (...parameters: unknown[]): unknown => {
+              const answer: unknown = Reflect.apply(value, target, parameters);
+              return answer;
+            };
+          },
+        }),
+    });
+    const operator = await api.fetch(login(config.operatorPassword));
+    const cookie = operator.headers.get('set-cookie')?.split(';')[0];
+    const { csrfToken } = (await operator.json()) as { csrfToken: string };
+    expect(
+      (
+        await api.fetch(
+          request(
+            '/operator/inference/pause',
+            'POST',
+            config.appOrigin,
+            undefined,
+            cookie,
+            csrfToken,
+          ),
+        )
+      ).status,
+    ).toBe(201);
+    await api.settleAlerts();
+    await Bun.sleep(10);
+    // Proof: without the catch on the delivery chain the injected failure was an unhandled rejection.
+    expect(unhandled).toEqual([]);
+    expect(String(reported[0]?.[0])).toContain('inference_paused');
+    api.close();
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+    console.error = realError;
+  }
+});
+
+test('a second sign-out that finds the session already gone still answers 204', async () => {
+  const { config } = fixture();
+  const api = mountApi({
+    ...config,
+    demoAuth: true,
+    openStore: (path) =>
+      new Proxy(new WebsiteStore(path), {
+        get(target, property, receiver) {
+          const value: unknown = Reflect.get(target, property, receiver);
+          if (typeof value !== 'function') return value;
+          if (property === 'deleteProspectSession')
+            // Another request deleted the row between the lookup and this delete.
+            return (tokenHash: string): boolean => {
+              target.deleteProspectSession(tokenHash);
+              return target.deleteProspectSession(tokenHash);
+            };
+          return (...parameters: unknown[]): unknown => {
+            const answer: unknown = Reflect.apply(value, target, parameters);
+            return answer;
+          };
+        },
+      }),
+  });
+  const signedIn = await signInDemo(api, '');
+  const raced = await api.fetch(
+    request('/session', 'DELETE', config.appOrigin, undefined, signedIn.session, signedIn.csrf),
+  );
+  // Proof: throwing on a zero-row delete answered 500 here.
+  expect(raced.status).toBe(204);
+  expect(raced.headers.get('set-cookie')).toContain('Max-Age=0');
+  api.close();
+});
+
+test('repeated conversation reads reuse the day salt and write nothing', async () => {
+  const { config } = fixture();
+  const salts = { reads: 0 };
+  const api = mountApi({
+    ...config,
+    openRouterEnabled: true,
+    openRouterKey: 'fixture-only',
+    openRouterModel: 'fixture/model',
+    openRouterProvider: 'Fixture',
+    openRouterInputUsdPerMillion: 1,
+    openRouterOutputUsdPerMillion: 2,
+    openRouterPrivacyVerified: true,
+    openStore: (path) =>
+      new Proxy(new WebsiteStore(path), {
+        get(target, property, receiver) {
+          const value: unknown = Reflect.get(target, property, receiver);
+          if (typeof value !== 'function') return value;
+          return (...parameters: unknown[]): unknown => {
+            if (property === 'readSourceSalt') salts.reads += 1;
+            const answer: unknown = Reflect.apply(value, target, parameters);
+            return answer;
+          };
+        },
+      }),
+  });
+  const { cookie } = await beginDraft(api);
+  const readsAfterIntake = salts.reads;
+  for (let index = 0; index < 5; index += 1) {
+    const view = await api.fetch(
+      request('/conversation', 'GET', config.appOrigin, undefined, cookie),
+    );
+    expect(((await view.json()) as { challenge: unknown }).challenge).not.toBeNull();
+  }
+  // Proof: reading the salt through the store on every GET counted five more salt writes.
+  expect(salts.reads).toBe(readsAfterIntake);
+  api.close();
 });

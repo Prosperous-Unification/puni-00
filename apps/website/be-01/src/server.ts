@@ -275,7 +275,24 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     config.verifyPassword ??
     ((password: string, hash: string) => Bun.password.verify(password, hash));
   // Proof: a random per-process salt made the two-process source test store different sources.
-  const hashSource = createSourceHasher((utcDay) => store.readSourceSalt(utcDay));
+  const daySalts = new Map<string, Uint8Array>();
+  /**
+   * The source salt of one UTC day, read through the store (which creates it and sweeps old
+   * salts and counts in a write transaction) once per day per process and cached after that, so
+   * reads such as `GET /conversation` write nothing. Only today's and yesterday's are kept.
+   */
+  function readDaySalt(utcDay: string): Uint8Array {
+    const cached = daySalts.get(utcDay);
+    // Proof: reading through the store every time counted five more salt writes in the repeated-read test.
+    if (cached) return cached;
+    const salt = store.readSourceSalt(utcDay);
+    daySalts.set(utcDay, salt);
+    // Keep the two latest days (today and yesterday, which still verifies browser checks).
+    const days = [...daySalts.keys()].sort();
+    for (const day of days.slice(0, -2)) daySalts.delete(day);
+    return salt;
+  }
+  const hashSource = createSourceHasher(readDaySalt);
   const draftCookie = config.secureCookies ? '__Host-puni_draft' : 'puni_draft';
   const replayCookie = config.secureCookies ? '__Host-puni_replay' : 'puni_replay';
   const operatorCookie = config.secureCookies ? '__Host-puni_operator' : 'puni_operator';
@@ -402,9 +419,16 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     // Proof: delivering before this insert sent two webhook calls in the double-crossing dedupe test.
     const recorded = store.recordGuardrailAlert(kind, dedupeKey, detail, clock());
     if (recorded.kind === 'duplicate' || webhookUrl === undefined) return;
-    const delivery = deliverAlert(sendAlert, webhookUrl, kind, detail).then((outcome) => {
-      store.markAlertDelivery(recorded.id, outcome, clock());
-    });
+    const delivery = deliverAlert(sendAlert, webhookUrl, kind, detail)
+      .then((outcome) => {
+        // After close, the alert stays `recorded`; the row itself is already durable.
+        if (!isClosed) store.markAlertDelivery(recorded.id, outcome, clock());
+      })
+      // Proof: without this handler the injected markAlertDelivery failure was an unhandled rejection.
+      .catch((error: unknown) => {
+        // The observed sink for a delivery that could not be recorded: kind and row id, no PII.
+        console.error(`guardrail alert ${kind} ${recorded.id}: delivery not recorded`, error);
+      });
     alertDeliveries.add(delivery);
     void delivery.finally(() => alertDeliveries.delete(delivery));
   }
@@ -1352,7 +1376,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         provider === 'openrouter' && conversation === null
           ? mintBrowserCheck(
               digest(claim),
-              store.readSourceSalt(new Date(now).toISOString().slice(0, 10)),
+              readDaySalt(utcDayOf(now)),
               store.readSiteSpend(now) >= guardrailAllowance.halfSpendMicroUsd
                 ? browserCheckDifficulty.elevated
                 : browserCheckDifficulty.normal,
@@ -1418,9 +1442,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         body['check'] !== undefined &&
         store.findConversation(draft.id) === null
       ) {
-        const verified = verifyBrowserCheck(body['check'], digest(claim), now, (utcDay) =>
-          store.readSourceSalt(utcDay),
-        );
+        const verified = verifyBrowserCheck(body['check'], digest(claim), now, readDaySalt);
         if (verified.kind !== 'verified')
           return attachCors(failure('challenge_invalid', 403), origin);
         browserCheck = 'verified';
@@ -1681,8 +1703,9 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       // Proof: removing this check let the forged sign-out test end the session with 204.
       if (!validSessionCsrf(request, session.csrfHash))
         return attachCors(failure('csrf_forbidden', 403), origin);
-      if (!store.deleteProspectSession(digest(session.token)))
-        throw new Error('A found prospect session could not be deleted');
+      // A concurrent sign-out may have deleted the row already; the browser is signed out either way.
+      // Proof: throwing on a zero-row delete answered 500 in the raced sign-out test.
+      store.deleteProspectSession(digest(session.token));
       return attachCors(
         new Response(null, {
           status: 204,
@@ -2130,34 +2153,36 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       if (!operatorPassword) return attachCors(failure('operator_unconfigured', 503), origin);
       const rate = admitRequestRate('/operator/session', source, now);
       if (rate.kind !== 'admitted') return attachCors(rateRefusal(rate), origin);
-      // The lock is read before any Argon2id work; the body never says which scope locked.
-      // Proof: moving this check after the verify counted a verifier call on the sixth locked guess.
-      const lockedUntil = store.readLoginLock(source, now);
-      if (lockedUntil !== null) {
+      const body = await readBody(request);
+      const password = body && textField(body['password'], 256);
+      if (!password) return attachCors(failure('invalid_credentials', 401), origin);
+      // The attempt is counted (and a lock read) in one transaction before any Argon2id work, so
+      // a concurrent burst cannot outrun the caps. The answer never says which scope locked: the
+      // body is fixed and Retry-After is always the longest lock.
+      // Proof: reading the lock and recording the failure around the verify let a 30-guess burst reach it 30 times.
+      const attempt = store.reserveLoginAttempt(source, now);
+      if (attempt.kind === 'locked') {
         noteRateRefusal(now);
         return attachCors(
           json({ code: 'login_locked' }, 429, {
-            'Retry-After': String(Math.max(1, Math.ceil((lockedUntil - now) / 1000))),
+            // Proof: answering the remaining time of the lock gave 900 for a source and 3600 for the account.
+            'Retry-After': String(guardrailAllowance.accountLockMilliseconds / 1000),
           }),
           origin,
         );
       }
-      const body = await readBody(request);
-      const password = body && textField(body['password'], 256);
-      if (!password) return attachCors(failure('invalid_credentials', 401), origin);
       // Proof: bypassing this Argon2id verifier made the wrong-password route test issue a session.
       operatorPasswordHash ??= Bun.password.hash(operatorPassword, 'argon2id');
       if (!(await verifyPassword(password, await operatorPasswordHash))) {
-        const recorded = store.recordLoginFailure(source, now);
-        if (recorded.accountLockOpenedAt !== null)
+        if (attempt.accountLockOpenedAt !== null)
           raiseAlert(
             'operator_locked',
-            `operator_locked:${String(recorded.accountLockOpenedAt)}`,
+            `operator_locked:${String(attempt.accountLockOpenedAt)}`,
             `operator login locked after ${String(guardrailAllowance.accountLoginFailures)} failures in 60 minutes on ${utcDayOf(now)}`,
           );
         return attachCors(failure('invalid_credentials', 401), origin);
       }
-      store.clearSourceLoginFailures(source);
+      store.settleLoginSuccess(source);
       const token = secret();
       const csrfToken = digest(`operator-csrf:${token}`);
       store.createOperatorSession(digest(token), digest(csrfToken), now + sessionLifetime);

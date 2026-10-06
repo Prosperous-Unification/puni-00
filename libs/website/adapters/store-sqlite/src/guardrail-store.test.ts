@@ -359,3 +359,43 @@ test('the account reservation trips the pause at 80% too', () => {
   expect(openPauses(databasePath)).toEqual([{ reason: 'site_spend', paused_by: 'system' }]);
   store.close();
 });
+
+test('plus tags share one per-email cap; dots stay distinct', () => {
+  const databasePath = databaseFile();
+  const store = new WebsiteStore(databasePath);
+  const emails = [
+    'owner+a@example.test',
+    'Owner+b@example.test',
+    'owner@example.test',
+    'owner+c@example.test',
+  ];
+  for (const [index, email] of emails.entries()) {
+    draft(store, index, `source-${String(index)}`);
+    const outcome = store.submit(
+      `claim-${String(index)}`,
+      `key-${String(index)}-0000`,
+      'hash',
+      email,
+      'brief',
+      `r-${String(index)}`,
+      day,
+      `source-${String(index)}`,
+    );
+    // Proof: hashing the lower-cased address without stripping `+tag` admitted the fourth here.
+    expect(outcome.kind).toBe(index < 3 ? 'created' : 'limited');
+  }
+  draft(store, 9, 'source-9');
+  expect(
+    store.submit(
+      'claim-9',
+      'key-9-0000',
+      'hash',
+      'o.wner@example.test',
+      'b',
+      'r-9',
+      day,
+      'source-9',
+    ).kind,
+  ).toBe('created');
+  store.close();
+});
