@@ -2734,3 +2734,84 @@ Changed-path Prettier passed
 git diff --check exited 0
 (/tmp/shared-people-6jd-handoff-final-doc-diff.log). These checks precede
 only this results paragraph; formatting and diff were repeated afterward.
+
+### 6j.d initial reservation global-reclaim owner (fourth bounded checkpoint)
+
+The installed initial reserve path now owns its unscoped expired-slot reclaim,
+the old and new captures for every existing slot-owner organization, the
+reservation decision and event inserts in one borrowed SQLite unit of work.
+The raw reclaim reports only targets actually finished; those targets provide
+the addressed causes. The owner returns committed envelopes to the existing
+coordinator handoff. Retry, dequeue and reconciliation still use their prior
+owners and are **not** covered by this checkpoint; task 6j.d stays unchecked.
+
+Mounted `buildServices` tests prove populated A deletion records B←A; distinct
+expired A/C in two organizations record B←A and D←C while future E/F remain;
+a requester closed just before reservation still commits the victim event.
+Selected ready contract retirement records B←A with A's project retained.
+The missing borrowed capability refuses before victim mutation (the
+requester's earlier observation may legitimately allocate its generation).
+The real held/rejected HTTP400 transport test proves committed B seq0 while
+transport is held, a second connection writes B, the launched requester
+attempt tokens equal the persisted requester slots, and replay retains the
+original row. This does not assert victim slot-token equality or claim the
+unimplemented Retry/dequeue owner transport matrix.
+
+For `after-capture`, injected capture failure restores all 28 snapshotted
+tables and delivers nothing. For `event-insert`, the trigger rejects D's insert
+**only after** B's first victim row exists within that transaction; failure
+again restores the complete snapshot and delivery remains zero. Removing the
+fault and retrying records B←A and D←C once each
+(`/tmp/shared-people-6jd-initial-owner-partial-event-confirmed.log`, 2/2,
+14 assertions). An earlier single-recipient trigger and its broader fixture
+were superseded; the initial overbroad assertion that X had no optimization
+failure event was narrowed to the specified absence of an invented X
+`elsewhere_changed` event. The first missing-capability fixture tried to use
+the lifecycle begin method after removing the same capture capability; it
+failed before reservation. The corrected test seeds the raw drain marker and
+checks victim state, excluding the separately committed requester observation
+generation.
+
+| Changed dependency                        | Watched RED                                                                                                          | Restored GREEN                                                                 |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Installed initial owner binding           | `/tmp/shared-people-6jd-initial-owner-binding-omission-red.log`: A deleted, B range empty                            | `/tmp/shared-people-6jd-initial-owner-binding-restored-green.log`: 1/1, 5      |
+| Capture every old slot-owner organization | `/tmp/shared-people-6jd-initial-capture-org-omission-red.log`: D←C absent while B←A persisted                        | `/tmp/shared-people-6jd-initial-capture-org-restored-green.log`: 1/1, 11       |
+| Address actual finished cause             | `/tmp/shared-people-6jd-initial-actual-cause-omission-red.log`: selected B←A absent while A survived                 | `/tmp/shared-people-6jd-initial-actual-cause-restored-green.log`: 1/1, 6       |
+| Transactional event record                | `/tmp/shared-people-6jd-initial-record-omission-red.log`: B range empty after A deletion                             | `/tmp/shared-people-6jd-initial-record-restored-green.log`: 1/1, 5             |
+| Committed owner result                    | `/tmp/shared-people-6jd-initial-commit-omission-red.log`: A's expired slot remained                                  | `/tmp/shared-people-6jd-initial-commit-restored-green.log`: 1/1, 5             |
+| Borrowed-capability guard                 | `/tmp/shared-people-6jd-initial-capability-guard-omission-red.log`: incidental property error replaced typed refusal | `/tmp/shared-people-6jd-initial-capability-guard-restored-green.log`: 1/1, 4   |
+| Raw finished-target callback              | `/tmp/shared-people-6jd-initial-finished-callback-omission-red.log`: selected B←A absent                             | `/tmp/shared-people-6jd-initial-finished-callback-restored-green.log`: 1/1, 6  |
+| Inner admission callback forwarding       | `/tmp/shared-people-6jd-initial-admission-callback-omission-red.log`: selected B←A absent                            | `/tmp/shared-people-6jd-initial-admission-callback-restored-green.log`: 1/1, 6 |
+| Wrapper admission callback forwarding     | `/tmp/shared-people-6jd-initial-admission-wrapper-omission-red.log`: selected B←A absent                             | `/tmp/shared-people-6jd-initial-admission-wrapper-restored-green.log`: 1/1, 6  |
+| Stored deadline predicate                 | `/tmp/shared-people-6jd-initial-future-predicate-all-rows-red.log`: future E deleted                                 | `/tmp/shared-people-6jd-initial-future-predicate-restored-green.log`: 1/1, 11  |
+
+The first inverse-deadline mutation failed at surviving expired A/C before
+reaching the future E assertion and is disqualified
+(`/tmp/shared-people-6jd-initial-future-predicate-omission-red.log`). All
+mutated sources were restored against saved current-byte hashes before final
+verification.
+
+The exact changed-byte runtime command was:
+
+    bun test apps/wbs/be-01/src/module/optimization/module.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts apps/wbs/be-01/src/service/optimization-events.db.test.ts apps/wbs/be-01/src/service/optimization-restart.db.test.ts apps/wbs/be-01/src/service/optimization-cancel.two-coordinator.db.test.ts apps/wbs/be-01/src/services.db.test.ts
+
+It passed 170/170, 19,367 assertions
+(`/tmp/shared-people-6jd-initial-final-eight2.log`). The first formatter-byte
+run also passed 170/170, but direct tsc found a test-only `unknown` event
+message guard and ESLint found seven test/import style errors; those diagnostics
+remain in `/tmp/shared-people-6jd-initial-final-{type,eslint}.log`. After
+minimal corrections, `bunx eslint apps/wbs/be-01/src
+libs/wbs/adapters/store-sqlite/src/optimization-admission.ts
+libs/wbs/adapters/store-sqlite/src/optimization-drain.ts` passed with no output
+(`/tmp/shared-people-6jd-initial-final-eslint2.log`). Direct
+`bunx tsc --build --force` for core, store-sqlite and backend passed
+(`/tmp/shared-people-6jd-initial-final-type2.log`). Direct Bun backend and
+core bundles passed with 1,374 and 542 modules respectively
+(`/tmp/shared-people-6jd-initial-final-build-{be,core}.log`). Final formatting,
+strict/all OpenSpec and diff checks are recorded after this ledger update.
+
+On the ledger and source bytes above, seven-path Prettier check passed
+(`/tmp/shared-people-6jd-initial-final-format2.log`), pinned OpenSpec 1.12.0
+strict passed 1/1 and all passed 148/148
+(`/tmp/shared-people-6jd-initial-final-{strict,all}2.log`), and
+`git diff --check` exited 0 (`/tmp/shared-people-6jd-initial-final-diff2.log`).

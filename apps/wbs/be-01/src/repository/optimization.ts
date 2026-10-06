@@ -54,7 +54,7 @@ function isRecordedEvent(value: unknown): value is RecordedEvent {
   );
 }
 
-function reservationOf(
+export function reservationOf(
   admission: ReturnType<typeof reserveSolverSlot>,
   budgetMs: number,
 ): SolverSlotAdmission {

@@ -33,6 +33,7 @@ import {
   nodeDigest,
   systemInterval,
 } from './runtime/bun-runtime';
+import { createInitialReservationOwner } from './service/optimization-initial-reservation';
 import {
   createOptimizationLifecycle,
   type OptimizationLifecycle,
@@ -174,6 +175,11 @@ export function buildServices(options: ServicesOptions): BeServices {
     boundSource.uow,
     graph.committedFanout,
   );
+  const initialReservation = createInitialReservationOwner(
+    source.db,
+    boundSource.uow,
+    graph.committedFanout,
+  );
   if (options.optimizer !== undefined) {
     const optimizer = options.optimizer;
     coordinator = installOptimization({
@@ -187,6 +193,9 @@ export function buildServices(options: ServicesOptions): BeServices {
         // child and, independently, initial/Retry preflight and queued cleanup
         // delete A without B's old-cause event.
         releaseSlot: (slot) => optimizationLifecycle.releaseSlot(slot),
+        // Proof: omitting this installer binding reclaimed A but lost B's durable
+        // event in the mounted initial-admission test.
+        reserveSlot: initialReservation,
       },
       contractVersion: contractVersionOf(optimizer.solverVersion),
       solverVersion: optimizer.solverVersion,

@@ -571,8 +571,11 @@ export function reclaimExpiredSolverSlotsIn(
   tx: Transaction,
   now: number,
   scope?: SolverSlotReclaimScope,
+  onFinished?: (target: SolverSlotReclaimScope) => void,
 ): OptimizationDrainReconciliation {
   const expiring = and(
+    // Proof: admitting all deadlines during installed initial reclaim deleted
+    // the future E project and slot in the two-organization mounted fixture.
     lte(solverSlot.admittedDeadlineAt, now),
     ...(scope === undefined
       ? []
@@ -610,7 +613,12 @@ export function reclaimExpiredSolverSlotsIn(
   let waiting = 0;
   for (const target of targets) {
     const outcome = finishDrainIn(tx, target.projectId, target.contractVersion);
-    if (outcome === 'finished') finished += 1;
+    if (outcome === 'finished') {
+      finished += 1;
+      // Proof: omitting the finished-target callback lost B's selected
+      // contract retirement event while A and its graph remained present.
+      onFinished?.(target);
+    }
     if (outcome === 'waiting') waiting += 1;
   }
   return { reclaimed: expired.length, finished, waiting };

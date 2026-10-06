@@ -233,6 +233,62 @@ function seedSharedLifecycle(
   }
 }
 
+function seedAnotherSharedPair(
+  path: string,
+  organizationId = 'org-z',
+  projectIds: readonly [string, string] = ['C', 'D'],
+  personId = 'zoe',
+): void {
+  const seed = openDatabase(path);
+  try {
+    seed.run('INSERT INTO organization (id, name, created_at, shared_people) VALUES (?, ?, 1, 1)', [
+      organizationId,
+      organizationId,
+    ]);
+    seed.run('INSERT INTO person (id, name) VALUES (?, ?)', [personId, personId]);
+    seed.run(
+      'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
+      [personId, organizationId, personId],
+    );
+    for (const [index, projectId] of projectIds.entries()) {
+      seed.run(
+        `INSERT INTO project (id, name, owner_id, restricted, revision, created_at, start_date, estimate_rounding)
+         VALUES (?, ?, 'ada', 0, 0, 1, '2026-10-05', 'exact')`,
+        [projectId, projectId],
+      );
+      seed.run('INSERT INTO project_organization (resource_id, organization_id) VALUES (?, ?)', [
+        projectId,
+        organizationId,
+      ]);
+      seed.run(
+        "INSERT INTO project_rank (project_id, organization_id, position, created_at, created_by) VALUES (?, ?, ?, 1, 'ada')",
+        [projectId, organizationId, index * 10],
+      );
+      seed.run('INSERT INTO step (id, project_id, name, position) VALUES (?, ?, ?, 10)', [
+        `${projectId}-step`,
+        projectId,
+        `${projectId}-step`,
+      ]);
+      seed.run('INSERT INTO work_item (id, project_id, position, name) VALUES (?, ?, 10, ?)', [
+        projectId,
+        projectId,
+        projectId,
+      ]);
+      seed.run(
+        'INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic) VALUES (?, ?, 1, 1, 1)',
+        [projectId, `${projectId}-step`],
+      );
+      seed.run('INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, ?)', [
+        projectId,
+        `${projectId}-step`,
+        personId,
+      ]);
+    }
+  } finally {
+    seed.close();
+  }
+}
+
 function lifecycleTables(
   db: ReturnType<typeof openDrizzle>,
 ): readonly (readonly [string, readonly string[]])[] {
@@ -380,7 +436,533 @@ function seedLifecycleSlot(
   return slot;
 }
 
+function seedOtherLifecycleSlot(
+  db: ReturnType<typeof openDrizzle>,
+  projectId: string,
+  admittedDeadlineAt: number,
+): void {
+  const contractVersion = contractVersionOf('0.2.0');
+  const generation = allocateGeneration(db, projectId, contractVersion, `${projectId}-input`, 1);
+  db.insert(solverSlot)
+    .values({
+      projectId,
+      contractVersion,
+      generation,
+      objective: 'pri',
+      budgetMs: 1000,
+      ownerId: `own-${projectId}`,
+      attemptToken: `release-${projectId}`,
+      lifecycle: 'running',
+      pid: 4243,
+      startedAt: 1,
+      heartbeatAt: 1,
+      cancelRequestedAt: null,
+      admittedDeadlineAt,
+    })
+    .run();
+}
+
 describe('buildServices', () => {
+  it('records a victim shared-person event when initial admission reclaims its last expired slot', async () => {
+    let launches = 0;
+    const { db, path, services } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => {
+        launches += 1;
+        return Promise.reject(new Error('preflight refusal reached launcher'));
+      },
+    });
+    seedSharedLifecycle(path);
+    const expired = seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    const requester = await seedProject(db);
+    db.run(
+      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
+    );
+    db.run(
+      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+    );
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+    );
+    const captured = await services.workItems.optimizationInput('B');
+    if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    await optimizer.readPlan({
+      projectId: requester.projectId,
+      objective: 'pri',
+      input: { ...captured.input, notBefore: new Map([['B', 50_000_000]]) },
+      enabled: true,
+    });
+    await optimizer.drain();
+    expect(launches).toBe(0);
+    expect(
+      db
+        .select()
+        .from(solverSlot)
+        .where(sql`attempt_token = ${expired.attemptToken}`)
+        .all(),
+    ).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+  });
+
+  it('refuses initial reclaim without the borrowed capture capability before deleting its victim', async () => {
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('missing capture reached launcher')),
+      },
+      undefined,
+      undefined,
+      true,
+    );
+    seedSharedLifecycle(path);
+    seedLifecycleSlot(db);
+    expect(beginOptimizationDrain(db, 'A', { at: 2, by: 'ada' })).toBe(1);
+    const requester = await seedProject(db);
+    db.run(
+      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
+    );
+    db.run(
+      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+    );
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+    );
+    const captured = await services.workItems.optimizationInput('B');
+    if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
+    const before = lifecycleTables(db);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    expect(
+      await rejectedMessage(
+        optimizer.readPlan({
+          projectId: requester.projectId,
+          objective: 'pri',
+          input: captured.input,
+          enabled: true,
+        }),
+      ),
+    ).toContain('initial reservation lacks borrowed ownership and capture');
+    expect(lifecycleTables(db).filter(([table]) => table !== 'optimization_generation')).toEqual(
+      before.filter(([table]) => table !== 'optimization_generation'),
+    );
+    expect(pushUrls).toEqual([]);
+  });
+
+  it('captures two foreign victim organizations before initial reservation reclaims either', async () => {
+    let launches = 0;
+    const { db, path, services } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => {
+        launches += 1;
+        return Promise.reject(new Error('preflight refusal reached launcher'));
+      },
+    });
+    seedSharedLifecycle(path);
+    seedAnotherSharedPair(path);
+    seedAnotherSharedPair(path, 'org-f', ['E', 'F'], 'fei');
+    seedLifecycleSlot(db);
+    seedOtherLifecycleSlot(db, 'C', 1001);
+    const futureDeadline = Date.now() + 1_000_000;
+    seedOtherLifecycleSlot(db, 'E', futureDeadline);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    expect(await services.optimizationLifecycle.beginDrain('C', { at: 2, by: 'ada' })).toBe(1);
+    expect(await services.optimizationLifecycle.beginDrain('E', { at: 2, by: 'ada' })).toBe(1);
+    const requester = await seedProject(db);
+    db.run(
+      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
+    );
+    db.run(
+      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+    );
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+    );
+    const captured = await services.workItems.optimizationInput('B');
+    if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    await optimizer.readPlan({
+      projectId: requester.projectId,
+      objective: 'pri',
+      input: { ...captured.input, notBefore: new Map([['B', 50_000_000]]) },
+      enabled: true,
+    });
+    await optimizer.drain();
+    expect(launches).toBe(0);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id IN ('A', 'C')"))).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'E'"))).toEqual([{ id: 'E' }]);
+    expect(
+      db
+        .select({ admittedDeadlineAt: solverSlot.admittedDeadlineAt })
+        .from(solverSlot)
+        .where(sql`project_id = 'E'`)
+        .all(),
+    ).toEqual([{ admittedDeadlineAt: futureDeadline }]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    for (const [recipient, cause] of [
+      ['B', 'A'],
+      ['D', 'C'],
+    ])
+      expect(
+        (await events.rangeSince(`project:${recipient}`, -1)).map(({ seq, message }) => [
+          seq,
+          message,
+        ]),
+      ).toEqual([[0, { type: 'elsewhere_changed', projectId: recipient, causeProjectId: cause }]]);
+    expect(
+      (await events.rangeSince(`project:${requester.projectId}`, -1)).filter(
+        ({ message }) =>
+          typeof message === 'object' &&
+          message !== null &&
+          'type' in message &&
+          message.type === 'elsewhere_changed',
+      ),
+    ).toEqual([]);
+    expect(await events.rangeSince('project:F', -1)).toEqual([]);
+  });
+
+  it('addresses a selected contract retired by initial global reclaim without deleting its project', async () => {
+    let launches = 0;
+    const { db, path, services } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => {
+        launches += 1;
+        return Promise.reject(new Error('selected retirement fixture reached launcher'));
+      },
+    });
+    seedSharedLifecycle(path);
+    const { contractVersion, generation, fastStart, selectedStart } = await seedReadyRetirement(
+      db,
+      services,
+      1,
+    );
+    expect([fastStart, selectedStart]).toEqual([0, 1]);
+    seedLifecycleSlot(db, contractVersion, generation);
+    expect(
+      await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' }, contractVersion),
+    ).toBe(1);
+    const requester = await seedProject(db);
+    db.run(
+      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
+    );
+    db.run(
+      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+    );
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+    );
+    const captured = await services.workItems.optimizationInput('B');
+    if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    await optimizer.readPlan({
+      projectId: requester.projectId,
+      objective: 'pri',
+      input: { ...captured.input, notBefore: new Map([['B', 50_000_000]]) },
+      enabled: true,
+    });
+    await optimizer.drain();
+    expect(launches).toBe(0);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    expect(
+      db
+        .select()
+        .from(solverSlot)
+        .where(sql`project_id = 'A'`)
+        .all(),
+    ).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+  });
+
+  it('commits reclaimed victim fan-out when the requester closes before reservation', async () => {
+    const requesterRef: { projectId?: string } = {};
+    let closed = false;
+    let launches = 0;
+    const { db, path, services } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => {
+          launches += 1;
+          return Promise.reject(new Error('closed reservation reached launcher'));
+        },
+      },
+      undefined,
+      undefined,
+      false,
+      (answer, sourceDb) => {
+        if (typeof answer !== 'object' || answer === null || !('kind' in answer)) return;
+        if (answer.kind === 'observed' && requesterRef.projectId !== undefined)
+          sourceDb.run(
+            sql`UPDATE project SET optimization_enabled = 0 WHERE id = ${requesterRef.projectId}`,
+          );
+        if (answer.kind === 'closed') closed = true;
+      },
+    );
+    seedSharedLifecycle(path);
+    seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    const requester = await seedProject(db);
+    requesterRef.projectId = requester.projectId;
+    db.run(
+      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
+    );
+    db.run(
+      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requesterRef.projectId}, 'org-x')`,
+    );
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requesterRef.projectId}`,
+    );
+    const captured = await services.workItems.optimizationInput('B');
+    if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    await optimizer.readPlan({
+      projectId: requesterRef.projectId,
+      objective: 'pri',
+      input: captured.input,
+      enabled: true,
+    });
+    await optimizer.drain();
+    expect(closed).toBe(true);
+    expect(launches).toBe(0);
+    expect(db.select().from(solverSlot).all()).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+  });
+
+  for (const fault of ['after-capture', 'event-insert'] as const) {
+    it(`restores initial reclaim and the whole populated victim when ${fault} fails`, async () => {
+      const requesterRef: { projectId?: string } = {};
+      let before: ReturnType<typeof lifecycleTables> | undefined;
+      let armed = false;
+      let victimCaptures = 0;
+      let launches = 0;
+      const { db, path, services, pushUrls } = bootstrap(
+        {
+          solverVersion: '0.2.0',
+          budgetMs: 1000,
+          spawn: () => {
+            launches += 1;
+            return Promise.reject(new Error('failed reservation reached launcher'));
+          },
+        },
+        (organizationId) => {
+          if (fault === 'after-capture' && armed && organizationId === 'org-a') {
+            victimCaptures += 1;
+            if (victimCaptures === 2) throw new Error('initial after-capture fault');
+          }
+        },
+        undefined,
+        false,
+        (answer, sourceDb) => {
+          if (
+            before === undefined &&
+            requesterRef.projectId !== undefined &&
+            typeof answer === 'object' &&
+            answer !== null &&
+            'kind' in answer &&
+            answer.kind === 'observed'
+          ) {
+            before = lifecycleTables(sourceDb);
+            if (fault === 'event-insert')
+              sourceDb.run(
+                sql.raw(
+                  "CREATE TRIGGER fail_initial_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'project:B') = 1 BEGIN SELECT RAISE(ABORT, 'initial event-insert fault after first victim'); END",
+                ),
+              );
+            armed = true;
+          }
+        },
+      );
+      seedSharedLifecycle(path);
+      seedLifecycleSlot(db);
+      expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+      if (fault === 'event-insert') {
+        seedAnotherSharedPair(path);
+        seedOtherLifecycleSlot(db, 'C', 1001);
+        expect(await services.optimizationLifecycle.beginDrain('C', { at: 2, by: 'ada' })).toBe(1);
+      }
+      const requester = await seedProject(db);
+      requesterRef.projectId = requester.projectId;
+      db.run(
+        sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
+      );
+      db.run(
+        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requesterRef.projectId}, 'org-x')`,
+      );
+      db.run(
+        sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requesterRef.projectId}`,
+      );
+      const captured = await services.workItems.optimizationInput('B');
+      if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
+      const optimizer = services.optimizer;
+      if (optimizer === undefined) throw new Error('optimizer was not installed');
+      const ask = {
+        projectId: requesterRef.projectId,
+        objective: 'pri' as const,
+        input: { ...captured.input, notBefore: new Map([['B', 50_000_000]]) },
+        enabled: true,
+      };
+      expect(await rejectedMessage(optimizer.readPlan(ask))).toContain(
+        fault === 'after-capture' ? 'initial after-capture fault' : 'INSERT INTO event_log',
+      );
+      if (before === undefined) throw new Error('initial admission observation was not reached');
+      expect(lifecycleTables(db)).toEqual(before);
+      expect(launches).toBe(0);
+      expect(pushUrls).toEqual([]);
+      armed = false;
+      if (fault === 'event-insert') db.run(sql.raw('DROP TRIGGER fail_initial_event'));
+      await optimizer.readPlan(ask);
+      await optimizer.drain();
+      const events = new DrizzleEventLogStore(db, OPEN);
+      expect(
+        (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+      ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+      if (fault === 'event-insert')
+        expect(
+          (await events.rangeSince('project:D', -1)).map(({ seq, message }) => [seq, message]),
+        ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'D', causeProjectId: 'C' }]]);
+    });
+  }
+
+  it('hands off real reclaimed-victim envelopes before held transport and keeps launched tokens', async () => {
+    const deliveryEntered = signal();
+    const releaseDelivery = signal();
+    const launches: { request: ReservedSpawnRequest; finish: () => void }[] = [];
+    const emptyStream = (): ReadableStream<Uint8Array> =>
+      new ReadableStream<Uint8Array>({
+        start: (controller) => {
+          controller.close();
+        },
+      });
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: (request) => {
+          let finish: (code: number) => void = () => {
+            throw new Error('child completion was not bound');
+          };
+          const exited = new Promise<number>((resolve) => {
+            finish = resolve;
+          });
+          launches.push({
+            request,
+            finish: () => {
+              finish(1);
+            },
+          });
+          return Promise.resolve({
+            pid: 4100 + launches.length,
+            stdout: emptyStream(),
+            stderr: emptyStream(),
+            exited,
+            verdict: () => undefined,
+            kill: () => {
+              finish(1);
+            },
+          });
+        },
+      },
+      undefined,
+      (url) => {
+        pushUrls.push(url);
+        deliveryEntered.resolve();
+        return releaseDelivery.promise.then(() => new Response('gateway refused', { status: 400 }));
+      },
+    );
+    seedSharedLifecycle(path);
+    seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    const requester = await seedProject(db);
+    db.run(
+      sql`INSERT INTO organization (id, name, created_at, shared_people) VALUES ('org-x', 'X', 1, 1)`,
+    );
+    db.run(
+      sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${requester.projectId}, 'org-x')`,
+    );
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ${requester.projectId}`,
+    );
+    const captured = await services.workItems.optimizationInput('B');
+    if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    const reading = optimizer.readPlan({
+      projectId: requester.projectId,
+      objective: 'pri',
+      input: captured.input,
+      enabled: true,
+    });
+    try {
+      await Promise.race([
+        deliveryEntered.promise,
+        Bun.sleep(500).then(() => {
+          throw new Error('real victim delivery did not start');
+        }),
+      ]);
+      await Promise.race([
+        reading,
+        Bun.sleep(500).then(() => {
+          throw new Error('initial committed decision waited for transport');
+        }),
+      ]);
+      expect(launches).toHaveLength(2);
+      const liveTokens = db
+        .select({ attemptToken: solverSlot.attemptToken })
+        .from(solverSlot)
+        .where(sql`project_id = ${requester.projectId}`)
+        .all()
+        .map(({ attemptToken }) => attemptToken)
+        .sort();
+      expect(launches.map(({ request }) => request.admission.attemptToken).sort()).toEqual(
+        liveTokens,
+      );
+      const second = openDatabase(path);
+      try {
+        second.run('PRAGMA busy_timeout = 50');
+        second.run("UPDATE project SET name = 'second writer entered' WHERE id = 'B'");
+      } finally {
+        second.close();
+      }
+      expect(db.all(sql.raw("SELECT name FROM project WHERE id = 'B'"))).toEqual([
+        { name: 'second writer entered' },
+      ]);
+      expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+      const events = new DrizzleEventLogStore(db, OPEN);
+      const replay = await events.rangeSince('project:B', -1);
+      expect(replay.map(({ seq, message }) => [seq, message])).toEqual([
+        [0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+      ]);
+      expect(pushUrls).toHaveLength(1);
+      releaseDelivery.resolve();
+      for (const { finish } of launches) finish();
+      await optimizer.stop();
+      expect(await events.rangeSince('project:B', -1)).toEqual(replay);
+    } finally {
+      releaseDelivery.resolve();
+      for (const { finish } of launches) finish();
+    }
+  });
+
   it('installs direct optimization lifecycle without a solver runtime', () => {
     const { services } = bootstrap();
     expect(services.optimizationLifecycle).toBeDefined();
