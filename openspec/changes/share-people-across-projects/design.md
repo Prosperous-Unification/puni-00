@@ -331,7 +331,9 @@ and organization boundaries remain unchanged; payloads contain no booking detail
 
 The normative [6h architecture checkpoint](6h-architecture.md) resolves the command/UoW
 committed-record handoff, borrowed capture contract, mounted bindings and Sol implementation
-sequence. Its implementation and R5 proofs remain pending.
+sequence. The reviewed 6h checkpoint is recorded in `verify.md`.
+The normative [6i architecture checkpoint](6i-architecture.md) fixes standalone versus borrowed
+rank/directory ownership, composed production bindings and the next implementation/proof matrix.
 
 `AnnouncementCollector.send` runs after the UoW and calls `GatewayBroadcaster.publish`, which
 opens a new event-recording transaction. That existing path cannot provide this amendment's
@@ -369,8 +371,9 @@ would be incomplete. Nonselected objective changes remain silent when display is
 Borrow existing UoW connections, never open a detached snapshot for either comparison. The
 SQLite UoW supports its established explicit async transaction lifetime, whereas Drizzle's
 outcome/drain transaction callbacks are synchronous: do not put asynchronous work in them.
-Before the first synchronous drain binding in 6j, choose and test either a synchronous projection over transaction-captured values or
-an explicit transaction owner that preserves all current fencing. No network/solver launch
+Rank and directory already need this distinction in 6i: the linked checkpoint chooses the
+explicit async source UoW around raw OPEN repository savepoints. Before the synchronous drain
+binding in 6j, separately resolve and test ownership while preserving all current fencing. No network/solver launch
 may occur in either approach. Full affected-organization derivation is an acceptable initial
 correctness boundary; it stores no booking ledger and must not silently broaden read authority.
 

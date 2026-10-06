@@ -1774,3 +1774,28 @@ status as of their documentation-only amendments. The final implementation proof
 The 6h task alone is now checked. This documentation-only
 follow-up has separate final checks and a separate local commit. 6i–6l, 6.1/6.2 umbrella,
 exact-SHA host gate, CI, merge and publication remain open.
+
+## 6i architecture checkpoint (2026-10-06)
+
+Planning branch `plan/shared-people-fanout-6i-architecture` starts from reviewed 6h documentation
+head `956dba9feb8f140112c34b66121f86794f6ccf30`. `6i-architecture.md`, linked normatively from
+`design.md`, records actual rank and directory call paths, explicit standalone async UoW
+ownership, raw OPEN borrowed stores, source/services/boot rank wiring, comparison/cause rules,
+separate R5 proof obligations and Sol's ordered handoff. Mounted directory mutations already
+enter command batches. Existing admitted settings/date writes retain the 6h owner. Rank and
+directory synchronous Drizzle callbacks require the async-owner decision now, ahead of 6j.
+
+No product code or R5 fault execution is included in this planning checkpoint. Implementation,
+new fault proofs, independent implementation review, exact-SHA host gate, CI, publication and
+merge remain pending; task 6i remains unchecked. No product tests, builds or R5 injections were
+run for this documentation-only amendment. Fresh validation passed:
+
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`:
+  1/1 (`/tmp/shared-people-fanout-6i-arch-strict.json`).
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate --all --json`: 148/148,
+  comprising 130 changes and 18 specs (`/tmp/shared-people-fanout-6i-arch-all.json`).
+- Prettier check over the packet, design, tasks, shared-people-mode delta spec and this ledger:
+  all matched files use Prettier style. `git diff --check`: no whitespace errors.
+
+The local checkpoint uses normal commit hooks without bypass. An inactive Tool Wiki hook is
+not certification. These planning checks do not replace the later implementation review/gate.

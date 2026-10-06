@@ -229,14 +229,23 @@ silent`, and `isolated and foreign projects receive no shared fan-out`. Include 
       `cold command fan-out needs no previous read`, `one batch coalesces each cause pair` and
       `capture does not admit optimization`. R5: move recording after commit, move push before
       commit, omit composition binding, call live admission and omit post-commit trigger.
-- [ ] 6i. **Rank/settings/directory transactions.** Bind `ProjectRankRepository.moveAfter`,
+- [ ] 6i. **Rank/settings/directory transactions.** Follow the normative
+      [6i architecture checkpoint](6i-architecture.md) before implementation. Use explicit
+      source-owned standalone async UoW wrappers and raw OPEN stores inside already-owned
+      command/import/repair scopes; never install a second observer beneath a batch. Bind `ProjectRankRepository.moveAfter`,
       admitted project settings/start edits and standalone directory transactions; cover
       working-plan directory writes without duplicate events. RED mounted rank/settings and
       directory service/DB tests: `removed assignment invalidates old closure`, `rank reorder
 compares both directions`, `directory edit has causes without project-row edits`,
       `unchanged rename is silent` and `refused resource edit preserves event sequence`.
-      R5: omit each binding independently, use only post-write usages, and use a preflight
-      topology read instead of the owning transaction's observation.
+      Expose the composed rank writer through source/services/boot/app; mounted directory
+      mutations stay on the command runner. Add relative-order causes without numeric
+      respacing causes; retain the 6h settings/date owner and selected-display comparison.
+      R5: omit each binding independently, use only post-write usages, use a preflight
+      topology read instead of the owning transaction's observation, install standalone
+      observers beneath borrowed stores, record after commit, and deliver before writer
+      release. Prove rank and standalone directory refusal/event/sequence atomicity and
+      delivery separately; retain command/Working-plan directory single-owner proofs.
 - [ ] 6j. **Import and final deletion.** Before drain integration, resolve and test synchronous
       transaction ownership for borrowed projection reads (design.md); do not pass async
       callbacks to Drizzle transactions. Bind `module/plan-import/composition.ts` and final

@@ -256,6 +256,44 @@ isolated-only incoming release before migration and again after the outgoing col
 - **WHEN** the incoming release supports only isolated mode
 - **THEN** the swap refuses and names the combined recovery procedure
 
+### Requirement: Standalone and borrowed rank/resource fan-out have one owner
+
+Standalone rank and directory store mutations SHALL capture before and after scheduling state
+and record derived shared-person events within their owning write transaction. A directory
+mutation already inside a command or Working plan SHALL participate only in that outer
+operation's capture and event set. The owner SHALL preserve old resource usages after removal,
+compare authoritative relative project ordering rather than numeric rank positions, and use
+the selected displayed schedule. Refusal or capture/event failure SHALL preserve the prior
+domain state, event rows and sequence. Committed delivery and recipient optimizer notification
+SHALL occur only after commit and writer release.
+
+#### Scenario: a rank move only respaces stored positions
+
+- **GIVEN** the organization's stored rank positions need respacing but project identity order is unchanged
+- **WHEN** an admitted move rewrites positions into the same identity order
+- **THEN** it records no shared-person event and advances no shared-person event sequence
+
+#### Scenario: standalone person removal retains old users
+
+- **GIVEN** a person connects several ranked dated projects in a shared organization
+- **WHEN** a standalone directory mutation removes that person and their assignments
+- **THEN** the same transaction records each required old-closure recipient/cause pair once
+- **AND** failure of a later event insert restores the person, assignments, earlier events and sequences
+
+#### Scenario: command directory edits have no inner fan-out owner
+
+- **GIVEN** one command batch edits several directory resources through a Working plan
+- **WHEN** it commits
+- **THEN** the outer command's before/after state determines one distinct event per recipient/cause pair
+- **AND** intermediate directory writes produce no independently committed or duplicate shared events
+
+#### Scenario: refused standalone resource edit leaves event sequence unchanged
+
+- **GIVEN** a used directory entry whose removal requires cascade confirmation
+- **WHEN** standalone removal is refused without confirmation
+- **THEN** its resource usages, event rows and event sequence remain unchanged
+- **AND** no shared push or recipient optimizer notification occurs
+
 ### Requirement: Combined backup preserves every mode and rank
 
 `shared-people-rollback-cli.ts save` SHALL write a deterministic versioned file containing every
