@@ -153,11 +153,40 @@ describe('conversation provider values', () => {
     initialOperation: null,
     latestOperation: null,
     exhaustedReason: null,
+    challenge: null,
   };
 
   test('accepts paused and rejects values outside the contract', () => {
     expect(parseConversation({ ...view, provider: 'paused' }).provider).toBe('paused');
     for (const provider of ['suspended', 'PAUSED', null])
       expect(() => parseConversation({ ...view, provider })).toThrow(InvalidConversation);
+  });
+
+  test('requires the challenge field and validates an offered challenge', () => {
+    const { challenge: _challenge, ...withoutChallenge } = view;
+    expect(() => parseConversation({ ...withoutChallenge, provider: 'openrouter' })).toThrow(
+      InvalidConversation,
+    );
+    const offered = {
+      salt: 'abc',
+      challenge: 'e'.repeat(64),
+      signature: 'f'.repeat(64),
+      maxnumber: 200_000,
+      expiresAt: '2026-10-07T12:30:00.000Z',
+    };
+    expect(
+      parseConversation({ ...view, provider: 'openrouter', challenge: offered }).challenge,
+    ).toEqual({
+      ...offered,
+      expiresAt: Date.UTC(2026, 9, 7, 12, 30),
+    });
+    for (const broken of [
+      { ...offered, challenge: 'short' },
+      { ...offered, maxnumber: -1 },
+      { ...offered, expiresAt: 'tomorrow' },
+    ])
+      expect(() =>
+        parseConversation({ ...view, provider: 'openrouter', challenge: broken }),
+      ).toThrow(InvalidConversation);
   });
 });

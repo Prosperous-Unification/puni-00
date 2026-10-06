@@ -6,7 +6,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   root: fileURLToPath(new URL('.', import.meta.url)),
   plugins: [react()],
-  // The dev server does not read tsconfig paths; the contracts barrel is dependency-free.
+  // The dev server does not read tsconfig paths; the contracts barrel's only package is @noble/hashes.
   resolve: {
     alias: {
       '@website/contracts': fileURLToPath(

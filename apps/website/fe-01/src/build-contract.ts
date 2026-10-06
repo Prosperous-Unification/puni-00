@@ -159,6 +159,16 @@ export interface ConversationOperation {
   truncated: boolean;
 }
 
+/** The signed browser check `GET /conversation` offers before the first paid reply. */
+export interface BrowserChallenge {
+  salt: string;
+  challenge: string;
+  signature: string;
+  maxnumber: number;
+  /** Epoch milliseconds after which the API refuses the solution. */
+  expiresAt: number;
+}
+
 /** The `GET /conversation` body: the anonymous conversation bound to this browser's draft. */
 export interface Conversation {
   stage: ConversationStage;
@@ -171,6 +181,7 @@ export interface Conversation {
   initialOperation: ConversationOperation | null;
   latestOperation: (ConversationOperation & { message: string }) | null;
   exhaustedReason: ConversationExhaustedReason | null;
+  challenge: BrowserChallenge | null;
 }
 
 /** The `GET /conversation` body did not match the API contract. */
@@ -205,6 +216,35 @@ function pickOne<T extends string>(value: unknown, allowed: readonly T[], field:
   const match = allowed.find((candidate) => candidate === value);
   if (match === undefined) throw new InvalidConversation(field);
   return match;
+}
+
+function parseChallenge(value: unknown): BrowserChallenge | null {
+  if (value === null) return null;
+  if (
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    !('salt' in value) ||
+    typeof value.salt !== 'string' ||
+    !('challenge' in value) ||
+    typeof value.challenge !== 'string' ||
+    !/^[0-9a-f]{64}$/.test(value.challenge) ||
+    !('signature' in value) ||
+    typeof value.signature !== 'string' ||
+    !('maxnumber' in value) ||
+    !Number.isSafeInteger(value.maxnumber) ||
+    Number(value.maxnumber) < 0 ||
+    !('expiresAt' in value) ||
+    typeof value.expiresAt !== 'string' ||
+    Number.isNaN(Date.parse(value.expiresAt))
+  )
+    throw new InvalidConversation('challenge');
+  return {
+    salt: value.salt,
+    challenge: value.challenge,
+    signature: value.signature,
+    maxnumber: Number(value.maxnumber),
+    expiresAt: Date.parse(value.expiresAt),
+  };
 }
 
 function parseOperation(value: unknown, field: string): ConversationOperation | null {
@@ -289,7 +329,11 @@ export function parseConversation(value: unknown): Conversation {
     if (typeof message !== 'string') throw new InvalidConversation('latestOperation');
     latestOperation = { ...latest, message };
   }
+  // Proof: defaulting an absent challenge to null made the missing-challenge contract case pass.
+  if (!('challenge' in value)) throw new InvalidConversation('challenge');
+  const challenge = parseChallenge(value.challenge);
   return {
+    challenge,
     stage,
     turns,
     visitorTurnsRemaining: Number(value.visitorTurnsRemaining),

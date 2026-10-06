@@ -1,10 +1,12 @@
-import { displayReply, readReplyReplacement } from '@website/contracts';
+import { type BrowserCheckSolution, displayReply, readReplyReplacement } from '@website/contracts';
 import { DefaultChatTransport, type UIMessage } from 'ai';
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 import { ApiFailure, apiOrigin, requestJson, streamFetch } from './api';
 import { describeFailure, unreachableMessage } from './app-flow';
+import { type BrowserCheckSolver, solveInBrowser } from './browser-check';
 import {
+  type BrowserChallenge,
   type Conversation,
   type ConversationAttempt,
   describeExhaustion,
@@ -21,6 +23,13 @@ const messageLimit = 1_500;
 const turnLimit = 8;
 const proposalKeyName = 'puni_build_proposal_key';
 const interruptedText = 'The reply stopped before it was confirmed. You can retry.';
+
+/** A browser check being solved, or solved, for the conversation's current challenge. */
+interface PendingCheck {
+  challenge: BrowserChallenge;
+  number: Promise<number | null>;
+  isSettled: boolean;
+}
 
 /** The reply being streamed, or the last one that ended without a confirmed finish. */
 interface LiveReply {
@@ -77,12 +86,19 @@ export function LiveHarness({
   initial,
   onReload,
   onHandedOff,
+  solveCheck = solveInBrowser,
 }: {
   initial: Conversation;
   onReload: () => void;
   onHandedOff: () => void;
+  /** Solves the browser check; tests pass a stub. */
+  solveCheck?: BrowserCheckSolver;
 }) {
   const [conversation, setConversation] = useState(initial);
+  const [isChecking, setChecking] = useState(false);
+  const [isCheckFailed, setCheckFailed] = useState(false);
+  const check = useRef<PendingCheck | null>(null);
+  const isPreparing = useRef(false);
   const [live, setLive] = useState<LiveReply | null>(null);
   const [draft, setDraft] = useState('');
   const [notice, setNotice] = useState('');
@@ -94,6 +110,68 @@ export function LiveHarness({
   const mode = selectComposerMode(conversation);
   const stopped = live === null ? selectStoppedAttempt(conversation) : null;
   const isBusy = live?.phase === 'submitted' || live?.phase === 'streaming';
+
+  // The check is solved in the background as soon as a paid conversation without an operation
+  // loads, so it is ready by the time the visitor presses Send.
+  useEffect(() => {
+    const challenge = conversation.challenge;
+    if (challenge !== null && check.current?.challenge.challenge !== challenge.challenge)
+      startCheck(challenge);
+  }, [conversation.challenge?.challenge]);
+
+  function startCheck(challenge: BrowserChallenge): PendingCheck {
+    const pending: PendingCheck = { challenge, isSettled: false, number: solveCheck(challenge) };
+    const settle = () => {
+      pending.isSettled = true;
+    };
+    pending.number.then(settle, settle);
+    check.current = pending;
+    return pending;
+  }
+
+  /**
+   * The solution to send with the initial operation: the pre-solved one while unexpired, else a
+   * fresh challenge from `GET /conversation` solved now behind the checking status. `none` when
+   * the conversation needs no check (its row exists); `failed` when solving failed.
+   */
+  async function prepareCheck(): Promise<
+    { kind: 'none' } | { kind: 'failed' } | { kind: 'solved'; check: BrowserCheckSolution }
+  > {
+    const challenge = conversation.challenge;
+    if (challenge === null) return { kind: 'none' };
+    let pending = check.current;
+    try {
+      // Proof: sending with the stored solution regardless of expiry failed the 31-minute case in conversation.mjs.
+      if (
+        pending?.challenge.challenge !== challenge.challenge ||
+        pending.challenge.expiresAt <= Date.now()
+      ) {
+        setChecking(true);
+        const fresh = parseConversation(await requestJson<unknown>('/conversation'));
+        setConversation(fresh);
+        if (fresh.challenge === null) return { kind: 'none' };
+        pending = startCheck(fresh.challenge);
+      }
+      if (!pending.isSettled) setChecking(true);
+      const number = await pending.number;
+      if (number === null) return { kind: 'failed' };
+      return {
+        kind: 'solved',
+        check: {
+          salt: pending.challenge.salt,
+          challenge: pending.challenge.challenge,
+          signature: pending.challenge.signature,
+          number,
+        },
+      };
+    } catch (error) {
+      // An unsolvable check, a failed worker or a failed reread all end on the manual path.
+      if (error instanceof Error) return { kind: 'failed' };
+      throw error;
+    } finally {
+      setChecking(false);
+    }
+  }
 
   useLayoutEffect(() => {
     const viewport = thread.current;
@@ -110,7 +188,18 @@ export function LiveHarness({
   }
 
   async function send(attempt: ConversationAttempt): Promise<void> {
-    if (isBusy) return;
+    if (isBusy || isPreparing.current) return;
+    let solution: BrowserCheckSolution | undefined;
+    if (attempt.initial) {
+      isPreparing.current = true;
+      const prepared = await prepareCheck();
+      isPreparing.current = false;
+      if (prepared.kind === 'failed') {
+        setCheckFailed(true);
+        return;
+      }
+      if (prepared.kind === 'solved') solution = prepared.check;
+    }
     const controller = new AbortController();
     reading.current = controller;
     stopping.current = null;
@@ -129,7 +218,11 @@ export function LiveHarness({
         fetch: streamFetch,
         prepareSendMessagesRequest: () => ({
           body: attempt.initial
-            ? { idempotencyKey: attempt.idempotencyKey, initial: true }
+            ? {
+                idempotencyKey: attempt.idempotencyKey,
+                initial: true,
+                ...(solution ? { check: solution } : {}),
+              }
             : { idempotencyKey: attempt.idempotencyKey, message: attempt.message },
         }),
       });
@@ -163,6 +256,14 @@ export function LiveHarness({
     } catch (error) {
       // Stop already rendered the stopped state and posts the cancel itself.
       if (controller.signal.aborted || isStopRequested()) return;
+      if (
+        error instanceof ApiFailure &&
+        (error.code === 'challenge_invalid' || error.code === 'challenge_required')
+      ) {
+        setLive(null);
+        setCheckFailed(true);
+        return;
+      }
       setLive({ attempt, text, phase: 'failed', failure: describeStreamFailure(error) });
       if (error instanceof ApiFailure && error.status === 503) onReload();
       else if (changesConversation(error)) {
@@ -333,8 +434,20 @@ export function LiveHarness({
               {notice}
             </p>
           )}
+          {isChecking && (
+            <p className="harness-status harness-checking" role="status" aria-live="polite">
+              Checking your browser…
+            </p>
+          )}
           {receipt !== null ? (
             <p className="harness-closed">Your request is with a person at PUNI.</p>
+          ) : isCheckFailed ? (
+            <p className="harness-closed harness-check-failed">
+              We couldn’t check this browser for AI chat. A person still reads every brief.{' '}
+              <a className="harness-link" href="/manual">
+                Shape your brief <span aria-hidden="true">→</span>
+              </a>
+            </p>
           ) : mode.kind === 'closed' ? (
             <p className="harness-closed">{describeExhaustion(mode.reason)}</p>
           ) : mode.kind === 'answering' ? (

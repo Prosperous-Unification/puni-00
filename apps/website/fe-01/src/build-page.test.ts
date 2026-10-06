@@ -25,6 +25,7 @@ const disabled = {
   initialOperation: null,
   latestOperation: null,
   exhaustedReason: null,
+  challenge: null,
 };
 
 describe('Build harness states', () => {
@@ -108,6 +109,7 @@ const live: Conversation = {
   initialOperation: { state: 'not-started', idempotencyKey: 'initial:draft-1', truncated: false },
   latestOperation: null,
   exhaustedReason: null,
+  challenge: null,
 };
 
 const replied: Conversation = {

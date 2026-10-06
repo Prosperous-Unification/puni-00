@@ -39,6 +39,7 @@ const briefed: Conversation = {
     message: 'Paper',
   },
   exhaustedReason: null,
+  challenge: null,
 };
 
 test('the rendered thread never shows brief markers', () => {
@@ -238,4 +239,203 @@ test('the paused harness shows the paused row, the manual path and the card, no 
   expect(markup).not.toContain('isn’t switched on yet');
   expect(markup).toContain('Request a proposal');
   expect(markup).not.toContain('harness-composer');
+});
+
+const freshChallenge = {
+  salt: '0123456789abcdef.2026-10-07.1791370800000.200000.a1b2c3d4',
+  challenge: 'b'.repeat(64),
+  signature: 'c'.repeat(64),
+  maxnumber: 200_000,
+};
+
+const unsentWithCheck: Conversation = {
+  ...briefed,
+  stage: 'clarify',
+  turns: [],
+  brief: '',
+  visitorTurnsRemaining: 8,
+  initialOperation: { state: 'not-started', idempotencyKey: 'initial:draft-1', truncated: false },
+  latestOperation: null,
+  challenge: { ...freshChallenge, expiresAt: Date.now() + 30 * 60_000 },
+};
+
+/** Stubs fetch: records stream POST bodies and answers them with `streamStatus`. */
+function stubApi(options: { streamStatus?: number; streamCode?: string; reread?: unknown }) {
+  const posts: unknown[] = [];
+  const reads: string[] = [];
+  globalThis.fetch = Object.assign(
+    async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith('/conversation/stream')) {
+        const body =
+          input instanceof Request
+            ? await input.text()
+            : typeof init?.body === 'string'
+              ? init.body
+              : '';
+        posts.push(JSON.parse(body));
+        if (options.streamStatus)
+          return new Response(JSON.stringify({ code: options.streamCode }), {
+            status: options.streamStatus,
+            headers: { 'content-type': 'application/json' },
+          });
+        return new Response(
+          'data: {"type":"start"}\n\ndata: {"type":"finish"}\n\ndata: [DONE]\n\n',
+          {
+            headers: { 'content-type': 'text/event-stream' },
+          },
+        );
+      }
+      if (url.endsWith('/conversation')) {
+        reads.push(url);
+        return new Response(JSON.stringify(options.reread), {
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      throw new Error(`Unexpected request ${url}`);
+    },
+    { preconnect: realFetch.preconnect },
+  );
+  return { posts, reads };
+}
+
+async function mountHarness(
+  conversation: Conversation,
+  solveCheck: (challenge: unknown) => Promise<number | null>,
+) {
+  const container = dom.window.document.createElement('div');
+  dom.window.document.body.replaceChildren(container);
+  const root = createRoot(container);
+  const seenChecking: boolean[] = [];
+  const observer = new dom.window.MutationObserver(() => {
+    if (container.querySelector('.harness-checking')) seenChecking.push(true);
+  });
+  observer.observe(container, { childList: true, subtree: true });
+  await act(async () => {
+    root.render(
+      <LiveHarness
+        initial={conversation}
+        onReload={() => undefined}
+        onHandedOff={() => undefined}
+        solveCheck={solveCheck}
+      />,
+    );
+    await Promise.resolve();
+  });
+  const submit = async () => {
+    const form = container.querySelector('form.harness-composer');
+    if (!form) throw new Error('composer form missing');
+    await act(async () => {
+      form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+    });
+  };
+  return {
+    container,
+    submit,
+    seenChecking,
+    unmount: () => {
+      observer.disconnect();
+      act(() => {
+        root.unmount();
+      });
+    },
+  };
+}
+
+test('a pre-solved check is sent with the one initial POST and no checking status', async () => {
+  const api = stubApi({ reread: { ...unsentWithCheck, challenge: null } });
+  const solved: unknown[] = [];
+  const harness = await mountHarness(unsentWithCheck, (challenge) => {
+    solved.push(challenge);
+    return Promise.resolve(4_242);
+  });
+  await settleUntil(
+    () => solved.length === 1,
+    () => String(solved.length),
+  );
+  await harness.submit();
+  await settleUntil(
+    () => api.posts.length === 1,
+    () => JSON.stringify(api.posts),
+  );
+  // Proof: posting before the solution resolved sent the initial POST without `check`.
+  expect(api.posts[0]).toEqual({
+    idempotencyKey: 'initial:draft-1',
+    initial: true,
+    check: {
+      salt: freshChallenge.salt,
+      challenge: freshChallenge.challenge,
+      signature: freshChallenge.signature,
+      number: 4_242,
+    },
+  });
+  expect(harness.seenChecking).toEqual([]);
+  harness.unmount();
+});
+
+test('an expired check is re-read and solved again behind the checking status', async () => {
+  const renewed = { ...freshChallenge, challenge: 'd'.repeat(64) };
+  const api = stubApi({
+    reread: {
+      ...unsentWithCheck,
+      challenge: { ...renewed, expiresAt: new Date(Date.now() + 30 * 60_000).toISOString() },
+    },
+  });
+  const pendingSolve = Promise.withResolvers<number | null>();
+  const solved: { challenge: string }[] = [];
+  const harness = await mountHarness(
+    { ...unsentWithCheck, challenge: { ...freshChallenge, expiresAt: Date.now() - 1 } },
+    (challenge) => {
+      solved.push(challenge as { challenge: string });
+      return solved.length === 1 ? Promise.resolve(1) : pendingSolve.promise;
+    },
+  );
+  await harness.submit();
+  await settleUntil(
+    () => harness.container.querySelector('.harness-checking') !== null,
+    () => harness.container.innerHTML,
+  );
+  expect(harness.container.querySelector('.harness-checking')?.getAttribute('aria-live')).toBe(
+    'polite',
+  );
+  expect(api.reads).toHaveLength(1);
+  expect(api.posts).toHaveLength(0);
+  pendingSolve.resolve(77);
+  await settleUntil(
+    () => api.posts.length === 1,
+    () => JSON.stringify(api.posts),
+  );
+  expect(api.posts[0]).toMatchObject({ check: { challenge: 'd'.repeat(64), number: 77 } });
+  harness.unmount();
+});
+
+test('a solver that cannot run shows the manual path and sends nothing', async () => {
+  const api = stubApi({});
+  const harness = await mountHarness(unsentWithCheck, () =>
+    Promise.reject(new Error('Worker and main-thread solve unavailable')),
+  );
+  await harness.submit();
+  await settleUntil(
+    () => harness.container.querySelector('.harness-check-failed') !== null,
+    () => harness.container.innerHTML,
+  );
+  expect(harness.container.querySelector('.harness-check-failed a')?.getAttribute('href')).toBe(
+    '/manual',
+  );
+  expect(api.posts).toHaveLength(0);
+  harness.unmount();
+});
+
+test('a refused check from the API shows the manual path', async () => {
+  const api = stubApi({ streamStatus: 403, streamCode: 'challenge_invalid' });
+  const harness = await mountHarness(unsentWithCheck, () => Promise.resolve(5));
+  await harness.submit();
+  await settleUntil(
+    () => harness.container.querySelector('.harness-check-failed') !== null,
+    () => harness.container.innerHTML,
+  );
+  expect(api.posts).toHaveLength(1);
+  expect(harness.container.querySelector('.harness-interrupted')).toBeNull();
+  harness.unmount();
 });
