@@ -2943,3 +2943,68 @@ test('a forged sign-out is refused and the session still answers', async () => {
   });
   api.close();
 });
+
+test('without injected fetchers, OIDC discovery and the legacy provider call reach the network', async () => {
+  const { config } = fixture();
+  const issuer = 'https://identity.example.test';
+  const requested: string[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = Object.assign(
+    (input: Parameters<typeof fetch>[0]) => {
+      const url = input instanceof Request ? input.url : String(input);
+      requested.push(url);
+      if (url.endsWith('/.well-known/openid-configuration'))
+        return Promise.resolve(
+          Response.json({
+            issuer,
+            authorization_endpoint: `${issuer}/authorize`,
+            token_endpoint: `${issuer}/token`,
+            jwks_uri: `${issuer}/keys`,
+          }),
+        );
+      return Promise.resolve(
+        Response.json({
+          choices: [{ message: { content: 'Who uses it first?' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5 },
+        }),
+      );
+    },
+    { preconnect: realFetch.preconnect },
+  );
+  try {
+    const api = mountApi({
+      ...config,
+      demoAuth: true,
+      oidcIssuer: issuer,
+      oidcClientId: 'puni-website',
+      oidcRedirectUri: 'http://localhost:3101/session/oidc/callback',
+      openRouterEnabled: true,
+      openRouterKey: 'fixture-only',
+      openRouterModel: 'fixture/model',
+      openRouterProvider: 'Fixture',
+      openRouterInputUsdPerMillion: 1,
+      openRouterOutputUsdPerMillion: 2,
+      openRouterPrivacyVerified: true,
+    });
+    // Proof: with the request handler named `fetch` again, these defaults called the API itself and recorded nothing.
+    expect((await api.fetch(request('/session/oidc/start', 'GET', config.appOrigin))).status).toBe(
+      302,
+    );
+    const signIn = await api.fetch(
+      request('/session/demo', 'POST', config.appOrigin, { email: 'owner@example.test' }),
+    );
+    const session = signIn.headers.get('set-cookie')?.split(';')[0];
+    const { csrfToken } = (await signIn.json()) as { csrfToken: string };
+    const chat = await api.fetch(
+      request('/chat', 'POST', config.appOrigin, { message: 'A booking tool' }, session, csrfToken),
+    );
+    expect(chat.status).toBe(200);
+    expect(requested).toEqual([
+      `${issuer}/.well-known/openid-configuration`,
+      'https://openrouter.ai/api/v1/chat/completions',
+    ]);
+    api.close();
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

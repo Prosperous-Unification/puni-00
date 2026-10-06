@@ -1080,7 +1080,9 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     return csrf !== null && equal(digest(csrf), csrfHash);
   }
 
-  async function fetch(request: Request, clientAddress?: string): Promise<Response> {
+  // Named `handleRequest`, never `fetch`: a local `fetch` shadowed the global one, so the default
+  // OIDC and provider fetchers below called this handler instead of the network.
+  async function handleRequest(request: Request, clientAddress?: string): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
     const origin = request.headers.get('origin');
@@ -2238,7 +2240,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
   }
 
   return {
-    fetch,
+    fetch: handleRequest,
     settleAlerts: async () => {
       await Promise.all(alertDeliveries);
     },
