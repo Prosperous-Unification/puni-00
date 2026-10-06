@@ -715,12 +715,20 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     );
   }
 
+  function isInferencePaused(): boolean {
+    return store.findOpenInferencePause() !== null;
+  }
+
   /** Who may answer a new anonymous conversation turn under the current configuration. */
   function selectConversationProvider():
-    { kind: 'paid'; rates: ProviderRates } | { kind: 'demo' | 'unconfigured' | 'disabled' } {
+    | { kind: 'paid'; rates: ProviderRates }
+    | { kind: 'demo' | 'unconfigured' | 'disabled' | 'paused' } {
     if (config.openRouterEnabled) {
       const rates = readProviderRates();
-      return providerReady(rates) ? { kind: 'paid', rates } : { kind: 'unconfigured' };
+      if (!providerReady(rates)) return { kind: 'unconfigured' };
+      // Read per request, so a pause opened by the other colour or a restart is seen at once.
+      // Proof: reading the pause once at startup reported `openrouter` in the other-connection pause test.
+      return isInferencePaused() ? { kind: 'paused' } : { kind: 'paid', rates };
     }
     return config.demoAuth ? { kind: 'demo' } : { kind: 'disabled' };
   }
@@ -728,7 +736,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
   /** Maps a refused or replayed conversation admission to its typed response. */
   function conversationRefusal(
     admitted: Exclude<ConversationAdmission, { kind: 'started' }>,
-    unconfigured: boolean,
+    provider: ReturnType<typeof selectConversationProvider>['kind'],
   ): Response {
     if (admitted.kind === 'completed') return replayReply(admitted.reply);
     if (admitted.kind === 'exhausted') {
@@ -750,7 +758,14 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       turn_limit: ['turn_limit', 429],
       initial_required: ['initial_required', 409],
       busy: ['provider_busy', 429],
-      provider_unavailable: [unconfigured ? 'provider_unconfigured' : 'provider_unavailable', 503],
+      provider_unavailable: [
+        provider === 'unconfigured'
+          ? 'provider_unconfigured'
+          : provider === 'paused'
+            ? 'provider_paused'
+            : 'provider_unavailable',
+        503,
+      ],
       paused: ['provider_paused', 503],
     } as const;
     const [code, status] = refusals[admitted.kind];
@@ -1188,7 +1203,11 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const latest = conversation ? store.findLatestConversationOperation(conversation.id) : null;
       const selected = selectConversationProvider().kind;
       const provider: ConversationProvider =
-        selected === 'paid' ? 'openrouter' : selected === 'demo' ? 'demo' : 'disabled';
+        selected === 'paid'
+          ? 'openrouter'
+          : selected === 'demo' || selected === 'paused'
+            ? selected
+            : 'disabled';
       const view: ConversationView = {
         stage: deriveStage(conversation?.state ?? 'open', visitorTurns),
         turns,
@@ -1265,7 +1284,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         now,
       });
       if (admitted.kind !== 'started') {
-        const response = conversationRefusal(admitted, provider.kind === 'unconfigured');
+        const response = conversationRefusal(admitted, provider.kind);
         response.headers.set('Cache-Control', 'no-store');
         return attachCors(response, origin);
       }
@@ -1570,13 +1589,32 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       const prior = store.listTurns(active.id);
       const paid = Boolean(config.openRouterEnabled);
       const paidRates = paid ? readProviderRates() : null;
+      const isPaused = paid && providerReady(paidRates) && isInferencePaused();
       const preparedProvider = paid
-        ? providerReady(paidRates)
+        ? providerReady(paidRates) && !isPaused
           ? { kind: 'paid' as const, rates: paidRates }
           : { kind: 'unavailable' as const }
         : { kind: 'demo' as const };
       // Replay and conflicts still use the durable admission path when paid inference is unavailable.
       if (preparedProvider.kind === 'unavailable') {
+        if (isPaused) {
+          const replay = store.admitChatOperation(
+            session.id,
+            active.id,
+            idempotencyKey,
+            bodyHash,
+            message,
+            initial,
+            null,
+            now,
+            false,
+          );
+          if (replay.kind === 'provider_unavailable')
+            return attachCors(failure('provider_paused', 503), origin);
+          const resolved = resolveChatAdmission(replay, origin, paid);
+          if (resolved.kind === 'response') return resolved.response;
+          throw new Error('A paused provider admitted a new chat operation');
+        }
         const unavailable = resolveChatAdmission(
           store.admitChatOperation(
             session.id,
@@ -1707,6 +1745,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         : { kind: 'demo' as const };
       if (preparedProvider.kind === 'unavailable')
         return attachCors(failure('provider_unconfigured', 503), origin);
+      if (preparedProvider.kind === 'paid' && isInferencePaused())
+        return attachCors(failure('provider_paused', 503), origin);
       if (preparedProvider.kind === 'demo' && !config.demoAuth)
         return attachCors(failure('provider_unavailable', 503), origin);
       const legacyOperation = store.admitChatOperation(
@@ -1721,6 +1761,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
           : null,
         now,
       );
+      if (legacyOperation.kind === 'paused')
+        return attachCors(failure('provider_paused', 503), origin);
       if (legacyOperation.kind !== 'started')
         return attachCors(
           failure(
@@ -1933,6 +1975,35 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
         }),
         origin,
       );
+    }
+    if (path === '/operator/guardrails' && request.method === 'GET') {
+      if (!operatorSession(request, now))
+        return attachCors(failure('operator_unauthorized', 401), origin);
+      return attachCors(
+        json(store.readGuardrailOverview(now), 200, { 'Cache-Control': 'no-store' }),
+        origin,
+      );
+    }
+    if (
+      (path === '/operator/inference/pause' || path === '/operator/inference/resume') &&
+      request.method === 'POST'
+    ) {
+      const session = operatorSession(request, now);
+      if (!session) return attachCors(failure('operator_unauthorized', 401), origin);
+      const csrf = request.headers.get('x-puni-csrf');
+      // Proof: dropping this check let the missing-CSRF pause control open a pause.
+      if (!csrf || !equal(digest(csrf), session.csrfHash))
+        return attachCors(failure('csrf_forbidden', 403), origin);
+      if (path === '/operator/inference/resume')
+        return attachCors(
+          store.resumeInferencePause(now)
+            ? json({ paused: false }, 200, { 'Cache-Control': 'no-store' })
+            : failure('not_paused', 409),
+          origin,
+        );
+      const pauseId = store.openInferencePause('operator', 'operator', now);
+      if (pauseId === null) return attachCors(failure('already_paused', 409), origin);
+      return attachCors(json({ paused: true }, 201, { 'Cache-Control': 'no-store' }), origin);
     }
     if (path === '/operator/submissions' && request.method === 'GET') {
       if (!operatorSession(request, now))

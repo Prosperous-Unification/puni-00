@@ -1127,3 +1127,198 @@ test('loopback demo replies are labelled simulated and reserve nothing', async (
   expect(fake.bodies).toHaveLength(0);
   api.close();
 });
+
+const operatorPassword = 'local-guardrail-secret';
+
+/** Signs in as the operator and returns the cookie and CSRF token for the pause controls. */
+async function signInOperator(api: Api): Promise<{ cookie: string; csrf: string }> {
+  const response = await api.fetch(
+    new Request('http://localhost:3101/operator/session', {
+      method: 'POST',
+      headers: { origin: appOrigin, 'content-type': 'application/json' },
+      body: JSON.stringify({ password: operatorPassword }),
+    }),
+    '192.0.2.250',
+  );
+  expect(response.status).toBe(201);
+  const cookie = response.headers.get('set-cookie')?.split(';')[0];
+  if (!cookie) throw new Error('Operator sign-in set no cookie');
+  const { csrfToken } = (await response.json()) as { csrfToken: string };
+  return { cookie, csrf: csrfToken };
+}
+
+function operatorPost(
+  path: string,
+  operator: { cookie: string; csrf: string } | null,
+  csrf = true,
+) {
+  return new Request(`http://localhost:3101${path}`, {
+    method: 'POST',
+    headers: {
+      origin: appOrigin,
+      ...(operator ? { cookie: operator.cookie } : {}),
+      ...(operator && csrf ? { 'x-puni-csrf': operator.csrf } : {}),
+    },
+  });
+}
+
+function openPause(databasePath: string): void {
+  const store = new WebsiteStore(databasePath);
+  if (!store.openInferencePause('operator', 'operator', Date.now()))
+    throw new Error('A pause was already open');
+  store.close();
+}
+
+test('a pause opened by another connection is seen on the next read and stream', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Who will book the repairs?' }));
+  const config = paidConfig(fake.providerFetch);
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  expect((await readConversation(api, visitor.cookie)).provider).toBe('openrouter');
+  openPause(config.databasePath);
+  // Proof: reading the pause once at startup reported `openrouter` here.
+  expect((await readConversation(api, visitor.cookie)).provider).toBe('paused');
+  const refused = await sendInitial(api, visitor);
+  expect(refused.status).toBe(503);
+  expect(await refused.json()).toEqual({ code: 'provider_paused' });
+  expect(fake.bodies).toHaveLength(0);
+  expect(count(config.databasePath, 'SELECT count(*) AS count FROM conversation_operation')).toBe(
+    0,
+  );
+  // Free paths keep working: the brief and the proposal.
+  const brief = await api.fetch(
+    new Request('http://localhost:3101/brief', {
+      method: 'PATCH',
+      headers: {
+        origin: appOrigin,
+        cookie: visitor.cookie,
+        'x-puni-csrf': visitor.csrf,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ brief: 'A calendar' }),
+    }),
+    visitorAddress,
+  );
+  expect(brief.status).toBe(200);
+  const proposal = await api.fetch(
+    post('/proposals', visitor, {
+      email: 'owner@example.test',
+      brief: 'A calendar',
+      idempotencyKey: 'proposal-key-1',
+    }),
+    visitorAddress,
+  );
+  expect(proposal.status).toBe(201);
+  api.close();
+});
+
+test('a completed reply replays during a pause and an operator resume admits the next turn', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Who will book the repairs?' }));
+  const config = paidConfig(fake.providerFetch, { operatorPassword });
+  const api = mountApi(config);
+  const visitor = await beginVisitor(api);
+  expect((await sendInitial(api, visitor)).status).toBe(200);
+  const operator = await signInOperator(api);
+  const paused = await api.fetch(operatorPost('/operator/inference/pause', operator));
+  expect(paused.status).toBe(201);
+  expect((await api.fetch(operatorPost('/operator/inference/pause', operator))).status).toBe(409);
+  const replay = await sendInitial(api, visitor);
+  expect(replay.status).toBe(200);
+  expect(await replay.text()).toContain('Who will book the repairs?');
+  const refused = await sendMessage(api, visitor, 'turn-key-2', 'Volunteers');
+  expect(refused.status).toBe(503);
+  expect(fake.bodies).toHaveLength(1);
+  const overview = await api.fetch(
+    new Request('http://localhost:3101/operator/guardrails', {
+      headers: { origin: appOrigin, cookie: operator.cookie },
+    }),
+  );
+  expect(overview.status).toBe(200);
+  expect(await overview.json()).toMatchObject({
+    pause: { reason: 'operator', pausedBy: 'operator' },
+    siteCeilingMicroUsd: 10_000_000,
+    draftsToday: 1,
+    proposalsToday: 0,
+    accountLockedUntil: null,
+    lockedSources: 0,
+  });
+  const resumed = await api.fetch(operatorPost('/operator/inference/resume', operator));
+  expect(resumed.status).toBe(200);
+  const database = new Database(config.databasePath, { readonly: true });
+  expect(
+    database
+      .query<{ resumed_by: string | null }, []>('SELECT resumed_by FROM inference_pause')
+      .all(),
+  ).toEqual([{ resumed_by: 'operator' }]);
+  database.close();
+  expect((await readConversation(api, visitor.cookie)).provider).toBe('openrouter');
+  const admitted = await sendMessage(api, visitor, 'turn-key-2', 'Volunteers');
+  expect(admitted.status).toBe(200);
+  await admitted.text();
+  expect(fake.bodies).toHaveLength(2);
+  const again = await api.fetch(operatorPost('/operator/inference/resume', operator));
+  expect(again.status).toBe(409);
+  expect(await again.json()).toEqual({ code: 'not_paused' });
+  api.close();
+});
+
+test('pause controls refuse a missing session or CSRF and open nothing', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
+  const config = paidConfig(fake.providerFetch, { operatorPassword });
+  const api = mountApi(config);
+  const operator = await signInOperator(api);
+  expect((await api.fetch(operatorPost('/operator/inference/pause', null))).status).toBe(401);
+  // Proof: dropping the CSRF check let this request open a pause.
+  expect((await api.fetch(operatorPost('/operator/inference/pause', operator, false))).status).toBe(
+    403,
+  );
+  expect(
+    (
+      await api.fetch(
+        new Request('http://localhost:3101/operator/guardrails', {
+          headers: { origin: appOrigin },
+        }),
+      )
+    ).status,
+  ).toBe(401);
+  expect(count(config.databasePath, 'SELECT count(*) AS count FROM inference_pause')).toBe(0);
+  api.close();
+});
+
+test('the account chat routes answer provider_paused during a pause', async () => {
+  const fake = fakeOpenRouter(() => ({ reply: 'Unexpected' }));
+  const config = paidConfig(fake.providerFetch, { demoAuth: true });
+  const api = mountApi(config);
+  const signIn = await api.fetch(
+    new Request('http://localhost:3101/session/demo', {
+      method: 'POST',
+      headers: { origin: appOrigin, 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'owner@example.test' }),
+    }),
+  );
+  expect(signIn.status).toBe(201);
+  const cookie = signIn.headers.get('set-cookie')?.split(';')[0] ?? '';
+  const { csrfToken } = (await signIn.json()) as { csrfToken: string };
+  openPause(config.databasePath);
+  for (const [path, body] of [
+    ['/chat/stream', { idempotencyKey: 'chat-key-1', message: 'Hello' }],
+    ['/chat', { message: 'Hello' }],
+  ] as const) {
+    const refused = await api.fetch(
+      new Request(`http://localhost:3101${path}`, {
+        method: 'POST',
+        headers: {
+          origin: appOrigin,
+          cookie,
+          'x-puni-csrf': csrfToken,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      }),
+    );
+    expect(refused.status).toBe(503);
+    expect(await refused.json()).toEqual({ code: 'provider_paused' });
+  }
+  expect(fake.bodies).toHaveLength(0);
+  api.close();
+});

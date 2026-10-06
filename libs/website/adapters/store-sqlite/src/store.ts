@@ -34,11 +34,13 @@ import {
   DraftCapReached,
   type DraftCapRefusal,
   findOpenInferencePause,
+  type GuardrailOverview,
   hashEmailKey,
   type InferencePause,
   openInferencePause,
   ProposalCapReached,
   type ProposalCapRefusal,
+  readGuardrailOverview,
   readLoginLock,
   readLoginLocks,
   recordLoginFailure,
@@ -64,7 +66,13 @@ export type {
 export { conversationAllowance } from './conversation-store';
 export type { DraftCleanupOutcome, DraftCleanupPlan } from './draft-retention';
 export { inspectExpiredDrafts, purgeExpiredDrafts } from './draft-retention';
-export type { DraftCapRefusal, InferencePause, ProposalCapRefusal } from './guardrail-store';
+export type {
+  DraftCapRefusal,
+  GuardrailAlert,
+  GuardrailOverview,
+  InferencePause,
+  ProposalCapRefusal,
+} from './guardrail-store';
 export { guardrailAllowance } from './guardrail-store';
 export type {
   AmbiguousRetentionSubject,
@@ -480,6 +488,11 @@ export class WebsiteStore {
 
   close(): void {
     this.database.close();
+  }
+
+  /** See {@link readGuardrailOverview}; the ceiling is `conversationAllowance.siteDayMicroUsd`. */
+  readGuardrailOverview(now: number): GuardrailOverview {
+    return readGuardrailOverview(this.database, now, conversationAllowance.siteDayMicroUsd);
   }
 
   /** See {@link findOpenInferencePause}. */

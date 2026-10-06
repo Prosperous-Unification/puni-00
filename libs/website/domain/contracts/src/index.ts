@@ -43,8 +43,11 @@ export function deriveStage(
   return deriveReplyStage(completedVisitorTurns);
 }
 
-/** Who answers the anonymous conversation; `disabled` means no stream request is admitted. */
-export type ConversationProvider = 'openrouter' | 'demo' | 'disabled';
+/**
+ * Who answers the anonymous conversation; `disabled` means no stream request is admitted, and
+ * `paused` means paid inference is paused until an operator resumes it.
+ */
+export type ConversationProvider = 'openrouter' | 'demo' | 'disabled' | 'paused';
 
 export type ConversationExhaustedReason =
   'turns' | 'conversation_spend' | 'source_spend' | 'site_spend';

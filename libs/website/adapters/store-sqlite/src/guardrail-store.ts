@@ -351,3 +351,91 @@ export function tripInferencePause(
   if (trippedToday) return null;
   return { openedPauseId: openInferencePause(database, 'site_spend', 'system', now) };
 }
+
+/** One `guardrail_alert` row as the operator page shows it. */
+export interface GuardrailAlert {
+  kind: string;
+  detail: string;
+  createdAt: number;
+  delivery: 'recorded' | 'sent' | 'failed';
+  deliveredAt: number | null;
+}
+
+/** `GET /operator/guardrails`: counts and states only, never an address, hash or email. */
+export interface GuardrailOverview {
+  pause: InferencePause | null;
+  siteSpendMicroUsd: number;
+  siteCeilingMicroUsd: number;
+  draftsToday: number;
+  proposalsToday: number;
+  accountLockedUntil: number | null;
+  lockedSources: number;
+  alerts: GuardrailAlert[];
+}
+
+/** Settled and reserved spend of one UTC day across conversations and account calls. */
+export function readSiteSpend(database: Database, utcDay: string): number {
+  const spent = 'COALESCE(SUM(COALESCE(settled_micro_usd, reserved_micro_usd)), 0)';
+  const row = database
+    .query<{ total: number }, [string]>(
+      `SELECT (SELECT ${spent} FROM provider_call WHERE utc_day = ?1) + (SELECT ${spent} FROM conversation_operation WHERE utc_day = ?1) AS total`,
+    )
+    .get(utcDay);
+  if (!row) throw new Error('Site spend query returned no row');
+  return row.total;
+}
+
+function readSiteCount(database: Database, scope: 'draft:site' | 'proposal:site', utcDay: string) {
+  return (
+    database
+      .query<{ count: number }, [string, string]>(
+        "SELECT count FROM admission_count WHERE scope = ? AND key_hash = '*' AND utc_day = ?",
+      )
+      .get(scope, utcDay)?.count ?? 0
+  );
+}
+
+/** The most recent alerts, newest first. */
+export function listRecentAlerts(database: Database, limit: number): GuardrailAlert[] {
+  return database
+    .query<
+      {
+        kind: string;
+        detail: string;
+        created_at: number;
+        delivery: GuardrailAlert['delivery'];
+        delivered_at: number | null;
+      },
+      [number]
+    >(
+      'SELECT kind, detail, created_at, delivery, delivered_at FROM guardrail_alert ORDER BY created_at DESC, rowid DESC LIMIT ?',
+    )
+    .all(limit)
+    .map((row) => ({
+      kind: row.kind,
+      detail: row.detail,
+      createdAt: row.created_at,
+      delivery: row.delivery,
+      deliveredAt: row.delivered_at,
+    }));
+}
+
+/** Everything the operator's Guardrails panel shows for the UTC day of `now`. */
+export function readGuardrailOverview(
+  database: Database,
+  now: number,
+  siteCeilingMicroUsd: number,
+): GuardrailOverview {
+  const utcDay = utcDayOf(now);
+  const locks = readLoginLocks(database, now);
+  return {
+    pause: findOpenInferencePause(database),
+    siteSpendMicroUsd: readSiteSpend(database, utcDay),
+    siteCeilingMicroUsd,
+    draftsToday: readSiteCount(database, 'draft:site', utcDay),
+    proposalsToday: readSiteCount(database, 'proposal:site', utcDay),
+    accountLockedUntil: locks.accountLockedUntil,
+    lockedSources: locks.lockedSources,
+    alerts: listRecentAlerts(database, 50),
+  };
+}
