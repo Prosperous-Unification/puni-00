@@ -66,6 +66,11 @@
         "command": "bun tools/tool-fleet/src/check-faults.ts"
       }
     },
+    "rehearse:traefik": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": { "command": "bun tools/tool-fleet/src/traefik-rehearsal.ts" }
+    },
     "lab": {
       "executor": "nx:run-commands",
       "cache": false,

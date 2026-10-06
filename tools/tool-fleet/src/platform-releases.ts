@@ -71,6 +71,29 @@ const TraefikValues = type({
     '+': 'reject',
   },
   nodeSelector: { 'puni.dev/capability-ingress': "'true'", '+': 'reject' },
+  // The chart defaults the entry points to 8000 and 8443, which on the host network is where
+  // Traefik would listen. Binding 80 as UID 65532 needs the ingress-node sysctl in the base
+  // role's `k3s-sysctl.conf.j2`. ServiceLB is disabled, so the chart's default LoadBalancer
+  // Service would stay pending; the type lives under `service.spec`, because the chart's
+  // values schema accepts and ignores an unknown `service.type`.
+  // Proof: with `port: '80'` loosened to `number`, platform.test.ts `rejects Traefik host
+  // ports other than 80 and 443` resolved for the 8000 fault on 2026-10-06.
+  ports: {
+    web: {
+      port: '80',
+      http: {
+        redirections: {
+          entryPoint: { to: "'websecure'", scheme: "'https'", permanent: 'true', '+': 'reject' },
+          '+': 'reject',
+        },
+        '+': 'reject',
+      },
+      '+': 'reject',
+    },
+    websecure: { port: '443', '+': 'reject' },
+    '+': 'reject',
+  },
+  service: { spec: { type: "'ClusterIP'", '+': 'reject' }, '+': 'reject' },
   '+': 'reject',
 });
 

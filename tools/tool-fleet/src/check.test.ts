@@ -13,6 +13,8 @@ import {
   judgeAnsibleSyntax,
   judgeExecutables,
   judgeInventories,
+  judgeKernelSettings,
+  judgeTraefikEdge,
   kustomizationDirectories,
   parseIndexEntries,
 } from './check';
@@ -60,6 +62,7 @@ function inventoryReport(
         ...overrides,
       },
     ],
+    kernelSettings: [],
   };
 }
 
@@ -104,10 +107,10 @@ describe('ansible judgements', () => {
     expect(judgeInventories(inventoryReport({ selectors: ['puni-fleet=puni'] }))[0]).toContain(
       'not puni-fleet=puni,puni-cluster=platform',
     );
-    expect(judgeInventories({ syntax: [], inventories: [] })).toEqual([
+    expect(judgeInventories({ syntax: [], inventories: [], kernelSettings: [] })).toEqual([
       'no hcloud inventories were validated',
     ]);
-    expect(judgeAnsibleSyntax({ syntax: [], inventories: [] })).toEqual([
+    expect(judgeAnsibleSyntax({ syntax: [], inventories: [], kernelSettings: [] })).toEqual([
       'no playbooks were syntax-checked',
     ]);
   });
@@ -286,5 +289,124 @@ describe('the loaded controller image', () => {
         (e: unknown) => String(e),
       ),
     ).toContain(`names manifest ${other}, not the locked ${manifestDigest}`);
+  });
+});
+
+describe('the k3s kernel settings judgement', () => {
+  const baseline = 'net.ipv4.ip_forward = 1\n';
+  const lowered = `${baseline}net.ipv4.ip_unprivileged_port_start = 0\n`;
+  const entry = (host: string, capabilities: unknown, rendered: string | null) => ({
+    inventory: 'inventory/production-existing-hosts.yml',
+    host,
+    capabilities,
+    rendered,
+    error: null,
+  });
+  const report = (kernelSettings: AnsibleReport['kernelSettings']): AnsibleReport => ({
+    syntax: [],
+    inventories: [],
+    kernelSettings,
+  });
+
+  it('accepts the port floor on ingress hosts only', () => {
+    expect(
+      judgeKernelSettings(
+        report([
+          entry('h4claw', ['control-plane', 'product', 'ingress'], lowered),
+          entry('h3mon', ['observability'], baseline),
+        ]),
+      ),
+    ).toEqual([]);
+  });
+
+  it('requires the port floor on ingress hosts only', () => {
+    expect(
+      judgeKernelSettings(
+        report([
+          entry('h4claw', ['control-plane', 'product', 'ingress'], baseline),
+          entry('h3mon', ['observability'], lowered),
+        ]),
+      ),
+    ).toEqual([
+      'inventory/production-existing-hosts.yml h4claw is an ingress host but k3s-sysctl lacks net.ipv4.ip_unprivileged_port_start = 0',
+      'inventory/production-existing-hosts.yml h3mon is not an ingress host but k3s-sysctl lowers the unprivileged port floor',
+    ]);
+  });
+
+  it('refuses a render error, a missing capability list and an empty report', () => {
+    expect(
+      judgeKernelSettings(
+        report([
+          { ...entry('h4claw', null, null), error: "'puni_node_capabilities' is undefined" },
+          entry('h3mon', undefined, baseline),
+        ]),
+      ),
+    ).toEqual([
+      "inventory/production-existing-hosts.yml h4claw does not render k3s-sysctl.conf.j2: 'puni_node_capabilities' is undefined",
+      'inventory/production-existing-hosts.yml h3mon has no puni_node_capabilities list',
+    ]);
+    expect(judgeKernelSettings(report([]))).toEqual([
+      'no static inventory host rendered k3s-sysctl',
+    ]);
+  });
+});
+
+describe('the Traefik edge judgement', () => {
+  const render = (options: { web: string; websecure: string; redirect: boolean; type: string }) =>
+    [
+      'kind: Service',
+      'spec:',
+      `  type: ${options.type}`,
+      '---',
+      'kind: DaemonSet',
+      'spec:',
+      '  template:',
+      '    spec:',
+      '      hostNetwork: true',
+      '      containers:',
+      '        - name: traefik',
+      '          args:',
+      `            - --entryPoints.web.address=:${options.web}/tcp`,
+      `            - --entryPoints.websecure.address=:${options.websecure}/tcp`,
+      ...(options.redirect
+        ? [
+            '            - --entryPoints.web.http.redirections.entryPoint.to=:443',
+            '            - --entryPoints.web.http.redirections.entryPoint.scheme=https',
+            '            - --entryPoints.web.http.redirections.entryPoint.permanent=true',
+          ]
+        : []),
+      '          ports:',
+      `            - { containerPort: ${options.web}, name: web }`,
+      `            - { containerPort: ${options.websecure}, name: websecure }`,
+      '',
+    ].join('\n');
+
+  it('accepts host ports 80 and 443 with a permanent redirect behind a ClusterIP Service', () => {
+    expect(
+      judgeTraefikEdge(render({ web: '80', websecure: '443', redirect: true, type: 'ClusterIP' })),
+    ).toEqual([]);
+  });
+
+  it('refuses a Traefik render on the chart default ports', () => {
+    expect(
+      judgeTraefikEdge(
+        render({ web: '8000', websecure: '8443', redirect: false, type: 'LoadBalancer' }),
+      ),
+    ).toEqual([
+      'traefik container lacks --entryPoints.web.address=:80/tcp',
+      'traefik container lacks --entryPoints.websecure.address=:443/tcp',
+      'traefik container lacks --entryPoints.web.http.redirections.entryPoint.to=:443',
+      'traefik container lacks --entryPoints.web.http.redirections.entryPoint.scheme=https',
+      'traefik container lacks --entryPoints.web.http.redirections.entryPoint.permanent=true',
+      'traefik container does not expose port 80',
+      'traefik container does not expose port 443',
+      'traefik Service is LoadBalancer, not ClusterIP',
+    ]);
+  });
+
+  it('refuses a render without exactly one DaemonSet and one Service', () => {
+    expect(judgeTraefikEdge('kind: ConfigMap\n')).toEqual([
+      'traefik rendered 0 DaemonSets and 0 Services, not one of each',
+    ]);
   });
 });
