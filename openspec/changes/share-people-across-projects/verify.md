@@ -3086,3 +3086,46 @@ The declared BE lint and typecheck targets were rerun after the test addition
 and each has an explicit successful Nx summary, including the module
 typecheck dependency (`...dequeue-final2-nx-be-{lint,type}.log`). Store
 lint/type and BE build summaries above apply to unchanged production bytes.
+
+The independent exact-SHA review of `063c8c287` reproduced the nine-file
+198/198, 19,590 run (`/tmp/shared-people-6jd-astra-063c8c2-nine.log`) and
+found a bounded handoff-proof gap. The earlier held fixture kept every push and
+the child unsettled, so its pending `stop()` assertion did **not** isolate
+delivery tracking. The corrected installed fixture holds only B's real victim
+push, returns other pushes, completes C's child and observes its exact slot
+released, then checks that `stop()` remains pending on B alone. It finally
+rejects B's gateway push with HTTP 400, verifies the original B seq0 row still
+replays, and uses a test-only wrapper around the composed delivery dependency
+to reject after gateway handling; that later rejection does not replace the
+committed queue/token or shutdown outcome.
+
+Three additional production-byte faults each reached this same installed
+held/rejected case, were restored against an identical coordinator SHA-256
+backup (`39b476d4cb5dab9bcff5dda3e47d852c3f4680502efc8216480233a441bdd82e`),
+and passed again. Adjacent coordinator `Proof:` comments now name the installed
+consequences.
+
+| Fault                                    | Watched RED                                                                                                                                   | Restored GREEN                                                                 |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Omit in-flight delivery registration     | `/tmp/shared-people-6jd-dequeue-r5-tracking-red3.log`: after child slot release, `stopSettled` became true while B transport was held         | `/tmp/shared-people-6jd-dequeue-r5-tracking-green.log`: 1/1, 10                |
+| Await B transport before dequeue handoff | `/tmp/shared-people-6jd-dequeue-r5-delivery-before-handoff-red.log`: C's committed token did not reach launcher before bounded deadline       | `/tmp/shared-people-6jd-dequeue-r5-delivery-before-handoff-green.log`: 1/1, 10 |
+| Rethrow postcommit delivery rejection    | `/tmp/shared-people-6jd-dequeue-r5-rejection-replaces-red2.log`: injected rejection replaced successful stop settlement after durable B event | `/tmp/shared-people-6jd-dequeue-r5-rejection-replaces-green.log`: 1/1, 10      |
+
+The first tracking omission trial (`...dequeue-r5-tracking-red.log`) stayed
+GREEN because the fixture still held unrelated child work; an intermediate
+private-task assertion (`...dequeue-r5-tracking-red2.log`) failed at a
+different in-flight count. Neither is counted as the required stop proof.
+The final test waits for C's slot release and lets the child work finish while
+only B delivery is held; the accepted RED above fails at `stopSettled` itself.
+
+After this proof correction and test-only JSON-body validation, the literal
+nine-file command above passed **198/198, 19,591 assertions** on final bytes
+(`/tmp/shared-people-6jd-dequeue-followup-final-nine.log`). The first direct
+lint run found only the test-only `String(request?.body)` style diagnostic
+(`...dequeue-followup-lint.log`); after checking that the actual push body is
+JSON text, the narrowed type check passed direct ESLint
+(`...dequeue-followup-lint2.log`). Declared final-byte BE lint, typecheck plus
+module dependency, and build plus supervisor-protocol dependency each had an
+explicit successful Nx summary
+(`...dequeue-followup-nx-be-{lint,type,build}.log`). The store product bytes
+and store tests were unchanged from the preceding successful store targets.

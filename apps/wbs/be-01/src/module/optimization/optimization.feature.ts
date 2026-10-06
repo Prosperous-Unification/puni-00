@@ -127,11 +127,15 @@ export class OptimizationCoordinator {
       .catch((error: unknown) => {
         // Proof: swallowing this error left the held/rejected Retry test's
         // error sink empty even though its durable event remained replayable.
+        // Rethrowing it also made installed FIFO stop reject after B's
+        // committed event and C's exact token had already persisted.
         this.options.onChildError(error);
       })
       .finally(() => this.inFlight.delete(tracked));
     // Proof: omitting tracking let stop settle while an empty-dequeue
-    // envelope's postcommit transport promise was still held.
+    // envelope's postcommit transport promise was still held. The installed
+    // FIFO test independently finished C's child while B's push stayed held;
+    // omitting this registration then let stop settle early.
     this.inFlight.add(tracked);
   }
 
@@ -406,6 +410,8 @@ export class OptimizationCoordinator {
       });
       // Proof: omitting this registration lost an empty-dequeue commit's
       // test-injected durable envelope before the pump's early return.
+      // Awaiting the installed B victim push here withheld C's committed
+      // token from its launcher until transport completed.
       this.trackCommittedDelivery(committed.envelopes);
       const next = committed.decision;
       if (next.kind === 'empty' || next.kind === 'capacity-full') return;

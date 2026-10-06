@@ -2899,8 +2899,12 @@ describe('buildServices', () => {
         },
       },
       undefined,
-      (url) => {
+      (url, request) => {
         pushUrls.push(url);
+        const payload = request?.body;
+        if (typeof payload !== 'string') throw new Error('FIFO push body must be JSON text');
+        if (!payload.includes('"subscription":"project:B"'))
+          return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
         deliveryEntered.resolve();
         return releaseDelivery.promise.then(() => new Response('gateway refused', { status: 400 }));
       },
@@ -2930,6 +2934,18 @@ describe('buildServices', () => {
       .run();
     const optimizer = services.optimizer;
     if (optimizer === undefined) throw new Error('optimizer was not installed');
+    // Keep the real installed owner and durable B envelope, then inject a
+    // delivery rejection after the gateway's modeled 400. Transport failure
+    // must not replace the committed queue decision or shutdown result.
+    const installed = optimizer as unknown as {
+      options: { deliverCommitted: (events: readonly { projectId: string }[]) => Promise<void> };
+    };
+    const actualDeliver = installed.options.deliverCommitted;
+    installed.options.deliverCommitted = async (events) => {
+      await actualDeliver(events);
+      if (events.some(({ projectId }) => projectId === 'B'))
+        throw new Error('FIFO delivery rejected after commit');
+    };
     const pumping = beginInstalledQueuePump(optimizer);
     try {
       await Promise.race([
@@ -2976,14 +2992,32 @@ describe('buildServices', () => {
         projectId: 'B',
         causeProjectId: 'A',
       });
+      childDone.resolve();
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        if (
+          db
+            .select()
+            .from(solverSlot)
+            .where(sql`project_id = 'C'`)
+            .all().length === 0
+        )
+          break;
+        await Bun.sleep(10);
+      }
+      expect(
+        db
+          .select()
+          .from(solverSlot)
+          .where(sql`project_id = 'C'`)
+          .all(),
+      ).toEqual([]);
       let stopSettled = false;
       const stopping = optimizer.stop().then(() => {
         stopSettled = true;
       });
-      await Bun.sleep(20);
+      await Bun.sleep(250);
       expect(stopSettled).toBe(false);
       releaseDelivery.resolve();
-      childDone.resolve();
       await Promise.all([pumping, stopping]);
       expect((await events.rangeSince('project:B', -1))[0]).toEqual(original);
       expect(pushUrls.length).toBeGreaterThan(0);
