@@ -3242,3 +3242,111 @@ and BE build with supervisor-protocol dependency
 `/tmp/shared-people-6je-followup-nx-be-build.log`). Store still declares no
 build target. This remains a local 6j.e checkpoint pending exact-SHA review;
 6j.f, activation and the host gate are not claimed.
+
+### 6j.f installed boundary closure audit (local; independent review pending)
+
+This audit started from reviewed `77d43e707c2c383d8f1e9ef5bea11730a7b353a4`. The real
+`buildServices` graph installs the import authority/capture binding and five optimizer owners
+together: direct lifecycle/release, initial reservation, Retry reservation, whole-loop FIFO
+dequeue and per-sweep reconciliation. The table reconciles each required behavior to its
+installed caller, writer, assertion, accepted watched fault, reviewed checkpoint and current
+regression. Historical slice sections above retain the complete fault lists and separate
+disqualified attempts; a disqualified fault is not counted here.
+
+| Requirement                                     | Installed caller → writer                                                                                   | Observed assertion                                                                                              | Accepted RED → restored GREEN                                                                                                                                                                            | Reviewed SHA                           | Current regression                           |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | -------------------------------------------- |
+| 6j.a scoped import authority/capture            | Mounted import → borrowed import UoW                                                                        | Tied A displaces B/C; removed member refuses before capture; event failure restores graph                       | `/tmp/shared-people-6ja-r5-owner-omission-red.log` → `/tmp/shared-people-6ja-r5-owner-restored-green.log`                                                                                                | `b0add7304`                            | import/command eleven-file group             |
+| 6j.b coherent live read/captured command        | `observeForAdmission` → source gate; commands use borrowed captured scheduler                               | G1 pair and requests stay coherent; arrange/freeze does not enter live gate                                     | `/tmp/shared-people-6jb-split-pair-identity-omission-red.log` → `/tmp/shared-people-6jb-split-pair-identity-restored-green.log`                                                                          | `41443a3e7`                            | optimizer/store/command groups               |
+| 6j.c direct finish and populated cleanup        | `optimizationLifecycle` → borrowed finish UoW                                                               | Old cause, selected retirement, local dependency closure, retained bystander/audit and rollback                 | `/tmp/shared-people-6jc-r5-outside-owner-red.log` → `/tmp/shared-people-6jc-r5-outside-owner-restored-green.log`; initial FK RED is separately recorded above                                            | `54773e1ce`                            | optimizer/store groups                       |
+| 6j.d exact-token release/callers                | Composed release → lifecycle UoW; terminal/cancel/queued/preflight await it                                 | Last-slot B←A; stale token silent; event failure restores slot/graph                                            | `/tmp/shared-people-6jd-r5-omit-release-owner-red.log` → `/tmp/shared-people-6jd-r5-omit-release-owner-restored-green.log`                                                                               | `816627139`, `2d4ae4341`               | optimizer/store groups                       |
+| 6j.d initial reclaim, including closed result   | `readPlan` → initial UoW, raw reserve once, envelope handoff                                                | Y/Z causes; future slot retained; closed victim push; second event rolls back all state                         | `/tmp/shared-people-6jd-initial-capture-org-omission-red.log` → `/tmp/shared-people-6jd-initial-capture-org-restored-green.log`                                                                          | `1d4634267` after consumer `3942979e0` | optimizer/store groups                       |
+| 6j.d Retry reclaim, including queue/nonaccepted | Retry preflight → one borrowed audit/reserve/queue/event UoW                                                | Early refusal capture-free; adjusted cutoff; one accepted audit; closed push; queued rollback                   | `/tmp/shared-people-6jd-retry-r5-queued-split-red.log` → `/tmp/shared-people-6jd-retry-r5-queued-split-green.log`                                                                                        | `f20666ca2`                            | optimizer/store groups                       |
+| 6j.d FIFO reclaim, including empty/capacity     | Installed queue pump → one UoW around entire raw loop                                                       | Later-head cutoff; exact token; actual cause; nonreserved push; full-loop rollback                              | `/tmp/shared-people-6jd-dequeue-r5-split-red.log` → `/tmp/shared-people-6jd-dequeue-r5-split-green.log`                                                                                                  | `f7cf3f03c`                            | optimizer/store groups                       |
+| 6j.e startup/periodic sweeps                    | Startup/timer → separate gated enumeration and target UoWs                                                  | Generation before project; deadline/recheck; earlier A/B commit survives failed C; stop awaits capture/delivery | `/tmp/shared-people-6je-project-split-red.log` → `/tmp/shared-people-6je-project-split-green.log`                                                                                                        | `77d43e707`                            | optimizer/store groups                       |
+| 6j.f release/space boundary                     | Capability CLI and pre-write restore; composed space DELETE → `SpaceRepository.removeProject` immediate UoW | Isolated-only, shared restore refused before write; only membership removed, graph/event/sequence/push retained | `/tmp/shared-people-6jf-physical-shared-advertised-red.log`, `/tmp/shared-people-6jf-restore-guard-bypass-red.log`, `/tmp/shared-people-6jf-space-project-delete-red.log` → matching restored GREEN logs | this unreviewed closure                | physical/restore cases; import/command group |
+
+The 6j.d initial/Retry/FIFO owner tests each include actual victim causes and accepted, nonreserved
+and failed transaction outcomes; their slice tables above identify independent binding, capture,
+record, deadline and delivery faults. Direct release and retirement tests include complete
+populated graph rollback and replay; the import tests cover scoped role/membership/capability,
+raw borrowed graph and second-event rollback. The composed space test snapshots project, step,
+work item and estimate rows, `event_log`, `event_sequencer` and gateway push count. Membership
+DELETE removes only `space_project` and advances revision. A temporary store mutation replacing
+membership DELETE with project DELETE returned HTTP 500 at the populated project's FK boundary
+instead of 204; restored source hash `dacdaabfd96b2e5a67fb488e9c0528ea3e14535bb85880564ef3efd7819f76df`
+passed the strengthened test (1/1, 11 assertions) with a real estimate row
+(`/tmp/shared-people-6jf-space-populated-project-delete-red.log` →
+`/tmp/shared-people-6jf-space-populated-project-delete-restored-green.log`). This mutation proves the route cannot substitute
+project deletion; the successful route's graph/zero-push assertions guard its intended result.
+
+Physical release mutations on current source were also independent: adding `shared` to
+`SUPPORTED_CAPACITY_MODES` changed the real CLI output to `['isolated','shared']`; bypassing
+restore's supported-mode check reached its injected first-write trigger instead of the expected
+pre-write refusal. Both sources were restored and their exact single-case commands passed.
+
+The exact current four cross-layer commands were:
+
+```sh
+bun test apps/wbs/be-01/src/services.db.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts apps/wbs/be-01/src/service/optimization-restart.db.test.ts apps/wbs/be-01/src/service/optimization-events.db.test.ts apps/wbs/be-01/src/service/optimization-cancel.two-coordinator.db.test.ts apps/wbs/be-01/src/service/solver-child-lifecycle.db.test.ts apps/wbs/be-01/src/module/optimization/module.test.ts apps/wbs/be-01/src/module/optimization/optimized-schedule-reader.test.ts --timeout=30000
+bun test libs/wbs/adapters/store-sqlite/src/optimization-drain.db.test.ts libs/wbs/adapters/store-sqlite/src/optimization-admission-global.db.test.ts libs/wbs/adapters/store-sqlite/src/optimization-admission.db.test.ts libs/wbs/adapters/store-sqlite/src/optimization-queue.db.test.ts libs/wbs/adapters/store-sqlite/src/optimization-generation.db.test.ts libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts libs/wbs/adapters/store-sqlite/src/captured-optimization-reader.db.test.ts libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts libs/wbs/adapters/store-sqlite/src/space.db.test.ts libs/wbs/adapters/store-sqlite/src/import.service.db.test.ts --timeout=30000
+bun test apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts apps/wbs/be-01/src/controller/fanout-command.controller.db.test.ts apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts apps/wbs/be-01/src/controller/space-organization.controller.db.test.ts apps/wbs/be-01/src/service/plan-commands.db.test.ts libs/wbs/adapters/store-memory/src/import.service.test.ts libs/wbs/application/core/src/module/plan-import/module.test.ts libs/wbs/application/core/src/service/shared-people-fanout.test.ts libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts libs/wbs/application/core/src/module/plan-commands/working-plan-directory.test.ts libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts --timeout=30000
+bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts apps/wbs/be-01/src/capacity-modes-cli.test.ts libs/wbs/adapters/store-sqlite/src/optimized-cache.db.test.ts libs/wbs/adapters/store-sqlite/src/optimized-outcome.db.test.ts libs/wbs/adapters/store-sqlite/src/optimized-schedule-cache.db.test.ts libs/wbs/application/core/src/service/shared-people.test.ts libs/wbs/domain/domain/src/schedule-elsewhere.test.ts libs/wbs/domain/contracts/solver/src/elsewhere-wire.test.ts --timeout=30000
+```
+
+All exited 0: **215/215, 19,678 assertions** (`/tmp/shared-people-6jf-installed-optimizer-ten.log`),
+**186/186, 724 assertions** (`/tmp/shared-people-6jf-store-ten.log`), **219/219, 958
+assertions** (`/tmp/shared-people-6jf-import-command-eleven-final.log`), and **199/199, 16,012
+assertions** (`/tmp/shared-people-6jf-6af-regression-eight.log`). Physical CLI and shared
+restore single cases each passed before mutation and after restoration; the formatted space
+single case passed 1/1, 11 assertions
+(`/tmp/shared-people-6jf-space-populated-project-delete-restored-green.log`).
+
+The sandboxed child-process two-file command had one configured orphan skip because
+`WBS_SOLVER_ORPHAN_IMAGE` is unset and one spawn-handshake marker timeout
+(`/tmp/shared-people-6jf-child-proc-two.log`, exit 1). The exact spawn-handshake single-file
+command, run locally outside that sandbox, passed 1/1, 13 assertions, exit 0
+(`/tmp/shared-people-6jf-spawn-handshake-unsandboxed.log`). Orphan-image behavior is unverified.
+The release-boundary and process commands were:
+
+```sh
+bun test apps/wbs/be-01/src/capacity-modes-cli.test.ts
+bun test libs/wbs/adapters/store-sqlite/src/shared-people-rollback.db.test.ts --test-name-pattern 'rejects shared restoration before the first write'
+bun test apps/wbs/be-01/src/service/optimization-spawn-handshake.proc.db.test.ts apps/wbs/be-01/src/service/optimization-orphan.proc.db.test.ts --timeout=30000
+bun test apps/wbs/be-01/src/service/optimization-spawn-handshake.proc.db.test.ts --timeout=30000
+```
+
+The first local frozen Bun install was unavailable because restricted DNS and cache misses
+prevented fetching locked tarballs; dependencies were reused by symlinking `node_modules` from
+the clean exact-base 6j.e worktree, with the same lockfile. No package metadata changed.
+
+Disqualified historical faults remain explicitly excluded in their sections above, including
+6j.b short-window observation/reconcile awaits, 6j.c redundant dependency DELETE/absent cause,
+6j.d startup-masked FIFO rollback and 6j.e first enumeration-gate trial. The matrix cites only
+accepted faults. This closure does not yet check 6j.d/e/f complete or claim activation, 6k,
+full cold replay/retention/authorization (6l), host gate or CI.
+
+Declared task validation on the closure bytes: the first `wbs-be-01:lint` run failed two
+test-only findings, an unnecessary `async` callback and unsafe stringification of the push
+request (`/tmp/shared-people-6jf-nx-be-lint.log`, exact diagnostics in
+`/tmp/shared-people-6jf-direct-space-lint.log`). The sink now counts calls and returns an
+explicit Promise; direct file ESLint and its focused SQLite test passed
+(`/tmp/shared-people-6jf-direct-space-lint-restored.log`,
+`/tmp/shared-people-6jf-space-populated-project-delete-restored-green.log`).
+The no-cache declared commands were:
+
+```sh
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p wbs-be-01 wbs-core wbs-store-sqlite wbs-store-memory --skip-nx-cache --output-style=static
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:build:portable --skip-nx-cache --output-style=static
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck build -p wbs-be-01 --skip-nx-cache --output-style=static
+```
+
+Each exited 0 with an explicit Nx success summary: four projects plus two typecheck
+dependencies (`/tmp/shared-people-6jf-nx-four-lint-type.log`), core portable build
+(`/tmp/shared-people-6jf-nx-core-portable-build.log`), and final fixture-byte backend
+lint/typecheck/build plus two dependencies (`/tmp/shared-people-6jf-nx-be-final.log`).
+Store-sqlite and store-memory declare no build target. Final two-path Prettier check and
+`git diff --check` exited 0 (`/tmp/shared-people-6jf-format-check.log`,
+`/tmp/shared-people-6jf-diff-check.log`). Pinned OpenSpec 1.12.0 strict change validation
+passed 1/1 and all-change validation passed 148/148
+(`/tmp/shared-people-6jf-final-openspec-{strict,all}.json`). These are local checks; this
+closure has not run the canonical host gate or CI.
