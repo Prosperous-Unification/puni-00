@@ -164,6 +164,9 @@ they are not additional completion checkboxes. Steps 6.1a/6.2a are implemented a
    undated-bridge regressions, the isolated-only capability CLI and shared-restore refusal.
    Advertising shared must fail the release capability negative. Record all newly introduced
    safety checks' observed failures before the exact-head gate.
+   **6.1f/6.2f complete:** captured H1/H2 lookups, old-address outcome/event storage,
+   full-key hash-omission RED, physical isolated-only capability and pre-write shared-restore
+   refusal with independent watched faults, and retained fence/chain regressions are in verify.md.
 
 ### Remaining work after runtime/cache
 

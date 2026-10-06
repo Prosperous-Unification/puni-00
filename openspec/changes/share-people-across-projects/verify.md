@@ -664,25 +664,25 @@ The 6.2a rows below were injected separately and observed RED; final focused res
 6.1b/6.2b evidence section below for exact commands and outcomes. Rows 6.2c–f remain required
 future production-path negatives. A parse/load error does not count.
 
-| Step | Production fault to inject                               | Required production-path test and expected failure                                   | Observation                                                                                                  |
-| ---- | -------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| 6.2a | Force shared scheduling for isolated/legacy access       | Mounted mode read moves an isolated date or changes its input hash                   | Observed exit 1: isolated influencers a1/a2 instead of []                                                    |
-| 6.2a | Remove scoped ownership/cross-reference validation       | Foreign project/person enters the chain or corrupt crossing input is accepted        | Observed exit 1: foreign person exposed; removed ownership/rank checks lost named refusal                    |
-| 6.2a | Read mode/rank/assignments outside the owned snapshot    | Concurrent combined edit returns a mixed chain                                       | Observed exit 1: target start 2 instead of 3; separate mode connection tore rank/readable state              |
-| 6.2a | Default malformed mode or skip snapshot close            | Corrupt mode returns dates, or refusal/throw leaks the read connection               | Observed exit 1: corrupt mode accepted; background close count 0 instead of 1                                |
-| 6.2b | Omit target elsewhere or its response projection         | Mounted tree/export loses displaced dates, holder or waiting count                   | Observed RED; see 6.1b/6.2b evidence below                                                                   |
-| 6.2b | Replace command-bound readers with a fresh connection    | Arrange/preflight ignores staged writes and accepts or arranges the wrong plan       | Observed RED; see 6.1b/6.2b evidence below                                                                   |
-| 6.2c | Remove incoming basis from memo acceptance               | Warm load/space returns old B dates after only A changes                             | Not run                                                                                                      |
-| 6.2c | Check cache before required influencer availability      | Warm available dates survive an engine-unavailable influencer                        | Not run                                                                                                      |
-| 6.2c | Read aggregate projects from incompatible snapshots      | Concurrent upstream edit produces mutually inconsistent shared load/space bookings   | Not run                                                                                                      |
-| 6.2d | Rebuild queue/debounce/Retry input without elsewhere     | Solver input differs from live shared input or old Retry hash is accepted            | Debounce omission watched: request lost holder; queued shared rebuild passes. Retry pending contract ruling. |
-| 6.2d | Skip unlaunched reservation release on refusal/throw     | Queued capture negative leaves a counted slot or launches a refused input            | Watched: thrown capture left one counted `starting` slot; disabled capture launched PRI.                     |
-| 6.2d | Admit target work before snapshot close                  | Read-only capture oracle observes generation/slot/queue mutation during derivation   | Watched: omitting owned close left one open read at both launch handoffs.                                    |
-| 6.2e | Drop shared capture at installer/composition boundary    | Mounted save/current misses upstream displacement                                    | Not run                                                                                                      |
-| 6.2e | Reread live influencers for a historical saved display   | Upstream edit/delete changes saved schedule bytes                                    | Not run                                                                                                      |
-| 6.2f | Replace current full-key cache lookup with old-key reuse | H1 outcome serves after B's incoming calendar becomes H2                             | Not run                                                                                                      |
-| 6.2f | Swallow unavailable/unknown chain outcomes               | Target returns unmarked Fast dates or hides an unexpected failure                    | Not run                                                                                                      |
-| 6.2f | Advertise shared before deferred prerequisites           | Physical capability probe no longer equals isolated-only; shared restore is admitted | Not run                                                                                                      |
+| Step | Production fault to inject                                    | Required production-path test and expected failure                                   | Observation                                                                                                                                                         |
+| ---- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6.2a | Force shared scheduling for isolated/legacy access            | Mounted mode read moves an isolated date or changes its input hash                   | Observed exit 1: isolated influencers a1/a2 instead of []                                                                                                           |
+| 6.2a | Remove scoped ownership/cross-reference validation            | Foreign project/person enters the chain or corrupt crossing input is accepted        | Observed exit 1: foreign person exposed; removed ownership/rank checks lost named refusal                                                                           |
+| 6.2a | Read mode/rank/assignments outside the owned snapshot         | Concurrent combined edit returns a mixed chain                                       | Observed exit 1: target start 2 instead of 3; separate mode connection tore rank/readable state                                                                     |
+| 6.2a | Default malformed mode or skip snapshot close                 | Corrupt mode returns dates, or refusal/throw leaks the read connection               | Observed exit 1: corrupt mode accepted; background close count 0 instead of 1                                                                                       |
+| 6.2b | Omit target elsewhere or its response projection              | Mounted tree/export loses displaced dates, holder or waiting count                   | Observed RED; see 6.1b/6.2b evidence below                                                                                                                          |
+| 6.2b | Replace command-bound readers with a fresh connection         | Arrange/preflight ignores staged writes and accepts or arranges the wrong plan       | Observed RED; see 6.1b/6.2b evidence below                                                                                                                          |
+| 6.2c | Remove incoming basis from memo acceptance                    | Warm load/space returns old B dates after only A changes                             | Not run                                                                                                                                                             |
+| 6.2c | Check cache before required influencer availability           | Warm available dates survive an engine-unavailable influencer                        | Not run                                                                                                                                                             |
+| 6.2c | Read aggregate projects from incompatible snapshots           | Concurrent upstream edit produces mutually inconsistent shared load/space bookings   | Not run                                                                                                                                                             |
+| 6.2d | Rebuild queue/debounce/Retry input without elsewhere          | Solver input differs from live shared input or old Retry hash is accepted            | Debounce omission watched: request lost holder; queued shared rebuild passes. Retry pending contract ruling.                                                        |
+| 6.2d | Skip unlaunched reservation release on refusal/throw          | Queued capture negative leaves a counted slot or launches a refused input            | Watched: thrown capture left one counted `starting` slot; disabled capture launched PRI.                                                                            |
+| 6.2d | Admit target work before snapshot close                       | Read-only capture oracle observes generation/slot/queue mutation during derivation   | Watched: omitting owned close left one open read at both launch handoffs.                                                                                           |
+| 6.2e | Drop shared capture at installer/composition boundary         | Mounted save/current misses upstream displacement                                    | Not run                                                                                                                                                             |
+| 6.2e | Reread live influencers for a historical saved display        | Upstream edit/delete changes saved schedule bytes                                    | Not run                                                                                                                                                             |
+| 6.2f | Omit only the input-hash predicate in current full-key lookup | H1 outcome serves after B's incoming calendar becomes H2 with generation unchanged   | Observed RED in `/tmp/shared-people-slice6f-hash-predicate-red.log`; H2 became ready/proven instead of pending.                                                     |
+| 6.2f | Swallow unavailable/unknown chain outcomes                    | Target returns unmarked Fast dates or hides an unexpected failure                    | Retained chain regressions passed; this existing guard was not re-mutated in 6f.                                                                                    |
+| 6.2f | Advertise shared before deferred prerequisites                | Physical capability probe no longer equals isolated-only; shared restore is admitted | Capability mutation RED in `/tmp/shared-people-slice6f-capability-red.log`; independent restore-guard omission RED in `/tmp/shared-people-slice6f-restore-red.log`. |
 
 ### Planned implementation validation
 
@@ -1241,3 +1241,77 @@ validation exited 0 (`/tmp/shared-people-slice6e-review-followup-format.log`,
 
 Exact-SHA host gate, CI, publication, merge and shared-mode activation remain unrun. Review
 clearance and any local checkpoint commit are separate next steps.
+
+## Runtime 6.1f / 6.2f — exact cache address and isolated-only release
+
+Worktree `.worktrees/shared-people-slice6f`, branch `feat/shared-people-slice6f`, based exactly
+on reviewed 6e checkpoint `3ffc710fb73a661c61d3b75fab2638b940f9ad2f`. The first
+`BUN_TMPDIR=/tmp bun install --frozen-lockfile` attempt failed `EROFS` accessing Bun's
+temporary directory in the filesystem sandbox. An approved unsandboxed
+`bun install --frozen-lockfile` checked 1602 installs across 1447 packages without lockfile
+changes. The initial `bun test src/chain-snapshot.db.test.ts
+src/captured-optimization-reader.db.test.ts` from the store-sqlite package passed 35/35,
+108 assertions.
+
+The new SQLite production-path case `stores an eligible old shared result only at H1 and never
+serves it for captured H2` uses `SharedPeopleReader`'s owned read-only chain snapshot and
+captured optimizer reader. No tree GET or live admission precedes its H2 lookup; the installed
+snapshot scheduler throws if live admission is attempted. An upstream-only A edit changes B's
+captured canonical input H1 to H2 and visibly changes B's Fast start while B's generation G
+and stored generation input H1 remain unchanged. A still-held H1 slot then stores a constructed
+eligible H1 outcome and a durable `schedule_optimized` event with H1's complete identity through
+the production outcome/event transaction.
+Repeated publication returns `already-recorded` with one event. Exact H1 lookup returns its
+stored schedule; H2 capture remains pending with no optimized schedule. The generation, cache,
+slot, queue and event tables are unchanged across the captured reads. On the final test bytes,
+`bun test src/chain-snapshot.db.test.ts --test-name-pattern 'stores an eligible old shared
+result only at H1'` passed 1/1, 21 assertions.
+
+R5 watched faults were independent and restored after their recorded REDs:
+
+| Injected production fault                                                                | Exact test command and log                                                                                                                                                             | Observed failure                                                                                                                                                                                                                       |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Remove only `optimizedScheduleCache.inputHash == key.inputHash` from `readOptimizedPair` | `bun test src/chain-snapshot.db.test.ts --test-name-pattern 'stores an eligible old shared result only at H1'` in store-sqlite; `/tmp/shared-people-slice6f-hash-predicate-red.log`    | Exit 1: under unchanged G, H2 received H1's `ready/proven` result instead of pending; restored test passed in `/tmp/shared-people-slice6f-hash-predicate-green.log`.                                                                   |
+| Add `shared` to physical `SUPPORTED_CAPACITY_MODES`                                      | `bun test src/capacity-modes-cli.test.ts` in be-01; `/tmp/shared-people-slice6f-capability-red.log`                                                                                    | Exit 1: the actual capability CLI subprocess returned `['isolated','shared']` instead of exactly `['isolated']`.                                                                                                                       |
+| Bypass only the shared-restore supported-mode guard                                      | `bun test src/shared-people-rollback.db.test.ts --test-name-pattern 'rejects shared restoration before the first write'` in store-sqlite; `/tmp/shared-people-slice6f-restore-red.log` | Exit 1: a physical first-write trigger observed an attempted organization update instead of the required pre-write `unsupported capacity mode shared` refusal; the untouched organization/rank state is asserted by the restored test. |
+
+The physical capability CLI test passed 1/1, three assertions before mutation; the restore
+pre-write test passed in `/tmp/shared-people-slice6f-restore-green.log`. Full changed-byte
+store tests (`bun test` on chain-snapshot, captured-optimization-reader, optimized-cache,
+optimized-outcome, optimized-schedule-cache, optimization-generation, optimization-admission,
+optimization-queue and shared-people-rollback from store-sqlite) passed **174/174**,
+708 assertions (`/tmp/shared-people-slice6f-store-focused.log`). The backend eight-file
+suite (capacity CLI, mounted schedule-organization, coordinator, events, two-coordinator
+cancellation, restart, repository and optimization module) passed **138/138**,
+658 assertions (`/tmp/shared-people-slice6f-backend-focused.log`). The core shared-chain
+regressions passed 14/14, 37 assertions (`/tmp/shared-people-slice6f-core-chain.log`), including
+transitivity, undated bridge, target/influencer cycle and calendar-range distinctions, and
+required-engine unavailability. Domain elsewhere placement passed 15/15,
+14,843 assertions (`/tmp/shared-people-slice6f-domain-elsewhere.log`). These retained suites
+cover generation, slot/token, cancellation, enablement, blue/green cache retention and
+outcome/event atomicity; no new publication or activation policy was added.
+
+Pinned `bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`
+passed 1/1 (`/tmp/shared-people-slice6f-openspec-strict.json`), and pinned `validate --all
+--json` passed 148/148 (`/tmp/shared-people-slice6f-openspec-all.json`). Affected Nx,
+final formatting and diff checks are recorded below after their terminal runs. The first
+combined Nx run failed only store-sqlite typecheck/lint because the new test returned an outer
+chain value that lost its already-checked nested schedule discriminant, treated an optional
+recorded event as present, and had imports out of order (`/tmp/shared-people-slice6f-targets.log`).
+The test now returns its narrowed input/scheduled pair and checks that publication supplied
+the event record. Direct `bunx eslint --fix` on the new store test and
+`bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json` passed. The changed
+chain-snapshot file then passed 32/32, 114 assertions
+(`/tmp/shared-people-slice6f-chain-final.log`). The exact affected rerun
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck build -p wbs-domain wbs-core wbs-store-sqlite wbs-be-01 --skip-nx-cache --output-style=static`
+passed all four targets and three dependencies (`/tmp/shared-people-slice6f-targets2.log`).
+The first four-file Prettier check found only this newly appended verify section unformatted
+(`/tmp/shared-people-slice6f-format.log`); after formatting, the same check passed
+(`/tmp/shared-people-slice6f-format2.log`). Final four-file Prettier check passed
+(`/tmp/shared-people-slice6f-format-final.log`), `git diff --check` passed
+(`/tmp/shared-people-slice6f-diffcheck-final.log`), and pinned strict/all OpenSpec validation
+passed 1/1 and 148/148 respectively
+(`/tmp/shared-people-slice6f-openspec-strict-final.json`,
+`/tmp/shared-people-slice6f-openspec-all-final.json`).
+Exact-SHA host gate, CI, publication, merge, fan-out and shared-mode activation are outside
+this slice.

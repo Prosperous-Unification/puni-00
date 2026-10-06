@@ -374,6 +374,7 @@ export function readOptimizedPair(db: Reader, key: OptimizedCacheKey): Optimized
     .where(
       and(
         eq(optimizedScheduleCache.projectId, key.projectId),
+        // Proof: omitting only this predicate made a captured H2 return H1 as ready while G stayed unchanged.
         eq(optimizedScheduleCache.inputHash, key.inputHash),
         eq(optimizedScheduleCache.contractVersion, key.contractVersion),
         eq(optimizedScheduleCache.budgetMs, key.budgetMs),
