@@ -2670,11 +2670,15 @@ forwards its required delivery dependency. Task 6j.d remains unchecked.
 
 Real SQLite decision fixtures cover reserved and project-full initial
 admission, reserved and empty dequeue, and accepted and not-retryable Retry.
-Held/rejected delivery preserves the original token, one launch, a usable
-second SQLite writer and the replayable recorded row. Synchronous delivery
-throw does not replace accepted Retry. Adapter empty arrays cause zero
-transport calls. The installed module test reaches Retry forwarding; direct
-repository tests assert empty adapter arrays.
+The initial held-delivery case returns its generation before transport and
+keeps stop pending. The held/rejected dequeue and Retry cases each assert one
+spawn call, a usable second SQLite writer and replay of the recorded row;
+Retry also asserts one remaining slot. They do not assert equality between a
+committed attempt token and the launched token. That exact-token matrix remains
+for the installed reservation-owner slices. Synchronous delivery throw does
+not replace accepted Retry. Adapter empty arrays cause zero transport calls.
+The installed module test reaches Retry forwarding; direct repository tests
+assert empty adapter arrays.
 
 | Changed safety dependency                       | Watched RED                                                                                                       | Restored GREEN                                                                                            |
 | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
