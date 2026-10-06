@@ -12,6 +12,7 @@ import {
   serialiseCanonicalPlanInput,
 } from '@wbs/domain';
 
+import type { ResourceAccess } from '../../ports/organization-access';
 import type { Digest } from '../../ports/runtime';
 import type { PlanInputReads } from '../../ports/saved-plan-capture-values';
 import type {
@@ -21,7 +22,7 @@ import type {
   ScopedSavedPlanWrite,
 } from '../../ports/saved-plan-values';
 import type { Scheduler } from '../../ports/scheduler';
-import type { SharedPeopleRead } from '../../ports/shared-people-values';
+import type { AccessRefused, SharedPeopleRead } from '../../ports/shared-people-values';
 import { defaultSavedPlanName } from '../../service/saved-plan-default-name';
 import { planInputRowsOf } from '../../service/saved-plan-input';
 import type { SavedPlanQuota, SavedPlanQuotaRefusal } from '../../service/saved-plan-quota';
@@ -95,6 +96,8 @@ export interface SavedPlanSaveRequest {
   readonly createdById: string | null;
   /** Reclassified by the writer on its separate connection, after capture. */
   readonly scoped?: ScopedSavedPlanWrite;
+  /** Human authority already admitted by the route; rechecked with a shared snapshot. */
+  readonly access?: ResourceAccess;
 }
 
 /**
@@ -153,7 +156,18 @@ export interface SavedPlanServiceOptions {
   /** The installed scheduling capability used after captured reads detach. */
   readonly scheduler: Scheduler;
   /** Shared-mode capture keeps upstream selection coherent; omitted for isolated captures. */
-  readonly captureSharedPlan?: (projectId: string) => Promise<SharedPeopleRead>;
+  readonly captureSharedPlan?: (
+    projectId: string,
+    access: ResourceAccess,
+  ) => Promise<SharedPeopleRead | AccessRefused | { readonly kind: 'isolated' }>;
+}
+
+/** A human whose admission expired before the shared read snapshot opened. */
+export class SavedPlanCaptureRefusal extends Error {
+  constructor(readonly refusal: AccessRefused['refusal']) {
+    super(`Saved-plan capture refused: ${refusal}`);
+    this.name = 'SavedPlanCaptureRefusal';
+  }
 }
 
 /**
@@ -263,8 +277,8 @@ export class SavedPlanService {
    * against parsed stored bytes would report every difference the serializer
    * normalises away as a real one.
    */
-  async projectCurrentPlan(projectId: string): Promise<PlanSide | null> {
-    const attempt = await this.captureAndAttempt(projectId);
+  async projectCurrentPlan(projectId: string, access?: ResourceAccess): Promise<PlanSide | null> {
+    const attempt = await this.captureAndAttempt(projectId, access);
     if (attempt === null) return null;
     const input = canonicalisePlanInput(planInputRowsOf(attempt.reads));
     if (!attempt.schedule.present) {
@@ -342,10 +356,11 @@ export class SavedPlanService {
     projectId: string,
     left: SavedPlanSideRef,
     right: SavedPlanSideRef,
+    access?: ResourceAccess,
   ): Promise<SavedPlanCompareOutcome> {
-    const leftSide = await this.sideOf(projectId, left);
+    const leftSide = await this.sideOf(projectId, left, access);
     if (leftSide.outcome !== 'side') return leftSide;
-    const rightSide = await this.sideOf(projectId, right);
+    const rightSide = await this.sideOf(projectId, right, access);
     if (rightSide.outcome !== 'side') return rightSide;
     return { outcome: 'compared', diff: diffPlans(leftSide.side, rightSide.side) };
   }
@@ -357,9 +372,13 @@ export class SavedPlanService {
    * returns it when the project is gone, which is the same fact the route's own
    * project read would have found a moment earlier.
    */
-  private async sideOf(projectId: string, ref: SavedPlanSideRef): Promise<SavedPlanSideOutcome> {
+  private async sideOf(
+    projectId: string,
+    ref: SavedPlanSideRef,
+    access?: ResourceAccess,
+  ): Promise<SavedPlanSideOutcome> {
     if (ref.kind === 'current') {
-      const side = await this.projectCurrentPlan(projectId);
+      const side = await this.projectCurrentPlan(projectId, access);
       return side === null ? { outcome: 'no_project' } : { outcome: 'side', side };
     }
     /*
@@ -478,7 +497,7 @@ export class SavedPlanService {
     // earlier than the snapshot, never later, so the label never claims to
     // cover a write that happened after it.
     const createdAt = this.opts.now();
-    const attempt = await this.captureAndAttempt(request.projectId);
+    const attempt = await this.captureAndAttempt(request.projectId, request.access);
     if (attempt === null) return { outcome: 'no_project' };
 
     // Folded once. The header's `input_schema_version` is read off **this**
@@ -551,9 +570,22 @@ export class SavedPlanService {
    * `unavailable`; solver infeasibility and dependency cycles are
    * `infeasible`. A missing project remains distinct as `null`.
    */
-  private async captureAndAttempt(projectId: string): Promise<ScheduleAttempt | null> {
+  private async captureAndAttempt(
+    projectId: string,
+    access?: ResourceAccess,
+  ): Promise<ScheduleAttempt | null> {
     // Proof: ignoring shared capture stored start 2 instead of 3 in the upstream-edit/delete negative.
-    const shared = await this.opts.captureSharedPlan?.(projectId);
+    let observed:
+      Awaited<ReturnType<NonNullable<SavedPlanServiceOptions['captureSharedPlan']>>> | undefined;
+    if (this.opts.captureSharedPlan !== undefined) {
+      // Proof: removing this guard made the installed feature's no-access save and
+      // current test invoke the shared callback twice before any authorization.
+      if (access === undefined)
+        throw new Error('installed shared saved-plan capture requires admitted human access');
+      observed = await this.opts.captureSharedPlan(projectId, access);
+    }
+    if (observed?.kind === 'access_refused') throw new SavedPlanCaptureRefusal(observed.refusal);
+    const shared = observed?.kind === 'isolated' ? undefined : observed;
     if (shared?.kind === 'not_found') return null;
     const reads =
       shared === undefined ? await this.opts.resource.capturePlan(projectId) : shared.reads;
@@ -609,6 +641,7 @@ export class SavedPlanService {
               present: true,
               // Proof: substituting `scheduled.fast` here stored
               // `waitingForCapacity: 0`; the selected ready schedule test expected 73.
+              // Proof: mounted shared selected-ready save stored start 3 instead of 8.
               planned,
               algorithmId: `optimized:${optimization.contractVersion}:${objective}:${String(optimization.budgetMs)}`,
             },

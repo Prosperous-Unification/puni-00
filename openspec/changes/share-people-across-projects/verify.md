@@ -1099,3 +1099,145 @@ OpenSpec validation of this change and all-change validation are recorded at
 
 Exact-SHA host gate, publication, CI, deployment and shared-mode activation were not performed
 in this uncommitted worktree. The existing isolated-only release boundary remains in force.
+
+## Runtime 6.1e / 6.2e — installed shared saved/current capture
+
+Worktree `.worktrees/shared-people-slice6e`, branch `feat/shared-people-slice6e`, based exactly on
+the reviewed local 6d checkpoint `bbf3ffbf5015afc33e6738e069c20ccefbd0052c`. No release,
+activation, fan-out, UI, mode setter, merge or host gate is part of this slice. Frozen Bun install
+first failed with temporary-directory `EROFS` (`/tmp/shared-people-slice6e-install.log`); retry
+with `BUN_TMPDIR=/tmp bun install --frozen-lockfile` passed
+(`/tmp/shared-people-slice6e-install2.log`). The initial three-file saved-plan baseline passed
+28/28, 97 assertions (`/tmp/shared-people-slice6e-baseline.log`).
+
+The first mounted test used
+`bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts -t 'installed saved capture and current comparison'`.
+Before wiring it failed as intended: saved B started at 0 rather than the shared-chain start 3
+(`/tmp/shared-people-slice6e-mounted-red.log`). After the callback passed through the module
+installer and composition root, the same test passed 1/1, 12 assertions
+(`/tmp/shared-people-slice6e-mounted-green-attempt1.log`). The callback uses the admitted
+human's `ResourceAccess` with `livePlans.read`, whose SQLite observation rechecks membership
+and mode before returning detached chain evidence. `isolated` still uses the existing saved
+capture; saved bodies remain immutable and the S4 selection uses the exact captured cache state.
+
+Mounted 6e cases now cover upstream estimate edit and assignment removal, unchanged saved
+input/schedule bytes and hashes on readback, both saved/current comparison directions, and
+actual `0`, `false` and `''` diff values. The existing comparison response requires `left` and
+`right` for every difference; the domain represents absent fields as `undefined`. On removal,
+JSON omitted those required keys and the mounted route answered 500. The route now encodes only
+missing sides as JSON `null`, leaving actual values unchanged. The initial removal failure and
+raw domain diff are at `/tmp/shared-people-slice6e-mounted-expanded1.log` and
+`/tmp/shared-people-slice6e-remove-diagnostic.log`; the repaired six-case run passed 6/6,
+32 assertions (`/tmp/shared-people-slice6e-mounted-expanded2.log`). Both independent
+normalization removals below reproduced the HTTP 500. This restores the existing response
+shape; it does not add a public variant.
+
+Installed route tests also cover save and current-comparison revocation between route admission
+and capture (`403 not_a_member`, no saved row), selected optimized ready (stored start 8 and
+`optimized:15+0.2.0:pri:60000` versus Fast start 3), pending target, required upstream
+engine unavailable, target cycle and calendar-range infeasible, and exact-key failed/corrupt
+optimized target unavailable. Each S4 test compares the saved side with the captured current
+side and requires an empty input and schedule diff. It snapshots generation/cache/slot/queue
+before save and asserts equality after both save and comparison, while allowing the requested
+saved-plan record itself. In particular, pending, ready, failed and corrupt fixtures keep
+optimization enabled through both reads; their seven-case follow-up passed 7/7, 37 assertions
+(`/tmp/shared-people-slice6e-s4-current-green1.log`).
+The selected-ready test passed 1/1, six assertions
+(`/tmp/shared-people-slice6e-ready1.log`); failed/corrupt passed 2/2
+(`/tmp/shared-people-slice6e-failed-corrupt1.log`); target calendar range passed 1/1
+(`/tmp/shared-people-slice6e-range1.log`). The other six mounted cases passed together in
+`/tmp/shared-people-slice6e-mounted-expanded2.log` before the additional variants were added.
+
+### 6.2e watched production-path faults
+
+Each mutation below was applied alone, run with Bun 1.4.2 against the mounted route, and
+restored after its observed RED. Adjacent `Proof:` comments name the failing path. All commands
+run from the 6e worktree. The first six use the schedule-organization controller file; `-t`
+is Bun's test-name filter.
+
+| Injected fault                                                                 | Exact command filter and raw log                                                                                                                                                                        | Observed RED                                                                                                                                                      |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Installer provider returns `undefined` for `captureSharedPlan`                 | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts -t 'installed saved capture and current comparison'` — `/tmp/shared-people-slice6e-mutation-installer-red.log`      | Saved B start 0 instead of 3.                                                                                                                                     |
+| Saved-plan module omits callback option                                        | Same command — `/tmp/shared-people-slice6e-mutation-module-red.log`                                                                                                                                     | Saved B start 0 instead of 3.                                                                                                                                     |
+| Composition root omits callback binding                                        | Same command — `/tmp/shared-people-slice6e-mutation-compose-red.log`                                                                                                                                    | Saved B start 0 instead of 3.                                                                                                                                     |
+| Composition uses project-owned `readProject` instead of human `read`           | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts -t 'rechecks admitted human authority inside shared'` — `/tmp/shared-people-slice6e-mutation-authority-red.log`     | Revoked current comparison answered 200 rather than 403 `not_a_member`; save writer separately refused 403 `forbidden`.                                           |
+| Ready optimized branch substitutes `scheduled.fast`                            | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts -t 'stores the selected ready optimized schedule'` — `/tmp/shared-people-slice6e-mutation-fast-red.log`             | Stored start 3 instead of selected ready start 8, despite the optimized algorithm label.                                                                          |
+| Comparison omits input absent-side normalization                               | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts -t 'installed saved capture and current comparison'` — `/tmp/shared-people-slice6e-mutation-input-null-red.log`     | Target assignment removal answered 500 instead of 200.                                                                                                            |
+| Comparison omits schedule absent-side normalization                            | Same command — `/tmp/shared-people-slice6e-mutation-schedule-null-red.log`                                                                                                                              | Upstream booking removal answered 500 instead of 200.                                                                                                             |
+| Composition injects process scheduler with `mode: 'live'` after shared capture | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts -t 'stores shared S4 pending for target'` — `/tmp/shared-people-slice6e-mutation-live-admission-red.log`            | The save still returned, but the optimizer-state equality failed: a generation and two failed cache rows appeared where all four tables were empty before.        |
+| Remove installed feature's missing-access guard                                | `bun test libs/wbs/application/core/src/module/saved-plans/module.test.ts -t 'refuses installed shared save and current before capture'` — `/tmp/shared-people-slice6e-mutation-missing-access-red.log` | Save/current invoked the shared callback twice without admitted access (expected 0); the original guard keeps callback, local capture and saved writes untouched. |
+
+The installed-feature no-access case passed 1/1, seven assertions before and after the watched
+guard omission (`/tmp/shared-people-slice6e-missing-access-green1.log`,
+`/tmp/shared-people-slice6e-missing-access-green2.log`). Its test checks callback and local
+capture counts and the saved-plan list, then verifies the explicit guard error. The mutant
+failed at the callback count rather than at a downstream nullish access error.
+
+The first expanded five-file run failed two pre-existing test fixtures after the interface
+changed: the route spy expected three `compare` arguments rather than the admitted fourth, and
+the hand-built DI test host lacked the new optional callback provider. It recorded 131 pass,
+2 fail (`/tmp/shared-people-slice6e-focused-green1.log`). The first real Nx module typecheck
+found the same DI fixture omission (`/tmp/shared-people-slice6e-core-typecheck2.log`). Both
+test fixtures were updated; the affected controller/module regression files then passed
+(`/tmp/shared-people-slice6e-regression-fix-green.log`). An earlier `bunx nx` invocation
+returned 0 after only a sandbox socket warning and no target output
+(`/tmp/shared-people-slice6e-typecheck1.log`); it is **not** counted as typecheck evidence.
+
+The first nine-file production-path sweep passed 213 and failed three direct
+`chain-snapshot.db.test.ts` saved-service fixtures: they supplied a shared callback but no
+admitted access, which the feature now requires (`/tmp/shared-people-slice6e-final-focused-tests.log`).
+Those fixtures now pass explicit scoped access to save/current; their isolated three-case rerun
+passes (`/tmp/shared-people-slice6e-chain-fixture-green.log`). No production access guard was
+weakened to make direct construction pass.
+
+After the fixture corrections, this nine-file production-path command passed:
+
+```sh
+bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts \
+  apps/wbs/be-01/src/controller/saved-plan-organization.controller.db.test.ts \
+  apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts \
+  apps/wbs/be-01/src/service/saved-plan-current.db.test.ts \
+  apps/wbs/be-01/src/service/saved-plan.service.db.test.ts \
+  apps/wbs/be-01/src/service/saved-plan-schedule.db.test.ts \
+  libs/wbs/application/core/src/module/saved-plans/module.test.ts \
+  libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts \
+  libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts
+```
+
+The run passed
+**216/216**, **804 assertions**, zero failures, in 40.86 seconds
+(`/tmp/shared-people-slice6e-final-focused-tests2.log`). Subsequent test-only changes
+addressed one incorrect Bun SQLite query call, typed JSON test assertions and matcher lint;
+the full mounted schedule-organization controller then passed **64/64**, 229 assertions
+(`/tmp/shared-people-slice6e-final-mounted-tests.log`). The first combined Nx target run
+failed only at those test type/lint findings (`/tmp/shared-people-slice6e-final-targets.log`);
+direct focused ESLint passed after correction (`/tmp/shared-people-slice6e-eslint-focused2.log`).
+The exact combined rerun
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck build -p wbs-core wbs-store-sqlite wbs-be-01 --skip-nx-cache --output-style=static`
+passed all targets and dependencies (`/tmp/shared-people-slice6e-final-targets2.log`). Final
+12-file `bunx prettier --check` passed
+(`/tmp/shared-people-slice6e-final-format-check3.log`), `git diff --check` exited 0
+(`/tmp/shared-people-slice6e-final-diffcheck2.log`), pinned OpenSpec strict validation passed
+1/1 (`/tmp/shared-people-slice6e-openspec-strict2.json`), and pinned all-change validation
+passed 148/148 (`/tmp/shared-people-slice6e-openspec-all2.json`). The affected full test files
+outside the mounted controller were unchanged after their 216/216 sweep.
+
+After Astra's bounded proof review, the nine-file changed-byte command above passed **217/217**,
+**818 assertions**, zero failures (`/tmp/shared-people-slice6e-review-followup-focused-tests.log`).
+The first follow-up Nx run failed only core lint because the new test callback was `async` with
+no `await` (`/tmp/shared-people-slice6e-review-followup-targets.log`; direct diagnostic
+`/tmp/shared-people-slice6e-review-followup-eslint.log`). The callback now returns
+`Promise.resolve` with the same observed behavior. Its module test passed 9/9
+(`/tmp/shared-people-slice6e-review-followup-module-final.log`), targeted ESLint exited 0
+(`/tmp/shared-people-slice6e-review-followup-eslint2.log`), and the exact combined affected
+Nx lint/typecheck/build command above passed all targets and dependencies on final source
+(`/tmp/shared-people-slice6e-review-followup-targets2.log`).
+Final 12-file Prettier check, diff check, pinned strict change validation and pinned all-change
+validation exited 0 (`/tmp/shared-people-slice6e-review-followup-format.log`,
+`/tmp/shared-people-slice6e-review-followup-diffcheck.log`,
+`/tmp/shared-people-slice6e-review-followup-openspec-strict.json`,
+`/tmp/shared-people-slice6e-review-followup-openspec-all.json`); strict was 1/1 and all was
+148/148.
+
+Exact-SHA host gate, CI, publication, merge and shared-mode activation remain unrun. Review
+clearance and any local checkpoint commit are separate next steps.

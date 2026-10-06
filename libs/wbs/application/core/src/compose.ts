@@ -29,6 +29,7 @@ import { installWorkItem } from './module/work-item/check';
 import type { Clock } from './ports/clock';
 import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from './ports/edit-admission';
 import type { OidcVerifier } from './ports/oidc-verifier';
+import type { ResourceAccess } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
 import type { PushTransport } from './ports/push-transport';
 import type { Digest, PasswordHasher, TokenCodec } from './ports/runtime';
@@ -271,6 +272,22 @@ export function composeServices(
     capture: source.history.savedPlanCapture,
     plans: source.history.savedPlans,
     scheduler: runtime.scheduler,
+    // The installed save/current path rechecks admitted human authority in this read snapshot.
+    // Proof: removing this entire binding failed mounted saved displacement (expected 3, got 0).
+    ...(source.stores.livePlans === undefined
+      ? {}
+      : {
+          captureSharedPlan: async (projectId: string, access: ResourceAccess) => {
+            // Proof: project-owned readProject bypassed revoked human membership: mounted
+            // comparison returned 200 instead of 403/not_a_member; save writer still refused.
+            const captured = await source.stores.livePlans?.read(projectId, access);
+            if (captured === undefined)
+              throw new Error('installed shared saved-plan capture lost its live-plan store');
+            // Proof: injecting process-scheduler live mode here for an enabled optimized
+            // target failed the mounted S4 no-write assertion: a generation and cache rows appeared.
+            return captured.kind === 'shared' ? captured.chain : captured;
+          },
+        }),
     newId: () => runtime.clock.newId(),
     now: () => Math.floor(runtime.clock.now() / 1_000),
   });

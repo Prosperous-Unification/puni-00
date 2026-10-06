@@ -240,3 +240,10 @@ deletion; the target's saved input alone SHALL NOT be represented as replayable 
 - **WHEN** B is saved through the installed route, then A changes and B's current side is read
 - **THEN** the saved bytes retain the original displaced schedule, current reflects the new
   chain, and neither capture allocates a generation, slot or queue entry
+
+#### Scenario: a removed booking remains a representable comparison
+
+- **GIVEN** B was saved while A's booking held B's assigned slice
+- **WHEN** A's assignment is removed and B's saved plan is compared with current in either direction
+- **THEN** the comparison answers with the displaced dates and holder difference; a missing
+  side is JSON `null`, while actual zero, false and empty-string values remain those values

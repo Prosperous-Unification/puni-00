@@ -35,6 +35,10 @@ let dir: string;
 let path: string;
 let closed: number;
 const principal = { id: 'ada' };
+const admitted = {
+  kind: 'scoped',
+  scope: { organizationId: 'org-a', userId: 'ada', role: 'member' },
+} as const;
 const fast = createScheduler(
   (rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
     schedule(rows, edges, slices, floors, pools, reach, deadlines, typed, undefined, elsewhere),
@@ -567,7 +571,12 @@ describe('the chain snapshot', () => {
       "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'a3'",
     );
     const saved = savedService(new SharedPeopleReader(snapshots()));
-    const written = await saved.save({ projectId: 'a3', createdBy: 'Ada', createdById: 'ada' });
+    const written = await saved.save({
+      projectId: 'a3',
+      createdBy: 'Ada',
+      createdById: 'ada',
+      access: admitted,
+    });
     expect(written.outcome).toBe('saved');
     if (written.outcome !== 'saved') throw new Error('expected saved target');
     expect(written.record.schedule).toEqual({ present: false, absentReason: 'pending' });
@@ -588,6 +597,7 @@ describe('the chain snapshot', () => {
       projectId: 'a3',
       createdBy: 'Ada',
       createdById: 'ada',
+      access: admitted,
     });
     if (written.outcome !== 'saved') throw new Error('expected saved target');
     expect(written.record.schedule).toEqual({ present: false, absentReason: 'infeasible' });
@@ -621,12 +631,17 @@ describe('the chain snapshot', () => {
   it('stores detached shared dates that survive upstream edits and deletion', async () => {
     const chain = new SharedPeopleReader(snapshots());
     const saved = savedService(chain);
-    const written = await saved.save({ projectId: 'a3', createdBy: 'Ada', createdById: 'ada' });
+    const written = await saved.save({
+      projectId: 'a3',
+      createdBy: 'Ada',
+      createdById: 'ada',
+      access: admitted,
+    });
     expect(written.outcome).toBe('saved');
     if (written.outcome !== 'saved' || !written.record.schedule.present)
       throw new Error('expected saved dates');
     expect(written.record.schedule.body.bytes).toContain('"earliestStart":3');
-    const current = await saved.projectCurrentPlan('a3');
+    const current = await saved.projectCurrentPlan('a3', admitted);
     if (!current?.schedule.present) throw new Error('expected current dates');
     expect(JSON.stringify(current.schedule.body)).toContain('"earliestStart":3');
     const bytes = written.record.schedule.body.bytes;
