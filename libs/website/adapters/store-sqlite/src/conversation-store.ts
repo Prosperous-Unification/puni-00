@@ -8,7 +8,7 @@ import {
 } from '@website/contracts';
 import type { Database } from 'bun:sqlite';
 
-import { sweepAdmissionCounts } from './guardrail-store';
+import { sweepAdmissionCounts, tripInferencePause } from './guardrail-store';
 
 export interface ConversationTurn {
   role: 'user' | 'assistant';
@@ -75,6 +75,8 @@ export type ConversationAdmission =
     }
   | { kind: 'completed'; reply: string }
   | { kind: 'exhausted'; reason: ConversationExhaustedReason }
+  /** Paid inference is paused; `openedPauseId` names the pause this admission opened, if any. */
+  | { kind: 'paused'; openedPauseId: string | null }
   | {
       kind:
         | 'draft_unavailable'
@@ -227,9 +229,10 @@ export function findLatestConversationOperation(
 }
 
 /**
- * Applies the per-source, per-conversation and site-day spend ceilings and the site-wide
- * unsettled-call count to one priced reservation. A spend refusal exhausts the conversation;
- * the concurrency refusal does not, because it clears when another call settles.
+ * Applies the per-source, per-conversation and site-day spend ceilings, the inference pause
+ * ({@link tripInferencePause}) and the site-wide unsettled-call count to one priced reservation.
+ * A spend refusal exhausts the conversation; the pause and concurrency refusals do not, because
+ * they clear when an operator resumes or another call settles.
  */
 function refuseReservation(
   database: Database,
@@ -282,6 +285,8 @@ function refuseReservation(
       .get(utcDay),
     'site spend',
   ).total;
+  const pause = tripInferencePause(database, siteSpend, reservedMicroUsd, now);
+  if (pause) return { kind: 'paused', ...pause };
   if (siteSpend + reservedMicroUsd > conversationAllowance.siteDayMicroUsd)
     return exhaust(database, conversation.id, 'site_spend');
   // Proof: counting every non-completed operation instead of in-flight ones made four stopped conversations refuse the fifth as busy.

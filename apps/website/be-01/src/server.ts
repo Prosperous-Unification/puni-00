@@ -751,6 +751,7 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
       initial_required: ['initial_required', 409],
       busy: ['provider_busy', 429],
       provider_unavailable: [unconfigured ? 'provider_unconfigured' : 'provider_unavailable', 503],
+      paused: ['provider_paused', 503],
     } as const;
     const [code, status] = refusals[admitted.kind];
     return failure(code, status);
@@ -765,6 +766,8 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     if (admitted.kind === 'started') return admitted;
     if (admitted.kind === 'completed')
       return { kind: 'response', response: attachCors(replayReply(admitted.reply), origin) };
+    if (admitted.kind === 'paused')
+      return { kind: 'response', response: attachCors(failure('provider_paused', 503), origin) };
     const code =
       admitted.kind === 'provider_unavailable'
         ? paid
@@ -817,13 +820,15 @@ export function createWebsiteApi(config: WebsiteApiConfig): {
     const inputRate = rates.inputUsdPerMillion;
     const outputRate = rates.outputUsdPerMillion;
     const reservedMicroUsd = Math.ceil(inputTokensBound * inputRate + 1_024 * outputRate);
-    const callId =
+    const reservation =
       accounting === 'direct'
         ? store.reserveProviderCall(accountId, requestId, reservedMicroUsd, now)
         : null;
+    if (reservation?.kind === 'paused') return { code: 'provider_paused', status: 503 };
     // Proof: replacing this reservation guard with false made the unsettled-usage test fail on the second paid call.
-    if (accounting === 'direct' && !callId)
+    if (reservation?.kind === 'refused')
       return { code: 'provider_budget_or_unsettled', status: 429 };
+    const callId = reservation?.id ?? null;
     const abort = new AbortController();
     const deadline = setTimeout(() => {
       abort.abort();

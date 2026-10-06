@@ -266,3 +266,88 @@ export function readLoginLocks(
   if (!sources) throw new Error('Source lock count query returned no row');
   return { accountLockedUntil: account?.locked_until ?? null, lockedSources: sources.count };
 }
+
+export interface InferencePause {
+  id: string;
+  pausedAt: number;
+  reason: 'site_spend' | 'operator';
+  pausedBy: 'system' | 'operator';
+}
+
+/** The open inference pause, or null; at most one exists (the `inference_pause_open` index). */
+export function findOpenInferencePause(database: Database): InferencePause | null {
+  const row = database
+    .query<
+      {
+        id: string;
+        paused_at: number;
+        reason: InferencePause['reason'];
+        paused_by: InferencePause['pausedBy'];
+      },
+      []
+    >('SELECT id, paused_at, reason, paused_by FROM inference_pause WHERE resumed_at IS NULL')
+    .get();
+  return row
+    ? { id: row.id, pausedAt: row.paused_at, reason: row.reason, pausedBy: row.paused_by }
+    : null;
+}
+
+/**
+ * Opens a pause unless one is already open, and returns its id, or null when one was open.
+ * A pause never clears by itself: not at UTC midnight and not on restart.
+ */
+export function openInferencePause(
+  database: Database,
+  reason: InferencePause['reason'],
+  pausedBy: InferencePause['pausedBy'],
+  now: number,
+): string | null {
+  return database.transaction(() => {
+    if (findOpenInferencePause(database)) return null;
+    const id = crypto.randomUUID();
+    database
+      .query('INSERT INTO inference_pause (id, paused_at, reason, paused_by) VALUES (?, ?, ?, ?)')
+      .run(id, now, reason, pausedBy);
+    return id;
+  })();
+}
+
+/** Closes the open pause as the operator; false, writing nothing, when none is open. */
+export function resumeInferencePause(database: Database, now: number): boolean {
+  return (
+    database
+      .query(
+        "UPDATE inference_pause SET resumed_at = ?, resumed_by = 'operator' WHERE resumed_at IS NULL",
+      )
+      .run(now).changes === 1
+  );
+}
+
+/**
+ * The pause rule inside a paid admission transaction, after the site's UTC-day spend is summed:
+ * an open pause refuses (`openedPauseId` null); a reservation that brings the spend to
+ * {@link guardrailAllowance.pauseMicroUsd} or above opens a `site_spend` pause and refuses,
+ * unless a `site_spend` pause was already opened this UTC day. So after an operator resumes, the
+ * day continues to the hard ceiling instead of re-pausing on the next reservation, and the next
+ * day's spend trips it again; the pause itself survives midnight and restarts.
+ * Returns null when the reservation may proceed.
+ */
+export function tripInferencePause(
+  database: Database,
+  siteSpendMicroUsd: number,
+  reservedMicroUsd: number,
+  now: number,
+): { openedPauseId: string | null } | null {
+  if (findOpenInferencePause(database)) return { openedPauseId: null };
+  // Proof: comparing against the full ceiling instead of the 80% mark admitted the operation in the $7.99 + $0.02 trip test.
+  if (siteSpendMicroUsd + reservedMicroUsd < guardrailAllowance.pauseMicroUsd) return null;
+  const dayStart = Date.parse(`${utcDayOf(now)}T00:00:00.000Z`);
+  const trippedToday = database
+    .query<{ found: number }, [number]>(
+      "SELECT 1 AS found FROM inference_pause WHERE reason = 'site_spend' AND paused_at >= ? LIMIT 1",
+    )
+    .get(dayStart);
+  // Proof: ignoring today's resumed pause re-paused the first admission after the resume in the trip test.
+  if (trippedToday) return null;
+  return { openedPauseId: openInferencePause(database, 'site_spend', 'system', now) };
+}

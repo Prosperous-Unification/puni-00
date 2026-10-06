@@ -31,6 +31,15 @@ function rollBackLaterMigrations(database: Database, name: string): void {
     database.run(readFileSync(join(later.directory, 'down.sql'), 'utf8'));
 }
 
+/**
+ * Opens and resumes today's automatic pause, as an operator would, so a test can reach the hard
+ * site-day ceiling past the 80% pause mark.
+ */
+function resumeTodaysPause(store: WebsiteStore): void {
+  if (!store.openInferencePause('site_spend', 'system', day)) throw new Error('A pause was open');
+  if (!store.resumeInferencePause(day)) throw new Error('The pause did not resume');
+}
+
 function paid(amount: number): ConversationPricing {
   return { kind: 'paid', price: () => amount };
 }
@@ -404,12 +413,13 @@ test('per-conversation and per-source spend ceilings exhaust with their reasons'
 test('the site-day ceiling and unsettled-call count are shared with account reservations', () => {
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
+  resumeTodaysPause(store);
   const account = store.createProspect('owner@example.test', day);
   store.ensureBlankRequest(account.id, day);
   const request = store.findAccountRequest(account.id);
   if (!request) throw new Error('Missing account request');
-  const callId = store.reserveProviderCall(account.id, request.id, 400_000, day);
-  if (!callId) throw new Error('Account reservation refused');
+  const reservation = store.reserveProviderCall(account.id, request.id, 400_000, day);
+  if (reservation.kind !== 'reserved') throw new Error('Account reservation refused');
   const database = new Database(databasePath);
   database.run(
     'UPDATE provider_call SET reserved_micro_usd = 9_999_000, settled_micro_usd = 9_999_000',
@@ -446,7 +456,7 @@ test('the site-day ceiling and unsettled-call count are shared with account rese
   shared.run('UPDATE conversation_operation SET reserved_micro_usd = 9_599_900');
   shared.close();
   // Anonymous reservations fill the same site day for the account path.
-  expect(store.reserveProviderCall(account.id, request.id, 200, day)).toBeNull();
+  expect(store.reserveProviderCall(account.id, request.id, 200, day)).toEqual({ kind: 'refused' });
 
   const unsettled = new Database(databasePath);
   unsettled.run('UPDATE provider_call SET reserved_micro_usd = 10, settled_micro_usd = NULL');
@@ -482,6 +492,7 @@ test('the site-day ceiling and unsettled-call count are shared with account rese
 test('two processes racing for the last site-day reservation leave exactly one', async () => {
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
+  resumeTodaysPause(store);
   const account = store.createProspect('owner@example.test', day);
   store.ensureBlankRequest(account.id, day);
   const request = store.findAccountRequest(account.id);
@@ -625,6 +636,7 @@ test('unknown usage settles at the reserved ceiling and the same key retries', (
 test('ceiling-settled operations count fully against the source and site ceilings', () => {
   const databasePath = databaseFile();
   const store = new WebsiteStore(databasePath);
+  resumeTodaysPause(store);
   store.createDraft('draft-1', 'R', 'claim-1', day, day + 1_000_000, 'source-test');
   store.markConversationOperationUnknown(
     started(
@@ -650,7 +662,7 @@ test('ceiling-settled operations count fully against the source and site ceiling
   const account = store.createProspect('owner@example.test', day);
   store.ensureBlankRequest(account.id, day);
   const request = store.findAccountRequest(account.id);
-  if (!request || !store.reserveProviderCall(account.id, request.id, 1, day))
+  if (!request || store.reserveProviderCall(account.id, request.id, 1, day).kind !== 'reserved')
     throw new Error('Account reservation refused');
   const database = new Database(databasePath);
   database.run(
@@ -920,7 +932,7 @@ test('stopped operations never hold the site-wide concurrency count', () => {
   const request = store.findAccountRequest(account.id);
   if (!request) throw new Error('Missing account request');
   // Proof: the same fault in reserveProviderCall refused this account reservation.
-  expect(store.reserveProviderCall(account.id, request.id, 1_000, day)).not.toBeNull();
+  expect(store.reserveProviderCall(account.id, request.id, 1_000, day).kind).toBe('reserved');
   store.close();
 });
 

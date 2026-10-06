@@ -302,13 +302,24 @@ function operations(databasePath: string) {
   }
 }
 
-/** Fills the shared site day with an account reservation, leaving `remaining` micro-USD. */
+/**
+ * Fills the shared site day with an account reservation, leaving `remaining` micro-USD, after
+ * today's automatic pause was opened and resumed, so the hard ceiling is what refuses.
+ */
 function fillSiteDay(databasePath: string, remaining: number): void {
   const store = new WebsiteStore(databasePath);
+  if (
+    !store.openInferencePause('site_spend', 'system', Date.now()) ||
+    !store.resumeInferencePause(Date.now())
+  )
+    throw new Error('Could not resume today’s pause');
   const account = store.createProspect('owner@example.test', Date.now());
   store.ensureBlankRequest(account.id, Date.now());
   const request = store.findAccountRequest(account.id);
-  if (!request || !store.reserveProviderCall(account.id, request.id, 1, Date.now()))
+  if (
+    !request ||
+    store.reserveProviderCall(account.id, request.id, 1, Date.now()).kind !== 'reserved'
+  )
     throw new Error('Account reservation refused');
   store.close();
   const database = new Database(databasePath);

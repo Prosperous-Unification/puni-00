@@ -33,12 +33,17 @@ import {
   countProposal,
   DraftCapReached,
   type DraftCapRefusal,
+  findOpenInferencePause,
   hashEmailKey,
+  type InferencePause,
+  openInferencePause,
   ProposalCapReached,
   type ProposalCapRefusal,
   readLoginLock,
   readLoginLocks,
   recordLoginFailure,
+  resumeInferencePause,
+  tripInferencePause,
   utcDayOf,
 } from './guardrail-store';
 import { websiteMigrations } from './migration-catalogue';
@@ -59,7 +64,7 @@ export type {
 export { conversationAllowance } from './conversation-store';
 export type { DraftCleanupOutcome, DraftCleanupPlan } from './draft-retention';
 export { inspectExpiredDrafts, purgeExpiredDrafts } from './draft-retention';
-export type { DraftCapRefusal, ProposalCapRefusal } from './guardrail-store';
+export type { DraftCapRefusal, InferencePause, ProposalCapRefusal } from './guardrail-store';
 export { guardrailAllowance } from './guardrail-store';
 export type {
   AmbiguousRetentionSubject,
@@ -137,6 +142,7 @@ interface ChatOperationRow {
 export type ChatAdmission =
   | { kind: 'started'; id: string }
   | { kind: 'completed'; reply: string }
+  | { kind: 'paused'; openedPauseId: string | null }
   | {
       kind:
         | 'inflight'
@@ -154,6 +160,12 @@ export interface DraftRecord {
   brief: string;
   expiresAt: number;
 }
+
+/** The outcome of {@link WebsiteStore.reserveProviderCall}. */
+export type ProviderReservation =
+  | { kind: 'reserved'; id: string }
+  | { kind: 'refused' }
+  | { kind: 'paused'; openedPauseId: string | null };
 
 /** `siteCount` is the day's site-wide proposal count including this one. */
 export type SubmitOutcome =
@@ -327,11 +339,13 @@ export class WebsiteStore {
         .get(accountId);
       if (!running) throw new Error('Chat operation count query failed');
       if (running.count > 0) return { kind: 'inflight' };
-      const providerCallId =
+      const reservation =
         reservedMicroUsd === null
           ? null
           : this.reserveProviderCall(accountId, requestId, reservedMicroUsd, now);
-      if (reservedMicroUsd !== null && providerCallId === null) return { kind: 'budget' };
+      if (reservation?.kind === 'paused') return reservation;
+      if (reservation?.kind === 'refused') return { kind: 'budget' };
+      const providerCallId = reservation?.id ?? null;
       const id = crypto.randomUUID();
       anchorRequestContent(this.database, requestId, message, now);
       this.database
@@ -466,6 +480,25 @@ export class WebsiteStore {
 
   close(): void {
     this.database.close();
+  }
+
+  /** See {@link findOpenInferencePause}. */
+  findOpenInferencePause(): InferencePause | null {
+    return findOpenInferencePause(this.database);
+  }
+
+  /** See {@link openInferencePause}. */
+  openInferencePause(
+    reason: InferencePause['reason'],
+    pausedBy: InferencePause['pausedBy'],
+    now: number,
+  ): string | null {
+    return openInferencePause(this.database, reason, pausedBy, now);
+  }
+
+  /** See {@link resumeInferencePause}. */
+  resumeInferencePause(now: number): boolean {
+    return resumeInferencePause(this.database, now);
   }
 
   /** See {@link readLoginLock}. */
@@ -819,13 +852,17 @@ export class WebsiteStore {
     })();
   }
 
+  /**
+   * Reserves one account provider call against the account, brief and shared site-day ceilings
+   * and the inference pause ({@link tripInferencePause}), in one transaction.
+   */
   reserveProviderCall(
     accountId: string,
     requestId: string,
     reservedMicroUsd: number,
     now: number,
-  ): string | null {
-    return this.database.transaction(() => {
+  ): ProviderReservation {
+    return this.database.transaction((): ProviderReservation => {
       const utcDay = new Date(now).toISOString().slice(0, 10);
       const activeAccount = this.database
         .query<{ count: number }, [string]>(
@@ -857,6 +894,8 @@ export class WebsiteStore {
         .get(utcDay);
       if (!activeAccount || !activeSite || !brief || !accountDay || !siteDay)
         throw new Error('Provider reservation query failed');
+      const pause = tripInferencePause(this.database, siteDay.total, reservedMicroUsd, now);
+      if (pause) return { kind: 'paused', ...pause };
       if (
         activeAccount.count >= 1 ||
         activeSite.count >= conversationAllowance.siteUnsettledCalls ||
@@ -864,14 +903,14 @@ export class WebsiteStore {
         accountDay.total + reservedMicroUsd > 1_000_000 ||
         siteDay.total + reservedMicroUsd > conversationAllowance.siteDayMicroUsd
       )
-        return null;
+        return { kind: 'refused' };
       const id = crypto.randomUUID();
       this.database
         .query(
           'INSERT INTO provider_call (id, account_id, request_id, utc_day, reserved_micro_usd, created_at) VALUES (?, ?, ?, ?, ?, ?)',
         )
         .run(id, accountId, requestId, utcDay, reservedMicroUsd, now);
-      return id;
+      return { kind: 'reserved', id };
     })();
   }
 

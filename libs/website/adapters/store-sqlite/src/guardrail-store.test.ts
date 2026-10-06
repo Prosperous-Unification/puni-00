@@ -259,3 +259,101 @@ test('the pause and half-spend marks are 80% and 50% of the site-day ceiling', (
     conversationAllowance.siteDayMicroUsd / 2,
   );
 });
+
+/** Settles one account call so the site day has spent `spentMicroUsd`. */
+function spendSiteDay(store: WebsiteStore, databasePath: string, spentMicroUsd: number): void {
+  const account = store.createProspect('owner@example.test', day);
+  store.ensureBlankRequest(account.id, day);
+  const request = store.findAccountRequest(account.id);
+  if (!request) throw new Error('Missing account request');
+  const reservation = store.reserveProviderCall(account.id, request.id, 1, day);
+  if (reservation.kind !== 'reserved') throw new Error('Account reservation refused');
+  const database = new Database(databasePath);
+  database
+    .query('UPDATE provider_call SET reserved_micro_usd = ?1, settled_micro_usd = ?1')
+    .run(spentMicroUsd);
+  database.close();
+}
+
+function openPauses(databasePath: string) {
+  const database = new Database(databasePath, { readonly: true });
+  try {
+    return database
+      .query<{ reason: string; paused_by: string }, []>(
+        'SELECT reason, paused_by FROM inference_pause WHERE resumed_at IS NULL',
+      )
+      .all();
+  } finally {
+    database.close();
+  }
+}
+
+test('a reservation reaching 80% of the site ceiling opens a site_spend pause and is refused', () => {
+  const databasePath = databaseFile();
+  const store = new WebsiteStore(databasePath);
+  spendSiteDay(store, databasePath, 7_990_000);
+  draft(store, 1);
+  const admission = store.admitConversationOperation({
+    claimHash: 'claim-1',
+    sourceHash: 'source-a',
+    idempotencyKey: 'initial:draft-1',
+    bodyHash: 'hash',
+    message: 'Build a booking app',
+    initial: true,
+    promptVersion: 'puni-sales-v1',
+    pricing: { kind: 'paid', price: () => 20_000 },
+    now: day,
+  });
+  // Proof: comparing against the full ceiling instead of 80% admitted this operation.
+  expect(admission.kind).toBe('paused');
+  if (admission.kind !== 'paused') throw new Error('unreachable');
+  expect(admission.openedPauseId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(openPauses(databasePath)).toEqual([{ reason: 'site_spend', paused_by: 'system' }]);
+  expect(count(databasePath, 'SELECT count(*) AS count FROM conversation_operation')).toBe(0);
+  // An open pause refuses the account path too, without opening a second one.
+  const account = store.createProspect('second@example.test', day);
+  store.ensureBlankRequest(account.id, day);
+  const request = store.findAccountRequest(account.id);
+  if (!request) throw new Error('Missing account request');
+  expect(store.reserveProviderCall(account.id, request.id, 1_000, day)).toEqual({
+    kind: 'paused',
+    openedPauseId: null,
+  });
+  expect(store.openInferencePause('operator', 'operator', day)).toBeNull();
+  expect(openPauses(databasePath)).toHaveLength(1);
+  store.close();
+  const reopened = new WebsiteStore(databasePath);
+  expect(reopened.findOpenInferencePause()).toMatchObject({ reason: 'site_spend' });
+  expect(reopened.resumeInferencePause(day + hour)).toBe(true);
+  expect(reopened.resumeInferencePause(day + hour)).toBe(false);
+  expect(reopened.findOpenInferencePause()).toBeNull();
+  // After a resume the day continues to the hard ceiling; only the next UTC day trips again.
+  expect(
+    reopened.admitConversationOperation({
+      claimHash: 'claim-1',
+      sourceHash: 'source-a',
+      idempotencyKey: 'initial:draft-1',
+      bodyHash: 'hash',
+      message: 'Build a booking app',
+      initial: true,
+      promptVersion: 'puni-sales-v1',
+      pricing: { kind: 'paid', price: () => 20_000 },
+      now: day + hour,
+    }).kind,
+  ).toBe('started');
+  reopened.close();
+});
+
+test('the account reservation trips the pause at 80% too', () => {
+  const databasePath = databaseFile();
+  const store = new WebsiteStore(databasePath);
+  spendSiteDay(store, databasePath, 7_990_000);
+  const account = store.createProspect('second@example.test', day);
+  store.ensureBlankRequest(account.id, day);
+  const request = store.findAccountRequest(account.id);
+  if (!request) throw new Error('Missing account request');
+  const reservation = store.reserveProviderCall(account.id, request.id, 20_000, day);
+  expect(reservation.kind).toBe('paused');
+  expect(openPauses(databasePath)).toEqual([{ reason: 'site_spend', paused_by: 'system' }]);
+  store.close();
+});
