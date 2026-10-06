@@ -79,7 +79,8 @@ beside `FanoutCaptureStore`: given a typed directory write address (catalog/reso
 or the work-item/project identity for assignment), resolve ownership and resource users on
 that same scope. Keep SQL and raw directory tables out of core. Address name-idempotent writes
 by their actual existing identity as well as the proposed identity; a create that joins new
-memberships to an existing person is a scheduling mutation. Root/mapping-only inserts with no
+memberships to an existing person must be observed, but is not automatically a scheduling
+change. Fan-out occurs only if the normal before/after comparison derives recipients. Root/mapping-only inserts with no
 scheduling users do not fabricate a cause. Preserve old ownership/usages before deletion and
 relinking; resolve new usages after the mutation and union the affected organizations/projects.
 
@@ -175,8 +176,8 @@ build its typed address and starts one owner:
 
 Specifically, scoped `patchPersonWithin`/`patchTeamWithin` can first call
 `renameInOrganization` through `renameLocal`, then call `patchPerson`/`patchTeam` for links or
-kind. These remain **two independent owners**. If the second mutation or its event insert
-fails, the first committed rename remains; its already emitted ordinary announcement is not
+kind. These remain **two independent owners**. If after-capture fails after the second
+mutation, the second owner rolls back while the first committed rename remains; its already emitted ordinary announcement is not
 retracted or repeated. Do not roll back the whole service operation, hold its first owner open
 for the second call, or postpone both ordinary announcements behind a new whole-service
 collector. A raw `patchPerson`/`patchTeam` which already combines multiple changes atomically
@@ -243,7 +244,7 @@ of the named path. Reuse 6h helpers, but run standalone and borrowed cases separ
 | Directory corrupt ownership remains an error                  | Separately seed a present scoped row missing required ownership and a trusted usage with corrupt/foreign ownership. Expect an error before capture or write; spy remains uncalled and state unchanged. Coerce each corruption into absence/empty-organization success to watch its case fail. A missing caller-addressed row cannot substitute for either corruption fixture.                                                                                                                                                      |
 | Owner observation defeats stale preflight                     | Pause after public preflight but before the acquired turn; another real connection changes rank or assignment. Expected pairs use the state admitted by the writer. Substitute the earlier preflight snapshot and observe wrong/missing pairs. Keep this separate from detached-after-capture failure.                                                                                                                                                                                                                             |
 | Standalone directory removed assignment preserves old closure | Through composed public directory service/store, cascade-remove a person used in a multi-project bridge. No project row changes; exact old-closure pairs commit. Omit only the standalone wrapper, then use only post-write usage independently; each loses required rows.                                                                                                                                                                                                                                                         |
-| Standalone directory multi-resource mutation                  | Patch team/service links or person memberships/kind that affect scheduling; include name-idempotent add joining an existing person. Capture before/after resource users inside the owner. Unknown linked resource/in-use refusal leaves domain, events and sequences unchanged. Force a refusal after a provisional event to prove rollback, not just an empty no-op.                                                                                                                                                              |
+| Standalone directory multi-resource mutation                  | Observe team/service links, person memberships/kind and name-idempotent add joining an existing person; do not assume these alone change scheduler inputs. Capture before/after normally and emit only derived pairs. A zero-pair case emits nothing. Unknown linked resource/in-use refusal preserves state. Use the separate cascade witness for event-insert rollback.                                                                                                                                                          |
 | Borrowed directory emits once                                 | Mounted project batch performs several directory writes and an assignment change; project-null directory batch separately edits multiple used resources. Expected distinct pairs appear once after the whole batch. Install standalone wrappers beneath OPEN stores or per intermediate write; witness duplicate/intermediate rows or nested-owner refusal. Do not accept a hang as the only assertion.                                                                                                                            |
 | Working plan remains current                                  | Mix directory mutation and later scheduling command; the captured after-state and later command see refreshed collections. Remove the reload/row refresh to observe stale behavior. Refuse a later command and verify no shared rows/push/trigger escape; retain stale replay repair and grant-lifetime tests.                                                                                                                                                                                                                     |
 | Settings/date owner is retained                               | Mounted PATCH exercises start date, dated↔undated and selected ready optimized display; compare exact recipient pairs with one owner. Omit only admitted settings binding. Add a redundant standalone observer to show duplicates. Rename/identical settings produce zero shared events.                                                                                                                                                                                                                                           |
@@ -253,11 +254,18 @@ of the named path. Reuse 6h helpers, but run standalone and borrowed cases separ
 
 Additional standalone boundary proofs:
 
-- `standalone rename survives later link failure`: for both scoped person and team patch,
-  commit the first rename, then fail the link mutation and separately its event insert. The
-  rename/revision and first ordinary announcement remain, while the failed mutation's links,
-  fan-out rows and sequence effects roll back. Replace the facade with a whole-service UoW:
-  the retained-rename assertion must fail.
+- `standalone rename survives later link after-capture failure`: through the installed public
+  facade for both scoped person and team patch, commit the first rename, apply the second link
+  mutation, then fail that second owner's after-capture. The rename/revision and its original
+  ordinary announcement remain; the second owner's links and event/sequence effects roll back.
+  A links-only zero-pair fixture must not invent an event or insert fault. Replace the facade
+  with a whole-service UoW: the retained-rename assertion must fail.
+- `standalone cascade rolls back a later real event insert`: independently seed a directory
+  cascade whose normal comparison produces at least two distinct real recipient/cause pairs.
+  First demonstrate that unmodified comparison derives those pairs. Fail the second insert
+  after the first succeeds; assert the cascade, revisions, event log and sequencer restore to
+  before, with zero push/optimizer callbacks. Moving record after commit must make this RED.
+  This proves event atomicity separately from the silent rename/link boundary test.
 - `each raw mutation observes its own before state`: witness capture once before/after each
   actual store mutation; the second before observes the committed rename. A raw method with
   several SQL writes still owns one comparison. Reuse the whole-service before or wrap inner
@@ -287,7 +295,8 @@ proofs, command refusal/undo/redo grant expiry, scoped step recovery's single au
    standalone directory service/DB tests from the matrix. Inventory production constructors;
    distinguish fixture-only raw stores from public composed writers.
 2. Establish the standalone directory boundary first: write the partial-commit, per-mutator
-   observation, preflight-zero, context-interleaving and ordinary-announcement RED tests above.
+   observation, real-cascade event-insert rollback, preflight-zero, context-interleaving and
+   ordinary-announcement RED tests above.
    Install the invocation-scoped store facade, never a whole-service UoW, and prove the borrowed
    graph does not use it. Then introduce mandatory read-only current rank admission
    with `RankMoved.forbidden`, and transaction-bound directory ownership/usage address

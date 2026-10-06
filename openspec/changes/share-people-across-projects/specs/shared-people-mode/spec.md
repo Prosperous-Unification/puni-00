@@ -298,12 +298,18 @@ per raw mutator call, not per compound service operation. Service validation and
 announcement ownership SHALL remain unchanged. Already-owned command/import/repair graphs
 SHALL use raw borrowed stores and SHALL NOT acquire this standalone owner.
 
-#### Scenario: standalone rename commits before a later link failure
+#### Scenario: standalone rename commits before a later link after-capture failure
 
 - **GIVEN** a scoped person or team patch renames through one store call and patches links through another
-- **WHEN** the rename commits and the later mutation or its downstream event insert fails
+- **WHEN** the rename commits and after-capture fails after the later link mutation
 - **THEN** the committed rename and its prior ordinary announcement remain
 - **AND** only the failing owner's mutation and event/sequence effects roll back
+- **AND** a links-only zero-pair comparison does not fabricate a downstream event
+
+#### Scenario: membership changes derive no recipients
+
+- **WHEN** a name-idempotent add joins memberships to an existing person without changing displayed bookings, availability or effective incoming basis
+- **THEN** normal before/after observation produces no recipient pairs and no fan-out event is inserted
 
 #### Scenario: service validation precedes standalone capture
 
@@ -331,10 +337,10 @@ SHALL use raw borrowed stores and SHALL NOT acquire this standalone owner.
 
 #### Scenario: standalone person removal retains old users
 
-- **GIVEN** a person connects several ranked dated projects in a shared organization
+- **GIVEN** a person connects ranked dated projects and its removal derives at least two distinct recipient/cause pairs
 - **WHEN** a standalone directory mutation removes that person and their assignments
 - **THEN** the same transaction records each required old-closure recipient/cause pair once
-- **AND** failure of a later event insert restores the person, assignments, earlier events and sequences
+- **AND** an independent failure of the second real event insert restores the person, assignments, earlier events and sequences
 
 #### Scenario: command directory edits have no inner fan-out owner
 

@@ -1824,14 +1824,14 @@ invocation-scoped DirectoryStore facade and one owner per raw mutator; it explic
 wrapping whole patchPersonWithin/patchTeamWithin operations in a new UoW. No product edit,
 WBS mutation, publication or implementation completion is claimed.
 
-| Required fault                                               | Decisive witness                                                         | Result  |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------ | ------- |
-| Whole-service UoW replaces independent owners                | First rename must survive later person/team link or event-insert failure | Pending |
-| Reuse service-wide before state or wrap raw internal helpers | Exact per-mutator before/after and owner/event counts                    | Pending |
-| Capture before service validation                            | Invalid input refusal invokes zero capture/mutation/delivery             | Pending |
-| Mutable shared invocation access                             | Deterministic cross-organization interleaving preserves each scope       | Pending |
-| Facade republishes/collects ordinary events                  | Existing ordinary service announcement count and timing remain           | Pending |
-| Facade installed beneath command/import/repair owner         | Borrowed graph retains single comparison and no nested owner             | Pending |
+| Required fault                                               | Decisive witness                                                                             | Result  |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ------- |
+| Whole-service UoW replaces independent owners                | Public-facade rename survives later link after-capture failure; zero-pair links emit nothing | Pending |
+| Reuse service-wide before state or wrap raw internal helpers | Exact per-mutator before/after and owner/event counts                                        | Pending |
+| Capture before service validation                            | Invalid input refusal invokes zero capture/mutation/delivery                                 | Pending |
+| Mutable shared invocation access                             | Deterministic cross-organization interleaving preserves each scope                           | Pending |
+| Facade republishes/collects ordinary events                  | Existing ordinary service announcement count and timing remain                               | Pending |
+| Facade installed beneath command/import/repair owner         | Borrowed graph retains single comparison and no nested owner                                 | Pending |
 
 Targeted pinned strict OpenSpec, changed-path Prettier and diff checks are required for this
 local documentation checkpoint. Product tests, R5 mutations, Nx gates, CI and canonical host
@@ -1844,3 +1844,24 @@ Formatting needed a further correction: multiline inline-code test names in the 
 were normalized to single-line names to avoid repeated Prettier indentation changes. Final
 pinned strict validation passed 1/1, four-file Prettier and diff checks passed; logs are
 `/tmp/6i-mutation-owner-plan-strict.json` and `/tmp/6i-mutation-owner-plan-format.log`.
+
+### 6i separate mutation-boundary and event-rollback proofs
+
+Planning correction atop `37ac4f4ab586f08cda8b80f32c47b02d6ef13c07`: links/memberships alone
+are not assumed scheduler inputs. The compound public-facade proof fails after-capture of the
+second link mutation and preserves the earlier rename. Separately, a cascade must first derive
+at least two real recipient/cause pairs before faulting the second event insert. Name-idempotent
+membership additions are observed normally; zero derived pairs means zero fan-out writes.
+
+| Fault                                | Required distinct witness                                                                            | Result  |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------- | ------- |
+| Whole-service owner                  | Rename remains after second link mutation's after-capture fails; no invented event in zero-pair case | Pending |
+| Record after cascade commit          | Second real insert failure rolls back cascade, first event and sequences; no delivery                | Pending |
+| Emit on any membership/link mutation | Normal zero-pair comparison must stay silent                                                         | Pending |
+
+No product code or proof execution in this amendment. Planning validation uses pinned strict
+OpenSpec, four-file Prettier, diff and normal commit hooks; implementation proofs remain pending.
+
+Planning checks passed: pinned strict OpenSpec 1/1 (`/tmp/6i-split-proof-plan-strict.json`),
+four-file Prettier (`/tmp/6i-split-proof-plan-format.log`) and `git diff --check`. Final-byte
+reruns use those same commands/logs. No product test, R5 or host-gate result is claimed.
