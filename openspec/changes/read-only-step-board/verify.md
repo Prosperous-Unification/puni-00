@@ -255,3 +255,110 @@ mounted run emitted React `act` warnings in existing cases; no test failed.
 Independent Astra review cleared the task 2.1 implementation and the pointer-cancel
 follow-up on 2026-10-06. Task 2.1 is now checked; 2.2 browser acceptance,
 3.1 final review and 3.2 exact-head gate remain pending.
+
+### Task 2.2 authenticated Chromium acceptance — review pending
+
+`bun run tools/dev/setup.ts` exited 0 (`/tmp/board22-setup.log`). With the
+coordinator's reserved `E2E_PORT_SHIFT=1900`, Bun bind probes found be/gw/fe
+ports 5000/5100/6100 free before Playwright started its own CI servers. All
+fixtures created disposable local-dev projects through the authenticated
+browser's generated HTTP shapes; progress setup happened before the watched
+Board interval. No shared or hosted data was used.
+
+From the worktree root, the exact command
+`CI=1 E2E_PORT_SHIFT=1900 bunx playwright test --config apps/wbs/fe-01/playwright.config.ts step-board.spec.ts --project=chromium`
+exited 0 after the independent-review amendments: six Chromium cases passed
+in 47.0 seconds (`/tmp/board22-browser-astra-final.log`). It verified delivered Unknown /
+In progress / Done order and counts 2/1/1, leaf numbers/names/step names and
+the separate row statuses, selected Plan/Board state, drag/undo/redo/help/view
+changes without a mutation request, synthetic `pointercancel` followed by real
+Chromium typing/click, clean-selector Tab / Shift+Tab / Enter / Space navigation,
+and direct selector focus with a dirty field. The suspended name survived a
+same-field server rename plus a later bystander delivery, then committed once
+on ordinary leave. A 390px renderer remount preserved the next held draft
+without another write. It
+also observed first-read loading, typed failure and Retry, retained cards on a
+later peer-triggered failed refresh and Retry, and a late old-project read
+released and awaited through `route.fulfill` after a project switch without
+old cards or draft in the new runtime.
+The disconnection case takes Chromium offline, closes **all active page `/ws`
+sockets**, and asserts the Board's visible `Reconnecting` status alongside its
+last delivered cards. This is a broad page outage; it does not identify one
+specific feed socket. A prior fixture that closed only the last observed socket
+intermittently left the selected Plan feed online (failed full runs
+`/tmp/board22-browser-full1.log` and `/tmp/board22-browser-full2.log`).
+
+The dirty keyboard traversal is intentionally bounded. In a real Chromium
+focus-order probe, Board was tabbable position 6 and `Name of 010` position 59;
+Shift+Tab from that dirty name landed on `Unfold QA estimates`, an intermediate
+Plan control, and ordinary blur sent a second `/commands` POST. The observed
+focus target, intervening controls and write are in
+`/tmp/board22-keyboard-focus-order-map.log`. This is not a dirty selector
+handoff. Browser tests exercise actual clean-selector Tab/Shift+Tab/Enter/Space
+and label the dirty direct-focus seam as programmatic; mounted tests protect
+the corresponding focus-before-activation suspension. No tab-order, shortcut
+or general blur behavior was changed.
+
+The first independent review found that a bystander-only peer edit did not
+stress the held field and that releasing the old route was not a completion
+witness. The amended browser test now commits a peer rename of the held row,
+commits a later bystander rename, waits until Board shows both server values,
+and still finds the local held text before refocus. The old-project route marks
+completion only after `route.fulfill` resolves; the test awaits that mark before
+checking the new project's cards and draft. The targeted amended cases passed
+2/2 (`/tmp/board22-astra-review-fixes2.log`). An intermediate native dirty
+Shift+Tab probe failed as expected on the QA control and ordinary write
+(`/tmp/board22-astra-review-fixes1.log`); it is not counted as a successful
+dirty keyboard handoff.
+
+The desktop and 390px screenshots, exact card/column geometry, 2500-card
+screenshot and raw measurement are preserved at
+`/tmp/board22-artifacts-astra-final/step-board-{desktop.png,390.png,geometry.json,500x5.png,500x5.json}`.
+The geometry JSON records desktop column left edges 16, 477.328125,
+938.65625 and mobile top edges 181, 319, 421; every recorded card has
+`scrollWidth === clientWidth`, and every column right edge is inside its
+viewport. The final measurement JSON reports 500 leaves × five steps = 2500
+rendered cards, 8923 ms fixture setup, and 1027.864 ms from Board click through
+all cards and two animation frames. It records Chromium 153.0.8010.12,
+Linux/x64, 1400×900, local SHA `5db3680a7fd556877d05724938c01402a6d8443a`
+and the then-dirty test and three OpenSpec files. This is one local observation,
+not an SLA.
+
+Two independent production-path faults were watched in Chromium and restored;
+the new test has adjacent `Proof:` comments. Blanking `card.title` in
+`step-board-view.tsx` failed the ordered mixed-board case on missing
+`Review the second task` (`/tmp/board22-r5-card-title.log`). Suppressing the
+Board's `!connected` warning failed the outage case on missing `Reconnecting`
+(`/tmp/board22-r5-disconnect-warning.log`). The first attempt at the browser
+cases also exposed fixture errors rather than product defects: an invalid
+progress command order, an unescaped project-name regex, a mistaken assumption
+that a project switch keeps Board selected, and an offline-only probe that did
+not close the established socket. Each was corrected before the final run;
+intermediate terminal logs remain under `/tmp/board22-browser-*.log`.
+
+Fresh focused checks after restoration: node Board projection 8/8
+(`/tmp/board22-node-final.log`); six mounted Board/field/project/router files
+231/231 (`/tmp/board22-mounted-final.log`, with existing React `act` warnings);
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/nx-board22-final bunx nx run-many -t lint,typecheck,build -p wbs-fe-01 --skip-nx-cache --outputStyle=static`
+exited 0 for all affected FE targets (`/tmp/board22-targets-final.log`). The
+initial target run failed only on an ESLint `no-confusing-void-expression` in
+the new double-animation-frame measurement callback; braces fixed it before
+the passing target run. Scoped new-file ESLint, e2e TypeScript, Prettier and
+`git diff --check` also exited 0. Task 2.2 is checked; task 3.1 independent
+review and the task 3.2 exact-SHA host gate remain pending. No push, merge,
+gate, or publication occurred. Strict targeted OpenSpec validation with
+`bunx @fission-ai/openspec@1.12.0 validate read-only-step-board --strict --json`
+passed 1/1 (`/tmp/board22-openspec-scoped.log`). The first bare
+`bunx openspec` invocation could not determine a package executable; the
+versioned package command supplied the required validation.
+
+After the independent-review amendments, the exact Chromium command above
+passed 6/6 (`/tmp/board22-browser-astra-final.log`), and its five final
+artifacts were copied before another Playwright run could clear them. The
+affected `wbs-fe-01:lint` Nx target passed without cache
+(`/tmp/board22-review-lint.log`); e2e TypeScript, scoped Prettier,
+`git diff --check`, and strict targeted OpenSpec 1/1 also passed
+(`/tmp/board22-review-{e2e-typecheck,format,openspec}.log`). Product code did
+not change during task 2.2. The earlier 231/231 mounted, 8/8 node, FE
+typecheck/build and two watched browser faults remain applicable; an
+independent follow-up review is pending before any commit.
