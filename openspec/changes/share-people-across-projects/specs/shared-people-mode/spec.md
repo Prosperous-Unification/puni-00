@@ -267,6 +267,31 @@ the selected displayed schedule. Refusal or capture/event failure SHALL preserve
 domain state, event rows and sequence. Committed delivery and recipient optimizer notification
 SHALL occur only after commit and writer release.
 
+The rank owner SHALL recheck current admin/super-admin membership on the borrowed writer
+before capture; a revoked or demoted actor SHALL receive typed `forbidden` without recovery
+audit. Ownership resolution SHALL preserve typed caller-addressed absent/foreign entry and
+link refusals, while throwing for present trusted rows with missing or corrupt required
+ownership. Both refusal and corruption classification SHALL precede standalone shared capture.
+
+#### Scenario: a queued rank move loses current authority
+
+- **GIVEN** rank request access was resolved while its actor was an admin
+- **WHEN** the actor is demoted or removed before the rank writer acquires its turn
+- **THEN** the move returns typed forbidden without capture, rank changes, audit, events or sequence changes
+
+#### Scenario: a standalone addressed resource is absent or foreign
+
+- **GIVEN** an operation addresses an absent or validly foreign directory entry or team/service link
+- **WHEN** its owning transaction resolves the address
+- **THEN** the existing not_found, unknown_team or unknown_service refusal is preserved
+- **AND** shared capture and mutation are not invoked
+
+#### Scenario: a present trusted resource has corrupt ownership
+
+- **GIVEN** a present scoped resource lacks its required ownership, or a stored usage has corrupt ownership
+- **WHEN** standalone ownership resolution examines it
+- **THEN** it throws before capture and mutation, without treating corruption as absence or a silent mode
+
 #### Scenario: a rank move only respaces stored positions
 
 - **GIVEN** the organization's stored rank positions need respacing but project identity order is unchanged

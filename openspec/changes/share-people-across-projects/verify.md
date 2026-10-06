@@ -1799,3 +1799,19 @@ run for this documentation-only amendment. Fresh validation passed:
 
 The local checkpoint uses normal commit hooks without bypass. An inactive Tool Wiki hook is
 not certification. These planning checks do not replace the later implementation review/gate.
+
+### 6i architecture admission and refusal correction
+
+Independent review of `e47dc238b` required mandatory current rank admission and a precise
+ownership-refusal boundary. The normative packet now requires read-only current membership
+inside the rank owner before capture, typed `RankMoved.forbidden` with no recovery audit,
+and separate caller-addressed absent/foreign outcomes versus corrupt trusted ownership.
+The task/spec and R5 matrix include queued-demotion and standalone capture-spy negatives.
+Raw OPEN savepoints and single outer-owner event semantics remain unchanged. No product code
+or fault execution is claimed; implementation and those new proofs remain pending.
+
+Validation for this documentation amendment uses the same pinned strict/all, changed-path
+Prettier, diff and normal-hook commands as the original checkpoint. Fresh outputs are
+`/tmp/shared-people-fanout-6i-admission-{strict,all}.json`: strict 1/1 and all 148/148 passed.
+Changed-path Prettier passed and `git diff --check` found no whitespace errors. Product tests
+and R5 injections were not run for this documentation-only correction.

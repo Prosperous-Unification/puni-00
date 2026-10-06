@@ -36,8 +36,10 @@ Rank and directory already use synchronous Drizzle transactions, so the async-ca
 choice is needed in **6i**, not first in 6j. Choose an explicit outer `sqliteUnitOfWork` owner:
 
 1. Acquire the source write turn and `BEGIN IMMEDIATE`.
-2. Resolve addressed ownership and old scheduling/resource usages in that transaction; capture
-   the relevant shared organization(s) on its borrowed writer with the 6h captured scheduler.
+2. Perform current read-only rank admission (for rank writes) and classify caller-addressed
+   ownership/refusals inside that transaction, before any shared capture. Resolve old
+   scheduling/resource usages; capture the relevant shared organization(s) on its borrowed
+   writer with the 6h captured scheduler.
 3. Invoke the existing raw OPEN repository operation. Its synchronous transaction becomes an
    inner savepoint. Never pass an async function to that Drizzle callback.
 4. On modeled refusal, return `commit:false`; on success, capture after and use
@@ -83,9 +85,30 @@ relinking; resolve new usages after the mutation and union the affected organiza
 
 Capture every organization that can be affected **before** mutation. If an operation can add
 references to another addressed resource, resolve its ownership in the before phase as well;
-do not discover an uncaptured organization only after writing and silently omit it. A missing,
-malformed or inconsistent trusted ownership relation throws. Existing legacy/pre-activation
-and isolated modes remain typed silent paths; no shared read may be triggered for legacy work.
+do not discover an uncaptured organization only after writing and silently omit it.
+
+The resolver must preserve the boundary between expected caller-addressed absence and corrupt
+trusted state. Return a typed resolution outcome that can carry the operation's existing
+refusal; do not return an empty organization list for both refusal and permitted silence:
+
+- An absent caller-addressed entry, or an entry validly owned by another organization, retains
+  `not_found`; an absent/foreign addressed team or service link retains `unknown_team` or
+  `unknown_service` respectively. These outcomes are decided before capture and before a
+  mutation. Do not turn a missing ownership relation _for the caller's organization_ into a
+  corruption error when the entry is simply absent or validly foreign.
+- A present trusted scoped row with no required ownership anywhere, a malformed ownership
+  record, conflicting ownership, or a stored usage referencing a missing/cross-organization
+  resource is corrupt trusted state and throws. Distinguish an external request naming an
+  unknown id from an existing trusted row naming an impossible id. Do not coerce corruption
+  into `not_found`, an empty organization set, legacy mode or successful silence.
+- Explicit legacy/pre-activation and isolated modes remain typed silent paths; no shared read
+  may be triggered for legacy work. Unused valid resources may have no scheduling users;
+  that does not mean an ownership/refusal check can be skipped.
+
+Keep these classifications in the same owning transaction as the write. The typed address must
+retain enough operation/access context to preserve scoped absence/foreign semantics; do not
+reconstruct caller authority from an arbitrary resource's ownership. Existing store checks
+remain authoritative and their later modeled refusal still rolls back the outer owner.
 Existing scoped foreign-resource checks continue to reject corrupt cross-organization reach;
 fan-out is not permission to broaden human read authority or repair corrupt ownership.
 
@@ -98,11 +121,31 @@ store boundaries. Mounted compound operations remain atomic under their command 
 claim a newly atomic whole standalone service operation or independently publish intermediate
 fan-out from a compound command.
 
-Rank access remains organization-required and admin/super-admin only, with no recovery grant,
-audit or journal added. Preserve foreign/absent addressed projects as `not_found` and the
-self-move no-op. Any current-authority check added at the new owner must run before capture,
-model its refusal explicitly and retain the same role policy; prove it through the mounted
-path rather than trusting request preflight as a transaction observation.
+Rank access remains organization-required and admin/super-admin only. The standalone rank
+owner **must** re-read the acting user's membership in the addressed organization on its
+borrowed writer after acquiring the turn and before capture. Use `stamp.by` as the actor bound
+to the existing move contract; the request's cached `access.scope.role` is only an early
+preflight, never this current admission. Missing membership or a current member/viewer role
+returns `forbidden`; a malformed stored role throws. This check is read-only: do not call
+project recovery admission, issue a project grant, append an audit or create a journal entry.
+
+Extend `RankMoved`'s refusal union to `not_found | forbidden` and propagate `forbidden` through
+`ProjectRankResource.move` to the route's existing typed 403. The rank writer must classify
+both addressed project identities in this same transaction before capture: absent/foreign
+moving or anchor projects retain `not_found`. Keep self-move a no-op only after current
+admission and target classification. Refusal leaves ranks, audit/history, event rows and
+sequences unchanged and invokes no capture, push or optimizer notification. Add a narrow
+read-only current-rank-authority capability at the source boundary; keep membership SQL out of
+core and do not weaken raw OPEN/savepoint ownership or add a second transaction.
+
+The current `DirectoryStore` mutation signatures do not all carry `ResourceAccess`. For a
+standalone scoped operation, pass the original operation/access context explicitly from the
+service/composition entry into the owner/address resolver; extend the narrow standalone
+boundary where necessary. A context-free low-level store method cannot invent a caller's
+organization from its target. Bind context per invocation, never in a mutable repository field
+or process-global variable. Borrowed command service calls already carry their enclosing
+admitted scope and must not use this new standalone entry. Preserve legacy raw-store behavior
+as such rather than labeling a target-derived organization as scoped authorization.
 
 ## Comparison and cause contract
 
@@ -140,19 +183,22 @@ Every row needs a restored passing run, the injected-fault failure and an adjace
 comment at the production guard/binding. A failure in an earlier unrelated branch is not proof
 of the named path. Reuse 6h helpers, but run standalone and borrowed cases separately.
 
-| Witness                                                       | Required observation and independent fault                                                                                                                                                                                                                                                                                                                                                              |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Mounted rank reorder compares both directions                 | Cold dated A/Ana → B/Ana with distinguishable selected bookings; reverse order. Check exact old/new-direction recipient/cause rows, durable payload/sequence, no history. Omit the composed rank binding; required rows disappear.                                                                                                                                                                      |
-| Rank respacing is silent                                      | Arrange sparse/tied/unranked positions; move to the already-current place so the repository physically rewrites rank rows without changing identity order. Assert zero shared rows/sequence change. Derive causes/events from numeric rank changes to watch the witness fail. Retain self-move and foreign-target refusal cases.                                                                        |
-| Owner observation defeats stale preflight                     | Pause after public preflight but before the acquired turn; another real connection changes rank or assignment. Expected pairs use the state admitted by the writer. Substitute the earlier preflight snapshot and observe wrong/missing pairs. Keep this separate from detached-after-capture failure.                                                                                                  |
-| Standalone directory removed assignment preserves old closure | Through composed public directory service/store, cascade-remove a person used in a multi-project bridge. No project row changes; exact old-closure pairs commit. Omit only the standalone wrapper, then use only post-write usage independently; each loses required rows.                                                                                                                              |
-| Standalone directory multi-resource mutation                  | Patch team/service links or person memberships/kind that affect scheduling; include name-idempotent add joining an existing person. Capture before/after resource users inside the owner. Unknown linked resource/in-use refusal leaves domain, events and sequences unchanged. Force a refusal after a provisional event to prove rollback, not just an empty no-op.                                   |
-| Borrowed directory emits once                                 | Mounted project batch performs several directory writes and an assignment change; project-null directory batch separately edits multiple used resources. Expected distinct pairs appear once after the whole batch. Install standalone wrappers beneath OPEN stores or per intermediate write; witness duplicate/intermediate rows or nested-owner refusal. Do not accept a hang as the only assertion. |
-| Working plan remains current                                  | Mix directory mutation and later scheduling command; the captured after-state and later command see refreshed collections. Remove the reload/row refresh to observe stale behavior. Refuse a later command and verify no shared rows/push/trigger escape; retain stale replay repair and grant-lifetime tests.                                                                                          |
-| Settings/date owner is retained                               | Mounted PATCH exercises start date, dated↔undated and selected ready optimized display; compare exact recipient pairs with one owner. Omit only admitted settings binding. Add a redundant standalone observer to show duplicates. Rename/identical settings produce zero shared events.                                                                                                                |
-| Standalone second-event failure is atomic                     | Inject failure on a later downstream insert after one recorded row. Compare directory/rank mutation, revision/audit, log and sequencer with before; no push/optimizer callback. Move record after UoW return and observe persisted mutation/partial event. Rank and directory require separate witnesses.                                                                                               |
-| Standalone delivery releases writer                           | Hold committed transport; independent SQLite writer succeeds and recipient optimizer notification has already run. Move delivery into owner and observe blocked writer/premature delivery. Exercise rank and directory independently; normal push failure leaves replayable rows and notified recipients.                                                                                               |
-| Legacy/isolated and unavailable wiring                        | Throwing shared dependencies must remain unused for legacy work; isolated capture produces no shared events. Omit required production public-writer/capture/delivery wiring independently and make the corresponding mounted/service witness fail closed or miss its required event. A raw fixture that never uses the composed writer cannot prove installation.                                       |
+| Witness                                                       | Required observation and independent fault                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mounted rank reorder compares both directions                 | Cold dated A/Ana → B/Ana with distinguishable selected bookings; reverse order. Check exact old/new-direction recipient/cause rows, durable payload/sequence, no history. Omit the composed rank binding; required rows disappear.                                                                                                                                                                                                                                                                                                 |
+| Rank respacing is silent                                      | Arrange sparse/tied/unranked positions; move to the already-current place so the repository physically rewrites rank rows without changing identity order. Assert zero shared rows/sequence change. Derive causes/events from numeric rank changes to watch the witness fail. Retain self-move and foreign-target refusal cases.                                                                                                                                                                                                   |
+| Mounted rank current admission                                | Hold the source write turn after request access resolves as admin; demote/remove membership using another connection before releasing the turn. A capture spy (also tested throwing) remains uncalled, response is typed 403, and ranks/audit/history/events/sequences are unchanged. Bypass the owner admission, then move capture ahead of it independently: observe unauthorized success or the spy/500 instead of 403. Test absent/foreign rank addresses as typed 404 with zero capture; self-move must not bypass admission. |
+| Directory addressed refusal before capture                    | Standalone scoped service/DB cases separately address absent entry, validly foreign entry, absent/foreign team and service links. Expect existing not_found/unknown_team/unknown_service and zero capture/mutation/events/sequence change. A throwing capture spy proves precedence. Replace typed resolution by capture/throw to watch these cases fail; do not use a mounted command's outer 6h capture count to prove the standalone resolver.                                                                                  |
+| Directory corrupt ownership remains an error                  | Separately seed a present scoped row missing required ownership and a trusted usage with corrupt/foreign ownership. Expect an error before capture or write; spy remains uncalled and state unchanged. Coerce each corruption into absence/empty-organization success to watch its case fail. A missing caller-addressed row cannot substitute for either corruption fixture.                                                                                                                                                      |
+| Owner observation defeats stale preflight                     | Pause after public preflight but before the acquired turn; another real connection changes rank or assignment. Expected pairs use the state admitted by the writer. Substitute the earlier preflight snapshot and observe wrong/missing pairs. Keep this separate from detached-after-capture failure.                                                                                                                                                                                                                             |
+| Standalone directory removed assignment preserves old closure | Through composed public directory service/store, cascade-remove a person used in a multi-project bridge. No project row changes; exact old-closure pairs commit. Omit only the standalone wrapper, then use only post-write usage independently; each loses required rows.                                                                                                                                                                                                                                                         |
+| Standalone directory multi-resource mutation                  | Patch team/service links or person memberships/kind that affect scheduling; include name-idempotent add joining an existing person. Capture before/after resource users inside the owner. Unknown linked resource/in-use refusal leaves domain, events and sequences unchanged. Force a refusal after a provisional event to prove rollback, not just an empty no-op.                                                                                                                                                              |
+| Borrowed directory emits once                                 | Mounted project batch performs several directory writes and an assignment change; project-null directory batch separately edits multiple used resources. Expected distinct pairs appear once after the whole batch. Install standalone wrappers beneath OPEN stores or per intermediate write; witness duplicate/intermediate rows or nested-owner refusal. Do not accept a hang as the only assertion.                                                                                                                            |
+| Working plan remains current                                  | Mix directory mutation and later scheduling command; the captured after-state and later command see refreshed collections. Remove the reload/row refresh to observe stale behavior. Refuse a later command and verify no shared rows/push/trigger escape; retain stale replay repair and grant-lifetime tests.                                                                                                                                                                                                                     |
+| Settings/date owner is retained                               | Mounted PATCH exercises start date, dated↔undated and selected ready optimized display; compare exact recipient pairs with one owner. Omit only admitted settings binding. Add a redundant standalone observer to show duplicates. Rename/identical settings produce zero shared events.                                                                                                                                                                                                                                           |
+| Standalone second-event failure is atomic                     | Inject failure on a later downstream insert after one recorded row. Compare directory/rank mutation, revision/audit, log and sequencer with before; no push/optimizer callback. Move record after UoW return and observe persisted mutation/partial event. Rank and directory require separate witnesses.                                                                                                                                                                                                                          |
+| Standalone delivery releases writer                           | Hold committed transport; independent SQLite writer succeeds and recipient optimizer notification has already run. Move delivery into owner and observe blocked writer/premature delivery. Exercise rank and directory independently; normal push failure leaves replayable rows and notified recipients.                                                                                                                                                                                                                          |
+| Legacy/isolated and unavailable wiring                        | Throwing shared dependencies must remain unused for legacy work; isolated capture produces no shared events. Omit required production public-writer/capture/delivery wiring independently and make the corresponding mounted/service witness fail closed or miss its required event. A raw fixture that never uses the composed writer cannot prove installation.                                                                                                                                                                  |
 
 Preserve physical capture-error tests, selected-ready-optimized capture/no-live-admission
 proofs, command refusal/undo/redo grant expiry, scoped step recovery's single audit and bare
@@ -164,8 +210,9 @@ proofs, command refusal/undo/redo grant expiry, scoped step recovery's single au
 1. Start from this packet commit after review. Add failing rank controller/SQLite tests and
    standalone directory service/DB tests from the matrix. Inventory production constructors;
    distinguish fixture-only raw stores from public composed writers.
-2. Introduce the source-bound standalone owner and transaction-bound directory ownership/usage
-   address capability. Keep raw OPEN stores in command/import/repair scopes. Bind the composed
+2. Introduce the source-bound standalone owner, mandatory read-only current rank admission
+   with `RankMoved.forbidden`, and transaction-bound directory ownership/usage address
+   capability with typed addressed refusals distinct from trusted corruption. Keep raw OPEN stores in command/import/repair scopes. Bind the composed
    rank port in boot/app/harness and public directory mutations in composition. Add symbol
    JSDoc defining owner, refusal, throws, borrowed lifetime and delivery timing.
 3. Reuse capture/projection/record/delivery values from 6h. Add relative-order cause derivation

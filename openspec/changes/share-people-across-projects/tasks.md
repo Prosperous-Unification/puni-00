@@ -239,7 +239,11 @@ silent`, and `isolated and foreign projects receive no shared fan-out`. Include 
 compares both directions`, `directory edit has causes without project-row edits`,
       `unchanged rename is silent` and `refused resource edit preserves event sequence`.
       Expose the composed rank writer through source/services/boot/app; mounted directory
-      mutations stay on the command runner. Add relative-order causes without numeric
+      mutations stay on the command runner. Require current read-only admin/super-admin
+      admission inside the rank owner before capture, propagating typed `RankMoved.forbidden`
+      without recovery audit. Preserve typed addressed resource/link refusals separately from
+      trusted ownership corruption; prove both with capture spies and queued rank demotion.
+      Add relative-order causes without numeric
       respacing causes; retain the 6h settings/date owner and selected-display comparison.
       R5: omit each binding independently, use only post-write usages, use a preflight
       topology read instead of the owning transaction's observation, install standalone
