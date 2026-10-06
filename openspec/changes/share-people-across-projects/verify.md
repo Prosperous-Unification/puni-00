@@ -1351,3 +1351,100 @@ is 384 words, below the 400-word limit. Final-byte reruns use the same commands/
 No Nx implementation suite was run for this documentation-only amendment; no new production
 behavior or R5 outcome is claimed. Before committing, self-review checked source ownership,
 scenario/task coverage and that every new implementation checkbox and proof remains pending.
+
+## 6g pure projection and recipient calculation
+
+Branch feat/shared-people-fanout-6g, isolated worktree
+.worktrees/shared-people-fanout-6g, exact planning base
+24025e6545b36bae8f32e18c078b5b755670211c. This slice adds only a pure value
+service/test and reuses the existing captured-chain display selector. Old/new ordered
+project facts, outcomes and direct causes are explicit inputs; the service imports no
+DB, snapshot, writer, adapter, event or live admission dependency. It compares
+canonical absolute fractional person/project/work-item/step intervals separately
+from modeled availability and emits sorted, deduplicated recipient/cause pairs.
+
+Baseline from libs/wbs/application/core: bun test src/service/shared-people.test.ts
+passed 14/14, 37 assertions (/tmp/shared-people-fanout-6g-baseline.log). First
+new-test RED failed at the explicit unimplemented comparison
+(/tmp/shared-people-fanout-6g-selected-red.log); selected ready versus Fast
+then passed 1/1 (/tmp/shared-people-fanout-6g-selected-green.log). Removed
+bridge first missed C under one-hop traversal
+(/tmp/shared-people-fanout-6g-old-topology-red.log), then passed after
+separate old/new closure traversal (...old-topology-green.log). Pair
+ordering/dedup first failed with duplicate and unsorted Z pairs
+(...pairs-red.log), then passed (...pairs-green.log). Foreign X first appeared
+(...boundary-red.log), then was filtered (...boundary-green.log). Topology-only
+changed incoming basis first omitted B (...topology-only-red.log), then passed
+(...topology-only-green.log). Missing direct cause and missing/mismatched shared
+organization each failed before refusal and passed after it
+(...missing-cause-{red,green}.log, ...org-identity-{red,green}.log).
+The first fractional fixture requested optimized mode with null optimizer state;
+the selector correctly threw (...fractional-check.log). Correcting this test-only
+fixture to Fast mode passed (...fractional-green.log); it was no product failure.
+
+Every watched fault below ran from libs/wbs/application/core with
+bun test src/service/shared-people-fanout.test.ts -t '<test fragment>'.
+Each named fault exited 1 at the asserted behavior and was restored; adjacent
+Proof comments in the source name the failures.
+
+| Fault                                        | Test fragment                        | RED log and observed failure                                                                      |
+| -------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Substitute Fast for ready selected schedule  | selected displayed bookings          | /tmp/shared-people-fanout-6g-fault-fast.log: B disappeared                                        |
+| Suppress availability at equal hash          | equal hashes retain availability     | /tmp/shared-people-fanout-6g-fault-equal-hash.log: engine-unavailable to cycle reported unchanged |
+| Omit old graph                               | removed bridge retains               | /tmp/shared-people-fanout-6g-fault-old-graph.log: C disappeared                                   |
+| Union old/new person edges                   | mixed old and new edges              | /tmp/shared-people-fanout-6g-fault-mixed-edges.log: invented C appeared                           |
+| Remove pair deduplication                    | deduplicates and orders              | /tmp/shared-people-fanout-6g-fault-dedup.log: duplicate Z pairs                                   |
+| Remove pair sorting                          | deduplicates and orders              | /tmp/shared-people-fanout-6g-fault-order.log: B/Z preceded B/A                                    |
+| Omit organization filter                     | isolated and foreign organization    | /tmp/shared-people-fanout-6g-fault-org.log: foreign X appeared                                    |
+| Omit mode guard                              | isolated and foreign organization    | /tmp/shared-people-fanout-6g-fault-mode.log: isolated A to B appeared                             |
+| Admit undated candidate                      | stops traversal at an undated bridge | /tmp/shared-people-fanout-6g-fault-undated-candidate.log: undated B appeared                      |
+| Admit undated predecessor                    | an undated cause cannot              | /tmp/shared-people-fanout-6g-fault-undated-predecessor.log: A to B appeared                       |
+| Admit zero-time slice                        | omits zero-time and unassigned       | /tmp/shared-people-fanout-6g-fault-zero-time.log: zero-length A booking                           |
+| Admit unassigned slice                       | omits zero-time and unassigned       | /tmp/shared-people-fanout-6g-fault-unassigned.log: null-person B booking                          |
+| Omit changed incoming-basis filter           | topology-only changes to unchanged   | /tmp/shared-people-fanout-6g-fault-topology-filter.log: unchanged B received A pair               |
+| Include deleted recipients                   | deleted cause identity               | /tmp/shared-people-fanout-6g-fault-deleted-recipient.log: deleted B received A pair               |
+| Omit canonical booking sort                  | canonicalizes booking order          | /tmp/shared-people-fanout-6g-fault-booking-sort.log: reordered map falsely changed bookings       |
+| Skip absent direct-cause refusal             | explicit cause missing               | /tmp/shared-people-fanout-6g-fault-missing-cause.log: returned empty instead of throwing          |
+| Return empty for invalid shared organization | missing or inconsistent organization | /tmp/shared-people-fanout-6g-fault-org-identity.log: returned empty instead of throwing           |
+
+After restoration and formatting, bun test src/service/shared-people-fanout.test.ts
+src/service/shared-people.test.ts passed 32/32, 76 assertions
+(/tmp/shared-people-fanout-6g-focused-final.log). The new cases cover selected
+ready versus Fast, equal-hash availability, separate graph closure, topology-only
+basis filtering, mixed-edge exclusion, multiple direct causes, deletion, organization
+and mode bounds, fractional absolute intervals, canonical collection order, undated
+barriers, cycle/range skip-bookings and required engine unavailability.
+Initial direct ESLint found 21 new-file findings
+(/tmp/shared-people-fanout-6g-eslint-pre.log); --fix removed 11, then explicit
+typed-array and optional-chain cleanup removed the remaining 10
+(/tmp/shared-people-fanout-6g-eslint-fix.log). Direct ESLint passed
+(/tmp/shared-people-fanout-6g-eslint-green.log). Initial direct TSC found an
+undiscriminated cycle/range outcome union
+(/tmp/shared-people-fanout-6g-typecheck-pre.log); splitting those two modeled
+variants made direct TSC pass (/tmp/shared-people-fanout-6g-typecheck-pre2.log,
+/tmp/shared-people-fanout-6g-tsc-pre.log).
+
+The affected command
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck build
+-p wbs-domain wbs-core --skip-nx-cache --output-style=static exited 0; Nx
+scheduled lint/typecheck for both projects and the core module typecheck dependency,
+but no build target under the generic build name
+(/tmp/shared-people-fanout-6g-nx.log). The separately declared
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:build:portable
+--skip-nx-cache --output-style=static exited 0 and bundled 539 modules
+(/tmp/shared-people-fanout-6g-portable-build.log). Pinned
+bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects
+--strict --json passed 1/1
+(/tmp/shared-people-fanout-6g-openspec-strict-review.json); pinned validate --all
+--json passed 148/148
+(/tmp/shared-people-fanout-6g-openspec-all-review.json).
+The first final four-file Prettier check flagged only the new source after
+ESLint/manual cleanup (/tmp/shared-people-fanout-6g-prettier-final.log).
+Prettier write corrected it (/tmp/shared-people-fanout-6g-source-format-write.log);
+the affected two-file focused suite then passed again 32/32, 76 assertions
+(/tmp/shared-people-fanout-6g-focused-after-format.log). The four-file Prettier
+check passed again on final verification text
+(/tmp/shared-people-fanout-6g-prettier-review.log), and git diff --check
+passed (/tmp/shared-people-fanout-6g-diffcheck-review.log).
+Durable fan-out events, transaction integration, delivery, shared activation
+and the exact-SHA host gate remain open.

@@ -99,7 +99,7 @@ export function readSharedPeople(
           name: reads.project.name,
           reads: target,
         };
-      const selected = displaySchedule(reads, scheduled);
+      const selected = displaySchedule(reads.project, scheduled);
       const placed = projectBookings(reads, selected.planned);
       if (reads.project.id === projectId)
         return { kind: 'scheduled', reads, input, scheduled, influencers };
@@ -135,23 +135,27 @@ export function readSharedPeople(
   throw new Error('required chain did not schedule its target');
 }
 
-function displaySchedule(
-  reads: PlanInputReads,
+/** Chooses the schedule a project actually displays from one captured engine observation. */
+export function displaySchedule(
+  settings: Pick<
+    PlanInputReads['project'],
+    'optimizationEnabled' | 'scheduleEngine' | 'scheduleObjective'
+  >,
   scheduled: Exclude<ScheduleRead, EngineUnavailable>,
 ): { readonly planned: Schedule; readonly engine: 'fast' | 'optimized' } {
   const optimization = scheduled.optimization;
-  const objective = reads.project.scheduleObjective;
+  const objective = settings.scheduleObjective;
   // Proof: a capability returning optimization:null made the no-state negative return Fast.
   if (
-    reads.project.optimizationEnabled &&
-    reads.project.scheduleEngine === 'optimized' &&
+    settings.optimizationEnabled &&
+    settings.scheduleEngine === 'optimized' &&
     optimization === null
   ) {
     throw new Error('optimized chain returned no optimization state');
   }
   if (
-    reads.project.optimizationEnabled &&
-    reads.project.scheduleEngine === 'optimized' &&
+    settings.optimizationEnabled &&
+    settings.scheduleEngine === 'optimized' &&
     optimization !== null &&
     optimization.variants[objective].state === 'ready'
   ) {
