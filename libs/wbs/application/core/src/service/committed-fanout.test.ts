@@ -4,7 +4,7 @@ import { expect, it } from 'bun:test';
 
 import type { CapturedFanout } from '../ports/fanout-capture-store';
 import { recordCommittedFanout } from './committed-fanout';
-import type { FanoutProject } from './shared-people-fanout';
+import { compareSharedPeopleFanout, type FanoutProject } from './shared-people-fanout';
 
 function project(projectId: string, personIds: string[], incomingBasis: string): FanoutProject {
   const assigned = personIds.at(-1) ?? null;
@@ -72,4 +72,84 @@ it('treats both changed connection endpoints as direct causes without adding tra
     ['C', { type: 'elsewhere_changed', projectId: 'C', causeProjectId: 'B' }],
   ]);
   expect(await eventLog.rangeSince('project:C', -1)).toHaveLength(2);
+});
+
+it('uses an addressed retirement cause when selected display changes at equal local facts', async () => {
+  const upstream = project('A', ['ana'], 'same-basis');
+  if (upstream.outcome.kind !== 'scheduled') throw new Error('fixture must schedule A');
+  const selected = schedule(
+    [{ id: 'A-row', parentId: null, position: 10, frozenNumber: null, priority: null }],
+    [],
+    [{ workItemId: 'A-row', stepId: 'build', days: 1, personId: 'ana', width: 1, poolIds: [] }],
+    new Map([['A-row', 2]]),
+    new Map(),
+    'whole-item',
+    new Map(),
+  );
+  const ready: FanoutProject = {
+    ...upstream,
+    outcome: {
+      kind: 'scheduled',
+      fast: upstream.outcome.fast,
+      optimization: {
+        inputHash: 'same',
+        generation: 1,
+        contractVersion: '7+0.2.0',
+        budgetMs: 60_000,
+        variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'idle' } },
+        schedules: { pri: selected, time: null },
+      },
+    },
+    settings: { optimizationEnabled: true, scheduleEngine: 'optimized', scheduleObjective: 'pri' },
+  };
+  const downstream = project('B', ['ana'], 'same-basis');
+  const afterUpstream: FanoutProject = {
+    ...upstream,
+    settings: ready.settings,
+    outcome: {
+      kind: 'scheduled',
+      fast: upstream.outcome.fast,
+      optimization: {
+        inputHash: 'same',
+        generation: null,
+        contractVersion: '7+0.2.0',
+        budgetMs: 60_000,
+        variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
+        schedules: { pri: null, time: null },
+      },
+    },
+  };
+  const before: CapturedFanout = {
+    observation: { mode: 'shared', organizationId: 'org-a', projects: [ready, downstream] },
+    localFacts: new Map([
+      ['A', 'same'],
+      ['B', 'same'],
+    ]),
+  };
+  const after: CapturedFanout = {
+    observation: { mode: 'shared', organizationId: 'org-a', projects: [afterUpstream, downstream] },
+    localFacts: new Map([
+      ['A', 'same'],
+      ['B', 'same'],
+    ]),
+  };
+  const comparison = compareSharedPeopleFanout({
+    before: before.observation,
+    after: after.observation,
+    directCauses: ['A'],
+  });
+  expect(comparison.projections.find(({ projectId }) => projectId === 'A')?.bookingsChanged).toBe(
+    true,
+  );
+  expect(comparison.recipients).toEqual([{ projectId: 'B', causeProjectId: 'A' }]);
+  const committed = await recordCommittedFanout(
+    openMemorySource().stores.eventLog,
+    before,
+    after,
+    () => 1,
+    ['A'],
+  );
+  expect(committed.map(({ projectId, event }) => [projectId, event])).toEqual([
+    ['B', { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }],
+  ]);
 });

@@ -23,6 +23,7 @@ export async function recordCommittedFanout(
   before: CapturedFanout,
   after: CapturedFanout,
   now: () => number,
+  addressedCauses: readonly string[] = [],
 ): Promise<readonly CommittedProjectEvent[]> {
   const ids = new Set([...before.localFacts.keys(), ...after.localFacts.keys()]);
   // Proof: truncating changed causes to the batch target lost the second cause
@@ -35,6 +36,7 @@ export async function recordCommittedFanout(
   // Proof: omitting changed connection endpoints lost (C,A) when B dropped
   // its A-facing assignment but A's own local scheduling facts stayed equal.
   for (const projectId of changedConnectionEndpoints(before, after)) directCauses.add(projectId);
+  for (const projectId of addressedCauses) directCauses.add(projectId);
   const { recipients } = compareSharedPeopleFanout({
     before: before.observation,
     after: after.observation,

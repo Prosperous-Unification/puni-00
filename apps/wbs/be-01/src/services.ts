@@ -33,6 +33,10 @@ import {
   nodeDigest,
   systemInterval,
 } from './runtime/bun-runtime';
+import {
+  createOptimizationLifecycle,
+  type OptimizationLifecycle,
+} from './service/optimization-lifecycle';
 import { optimizerWiring } from './service/optimizer-wiring';
 
 const EVENT_LOG_MAX_PER_SUBSCRIPTION = 1_000;
@@ -60,6 +64,7 @@ export interface ServicesOptions {
 
 export interface BeServices extends AccountfulServices {
   readonly optimizer: OptimizationCoordinator | undefined;
+  readonly optimizationLifecycle: OptimizationLifecycle;
   readonly gate: SqliteSource['gate'];
   readonly projectRanks: ProjectRankStore;
 }
@@ -199,6 +204,13 @@ export function buildServices(options: ServicesOptions): BeServices {
   return {
     ...graph,
     optimizer: coordinator,
+    // Proof: omitting the unconditional binding left the mounted lifecycle
+    // undefined when this process had no active solver runtime.
+    optimizationLifecycle: createOptimizationLifecycle(
+      source.db,
+      boundSource.uow,
+      graph.committedFanout,
+    ),
     gate: source.gate,
     projectRanks: standaloneRankStore(publicRanks, boundSource.uow, graph.committedFanout),
   };

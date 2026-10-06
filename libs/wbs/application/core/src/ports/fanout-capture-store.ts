@@ -66,6 +66,12 @@ export type DirectoryWriteResolution =
   | { readonly ok: true; readonly organizationIds: readonly string[] }
   | { readonly ok: false; readonly reason: 'not_found' | 'unknown_team' | 'unknown_service' };
 
+/** Trusted project ownership read inside the lifecycle writer, without human admission. */
+export type LifecycleOwnership =
+  | { readonly kind: 'absent' }
+  | { readonly kind: 'legacy' }
+  | { readonly kind: 'scoped'; readonly organizationId: string };
+
 /** Detached before/after values read on the owning command transaction. */
 export interface CapturedFanout {
   readonly observation: FanoutObservation;
@@ -75,6 +81,7 @@ export interface CapturedFanout {
 /** Borrowed writer capture; project order is already the rank repository's authoritative order. */
 export interface FanoutCaptureStore {
   capture(organizationId: string): Promise<CapturedFanout>;
+  resolveLifecycleOwner?: (projectId: string) => Promise<LifecycleOwnership>;
   authorizeProjectUpdate: BeforeProjectUpdate;
   authorizeStepRemoval: BeforeStepRemoval;
   authorizeRankMove?: BeforeRankMove;

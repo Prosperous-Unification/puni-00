@@ -2338,3 +2338,174 @@ passed 1/1 and `validate --all --json` passed 148/148
 The first final Prettier check failed only on this appended ledger
 (`/tmp/shared-people-6jb-format-final.log`); after formatting, the exact all-path check is
 recorded in `/tmp/shared-people-6jb-format-restored-final.log`.
+
+## 6j.c direct lifecycle checkpoint (in progress)
+
+The installed `optimizationLifecycle` owner wraps raw begin/finish in the borrowed
+SQLite writer, resolves current project ownership before capture, compares before
+and after, records recipient/cause events in that writer, and delivers after it
+releases. Selected ready contract retirement at unchanged input hash emitted
+`(B,A)`; equal-display and nonselected retirement were silent. The mounted
+event-insert trigger aborted a later recipient and restored the complete
+project/optimizer/event/sequencer snapshot. Held push permitted a second writer;
+a rejected HTTP 400 push was contained by the established broadcaster, leaving
+the committed event row replayable. The earlier test expectation that this
+delivery error rejected the lifecycle call was wrong and is disqualified at
+`/tmp/shared-people-6jc-contract-delivery-green-attempt.log`; the corrected
+behavior passed 2/2, 10 assertions at
+`/tmp/shared-people-6jc-contract-delivery-green.log`.
+
+The pre-cleanup two-file final-delete run passed **31 tests, failed 1** (158
+assertions) at `/tmp/shared-people-6jc-current-two-file.log`. The failing
+mounted case attempts final deletion of a populated project whose `work_item`
+and `step` rows hold non-cascading project FKs. Raw `finishDrainIn` issues only
+`DELETE project`, so SQLite returns `SQLITE_CONSTRAINT_FOREIGNKEY`. This is a
+historical RED before the reviewed 743d621 cleanup amendment and implementation
+below. It is not counted as final verification. Preactivation legacy and isolated
+silence were instead proven on contract retirement (2/2, 8 assertions at
+`/tmp/shared-people-6jc-mode-silence-contract-green.log`).
+
+| Production-path fault                                                          | Watched RED                                                                                                       | Restored GREEN                                                                       |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Omit unconditional installed lifecycle property                                | `/tmp/shared-people-6jc-installer-omission-red.log`                                                               | `/tmp/shared-people-6jc-installer-restored-green.log`                                |
+| Omit borrowed ownership resolver binding                                       | `/tmp/shared-people-6jc-resolver-binding-omission-red.log`                                                        | `/tmp/shared-people-6jc-resolver-binding-restored-green.log`                         |
+| Omit installed capture, missing owner, or malformed owner guards independently | `/tmp/shared-people-6jc-{missing-capture,missing-owner,malformed-owner}-guard-omission-red.log`                   | corresponding `-restored-green.log`                                                  |
+| Move old capture after contract retirement                                     | `/tmp/shared-people-6jc-old-capture-omission-red.log`: selected displacement event lost                           | `/tmp/shared-people-6jc-old-capture-restored-green.log`                              |
+| Omit addressed cause                                                           | `/tmp/shared-people-6jc-addressed-cause-omission-red.log`: `(B,A)` lost at equal hash                             | `/tmp/shared-people-6jc-addressed-cause-restored-green.log`                          |
+| Omit transactional recording                                                   | `/tmp/shared-people-6jc-transaction-record-omission-red.log`: later event trigger never aborted retirement        | `/tmp/shared-people-6jc-transaction-record-restored-green.log`                       |
+| Deliver inside the borrowed writer                                             | `/tmp/shared-people-6jc-delivery-inside-owner-red.log`: held push made second writer fail `SQLITE_BUSY`           | `/tmp/shared-people-6jc-delivery-inside-owner-restored-green.log`: 1/1, 4 assertions |
+| Omit absent/legacy branch                                                      | `/tmp/shared-people-6jc-mode-branch-omission-red.log`: absent target threw `organization undefined is missing`    | `/tmp/shared-people-6jc-mode-branch-restored-green.log`: 3/3, 13 assertions          |
+| Omit absent-target resolver branch                                             | `/tmp/shared-people-6jc-absent-target-guard-omission-red.log`: missing project falsely threw ownership corruption | `/tmp/shared-people-6jc-absent-target-guard-restored-green.log`: 1/1, 5 assertions   |
+
+The after-capture fault restored the complete transaction snapshot (1/1 in
+`/tmp/shared-people-6jc-after-capture-and-cause-green.log`). An attempted
+omission of a `present.has(projectId)` filter was **not** a proof: the mounted
+absent-cause case still passed at
+`/tmp/shared-people-6jc-absent-cause-omission-red.log` because the comparator
+already ignores absent causes. That redundant filter was removed; the
+absent-cause, after-capture and selected-retirement cases then passed 3/3,
+19 assertions at `/tmp/shared-people-6jc-after-capture-and-cause-green.log`.
+The final-byte two-file rerun has the same sole FK failure: 31 pass/1 fail,
+158 assertions at `/tmp/shared-people-6jc-current-two-file-final.log`.
+With only that named blocked test filtered by
+`-t '^(?!.*finishes a marked shared project)'`, the same two files pass
+31/31, 156 assertions at `/tmp/shared-people-6jc-unblocked-two-file-final.log`;
+the filtered result does not establish final deletion.
+Core and store declared ESLint passed at `/tmp/shared-people-6jc-{core,store}-eslint.log`;
+backend ESLint passed at `/tmp/shared-people-6jc-backend-eslint-final.log`.
+The first backend lint reported 14 import-order, test-only SQL boundary and
+void-valued async assertion findings at `/tmp/shared-people-6jc-backend-eslint.log`;
+the corrected assertion helper and imports passed on the final test bytes.
+Direct `bunx tsc --build --force` for core, store-sqlite and be-01 each exited
+0 (`/tmp/shared-people-6jc-{core,store-sqlite,be-01}-type-direct.log`).
+Core portable, BE Bun bundle, policy asset copy and OpenAPI emit each exited 0
+(`/tmp/shared-people-6jc-{core,backend,openapi}-build.log`). Pinned OpenSpec
+strict validation passed 1/1 and all validation 148/148 at
+`/tmp/shared-people-6jc-{strict,all}-final.json`; `git diff --check` exited 0
+at `/tmp/shared-people-6jc-diff-final.log`. The first final Prettier check
+reported the modified test file (`/tmp/shared-people-6jc-format-final.log`);
+after formatting, all changed paths passed at
+`/tmp/shared-people-6jc-format-final-restored.log`.
+
+Six attempted Nx targets returned exit 0 with only daemon/plugin-worker socket
+EPERM warnings and no target summaries; their logs
+`/tmp/shared-people-6jc-wbs-{core,store-sqlite,be-01}-{lint,typecheck}.log`
+are **not** counted as verification. The direct declared commands above are
+the evidence for the earlier bytes, not the populated cleanup correction below.
+
+### 6j.c populated-deletion correction (direct owner only)
+
+The 743d6214e2c846c1b397eb51675cc6da171db055 OpenSpec amendment was
+incorporated without overwriting this live ledger. The migrated-FK inventory
+is `/tmp/6jc-astra-fk-audit.log`: project, step, work item, access, dependency,
+typed dependency and estimate references include NO ACTION edges. The raw
+project finalizer now checks incoming/outgoing legacy and typed dependency
+ownership before cleanup, deletes target estimates and access, deletes all
+target work items together, then steps and root in its existing synchronous
+borrowed transaction. Valid local dependencies cascade from the work-item
+statement. A watched omission of an initial explicit legacy dependency delete
+still passed the mounted success assertion
+(`/tmp/shared-people-6jc-r5-dependency-omit-trial.log`); the redundant explicit
+legacy/typed deletes were removed per architecture ruling. They are not claimed
+as R5 proofs. Contract-only retirement remains unchanged.
+
+The migrated mounted target contains nested work, estimate, actual, progress,
+measure, assignment, legacy and typed edges, access, command/plan history,
+saved-plan header/body, marker, band, team capacity, solution, space placement
+and all work-item directory join families. It checks no target residue,
+populated B and shared directory/catalog/space/audit sentinels, plus
+`PRAGMA foreign_key_check`. The initial RED was
+`SQLITE_CONSTRAINT_FOREIGNKEY` at root deletion
+(`/tmp/shared-people-6jc-populated-red.log`); expanded fixture passed 1/1,
+30 assertions at `/tmp/shared-people-6jc-all-families-green.log`, including
+audit retention at `/tmp/shared-people-6jc-audit-retention-green.log`.
+Counted-child finish retained the populated raw graph (1/1, 7 assertions,
+`/tmp/shared-people-6jc-counted-child-green.log`).
+
+Cross-project legacy, typed work-item and typed-step REDs failed at the wrong
+generic FK boundary (`/tmp/shared-people-6jc-cross-{edge,typed-edge,step}-red.log`);
+the corrected cases passed in the two-file suite. Target-owned legacy/typed
+edges with bystander endpoints passed 2/2, 6 assertions
+(`/tmp/shared-people-6jc-foreign-owned-green.log`). A cross-project parent
+reference instead relies on its restrictive FK and complete transaction
+rollback (1/1, 3, `/tmp/shared-people-6jc-parent-fk-green.log`); a missing typed
+step cannot be stored (1/1, 3,
+`/tmp/shared-people-6jc-schema-exclusion-green.log`).
+
+The populated partial-cleanup trigger fires only after A's work items are
+gone; the installed owner restored the full table snapshot and sent no push
+(1/1, 5, `/tmp/shared-people-6jc-partial-rollback-green.log`). The raw case
+passed at `/tmp/shared-people-6jc-raw-partial-green.log`. Moving the estimate
+delete before the raw transaction left it committed after the later step
+trigger: RED `/tmp/shared-people-6jc-r5-outside-owner-red.log`, restored GREEN
+1/1, 2 at `/tmp/shared-people-6jc-r5-outside-owner-restored-green.log`.
+Populated after-capture failure restored all tables with no push (1/1, 6,
+`/tmp/shared-people-6jc-after-capture-green.log`). A later real C event insert
+failure also restored all tables; the first fixture expected only C←A but
+actual valid pairs include C←A and C←B, so the initial expectation failed at
+`/tmp/shared-people-6jc-populated-event-rollback-green.log`. Corrected GREEN
+was 1/1, 7 at `/tmp/shared-people-6jc-populated-event-rollback-green2.log`.
+
+Held populated delivery allowed a second writer, then contained HTTP 400 while
+retaining original B seq0/cause A for replay; repeat finish was absent/silent
+(1/1, 9, `/tmp/shared-people-6jc-populated-replay-green.log`). Deleting that
+durable row after owner settlement made the replay assertion fail: RED
+`/tmp/shared-people-6jc-r5-replay-delete-red.log`, restored GREEN 1/1, 9 at
+`/tmp/shared-people-6jc-r5-replay-restored-green.log`.
+
+| Independently injected fault                                      | Observed RED                                                                                                  | Restored GREEN                                                            |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Omit target estimate, access, work-item or step delete separately | `/tmp/shared-people-6jc-r5-omit-{estimate,projectAccess,workItem,step}.log`: each mounted success failed 0/1  | `/tmp/shared-people-6jc-r5-family-restored-green.log`: 1/1, 23 assertions |
+| Broaden each of those four destructive predicates separately      | `/tmp/shared-people-6jc-r5-broad-{estimate,projectAccess,workItem,step}.log`: B preservation failed           | `/tmp/shared-people-6jc-r5-broad-restored-green.log`: 2/2, 29 assertions  |
+| Bypass legacy or typed cross-project refusal separately           | `/tmp/shared-people-6jc-r5-omit-{Legacy,Typed}-guard.log`: each accepted corrupt bystander edge as `finished` | `/tmp/shared-people-6jc-r5-guard-restored-green.log`: 2/2, 6 assertions   |
+| Bypass marker or counted-slot fence separately                    | `/tmp/shared-people-6jc-r5-{marker,slot}-bypass.log`: unmarked project or counted child finished early        | `/tmp/shared-people-6jc-r5-fence-restored-green.log`: 2/2, 10 assertions  |
+
+The first complete changed-byte two-file pass after formatted source was
+86/86, 363 assertions at
+`/tmp/shared-people-6jc-populated-two-file-final-candidate.log`. Later
+sentinel additions require the final suite/check rerun below. These direct
+owner results do **not** cover raw release/reclaim/reconcile callers assigned
+to 6j.d/e; no integrated populated-deletion publication or 6j completion is
+claimed.
+
+Final corrected-byte verification: `bun test` on
+`apps/wbs/be-01/src/services.db.test.ts`,
+`libs/wbs/adapters/store-sqlite/src/optimization-drain.db.test.ts`,
+`libs/wbs/application/core/src/service/committed-fanout.test.ts`, and
+`libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts` passed 90/90,
+399 assertions (`/tmp/shared-people-6jc-final-four-file.log`); the two-file
+mounted/raw subset passed 86/86, 370 assertions
+(`/tmp/shared-people-6jc-final-two-file.log`). Direct ESLint across complete
+core, store-sqlite and be-01 source passed
+(`/tmp/shared-people-6jc-final-{core,store,be}-eslint.log`). The first combined
+TypeScript command named a nonexistent `be-01/tsconfig.app.json` and stopped
+with TS6053 (`/tmp/shared-people-6jc-final-type.log`); the corrected declared
+`bunx tsc --build --force` over core, store-sqlite and be-01 `tsconfig.json`
+passed (`/tmp/shared-people-6jc-final-type-corrected.log`). Core portable
+build, BE Bun bundle, policy asset copy and OpenAPI emit passed
+(`/tmp/shared-people-6jc-final-{core-build,be-build,be-assets}.log`). Pinned
+OpenSpec 1.12.0 strict validation passed 1/1 and all passed 148/148
+(`/tmp/shared-people-6jc-final-{strict,all}.json`). The final all-path Prettier
+check and staged diff check exited 0
+(`/tmp/shared-people-6jc-final-all-format.log`,
+`/tmp/shared-people-6jc-final-diff.log`).
