@@ -33,6 +33,7 @@ import {
   nodeDigest,
   systemInterval,
 } from './runtime/bun-runtime';
+import { createDequeueReservationOwner } from './service/optimization-dequeue-reservation';
 import { createInitialReservationOwner } from './service/optimization-initial-reservation';
 import {
   createOptimizationLifecycle,
@@ -186,6 +187,11 @@ export function buildServices(options: ServicesOptions): BeServices {
     boundSource.uow,
     graph.committedFanout,
   );
+  const dequeueReservation = createDequeueReservationOwner(
+    source.db,
+    boundSource.uow,
+    graph.committedFanout,
+  );
   if (options.optimizer !== undefined) {
     const optimizer = options.optimizer;
     coordinator = installOptimization({
@@ -202,6 +208,9 @@ export function buildServices(options: ServicesOptions): BeServices {
         // Proof: omitting this installer binding reclaimed A but lost B's durable
         // event in the mounted initial-admission test.
         reserveSlot: initialReservation,
+        // Proof: omitting this installed owner lost B's durable A-cause event;
+        // the mounted second-event rollback case no longer rejected.
+        dequeueRequest: dequeueReservation,
         // Proof: omitting this binding let installed Retry delete A without
         // B's durable elsewhere_changed event; the mounted Retry test failed.
         admitRetry: retryReservation,

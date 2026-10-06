@@ -64,6 +64,18 @@ async function rejectedMessage(promise: Promise<unknown>): Promise<string> {
   return reason.message;
 }
 
+function beginInstalledQueuePump(optimizer: OptimizationCoordinator): Promise<void> {
+  // This test-only entry invokes the composed coordinator's actual queue pump
+  // without also starting its independent startup reconciliation.
+  const mounted = optimizer as unknown as { pumpQueue(): Promise<void> };
+  return mounted.pumpQueue();
+}
+
+async function pumpInstalledQueue(optimizer: OptimizationCoordinator): Promise<void> {
+  await beginInstalledQueuePump(optimizer);
+  await optimizer.drain();
+}
+
 afterEach(async () => {
   for (const optimizer of optimizers.splice(0)) await optimizer.stop();
   for (const source of sources.splice(0)) await source.close();
@@ -2400,6 +2412,585 @@ describe('buildServices', () => {
       (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
     ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
     expect(pushUrls).toHaveLength(1);
+  });
+
+  it('records a foreign victim event when the installed FIFO dequeue reclaims a drained slot', async () => {
+    const { db, path, services } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('dequeue fixture reached launcher')),
+    });
+    seedSharedLifecycle(path);
+    seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
+    );
+    const captured = await services.workItems.optimizationInput('B');
+    if (captured.kind !== 'scheduled') throw new Error('queued comparison input unavailable');
+    const inputHash = scheduleInputHash(captured.input);
+    const contractVersion = contractVersionOf('0.2.0');
+    const generation = allocateGeneration(db, 'B', contractVersion, inputHash, 1);
+    db.insert(solverQueue)
+      .values({
+        projectId: 'B',
+        contractVersion,
+        generation,
+        objective: 'pri',
+        budgetMs: 1000,
+        admittedCancelEpoch: 0,
+        enqueuedAt: 1,
+      })
+      .run();
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    optimizer.start();
+    await optimizer.stop();
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1))
+        .filter(
+          ({ message }) =>
+            typeof message === 'object' &&
+            message !== null &&
+            'type' in message &&
+            message.type === 'elsewhere_changed',
+        )
+        .map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+  });
+
+  it('uses a later FIFO entry cutoff after consuming an invalid head', async () => {
+    const { db, path, services } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('later FIFO fixture reached launcher')),
+    });
+    seedSharedLifecycle(path);
+    seedAnotherSharedPair(path);
+    seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    const now = Date.now();
+    const futureDeadline = now + 90_000;
+    seedOtherLifecycleSlot(db, 'C', futureDeadline);
+    expect(await services.optimizationLifecycle.beginDrain('C', { at: 2, by: 'ada' })).toBe(1);
+    db.run(
+      sql`UPDATE solver_slot SET admitted_deadline_at = ${now + 30_000} WHERE project_id = 'A'`,
+    );
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
+    );
+    const captured = await services.workItems.optimizationInput('B');
+    if (captured.kind !== 'scheduled') throw new Error('later FIFO input unavailable');
+    const contractVersion = contractVersionOf('0.2.0');
+    const inputHash = scheduleInputHash(captured.input);
+    const generation = allocateGeneration(db, 'B', contractVersion, inputHash, 1);
+    db.insert(solverQueue)
+      .values([
+        {
+          projectId: 'A',
+          contractVersion,
+          generation: 99,
+          objective: 'pri',
+          budgetMs: 1000,
+          admittedCancelEpoch: 0,
+          enqueuedAt: 1,
+        },
+        {
+          projectId: 'B',
+          contractVersion,
+          generation,
+          objective: 'pri',
+          budgetMs: 1000,
+          admittedCancelEpoch: 0,
+          enqueuedAt: now + 60_000,
+        },
+      ])
+      .run();
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    optimizer.start();
+    await optimizer.stop();
+    expect(db.select().from(solverQueue).all()).toEqual([]);
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(
+      db
+        .select({ admittedDeadlineAt: solverSlot.admittedDeadlineAt })
+        .from(solverSlot)
+        .where(sql`project_id = 'C'`)
+        .all(),
+    ).toEqual([{ admittedDeadlineAt: futureDeadline }]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1))
+        .filter(
+          ({ message }) =>
+            typeof message === 'object' &&
+            message !== null &&
+            'type' in message &&
+            message.type === 'elsewhere_changed',
+        )
+        .map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+  });
+
+  it('rejects missing borrowed FIFO capture before touching an old slot', async () => {
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('unexpected launch')),
+      },
+      undefined,
+      undefined,
+      true,
+    );
+    seedSharedLifecycle(path);
+    seedLifecycleSlot(db);
+    const before = lifecycleTables(db);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    expect(await rejectedMessage(pumpInstalledQueue(optimizer))).toContain(
+      'dequeue reservation lacks borrowed ownership and capture',
+    );
+    expect(lifecycleTables(db)).toEqual(before);
+    expect(pushUrls).toEqual([]);
+  });
+
+  it('rejects malformed old-slot organization before FIFO capture', async () => {
+    const captures: string[] = [];
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('unexpected launch')),
+      },
+      (organizationId) => captures.push(organizationId),
+    );
+    seedSharedLifecycle(path, true, 'A');
+    const corrupt = openDatabase(path);
+    try {
+      corrupt.run('PRAGMA foreign_keys = OFF');
+      corrupt.run(
+        "INSERT INTO project_organization (resource_id, organization_id) VALUES ('A', 'missing-org')",
+      );
+    } finally {
+      corrupt.close();
+    }
+    seedLifecycleSlot(db);
+    const before = lifecycleTables(db);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    expect(await rejectedMessage(pumpInstalledQueue(optimizer))).toContain(
+      'project A has malformed organization ownership',
+    );
+    expect(captures).toEqual([]);
+    expect(lifecycleTables(db)).toEqual(before);
+    expect(pushUrls).toEqual([]);
+  });
+
+  it('rejects missing active old-slot organization before FIFO capture', async () => {
+    const captures: string[] = [];
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: () => Promise.reject(new Error('unexpected launch')),
+      },
+      (organizationId) => {
+        captures.push(organizationId);
+      },
+    );
+    seedSharedLifecycle(path, true, 'A');
+    seedLifecycleSlot(db);
+    const before = lifecycleTables(db);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    expect(await rejectedMessage(pumpInstalledQueue(optimizer))).toContain(
+      'active project A lacks organization ownership',
+    );
+    expect(captures).toEqual([]);
+    expect(lifecycleTables(db)).toEqual(before);
+    expect(pushUrls).toEqual([]);
+  });
+
+  it('delivers reclaimed victim fan-out when dequeue retains a capacity-blocked head', async () => {
+    const { db, path, services, pushUrls } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('capacity-blocked dequeue reached launcher')),
+    });
+    seedSharedLifecycle(path);
+    seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
+    );
+    const captured = await services.workItems.optimizationInput('B');
+    if (captured.kind !== 'scheduled') throw new Error('blocked FIFO input unavailable');
+    const inputHash = scheduleInputHash(captured.input);
+    const contractVersion = contractVersionOf('0.2.0');
+    const generation = allocateGeneration(db, 'B', contractVersion, inputHash, 1);
+    db.insert(solverQueue)
+      .values({
+        projectId: 'B',
+        contractVersion,
+        generation,
+        objective: 'pri',
+        budgetMs: 1000,
+        admittedCancelEpoch: 0,
+        enqueuedAt: 1,
+      })
+      .run();
+    for (let slotGeneration = 2; slotGeneration <= 5; slotGeneration++)
+      db.insert(solverSlot)
+        .values({
+          projectId: 'B',
+          contractVersion,
+          generation: slotGeneration,
+          objective: 'time',
+          budgetMs: 1000,
+          ownerId: `capacity-${String(slotGeneration)}`,
+          attemptToken: `capacity-token-${String(slotGeneration)}`,
+          lifecycle: 'running',
+          pid: 4500 + slotGeneration,
+          startedAt: 1,
+          heartbeatAt: 1,
+          cancelRequestedAt: null,
+          admittedDeadlineAt: Date.now() + 100_000,
+        })
+        .run();
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    optimizer.start();
+    await optimizer.stop();
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.select().from(solverQueue).all()).toHaveLength(1);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    expect(pushUrls).toHaveLength(1);
+  });
+
+  it('delivers reclaimed victim fan-out when dequeue consumes a closed head and returns empty', async () => {
+    const { db, path, services, pushUrls } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('closed dequeue reached launcher')),
+    });
+    seedSharedLifecycle(path);
+    seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
+    );
+    const captured = await services.workItems.optimizationInput('B');
+    if (captured.kind !== 'scheduled') throw new Error('closed FIFO input unavailable');
+    const inputHash = scheduleInputHash(captured.input);
+    const contractVersion = contractVersionOf('0.2.0');
+    const generation = allocateGeneration(db, 'B', contractVersion, inputHash, 1);
+    db.insert(solverQueue)
+      .values({
+        projectId: 'B',
+        contractVersion,
+        generation,
+        objective: 'pri',
+        budgetMs: 1000,
+        admittedCancelEpoch: 0,
+        enqueuedAt: 1,
+      })
+      .run();
+    db.run(sql`UPDATE project SET optimization_enabled = 0 WHERE id = 'B'`);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    optimizer.start();
+    await optimizer.stop();
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([]);
+    expect(db.select().from(solverQueue).all()).toEqual([]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1)).map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+    expect(pushUrls).toHaveLength(1);
+  });
+
+  it('addresses selected contract retirement during FIFO dequeue with unchanged victim input hash', async () => {
+    const { db, path, services } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => Promise.reject(new Error('selected dequeue reached launcher')),
+    });
+    seedSharedLifecycle(path);
+    const selected = await seedReadyRetirement(db, services, 1);
+    expect([selected.fastStart, selected.selectedStart]).toEqual([0, 1]);
+    seedLifecycleSlot(db, selected.contractVersion, selected.generation);
+    expect(
+      await services.optimizationLifecycle.beginDrain(
+        'A',
+        { at: 2, by: 'ada' },
+        selected.contractVersion,
+      ),
+    ).toBe(1);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
+    );
+    const captured = await services.workItems.optimizationInput('B');
+    if (captured.kind !== 'scheduled') throw new Error('selected FIFO input unavailable');
+    const inputHash = scheduleInputHash(captured.input);
+    const generation = allocateGeneration(db, 'B', selected.contractVersion, inputHash, 1);
+    db.insert(solverQueue)
+      .values({
+        projectId: 'B',
+        contractVersion: selected.contractVersion,
+        generation,
+        objective: 'pri',
+        budgetMs: 1000,
+        admittedCancelEpoch: 0,
+        enqueuedAt: 1,
+      })
+      .run();
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    optimizer.start();
+    await optimizer.stop();
+    expect(db.all(sql.raw("SELECT id FROM project WHERE id = 'A'"))).toEqual([{ id: 'A' }]);
+    const retired = await services.workItems.optimizationInput('A');
+    if (retired.kind !== 'scheduled') throw new Error('retired FIFO input unavailable');
+    expect(scheduleInputHash(retired.input)).toBe(selected.inputHash);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    expect(
+      (await events.rangeSince('project:B', -1))
+        .filter(
+          ({ message }) =>
+            typeof message === 'object' &&
+            message !== null &&
+            'type' in message &&
+            message.type === 'elsewhere_changed',
+        )
+        .map(({ seq, message }) => [seq, message]),
+    ).toEqual([[0, { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' }]]);
+  });
+
+  it('rolls back the full FIFO loop and two victim events when the second insert fails', async () => {
+    let launches = 0;
+    const { db, path, services, pushUrls } = bootstrap({
+      solverVersion: '0.2.0',
+      budgetMs: 1000,
+      spawn: () => {
+        launches += 1;
+        return Promise.reject(new Error('FIFO rollback reached launcher'));
+      },
+    });
+    seedSharedLifecycle(path);
+    seedAnotherSharedPair(path);
+    seedAnotherSharedPair(path, 'org-f', ['E', 'F'], 'fei');
+    seedLifecycleSlot(db);
+    seedOtherLifecycleSlot(db, 'C', 1001);
+    const futureDeadline = Date.now() + 100_000;
+    seedOtherLifecycleSlot(db, 'E', futureDeadline);
+    for (const projectId of ['A', 'C', 'E'])
+      expect(await services.optimizationLifecycle.beginDrain(projectId, { at: 2, by: 'ada' })).toBe(
+        1,
+      );
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'B'`,
+    );
+    const captured = await services.workItems.optimizationInput('B');
+    if (captured.kind !== 'scheduled') throw new Error('rollback FIFO input unavailable');
+    const inputHash = scheduleInputHash(captured.input);
+    const contractVersion = contractVersionOf('0.2.0');
+    const generation = allocateGeneration(db, 'B', contractVersion, inputHash, 1);
+    db.insert(solverQueue)
+      .values([
+        {
+          projectId: 'A',
+          contractVersion,
+          generation: 99,
+          objective: 'pri',
+          budgetMs: 1000,
+          admittedCancelEpoch: 0,
+          enqueuedAt: 0,
+        },
+        {
+          projectId: 'B',
+          contractVersion,
+          generation,
+          objective: 'pri',
+          budgetMs: 1000,
+          admittedCancelEpoch: 0,
+          enqueuedAt: 1,
+        },
+      ])
+      .run();
+    db.run(
+      sql.raw(
+        "CREATE TRIGGER fail_fifo_second_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:D' AND (SELECT count(*) FROM event_log WHERE subscription = 'project:B') = 1 BEGIN SELECT RAISE(ABORT, 'FIFO second-event fault'); END",
+      ),
+    );
+    const before = lifecycleTables(db);
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    expect(await rejectedMessage(pumpInstalledQueue(optimizer))).toContain('INSERT INTO event_log');
+    expect(lifecycleTables(db)).toEqual(before);
+    expect(launches).toBe(0);
+    expect(pushUrls).toEqual([]);
+    db.run(sql.raw('DROP TRIGGER fail_fifo_second_event'));
+    await pumpInstalledQueue(optimizer);
+    expect(db.select().from(solverQueue).all()).toEqual([]);
+    expect(
+      db
+        .select({ admittedDeadlineAt: solverSlot.admittedDeadlineAt })
+        .from(solverSlot)
+        .where(sql`project_id = 'E'`)
+        .all(),
+    ).toEqual([{ admittedDeadlineAt: futureDeadline }]);
+    const events = new DrizzleEventLogStore(db, OPEN);
+    for (const [recipient, cause] of [
+      ['B', 'A'],
+      ['D', 'C'],
+    ])
+      expect(
+        (await events.rangeSince(`project:${recipient}`, -1))
+          .filter(
+            ({ message }) =>
+              typeof message === 'object' &&
+              message !== null &&
+              'type' in message &&
+              message.type === 'elsewhere_changed',
+          )
+          .map(({ seq, message }) => [seq, message]),
+      ).toEqual([[0, { type: 'elsewhere_changed', projectId: recipient, causeProjectId: cause }]]);
+    expect(await events.rangeSince('project:F', -1)).toEqual([]);
+    const afterFirstPump = lifecycleTables(db);
+    await pumpInstalledQueue(optimizer);
+    expect(lifecycleTables(db)).toEqual(afterFirstPump);
+  });
+
+  it('hands off the exact queued token while victim delivery is held and rejected', async () => {
+    const deliveryEntered = signal();
+    const launchEntered = signal();
+    const releaseDelivery = signal();
+    const childDone = signal();
+    const launches: ReservedSpawnRequest[] = [];
+    const emptyStream = (): ReadableStream<Uint8Array> =>
+      new ReadableStream<Uint8Array>({
+        start: (controller) => {
+          controller.close();
+        },
+      });
+    const { db, path, services, pushUrls } = bootstrap(
+      {
+        solverVersion: '0.2.0',
+        budgetMs: 1000,
+        spawn: (request) => {
+          launches.push(request);
+          launchEntered.resolve();
+          return Promise.resolve({
+            pid: 4701,
+            stdout: emptyStream(),
+            stderr: emptyStream(),
+            exited: childDone.promise.then(() => 1),
+            verdict: () => undefined,
+            kill: () => {
+              childDone.resolve();
+            },
+          });
+        },
+      },
+      undefined,
+      (url) => {
+        pushUrls.push(url);
+        deliveryEntered.resolve();
+        return releaseDelivery.promise.then(() => new Response('gateway refused', { status: 400 }));
+      },
+    );
+    seedSharedLifecycle(path);
+    seedAnotherSharedPair(path);
+    seedLifecycleSlot(db);
+    expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(1);
+    db.run(
+      sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'C'`,
+    );
+    const captured = await services.workItems.optimizationInput('C');
+    if (captured.kind !== 'scheduled') throw new Error('held FIFO input unavailable');
+    const inputHash = scheduleInputHash(captured.input);
+    const contractVersion = contractVersionOf('0.2.0');
+    const generation = allocateGeneration(db, 'C', contractVersion, inputHash, 1);
+    db.insert(solverQueue)
+      .values({
+        projectId: 'C',
+        contractVersion,
+        generation,
+        objective: 'pri',
+        budgetMs: 1000,
+        admittedCancelEpoch: 0,
+        enqueuedAt: 1,
+      })
+      .run();
+    const optimizer = services.optimizer;
+    if (optimizer === undefined) throw new Error('optimizer was not installed');
+    const pumping = beginInstalledQueuePump(optimizer);
+    try {
+      await Promise.race([
+        deliveryEntered.promise,
+        Bun.sleep(1000).then(() => {
+          throw new Error('FIFO victim delivery did not start');
+        }),
+      ]);
+      await Promise.race([
+        launchEntered.promise,
+        Bun.sleep(1000).then(() => {
+          throw new Error('FIFO committed token did not reach launcher');
+        }),
+      ]);
+      expect(launches).toHaveLength(1);
+      await Promise.race([
+        pumping,
+        Bun.sleep(1000).then(() => {
+          throw new Error('FIFO committed decision waited for transport');
+        }),
+      ]);
+      expect(
+        db
+          .select({ attemptToken: solverSlot.attemptToken })
+          .from(solverSlot)
+          .where(sql`project_id = 'C'`)
+          .all(),
+      ).toEqual([{ attemptToken: launches[0]?.admission.attemptToken }]);
+      const second = openDatabase(path);
+      try {
+        second.run('PRAGMA busy_timeout = 50');
+        second.run("UPDATE project SET name = 'FIFO second writer entered' WHERE id = 'B'");
+      } finally {
+        second.close();
+      }
+      expect(db.all(sql.raw("SELECT name FROM project WHERE id = 'B'"))).toEqual([
+        { name: 'FIFO second writer entered' },
+      ]);
+      const events = new DrizzleEventLogStore(db, OPEN);
+      const original = (await events.rangeSince('project:B', -1))[0];
+      expect(original.seq).toBe(0);
+      expect(original.message).toEqual({
+        type: 'elsewhere_changed',
+        projectId: 'B',
+        causeProjectId: 'A',
+      });
+      let stopSettled = false;
+      const stopping = optimizer.stop().then(() => {
+        stopSettled = true;
+      });
+      await Bun.sleep(20);
+      expect(stopSettled).toBe(false);
+      releaseDelivery.resolve();
+      childDone.resolve();
+      await Promise.all([pumping, stopping]);
+      expect((await events.rangeSince('project:B', -1))[0]).toEqual(original);
+      expect(pushUrls.length).toBeGreaterThan(0);
+    } finally {
+      releaseDelivery.resolve();
+      childDone.resolve();
+    }
   });
 
   it('removes a populated project graph while retaining shared and bystander rows', async () => {

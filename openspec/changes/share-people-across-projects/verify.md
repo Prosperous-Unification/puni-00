@@ -2992,3 +2992,97 @@ warning. Final four-path `bunx prettier --check` passed
 strict passed 1/1 and all passed 148/148
 (`/tmp/shared-people-6jd-retry-followup-{strict,all}.log`); `git diff --check`
 exited 0 (`/tmp/shared-people-6jd-retry-followup-diff.log`).
+
+### 6j.d FIFO dequeue global-reclaim owner (fifth bounded checkpoint)
+
+This slice installs one borrowed source owner around the entire raw FIFO
+dequeue loop. It captures every old slot-owner organization before reclaim,
+passes actual finished targets from each reservation, records changed
+recipient pairs before commit, and returns committed envelopes for reserved,
+empty and capacity-blocked outcomes. The coordinator's existing delivery
+handoff and token/stop behavior remain unchanged. Reconciliation, 6j.e/f and
+the 6j.d checkbox remain open; no host gate or CI was run.
+
+The first installed RED was an empty B event range after a draining A was
+reclaimed by the public `buildServices` queue pump
+(`/tmp/shared-people-6jd-dequeue-first-red2.log`). The installed owner made
+the same case GREEN 1/1, 2 assertions
+(`/tmp/shared-people-6jd-dequeue-first-green-attempt.log`). Further installed
+GREEN cases cover later enqueued cutoff after an invalid head with a future C
+slot retained (`...dequeue-r5-future-green.log`: 1/1, 6), capacity-blocked and
+closed→empty outcomes each delivering B's actual durable event
+(`...dequeue-r5-nonreserved-green.log`: 2/2, 10), and selected-contract-only
+retirement with A's scheduling input hash unchanged
+(`...dequeue-r5-cause-green.log`: 1/1, 5). The second-event fault restores the
+complete A/C/E project, slot, FIFO, audit, event and sequence snapshot with
+zero spawn/push; after removing the trigger the same installed pump consumes
+the invalid head and eligible entry, emits B←A and D←C at seq0, leaves future
+E/F silent, and a repeated pump is row-identical
+(`/tmp/shared-people-6jd-dequeue-repeat-green.log`: 1/1, 13). Held/rejected
+victim delivery lets queued C's committed attempt token launch once and equal
+its persisted slot token while a second writer edits B; original B seq0 stays
+replayable and stop waits for transport
+(`/tmp/shared-people-6jd-dequeue-held-fourth.log`: 1/1, 9).
+The installed old-slot owner negatives separately reject absent borrowed
+capture, malformed organization, and missing active organization before any
+capture, writes or push (`...dequeue-owner-negatives-green.log`: 2/2, 7;
+`...dequeue-missing-owner-green.log`: 1/1, 4).
+
+Each fault below changed production bytes, failed at the named mounted
+assertion, then was restored from a matching SHA-256 backup and passed. The
+adjacent `Proof:` comments identify the safety dependencies.
+
+| Fault                                               | Watched RED                                                                                                                                 | Restored GREEN                                                     |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Omit installed dequeue owner                        | `/tmp/shared-people-6jd-dequeue-r5-binding-event-red.log`: B event absent; `...r5-binding-red.log`: second-event rollback no longer rejects | `/tmp/shared-people-6jd-dequeue-r5-binding-green.log`: 2/2, 11     |
+| Capture only first old slot-owner organization      | `/tmp/shared-people-6jd-dequeue-r5-all-org-red.log`: D←C and second-event trigger absent                                                    | `/tmp/shared-people-6jd-dequeue-r5-all-org-green.log`: 1/1, 12     |
+| Omit raw finished-target callback                   | `/tmp/shared-people-6jd-dequeue-r5-cause-red.log`: selected contract-only B←A absent                                                        | `/tmp/shared-people-6jd-dequeue-r5-cause-green.log`: 1/1, 5        |
+| Ignore later head's enqueued cutoff                 | `/tmp/shared-people-6jd-dequeue-r5-cutoff-red.log`: drained A survives                                                                      | `/tmp/shared-people-6jd-dequeue-r5-cutoff-green.log`: 1/1, 4       |
+| Broaden cutoff beyond future deadline               | `/tmp/shared-people-6jd-dequeue-r5-future-red.log`: future C slot lost                                                                      | `/tmp/shared-people-6jd-dequeue-r5-future-green.log`: 1/1, 6       |
+| Discard nonreserved envelopes                       | `/tmp/shared-people-6jd-dequeue-r5-nonreserved-red.log`: both durable B rows, both gateway pushes absent                                    | `/tmp/shared-people-6jd-dequeue-r5-nonreserved-green.log`: 2/2, 10 |
+| Split writer commit before event recording          | `/tmp/shared-people-6jd-dequeue-r5-split-red.log`: second-event failure leaves A/C deleted and FIFO consumed at full snapshot assertion     | `/tmp/shared-people-6jd-dequeue-r5-split-green.log`: 1/1, 12       |
+| Omit borrowed capture capability check              | `/tmp/shared-people-6jd-dequeue-r5-capability-red.log`: incidental property error replaces named refusal                                    | `/tmp/shared-people-6jd-dequeue-r5-capability-green.log`: 1/1, 3   |
+| Guess owner instead of resolving on borrowed source | `/tmp/shared-people-6jd-dequeue-r5-resolver-red.log`: malformed A ownership passes                                                          | `/tmp/shared-people-6jd-dequeue-r5-resolver-green.log`: 1/1, 4     |
+| Omit event recording                                | `/tmp/shared-people-6jd-dequeue-r5-record-red.log`: B row missing after A reclaim                                                           | `/tmp/shared-people-6jd-dequeue-r5-record-green.log`: 1/1, 5       |
+
+The first rollback fixture started the optimizer and startup reconciliation
+removed A/C before FIFO; `/tmp/shared-people-6jd-dequeue-rollback-first.log`
+is **disqualified**. The corrected test invokes the actual composed
+coordinator's existing queue pump directly, isolating only startup
+reconciliation while retaining the installed dequeue binding/UoW/raw loop.
+The first held fixture queued B, whose input legitimately changed after A
+deletion and caused re-admission; `...dequeue-held-third.log` is test-only
+fixture evidence, not an accepted token proof. The selected-retirement first
+assertion wrongly expected its generation row to survive contract retirement
+(`...dequeue-selected-first.log`); the corrected control asserts unchanged
+captured scheduling input hash.
+
+Final-byte runtime command:
+
+    BUN_TMPDIR=/tmp bun test apps/wbs/be-01/src/module/optimization/module.test.ts apps/wbs/be-01/src/repository/optimization.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts apps/wbs/be-01/src/service/optimization-events.db.test.ts apps/wbs/be-01/src/service/optimization-restart.db.test.ts apps/wbs/be-01/src/service/optimization-cancel.two-coordinator.db.test.ts apps/wbs/be-01/src/services.db.test.ts libs/wbs/adapters/store-sqlite/src/optimization-queue.db.test.ts --timeout=10000
+
+Before the final missing-owner negative was added, it passed 197/197, 19,586
+assertions (`/tmp/shared-people-6jd-dequeue-final-nine.log`). The final-byte
+rerun is recorded below. Direct touched-path ESLint
+and forced BE/store tsc exited 0 (`...dequeue-final-{lint,type}.log`); direct
+ESLint warned that the absent cached Nx graph skipped its boundary rule.
+Declared Nx `wbs-be-01:lint`, `wbs-store-sqlite:lint`,
+`wbs-be-01:typecheck` (plus module dependency), and
+`wbs-store-sqlite:typecheck` all had successful target summaries
+(`...dequeue-nx-{be-lint,store-lint,be-type,store-type}.log`). Declared
+`wbs-be-01:build` plus solver-supervisor-protocol dependency succeeded,
+bundling 1,376 modules and running the copy/OpenAPI steps
+(`...dequeue-nx-be-build.log`). `wbs-store-sqlite:build` is **not a declared
+target**; the attempted Nx invocation failed with “Cannot find configuration
+for task” (`...dequeue-nx-store-build.log`), and no store build is claimed.
+
+After the separate missing-active-owner negative was added, the literal
+nine-file command above passed **198/198, 19,590 assertions** on final
+source/test bytes (`/tmp/shared-people-6jd-dequeue-final-nine2.log`). Direct
+touched-path ESLint and forced BE/store tsc exited 0, as did five-path
+Prettier, pinned OpenSpec strict 1/1 and all 148/148, and diff check
+(`/tmp/shared-people-6jd-dequeue-final2-{lint,type,format,strict,all,diff}.log`).
+The declared BE lint and typecheck targets were rerun after the test addition
+and each has an explicit successful Nx summary, including the module
+typecheck dependency (`...dequeue-final2-nx-be-{lint,type}.log`). Store
+lint/type and BE build summaries above apply to unchanged production bytes.
