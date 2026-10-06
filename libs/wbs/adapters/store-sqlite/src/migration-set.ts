@@ -71,6 +71,8 @@ export function captureAppliedMigrationSet(
       return { name: row.name, hash: row.hash };
     });
     const appliedNames = new Set(applied.map((entry) => entry.name));
+    // Proof: adding a timestamp cutoff here made the advertised-protocol CLI test
+    // omit both older candidate migrations after its newer captured baseline.
     const pending = folders
       .filter((folder) => !appliedNames.has(folder.name))
       .map(({ name, hash, downHash }) => ({ name, hash, downHash }));

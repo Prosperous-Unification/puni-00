@@ -50,7 +50,7 @@ migration identity. No dependency on host enrollment or completion of 070.09.
       the supported heavy-lock workflow; retain identities and outputs in verify.md.
       Pre-live fixtures and local proofs are prepared; this task remains open until the
       heavy-locked k3s scenarios pass and cleanup is verified.
-- [ ] 3.2a Before implementing the capability handshake, retain the observed generated-script
+- [x] 3.2a Before implementing the capability handshake, retain the observed generated-script
       RED for an old `--to`-only candidate in `execute-adapter.test.ts`: capture currently
       succeeds and creates a snapshot. Add backend contract tests in
       `apps/wbs/be-01/src/migration-cli.db.test.ts`, then implement
@@ -61,7 +61,7 @@ migration identity. No dependency on host enrollment or completion of 070.09.
       assertion alone is insufficient. Prove the DB-free boundary with DB_PATH unset and a
       nonexistent DB path that remains absent; fault an attempted DB/config dependency and
       watch the advertised-capability test fail. Record the restored positive and adjacent proof.
-- [ ] 3.2b Test then require that protocol at the start of Kubernetes capture in
+- [x] 3.2b Test then require that protocol at the start of Kubernetes capture in
       `BACKEND_TASK_SCRIPT`, without adding another SQLite observation. Use the actual generated
       script and candidate subprocess boundary in `execute-adapter.test.ts`. Cover missing and
       unreadable executable, nonzero exit, malformed/legacy stdout, wrong protocol/version,

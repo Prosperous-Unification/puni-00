@@ -214,6 +214,8 @@ async function perform(
       return {};
     case 'capture-state': {
       const identity = migrationIdentityOf(request, state.transactionId);
+      // Proof: replacing a rejected capability Job with a fabricated capture made the
+      // coordinator test record state-captured and launch forward migration instead of refusing.
       const observation = await effects.capture(identity, request.release.images.backend);
       // Proof: skipping capture-boundary validation made `refuses a foreign capture before
       // journal persistence` promote a foreign target capture.
@@ -692,6 +694,38 @@ const sha = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 const dbPath = process.env.DB_PATH;
 const mode = process.env.PUNI_TASK;
 if (!dbPath || !mode) throw new Error('DB_PATH and PUNI_TASK are required');
+// Proof: moving this preflight after VACUUM made the old --to-only candidate's
+// generated-script test find an already-created snapshot before capability refusal.
+if (mode === 'capture') {
+  // Proof: removing this invocation made the legacy --to-only candidate test create a snapshot.
+  const child = Bun.spawnSync(['bun', 'run', 'src/migrate-capabilities-cli.ts'],
+    { stdout: 'pipe', stderr: 'pipe' });
+  // Proof: ignoring a nonzero capability process made the failing-executable test
+  // report a malformed response instead of refusing the failed probe.
+  if (child.exitCode !== 0) {
+    throw new Error('exact-set migration CLI capability probe failed: ' + child.stderr.toString());
+  }
+  let advertised;
+  // Proof: substituting a successful response for malformed stdout made its
+  // generated-script test reach the absent database.
+  try { advertised = JSON.parse(child.stdout.toString()); }
+  catch { throw new Error('exact-set migration CLI capability response is malformed'); }
+  // Proof: removing exact-key, protocol or version checks independently made the
+  // unknown-field, wrong-protocol or wrong-version tests reach the absent database.
+  if (advertised === null || typeof advertised !== 'object' || Array.isArray(advertised) ||
+      Object.keys(advertised).sort().join(',') !== 'capabilities,protocol,version' ||
+      advertised.protocol !== 'wbs-migration' || advertised.version !== 1 ||
+      !Array.isArray(advertised.capabilities)) {
+    throw new Error('exact-set migration CLI capability response is unsupported');
+  }
+  // Proof: removing the count check made the duplicate-capability test reach SQLite;
+  // dropping either required-capability check made its partial candidate do the same.
+  if (advertised.capabilities.length !== 2 ||
+      !advertised.capabilities.includes('capture-v1') ||
+      !advertised.capabilities.includes('restore-v1-sha256')) {
+    throw new Error('exact-set migration CLI capability response lacks required operations');
+  }
+}
 if (!fs.existsSync(dbPath)) throw new Error('database ' + dbPath + ' does not exist');
 const cli = (args) => {
   const child = Bun.spawnSync(['bun', 'run', ...args], { stdout: 'inherit', stderr: 'inherit' });

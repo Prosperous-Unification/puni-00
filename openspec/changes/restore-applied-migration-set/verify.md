@@ -507,3 +507,94 @@ Planning checks on this amendment:
 
 No implementation tests, live rehearsal, full gate or deployment were run for this docs-only
 amendment. Those remain implementation verification obligations above.
+
+## Offline capability handshake — slices 3.2a and 3.2b
+
+Implementation is in the isolated `feat/migration-capability-handshake` worktree from planning
+commit `c0dded1c9670d352403e4ad533950d4c1ffb97a7`. The prior uncommitted documentation and
+compatibility draft in `feat/restore-applied-migration-set` was preserved separately. No image
+publication, live k3s rehearsal, canonical h2puni gate or push is claimed here.
+
+The observed old-candidate RED was retained in the new generated-script adapter suite. Before
+the preflight, an old `--to`-only candidate exited capture successfully and created
+`snapshots/tx.sqlite`; the test failed because it expected a capability refusal
+(`/tmp/puni-07012-slice32b-red.log`). Three backend contract tests were RED before the new CLI:
+all failed against the missing executable (`bun test apps/wbs/be-01/src/migration-cli.db.test.ts
+--test-name-pattern 'advertises exact-set capabilities|refuses unexpected capability
+arguments|backs its advertised exact-set protocol'`, 0 pass, 3 fail;
+`/tmp/puni-07012-slice32a-red.log`). The DB-free `migrate-capabilities-cli.ts` now emits exactly
+the version-1 protocol and both required operations with no database path or migration directory;
+it rejects arguments.
+The contract test runs
+the real status and down CLIs against disposable SQLite with a newer applied baseline and two
+older pending migrations. It observes refusal of altered capture bytes under the original
+SHA-256 pin with unchanged complete ledger and schema, then restores with those original bytes,
+confirms the baseline name/hash ledger and schema, and retains a baseline sentinel row.
+
+The generated Kubernetes capture script executes the candidate CLI before its database
+existence check, SQLite open, folder observation or snapshot. It refuses an absent or unreadable
+executable, nonzero exit, malformed/extra/legacy stdout, wrong protocol/version, extra fields,
+duplicate/unknown/missing capabilities and wrong response shape. Tests use an absent database
+to establish ordering and assert neither database nor snapshot was created. Reversed order of
+the two valid capabilities succeeds. A coordinator failure case confirms no `state-captured`
+journal promotion or migration launch and that normal rollback restores writer/Lease state.
+After the missing/unreadable distinction was tightened to check `Module not found` versus
+`EACCES`, the focused backend/adapter/coordinator suite passed **132/132, 791 assertions** after
+the older-candidate and coordinator proof alignment (`/tmp/puni-07012-slice32-review-focused.log`).
+
+Each R5 mutation below was applied separately to the production path with
+`python3 /tmp/puni-07012-capability-faults.py` or the equivalent independent source
+substitution, its named test watched fail, then the source restored. Tests match the actual Bun
+`error:` line; an initial loose substring assertion could match Bun's source-code frame even when the wrong database error was
+thrown, so that assertion was strengthened before counting these proofs.
+
+| Injected fault                                      | Observed named-test failure                                          | Log                                                          |
+| --------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Make capability CLI depend on `DB_PATH`             | DB-free CLI expected exit 0, got 1                                   | `/tmp/puni-07012-slice32-fault-db-dependency.log`            |
+| Make capability CLI depend on `./drizzle`           | Migration-free CLI expected exit 0, got 1                            | `/tmp/puni-07012-slice32-fault-migration-dir-dependency.log` |
+| Accept unexpected capability CLI argument           | Refusal expected nonzero, got exit 0                                 | `/tmp/puni-07012-slice32-fault-arg-refusal.log`              |
+| Disable actual down-CLI digest comparison           | Altered-byte refusal expected nonzero, got exit 0                    | `/tmp/puni-07012-slice32-fault-digest-truth.log`             |
+| Reintroduce timestamp cutoff in exact-set capture   | Advertised-protocol test omitted both older pending migrations       | `/tmp/puni-07012-slice32-fault-older-selection.log`          |
+| Skip candidate capability invocation                | Old candidate expected probe refusal, reached snapshot capture       | `/tmp/puni-07012-slice32-fault-probe-invocation.log`         |
+| Move probe after SQLite snapshot                    | Old candidate was refused only after its snapshot existed            | `/tmp/puni-07012-slice32-fault-preflight-order.log`          |
+| Ignore a nonzero capability process                 | Failed executable reported malformed output instead of probe failure | `/tmp/puni-07012-slice32-fault-probe-exit.log`               |
+| Replace malformed output with a successful response | Malformed-output case reached absent database                        | `/tmp/puni-07012-slice32-fault-response-parse.log`           |
+| Ignore unknown response fields                      | Unknown-field case reached absent database                           | `/tmp/puni-07012-slice32-fault-response-keys.log`            |
+| Ignore wrong protocol                               | Wrong-protocol case reached absent database                          | `/tmp/puni-07012-slice32-fault-protocol-validation.log`      |
+| Ignore wrong version                                | Wrong-version case reached absent database                           | `/tmp/puni-07012-slice32-fault-version-validation.log`       |
+| Ignore capability count/duplicates                  | Duplicate-capability case reached absent database                    | `/tmp/puni-07012-slice32-fault-response-count.log`           |
+| Ignore required capture operation                   | Partial candidate reached absent database                            | `/tmp/puni-07012-slice32-fault-capture-capability.log`       |
+| Ignore required digest-pinned restore operation     | Partial candidate reached absent database                            | `/tmp/puni-07012-slice32-fault-restore-capability.log`       |
+| Fabricate capture after capability Job rejection    | Journal recorded `state-captured`; one migration Job ran             | `/tmp/puni-07012-slice32-fault-coordinator-admission.log`    |
+
+Adjacent `Proof:` comments describe the faults in the CLI and generated script. The capture
+and journal format did not change. Live 3.1 and final 3.2 remain open; the offline handshake
+does not unblock PR #259 or establish an image/gate result.
+
+The final full `tool-deploy:test` rerun passed **325/325, 957 assertions** with local listener
+access (`/tmp/puni-07012-slice32-review-deploy-test.log`). The first sandboxed run was not accepted:
+it had 21 assertion failures/one error, including `Bun.serve` `EPERM` at local listener fixtures
+and ANSI-colored error lines that the new tests now normalize. The full `wbs-be-01:test`
+coverage target passed **1698/1699 with one existing skip, 42420 assertions** on the corrected
+fixture with local socket/Docker access (`/tmp/puni-07012-slice32-review-be-test.log`). Its first
+sandboxed run had 1661 pass, one skip and 37 infrastructure failures from `EPERM` listeners and
+Docker daemon denial (`/tmp/puni-07012-slice32-be-test.log`); those failures were not counted as
+passing evidence. `wbs-be-01:build` passed (`/tmp/puni-07012-slice32-review-be-build.log`). The
+`tool-deploy:build` target itself passed with `--excludeTaskDependencies`
+(`/tmp/puni-07012-slice32-review-deploy-build-direct.log`); its normal dependency-expanded invocation
+remains unverified locally because Nx reported a recursive `tool-test-scratch:build` task
+(`/tmp/puni-07012-slice32-deploy-build-final.log`). Direct `tool-test-scratch:build` also refused
+as self-recursive before executing its command (`/tmp/puni-07012-slice32-scratch-build.log`),
+while the exported project graph listed no dependencies for that project. All three affected
+project lint and typecheck targets passed (`/tmp/puni-07012-slice32-review-{be,store,deploy}-{lint,type}.log`).
+The store adapter has no build target; `nx run wbs-store-sqlite:build` reported no configuration.
+Scoped Prettier, `git diff --check` and strict change validation passed
+(`/tmp/puni-07012-slice32-review-openspec.json`). The authoritative full h2puni gate and live k3s
+rehearsal remain unrun.
+
+Independent architecture review of the corrected 3.2a/3.2b boundary found no remaining
+behavior or test gap. Its focused combined run passed 132/132 tests and 791 assertions.
+The capture-state `Proof:` comment was corrected to name the observed forward migration
+launch. After that comment-only edit, scoped Prettier, ESLint, and `git diff --check`
+each exited 0. Only 3.2a and 3.2b are checkpointed; the live 3.1 rehearsal and final
+3.2 gate remain open.

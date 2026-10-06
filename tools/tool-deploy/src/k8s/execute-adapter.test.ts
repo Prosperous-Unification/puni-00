@@ -45,6 +45,15 @@ function task(env: Record<string, string>, cwd: string = BACKEND): BackendTaskRe
   return parseTaskReport(child.stdout.toString());
 }
 
+function taskError(env: Record<string, string>, cwd: string): string {
+  try {
+    task(env, cwd);
+    return 'resolved';
+  } catch (error: unknown) {
+    return stripVTControlCharacters(error instanceof Error ? error.message : String(error));
+  }
+}
+
 async function rejection(promise: Promise<unknown>): Promise<string> {
   return promise.then(
     () => 'resolved',
@@ -53,6 +62,144 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('BACKEND_TASK_SCRIPT against the real be-01 migrations', () => {
+  it('refuses a legacy --to-only candidate before taking a capture snapshot', () => {
+    const root = scratchSync('wbs-k3s-legacy-capability-');
+    roots.push(root);
+    const db = join(root, 'wbs.sqlite');
+    const snapshots = join(root, 'snapshots');
+    mkdirSync(join(root, 'src'));
+    mkdirSync(join(root, 'drizzle'));
+    new Database(db).close();
+    writeFileSync(join(root, 'src', 'migrate-status-cli.ts'), "console.log('none');\n");
+    writeFileSync(
+      join(root, 'src', 'migrate-down-cli.ts'),
+      "if (!process.argv.includes('--to=none')) throw new Error('legacy --to required');\n",
+    );
+    expect(
+      taskError(
+        { DB_PATH: db, PUNI_TASK: 'capture', PUNI_RELEASE: 'tx', PUNI_SNAPSHOT_DIR: snapshots },
+        root,
+      ),
+    ).toMatch(/^error: exact-set migration CLI capability probe failed:/m);
+    expect(() => readFileSync(join(snapshots, 'tx.sqlite'))).toThrow();
+  });
+
+  for (const kind of ['missing', 'unreadable'] as const) {
+    it(`refuses ${kind === 'missing' ? 'a' : 'an'} ${kind} capability executable before database access`, () => {
+      const root = scratchSync('wbs-k3s-capability-file-');
+      roots.push(root);
+      const db = join(root, 'absent.sqlite');
+      const snapshots = join(root, 'snapshots');
+      mkdirSync(join(root, 'src'));
+      if (kind === 'unreadable') {
+        const executable = join(root, 'src', 'migrate-capabilities-cli.ts');
+        writeFileSync(executable, "console.log('unexpected');");
+        chmodSync(executable, 0o000);
+      }
+      const refusal = taskError(
+        { DB_PATH: db, PUNI_TASK: 'capture', PUNI_RELEASE: 'tx', PUNI_SNAPSHOT_DIR: snapshots },
+        root,
+      );
+      expect(refusal).toMatch(/^error: exact-set migration CLI capability probe failed:/m);
+      expect(refusal).toContain(kind === 'missing' ? 'Module not found' : 'EACCES reading');
+      expect(() => readFileSync(db)).toThrow();
+      expect(() => readFileSync(join(snapshots, 'tx.sqlite'))).toThrow();
+    });
+  }
+
+  for (const [name, source] of [
+    ['nonzero exit', "throw new Error('broken capability executable');"],
+    ['malformed stdout', "console.log('none');"],
+    [
+      'extra stdout',
+      "console.log('noise'); console.log(JSON.stringify({protocol:'wbs-migration',version:1,capabilities:['capture-v1','restore-v1-sha256']}));",
+    ],
+    ['null response', "console.log('null');"],
+    [
+      'non-array capabilities',
+      "console.log(JSON.stringify({protocol:'wbs-migration',version:1,capabilities:{capture:true,restore:true}}));",
+    ],
+    [
+      'wrong protocol',
+      "console.log(JSON.stringify({protocol:'other',version:1,capabilities:['capture-v1','restore-v1-sha256']}));",
+    ],
+    [
+      'wrong version',
+      "console.log(JSON.stringify({protocol:'wbs-migration',version:2,capabilities:['capture-v1','restore-v1-sha256']}));",
+    ],
+    [
+      'unknown field',
+      "console.log(JSON.stringify({protocol:'wbs-migration',version:1,capabilities:['capture-v1','restore-v1-sha256'],legacy:true}));",
+    ],
+    [
+      'duplicate capability',
+      "console.log(JSON.stringify({protocol:'wbs-migration',version:1,capabilities:['capture-v1','restore-v1-sha256','restore-v1-sha256']}));",
+    ],
+    [
+      'unknown capability',
+      "console.log(JSON.stringify({protocol:'wbs-migration',version:1,capabilities:['capture-v1','legacy']}));",
+    ],
+    [
+      'missing capture',
+      "console.log(JSON.stringify({protocol:'wbs-migration',version:1,capabilities:['legacy','restore-v1-sha256']}));",
+    ],
+    [
+      'missing restore',
+      "console.log(JSON.stringify({protocol:'wbs-migration',version:1,capabilities:['capture-v1']}));",
+    ],
+  ] as const) {
+    it(`refuses ${name} before opening SQLite or creating a snapshot`, () => {
+      const root = scratchSync('wbs-k3s-capability-refusal-');
+      roots.push(root);
+      const db = join(root, 'absent.sqlite');
+      const snapshots = join(root, 'snapshots');
+      mkdirSync(join(root, 'src'));
+      writeFileSync(join(root, 'src', 'migrate-capabilities-cli.ts'), source);
+      const reason =
+        name === 'nonzero exit'
+          ? 'capability probe failed:'
+          : ['malformed stdout', 'extra stdout'].includes(name)
+            ? 'capability response is malformed'
+            : [
+                  'null response',
+                  'non-array capabilities',
+                  'wrong protocol',
+                  'wrong version',
+                  'unknown field',
+                ].includes(name)
+              ? 'capability response is unsupported'
+              : 'capability response lacks required operations';
+      expect(
+        taskError(
+          { DB_PATH: db, PUNI_TASK: 'capture', PUNI_RELEASE: 'tx', PUNI_SNAPSHOT_DIR: snapshots },
+          root,
+        ),
+      ).toMatch(new RegExp(`^error: exact-set migration CLI ${reason}`, 'm'));
+      expect(() => readFileSync(db)).toThrow();
+      expect(() => readFileSync(join(snapshots, 'tx.sqlite'))).toThrow();
+    });
+  }
+
+  it('accepts the two declared capabilities in either order', () => {
+    const root = scratchSync('wbs-k3s-capability-order-');
+    roots.push(root);
+    const db = join(root, 'wbs.sqlite');
+    const snapshots = join(root, 'snapshots');
+    mkdirSync(join(root, 'src'));
+    mkdirSync(join(root, 'drizzle'));
+    new Database(db).close();
+    writeFileSync(
+      join(root, 'src', 'migrate-capabilities-cli.ts'),
+      "console.log(JSON.stringify({protocol:'wbs-migration',version:1,capabilities:['restore-v1-sha256','capture-v1']}));",
+    );
+    expect(
+      task(
+        { DB_PATH: db, PUNI_TASK: 'capture', PUNI_RELEASE: 'tx', PUNI_SNAPSHOT_DIR: snapshots },
+        root,
+      ).snapshot?.path,
+    ).toBe(join(snapshots, 'tx.sqlite'));
+  });
+
   it('retains schema and ledger after a failing down script, then recovers with the same capture', () => {
     const root = scratchSync('wbs-k3s-down-fault-');
     roots.push(root);

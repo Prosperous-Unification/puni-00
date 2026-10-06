@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto';
 import {
   chmodSync,
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -85,7 +87,17 @@ function schemaAt(dbPath: string): string[] {
   }
 }
 
-async function prepareIntegrityFixture(): Promise<{
+async function prepareIntegrityFixture(
+  names: {
+    baseline: string;
+    first: string;
+    second: string;
+  } = {
+    baseline: '20260101000000_baseline',
+    first: '20260101000001_add_first',
+    second: '20260101000002_add_second',
+  },
+): Promise<{
   root: string;
   dbPath: string;
   capturePath: string;
@@ -107,9 +119,7 @@ async function prepareIntegrityFixture(): Promise<{
   roots.push(root);
   const dbPath = join(root, 'plan.db');
   const capturePath = join(root, 'capture.json');
-  const baseline = '20260101000000_baseline';
-  const first = '20260101000001_add_first';
-  const second = '20260101000002_add_second';
+  const { baseline, first, second } = names;
   mkdirSync(join(root, 'drizzle'));
   addMigration(
     root,
@@ -149,6 +159,100 @@ async function restoreFixture(fixture: Awaited<ReturnType<typeof prepareIntegrit
 }
 
 describe('migration deploy entrypoints', () => {
+  it('advertises exact-set capabilities without a database or DB_PATH', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-migration-capability-'));
+    roots.push(root);
+    const absent = join(root, 'absent.db');
+    const advertised = await runCli('migrate-capabilities-cli.ts', absent);
+    expect(advertised.exitCode).toBe(0);
+    expect(advertised.stderr).toBe('');
+    expect(JSON.parse(advertised.stdout)).toEqual({
+      protocol: 'wbs-migration',
+      version: 1,
+      capabilities: ['capture-v1', 'restore-v1-sha256'],
+    });
+    expect(existsSync(absent)).toBe(false);
+    const env = { ...process.env };
+    delete env['DB_PATH'];
+    const withoutPath = Bun.spawnSync({
+      cmd: [process.execPath, 'run', join(APP_ROOT, 'src', 'migrate-capabilities-cli.ts')],
+      cwd: root,
+      env,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(withoutPath.exitCode).toBe(0);
+    expect(withoutPath.stdout.toString()).toBe(advertised.stdout);
+    expect(existsSync(join(root, 'drizzle'))).toBe(false);
+  });
+
+  it('refuses unexpected capability arguments before any database access', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-migration-capability-args-'));
+    roots.push(root);
+    const absent = join(root, 'absent.db');
+    const refused = await runCli('migrate-capabilities-cli.ts', absent, '--to=none');
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stdout).toBe('');
+    expect(refused.stderr).toContain('migration capability CLI accepts no arguments');
+    expect(existsSync(absent)).toBe(false);
+  });
+
+  it('backs its advertised exact-set protocol with the real capture and digest-pinned down CLIs', async () => {
+    const advertised = await runCli('migrate-capabilities-cli.ts', '/missing-capability.db');
+    expect(advertised.exitCode).toBe(0);
+    expect(JSON.parse(advertised.stdout)).toEqual({
+      protocol: 'wbs-migration',
+      version: 1,
+      capabilities: ['capture-v1', 'restore-v1-sha256'],
+    });
+    const fixture = await prepareIntegrityFixture({
+      baseline: '20261005110000_newer_baseline',
+      first: '20261001020000_older_candidate',
+      second: '20261002020000_older_second',
+    });
+    const baselineDb = openDatabase(fixture.dbPath);
+    baselineDb.run("INSERT INTO baseline_table(id) VALUES ('retained')");
+    baselineDb.close();
+    const original = readFileSync(fixture.capturePath);
+    const pinned = createHash('sha256').update(original).digest('hex');
+    runMigrations(fixture.dbPath, join(fixture.root, 'drizzle'));
+    const migrated = migrationLedgerAt(fixture.dbPath);
+    const migratedSchema = schemaAt(fixture.dbPath);
+    writeFileSync(fixture.capturePath, `${original.toString('utf8')} `);
+    const rejected = await runCliFrom(
+      fixture.root,
+      'migrate-down-cli.ts',
+      fixture.dbPath,
+      `--capture-file=${fixture.capturePath}`,
+      `--capture-sha256=${pinned}`,
+      ...fixture.identity,
+    );
+    expect(rejected.exitCode).not.toBe(0);
+    expect(rejected.stderr).toContain('migration capture SHA-256 differs');
+    expect(migrationLedgerAt(fixture.dbPath)).toEqual(migrated);
+    expect(schemaAt(fixture.dbPath)).toEqual(migratedSchema);
+    writeFileSync(fixture.capturePath, original);
+    const restored = await runCliFrom(
+      fixture.root,
+      'migrate-down-cli.ts',
+      fixture.dbPath,
+      `--capture-file=${fixture.capturePath}`,
+      `--capture-sha256=${pinned}`,
+      ...fixture.identity,
+    );
+    expect(restored.exitCode).toBe(0);
+    expect(migrationLedgerAt(fixture.dbPath).map(({ name, hash }) => ({ name, hash }))).toEqual(
+      fixture.captured.applied,
+    );
+    expect(schemaAt(fixture.dbPath)).toContain('CREATE TABLE baseline_table (id text)');
+    expect(schemaAt(fixture.dbPath)).not.toContain('CREATE TABLE first_table (id text)');
+    const restoredDb = openDatabase(fixture.dbPath);
+    expect(restoredDb.query<{ id: string }, []>('SELECT id FROM baseline_table').all()).toEqual([
+      { id: 'retained' },
+    ]);
+    restoredDb.close();
+  }, 60_000);
+
   it('restores an older newly introduced migration after a newer shared-people baseline', async () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-migration-set-cli-'));
     roots.push(root);

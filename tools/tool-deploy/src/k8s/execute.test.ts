@@ -489,6 +489,20 @@ describe('executeRelease', () => {
     expect(fake.migrationJobRuns).toBe(0);
   });
 
+  it('does not promote a failed candidate capability capture or launch migration', async () => {
+    const fake = cluster(PREVIOUS);
+    fake.capture = () =>
+      Promise.reject(new Error('exact-set migration CLI capability probe failed'));
+    const journal = memoryJournal();
+    const failed = await failure(executeRelease(request(), journal, fake, quiet, on(fake)));
+    expect({
+      captured: journal.read()?.history.some((entry) => entry.phase === 'state-captured'),
+      migrationJobRuns: fake.migrationJobRuns,
+    }).toEqual({ captured: false, migrationJobRuns: 0 });
+    expect(failed.state.phase).toBe('rolled-back');
+    expectRestored(fake);
+  });
+
   it('refuses changed restored hash before reopening writes', async () => {
     const fake = cluster(PREVIOUS);
     fake.unhealthy.add(NEW.images.backend);

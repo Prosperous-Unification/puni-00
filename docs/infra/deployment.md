@@ -105,11 +105,27 @@ validate identity/admission → acquire Lease → persist intent → admit rollb
   the snapshot, and the exact manual command, for example
   `kubectl --context <ctx> create -f <dir>/wbs-manual-rollback-<id>.json`. Every later run
   refuses with the same command.
-- **Existing in-flight journals.** Journal schema 2 carries the versioned exact-set capture.
-  Schema 1 or an unsupported capture is refused before taking a Lease or changing the journal;
-  finish that attempt with its prior compatible executor or a reviewed manual recovery. The
-  legacy backend `--to=` CLI remains available for that procedure, but new release rollback
-  Jobs use exact-set capture.
+- **Existing schema-1 journals.** Journal schema 2 carries the versioned exact-set capture.
+  The new executor refuses every schema-1 journal, including a terminal record, before taking
+  a Lease or changing it. Finish an in-flight attempt with its prior compatible executor or
+  reviewed manual recovery, and retain the old journal as evidence. Before a fresh schema-2
+  journal path is used, confirm the actual cluster release/schema, writer fence and absence
+  of a held Lease. Never overwrite or relabel the old journal. The legacy backend `--to=` CLI
+  remains available for that reviewed procedure.
+
+The executor/backend migration-protocol combinations are:
+
+| Executor  | Candidate backend  | Adoption rule                                                                                                                     |
+| --------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| Prior     | Prior              | Continue an already-started attempt with its prior executor; timestamp rollback cannot repair a newly introduced older migration. |
+| Prior     | Exact-set capable  | `--to=` remains available, but the prior executor still selects by timestamp.                                                     |
+| Exact-set | Prior `--to=` only | Refuse before SQLite open, snapshot or forward migration. The candidate lacks digest-pinned exact-set restore.                    |
+| Exact-set | Exact-set capable  | Require the candidate's DB-free protocol response, then capture and restore the pinned set with that image and attempt identity.  |
+
+The candidate's `migrate-capabilities-cli.ts` must emit only the version-1
+`wbs-migration` response with `capture-v1` and `restore-v1-sha256`. A readable ledger, the
+coordinator's own code, or status CLI output does not establish candidate rollback support.
+
 - **After writes reopen**, a failure ends at `recovery-required`. The coordinator does not
   roll back to the old image, because that would drop writes users have already been told
   succeeded. Recovery is a new request with `recovers=<release id>`. It runs the whole
