@@ -1410,3 +1410,40 @@ pending. The new tasks are unchecked.
 
 Planning validation completed: pinned strict 1/1 and all 148/148 passed with zero failures;
 four-file Prettier and `git diff --check` passed. Final-byte reruns use the same logs.
+
+## 6h scoped recovery transaction correction (2026-10-06)
+
+Documentation-only amendment from `9345be989310313fa55b3e2894402f73e5fc8eb0`, isolated branch
+`plan/shared-people-fanout-6h-recovery`. Independent call-path review found that the mounted
+scoped step route calls `runRecoveryWrite` with its own granted batch, bypassing the bare
+`createAdmittedWrites` service. Its existing restricted-project super-admin removal succeeds
+and audits once; the previous packet's unqualified forbidden-removal wording was incorrect.
+The normative packet, delta spec and task now distinguish the two transaction owners.
+
+The correction preserves recovery's original UoW, fresh admission, grant expiry and audit;
+observation, after-capture and event recording join that same transaction. It prohibits a
+nested UoW or a second admission/audit and retains delivery after commit/writer release.
+Bare mapped writes retain `NO_ADMISSION` and the separate read-only authority check. No
+product source, permission implementation or runtime capability changed.
+
+| Required fault / production path                                                             | Decisive negative                                                                                  | Result  |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------- |
+| Omit scoped recovery binding, independently of bare binding                                  | Mounted shared DELETE succeeds but expected downstream rows disappear                              | Pending |
+| Substitute bare graph or repeat auditing admission in scoped recovery                        | Existing successful super-admin deletion is refused, or audit count grows from one to two          | Pending |
+| Bypass fresh recovery admission or capture before it                                         | Revoked/demoted or foreign caller reaches throwing capture instead of typed refusal                | Pending |
+| Omit hook or move it after removal, separately in scoped recovery and bare shared-mode paths | Old-step witness or required downstream event fails                                                | Pending |
+| Fail capture, then independently a later event insert, on each path                          | Domain/event/sequence and scoped audit roll back, grant expires, zero delivery/optimizer witnesses | Pending |
+| Deliver inside recovery UoW, independently of bare-path mutation                             | Pending transport blocks a second writer or emits before commit                                    | Pending |
+
+All implementation tests and R5 fault injections above remain unrun/pending. Normal local
+commit hooks will run; their inactive Tool Wiki status is not certification. No full h2puni
+gate, CI, product test/lint/typecheck/build, push or merge is claimed by this planning packet.
+
+Planning validation: `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate
+share-people-across-projects --strict --json` passed 1/1; the same pinned tool's
+`validate --all --json` passed 148/148 (130 changes, 18 specs). Reports:
+`/tmp/6h-recovery-plan-strict.json` and `/tmp/6h-recovery-plan-all.json`. Four-file Prettier
+check and `git diff --check` passed; final-byte validation is rerun before commit.
+Legacy is deliberately non-capturing: its negative plants throwing shared dependencies and
+requires successful removal without calling them. Shared hook omission/fault proofs must use
+a permitted shared-mode actor, not a legacy no-fan-out result.
