@@ -1136,6 +1136,7 @@ test('mounted compare preserves last query values, opaque differences, and corru
     'p',
     { kind: 'current' },
     { kind: 'saved', savedPlanId: 's' },
+    { kind: 'legacy' },
   );
   const refusal = {
     reason: 'body_hash_mismatch' as const,

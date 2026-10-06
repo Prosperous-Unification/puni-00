@@ -11,6 +11,7 @@ import { canWriteInOrganization } from '@wbs/domain';
 import type { ProjectService } from '../module/project/project.resource';
 import { SavedPlanWriteError, savePlan } from '../module/saved-plans/save-plan';
 import { UnknownSavedPlanBodyVersionError } from '../module/saved-plans/saved-plan-integrity';
+import { SavedPlanCaptureRefusal } from '../module/saved-plans/saved-plans.feature';
 import type {
   OrganizationAccess,
   OrganizationPrincipal,
@@ -188,6 +189,8 @@ export function savedPlanRoutes(
             return { ok: false, status: 404, body: { error: 'not_found' } };
           case 'forbidden':
             return { ok: false, status: 403, body: { error: 'forbidden' } };
+          case 'access_refused':
+            return organizationRefusal(outcome.refusal);
           case 'insufficient_scope':
             return { ok: false, status: 403, body: { error: 'insufficient_scope' } };
           case 'snapshot_busy':
@@ -226,9 +229,16 @@ export function savedPlanRoutes(
         if (!resolved.ok) return organizationRefusal(resolved.refusal);
         if ((await projects.readWithin(params.id, resolved.access)) === null)
           return { ok: false, status: 404, body: { error: 'not_found' } };
-        const called = await callSavedPlan(() =>
-          plans.compare(params.id, sideRef(query.left), sideRef(query.right)),
-        );
+        let called;
+        try {
+          called = await callSavedPlan(() =>
+            plans.compare(params.id, sideRef(query.left), sideRef(query.right), resolved.access),
+          );
+        } catch (failure) {
+          if (failure instanceof SavedPlanCaptureRefusal)
+            return organizationRefusal(failure.refusal);
+          throw failure;
+        }
         if (!called.ok) return called;
         const outcome = called.value;
         switch (outcome.outcome) {
@@ -238,8 +248,21 @@ export function savedPlanRoutes(
               status: 200,
               body: {
                 diff: {
-                  input: [...outcome.diff.input],
-                  schedule: [...outcome.diff.schedule],
+                  // A removed field is undefined in the domain diff; JSON requires both sides.
+                  // Proof: upstream assignment removal made mounted saved/current compare return
+                  // 500 until the absent elsewhereHolder and waitingElsewhere sides were encoded.
+                  // Proof: omitting input normalization made removed target assignment compare 500.
+                  input: outcome.diff.input.map((difference) => ({
+                    ...difference,
+                    left: difference.left === undefined ? null : difference.left,
+                    right: difference.right === undefined ? null : difference.right,
+                  })),
+                  // Proof: omitting schedule normalization made upstream booking removal compare 500.
+                  schedule: outcome.diff.schedule.map((difference) => ({
+                    ...difference,
+                    left: difference.left === undefined ? null : difference.left,
+                    right: difference.right === undefined ? null : difference.right,
+                  })),
                 },
               },
             };

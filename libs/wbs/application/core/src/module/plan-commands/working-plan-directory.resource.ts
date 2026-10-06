@@ -24,6 +24,8 @@ export function createWorkingPlanDirectory(
     async (...parameters) => {
       assertOpen();
       const written = await write(...parameters);
+      // Proof: omitting this reload left a deleted team in a retained leaf;
+      // mounted duplicateWorkItem then inserted its stale FK and answered 500.
       if (succeeded(written)) await reloadPlan();
       return written;
     };

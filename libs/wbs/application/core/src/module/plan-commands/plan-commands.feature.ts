@@ -435,6 +435,7 @@ export class PlanCommandRunner {
           }
         },
         // Proof: see `admissionOf`.
+        () => grant?.expire(),
       )
       .finally(() => grant?.expire());
     if ('ok' in done) return done;
@@ -564,6 +565,7 @@ export class PlanCommandRunner {
                   },
           };
         },
+        () => grant?.expire(),
       )
       .finally(() => grant?.expire());
     await collector.send();

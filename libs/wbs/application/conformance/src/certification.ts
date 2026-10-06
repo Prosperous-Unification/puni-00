@@ -16,6 +16,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'projects.create:steps',
   'projects.update:scope',
   'projects.recordOpen:reader-order',
+  'projectRanks.orderIn:scoped-move',
   'users.create:unique-name',
   'users.find:identity',
   'users.resolveOidcIdentity:issuer-subject',

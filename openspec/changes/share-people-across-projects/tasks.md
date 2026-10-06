@@ -129,6 +129,25 @@ they are not additional completion checkboxes. Steps 6.1a/6.2a are implemented a
    **6.2d:** omit elsewhere, release or snapshot-close ordering independently and observe wrong
    request/hash, a leaked unlaunched slot or admission inside the read. Unexpected exceptions
    throw after cleanup; retain terminal-evidence rules for already launched children.
+   **Remaining Retry TDD order (6.1d, then paired 6.2d):**
+   1. Add mounted RED cases for upstream-only edits (target revision unchanged) returning the
+      current shared hash, and a matching-hash Retry launching the holder-bearing input.
+      Implement human-scoped coherent input/settings capture and preserve admission authority.
+   2. Add endpoint-schema/client and mounted REDs for 409 `schedule-input-unavailable` with
+      `reason` and readable failing `projectId`: required engine-unavailable influencer,
+      target cycle and target calendar_range. Assert complete optimizer-state snapshots and
+      launcher calls unchanged; no fabricated hash or local-only fallback. Add upstream
+      cycle/range cases proving existing skip-bookings behavior still yields target input.
+   3. Prove snapshot close precedes Retry admission; revoke human access before capture and
+      before the admission write separately. Preserve missing/foreign and unexpected-failure
+      distinctions. Do not use the background project-owned capture for the human route.
+   4. Independently remove shared-input selection, unavailable refusal, failing-project identity,
+      scoped capture recheck and close-before-admission ordering; inject a write on refusal;
+      replace upstream skip-bookings with refusal; remove the response-contract variant.
+      Watch mounted/typed-client assertions fail for wrong hash/request, wrong refusal or
+      leaked identity, changed durable state, admission during read, or invalid response.
+      Restore each fault, add adjacent Proof comments and exact command/log evidence. Keep
+      this slice pending until all four admission paths and the paired proofs are reviewed.
 5. **6.1e — Installed saved/current capture.** Test, then pass scoped shared capture through
    the saved-plan installer and composition root. Test
    `mounted shared save and current retain their own chain`,
@@ -145,6 +164,9 @@ they are not additional completion checkboxes. Steps 6.1a/6.2a are implemented a
    undated-bridge regressions, the isolated-only capability CLI and shared-restore refusal.
    Advertising shared must fail the release capability negative. Record all newly introduced
    safety checks' observed failures before the exact-head gate.
+   **6.1f/6.2f complete:** captured H1/H2 lookups, old-address outcome/event storage,
+   full-key hash-omission RED, physical isolated-only capability and pre-write shared-restore
+   refusal with independent watched faults, and retained fence/chain regressions are in verify.md.
 
 ### Remaining work after runtime/cache
 
@@ -158,6 +180,124 @@ No booking ledger is introduced. UI 7 and mode route 8 remain required in their 
 Trusted activation and live solver image publication/binding installation remain deferred;
 this runtime slice provides no setter, activation route or environment override and continues
 advertising `['isolated']` and refusing shared restore.
+
+### Ordered durable fan-out slices (6g–6l)
+
+Dependencies: reviewed local 6.1d/e/f checkpoints through
+`73264fce66deff231c71b8a14f73da856e5fa811`, then 6g → 6h → 6i → 6j → 6k → 6l.
+Each slice starts with its named RED tests, implements the minimum production path, restores
+and reruns each watched fault, records exact evidence in verify.md, and receives independent
+review before the next slice. Remaining unchecked tasks do not authorize activation/publication.
+
+- [x] 6g. **Projection and recipients only.** Add a core value service/test beside
+      `service/shared-people.ts` as `shared-people-fanout.ts` / `shared-people-fanout.test.ts`;
+      reuse/extract its pure display selector if needed. Consume
+      captured scheduling outcomes, old/new rank-directed graphs and direct causes; return
+      canonical bookings/availability comparisons and sorted recipient/cause pairs. RED tests:
+      `selected displayed bookings determine fan-out`, `equal hashes retain availability
+transitions`, `removed bridge retains old recipients`, `mixed edges invent no path`,
+      `multiple causes produce distinct deterministic pairs`, `rename and rank respacing are
+silent`, and `isolated and foreign projects receive no shared fan-out`. Include absolute
+      fractional intervals, undated bridge, cycle/range skip semantics and required unavailable
+      outcomes. R5: substitute Fast, suppress equal-hash availability, omit old graph, traverse
+      mixed edges, remove pair deduplication and remove organization/mode guards independently.
+      No adapter/event/route binding, DB writes, generation admission or persistent hash state.
+- [x] 6h. **Command/UoW atomicity.** Follow the reviewed
+      [architecture checkpoint](6h-architecture.md), including both core and mounted bindings
+      and the committed-delivery optimizer reaction. Expire execute/undo/redo command grants
+      at UoW settlement before post-commit delivery; retain unconditional failure/refusal cleanup
+      and `NO_ADMISSION` rollback repair. Prove a retained grant refuses while transport is held
+      and a second writer enters, separately for execute and undo/redo; move expiry after delivery
+      to observe RED. Derive changed connection endpoints as direct causes alongside local facts;
+      remove that derivation and observe missing `(B,A)` / `(C,A)` after B loses its A-facing edge.
+      For bare admitted writes add the awaited beforeWrite
+      observation hook and fresh read-only authority check, with typed refusals and no audit/grant;
+      retain the repository final guard/audit. Prove queued demotion/foreign refusal invokes no
+      capture, recovery audits exactly once, hook omission/late placement fails and capture/event
+      failures roll back. Separately bind mounted scoped step removal inside `runRecoveryWrite`'s
+      existing UoW/fresh admission/grant/audit: preserve successful super-admin recovery, record
+      fan-out before commit, and deliver after writer release. No nested UoW or second admission/audit.
+      Prove scoped recovery and bare shared-mode omission, late hook, capture/event rollback and
+      writer release separately; prove mounted legacy removal never calls shared dependencies; preserve scoped grant expiry and bare `NO_ADMISSION`. Independently bypass the
+      check, move capture ahead of it and substitute
+      auditing admission to observe RED. Integrate borrowed before/after capture and transactional
+      event recording through `module/plan-commands/composition.ts`, `PlanCommandRunner` and
+      `admitted-write.ts`; retain command history and scoped authority. Resolve committed-record
+      delivery with composition and `optimizer-trigger-broadcaster.ts` without duplicate record
+      or missing post-commit scheduling. RED real SQLite command/undo/redo and mounted command
+      tests: `command and downstream events commit together`, `late refusal emits nothing`,
+      `cold command fan-out needs no previous read`, `one batch coalesces each cause pair` and
+      `capture does not admit optimization`. R5: move recording after commit, move push before
+      commit, omit composition binding, call live admission and omit post-commit trigger.
+- [ ] 6i. **Rank/settings/directory transactions.** Follow the normative
+      [6i architecture checkpoint](6i-architecture.md) before implementation. Use explicit
+      source-owned standalone async UoW wrappers and raw OPEN stores inside already-owned
+      command/import/repair scopes; never install a second observer beneath a batch. Bind `ProjectRankRepository.moveAfter`,
+      admitted project settings/start edits and standalone directory transactions; cover
+      working-plan directory writes without duplicate events. RED mounted rank/settings and
+      directory service/DB tests: `removed assignment invalidates old closure`, `rank reorder
+compares both directions`, `directory edit has causes without project-row edits`,
+      `unchanged rename is silent` and `refused resource edit preserves event sequence`.
+      Expose the composed rank writer through source/services/boot/app; mounted directory
+      mutations stay on the command runner. Require current read-only admin/super-admin
+      admission inside the rank owner before capture, propagating typed `RankMoved.forbidden`
+      without recovery audit. Preserve typed addressed resource/link refusals separately from
+      trusted ownership corruption; prove both with capture spies and queued rank demotion.
+      Add relative-order causes without numeric
+      respacing causes; retain the 6h settings/date owner and selected-display comparison.
+      R5: omit each binding independently, use only post-write usages, use a preflight
+      topology read instead of the owning transaction's observation, install standalone
+      observers beneath borrowed stores, record after commit, and deliver before writer
+      release. Prove rank and standalone directory refusal/event/sequence atomicity and
+      delivery separately; retain command/Working-plan directory single-owner proofs.
+- [ ] 6i.a. **Preserve standalone mutation boundaries.** RED `standalone rename survives later link after-capture failure` through the public facade for person/team. Introduce the invocation-scoped
+      DirectoryStore facade and one UoW per raw mutator. A links-only zero-pair case must emit nothing. Watch whole-service wrapping lose the
+      retained rename, restore GREEN, then review this boundary before 6i.b.
+- [ ] 6i.b. **Observe each actual mutation.** RED `each raw mutation observes its own before state`
+      and `invalid standalone service input never captures`. Bind exact-address before/after
+      capture and typed outcomes per mutator. Watch reused before-state, inner helper wrapping
+      and capture-before-service-validation fail independently. Separately prove
+      `standalone cascade rolls back a later real event insert`: confirm at least two actual
+      comparison-derived pairs, fail the second insert, and assert full owner rollback with no
+      delivery. Move recording after commit to watch RED. Observe name-idempotent membership
+      additions without assuming they produce pairs; restore GREEN before 6i.c.
+- [ ] 6i.c. **Keep invocation context and announcements separate.** RED `standalone contexts cannot cross` and `ordinary announcements retain one publisher`. Prove immutable invocation
+      ResourceAccess and original service announcement ownership. Watch shared mutable context
+      and facade republishing/whole-service collection fail; restore GREEN before 6i.d.
+- [ ] 6i.d. **Preserve borrowed ownership.** RED/refine mounted `borrowed directory emits once`.
+      Prove command/import/repair graphs keep raw OPEN stores and unchanged Working plan refresh.
+      Watch facade installation under the existing owner fail through deterministic owner/event
+      witnesses, then restore GREEN. Each checkpoint preserves earlier typed refusal/current-rank
+      proofs; 6i remains open until its complete rank/settings/directory matrix is reviewed.
+- [ ] 6j. **Import and final deletion.** Before drain integration, resolve and test synchronous
+      transaction ownership for borrowed projection reads (design.md); do not pass async
+      callbacks to Drizzle transactions. Bind `module/plan-import/composition.ts` and final
+      `optimization-drain.ts::finishDrainIn`, including release/reconcile callers and contract
+      retirement. RED import service/mounted and optimization-drain SQLite tests:
+      `import and fan-out roll back on event failure`, `final deletion preserves old cause`,
+      `release and reconcile complete deletion fan-out`, `retirement changes selected display`
+      and `repeated finish records nothing`. R5: omit import binding, record at delete request
+      only, drop old closure after delete, omit one release/reconcile path and record outside
+      the final transaction. Space membership removal must not masquerade as project deletion.
+- [ ] 6k. **Optimized display atomicity.** Resolve the synchronous transaction/projection seam
+      before modifying `optimized-outcome.ts`, repository/coordinator or display-changing
+      admission/Retry/retirement paths. RED real outcome/event and mounted tests:
+      `current selected outcome and fan-out commit together`, `old H1 publication under H2
+emits no fan-out`, `nonselected outcome is silent`, `availability changes despite equal
+input hash`, `event failure rolls back cache and fan-out`, and `already-recorded outcome
+does not fan out twice`. R5: fan out on any insertion, compare only input hash, substitute
+      Fast, detach the comparison snapshot and omit the transactional event binding. Retain
+      all generation/token/cancellation/enablement and blue/green multi-input proofs.
+- [ ] 6l. **Replay and release closure.** RED real event-log/realtime and mounted tests:
+      `crash after commit before push replays from a cold process`, `pushRecorded preserves
+sequence`, `push failure retains durable event`, `expired replay requires snapshot` and
+      `unauthorized subscription cannot replay cause`. R5: skip durable insert, allocate another
+      sequence during push, depend on memory-only replay and bypass replay authority separately.
+      Rerun full booking-mutation inventory and 6a–f regressions, including physical capability
+      CLI and pre-write shared-restore refusal; independently advertise shared and bypass the
+      restore guard to observe RED. Record bounds for external engine loss. Exact-SHA canonical
+      gate and CI remain required before an integration claim; keep 6.1/6.2 open until their
+      full obligations, including remaining UI/activation sequencing, are reconciled.
 
 ## 7. fe
 

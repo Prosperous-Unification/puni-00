@@ -1,15 +1,19 @@
 import { encodeOptimizedResult } from '@wbs/contracts/solver/optimized-result';
-import { scheduleInputOfCaptured } from '@wbs/core';
+import { readSharedPeople, scheduleInputOfCaptured } from '@wbs/core';
+import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { schedule } from '@wbs/domain';
-import { openConnection } from '@wbs/store-sqlite/db';
+import { openConnection, openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { allocateGeneration } from '@wbs/store-sqlite/optimization-generation';
+import { enqueueSolverRequest } from '@wbs/store-sqlite/optimization-queue';
 import { SavedPlanCaptureRepository } from '@wbs/store-sqlite/saved-plan-capture';
 import { scheduleInputHash } from '@wbs/store-sqlite/schedule-input-hash';
 import { optimizedScheduleCache } from '@wbs/store-sqlite/schema';
 import { WorkItemRepository } from '@wbs/store-sqlite/work-item';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
+import type { ReservedSpawner, ReservedSpawnRequest } from '../module/optimization/contract';
 import { OptimizationCoordinator } from '../module/optimization/optimization.feature';
+import { fastScheduler } from '../service/optimizer-wiring';
 import { OrganizationHarness } from '../testing/organization-harness';
 
 /**
@@ -233,6 +237,365 @@ describe('after activation', () => {
 });
 
 describe('shared live projection', () => {
+  it('installed saved capture and current comparison retain their own shared chain', async () => {
+    const { higher, lower } = await seedSharedPlans();
+    const saved = await h.call('ada', 'POST', `/api/projects/${lower}/saved-plans`, {
+      name: 'Before upstream edit',
+    });
+    expect(saved.status).toBe(201);
+    const savedId = (saved.body as { savedPlan: { id: string } }).savedPlan.id;
+    const first = await h.call('ada', 'GET', `/api/saved-plans/${savedId}`);
+    expect(first.status).toBe(200);
+    const firstPlan = (
+      first.body as {
+        savedPlan: {
+          input: { bytes: string; sha256: string };
+          schedule: { present: true; body: { bytes: string; sha256: string } };
+        };
+      }
+    ).savedPlan;
+    expect(firstPlan.schedule.present).toBe(true);
+    expect(
+      (
+        JSON.parse(firstPlan.schedule.body.bytes) as {
+          workItems: { 'lower-work': { earliestStart: number } };
+        }
+      ).workItems['lower-work'].earliestStart,
+    ).toBe(3);
+    const same = await h.call(
+      'ada',
+      'GET',
+      `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+    );
+    expect(same).toEqual({ status: 200, body: { diff: { input: [], schedule: [] } } });
+
+    h.sqlite.run(
+      'UPDATE estimate SET optimistic = 4, realistic = 4, pessimistic = 4 WHERE work_item_id = ?',
+      ['higher-work'],
+    );
+    const changed = await h.call(
+      'ada',
+      'GET',
+      `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+    );
+    expect(changed.status).toBe(200);
+    expect((changed.body as { diff: { schedule: unknown[] } }).diff.schedule).not.toEqual([]);
+    const historical = await h.call('ada', 'GET', `/api/saved-plans/${savedId}`);
+    expect((historical.body as { savedPlan: unknown }).savedPlan).toEqual(firstPlan);
+    h.sqlite.run("DELETE FROM assignment WHERE work_item_id = 'higher-work'");
+    const removed = await h.call(
+      'ada',
+      'GET',
+      `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+    );
+    expect(removed.status).toBe(200);
+    const removedSchedule = (
+      removed.body as {
+        diff: { schedule: { path: string; left: unknown; right: unknown }[] };
+      }
+    ).diff.schedule;
+    const removedHolder = removedSchedule.find((difference) =>
+      difference.path.includes('elsewhereHolder'),
+    );
+    expect(removedHolder?.left).toEqual({ projectId: higher, workItemId: 'higher-work' });
+    expect(removedHolder?.right).toBeNull();
+    expect(
+      removedSchedule.some(
+        (difference) => difference.path.includes('earliestStart') && difference.right === 0,
+      ),
+    ).toBe(true);
+    const reversed = await h.call(
+      'ada',
+      'GET',
+      `/api/projects/${lower}/saved-plans/compare?left=current&right=${savedId}`,
+    );
+    expect(reversed.status).toBe(200);
+    const reversedHolder = (
+      reversed.body as { diff: { schedule: { path: string; left: unknown }[] } }
+    ).diff.schedule.find((difference) => difference.path.includes('elsewhereHolder'));
+    expect(reversedHolder?.left).toBeNull();
+    h.sqlite.run("UPDATE work_item SET notes = 'updated' WHERE id = 'lower-work'");
+    h.sqlite.run('UPDATE project SET restricted = 1 WHERE id = ?', [lower]);
+    h.sqlite.run("DELETE FROM assignment WHERE work_item_id = 'lower-work'");
+    const inputRemoved = await h.call(
+      'ada',
+      'GET',
+      `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+    );
+    expect(inputRemoved.status).toBe(200);
+    const inputDifferences = (
+      inputRemoved.body as {
+        diff: { input: { left: unknown; right: unknown }[] };
+      }
+    ).diff.input;
+    expect(inputDifferences.some((difference) => difference.right === null)).toBe(true);
+    expect(inputDifferences.some((difference) => difference.left === '')).toBe(true);
+    expect(inputDifferences.some((difference) => difference.left === false)).toBe(true);
+    const inputReversed = await h.call(
+      'ada',
+      'GET',
+      `/api/projects/${lower}/saved-plans/compare?left=current&right=${savedId}`,
+    );
+    expect(inputReversed.status).toBe(200);
+    expect(
+      (inputReversed.body as { diff: { input: { left: unknown }[] } }).diff.input.some(
+        (difference) => difference.left === null,
+      ),
+    ).toBe(true);
+    expect((await h.call('ada', 'GET', `/api/saved-plans/${savedId}`)).body).toEqual(first.body);
+    expect(h.sqlite.query('SELECT * FROM optimization_generation').all()).toEqual([]);
+    expect(h.sqlite.query('SELECT * FROM solver_slot').all()).toEqual([]);
+    expect(h.sqlite.query('SELECT * FROM solver_queue').all()).toEqual([]);
+  });
+
+  it.each(['save', 'compare'] as const)(
+    'rechecks admitted human authority inside shared %s capture',
+    async (operation) => {
+      let revoke = false;
+      const { lower } = await seedSharedPlans(false, () => {
+        if (!revoke) return;
+        revoke = false;
+        h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('ada')]);
+      });
+      let savedId = '';
+      if (operation === 'compare') {
+        const saved = await h.call('ada', 'POST', `/api/projects/${lower}/saved-plans`, {
+          name: 'Before revocation',
+        });
+        expect(saved.status).toBe(201);
+        savedId = (saved.body as { savedPlan: { id: string } }).savedPlan.id;
+      }
+      const before = h.sqlite.query('SELECT * FROM saved_plan ORDER BY id').all();
+      revoke = true;
+      const refused =
+        operation === 'save'
+          ? await h.call('ada', 'POST', `/api/projects/${lower}/saved-plans`, { name: 'Denied' })
+          : await h.call(
+              'ada',
+              'GET',
+              `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+            );
+      expect(refused).toEqual({ status: 403, body: { error: 'not_a_member' } });
+      expect(h.sqlite.query('SELECT * FROM saved_plan ORDER BY id').all()).toEqual(before);
+    },
+  );
+
+  it.each([
+    ['pending', 'target'],
+    ['unavailable', 'upstream'],
+    ['infeasible', 'cycle'],
+    ['infeasible', 'calendar_range'],
+  ] as const)('stores shared S4 %s for %s without live admission', async (reason, setting) => {
+    const { higher, lower } = await seedSharedPlans(setting !== 'upstream');
+    if (setting === 'target')
+      h.sqlite.run(
+        "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+        [lower],
+      );
+    if (setting === 'upstream')
+      h.sqlite.run(
+        "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+        [higher],
+      );
+    if (setting === 'cycle')
+      h.sqlite.run(
+        "INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('saved-cycle', ?, 'lower-work', 'lower-work')",
+        [lower],
+      );
+    if (setting === 'calendar_range')
+      h.sqlite.run(
+        'UPDATE estimate SET optimistic = 80000000, realistic = 80000000, pessimistic = 80000000 WHERE work_item_id = ?',
+        ['lower-work'],
+      );
+    const tables = [
+      'optimization_generation',
+      'optimized_schedule_cache',
+      'solver_slot',
+      'solver_queue',
+    ];
+    const before = tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all());
+    const saved = await h.call('ada', 'POST', `/api/projects/${lower}/saved-plans`, {
+      name: `Shared ${reason}`,
+    });
+    expect(saved.status).toBe(201);
+    const savedId = (saved.body as { savedPlan: { id: string } }).savedPlan.id;
+    const read = await h.call('ada', 'GET', `/api/saved-plans/${savedId}`);
+    expect(read.status).toBe(200);
+    expect((read.body as { savedPlan: { schedule: unknown } }).savedPlan.schedule).toEqual({
+      present: false,
+      absentReason: reason,
+    });
+    expect(
+      await h.call(
+        'ada',
+        'GET',
+        `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+      ),
+    ).toEqual({ status: 200, body: { diff: { input: [], schedule: [] } } });
+    expect(tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all())).toEqual(before);
+  });
+
+  it('stores the selected ready optimized schedule without admitting live work', async () => {
+    const { higher, lower } = await seedSharedPlans(true, undefined, undefined, '0.2.0');
+    const capture = new SavedPlanCaptureRepository({
+      openConnection: () => openConnection(h.databasePath()),
+    });
+    const higherReads = await capture.readPlanInput(higher);
+    const lowerReads = await capture.readPlanInput(lower);
+    if (higherReads === null || lowerReads === null) throw new Error('missing ranked project');
+    const chain = readSharedPeople([higherReads, lowerReads], lower, fastScheduler);
+    if (chain.kind !== 'scheduled') throw new Error('missing shared target input');
+    const input = chain.input;
+    const optimized = schedule(
+      input.rows,
+      input.edges,
+      input.slices,
+      new Map([['lower-work', 8]]),
+      input.poolSizes,
+      input.reach,
+      input.deadlines,
+      input.typed,
+      undefined,
+      input.elsewhere,
+    );
+    h.sqlite.run(
+      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      [lower],
+    );
+    const connection = openConnection(h.databasePath());
+    try {
+      const inputHash = scheduleInputHash(input);
+      const generation = allocateGeneration(connection.db, lower, '15+0.2.0', inputHash, 1);
+      connection.db
+        .insert(optimizedScheduleCache)
+        .values({
+          projectId: lower,
+          inputHash,
+          generation,
+          contractVersion: '15+0.2.0',
+          budgetMs: 60000,
+          objective: 'pri',
+          status: 'ok',
+          failureReason: null,
+          createdAt: 1,
+          resultJson: JSON.stringify(
+            encodeOptimizedResult({
+              publication: 'solver',
+              objectiveValues: {
+                makespan: { value: 9, stageValue: 9, bound: 9, status: 'optimal' },
+                priority: { value: 0, stageValue: 0, bound: 0, status: 'optimal' },
+                movement: { value: 0, stageValue: 0, bound: 0, status: 'optimal' },
+              },
+              schedule: optimized,
+            }),
+          ),
+        })
+        .run();
+    } finally {
+      connection.close();
+    }
+    const tables = [
+      'optimization_generation',
+      'optimized_schedule_cache',
+      'solver_slot',
+      'solver_queue',
+    ];
+    const before = tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all());
+    const saved = await h.call('ada', 'POST', `/api/projects/${lower}/saved-plans`, {
+      name: 'Selected optimized',
+    });
+    expect(saved.status).toBe(201);
+    const savedId = (saved.body as { savedPlan: { id: string } }).savedPlan.id;
+    const read = await h.call('ada', 'GET', `/api/saved-plans/${savedId}`);
+    expect(read.status).toBe(200);
+    const stored = (
+      read.body as {
+        savedPlan: { schedule: { present: true; algorithmId: string; body: { bytes: string } } };
+      }
+    ).savedPlan.schedule;
+    expect(stored.present).toBe(true);
+    expect(stored.algorithmId).toBe('optimized:15+0.2.0:pri:60000');
+    expect(
+      (JSON.parse(stored.body.bytes) as { workItems: { 'lower-work': { earliestStart: number } } })
+        .workItems['lower-work'].earliestStart,
+    ).toBe(8);
+    expect(
+      await h.call(
+        'ada',
+        'GET',
+        `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+      ),
+    ).toEqual({ status: 200, body: { diff: { input: [], schedule: [] } } });
+    expect(tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all())).toEqual(before);
+  });
+
+  it.each(['failed', 'corrupt'] as const)(
+    'stores selected %s optimization as unavailable through installed capture',
+    async (state) => {
+      const { higher, lower } = await seedSharedPlans(true, undefined, undefined, '0.2.0');
+      const capture = new SavedPlanCaptureRepository({
+        openConnection: () => openConnection(h.databasePath()),
+      });
+      const higherReads = await capture.readPlanInput(higher);
+      const lowerReads = await capture.readPlanInput(lower);
+      if (higherReads === null || lowerReads === null) throw new Error('missing ranked project');
+      const chain = readSharedPeople([higherReads, lowerReads], lower, fastScheduler);
+      if (chain.kind !== 'scheduled') throw new Error('missing shared target input');
+      const inputHash = scheduleInputHash(chain.input);
+      h.sqlite.run(
+        "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+        [lower],
+      );
+      const connection = openConnection(h.databasePath());
+      try {
+        const generation = allocateGeneration(connection.db, lower, '15+0.2.0', inputHash, 1);
+        connection.db
+          .insert(optimizedScheduleCache)
+          .values({
+            projectId: lower,
+            inputHash,
+            generation,
+            contractVersion: '15+0.2.0',
+            budgetMs: 60000,
+            objective: 'pri',
+            status: state === 'failed' ? 'failed' : 'ok',
+            failureReason: state === 'failed' ? 'timeout' : null,
+            createdAt: 1,
+            resultJson: state === 'failed' ? null : '{not-json',
+          })
+          .run();
+      } finally {
+        connection.close();
+      }
+      const tables = [
+        'optimization_generation',
+        'optimized_schedule_cache',
+        'solver_slot',
+        'solver_queue',
+      ];
+      const before = tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all());
+      const saved = await h.call('ada', 'POST', `/api/projects/${lower}/saved-plans`, {
+        name: `Selected ${state}`,
+      });
+      expect(saved.status).toBe(201);
+      const savedId = (saved.body as { savedPlan: { id: string } }).savedPlan.id;
+      const read = await h.call('ada', 'GET', `/api/saved-plans/${savedId}`);
+      expect(read.status).toBe(200);
+      expect((read.body as { savedPlan: { schedule: unknown } }).savedPlan.schedule).toEqual({
+        present: false,
+        absentReason: 'unavailable',
+      });
+      expect(
+        await h.call(
+          'ada',
+          'GET',
+          `/api/projects/${lower}/saved-plans/compare?left=${savedId}&right=current`,
+        ),
+      ).toEqual({ status: 200, body: { diff: { input: [], schedule: [] } } });
+      expect(tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all())).toEqual(before);
+    },
+  );
+
   it('shared tree and export agree', async () => {
     const { higher, lower, lowerStep } = await seedSharedPlans();
     h.sqlite.run('UPDATE project SET revision = 7 WHERE id = ?', [lower]);
@@ -356,9 +719,21 @@ describe('shared transactional consumers', () => {
   });
 });
 
-async function seedSharedPlans(withOptimizer = false, afterResolve?: () => void) {
+async function seedSharedPlans(
+  withOptimizer = false,
+  afterResolve?: () => void,
+  spawn?: ReservedSpawner,
+  solverVersion?: string,
+  readConnection?: typeof openReadOnlyConnection,
+) {
   h.close();
-  h = OrganizationHarness.openComposed(withOptimizer, afterResolve);
+  h = OrganizationHarness.openComposed(
+    withOptimizer,
+    afterResolve,
+    spawn,
+    solverVersion,
+    readConnection,
+  );
   await h.register('ada');
   h.organization('org-a');
   h.member('org-a', 'ada', 'admin');
@@ -400,6 +775,18 @@ async function seedSharedPlans(withOptimizer = false, afterResolve?: () => void)
     ]);
   }
   return { higher, lower, higherStep, lowerStep };
+}
+
+function seedFailedRetry(projectId: string, inputHash: string, solverVersion = '0.2.0'): void {
+  const contractVersion = `15+${solverVersion}`;
+  h.sqlite.run(
+    'INSERT INTO optimization_generation (project_id, contract_version, generation, input_hash, updated_at) VALUES (?, ?, 1, ?, 1)',
+    [projectId, contractVersion, inputHash],
+  );
+  h.sqlite.run(
+    "INSERT INTO optimized_schedule_cache (project_id, input_hash, objective, contract_version, budget_ms, generation, status, failure_reason, created_at) VALUES (?, ?, 'pri', ?, 60000, 1, 'failed', 'timeout', 2)",
+    [projectId, inputHash, contractVersion],
+  );
 }
 
 describe('shared detached evidence', () => {
@@ -547,6 +934,489 @@ describe('borrowed command evidence', () => {
 });
 
 describe('shared displayed cache evidence', () => {
+  it('refuses Retry for a required unavailable engine with its readable influencer identity', async () => {
+    const { higher, lower } = await seedSharedPlans();
+    h.sqlite.run(
+      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      [higher],
+    );
+    const before = [
+      'optimization_generation',
+      'optimized_schedule_cache',
+      'solver_slot',
+      'solver_queue',
+      'event_log',
+    ].map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all());
+    const refused = await h.call('ada', 'POST', `/api/projects/${lower}/optimization/retry`, {
+      objective: 'pri',
+      inputHash: 'old',
+    });
+    expect(refused).toEqual({
+      status: 409,
+      body: { code: 'schedule-input-unavailable', reason: 'engine_unavailable', projectId: higher },
+    });
+    expect(
+      [
+        'optimization_generation',
+        'optimized_schedule_cache',
+        'solver_slot',
+        'solver_queue',
+        'event_log',
+      ].map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all()),
+    ).toEqual(before);
+  });
+
+  it.each(['cycle', 'calendar_range'] as const)(
+    'refuses Retry for a target %s without optimizer writes or launch',
+    async (reason) => {
+      const launched: ReservedSpawnRequest[] = [];
+      const { lower, lowerStep } = await seedSharedPlans(
+        true,
+        undefined,
+        (request) => {
+          launched.push(request);
+          return new Promise<never>(() => undefined);
+        },
+        '0.2.0',
+      );
+      h.sqlite.run('UPDATE project SET optimization_enabled = 1 WHERE id = ?', [lower]);
+      if (reason === 'cycle')
+        h.sqlite.run(
+          "INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('retry-cycle', ?, 'lower-work', 'lower-work')",
+          [lower],
+        );
+      else
+        h.sqlite.run(
+          'UPDATE estimate SET optimistic = 80000000, realistic = 80000000, pessimistic = 80000000 WHERE work_item_id = ? AND step_id = ?',
+          ['lower-work', lowerStep],
+        );
+      const tables = [
+        'optimization_generation',
+        'optimized_schedule_cache',
+        'solver_slot',
+        'solver_queue',
+        'event_log',
+      ];
+      const before = tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all());
+      expect(
+        await h.call('ada', 'POST', `/api/projects/${lower}/optimization/retry`, {
+          objective: 'pri',
+          inputHash: 'old',
+        }),
+      ).toEqual({
+        status: 409,
+        body: { code: 'schedule-input-unavailable', reason, projectId: lower },
+      });
+      expect(tables.map((table) => h.sqlite.query(`SELECT * FROM ${table}`).all())).toEqual(before);
+      expect(launched).toEqual([]);
+    },
+  );
+
+  it.each(['cycle', 'calendar_range'] as const)(
+    'keeps a schedulable target when an upstream %s omits its bookings',
+    async (reason) => {
+      const { higher, lower, higherStep } = await seedSharedPlans(true);
+      if (reason === 'cycle')
+        h.sqlite.run(
+          "INSERT INTO dependency (id, project_id, predecessor_id, successor_id) VALUES ('upstream-cycle', ?, 'higher-work', 'higher-work')",
+          [higher],
+        );
+      else
+        h.sqlite.run(
+          'UPDATE estimate SET optimistic = 80000000, realistic = 80000000, pessimistic = 80000000 WHERE work_item_id = ? AND step_id = ?',
+          ['higher-work', higherStep],
+        );
+      const tree = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+      expect(tree.status).toBe(200);
+      const currentHash = (tree.body as { optimization: { inputHash: string } }).optimization
+        .inputHash;
+      const retry = await h.call('ada', 'POST', `/api/projects/${lower}/optimization/retry`, {
+        objective: 'pri',
+        inputHash: 'old',
+      });
+      expect(retry).toEqual({
+        status: 409,
+        body: { code: 'stale-input-hash', currentInputHash: currentHash },
+      });
+    },
+  );
+
+  it('rechecks human authority in the Retry capture after route write admission', async () => {
+    const { lower } = await seedSharedPlans(true);
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- spy preserves the repository receiver.
+    const original = ProjectService.prototype.authorizeRetry;
+    const admitted = spyOn(ProjectService.prototype, 'authorizeRetry').mockImplementation(
+      async function (this: ProjectService, projectId, actorId, access) {
+        const decision = await original.call(this, projectId, actorId, access);
+        h.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [h.userId('ada')]);
+        return decision;
+      },
+    );
+    try {
+      expect(
+        await h.call('ada', 'POST', `/api/projects/${lower}/optimization/retry`, {
+          objective: 'pri',
+          inputHash: 'old',
+        }),
+      ).toEqual({ status: 403, body: { error: 'not_a_member' } });
+      for (const table of ['optimization_generation', 'solver_slot', 'solver_queue'])
+        expect(h.sqlite.query(`SELECT * FROM ${table}`).all()).toEqual([]);
+    } finally {
+      admitted.mockRestore();
+    }
+  });
+
+  it('closes the human Retry snapshot before a matching-hash launcher handoff', async () => {
+    let openReads = 0;
+    const admittedOpenReads: number[] = [];
+    const { lower } = await seedSharedPlans(
+      true,
+      undefined,
+      () => {
+        admittedOpenReads.push(openReads);
+        return new Promise<never>(() => undefined);
+      },
+      '0.2.0',
+      (dbPath) => {
+        const connection = openReadOnlyConnection(dbPath);
+        openReads += 1;
+        return {
+          db: connection.db,
+          close: () => {
+            connection.close();
+            openReads -= 1;
+          },
+        };
+      },
+    );
+    const tree = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    const inputHash = (tree.body as { optimization: { inputHash: string } }).optimization.inputHash;
+    h.sqlite.run(
+      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      [lower],
+    );
+    seedFailedRetry(lower, inputHash);
+    expect(
+      (
+        await h.call('ada', 'POST', `/api/projects/${lower}/optimization/retry`, {
+          objective: 'pri',
+          inputHash,
+        })
+      ).status,
+    ).toBe(202);
+    expect(admittedOpenReads).toEqual([0]);
+    expect(openReads).toBe(0);
+  });
+
+  it('Retry rejects an upstream-only old hash and launches the matching holder-bearing input', async () => {
+    const launched: ReservedSpawnRequest[] = [];
+    const { higher, lower, higherStep } = await seedSharedPlans(
+      true,
+      undefined,
+      (request) => {
+        launched.push(request);
+        return new Promise<never>(() => undefined);
+      },
+      '0.2.0',
+    );
+    const oldTree = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    const oldHash = (oldTree.body as { optimization: { inputHash: string } }).optimization
+      .inputHash;
+    const localRevision = h.sqlite
+      .query<{ revision: number }, [string]>('SELECT revision FROM project WHERE id = ?')
+      .get(lower)?.revision;
+    h.sqlite.run(
+      'UPDATE estimate SET optimistic = 4, realistic = 4, pessimistic = 4 WHERE work_item_id = ? AND step_id = ?',
+      ['higher-work', higherStep],
+    );
+    const currentTree = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    const currentHash = (currentTree.body as { optimization: { inputHash: string } }).optimization
+      .inputHash;
+    expect(currentHash).not.toBe(oldHash);
+    expect(
+      h.sqlite
+        .query<{ revision: number }, [string]>('SELECT revision FROM project WHERE id = ?')
+        .get(lower)?.revision,
+    ).toBe(localRevision);
+    h.sqlite.run(
+      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      [lower],
+    );
+    seedFailedRetry(lower, currentHash);
+    const path = `/api/projects/${lower}/optimization/retry`;
+    const stale = await h.call('ada', 'POST', path, { objective: 'pri', inputHash: oldHash });
+    expect(stale).toEqual({
+      status: 409,
+      body: { code: 'stale-input-hash', currentInputHash: currentHash },
+    });
+    expect(launched).toEqual([]);
+
+    const accepted = await h.call('ada', 'POST', path, {
+      objective: 'pri',
+      inputHash: currentHash,
+    });
+    expect(accepted.status).toBe(202);
+    expect(launched).toHaveLength(1);
+    expect(launched[0]?.input.elsewhere?.get('ana')).toEqual([
+      { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
+    ]);
+    expect(launched[0]?.request.elsewhere).toEqual({ ana: [[0, 192]] });
+    expect(launched[0]?.key.inputHash).toBe(scheduleInputHash(launched[0].input));
+    expect(h.sqlite.query('SELECT project_id FROM solver_slot').all()).toEqual([
+      { project_id: lower },
+    ]);
+  });
+
+  it('rebuilds a queued shared request from the current upstream booking', async () => {
+    const launched: ReservedSpawnRequest[] = [];
+    const { higher, lower, higherStep } = await seedSharedPlans(
+      true,
+      undefined,
+      (request) => {
+        launched.push(request);
+        return new Promise<never>(() => undefined);
+      },
+      '0.2.0',
+    );
+    const before = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+    const oldHash = (before.body as { optimization: { inputHash: string } }).optimization.inputHash;
+    h.sqlite.run(
+      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      [lower],
+    );
+    const connection = openConnection(h.databasePath());
+    try {
+      const generation = allocateGeneration(connection.db, lower, '15+0.2.0', oldHash, 1);
+      expect(
+        enqueueSolverRequest(connection.db, {
+          projectId: lower,
+          contractVersion: '15+0.2.0',
+          generation,
+          objective: 'pri',
+          budgetMs: 60_000,
+          enqueuedAt: 2,
+        }),
+      ).toEqual({ kind: 'queued' });
+    } finally {
+      connection.close();
+    }
+    h.sqlite.run(
+      'UPDATE estimate SET optimistic = 4, realistic = 4, pessimistic = 4 WHERE work_item_id = ? AND step_id = ?',
+      ['higher-work', higherStep],
+    );
+
+    h.startOptimization();
+    await Bun.sleep(50);
+
+    expect(launched).toHaveLength(2);
+    expect(launched[0]?.key.inputHash).not.toBe(oldHash);
+    expect(launched[0]?.input.elsewhere?.get('ana')).toEqual([
+      { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
+    ]);
+    for (const request of launched) expect(request.request.elsewhere).toEqual({ ana: [[0, 192]] });
+    expect(h.sqlite.query('SELECT project_id FROM solver_queue').all()).toEqual([]);
+    expect(h.sqlite.query('SELECT project_id, generation FROM solver_slot').all()).toEqual([
+      { project_id: lower, generation: 2 },
+      { project_id: lower, generation: 2 },
+    ]);
+  });
+
+  it('closes the shared observation before admitting while retaining its display', async () => {
+    let openReads = 0;
+    const admittedOpenReads: number[] = [];
+    const { lower } = await seedSharedPlans(
+      true,
+      undefined,
+      () => {
+        admittedOpenReads.push(openReads);
+        return new Promise<never>(() => undefined);
+      },
+      '0.2.0',
+      (dbPath) => {
+        const connection = openReadOnlyConnection(dbPath);
+        openReads += 1;
+        return {
+          db: connection.db,
+          close: () => {
+            connection.close();
+            openReads -= 1;
+          },
+        };
+      },
+    );
+    h.sqlite.run(
+      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      [lower],
+    );
+
+    const answer = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+
+    expect(answer.status).toBe(200);
+    expect(answer.body).toMatchObject({ optimization: { variants: { pri: { state: 'idle' } } } });
+    expect(admittedOpenReads).toEqual([0, 0]);
+    expect(openReads).toBe(0);
+    expect(h.sqlite.query('SELECT project_id FROM solver_slot').all()).toEqual([
+      { project_id: lower },
+      { project_id: lower },
+    ]);
+  });
+
+  it('keeps optimizer enablement and upstream input on one observation', async () => {
+    const launched: ReservedSpawnRequest[] = [];
+    const { higher, lower, higherStep } = await seedSharedPlans(
+      true,
+      undefined,
+      (request) => {
+        launched.push(request);
+        return new Promise<never>(() => undefined);
+      },
+      '0.2.0',
+    );
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- injected seam calls the repository receiver.
+    const original = WorkItemRepository.prototype.listByProject;
+    let changed = false;
+    const concurrent = spyOn(WorkItemRepository.prototype, 'listByProject').mockImplementation(
+      async function (this: WorkItemRepository, projectId) {
+        const rows = await original.call(this, projectId);
+        if (projectId === higher && !changed) {
+          changed = true;
+          h.sqlite.run(
+            "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+            [lower],
+          );
+          h.sqlite.run(
+            'UPDATE estimate SET optimistic = 4, realistic = 4, pessimistic = 4 WHERE work_item_id = ? AND step_id = ?',
+            ['higher-work', higherStep],
+          );
+        }
+        return rows;
+      },
+    );
+    try {
+      h.triggerOptimization(lower);
+      await Bun.sleep(300);
+      expect(changed).toBe(true);
+      expect(launched).toEqual([]);
+      expect(h.sqlite.query('SELECT project_id FROM optimization_generation').all()).toEqual([]);
+
+      h.triggerOptimization(lower);
+      await Bun.sleep(300);
+      expect(launched).toHaveLength(2);
+      expect(launched[0]?.input.elsewhere?.get('ana')).toEqual([
+        { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
+      ]);
+    } finally {
+      concurrent.mockRestore();
+    }
+  });
+
+  it('export and borrowed arrangement do not admit a shared optimizer request', async () => {
+    const launched: ReservedSpawnRequest[] = [];
+    const { lower } = await seedSharedPlans(
+      true,
+      undefined,
+      (request) => {
+        launched.push(request);
+        return new Promise<never>(() => undefined);
+      },
+      '0.2.0',
+    );
+    h.sqlite.run(
+      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      [lower],
+    );
+
+    expect(
+      (await h.call('ada', 'GET', `/api/projects/${lower}/export?format=markdown`)).status,
+    ).toBe(200);
+    expect(
+      (
+        await h.call('ada', 'POST', `/api/projects/${lower}/commands`, {
+          commands: [{ kind: 'arrangeBySchedule' }],
+        })
+      ).status,
+    ).toBe(409);
+
+    expect(launched).toEqual([]);
+    for (const table of ['optimization_generation', 'solver_slot', 'solver_queue'])
+      expect(h.sqlite.query(`SELECT * FROM ${table}`).all()).toEqual([]);
+  });
+
+  it('edit admission hashes the changed upstream booking with its holder', async () => {
+    const launched: ReservedSpawnRequest[] = [];
+    const { higher, lower, higherStep } = await seedSharedPlans(
+      true,
+      undefined,
+      (request) => {
+        launched.push(request);
+        return new Promise<never>(() => undefined);
+      },
+      '0.2.0',
+    );
+    h.sqlite.run(
+      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      [lower],
+    );
+    h.sqlite.run(
+      'UPDATE estimate SET optimistic = 4, realistic = 4, pessimistic = 4 WHERE work_item_id = ? AND step_id = ?',
+      ['higher-work', higherStep],
+    );
+
+    h.triggerOptimization(lower);
+    await Bun.sleep(300);
+
+    expect(launched).toHaveLength(2);
+    for (const request of launched) {
+      expect(request.input.elsewhere?.get('ana')).toEqual([
+        { start: 0, end: 4, projectId: higher, workItemId: 'higher-work' },
+      ]);
+      expect(request.request.elsewhere).toEqual({ ana: [[0, 192]] });
+      expect(request.key.inputHash).toBe(scheduleInputHash(request.input));
+    }
+    expect(h.sqlite.query('SELECT project_id FROM solver_slot').all()).toEqual([
+      { project_id: lower },
+      { project_id: lower },
+    ]);
+  });
+
+  it('admits a holder-bearing shared input after the captured tree closes', async () => {
+    const launched: ReservedSpawnRequest[] = [];
+    const { higher, lower } = await seedSharedPlans(
+      true,
+      undefined,
+      (request) => {
+        launched.push(request);
+        return new Promise<never>(() => undefined);
+      },
+      '0.2.0',
+    );
+    h.sqlite.run(
+      "UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = ?",
+      [lower],
+    );
+
+    const answer = await h.call('ada', 'GET', `/api/projects/${lower}/work-items`);
+
+    expect(answer.status).toBe(200);
+    expect(answer.body).toMatchObject({
+      workItems: [{ schedule: { earliestStart: 3 } }],
+      optimization: { variants: { pri: { state: 'idle' } } },
+    });
+    expect(launched).toHaveLength(2);
+    for (const request of launched) {
+      expect(request.key.projectId).toBe(lower);
+      expect(request.input.elsewhere?.get('ana')).toEqual([
+        { start: 0, end: 3, projectId: higher, workItemId: 'higher-work' },
+      ]);
+      expect(request.request.elsewhere).toEqual({ ana: [[0, 144]] });
+      expect(request.key.inputHash).toBe(scheduleInputHash(request.input));
+    }
+    expect(h.sqlite.query('SELECT project_id FROM solver_slot').all()).toEqual([
+      { project_id: lower },
+      { project_id: lower },
+    ]);
+  });
+
   it('keeps publication after snapshot outside its captured display without live admission', async () => {
     const { higher, lower } = await seedSharedPlans(true);
     h.sqlite.run(

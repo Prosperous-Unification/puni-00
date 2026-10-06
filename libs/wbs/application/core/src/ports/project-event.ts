@@ -23,6 +23,8 @@ import type { Step } from './step-store';
  * has not read yet.
  */
 export type ProjectEvent =
+  /** Another ranked project changed the shared-person bookings this project consumes. */
+  | { type: 'elsewhere_changed'; projectId: string; causeProjectId: string }
   | { type: 'tree_replaced'; workItems: NumberedWorkItem[] }
   | { type: 'plan_unavailable'; error: 'engine_unavailable'; engine: 'optimized' }
   | { type: 'step_added'; step: Step }

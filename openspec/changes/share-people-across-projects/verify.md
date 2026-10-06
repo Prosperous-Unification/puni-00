@@ -664,25 +664,25 @@ The 6.2a rows below were injected separately and observed RED; final focused res
 6.1b/6.2b evidence section below for exact commands and outcomes. Rows 6.2c–f remain required
 future production-path negatives. A parse/load error does not count.
 
-| Step | Production fault to inject                               | Required production-path test and expected failure                                   | Observation                                                                                     |
-| ---- | -------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| 6.2a | Force shared scheduling for isolated/legacy access       | Mounted mode read moves an isolated date or changes its input hash                   | Observed exit 1: isolated influencers a1/a2 instead of []                                       |
-| 6.2a | Remove scoped ownership/cross-reference validation       | Foreign project/person enters the chain or corrupt crossing input is accepted        | Observed exit 1: foreign person exposed; removed ownership/rank checks lost named refusal       |
-| 6.2a | Read mode/rank/assignments outside the owned snapshot    | Concurrent combined edit returns a mixed chain                                       | Observed exit 1: target start 2 instead of 3; separate mode connection tore rank/readable state |
-| 6.2a | Default malformed mode or skip snapshot close            | Corrupt mode returns dates, or refusal/throw leaks the read connection               | Observed exit 1: corrupt mode accepted; background close count 0 instead of 1                   |
-| 6.2b | Omit target elsewhere or its response projection         | Mounted tree/export loses displaced dates, holder or waiting count                   | Observed RED; see 6.1b/6.2b evidence below                                                      |
-| 6.2b | Replace command-bound readers with a fresh connection    | Arrange/preflight ignores staged writes and accepts or arranges the wrong plan       | Observed RED; see 6.1b/6.2b evidence below                                                      |
-| 6.2c | Remove incoming basis from memo acceptance               | Warm load/space returns old B dates after only A changes                             | Not run                                                                                         |
-| 6.2c | Check cache before required influencer availability      | Warm available dates survive an engine-unavailable influencer                        | Not run                                                                                         |
-| 6.2c | Read aggregate projects from incompatible snapshots      | Concurrent upstream edit produces mutually inconsistent shared load/space bookings   | Not run                                                                                         |
-| 6.2d | Rebuild queue/debounce/Retry input without elsewhere     | Solver input differs from live shared input or old Retry hash is accepted            | Not run                                                                                         |
-| 6.2d | Skip unlaunched reservation release on refusal/throw     | Queued capture negative leaves a counted slot or launches a refused input            | Not run                                                                                         |
-| 6.2d | Admit target work before snapshot close                  | Read-only capture oracle observes generation/slot/queue mutation during derivation   | Not run                                                                                         |
-| 6.2e | Drop shared capture at installer/composition boundary    | Mounted save/current misses upstream displacement                                    | Not run                                                                                         |
-| 6.2e | Reread live influencers for a historical saved display   | Upstream edit/delete changes saved schedule bytes                                    | Not run                                                                                         |
-| 6.2f | Replace current full-key cache lookup with old-key reuse | H1 outcome serves after B's incoming calendar becomes H2                             | Not run                                                                                         |
-| 6.2f | Swallow unavailable/unknown chain outcomes               | Target returns unmarked Fast dates or hides an unexpected failure                    | Not run                                                                                         |
-| 6.2f | Advertise shared before deferred prerequisites           | Physical capability probe no longer equals isolated-only; shared restore is admitted | Not run                                                                                         |
+| Step | Production fault to inject                                    | Required production-path test and expected failure                                   | Observation                                                                                                                                                         |
+| ---- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6.2a | Force shared scheduling for isolated/legacy access            | Mounted mode read moves an isolated date or changes its input hash                   | Observed exit 1: isolated influencers a1/a2 instead of []                                                                                                           |
+| 6.2a | Remove scoped ownership/cross-reference validation            | Foreign project/person enters the chain or corrupt crossing input is accepted        | Observed exit 1: foreign person exposed; removed ownership/rank checks lost named refusal                                                                           |
+| 6.2a | Read mode/rank/assignments outside the owned snapshot         | Concurrent combined edit returns a mixed chain                                       | Observed exit 1: target start 2 instead of 3; separate mode connection tore rank/readable state                                                                     |
+| 6.2a | Default malformed mode or skip snapshot close                 | Corrupt mode returns dates, or refusal/throw leaks the read connection               | Observed exit 1: corrupt mode accepted; background close count 0 instead of 1                                                                                       |
+| 6.2b | Omit target elsewhere or its response projection              | Mounted tree/export loses displaced dates, holder or waiting count                   | Observed RED; see 6.1b/6.2b evidence below                                                                                                                          |
+| 6.2b | Replace command-bound readers with a fresh connection         | Arrange/preflight ignores staged writes and accepts or arranges the wrong plan       | Observed RED; see 6.1b/6.2b evidence below                                                                                                                          |
+| 6.2c | Remove incoming basis from memo acceptance                    | Warm load/space returns old B dates after only A changes                             | Not run                                                                                                                                                             |
+| 6.2c | Check cache before required influencer availability           | Warm available dates survive an engine-unavailable influencer                        | Not run                                                                                                                                                             |
+| 6.2c | Read aggregate projects from incompatible snapshots           | Concurrent upstream edit produces mutually inconsistent shared load/space bookings   | Not run                                                                                                                                                             |
+| 6.2d | Rebuild queue/debounce/Retry input without elsewhere          | Solver input differs from live shared input or old Retry hash is accepted            | Debounce omission watched: request lost holder; queued shared rebuild passes. Retry pending contract ruling.                                                        |
+| 6.2d | Skip unlaunched reservation release on refusal/throw          | Queued capture negative leaves a counted slot or launches a refused input            | Watched: thrown capture left one counted `starting` slot; disabled capture launched PRI.                                                                            |
+| 6.2d | Admit target work before snapshot close                       | Read-only capture oracle observes generation/slot/queue mutation during derivation   | Watched: omitting owned close left one open read at both launch handoffs.                                                                                           |
+| 6.2e | Drop shared capture at installer/composition boundary         | Mounted save/current misses upstream displacement                                    | Not run                                                                                                                                                             |
+| 6.2e | Reread live influencers for a historical saved display        | Upstream edit/delete changes saved schedule bytes                                    | Not run                                                                                                                                                             |
+| 6.2f | Omit only the input-hash predicate in current full-key lookup | H1 outcome serves after B's incoming calendar becomes H2 with generation unchanged   | Observed RED in `/tmp/shared-people-slice6f-hash-predicate-red.log`; H2 became ready/proven instead of pending.                                                     |
+| 6.2f | Swallow unavailable/unknown chain outcomes                    | Target returns unmarked Fast dates or hides an unexpected failure                    | Retained chain regressions passed; this existing guard was not re-mutated in 6f.                                                                                    |
+| 6.2f | Advertise shared before deferred prerequisites                | Physical capability probe no longer equals isolated-only; shared restore is admitted | Capability mutation RED in `/tmp/shared-people-slice6f-capability-red.log`; independent restore-guard omission RED in `/tmp/shared-people-slice6f-restore-red.log`. |
 
 ### Planned implementation validation
 
@@ -984,3 +984,1048 @@ Final scoped checks:
 
 The canonical host gate, full Nx test/lint/build, CI secrets and migration checks, deployment
 and live solver binding were not run in this bounded, uncommitted worktree.
+
+## Runtime 6.1d / 6.2d — shared optimizer admission and Retry
+
+The mounted live-tree read uses one captured shared input and settings after its owned SQLite
+observation closes; its response retains that captured display. Project-owned capture supplies
+edit debounce and queued restart. Human-scoped capture supplies Retry and rechecks access after
+route admission. A required unavailable chain returns typed HTTP 409
+`schedule-input-unavailable` with reason and readable failing project identity; it does not
+invent a hash or fall back to local input. Upstream-only changes stale the old hash, and a
+matching hash launches the holder-bearing shared request. Unlaunched queue reservations are
+released for absence, unavailable/disabled/stale capture, preflight refusal and thrown capture;
+launched children retain their seats until terminal evidence or cancellation.
+
+Mounted cases assert two holder-bearing initial requests, canonical hash and durable generation
+and slots; an upstream-only edit changes the request with the target revision fixed. Concurrent
+enablement/engine and upstream estimate changes cannot mix observations. The initial response
+stays idle, and launcher callbacks see zero open read connections. Export and borrowed command
+reads launch nothing. Queue cases inspect actual FIFO launch calls and durable slots; the
+unexpected-exception case now also admits the next queued TIME request after cleanup. Retry
+cases inspect the wire request, old/current hashes, full generation/cache/slot/queue/event
+snapshots on refusal, human access recheck and read-close ordering. Target cycle/range refuse;
+upstream cycle/range continue with skipped bookings. The public response contract and client
+reject malformed reason or project identity.
+
+### R5 watched faults
+
+Each log below records one Bun production-path test run with an independent injected fault;
+the source was restored after each RED. The seven initial/queue faults were watched before
+the amended Retry implementation; the five Retry faults were watched after it. All twelve
+named runs exited 1 with exactly one failing test. The exact test commands use the named
+pattern against the indicated file; full raw output is at each path.
+
+| Fault                                              | Command and raw log                                                                                                                                                                                                            | Observed RED                                                                                        |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| Omit `buildServices.captureOf`                     | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'edit admission hashes the changed upstream booking'` — `/tmp/shared-people-r5-01-capture-wiring.log`                  | Holder-bearing `elsewhere` missing from actual edit request.                                        |
+| Skip initial live-tree admission                   | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'admits a holder-bearing shared input after the captured tree closes'` — `/tmp/shared-people-r5-02-tree-admission.log` | Zero launches instead of two.                                                                       |
+| Reread enablement outside snapshot                 | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'keeps optimizer enablement and upstream input on one observation'` — `/tmp/shared-people-r5-03-coherent-settings.log` | Two launches from old booking instead of none.                                                      |
+| Omit owned snapshot close                          | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'closes the shared observation before admitting'` — `/tmp/shared-people-r5-04-snapshot-close.log`                      | Launcher observed an open read connection.                                                          |
+| Omit queued captured-disable guard                 | `bun test apps/wbs/be-01/src/service/optimization-restart.db.test.ts --test-name-pattern 'releases a queued reservation after disabled capture'` — `/tmp/shared-people-r5-05-queue-disabled.log`                               | Disabled PRI launched beside next TIME.                                                             |
+| Bypass queued typed-unavailable guard              | `bun test apps/wbs/be-01/src/service/optimization-restart.db.test.ts --test-name-pattern 'releases a queued reservation after engine_unavailable capture'` — `/tmp/shared-people-r5-06-queue-unavailable.log`                  | Undefined input reached canonical hash and threw before FIFO pump continued.                        |
+| Omit queued `finally` release                      | `bun test apps/wbs/be-01/src/service/optimization-restart.db.test.ts --test-name-pattern 'releases a queued reservation when input capture throws'` — `/tmp/shared-people-r5-07-queue-finally.log`                             | Durable `starting` slot remained counted. The restored test additionally proves next TIME capacity. |
+| Replace scoped shared Retry input with local input | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'Retry rejects an upstream-only old hash'` — `/tmp/shared-people-r5-retry-01-local-input.log`                          | Old hash was not rejected as stale.                                                                 |
+| Bypass required-unavailable Retry refusal          | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'refuses Retry for a required unavailable engine'` — `/tmp/shared-people-r5-retry-02-unavailable-refusal.log`          | Typed 409 refusal changed.                                                                          |
+| Replace readable failing-project ID with target ID | Same command — `/tmp/shared-people-r5-retry-03-failing-project.log`                                                                                                                                                            | Response identified the wrong project.                                                              |
+| Bypass human-scoped capture recheck                | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'rechecks human authority in the Retry capture'` — `/tmp/shared-people-r5-retry-04-human-scope.log`                    | Revoked member received stale-hash 409 instead of 403.                                              |
+| Omit human snapshot close                          | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'closes the human Retry snapshot'` — `/tmp/shared-people-r5-retry-05-close.log`                                        | Launcher saw an open read connection.                                                               |
+
+Follow-up review required the actual serialized solver request to be checked separately from
+the holder-bearing canonical input. All four mounted initial/edit/queued/Retry paths now assert
+`request.request.elsewhere` at solver quantum resolution; the four-case green command is
+`bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'Retry rejects an upstream-only old hash|rebuilds a queued shared request|edit admission hashes the changed upstream booking|admits a holder-bearing shared input'`
+(`4 pass, 38 expectations`, `/tmp/shared-people-slice6d-wire-green.log`). These additional
+independent watched faults were restored after their RED runs:
+
+| Fault                                                                         | Exact command and raw log                                                                                                                                                                                                          | Observed RED                                                                                                                                                     |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Replace the serialized `elsewhere` in `buildSolverRequest` with `{}`          | The four-case command above — `/tmp/shared-people-slice6d-r5-wire-omission.log`                                                                                                                                                    | 0 pass / 4 fail: each launch kept its holder-bearing canonical input but sent `{}` in the actual solver request, expected `ana` interval `[0,144]` or `[0,192]`. |
+| Treat upstream cycle/range as target refusal instead of skipping its bookings | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'keeps a schedulable target when an upstream'` — `/tmp/shared-people-slice6d-r5-upstream-skip.log`                         | 0 pass / 2 fail: both upstream cycle and range cases returned 500 rather than a schedulable target.                                                              |
+| Remove the new 409 response variant from the endpoint schema                  | `bun test libs/wbs/domain/contracts/src/http/client.test.ts --test-name-pattern 'validates the modeled Retry schedule-input refusal'` — `/tmp/shared-people-slice6d-r5-contract-variant.log`                                       | 0 pass / 1 fail: typed client classified the 409 as `invalid_response` instead of the modeled refusal.                                                           |
+| Inject a live optimizer read before the target-cycle refusal                  | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts --test-name-pattern 'refuses Retry for a target cycle without optimizer writes or launch'` — `/tmp/shared-people-slice6d-r5-refusal-write.log` | The HTTP 409 stayed correct, but full optimizer-state equality failed: an unasked generation and two counted `starting` slots appeared (0 pass / 1 fail).        |
+
+The target cycle/range fixture enables optimization while retaining the Fast engine before its
+five-table before-snapshot; unmutated typed refusal, state equality and zero launch pass 2/2
+(`/tmp/shared-people-slice6d-refusal-state-green-final.log`). A preliminary injected read on a
+disabled target returned an idle generation-null answer and the test stayed green. That
+non-operative fault is **not** counted; enabling the target made the same injected write
+observable without changing the product route.
+
+### Scoped validation and process-test diagnosis
+
+`bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts
+apps/wbs/be-01/src/controller/project.controller.test.ts
+apps/wbs/be-01/src/service/optimization-coordinator.db.test.ts
+apps/wbs/be-01/src/service/optimization-coordinator.model.db.test.ts
+apps/wbs/be-01/src/service/optimization-restart.db.test.ts
+apps/wbs/be-01/src/service/optimization-events.db.test.ts
+apps/wbs/be-01/src/service/optimization-cancel.two-coordinator.db.test.ts
+apps/wbs/be-01/src/service/optimization-spawn-handshake.proc.db.test.ts
+apps/wbs/be-01/src/service/optimization-orphan.proc.db.test.ts
+apps/wbs/be-01/src/module/optimization/module.test.ts
+libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts` passed **214**, skipped the
+existing orphan-process case **1**, failed **0**, with 19,347 expectations
+(`/tmp/shared-people-slice6d-final-tests-escalated.log`).
+The same command inside the filesystem sandbox failed only at the spawn-handshake marker wait
+(`213 pass, 1 skip, 1 fail`, `/tmp/shared-people-slice6d-final-tests.log`). Its isolated run
+also failed (`/tmp/shared-people-slice6d-spawn-isolated.log`). A disposable clean-base
+worktree at `f49cef02a5de5a5ba1284e64b9b0590615d47d07` reproduced the same failure
+(`/tmp/shared-people-slice6d-spawn-baseline.log`). Test-only baseline diagnostics observed
+both green durable slots `running` with their expected child PIDs; two `EPERM` errors occurred
+at `subprocess.stdin.end()` before the children could receive EOF and write markers
+(`/tmp/shared-people-slice6d-spawn-baseline-diagnostic.log`). Identical baseline and candidate
+isolated commands with approved unsandboxed process access passed 1/1, 13 assertions each
+(`/tmp/shared-people-slice6d-spawn-baseline-escalated.log`,
+`/tmp/shared-people-slice6d-spawn-escalated.log`). The test `afterEach` kills and awaits its
+children; the four diagnostic PIDs were absent on subsequent `ps`. The disposable baseline
+worktree was restored and removed. No production timeout or spawn lifecycle code changed.
+
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck build -p wbs-core wbs-store-sqlite wbs-be-01 wbs-contracts --skip-nx-cache --output-style=static` first failed only at backend lint: the new mounted test had import order and a redundant assertion (`/tmp/shared-people-slice6d-targets-final.log`, direct diagnostic `/tmp/shared-people-slice6d-eslint-focused.log`). After correction, direct backend eslint passed (`/tmp/shared-people-slice6d-eslint-backend.log`) and the exact Nx rerun passed all targets and dependencies (`/tmp/shared-people-slice6d-targets-final2.log`).
+
+After final formatting, `bun test` on the mounted schedule-organization controller and contracts
+HTTP client/refusal test files passed 94/94 with 265 expectations
+(`/tmp/shared-people-slice6d-final-changed-tests.log`). After the review proof additions,
+the same 11-file suite plus both HTTP contract files passed **254**, skipped the one existing
+orphan-process case, failed **0**, with 19,456 expectations; exact output is
+`/tmp/shared-people-slice6d-final-review-suite.log`. The exact affected Nx lint/typecheck/build
+command above passed again on the reviewed bytes (`/tmp/shared-people-slice6d-final-review-targets.log`).
+Final `bunx prettier --check` on all 23 changed files, `git diff --check`, pinned strict
+OpenSpec validation of this change and all-change validation are recorded at
+`/tmp/shared-people-slice6d-final-review-format.log`,
+`/tmp/shared-people-slice6d-final-review-diffcheck.log`,
+`/tmp/shared-people-slice6d-final-review-openspec-strict.json` and
+`/tmp/shared-people-slice6d-final-review-openspec-all.json`, respectively.
+
+Exact-SHA host gate, publication, CI, deployment and shared-mode activation were not performed
+in this uncommitted worktree. The existing isolated-only release boundary remains in force.
+
+## Runtime 6.1e / 6.2e — installed shared saved/current capture
+
+Worktree `.worktrees/shared-people-slice6e`, branch `feat/shared-people-slice6e`, based exactly on
+the reviewed local 6d checkpoint `bbf3ffbf5015afc33e6738e069c20ccefbd0052c`. No release,
+activation, fan-out, UI, mode setter, merge or host gate is part of this slice. Frozen Bun install
+first failed with temporary-directory `EROFS` (`/tmp/shared-people-slice6e-install.log`); retry
+with `BUN_TMPDIR=/tmp bun install --frozen-lockfile` passed
+(`/tmp/shared-people-slice6e-install2.log`). The initial three-file saved-plan baseline passed
+28/28, 97 assertions (`/tmp/shared-people-slice6e-baseline.log`).
+
+The first mounted test used
+`bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts -t 'installed saved capture and current comparison'`.
+Before wiring it failed as intended: saved B started at 0 rather than the shared-chain start 3
+(`/tmp/shared-people-slice6e-mounted-red.log`). After the callback passed through the module
+installer and composition root, the same test passed 1/1, 12 assertions
+(`/tmp/shared-people-slice6e-mounted-green-attempt1.log`). The callback uses the admitted
+human's `ResourceAccess` with `livePlans.read`, whose SQLite observation rechecks membership
+and mode before returning detached chain evidence. `isolated` still uses the existing saved
+capture; saved bodies remain immutable and the S4 selection uses the exact captured cache state.
+
+Mounted 6e cases now cover upstream estimate edit and assignment removal, unchanged saved
+input/schedule bytes and hashes on readback, both saved/current comparison directions, and
+actual `0`, `false` and `''` diff values. The existing comparison response requires `left` and
+`right` for every difference; the domain represents absent fields as `undefined`. On removal,
+JSON omitted those required keys and the mounted route answered 500. The route now encodes only
+missing sides as JSON `null`, leaving actual values unchanged. The initial removal failure and
+raw domain diff are at `/tmp/shared-people-slice6e-mounted-expanded1.log` and
+`/tmp/shared-people-slice6e-remove-diagnostic.log`; the repaired six-case run passed 6/6,
+32 assertions (`/tmp/shared-people-slice6e-mounted-expanded2.log`). Both independent
+normalization removals below reproduced the HTTP 500. This restores the existing response
+shape; it does not add a public variant.
+
+Installed route tests also cover save and current-comparison revocation between route admission
+and capture (`403 not_a_member`, no saved row), selected optimized ready (stored start 8 and
+`optimized:15+0.2.0:pri:60000` versus Fast start 3), pending target, required upstream
+engine unavailable, target cycle and calendar-range infeasible, and exact-key failed/corrupt
+optimized target unavailable. Each S4 test compares the saved side with the captured current
+side and requires an empty input and schedule diff. It snapshots generation/cache/slot/queue
+before save and asserts equality after both save and comparison, while allowing the requested
+saved-plan record itself. In particular, pending, ready, failed and corrupt fixtures keep
+optimization enabled through both reads; their seven-case follow-up passed 7/7, 37 assertions
+(`/tmp/shared-people-slice6e-s4-current-green1.log`).
+The selected-ready test passed 1/1, six assertions
+(`/tmp/shared-people-slice6e-ready1.log`); failed/corrupt passed 2/2
+(`/tmp/shared-people-slice6e-failed-corrupt1.log`); target calendar range passed 1/1
+(`/tmp/shared-people-slice6e-range1.log`). The other six mounted cases passed together in
+`/tmp/shared-people-slice6e-mounted-expanded2.log` before the additional variants were added.
+
+### 6.2e watched production-path faults
+
+Each mutation below was applied alone, run with Bun 1.4.2 against the mounted route, and
+restored after its observed RED. Adjacent `Proof:` comments name the failing path. All commands
+run from the 6e worktree. The first six use the schedule-organization controller file; `-t`
+is Bun's test-name filter.
+
+| Injected fault                                                                 | Exact command filter and raw log                                                                                                                                                                        | Observed RED                                                                                                                                                      |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Installer provider returns `undefined` for `captureSharedPlan`                 | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts -t 'installed saved capture and current comparison'` — `/tmp/shared-people-slice6e-mutation-installer-red.log`      | Saved B start 0 instead of 3.                                                                                                                                     |
+| Saved-plan module omits callback option                                        | Same command — `/tmp/shared-people-slice6e-mutation-module-red.log`                                                                                                                                     | Saved B start 0 instead of 3.                                                                                                                                     |
+| Composition root omits callback binding                                        | Same command — `/tmp/shared-people-slice6e-mutation-compose-red.log`                                                                                                                                    | Saved B start 0 instead of 3.                                                                                                                                     |
+| Composition uses project-owned `readProject` instead of human `read`           | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts -t 'rechecks admitted human authority inside shared'` — `/tmp/shared-people-slice6e-mutation-authority-red.log`     | Revoked current comparison answered 200 rather than 403 `not_a_member`; save writer separately refused 403 `forbidden`.                                           |
+| Ready optimized branch substitutes `scheduled.fast`                            | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts -t 'stores the selected ready optimized schedule'` — `/tmp/shared-people-slice6e-mutation-fast-red.log`             | Stored start 3 instead of selected ready start 8, despite the optimized algorithm label.                                                                          |
+| Comparison omits input absent-side normalization                               | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts -t 'installed saved capture and current comparison'` — `/tmp/shared-people-slice6e-mutation-input-null-red.log`     | Target assignment removal answered 500 instead of 200.                                                                                                            |
+| Comparison omits schedule absent-side normalization                            | Same command — `/tmp/shared-people-slice6e-mutation-schedule-null-red.log`                                                                                                                              | Upstream booking removal answered 500 instead of 200.                                                                                                             |
+| Composition injects process scheduler with `mode: 'live'` after shared capture | `bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts -t 'stores shared S4 pending for target'` — `/tmp/shared-people-slice6e-mutation-live-admission-red.log`            | The save still returned, but the optimizer-state equality failed: a generation and two failed cache rows appeared where all four tables were empty before.        |
+| Remove installed feature's missing-access guard                                | `bun test libs/wbs/application/core/src/module/saved-plans/module.test.ts -t 'refuses installed shared save and current before capture'` — `/tmp/shared-people-slice6e-mutation-missing-access-red.log` | Save/current invoked the shared callback twice without admitted access (expected 0); the original guard keeps callback, local capture and saved writes untouched. |
+
+The installed-feature no-access case passed 1/1, seven assertions before and after the watched
+guard omission (`/tmp/shared-people-slice6e-missing-access-green1.log`,
+`/tmp/shared-people-slice6e-missing-access-green2.log`). Its test checks callback and local
+capture counts and the saved-plan list, then verifies the explicit guard error. The mutant
+failed at the callback count rather than at a downstream nullish access error.
+
+The first expanded five-file run failed two pre-existing test fixtures after the interface
+changed: the route spy expected three `compare` arguments rather than the admitted fourth, and
+the hand-built DI test host lacked the new optional callback provider. It recorded 131 pass,
+2 fail (`/tmp/shared-people-slice6e-focused-green1.log`). The first real Nx module typecheck
+found the same DI fixture omission (`/tmp/shared-people-slice6e-core-typecheck2.log`). Both
+test fixtures were updated; the affected controller/module regression files then passed
+(`/tmp/shared-people-slice6e-regression-fix-green.log`). An earlier `bunx nx` invocation
+returned 0 after only a sandbox socket warning and no target output
+(`/tmp/shared-people-slice6e-typecheck1.log`); it is **not** counted as typecheck evidence.
+
+The first nine-file production-path sweep passed 213 and failed three direct
+`chain-snapshot.db.test.ts` saved-service fixtures: they supplied a shared callback but no
+admitted access, which the feature now requires (`/tmp/shared-people-slice6e-final-focused-tests.log`).
+Those fixtures now pass explicit scoped access to save/current; their isolated three-case rerun
+passes (`/tmp/shared-people-slice6e-chain-fixture-green.log`). No production access guard was
+weakened to make direct construction pass.
+
+After the fixture corrections, this nine-file production-path command passed:
+
+```sh
+bun test apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts \
+  apps/wbs/be-01/src/controller/saved-plan-organization.controller.db.test.ts \
+  apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts \
+  apps/wbs/be-01/src/service/saved-plan-current.db.test.ts \
+  apps/wbs/be-01/src/service/saved-plan.service.db.test.ts \
+  apps/wbs/be-01/src/service/saved-plan-schedule.db.test.ts \
+  libs/wbs/application/core/src/module/saved-plans/module.test.ts \
+  libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts \
+  libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts
+```
+
+The run passed
+**216/216**, **804 assertions**, zero failures, in 40.86 seconds
+(`/tmp/shared-people-slice6e-final-focused-tests2.log`). Subsequent test-only changes
+addressed one incorrect Bun SQLite query call, typed JSON test assertions and matcher lint;
+the full mounted schedule-organization controller then passed **64/64**, 229 assertions
+(`/tmp/shared-people-slice6e-final-mounted-tests.log`). The first combined Nx target run
+failed only at those test type/lint findings (`/tmp/shared-people-slice6e-final-targets.log`);
+direct focused ESLint passed after correction (`/tmp/shared-people-slice6e-eslint-focused2.log`).
+The exact combined rerun
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck build -p wbs-core wbs-store-sqlite wbs-be-01 --skip-nx-cache --output-style=static`
+passed all targets and dependencies (`/tmp/shared-people-slice6e-final-targets2.log`). Final
+12-file `bunx prettier --check` passed
+(`/tmp/shared-people-slice6e-final-format-check3.log`), `git diff --check` exited 0
+(`/tmp/shared-people-slice6e-final-diffcheck2.log`), pinned OpenSpec strict validation passed
+1/1 (`/tmp/shared-people-slice6e-openspec-strict2.json`), and pinned all-change validation
+passed 148/148 (`/tmp/shared-people-slice6e-openspec-all2.json`). The affected full test files
+outside the mounted controller were unchanged after their 216/216 sweep.
+
+After Astra's bounded proof review, the nine-file changed-byte command above passed **217/217**,
+**818 assertions**, zero failures (`/tmp/shared-people-slice6e-review-followup-focused-tests.log`).
+The first follow-up Nx run failed only core lint because the new test callback was `async` with
+no `await` (`/tmp/shared-people-slice6e-review-followup-targets.log`; direct diagnostic
+`/tmp/shared-people-slice6e-review-followup-eslint.log`). The callback now returns
+`Promise.resolve` with the same observed behavior. Its module test passed 9/9
+(`/tmp/shared-people-slice6e-review-followup-module-final.log`), targeted ESLint exited 0
+(`/tmp/shared-people-slice6e-review-followup-eslint2.log`), and the exact combined affected
+Nx lint/typecheck/build command above passed all targets and dependencies on final source
+(`/tmp/shared-people-slice6e-review-followup-targets2.log`).
+Final 12-file Prettier check, diff check, pinned strict change validation and pinned all-change
+validation exited 0 (`/tmp/shared-people-slice6e-review-followup-format.log`,
+`/tmp/shared-people-slice6e-review-followup-diffcheck.log`,
+`/tmp/shared-people-slice6e-review-followup-openspec-strict.json`,
+`/tmp/shared-people-slice6e-review-followup-openspec-all.json`); strict was 1/1 and all was
+148/148.
+
+Exact-SHA host gate, CI, publication, merge and shared-mode activation remain unrun. Review
+clearance and any local checkpoint commit are separate next steps.
+
+## Runtime 6.1f / 6.2f — exact cache address and isolated-only release
+
+Worktree `.worktrees/shared-people-slice6f`, branch `feat/shared-people-slice6f`, based exactly
+on reviewed 6e checkpoint `3ffc710fb73a661c61d3b75fab2638b940f9ad2f`. The first
+`BUN_TMPDIR=/tmp bun install --frozen-lockfile` attempt failed `EROFS` accessing Bun's
+temporary directory in the filesystem sandbox. An approved unsandboxed
+`bun install --frozen-lockfile` checked 1602 installs across 1447 packages without lockfile
+changes. The initial `bun test src/chain-snapshot.db.test.ts
+src/captured-optimization-reader.db.test.ts` from the store-sqlite package passed 35/35,
+108 assertions.
+
+The new SQLite production-path case `stores an eligible old shared result only at H1 and never
+serves it for captured H2` uses `SharedPeopleReader`'s owned read-only chain snapshot and
+captured optimizer reader. No tree GET or live admission precedes its H2 lookup; the installed
+snapshot scheduler throws if live admission is attempted. An upstream-only A edit changes B's
+captured canonical input H1 to H2 and visibly changes B's Fast start while B's generation G
+and stored generation input H1 remain unchanged. A still-held H1 slot then stores a constructed
+eligible H1 outcome and a durable `schedule_optimized` event with H1's complete identity through
+the production outcome/event transaction.
+Repeated publication returns `already-recorded` with one event. Exact H1 lookup returns its
+stored schedule; H2 capture remains pending with no optimized schedule. The generation, cache,
+slot, queue and event tables are unchanged across the captured reads. On the final test bytes,
+`bun test src/chain-snapshot.db.test.ts --test-name-pattern 'stores an eligible old shared
+result only at H1'` passed 1/1, 21 assertions.
+
+R5 watched faults were independent and restored after their recorded REDs:
+
+| Injected production fault                                                                | Exact test command and log                                                                                                                                                             | Observed failure                                                                                                                                                                                                                       |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Remove only `optimizedScheduleCache.inputHash == key.inputHash` from `readOptimizedPair` | `bun test src/chain-snapshot.db.test.ts --test-name-pattern 'stores an eligible old shared result only at H1'` in store-sqlite; `/tmp/shared-people-slice6f-hash-predicate-red.log`    | Exit 1: under unchanged G, H2 received H1's `ready/proven` result instead of pending; restored test passed in `/tmp/shared-people-slice6f-hash-predicate-green.log`.                                                                   |
+| Add `shared` to physical `SUPPORTED_CAPACITY_MODES`                                      | `bun test src/capacity-modes-cli.test.ts` in be-01; `/tmp/shared-people-slice6f-capability-red.log`                                                                                    | Exit 1: the actual capability CLI subprocess returned `['isolated','shared']` instead of exactly `['isolated']`.                                                                                                                       |
+| Bypass only the shared-restore supported-mode guard                                      | `bun test src/shared-people-rollback.db.test.ts --test-name-pattern 'rejects shared restoration before the first write'` in store-sqlite; `/tmp/shared-people-slice6f-restore-red.log` | Exit 1: a physical first-write trigger observed an attempted organization update instead of the required pre-write `unsupported capacity mode shared` refusal; the untouched organization/rank state is asserted by the restored test. |
+
+The physical capability CLI test passed 1/1, three assertions before mutation; the restore
+pre-write test passed in `/tmp/shared-people-slice6f-restore-green.log`. Full changed-byte
+store tests (`bun test` on chain-snapshot, captured-optimization-reader, optimized-cache,
+optimized-outcome, optimized-schedule-cache, optimization-generation, optimization-admission,
+optimization-queue and shared-people-rollback from store-sqlite) passed **174/174**,
+708 assertions (`/tmp/shared-people-slice6f-store-focused.log`). The backend eight-file
+suite (capacity CLI, mounted schedule-organization, coordinator, events, two-coordinator
+cancellation, restart, repository and optimization module) passed **138/138**,
+658 assertions (`/tmp/shared-people-slice6f-backend-focused.log`). The core shared-chain
+regressions passed 14/14, 37 assertions (`/tmp/shared-people-slice6f-core-chain.log`), including
+transitivity, undated bridge, target/influencer cycle and calendar-range distinctions, and
+required-engine unavailability. Domain elsewhere placement passed 15/15,
+14,843 assertions (`/tmp/shared-people-slice6f-domain-elsewhere.log`). These retained suites
+cover generation, slot/token, cancellation, enablement, blue/green cache retention and
+outcome/event atomicity; no new publication or activation policy was added.
+
+Pinned `bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`
+passed 1/1 (`/tmp/shared-people-slice6f-openspec-strict.json`), and pinned `validate --all
+--json` passed 148/148 (`/tmp/shared-people-slice6f-openspec-all.json`). Affected Nx,
+final formatting and diff checks are recorded below after their terminal runs. The first
+combined Nx run failed only store-sqlite typecheck/lint because the new test returned an outer
+chain value that lost its already-checked nested schedule discriminant, treated an optional
+recorded event as present, and had imports out of order (`/tmp/shared-people-slice6f-targets.log`).
+The test now returns its narrowed input/scheduled pair and checks that publication supplied
+the event record. Direct `bunx eslint --fix` on the new store test and
+`bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json` passed. The changed
+chain-snapshot file then passed 32/32, 114 assertions
+(`/tmp/shared-people-slice6f-chain-final.log`). The exact affected rerun
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck build -p wbs-domain wbs-core wbs-store-sqlite wbs-be-01 --skip-nx-cache --output-style=static`
+passed all four targets and three dependencies (`/tmp/shared-people-slice6f-targets2.log`).
+The first four-file Prettier check found only this newly appended verify section unformatted
+(`/tmp/shared-people-slice6f-format.log`); after formatting, the same check passed
+(`/tmp/shared-people-slice6f-format2.log`). Final four-file Prettier check passed
+(`/tmp/shared-people-slice6f-format-final.log`), `git diff --check` passed
+(`/tmp/shared-people-slice6f-diffcheck-final.log`), and pinned strict/all OpenSpec validation
+passed 1/1 and 148/148 respectively
+(`/tmp/shared-people-slice6f-openspec-strict-final.json`,
+`/tmp/shared-people-slice6f-openspec-all-final.json`).
+Exact-SHA host gate, CI, publication, merge, fan-out and shared-mode activation are outside
+this slice.
+
+## Durable fan-out planning amendment (6g–6l)
+
+Planning-only base: `73264fce66deff231c71b8a14f73da856e5fa811`, isolated worktree
+`.worktrees/shared-people-fanout-plan`, branch `plan/shared-people-fanout`. No production code,
+WBS record, runtime configuration or publication is changed. At planning time all
+6g–6l implementation checks were pending; the reviewed 6g local checkpoint is
+recorded below, while later slices remain pending.
+
+| Slice   | Production fault required                                                                                                     | Named observation target                                                                   | Result                                                                   |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| 6g      | Fast substitution; equal-hash suppression; old-graph omission; mixed-edge traversal; duplicate pair; mode/organization bypass | Selected display, availability, removed bridge, false path and pair/authority tests        | Reviewed local checkpoint; 17 watched REDs; focused 32/32, 76 assertions |
+| 6h      | Record after commit; push before commit; omitted binding/trigger; live admission                                              | Real command/undo/redo mutation, event sequence, push witness and optimizer-state equality | Pending                                                                  |
+| 6i      | Independent rank/settings/directory binding omission; new-only usages; detached topology                                      | Mounted rank/settings/directory recipients and coherent observations                       | Pending                                                                  |
+| 6j      | Import binding omission; request-only deletion; lost old closure; missed release/reconcile; detached recording                | Import rollback and final drain/delete event/ledger assertions                             | Pending                                                                  |
+| 6k      | Any-insertion fan-out; input-only comparison; Fast substitution; detached read; missing atomic event                          | H1/H2 silence, selected display, availability and atomic cache/event rollback              | Pending                                                                  |
+| 6l      | Missing durable row; push reinsertion; memory-only replay; authority bypass                                                   | Cold-process replay, stable sequence, retention and denied subscription                    | Pending                                                                  |
+| Release | Advertise shared; bypass restore guard                                                                                        | Physical capability CLI and first-write restore trap                                       | Pending rerun after fan-out                                              |
+
+Execution commands: use `bun test <changed-test-path>` for each RED/GREEN and independent R5
+fault; retain exact command, assertion, exit and restored source evidence per fault. Run affected
+Nx test/lint/typecheck/build targets and scoped Prettier before each checkpoint. Run
+`bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json` and
+`bunx @fission-ai/openspec@1.12.0 validate --all --json`. Before claiming integrated completion,
+run `bin/h2puni-gate.sh <reviewed-sha>` on h2puni under its canonical lock; no raw full Nx gate
+there. No new fan-out implementation test, host gate or live failure experiment was run while
+preparing this amendment. Existing replay retention and process-local engine-loss limits are
+part of acceptance, not missing proof to conceal.
+
+Planning validation: pinned targeted strict OpenSpec passed 1/1
+(`/tmp/shared-fanout-plan-strict.json`) and pinned all-change validation passed 148/148
+(`/tmp/shared-fanout-plan-all.json`). An initial final-byte Prettier check flagged task-list wrapping; a second write corrected it.
+Final six-file Prettier and `git diff --check` passed. Intent
+is 384 words, below the 400-word limit. Final-byte reruns use the same commands/log paths.
+No Nx implementation suite was run for this documentation-only amendment; no new production
+behavior or R5 outcome is claimed. Before committing, self-review checked source ownership,
+scenario/task coverage and that every new implementation checkbox and proof remains pending.
+
+## 6g pure projection and recipient calculation
+
+Branch feat/shared-people-fanout-6g, isolated worktree
+.worktrees/shared-people-fanout-6g, exact planning base
+24025e6545b36bae8f32e18c078b5b755670211c. This slice adds only a pure value
+service/test and reuses the existing captured-chain display selector. Old/new ordered
+project facts, outcomes and direct causes are explicit inputs; the service imports no
+DB, snapshot, writer, adapter, event or live admission dependency. It compares
+canonical absolute fractional person/project/work-item/step intervals separately
+from modeled availability and emits sorted, deduplicated recipient/cause pairs.
+
+Baseline from libs/wbs/application/core: bun test src/service/shared-people.test.ts
+passed 14/14, 37 assertions (/tmp/shared-people-fanout-6g-baseline.log). First
+new-test RED failed at the explicit unimplemented comparison
+(/tmp/shared-people-fanout-6g-selected-red.log); selected ready versus Fast
+then passed 1/1 (/tmp/shared-people-fanout-6g-selected-green.log). Removed
+bridge first missed C under one-hop traversal
+(/tmp/shared-people-fanout-6g-old-topology-red.log), then passed after
+separate old/new closure traversal (...old-topology-green.log). Pair
+ordering/dedup first failed with duplicate and unsorted Z pairs
+(...pairs-red.log), then passed (...pairs-green.log). Foreign X first appeared
+(...boundary-red.log), then was filtered (...boundary-green.log). Topology-only
+changed incoming basis first omitted B (...topology-only-red.log), then passed
+(...topology-only-green.log). Missing direct cause and missing/mismatched shared
+organization each failed before refusal and passed after it
+(...missing-cause-{red,green}.log, ...org-identity-{red,green}.log).
+The first fractional fixture requested optimized mode with null optimizer state;
+the selector correctly threw (...fractional-check.log). Correcting this test-only
+fixture to Fast mode passed (...fractional-green.log); it was no product failure.
+
+Every watched fault below ran from libs/wbs/application/core with
+bun test src/service/shared-people-fanout.test.ts -t '<test fragment>'.
+Each named fault exited 1 at the asserted behavior and was restored; adjacent
+Proof comments in the source name the failures.
+
+| Fault                                        | Test fragment                        | RED log and observed failure                                                                      |
+| -------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Substitute Fast for ready selected schedule  | selected displayed bookings          | /tmp/shared-people-fanout-6g-fault-fast.log: B disappeared                                        |
+| Suppress availability at equal hash          | equal hashes retain availability     | /tmp/shared-people-fanout-6g-fault-equal-hash.log: engine-unavailable to cycle reported unchanged |
+| Omit old graph                               | removed bridge retains               | /tmp/shared-people-fanout-6g-fault-old-graph.log: C disappeared                                   |
+| Union old/new person edges                   | mixed old and new edges              | /tmp/shared-people-fanout-6g-fault-mixed-edges.log: invented C appeared                           |
+| Remove pair deduplication                    | deduplicates and orders              | /tmp/shared-people-fanout-6g-fault-dedup.log: duplicate Z pairs                                   |
+| Remove pair sorting                          | deduplicates and orders              | /tmp/shared-people-fanout-6g-fault-order.log: B/Z preceded B/A                                    |
+| Omit organization filter                     | isolated and foreign organization    | /tmp/shared-people-fanout-6g-fault-org.log: foreign X appeared                                    |
+| Omit mode guard                              | isolated and foreign organization    | /tmp/shared-people-fanout-6g-fault-mode.log: isolated A to B appeared                             |
+| Admit undated candidate                      | stops traversal at an undated bridge | /tmp/shared-people-fanout-6g-fault-undated-candidate.log: undated B appeared                      |
+| Admit undated predecessor                    | an undated cause cannot              | /tmp/shared-people-fanout-6g-fault-undated-predecessor.log: A to B appeared                       |
+| Admit zero-time slice                        | omits zero-time and unassigned       | /tmp/shared-people-fanout-6g-fault-zero-time.log: zero-length A booking                           |
+| Admit unassigned slice                       | omits zero-time and unassigned       | /tmp/shared-people-fanout-6g-fault-unassigned.log: null-person B booking                          |
+| Omit changed incoming-basis filter           | topology-only changes to unchanged   | /tmp/shared-people-fanout-6g-fault-topology-filter.log: unchanged B received A pair               |
+| Include deleted recipients                   | deleted cause identity               | /tmp/shared-people-fanout-6g-fault-deleted-recipient.log: deleted B received A pair               |
+| Omit canonical booking sort                  | canonicalizes booking order          | /tmp/shared-people-fanout-6g-fault-booking-sort.log: reordered map falsely changed bookings       |
+| Skip absent direct-cause refusal             | explicit cause missing               | /tmp/shared-people-fanout-6g-fault-missing-cause.log: returned empty instead of throwing          |
+| Return empty for invalid shared organization | missing or inconsistent organization | /tmp/shared-people-fanout-6g-fault-org-identity.log: returned empty instead of throwing           |
+
+After restoration and formatting, bun test src/service/shared-people-fanout.test.ts
+src/service/shared-people.test.ts passed 32/32, 76 assertions
+(/tmp/shared-people-fanout-6g-focused-final.log). The new cases cover selected
+ready versus Fast, equal-hash availability, separate graph closure, topology-only
+basis filtering, mixed-edge exclusion, multiple direct causes, deletion, organization
+and mode bounds, fractional absolute intervals, canonical collection order, undated
+barriers, cycle/range skip-bookings and required engine unavailability.
+Initial direct ESLint found 21 new-file findings
+(/tmp/shared-people-fanout-6g-eslint-pre.log); --fix removed 11, then explicit
+typed-array and optional-chain cleanup removed the remaining 10
+(/tmp/shared-people-fanout-6g-eslint-fix.log). Direct ESLint passed
+(/tmp/shared-people-fanout-6g-eslint-green.log). Initial direct TSC found an
+undiscriminated cycle/range outcome union
+(/tmp/shared-people-fanout-6g-typecheck-pre.log); splitting those two modeled
+variants made direct TSC pass (/tmp/shared-people-fanout-6g-typecheck-pre2.log,
+/tmp/shared-people-fanout-6g-tsc-pre.log).
+
+The affected command
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck build
+-p wbs-domain wbs-core --skip-nx-cache --output-style=static exited 0; Nx
+scheduled lint/typecheck for both projects and the core module typecheck dependency,
+but no build target under the generic build name
+(/tmp/shared-people-fanout-6g-nx.log). The separately declared
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:build:portable
+--skip-nx-cache --output-style=static exited 0 and bundled 539 modules
+(/tmp/shared-people-fanout-6g-portable-build.log). Pinned
+bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects
+--strict --json passed 1/1
+(/tmp/shared-people-fanout-6g-openspec-strict-review.json); pinned validate --all
+--json passed 148/148
+(/tmp/shared-people-fanout-6g-openspec-all-review.json).
+The first final four-file Prettier check flagged only the new source after
+ESLint/manual cleanup (/tmp/shared-people-fanout-6g-prettier-final.log).
+Prettier write corrected it (/tmp/shared-people-fanout-6g-source-format-write.log);
+the affected two-file focused suite then passed again 32/32, 76 assertions
+(/tmp/shared-people-fanout-6g-focused-after-format.log). The four-file Prettier
+check passed again on final verification text
+(/tmp/shared-people-fanout-6g-prettier-review.log), and git diff --check
+passed (/tmp/shared-people-fanout-6g-diffcheck-review.log).
+Durable fan-out events, transaction integration, delivery, shared activation
+and the exact-SHA host gate remain open.
+
+## 6h architecture checkpoint (2026-10-06)
+
+Prepared on `plan/shared-people-fanout-6h-architecture`, based on plan commit
+`24025e6545b36bae8f32e18c078b5b755670211c`. The normative design links
+[6h-architecture.md](6h-architecture.md); the delta spec adds command capture and committed
+optimizer-notification requirements, and task 6h links the exact implementation handoff.
+No product source, migration, runtime capability, WBS record or publication changed.
+
+Inspected real command/undo/redo, admitted-write, SQLite UoW/event-store/borrowed capture,
+core composition, services/boot/mounted app, gateway delivery and optimizer-trigger callers
+and their existing tests. Independently inspected 6g commit
+`6ac0cd4dc8772790c1dafc63c89d10d2a6a8a3db`: `FanoutObservation.projects` now documents
+that input is already in authoritative project-rank order and `rankPosition` is metadata,
+closing its P3 documentation finding. No claim of rerunning unchanged 6g behavior tests.
+
+Validation in the isolated architecture worktree:
+
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`:
+  1 change passed, 0 failed, no issues.
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate --all --json`:
+  148 passed, 0 failed (130 changes, 18 specs); report
+  `/tmp/shared-people-fanout-6h-openspec-all.json`.
+- Prettier write/check of the five touched Markdown files via the existing workspace
+  installation: passed. `git diff --check`: passed.
+
+Tool recovery: `openspec` was absent from PATH. An initial direct cached 1.13.0 invocation
+failed with missing `commander` and is not validation evidence. A Bun invocation without
+`BUN_TMPDIR` failed with EROFS; the repository-pinned 1.12.0 invocation above succeeded using
+writable `/tmp`, with no dependency/lockfile changes.
+
+Not run: product tests, fault injections, lint/typecheck/build, canonical exact-SHA h2puni
+gate or CI. This is a documentation checkpoint, not implemented 6h or integration evidence.
+Every new 6h RED/restored-GREEN production proof in the packet remains pending; 6h and later
+slices remain unchecked. No push or merge.
+
+## 6h admitted observation authority clarification
+
+Planning-only amendment atop `618af6132e87f412efa8cddda8838fdfa6aed4e7`, on isolated
+`plan/shared-people-fanout-6h-architecture`. The normative packet now distinguishes the
+service's request-scope classification from the repository's fresh membership guard. The
+admitted beforeWrite hook must perform a read-only current-authority check before capture,
+without duplicating audit/grant admission. Product files and WBS remain untouched.
+
+| Required fault                                        | Decisive production-path negative                                                       | Result  |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------- | ------- |
+| Omit fresh authority check or capture before it       | Queued demotion/removal or foreign request reaches capture instead of its typed refusal | Pending |
+| Replace read-only check with auditing admission       | Super-admin recovery creates more than one audit; step recovery must not broaden        | Pending |
+| Move hook after mutation or omit either route binding | Old settings/step unavailable or expected downstream event absent                       | Pending |
+| Fail capture or later downstream insertion            | Domain/audit/history/event/sequence rollback and zero delivery/optimizer witnesses      | Pending |
+
+No product tests or R5 injections are claimed for this clarification. Targeted pinned strict
+OpenSpec, pinned all validation, four-file Prettier and diff checks are rerun before the local
+checkpoint; exact result logs are `/tmp/6h-authority-plan-{strict,all}.json` and
+`/tmp/6h-authority-plan-format.log`. Canonical gate, CI, publication and implementation remain
+pending. The new tasks are unchecked.
+
+Planning validation completed: pinned strict 1/1 and all 148/148 passed with zero failures;
+four-file Prettier and `git diff --check` passed. Final-byte reruns use the same logs.
+
+## 6h scoped recovery transaction correction (2026-10-06)
+
+Documentation-only amendment from `9345be989310313fa55b3e2894402f73e5fc8eb0`, isolated branch
+`plan/shared-people-fanout-6h-recovery`. Independent call-path review found that the mounted
+scoped step route calls `runRecoveryWrite` with its own granted batch, bypassing the bare
+`createAdmittedWrites` service. Its existing restricted-project super-admin removal succeeds
+and audits once; the previous packet's unqualified forbidden-removal wording was incorrect.
+The normative packet, delta spec and task now distinguish the two transaction owners.
+
+The correction preserves recovery's original UoW, fresh admission, grant expiry and audit;
+observation, after-capture and event recording join that same transaction. It prohibits a
+nested UoW or a second admission/audit and retains delivery after commit/writer release.
+Bare mapped writes retain `NO_ADMISSION` and the separate read-only authority check. No
+product source, permission implementation or runtime capability changed.
+
+| Required fault / production path                                                             | Decisive negative                                                                                  | Result  |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------- |
+| Omit scoped recovery binding, independently of bare binding                                  | Mounted shared DELETE succeeds but expected downstream rows disappear                              | Pending |
+| Substitute bare graph or repeat auditing admission in scoped recovery                        | Existing successful super-admin deletion is refused, or audit count grows from one to two          | Pending |
+| Bypass fresh recovery admission or capture before it                                         | Revoked/demoted or foreign caller reaches throwing capture instead of typed refusal                | Pending |
+| Omit hook or move it after removal, separately in scoped recovery and bare shared-mode paths | Old-step witness or required downstream event fails                                                | Pending |
+| Fail capture, then independently a later event insert, on each path                          | Domain/event/sequence and scoped audit roll back, grant expires, zero delivery/optimizer witnesses | Pending |
+| Deliver inside recovery UoW, independently of bare-path mutation                             | Pending transport blocks a second writer or emits before commit                                    | Pending |
+
+All implementation tests and R5 fault injections above remain unrun/pending. Normal local
+commit hooks will run; their inactive Tool Wiki status is not certification. No full h2puni
+gate, CI, product test/lint/typecheck/build, push or merge is claimed by this planning packet.
+
+Planning validation: `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate
+share-people-across-projects --strict --json` passed 1/1; the same pinned tool's
+`validate --all --json` passed 148/148 (130 changes, 18 specs). Reports:
+`/tmp/6h-recovery-plan-strict.json` and `/tmp/6h-recovery-plan-all.json`. Four-file Prettier
+check and `git diff --check` passed; final-byte validation is rerun before commit.
+Legacy is deliberately non-capturing: its negative plants throwing shared dependencies and
+requires successful removal without calling them. Shared hook omission/fault proofs must use
+a permitted shared-mode actor, not a legacy no-fan-out result.
+
+## 6h review: grant lifetime and topology causes (2026-10-06)
+
+Documentation-only amendment from `300b3d3dd9e5894b850420c546c45b2c3228f3ac`, isolated branch
+`plan/shared-people-fanout-6h-lifetime`. Product review of Sol's dirty candidate found two
+regressions; this packet clarifies implementation obligations without implementing their fixes.
+
+A real SQLite `createPlanCommandRunner` probe retained `batchServices`' admission and performed
+an independent-connection UPDATE in `deliverCommitted`. The writer entered, but the grant
+still admitted its original actor/project there; it refused only after the runner returned.
+The candidate's awaited delivery delayed execute/walk's outer grant-expiry finally. The
+normative packet now explicitly closes that lifetime before delivery for execute and undo/redo,
+with unconditional refusal/exception cleanup and existing history-repair semantics retained.
+
+A mounted `setAssignee` probe used dated A/Ana, sequential B/Ana+Ben and C/Ben. Removing B's
+Ana assignment returned 200 but recorded only `(C,B)`. Existing design.md already requires
+changed connection endpoints as causes; A's unchanged local input hash does not remove its
+causal identity. The packet and task now spell out deriving endpoint changes alongside local
+facts and require durable `(B,A)` / `(C,A)` witnesses when those incoming bases change.
+
+| Required fault / path                                 | Decisive negative                                                                               | Implementation status                               |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Delay execute grant expiry until delivery completes   | Second writer enters while retained grant still admits during held push                         | Candidate defect observed; restored proof pending   |
+| Delay undo/redo grant expiry until delivery completes | Same held-push refusal assertion fails for each history direction                               | Required; pending                                   |
+| Omit refusal/exception grant cleanup                  | Retained authority remains usable after settlement; stale-history repair must stay NO_ADMISSION | Required; pending                                   |
+| Omit changed connection endpoint causes               | Mounted assignment removal keeps `(C,B)` but loses `(B,A)` and `(C,A)`                          | Candidate omission observed; restored proof pending |
+
+Independent review's seven-file focused run passed 79/79, 469 assertions before fixes, in
+`/tmp/astra-6h-review-focused.log`; it did not cover the two new witnesses above. Standalone
+read-only-review probes used temporary SQLite fixtures and left candidate files untouched.
+No implementation clearance follows from that green suite. Sol owns production fixes and
+watched RED/restored-GREEN evidence. No product change, full exact-SHA gate, CI, push or merge
+is part of this documentation amendment.
+
+Planning validation: pinned `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate
+share-people-across-projects --strict --json` passed 1/1, and `validate --all --json` passed
+148/148 (130 changes, 18 specs). Reports: `/tmp/6h-lifetime-plan-{strict,all}.json`.
+Four-file Prettier and `git diff --check` passed; final-byte checks and normal local commit
+hooks run before the checkpoint. An inactive Tool Wiki hook is not certification.
+
+## 6h implementation checkpoint (2026-10-06, uncommitted)
+
+Branch `feat/shared-people-fanout-6h` at architecture head
+`300b3d3dd9e5894b850420c546c45b2c3228f3ac`; implementation remains dirty and
+unreviewed. This section reports source and test observations, not a complete 6h clearance.
+It supersedes only the planning packet's statements that implementation had not begun.
+
+The SQLite fan-out capture borrows the write transaction and the captured optimizer reader.
+Command and admitted project/step writes compare before and after only after admitted
+preflights; event rows are inserted before commit, and exact recorded envelopes are delivered
+after the writer releases. Bare writes recheck current authority read-only before capture.
+Mounted scoped step removal retains its existing recovery UoW, grant and single audit. Legacy
+and isolated modes produce no shared fan-out.
+
+`bun test` over `fanout-capture.db.test.ts`, PlanCommand module, composition, optimizer
+broadcaster, mounted command, command organization and step-marker organization passed
+**79/79, 469 assertions across seven files** on the latest restored bytes:
+`/tmp/shared-people-fanout-6h-focused-final-2.log`. The mounted cold command emits a durable
+downstream event without a tree GET. Execute/undo/redo, late refusal, project PATCH, scoped
+recovery DELETE, bare `NO_ADMISSION` removal, queued demotion, super-admin single-audit
+recovery, physical capture failure and second-event failure are exercised there. The command
+suite separately observes a directory-only cascading person deletion with three old-topology
+pairs `(B,A)`, `(C,A)`, `(C,B)`, each once. The borrowed-capture fixture seeds an exact-key
+ready PRI schedule: A's Fast start 0 and selected optimized start 1 differ. Staging A's engine
+back to Fast leaves A's input hash unchanged, shifts two-day B from start 2 to 1, changes B's
+incoming basis and returns `(B,A)`. The generation, cache, slot and queue rows remain equal
+before and after both reads; the test's live scheduler throws if invoked.
+
+| Watched production fault                                 | RED log and decisive observation                                                                                                                                                                                                                                  |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Omit fresh bare step authority                           | `/tmp/shared-people-fanout-6h-r5-bare-authority.log`: stale-role bare removal succeeds instead of forbidden; restored focused log `-bare-authority-restored.log`.                                                                                                 |
+| Omit project service before-write binding                | `/tmp/shared-people-fanout-6h-r5-project-binding.log`: expected four recipient rows become three.                                                                                                                                                                 |
+| Omit bare step binding                                   | `/tmp/shared-people-fanout-6h-r5-bare-step-binding.log`: expected three rows become two.                                                                                                                                                                          |
+| Omit scoped recovery binding                             | `/tmp/shared-people-fanout-6h-r5-scoped-step-binding.log`: injected event failure expected 500 becomes 204.                                                                                                                                                       |
+| Bypass project read-only authority                       | `/tmp/shared-people-fanout-6h-r5-project-authority.log`: queued demotion reaches broken capture and returns 500 instead of typed 403.                                                                                                                             |
+| Add second auditing admission in recovery                | `/tmp/shared-people-fanout-6h-r5-second-recovery-audit.log`: two audit rows instead of one.                                                                                                                                                                       |
+| Remove committed optimizer reaction                      | `/tmp/shared-people-fanout-6h-r5-committed-reaction.log`: recipient notification is absent.                                                                                                                                                                       |
+| Remove `elsewhere_changed` scheduling predicate          | `/tmp/shared-people-fanout-6h-r5-elsewhere-predicate.log`: recipient notification is absent.                                                                                                                                                                      |
+| Publish instead of push recorded envelope                | `/tmp/shared-people-fanout-6h-r5-publish-instead-of-push.log`: sequence/payload witness fails.                                                                                                                                                                    |
+| Record command event after UoW return                    | `/tmp/shared-people-fanout-6h-r5-record-after-uow.log`: second-event failure leaves mutation, journal, first event and sequence committed; restored test `-record-after-uow-restored.log`.                                                                        |
+| Omit core PlanCommand installer delivery provider        | `/tmp/shared-people-fanout-6h-r5-core-installer-delivery.log`: scoped admitted run refuses missing delivery. An earlier legacy-only fixture stayed green and was corrected; it is not counted as proof.                                                           |
+| Omit mounted app delivery binding                        | `/tmp/shared-people-fanout-6h-r5-mounted-app-delivery.log`: cold admitted command returns 500 instead of 200.                                                                                                                                                     |
+| Omit SQLite borrowed capture binding                     | `/tmp/shared-people-fanout-6h-r5-sqlite-source-capture.log`: cold admitted command returns 500 instead of 200.                                                                                                                                                    |
+| Drop captured optimizer binding                          | `/tmp/shared-people-fanout-6h-r5-drop-captured-optimizer.log`: ready selected A becomes engine-unavailable; restored seven-file suite passes.                                                                                                                     |
+| Keep only first directory cause                          | `/tmp/shared-people-fanout-6h-r5-directory-second-cause.log`: `(C,B)` is absent; restored seven-file suite passes.                                                                                                                                                |
+| Omit boot-to-app delivery forwarding                     | `/tmp/shared-people-fanout-6h-r5-boot-delivery.log`: cold command through `bootBe01`'s mounted app returns 500 instead of 200; restored durable-row test `/tmp/shared-people-fanout-6h-boot-restored.log` passes.                                                 |
+| Push committed envelope inside command UoW               | `/tmp/shared-people-fanout-6h-r5-push-before-commit.log`: held gateway push keeps writer lock; independent SQLite write fails `SQLITE_BUSY`. Restored `/tmp/shared-people-fanout-6h-push-release-restored.log` passes while push is held.                         |
+| Force live scheduling in borrowed capture                | `/tmp/shared-people-fanout-6h-r5-live-admission.log`: enabled optimized fixture invokes its throwing `readLive` dependency instead of capture-only read.                                                                                                          |
+| Detach SQLite capture to a separate read-only connection | `/tmp/shared-people-fanout-6h-r5-detached-snapshot.log`: cold mounted command records zero downstream rows because after-capture misses staged mutation. Restored capture/mounted suite `/tmp/shared-people-fanout-6h-capture-faults-restored.log` passes 3/3,33. |
+
+The optimized fixture first used a one-day B, which could fit before selected A and made an
+expected start-2 assertion fail. A two-day B creates the required overlap. A preliminary
+assertion also incorrectly expected B's propagated input hash unchanged; A's local hash is
+unchanged, while B's hash correctly changes with inherited bookings. These are test fixture
+corrections, not product failures. The directory event assertion initially compared random
+UUID subscription order with creation order; sorting subscription/cause pairs corrected it.
+
+The first affected Nx lint/typecheck run failed only on the new directory test's missing Bun
+SQLite query type argument and inferred tuple shape; all seven other scheduled targets passed
+(`/tmp/shared-people-fanout-6h-nx-lint-type-final.log`). Corrected backend typecheck passed
+(`/tmp/shared-people-fanout-6h-be-type-restored.log`). Declared builds passed independently:
+`NX_DAEMON=false bunx nx run-many -t build:portable -p wbs-core --skip-nx-cache`
+(`/tmp/shared-people-fanout-6h-core-build.log`) and
+`NX_DAEMON=false bunx nx run wbs-be-01:build --skip-nx-cache`
+(`/tmp/shared-people-fanout-6h-be-build.log`). SQLite store has no declared build target.
+The corrected combined command
+`NX_DAEMON=false bunx nx run-many -t lint typecheck -p wbs-core wbs-store-sqlite wbs-be-01 --skip-nx-cache`
+passed all eight scheduled targets (`/tmp/shared-people-fanout-6h-nx-lint-type-restored.log`).
+Prettier check passed on all modified/new paths
+(`/tmp/shared-people-fanout-6h-prettier-final.log`); pinned OpenSpec 1.12.0 strict
+`validate share-people-across-projects --strict --json` passed 1/1 and `validate --all --json`
+passed 148/148 (`/tmp/shared-people-fanout-6h-openspec-{strict,all}.json`); `git diff --check`
+passed (`/tmp/shared-people-fanout-6h-diff-check.log`). Boot and held-push tests were added
+after those checks, so final-byte format, focused suites and affected Nx checks must be rerun.
+The live-admission mutation tripped a no-live callback; a positive allocator-write fault is
+not claimed. Astra confirmed that this tripwire plus unchanged optimizer rows satisfies the
+slice's capture/no-admission proof. The first post-Prettier eight-file run was 81 pass/27 fail
+because the sandbox denied existing boot-suite loopback listeners with `EPERM: listen`
+(`/tmp/shared-people-fanout-6h-final-eight-files.log`); the new socketless boot case passed.
+The **same exact eight-file command**, approved outside the sandbox without changing listener
+configuration, then passed **108/108, 535 assertions**
+(`/tmp/shared-people-fanout-6h-final-eight-files-escalated.log`). The initial sandbox failure
+is infrastructure evidence superseded by that rerun. The final changed-byte
+`NX_DAEMON=false bunx nx run-many -t lint typecheck -p wbs-core wbs-store-sqlite wbs-be-01 --skip-nx-cache`
+passed all eight scheduled targets (`/tmp/shared-people-fanout-6h-nx-final.log`). Declared
+`wbs-core:build:portable` and `wbs-be-01:build` passed independently
+(`/tmp/shared-people-fanout-6h-{core,be}-build-final.log`); SQLite store declares no build.
+Final-byte Prettier passed on all modified/new paths
+(`/tmp/shared-people-fanout-6h-prettier-final-2.log`), pinned strict OpenSpec passed 1/1,
+pinned all validation passed 148/148
+(`/tmp/shared-people-fanout-6h-openspec-{strict,all}-final.json`), and `git diff --check`
+passed (`/tmp/shared-people-fanout-6h-diff-final.log`). Independent review remains pending;
+the 6h task is not marked complete and no local implementation commit exists.
+Exact-SHA host gate, CI, publication, merge, 6i–6l and umbrella completion remain outstanding.
+
+## 6h review corrections (2026-10-06, uncommitted)
+
+The lifetime packet was cherry-picked as documentation-only commit `edde1faf0` on
+`feat/shared-people-fanout-6h`; the live implementation and this ledger remain uncommitted.
+This section supersedes the earlier implementation checkpoint's final-byte test counts and
+the lifetime packet's pending implementation rows, while retaining their raw logs as history.
+
+The production command transaction now expires its scoped grant immediately after its UoW
+settles and before awaiting recipient delivery. The runner's existing `finally` still expires
+it on refusal, rollback, repair or exception. Real SQLite execute, undo and redo tests retain
+the actual `batchServices` admission, commit a shared fan-out event, hold delivery after a
+second-connection project UPDATE has succeeded, and require the retained admission to refuse
+the original actor/project before push release. All three failed before the fix (`true` vs
+`false`, `/tmp/shared-people-fanout-6h-grant-lifetime-red.log`), passed 3/3, 9 assertions
+after it (`/tmp/shared-people-fanout-6h-grant-lifetime-green.log`), and independently failed
+again when the new settlement callback was omitted
+(`/tmp/shared-people-fanout-6h-r5-settlement-expiry-omission.log`). Existing refusal and
+stale-journal `NO_ADMISSION` repair tests remain in the final focused suite.
+
+`recordCommittedFanout` now includes both endpoints of changed old/new rank-directed shared
+person connections among direct causes, alongside changed local scheduling facts. A
+source-neutral A/Ana → B/Ana+Ben → C/Ben test records `(C,A)` and `(C,B)`; its first RED
+recorded only `(C,B)` (`/tmp/shared-people-fanout-6h-topology-endpoints-red.log`), then
+passed after the change (`/tmp/shared-people-fanout-6h-topology-endpoints-green.log`). A
+mounted assignment-removal command with a B Ana→Ben dependency makes C's incoming basis
+change and durably records `(B,A)`, `(C,A)`, `(C,B)`
+(`/tmp/shared-people-fanout-6h-mounted-endpoints-green.log`). Removing only the endpoint
+union makes the mounted `(B,A)` assertion fail
+(`/tmp/shared-people-fanout-6h-r5-mounted-endpoint-omission.log`); the earlier source-neutral
+omission RED is `/tmp/shared-people-fanout-6h-r5-endpoint-omission.log`. The first mounted
+fixture had independent B Ben work, so C's basis did not change and `(C,A)` was correctly
+absent. Adding the B Ana→Ben dependency corrected the test fixture, not product behavior.
+
+The scoped recovery removal route now holds gateway delivery after commit while an
+independent SQLite project UPDATE succeeds; the restored production test passes
+(`/tmp/shared-people-fanout-6h-recovery-release-restored.log`). Moving recovery delivery
+inside its UoW makes that writer fail `SQLITE_BUSY`
+(`/tmp/shared-people-fanout-6h-r5-recovery-deliver-inside-uow.log`). Independently moving
+the step before-remove observation hook after deletion makes a separately mounted scoped
+super-admin DELETE return 204 with no downstream event instead of the required `(B,A)` row
+(`/tmp/shared-people-fanout-6h-r5-scoped-late-hook-mounted.log`); its restored witness passes
+(`/tmp/shared-people-fanout-6h-scoped-late-hook-restored.log`). The earlier
+`/tmp/shared-people-fanout-6h-r5-scoped-late-hook.log` stopped at a bare-removal assertion
+before the mounted route and is **not** counted as scoped proof. Both temporary faults were
+restored before the final suite. The topology correction added a valid extra recovery event;
+the test now derives rank from project creation order and sorts pairs by recipient/cause.
+An interim 97-pass/1-fail run used lexical random UUID order as rank
+(`/tmp/shared-people-fanout-6h-final-ten-files.log`); this was a test-only expectation error.
+
+The final ten-file focused suite passed **99/99, 561 assertions**
+(`/tmp/shared-people-fanout-6h-final-ten-files-scoped.log`); its prior 98/98, 555 run
+(`/tmp/shared-people-fanout-6h-final-ten-files-restored.log`) predates the isolated scoped
+test. The exact boot suite, which
+needs its existing loopback listener, passed **29/29, 66 assertions** in the authorized
+unsandboxed run (`/tmp/shared-people-fanout-6h-boot-final-escalated.log`). The first Nx
+review-correction run failed on a test-only TypeScript closure narrowing and four ESLint
+findings (`/tmp/shared-people-fanout-6h-review-corrections-nx.log`); after correcting them,
+the final affected `NX_DAEMON=false bunx nx run-many -t lint typecheck -p wbs-core
+wbs-store-sqlite wbs-be-01 --skip-nx-cache` passed all eight scheduled targets
+on final scoped-test bytes (`/tmp/shared-people-fanout-6h-final-nx-scoped.log`; the prior
+eight-target success is `/tmp/shared-people-fanout-6h-final-nx.log`). Declared
+`wbs-core:build:portable` and
+`wbs-be-01:build` passed independently (`/tmp/shared-people-fanout-6h-final-{core,be}-build.log`);
+SQLite store has no declared build target. Formatting, pinned strict/all OpenSpec and diff
+checks passed on all modified/new paths (`/tmp/shared-people-fanout-6h-final-prettier-scoped.log`),
+1/1 strict and 148/148 all validation
+(`/tmp/shared-people-fanout-6h-final-openspec-{strict,all}-scoped.json`), and zero whitespace
+errors (`/tmp/shared-people-fanout-6h-final-diff-scoped.log`). Exact-SHA host gate, CI,
+publication, merge, 6i–6l and umbrella completion remain outstanding; Astra implementation
+re-review is pending.
+
+## 6h local checkpoint (2026-10-06)
+
+Astra's final exact-byte review cleared the 39-path implementation manifest
+`/tmp/astra-6h-final-cleared-manifest.json` (raw-file SHA256
+`aec95a10445c1a804ebe2cac9bcb93989d0b78a1b50d5146f11ac6e01ad8a8b5`). The
+implementation was committed locally as `f740615d4eccf11d8b503de0f3d7b8c37bd431c5` on
+`feat/shared-people-fanout-6h`; the worktree was clean immediately afterward and all 39
+committed blob hashes matched the cleared manifest. Normal commit hooks passed formatting,
+lint and secret checks; migration lint and doc caps had no matching files, and Tool Wiki
+reported inactive/uncertified. The planning tables above retain their historical Pending
+status as of their documentation-only amendments. The final implementation proof matrix is:
+
+| Boundary                                   | Final witness and watched fault                                                                                                                                                                                                                                                                                |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Grant lifetime, execute/undo/redo          | Held-delivery SQLite writer and retained admission 3/3 GREEN; settlement omission 3/3 RED (`/tmp/shared-people-fanout-6h-grant-lifetime-green.log`, `/tmp/shared-people-fanout-6h-r5-settlement-expiry-omission.log`).                                                                                         |
+| Changed topology endpoints                 | Mounted B assignment removal durably records `(B,A)`, `(C,A)`, `(C,B)`; endpoint omission loses `(B,A)` (`/tmp/shared-people-fanout-6h-mounted-endpoints-green.log`, `/tmp/shared-people-fanout-6h-r5-mounted-endpoint-omission.log`).                                                                         |
+| Scoped recovery timing                     | Separate mounted DELETE 204 and `(B,A)` event; late hook returns 204 but records no row (`/tmp/shared-people-fanout-6h-scoped-late-hook-restored.log`, `/tmp/shared-people-fanout-6h-r5-scoped-late-hook-mounted.log`). The earlier broad `/tmp/shared-people-fanout-6h-r5-scoped-late-hook.log` is bare-only. |
+| Writer release                             | Scoped recovery second SQLite writer enters during held push; inside-UoW delivery fails `SQLITE_BUSY` (`/tmp/shared-people-fanout-6h-recovery-release-restored.log`, `/tmp/shared-people-fanout-6h-r5-recovery-deliver-inside-uow.log`).                                                                       |
+| Capture, authority, atomicity and bindings | Mounted and SQLite proofs with exact fault logs are in the preceding 6h implementation table; final ten-file suite 99/99, 561 assertions and independent Astra review passed.                                                                                                                                  |
+
+The 6h task alone is now checked. This documentation-only
+follow-up has separate final checks and a separate local commit. 6i–6l, 6.1/6.2 umbrella,
+exact-SHA host gate, CI, merge and publication remain open.
+
+## 6i architecture checkpoint (2026-10-06)
+
+Planning branch `plan/shared-people-fanout-6i-architecture` starts from reviewed 6h documentation
+head `956dba9feb8f140112c34b66121f86794f6ccf30`. `6i-architecture.md`, linked normatively from
+`design.md`, records actual rank and directory call paths, explicit standalone async UoW
+ownership, raw OPEN borrowed stores, source/services/boot rank wiring, comparison/cause rules,
+separate R5 proof obligations and Sol's ordered handoff. Mounted directory mutations already
+enter command batches. Existing admitted settings/date writes retain the 6h owner. Rank and
+directory synchronous Drizzle callbacks require the async-owner decision now, ahead of 6j.
+
+No product code or R5 fault execution is included in this planning checkpoint. Implementation,
+new fault proofs, independent implementation review, exact-SHA host gate, CI, publication and
+merge remain pending; task 6i remains unchecked. No product tests, builds or R5 injections were
+run for this documentation-only amendment. Fresh validation passed:
+
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`:
+  1/1 (`/tmp/shared-people-fanout-6i-arch-strict.json`).
+- `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate --all --json`: 148/148,
+  comprising 130 changes and 18 specs (`/tmp/shared-people-fanout-6i-arch-all.json`).
+- Prettier check over the packet, design, tasks, shared-people-mode delta spec and this ledger:
+  all matched files use Prettier style. `git diff --check`: no whitespace errors.
+
+The local checkpoint uses normal commit hooks without bypass. An inactive Tool Wiki hook is
+not certification. These planning checks do not replace the later implementation review/gate.
+
+### 6i architecture admission and refusal correction
+
+Independent review of `e47dc238b` required mandatory current rank admission and a precise
+ownership-refusal boundary. The normative packet now requires read-only current membership
+inside the rank owner before capture, typed `RankMoved.forbidden` with no recovery audit,
+and separate caller-addressed absent/foreign outcomes versus corrupt trusted ownership.
+The task/spec and R5 matrix include queued-demotion and standalone capture-spy negatives.
+Raw OPEN savepoints and single outer-owner event semantics remain unchanged. No product code
+or fault execution is claimed; implementation and those new proofs remain pending.
+
+Validation for this documentation amendment uses the same pinned strict/all, changed-path
+Prettier, diff and normal-hook commands as the original checkpoint. Fresh outputs are
+`/tmp/shared-people-fanout-6i-admission-{strict,all}.json`: strict 1/1 and all 148/148 passed.
+Changed-path Prettier passed and `git diff --check` found no whitespace errors. Product tests
+and R5 injections were not run for this documentation-only correction.
+
+## 6i per-store mutation ownership clarification
+
+Planning-only amendment on `plan/shared-people-fanout-6i-architecture`, parent
+`ce083e9983118fd143d2c93f2ebb1196268449e0`. The normative packet requires an immutable
+invocation-scoped DirectoryStore facade and one owner per raw mutator; it explicitly rejects
+wrapping whole patchPersonWithin/patchTeamWithin operations in a new UoW. No product edit,
+WBS mutation, publication or implementation completion is claimed.
+
+| Required fault                                               | Decisive witness                                                                             | Result  |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ------- |
+| Whole-service UoW replaces independent owners                | Public-facade rename survives later link after-capture failure; zero-pair links emit nothing | Pending |
+| Reuse service-wide before state or wrap raw internal helpers | Exact per-mutator before/after and owner/event counts                                        | Pending |
+| Capture before service validation                            | Invalid input refusal invokes zero capture/mutation/delivery                                 | Pending |
+| Mutable shared invocation access                             | Deterministic cross-organization interleaving preserves each scope                           | Pending |
+| Facade republishes/collects ordinary events                  | Existing ordinary service announcement count and timing remain                               | Pending |
+| Facade installed beneath command/import/repair owner         | Borrowed graph retains single comparison and no nested owner                                 | Pending |
+
+Targeted pinned strict OpenSpec, changed-path Prettier and diff checks are required for this
+local documentation checkpoint. Product tests, R5 mutations, Nx gates, CI and canonical host
+gate remain unrun here. All new implementation proofs/checkpoints remain pending.
+
+Initial formatting check flagged the inline ordered task block. It was replaced by explicit
+unchecked 6i.a–6i.d TDD checkpoints before the final formatting/strict/diff reruns.
+
+Formatting needed a further correction: multiline inline-code test names in the new task list
+were normalized to single-line names to avoid repeated Prettier indentation changes. Final
+pinned strict validation passed 1/1, four-file Prettier and diff checks passed; logs are
+`/tmp/6i-mutation-owner-plan-strict.json` and `/tmp/6i-mutation-owner-plan-format.log`.
+
+### 6i separate mutation-boundary and event-rollback proofs
+
+Planning correction atop `37ac4f4ab586f08cda8b80f32c47b02d6ef13c07`: links/memberships alone
+are not assumed scheduler inputs. The compound public-facade proof fails after-capture of the
+second link mutation and preserves the earlier rename. Separately, a cascade must first derive
+at least two real recipient/cause pairs before faulting the second event insert. Name-idempotent
+membership additions are observed normally; zero derived pairs means zero fan-out writes.
+
+| Fault                                | Required distinct witness                                                                            | Result  |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------- | ------- |
+| Whole-service owner                  | Rename remains after second link mutation's after-capture fails; no invented event in zero-pair case | Pending |
+| Record after cascade commit          | Second real insert failure rolls back cascade, first event and sequences; no delivery                | Pending |
+| Emit on any membership/link mutation | Normal zero-pair comparison must stay silent                                                         | Pending |
+
+No product code or proof execution in this amendment. Planning validation uses pinned strict
+OpenSpec, four-file Prettier, diff and normal commit hooks; implementation proofs remain pending.
+
+Planning checks passed: pinned strict OpenSpec 1/1 (`/tmp/6i-split-proof-plan-strict.json`),
+four-file Prettier (`/tmp/6i-split-proof-plan-format.log`) and `git diff --check`. Final-byte
+reruns use those same commands/logs. No product test, R5 or host-gate result is claimed.
+
+### 6i implementation candidate and observed boundaries
+
+The standalone rank and directory paths now capture and record in the mutation owner's UoW,
+then deliver after release. Standalone directory services receive an invocation-scoped facade;
+each actual raw mutator has its own owner. The facade constructor performs no database work.
+Borrowed command services retain the raw stores and their existing outer owner. The scoped
+directory missing-row read checks trusted ownership corruption without opening a write owner
+before service input validation.
+
+The first compound person/team fixture was RED under whole-service ownership
+(`/tmp/shared-people-6i-person-partial-red.log`,
+`/tmp/shared-people-6i-team-partial-red.log`). The per-mutator facade restored the two cases
+GREEN (`/tmp/shared-people-6i-partial-facade-green.log`). A later second-owner after-capture
+failure retains the first rename and its ordinary directory announcement while discarding
+the later link mutation (`/tmp/shared-people-6i-second-owner-after-capture-green.log`, 1/1,
+7 assertions). That link patch produced zero scheduler pairs; no fan-out event was fabricated.
+Successful compound person/team patches enter two owners and capture four observations
+(`/tmp/shared-people-6i-mutator-owner-count-green.log`). The separate real used-person cascade
+control recorded three exact recipient/cause pairs
+(`/tmp/shared-people-6i-cascade-three-pair-control.log`). Faulting its second event insert
+rolled back the cascade, first event and sequence, with no push
+(`/tmp/shared-people-6i-cascade-event-atomic-green.log`).
+
+| Watched fault                                                              | Production-path failure log                                                                                                                                                                                              |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Entry UoW before invalid/empty input classification                        | `/tmp/shared-people-6i-r5-entry-owner-preflight.log`: owner calls 6 instead of 0                                                                                                                                         |
+| Bypass trusted ownership read on missing scoped row                        | `/tmp/shared-people-6i-r5-ownership-read-bypass.log`: orphan accepted instead of thrown corruption                                                                                                                       |
+| Reuse whole-service before state                                           | `/tmp/shared-people-6i-r5-reuse-whole-service-before.log`: three captures instead of four                                                                                                                                |
+| Bind borrowed command directory to standalone facade                       | `/tmp/shared-people-6i-r5-borrowed-standalone-binding.log`: nested-owner diagnostic and mounted 500 instead of 200                                                                                                       |
+| Share latest directory address across invocations                          | `/tmp/shared-people-6i-r5-global-directory-context.log`: first organization's write returns not_found while second succeeds                                                                                              |
+| Omit cold boot rank binding                                                | `/tmp/shared-people-6i-r5-boot-rank-binding.log`: missing second durable recipient event                                                                                                                                 |
+| Omit rank current-admin or capture-before-admin checks                     | `/tmp/shared-people-6i-r5-rank-current-admin.log`, `/tmp/shared-people-6i-r5-rank-capture-before-admin.log`                                                                                                              |
+| Move rank or directory delivery inside owner                               | `/tmp/shared-people-6i-r5-rank-delivery-inside-owner.log`, `/tmp/shared-people-6i-r5-directory-delivery-inside-owner.log`                                                                                                |
+| Record after owner release or capture after mutation                       | `/tmp/shared-people-6i-r5-rank-record-after-uow.log`, `/tmp/shared-people-6i-r5-directory-record-after-uow.log`, `/tmp/shared-people-6i-r5-rank-late-capture.log`, `/tmp/shared-people-6i-r5-directory-late-capture.log` |
+| Replace selected schedule with Fast; omit numeric rank cause               | `/tmp/shared-people-6i-r5-selected-rank-forced-fast.log`, `/tmp/shared-people-6i-r5-numeric-rank-cause.log`                                                                                                              |
+| Omit scoped directory composition binding or resolve address after capture | `/tmp/shared-people-6i-r5-directory-composition-binding.log`, `/tmp/shared-people-6i-r5-directory-capture-before-resolver.log`                                                                                           |
+
+The valid empty/invalid-input control has zero owner/capture/delivery calls
+(`/tmp/shared-people-6i-invalid-zero-owner-green.log`). The idempotent existing-person add
+changes membership through one raw owner, but the scheduling hash remains unchanged and normal
+comparison emits no pair (`/tmp/shared-people-6i-idempotent-person-green.log`). Borrowed
+project-null and two-resource batches preserve one outer owner
+(`/tmp/shared-people-6i-borrowed-owner-green.log`,
+`/tmp/shared-people-6i-borrowed-two-resource-green.log`). The selected-ready rank and settings
+fixtures check actual numeric downstream starts and byte-equal optimizer tables
+(`/tmp/shared-people-6i-selected-rank-green.log`,
+`/tmp/shared-people-6i-selected-settings-green.log`). The initially attempted Working Plan
+reload mutation did not reach a changed event answer and is **not counted** as R5 proof;
+the borrowed once-per-batch witness covers this boundary instead.
+
+An initial combined sandbox run failed 27 boot cases with socket `EPERM` and passed 57 others
+(`/tmp/shared-people-6i-seven-file-green.log`); it is not a passing suite. The exact boot
+suite passed unsandboxed 29/29, 70 assertions
+(`/tmp/shared-people-6i-boot-unsandboxed.log`). On final formatted test bytes, the six-file
+nonboot command `bun test apps/wbs/be-01/src/controller/directory-command-organization.controller.db.test.ts apps/wbs/be-01/src/controller/fanout-selected-rank.controller.db.test.ts apps/wbs/be-01/src/controller/fanout-command.controller.db.test.ts apps/wbs/be-01/src/controller/project-rank.controller.db.test.ts libs/wbs/adapters/store-sqlite/src/fanout-capture.db.test.ts libs/wbs/adapters/store-sqlite/src/working-plan-order.db.test.ts` passed 56/56, 361 assertions
+(`/tmp/shared-people-6i-nonboot-final-bytes.log`).
+
+Adding the project rank store initially broke the conformance type graph and memory's passed-case
+expectation (`/tmp/shared-people-6i-final-nx-lint-type.log`,
+`/tmp/shared-people-6i-conformance-type.log`,
+`/tmp/shared-people-6i-conformance-repair.log`). The SQLite source now offers and runs the
+scoped rank case; memory explicitly declares it absent. `bun test
+libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts
+libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts` passed 146/146,
+11,510 assertions (`/tmp/shared-people-6i-conformance-repair-green.log`), and store TS build
+passed (`/tmp/shared-people-6i-conformance-type-green.log`). The full affected
+`NX_DAEMON=false bunx nx run-many -t lint typecheck -p wbs-core wbs-store-sqlite wbs-be-01
+--parallel=3` rerun passed 8/8 (`/tmp/shared-people-6i-nx-lint-type-rerun.log`). Declared
+`wbs-core:build:portable` and `wbs-be-01:build` passed
+(`/tmp/shared-people-6i-core-build-final.log`, `/tmp/shared-people-6i-be-build-final.log`).
+
+Final documentation formatting, pinned strict/all OpenSpec, diff, local hooks, independent
+implementation review and the exact-SHA host gate remain separate; no CI, push, merge or
+activation is claimed here. Task 6i and later 6j–6l remain unchecked.
+
+The first final Prettier check found only the mounted directory controller test's formatting
+(`/tmp/shared-people-6i-final-format.log`). Prettier rewrote that test, then its affected
+mounted suite passed 26/26, 198 assertions
+(`/tmp/shared-people-6i-directory-final-formatted.log`) and `wbs-be-01:lint` passed again
+(`/tmp/shared-people-6i-be-lint-after-format.log`). Pinned strict OpenSpec validated 1/1
+(`/tmp/shared-people-6i-final-strict.json`); all validated 148/148, comprising 130 changes
+and 18 specs (`/tmp/shared-people-6i-final-all.json`). Final format and diff checks follow
+this ledger edit.
+
+### 6i independent review follow-up (candidate after `f931c348277e813c5d2dbb138a50a655841ef381`)
+
+Independent review identified three Important findings in that clean local checkpoint. The
+follow-up is scoped to the public standalone directory facade, transaction-bound reach check,
+and retained Working Plan reload proof. The prior disqualified Working Plan reload attempt above
+remains historical evidence; the mounted consequence below replaces its missing R5 proof.
+
+1. The public facade's second raw owner can observe a vanished link target or addressed entry
+   after the service's earlier preflight. Before the fix, the queued team-link race threw a
+   generic `unknown_service` Error (`/tmp/shared-people-6i-review-a-typed-red.log`). Scoped
+   person/team patch, existing-person add, new-person later link and addressed not_found now
+   preserve their declared typed refusal. The second connection changes the referenced root
+   just before `BEGIN IMMEDIATE`; the refusing owner captures zero values and leaves its
+   domain/event/sequence snapshot unchanged. A preceding rename remains committed. Focused
+   restored logs are `/tmp/shared-people-6i-review-a-typed-green.log`,
+   `/tmp/shared-people-6i-review-a-typed-expanded.log`, and
+   `/tmp/shared-people-6i-review-a-new-link-green.log`.
+2. The owner's resolver used to recheck only a person's assignment project. The A-team removal
+   race inserts B's person's membership after public preflight but before the owner; the
+   unfixed path reached the throwing capture spy rather than refusing corrupt reach
+   (`/tmp/shared-people-6i-review-b-team-race-red.log`). It now calls the existing complete
+   `admitted.directory.foreignReferencesTo` on the same OPEN writer before capture. Mounted
+   races cover team membership, service's foreign team, tag/type on a foreign work item and a
+   person's assignment on a foreign step (`/tmp/shared-people-6i-review-b-reach-matrix-green.log`,
+   5/5). The A-team race separately compares the full directory, event log and sequencer with
+   the state just after the second-connection insertion, asserts zero capture and zero delivery.
+   Removing only the owner-side foreign reach recheck fails by reaching capture
+   (`/tmp/shared-people-6i-review-b-owner-check-omission-red.log`); restored source passed the
+   12-case focused suite (`/tmp/shared-people-6i-review-followup-focused-green.log`, 65 assertions).
+3. Name-idempotent membership addition now asserts zero event rows, sequencer changes and push
+   despite its real raw write. Injecting a spurious recipient into the production recorder made
+   that mounted assertion RED on a durable `elsewhere_changed` row
+   (`/tmp/shared-people-6i-review-c-spurious-event-red.log`). The team second-owner after-capture
+   fault independently retains its first rename, one ordinary announcement, and no later link
+   (`/tmp/shared-people-6i-review-c-team-idempotent-green.log`, 2/2). A mounted mixed batch
+   performs `setEstimate` → `deleteTeam(cascade)` → `duplicateWorkItem` →
+   `arrangeBySchedule`. Restored production returns 200; original and copy have no deleted team,
+   copy keeps Ana, later project's addressed Fast slice starts at 2 instead of 1, and its exact
+   shared event names the first project as cause
+   (`/tmp/shared-people-6i-review-c-working-plan-restored-green.log`). Removing only
+   `await reloadPlan()` leaves the deleted team on the retained leaf. The later duplicate tries
+   to insert that stale team FK, so the mounted batch returns 500 instead of 200
+   (`/tmp/shared-people-6i-review-c-working-plan-reload-omission-red.log`). The first fixture
+   assertion included both default steps and failed before the batch; it was corrected to
+   inspect only the addressed step (`/tmp/shared-people-6i-review-c-working-plan-green-attempt.log`).
+
+All three injected production faults were restored before the focused GREEN. These logs do not
+claim a new gate, CI, push, merge, publication or activation. Task 6i stays unchecked pending
+independent follow-up review.
+
+The additional three typed-refusal arms were each faulted independently after the team RED:
+throwing instead of returning the existing-person add, new-person link and person-patch
+refusals respectively failed their mounted queued cases
+(`/tmp/shared-people-6i-review-a-existing-refusal-omission-red.log`,
+`/tmp/shared-people-6i-review-a-new-refusal-omission-red.log`,
+`/tmp/shared-people-6i-review-a-person-patch-refusal-omission-red.log`). Each source mutation was
+restored; the final typed focused run passed 4/4, 28 assertions and includes zero-delivery
+checks (`/tmp/shared-people-6i-review-a-final-green.log`).
+
+The post-follow-up six-file mounted/store suite passed 67/67, 419 assertions
+(`/tmp/shared-people-6i-review-six-file-final2.log`). First affected Nx lint/typecheck failed
+on six new test typing errors (`/tmp/shared-people-6i-review-nx-final.log`), which were fixed
+without changing assertions; direct BE `tsc --build --force` then passed
+(`/tmp/shared-people-6i-review-type-fix.log`). The next full run passed typecheck but failed
+store lint on the new import order (`/tmp/shared-people-6i-review-nx-final2.log`, targeted
+diagnosis `/tmp/shared-people-6i-review-store-eslint-diagnosis.log`). That import was sorted;
+full affected Nx lint/typecheck passed 8/8 (`/tmp/shared-people-6i-review-nx-final3.log`).
+The subsequent test-only zero-delivery assertions passed 4/4 and BE lint/typecheck passed
+(`/tmp/shared-people-6i-review-be-final-test-check.log`). Declared
+`wbs-core:build:portable` and `wbs-be-01:build` passed
+(`/tmp/shared-people-6i-review-core-build.log`, `/tmp/shared-people-6i-review-be-build.log`).
+
+Final changed-path Prettier, pinned strict OpenSpec 1/1, all OpenSpec 148/148 and diff check
+passed after the ledger reconciliation
+(`/tmp/shared-people-6i-review-final-ledger-format.log`,
+`/tmp/shared-people-6i-review-final-ledger-strict.json`,
+`/tmp/shared-people-6i-review-final-ledger-all.json`,
+`/tmp/shared-people-6i-review-final-ledger-diff.log`). The historical first format/type/lint
+failures above are retained; no blanket pass is inferred from their failed runs.
